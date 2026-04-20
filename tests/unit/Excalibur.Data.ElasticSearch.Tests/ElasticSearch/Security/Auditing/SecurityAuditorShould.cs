@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.ElasticSearch.Internal;
 using Excalibur.Data.ElasticSearch.Security;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -11,9 +12,19 @@ namespace Excalibur.Data.Tests.ElasticSearch.Security.Auditing;
 /// Unit tests for the <see cref="SecurityAuditor"/> class.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Sprint 512 (S512.2): Elasticsearch compliance unit tests.
-/// Tests focus on constructor validation for GDPR/HIPAA/PCI-DSS compliance-critical components.
-/// The SecurityAuditor is the main public class orchestrating all compliance reporting.
+/// Tests focus on constructor validation for GDPR/HIPAA/PCI-DSS
+/// compliance-critical components. The SecurityAuditor is the main public
+/// class orchestrating all compliance reporting.
+/// </para>
+/// <para>
+/// S799 bd-iqlx2p: the <c>ElasticsearchClient</c> dependency is constructed
+/// as an unconnected real instance (no network I/O on construction) rather
+/// than via <see cref="FakeItEasy"/>, per ADR-142 §D7 governance. The
+/// <see cref="ISecurityAuditStore"/> seam is faked for the new internal
+/// test-seam ctor null-guard.
+/// </para>
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Elasticsearch")]
@@ -29,7 +40,12 @@ public sealed class SecurityAuditorShould : IDisposable
 
 	public SecurityAuditorShould()
 	{
-		_fakeClient = A.Fake<ElasticsearchClient>();
+		// Real unconnected ElasticsearchClient — ctor accepts settings but
+		// does not perform any network I/O. Substitutes for the prior
+		// `A.Fake<ElasticsearchClient>()` to remove concrete-SDK-type faking
+		// per ADR-142 §D7 / S799 SdkFake debt-drain.
+		_fakeClient = new ElasticsearchClient(
+			new ElasticsearchClientSettings(new Uri("http://localhost:9200")));
 		_auditOptions = Options.Create(new AuditOptions());
 		_monitoringOptions = Options.Create(new SecurityMonitoringOptions());
 		_logger = NullLogger<SecurityAuditor>.Instance;
@@ -67,6 +83,15 @@ public sealed class SecurityAuditorShould : IDisposable
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
 			new SecurityAuditor(_fakeClient, _auditOptions, _monitoringOptions, null!));
+	}
+
+	[Fact]
+	public void ThrowArgumentNullException_WhenAuditStoreIsNull()
+	{
+		// Act & Assert — internal test-seam ctor null-guard on the
+		// ISecurityAuditStore seam (S799 bd-iqlx2p, ADR-142 §D7).
+		_ = Should.Throw<ArgumentNullException>(() =>
+			new SecurityAuditor(_fakeClient, (ISecurityAuditStore)null!, _auditOptions, _monitoringOptions, _logger));
 	}
 
 	#endregion

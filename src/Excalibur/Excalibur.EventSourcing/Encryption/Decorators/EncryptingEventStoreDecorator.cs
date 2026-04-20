@@ -4,7 +4,8 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
+using Excalibur.Compliance.Configuration;
 
 using Excalibur.EventSourcing.Abstractions;
 

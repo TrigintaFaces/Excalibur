@@ -35,11 +35,7 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	// AD-251-4: Lock retained for List<Task> operations - List<T> is not thread-safe
 	private readonly List<Task> _inFlightTasks = [];
 
-#if NET9_0_OR_GREATER
 	private readonly Lock _inFlightTasksLock = new();
-#else
-	private readonly object _inFlightTasksLock = new();
-#endif
 	private int _disposed;
 
 	/// <summary>

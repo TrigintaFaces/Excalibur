@@ -1,3 +1,6 @@
+using System.Reflection;
+using System.Text.RegularExpressions;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Transport;
@@ -98,5 +101,69 @@ public sealed class TransportBindingShould
 		binding.Matches("orders.events.created").ShouldBeTrue();
 		binding.Matches("users.events.updated").ShouldBeTrue();
 		binding.Matches("orders.commands.create").ShouldBeFalse();
+	}
+
+	/// <summary>
+	/// Defense-in-depth against ReDoS: the endpoint regex constructed from a
+	/// wildcard pattern MUST carry an explicit 1-second MatchTimeout so a
+	/// pathological pattern configured by a consumer cannot hang a dispatcher
+	/// thread with catastrophic backtracking.
+	/// </summary>
+	/// <remarks>[S795 bd-ilwc63].</remarks>
+	[Fact]
+	public void RegexHasExplicitMatchTimeoutForReDoSDefense()
+	{
+		var binding = new TransportBinding("test", _fakeAdapter, "orders/*");
+
+		var field = typeof(TransportBinding).GetField(
+			"_endpointRegex",
+			BindingFlags.Instance | BindingFlags.NonPublic);
+		field.ShouldNotBeNull("_endpointRegex field must exist on TransportBinding.");
+
+		var regex = field!.GetValue(binding) as Regex;
+		regex.ShouldNotBeNull("Wildcard patterns must compile to a Regex instance.");
+
+		regex!.MatchTimeout.ShouldBe(
+			TimeSpan.FromSeconds(1),
+			"TransportBinding must construct its endpoint regex with an explicit " +
+			"1-second MatchTimeout (ReDoS defense-in-depth per bd-ilwc63).");
+	}
+
+	/// <summary>
+	/// The MatchTimeout is enforced at match time — a very long candidate
+	/// endpoint must return a bounded result (either a match decision or a
+	/// <see cref="RegexMatchTimeoutException"/>) rather than hanging the
+	/// calling thread.
+	/// </summary>
+	/// <remarks>
+	/// Generous 2-second wall-clock assertion absorbs Windows/Linux timer
+	/// variance around the 1-second internal timeout. [S795 bd-ilwc63 / plan §Risk row 4].
+	/// </remarks>
+	[Fact]
+	public void MatchesCompletesWithinTimeoutForLongInput()
+	{
+		var binding = new TransportBinding("test", _fakeAdapter, "orders/*/events/*");
+
+		// 200K-character input — catastrophic-backtracking risk is low for this
+		// particular escaped-wildcard shape, but the bounded-evaluation contract
+		// must hold regardless. The test asserts the wall-clock budget, not the
+		// match outcome.
+		var longInput = new string('a', 200_000);
+
+		var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+		try
+		{
+			_ = binding.Matches(longInput);
+		}
+		catch (RegexMatchTimeoutException)
+		{
+			// Acceptable — timeout fired before input was fully evaluated.
+		}
+		stopwatch.Stop();
+
+		stopwatch.Elapsed.ShouldBeLessThan(
+			TimeSpan.FromSeconds(2),
+			"Matches(long-input) must return or throw RegexMatchTimeoutException " +
+			"within 2 seconds (1-second MatchTimeout + platform timer variance).");
 	}
 }

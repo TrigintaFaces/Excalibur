@@ -29,7 +29,7 @@ public static class SagaBuilderCosmosDbExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSaga(saga =&gt;
+	/// services.AddExcalibur(x => x.AddSagas(saga =&gt;
 	/// {
 	///     saga.UseCosmosDb(cosmos =&gt;
 	///     {
@@ -37,7 +37,7 @@ public static class SagaBuilderCosmosDbExtensions
 	///               .DatabaseName("myapp")
 	///               .ContainerName("sagas");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

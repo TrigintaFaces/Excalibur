@@ -188,7 +188,7 @@ Excalibur.Caching.Projections.ProjectionCacheInvalidator
 Excalibur.Caching.Projections.ProjectionCacheInvalidator.InvalidateCacheAsync(object! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Caching.Projections.ProjectionCacheInvalidator.ProjectionCacheInvalidator(Excalibur.Dispatch.Caching.ICacheInvalidationService! cache, System.IServiceProvider! services, Microsoft.Extensions.Logging.ILogger<Excalibur.Caching.Projections.ProjectionCacheInvalidator!>! logger) -> void
 Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions
-Microsoft.Extensions.DependencyInjection.ExcaliburProjectionCachingServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.EventSourcingBuilderProjectionCachingExtensions
 const Excalibur.Caching.Diagnostics.CachingEventId.AdaptiveCacheError = 151801 -> int
 const Excalibur.Caching.Diagnostics.CachingEventId.AdaptiveCacheOperation = 151800 -> int
 const Excalibur.Caching.Diagnostics.CachingEventId.AdaptiveTtlCalculated = 151700 -> int
@@ -243,7 +243,6 @@ const Excalibur.Caching.Diagnostics.CachingEventId.ResolverInvocationFailed = 15
 const Excalibur.Caching.Diagnostics.CachingEventId.RuleBasedMetricsUpdated = 151901 -> int
 const Excalibur.Caching.Diagnostics.CachingEventId.RuleBasedTtlCalculated = 151900 -> int
 const Excalibur.Caching.Diagnostics.CachingEventId.SetCacheKey = 151802 -> int
-static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.AddProjectionCaching(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolvers(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, params System.Type![]! resolverTypes) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolversFromAssembly(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.ExcaliburProjectionCachingServiceCollectionExtensions.AddExcaliburProjectionCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.EventSourcingBuilderProjectionCachingExtensions.AddProjectionCaching(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

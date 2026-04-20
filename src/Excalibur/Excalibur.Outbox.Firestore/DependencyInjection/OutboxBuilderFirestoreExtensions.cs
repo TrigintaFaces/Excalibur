@@ -30,14 +30,14 @@ public static class OutboxBuilderFirestoreExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburOutbox(outbox =&gt;
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =&gt;
 	/// {
 	///     outbox.UseFirestore(firestore =&gt;
 	///     {
 	///         firestore.ProjectId("my-project")
 	///                  .CollectionName("outbox");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

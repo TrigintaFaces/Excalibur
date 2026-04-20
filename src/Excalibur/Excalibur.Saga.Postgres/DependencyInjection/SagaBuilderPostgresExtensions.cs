@@ -27,7 +27,7 @@ public static class SagaBuilderPostgresExtensions
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSagas(saga =&gt;
+	/// services.AddExcalibur(x =&gt; x.AddSagas(saga =&gt;
 	/// {
 	///     saga.UsePostgres(pg =&gt;
 	///     {
@@ -35,7 +35,7 @@ public static class SagaBuilderPostgresExtensions
 	///           .SchemaName("dispatch")
 	///           .TableName("sagas");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static ISagaBuilder UsePostgres(

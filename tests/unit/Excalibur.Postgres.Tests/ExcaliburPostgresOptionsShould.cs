@@ -3,7 +3,7 @@
 
 using Excalibur.Compliance.Postgres.Erasure;
 using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.AuditLogging.Postgres;
+using Excalibur.AuditLogging.Postgres;
 using Excalibur.Inbox.Postgres;
 using Excalibur.LeaderElection.Postgres;
 using Excalibur.Postgres;

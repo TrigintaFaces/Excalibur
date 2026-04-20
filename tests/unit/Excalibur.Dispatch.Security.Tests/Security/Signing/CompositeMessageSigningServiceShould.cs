@@ -5,7 +5,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 

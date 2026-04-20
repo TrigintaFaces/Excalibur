@@ -10,10 +10,10 @@ Data masking protects sensitive information (PII/PHI) by replacing identifiable 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.Security
+  dotnet add package Excalibur.Security
   ```
 - Familiarity with [encryption providers](../security/encryption-providers.md) and [GDPR erasure](./gdpr-erasure.md)
 

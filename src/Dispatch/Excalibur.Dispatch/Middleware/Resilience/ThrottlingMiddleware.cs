@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// </para>
 /// <para>
 /// For identity-based abuse prevention (per-user, per-API-key, per-IP rate limiting),
-/// see <c>Excalibur.Dispatch.Security.RateLimitingMiddleware</c> instead.
+/// see <c>Excalibur.Security.RateLimitingMiddleware</c> instead.
 /// </para>
 /// </remarks>
 [AppliesTo(MessageKinds.Action | MessageKinds.Event)]

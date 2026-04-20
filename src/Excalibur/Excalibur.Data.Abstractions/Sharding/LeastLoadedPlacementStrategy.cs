@@ -17,9 +17,7 @@ namespace Excalibur.Data.Abstractions.Sharding;
 internal sealed class LeastLoadedPlacementStrategy : ITenantPlacementStrategy
 {
 	private readonly Dictionary<string, int> _shardCounts = new(StringComparer.OrdinalIgnoreCase);
-#pragma warning disable IDE0330 // Use 'Lock' -- object lock required for net8.0 compat
-	private readonly object _lock = new();
-#pragma warning restore IDE0330
+	private readonly System.Threading.Lock _lock = new();
 
 	/// <inheritdoc />
 	public string SelectShard(string tenantId, IReadOnlyCollection<string> availableShardIds)

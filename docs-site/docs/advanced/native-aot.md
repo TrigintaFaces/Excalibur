@@ -10,7 +10,7 @@ Excalibur provides first-class Native AOT support through source generators that
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -304,10 +304,10 @@ Source generators report diagnostic messages during compilation:
 
 ## AOT Sample
 
-The `samples/11-aot/Excalibur.Dispatch.Aot.Sample` project demonstrates full AOT compilation:
+The `samples/10-aot/Excalibur.Dispatch.Aot.Sample` project demonstrates full AOT compilation:
 
 ```bash
-cd samples/11-aot/Excalibur.Dispatch.Aot.Sample
+cd samples/10-aot/Excalibur.Dispatch.Aot.Sample
 dotnet publish -c Release
 ```
 

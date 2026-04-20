@@ -26,7 +26,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ConstructSuccessfully()
 	{
 		// Act
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 
 		// Assert
 		provider.ShouldNotBeNull();
@@ -36,7 +36,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ReturnAzureFunctionsPlatform()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 
 		// Act & Assert
 		provider.Platform.ShouldBe(ServerlessPlatform.AzureFunctions);
@@ -46,7 +46,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ReturnIsAvailableFalseInTestEnvironment()
 	{
 		// Arrange — AZURE_FUNCTIONS_ENVIRONMENT not set in test env
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 
 		// Act & Assert
 		provider.IsAvailable.ShouldBeFalse();
@@ -56,7 +56,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ReturnSelfForGetServiceWithMatchingType()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 
 		// Act
 		var result = provider.GetService(typeof(AzureFunctionsHostProvider));
@@ -69,7 +69,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ReturnNullForGetServiceWithNonMatchingType()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 
 		// Act
 		var result = provider.GetService(typeof(string));
@@ -82,7 +82,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ThrowWhenGetServiceTypeIsNull()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => provider.GetService(null!));
@@ -92,7 +92,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ThrowWhenConfigureServicesServicesIsNull()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 		var options = new ServerlessHostOptions();
 
 		// Act & Assert
@@ -103,7 +103,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ThrowWhenConfigureServicesOptionsIsNull()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 		var services = new ServiceCollection();
 
 		// Act & Assert
@@ -114,7 +114,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ThrowWhenCreateContextPlatformContextIsNull()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => provider.CreateContext(null!));
@@ -124,7 +124,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public void ThrowWhenCreateContextPlatformContextIsWrongType()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(() => provider.CreateContext("not-a-function-context"));
@@ -134,7 +134,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public async Task ThrowWhenExecuteAsyncInputIsNull()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 		var context = A.Fake<IServerlessContext>();
 
 		// Act & Assert
@@ -146,7 +146,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public async Task ThrowWhenExecuteAsyncContextIsNull()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(() =>
@@ -157,7 +157,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public async Task ThrowWhenExecuteAsyncHandlerIsNull()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 		var context = A.Fake<IServerlessContext>();
 
 		// Act & Assert
@@ -169,7 +169,7 @@ public sealed class DispatchAzureFunctionsHostProviderShould : UnitTestBase
 	public async Task ExecuteHandlerSuccessfully()
 	{
 		// Arrange
-		var provider = new AzureFunctionsHostProvider(NullLogger.Instance);
+		var provider = new AzureFunctionsHostProvider(NullLogger<AzureFunctionsHostProvider>.Instance);
 		var context = A.Fake<IServerlessContext>();
 		A.CallTo(() => context.RemainingTime).Returns(TimeSpan.FromMinutes(5));
 

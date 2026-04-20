@@ -9,7 +9,7 @@ The in-memory transport is included with Dispatch and is ideal for testing, deve
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch

@@ -1378,12 +1378,12 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
+        run: dotnet restore samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
 
       - name: Build AOT sample (Release)
         run: |
           echo "Building AOT sample with source generators..."
-          dotnet build samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
+          dotnet build samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
             --configuration Release \
             --no-restore \
             -p:TreatWarningsAsErrors=true \
@@ -1398,11 +1398,11 @@ jobs:
       - name: Verify AOT publish configuration
         run: |
           echo "Verifying AOT/trimming configuration..."
-          if ! grep -q '<PublishAot>true</PublishAot>' samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
+          if ! grep -q '<PublishAot>true</PublishAot>' samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
             echo "PublishAot not enabled in project file"
             exit 1
           fi
-          if ! grep -q '<TrimMode>full</TrimMode>' samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
+          if ! grep -q '<TrimMode>full</TrimMode>' samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
             echo "TrimMode not set to full"
             exit 1
           fi
@@ -1424,7 +1424,7 @@ jobs:
       - name: Run AOT sample (smoke test)
         run: |
           echo "Running AOT sample as smoke test..."
-          timeout 30 dotnet run --project samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
+          timeout 30 dotnet run --project samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
             --configuration Release \
             --no-build || true
           echo "AOT sample smoke test completed"

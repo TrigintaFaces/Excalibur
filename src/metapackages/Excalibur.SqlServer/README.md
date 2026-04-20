@@ -21,7 +21,7 @@ This registers: Dispatch core, SQL Server event sourcing, outbox, hosting, inbox
 | `Excalibur.Inbox.SqlServer` | Idempotent message processing |
 | `Excalibur.Saga.SqlServer` | Long-running process managers |
 | `Excalibur.LeaderElection.SqlServer` | Multi-instance coordination |
-| `Excalibur.Dispatch.AuditLogging.SqlServer` | Audit trail persistence |
+| `Excalibur.AuditLogging.SqlServer` | Audit trail persistence |
 | `Excalibur.Compliance.SqlServer` | GDPR/compliance features |
 | `Excalibur.Data.SqlServer` | Data access layer |
 

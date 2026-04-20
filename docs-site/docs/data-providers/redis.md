@@ -10,7 +10,7 @@ The Redis provider offers key-value storage with TTL support, pub/sub integratio
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A Redis instance (local, Azure Cache for Redis, or ElastiCache)
 - Familiarity with [data access](../data-access/index.md) and [caching](../performance/caching.md)
 
@@ -60,7 +60,7 @@ services.AddExcaliburInbox(inbox =>
 ### Outbox Store
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseRedis(redis =>
     {
@@ -68,13 +68,13 @@ services.AddExcaliburOutbox(outbox =>
              .KeyPrefix("outbox")
              .Database(1);
     });
-});
+}));
 ```
 
 ### Event Sourcing
 
 ```csharp
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseRedis(redis =>
     {
@@ -83,13 +83,13 @@ services.AddExcaliburEventSourcing(es =>
              .Database(0);
     })
     .AddRepository<OrderAggregate, Guid>();
-});
+}));
 ```
 
 ### Leader Election
 
 ```csharp
-services.AddExcaliburLeaderElection(le =>
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le =>
 {
     le.UseRedis(redis =>
     {
@@ -97,7 +97,7 @@ services.AddExcaliburLeaderElection(le =>
              .LockKey("myapp:leader")
              .Database(0);
     });
-});
+}));
 ```
 
 ## Use Cases

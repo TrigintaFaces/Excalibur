@@ -25,7 +25,7 @@ namespace Excalibur.Saga.SqlServer;
 /// <para>
 /// <b>Usage:</b>
 /// <code>
-/// services.AddExcaliburSaga(saga =&gt;
+/// services.AddExcalibur(x => x.AddSagas(saga =&gt;
 /// {
 ///     saga.UseSqlServer(sql =&gt;
 ///     {
@@ -35,7 +35,7 @@ namespace Excalibur.Saga.SqlServer;
 ///     })
 ///     .WithOrchestration()
 ///     .WithTimeouts();
-/// });
+/// }));
 /// </code>
 /// </para>
 /// </remarks>

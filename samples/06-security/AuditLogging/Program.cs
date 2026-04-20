@@ -22,7 +22,7 @@ using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Configuration;

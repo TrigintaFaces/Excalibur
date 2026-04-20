@@ -10,7 +10,7 @@ Excalibur.Dispatch is designed for low-latency messaging with explicit performan
 
 ## Before You Start
 
-- **.NET 8.0+** (benchmarks validated on .NET 10.0.103)
+- **.NET 10.0** (benchmarks validated on .NET 10.0.103)
 - Familiarity with [pipeline profiles](../pipeline/profiles.md) and [middleware](../middleware/index.md)
 
 ## Key Performance Metrics

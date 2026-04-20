@@ -10,8 +10,8 @@
 
 namespace Excalibur.Security {
     using System;
-    
-    
+
+
     /// <summary>
     ///   A strongly-typed resource class, for looking up localized strings, etc.
     /// </summary>
@@ -23,15 +23,15 @@ namespace Excalibur.Security {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     internal sealed class Resources {
-        
+
         private static global::System.Resources.ResourceManager resourceMan;
-        
+
         private static global::System.Globalization.CultureInfo resourceCulture;
-        
+
         [global::System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
         internal Resources() {
         }
-        
+
         /// <summary>
         ///   Returns the cached ResourceManager instance used by this class.
         /// </summary>
@@ -45,7 +45,7 @@ namespace Excalibur.Security {
                 return resourceMan;
             }
         }
-        
+
         /// <summary>
         ///   Overrides the current thread's CurrentUICulture property for all
         ///   resource lookups using this strongly typed resource class.
@@ -59,7 +59,357 @@ namespace Excalibur.Security {
                 resourceCulture = value;
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to decrypt message - invalid key or corrupted data.
+        /// </summary>
+        internal static string DataProtectionMessageEncryptionService_FailedToDecryptInvalidKeyOrCorruptedData {
+            get {
+                return ResourceManager.GetString("DataProtectionMessageEncryptionService_FailedToDecryptInvalidKeyOrCorruptedData", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Key rotation failed.
+        /// </summary>
+        internal static string DataProtectionMessageEncryptionService_KeyRotationFailed {
+            get {
+                return ResourceManager.GetString("DataProtectionMessageEncryptionService_KeyRotationFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Message decryption failed.
+        /// </summary>
+        internal static string DataProtectionMessageEncryptionService_MessageDecryptionFailed {
+            get {
+                return ResourceManager.GetString("DataProtectionMessageEncryptionService_MessageDecryptionFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Message encryption failed.
+        /// </summary>
+        internal static string DataProtectionMessageEncryptionService_MessageEncryptionFailed {
+            get {
+                return ResourceManager.GetString("DataProtectionMessageEncryptionService_MessageEncryptionFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Elasticsearch connection string is required.
+        /// </summary>
+        internal static string ElasticsearchSecurityEventStore_ConnectionStringRequired {
+            get {
+                return ResourceManager.GetString("ElasticsearchSecurityEventStore_ConnectionStringRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to query security events from Elasticsearch.
+        /// </summary>
+        internal static string ElasticsearchSecurityEventStore_FailedToQueryEvents {
+            get {
+                return ResourceManager.GetString("ElasticsearchSecurityEventStore_FailedToQueryEvents", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to store security events in Elasticsearch.
+        /// </summary>
+        internal static string ElasticsearchSecurityEventStore_FailedToStoreEvents {
+            get {
+                return ResourceManager.GetString("ElasticsearchSecurityEventStore_FailedToStoreEvents", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to MaxResults cannot exceed 10000 for Elasticsearch queries.
+        /// </summary>
+        internal static string ElasticsearchSecurityEventStore_MaxResultsCannotExceedLimit {
+            get {
+                return ResourceManager.GetString("ElasticsearchSecurityEventStore_MaxResultsCannotExceedLimit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to MaxResults must be greater than 0.
+        /// </summary>
+        internal static string ElasticsearchSecurityEventStore_MaxResultsMustBeGreaterThanZero {
+            get {
+                return ResourceManager.GetString("ElasticsearchSecurityEventStore_MaxResultsMustBeGreaterThanZero", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No valid events to index in Elasticsearch.
+        /// </summary>
+        internal static string ElasticsearchSecurityEventStore_NoValidEventsToIndex {
+            get {
+                return ResourceManager.GetString("ElasticsearchSecurityEventStore_NoValidEventsToIndex", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to StartTime cannot be greater than EndTime.
+        /// </summary>
+        internal static string ElasticsearchSecurityEventStore_StartTimeAfterEndTime {
+            get {
+                return ResourceManager.GetString("ElasticsearchSecurityEventStore_StartTimeAfterEndTime", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Migration failed for item {0}.
+        /// </summary>
+        internal static string EncryptionMigrationService_MigrationFailedForItemFormat {
+            get {
+                return ResourceManager.GetString("EncryptionMigrationService_MigrationFailedForItemFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to query security events from audit log files.
+        /// </summary>
+        internal static string FileSecurityEventStore_FailedToQueryEvents {
+            get {
+                return ResourceManager.GetString("FileSecurityEventStore_FailedToQueryEvents", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to store security events to audit log files.
+        /// </summary>
+        internal static string FileSecurityEventStore_FailedToStoreEvents {
+            get {
+                return ResourceManager.GetString("FileSecurityEventStore_FailedToStoreEvents", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to MaxResults must be greater than zero.
+        /// </summary>
+        internal static string FileSecurityEventStore_MaxResultsMustBeGreaterThanZero {
+            get {
+                return ResourceManager.GetString("FileSecurityEventStore_MaxResultsMustBeGreaterThanZero", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No valid events to write to audit log file.
+        /// </summary>
+        internal static string FileSecurityEventStore_NoValidEventsToWrite {
+            get {
+                return ResourceManager.GetString("FileSecurityEventStore_NoValidEventsToWrite", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to StartTime cannot be greater than EndTime.
+        /// </summary>
+        internal static string FileSecurityEventStore_StartTimeAfterEndTime {
+            get {
+                return ResourceManager.GetString("FileSecurityEventStore_StartTimeAfterEndTime", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Credential cannot be empty.
+        /// </summary>
+        internal static string HashiCorpVaultCredentialStore_CredentialCannotBeEmpty {
+            get {
+                return ResourceManager.GetString("HashiCorpVaultCredentialStore_CredentialCannotBeEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to retrieve secret &apos;{0}&apos; from HashiCorp Vault.
+        /// </summary>
+        internal static string HashiCorpVaultCredentialStore_FailedToRetrieveSecretFormat {
+            get {
+                return ResourceManager.GetString("HashiCorpVaultCredentialStore_FailedToRetrieveSecretFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to store secret &apos;{0}&apos; in HashiCorp Vault.
+        /// </summary>
+        internal static string HashiCorpVaultCredentialStore_FailedToStoreSecretFormat {
+            get {
+                return ResourceManager.GetString("HashiCorpVaultCredentialStore_FailedToStoreSecretFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Key cannot be null or empty.
+        /// </summary>
+        internal static string HashiCorpVaultCredentialStore_KeyCannotBeNullOrEmpty {
+            get {
+                return ResourceManager.GetString("HashiCorpVaultCredentialStore_KeyCannotBeNullOrEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Vault token is required.
+        /// </summary>
+        internal static string HashiCorpVaultCredentialStore_VaultTokenRequired {
+            get {
+                return ResourceManager.GetString("HashiCorpVaultCredentialStore_VaultTokenRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Vault URL is required.
+        /// </summary>
+        internal static string HashiCorpVaultCredentialStore_VaultUrlRequired {
+            get {
+                return ResourceManager.GetString("HashiCorpVaultCredentialStore_VaultUrlRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Message signing failed.
+        /// </summary>
+        internal static string HmacMessageSigningService_MessageSigningFailed {
+            get {
+                return ResourceManager.GetString("HmacMessageSigningService_MessageSigningFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Signature verification failed.
+        /// </summary>
+        internal static string HmacMessageSigningService_SignatureVerificationFailed {
+            get {
+                return ResourceManager.GetString("HmacMessageSigningService_SignatureVerificationFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Algorithm &apos;{0}&apos; is not supported by this implementation.
+        /// </summary>
+        internal static string HmacMessageSigningService_UnsupportedAlgorithmFormat {
+            get {
+                return ResourceManager.GetString("HmacMessageSigningService_UnsupportedAlgorithmFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Algorithm &apos;{0}&apos; is not supported.
+        /// </summary>
+        internal static string HmacMessageSigningService_UnsupportedAlgorithmForVerificationFormat {
+            get {
+                return ResourceManager.GetString("HmacMessageSigningService_UnsupportedAlgorithmForVerificationFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Validation failed.
+        /// </summary>
+        internal static string InputValidationException_ValidationFailed {
+            get {
+                return ResourceManager.GetString("InputValidationException_ValidationFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Lazy re-encryption failed.
+        /// </summary>
+        internal static string LazyReEncryptionMiddleware_ReEncryptionFailed {
+            get {
+                return ResourceManager.GetString("LazyReEncryptionMiddleware_ReEncryptionFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Lazy re-encryption failed: {0}.
+        /// </summary>
+        internal static string LazyReEncryptionMiddleware_ReEncryptionFailedFormat {
+            get {
+                return ResourceManager.GetString("LazyReEncryptionMiddleware_ReEncryptionFailedFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unknown error.
+        /// </summary>
+        internal static string LazyReEncryptionMiddleware_UnknownError {
+            get {
+                return ResourceManager.GetString("LazyReEncryptionMiddleware_UnknownError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Encrypted payload not found in context.
+        /// </summary>
+        internal static string MessageEncryptionMiddleware_EncryptedPayloadNotFound {
+            get {
+                return ResourceManager.GetString("MessageEncryptionMiddleware_EncryptedPayloadNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Rate limit algorithm {0} is not supported.
+        /// </summary>
+        internal static string RateLimitingMiddleware_UnsupportedAlgorithmFormat {
+            get {
+                return ResourceManager.GetString("RateLimitingMiddleware_UnsupportedAlgorithmFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to rotate credential &apos;{0}&apos; - no writable stores available.
+        /// </summary>
+        internal static string SecureCredentialProvider_NoWritableStoresAvailableFormat {
+            get {
+                return ResourceManager.GetString("SecureCredentialProvider_NoWritableStoresAvailableFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to query security events.
+        /// </summary>
+        internal static string SqlSecurityEventStore_FailedToQueryEvents {
+            get {
+                return ResourceManager.GetString("SqlSecurityEventStore_FailedToQueryEvents", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to store security events.
+        /// </summary>
+        internal static string SqlSecurityEventStore_FailedToStoreEvents {
+            get {
+                return ResourceManager.GetString("SqlSecurityEventStore_FailedToStoreEvents", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Invalid events detected: {0} out of {1}.
+        /// </summary>
+        internal static string SqlSecurityEventStore_InvalidEventsDetectedFormat {
+            get {
+                return ResourceManager.GetString("SqlSecurityEventStore_InvalidEventsDetectedFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to MaxResults must be greater than zero.
+        /// </summary>
+        internal static string SqlSecurityEventStore_MaxResultsMustBeGreaterThanZero {
+            get {
+                return ResourceManager.GetString("SqlSecurityEventStore_MaxResultsMustBeGreaterThanZero", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to StartTime cannot be greater than EndTime.
+        /// </summary>
+        internal static string SqlSecurityEventStore_StartTimeAfterEndTime {
+            get {
+                return ResourceManager.GetString("SqlSecurityEventStore_StartTimeAfterEndTime", resourceCulture);
+            }
+        }
         /// <summary>
         ///   Looks up a localized string similar to HashLength must be at least 16 bytes..
         /// </summary>
@@ -68,7 +418,6 @@ namespace Excalibur.Security {
                 return ResourceManager.GetString("Argon2HashLengthMinimum", resourceCulture);
             }
         }
-        
         /// <summary>
         ///   Looks up a localized string similar to Iterations must be at least 1..
         /// </summary>
@@ -77,7 +426,6 @@ namespace Excalibur.Security {
                 return ResourceManager.GetString("Argon2IterationsMinimum", resourceCulture);
             }
         }
-        
         /// <summary>
         ///   Looks up a localized string similar to MemorySize must be at least 8192 KB (8 MB)..
         /// </summary>
@@ -86,7 +434,6 @@ namespace Excalibur.Security {
                 return ResourceManager.GetString("Argon2MemorySizeMinimum", resourceCulture);
             }
         }
-        
         /// <summary>
         ///   Looks up a localized string similar to Options value cannot be null..
         /// </summary>
@@ -95,7 +442,6 @@ namespace Excalibur.Security {
                 return ResourceManager.GetString("Argon2OptionsValueNull", resourceCulture);
             }
         }
-        
         /// <summary>
         ///   Looks up a localized string similar to Parallelism must be at least 1..
         /// </summary>
@@ -104,7 +450,6 @@ namespace Excalibur.Security {
                 return ResourceManager.GetString("Argon2ParallelismMinimum", resourceCulture);
             }
         }
-        
         /// <summary>
         ///   Looks up a localized string similar to Password cannot be empty or whitespace..
         /// </summary>
@@ -113,7 +458,6 @@ namespace Excalibur.Security {
                 return ResourceManager.GetString("Argon2PasswordEmptyOrWhitespace", resourceCulture);
             }
         }
-        
         /// <summary>
         ///   Looks up a localized string similar to SaltLength must be at least 16 bytes..
         /// </summary>

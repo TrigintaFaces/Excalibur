@@ -21,7 +21,7 @@ namespace Excalibur.Saga.Postgres;
 /// <para>
 /// <b>Usage:</b>
 /// <code>
-/// services.AddExcaliburSagas(saga =&gt;
+/// services.AddExcalibur(x =&gt; x.AddSagas(saga =&gt;
 /// {
 ///     saga.UsePostgres(pg =&gt;
 ///     {
@@ -29,7 +29,7 @@ namespace Excalibur.Saga.Postgres;
 ///           .SchemaName("dispatch")
 ///           .TableName("sagas");
 ///     });
-/// });
+/// }));
 /// </code>
 /// </para>
 /// </remarks>

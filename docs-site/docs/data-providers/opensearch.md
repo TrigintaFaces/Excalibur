@@ -10,7 +10,7 @@ Full parity with the [Elasticsearch provider](./elasticsearch.md), built on `Ope
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An OpenSearch cluster (local, AWS OpenSearch Service, or self-hosted)
 - Familiarity with [data access](../data-access/index.md) and [projections](../event-sourcing/projections.md)
 
@@ -170,11 +170,11 @@ services.Configure<OpenSearchDeadLetterOptions>(opts =>
 ### Tenant Sharding
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
-    builder.EnableTenantSharding(opts => opts.EnableTenantSharding = true);
+    builder.EnableTenantSharding(opts => opts.DefaultShardId = "shard-default");
     builder.UseOpenSearchTenantProjectionStore<OrderSummary>();
-});
+}));
 ```
 
 ### Persistence Provider
@@ -219,7 +219,7 @@ The two packages provide **feature parity**. Choose based on your search engine.
 A separate package provides an OpenSearch audit sink for real-time audit event indexing:
 
 ```bash
-dotnet add package Excalibur.Dispatch.AuditLogging.OpenSearch
+dotnet add package Excalibur.AuditLogging.OpenSearch
 ```
 
 ```csharp

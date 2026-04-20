@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.AuditLogging.Sentinel;
+using Excalibur.AuditLogging.Sentinel;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

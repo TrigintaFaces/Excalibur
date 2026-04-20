@@ -28,7 +28,7 @@ public static class OutboxBuilderCosmosDbExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburOutbox(outbox =&gt;
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =&gt;
 	/// {
 	///     outbox.UseCosmosDb(cosmos =&gt;
 	///     {
@@ -36,7 +36,7 @@ public static class OutboxBuilderCosmosDbExtensions
 	///               .DatabaseName("myapp")
 	///               .ContainerName("outbox");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

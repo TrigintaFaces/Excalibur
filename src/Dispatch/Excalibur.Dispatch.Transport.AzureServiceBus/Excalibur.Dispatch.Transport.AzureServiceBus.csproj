@@ -35,6 +35,9 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AzureServiceBus.Tests.Functional" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AzureServiceBus.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
+    <!-- ADR-142 §D7: permits FakeItEasy to proxy internal seam types (e.g., IServiceBusClient) -->
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />

@@ -22,15 +22,9 @@ namespace Excalibur.A3.Authentication;
 /// </summary>
 public sealed class AuthenticationTokenProvider(HttpClient httpClient, IMemoryCache cache) : IAuthenticationTokenProvider
 {
-#if NET9_0_OR_GREATER
 
 	private static readonly Lock SyncRoot = new();
 
-#else
-
-	private static readonly object SyncRoot = new();
-
-#endif
 	private static readonly TimeSpan TokenLifetime = TimeSpan.FromHours(8);
 	private static readonly TimeSpan TokenExpirationThreshold = TimeSpan.FromMinutes(10);
 
@@ -136,11 +130,7 @@ public sealed class AuthenticationTokenProvider(HttpClient httpClient, IMemoryCa
 			500, $"{disco.Error}\t(No HTTP status returned)",
 			disco.Exception);
 
-#if NET9_0_OR_GREATER
 		using var certificate = X509CertificateLoader.LoadPkcs12FromFile(serviceAccountPrivateKeyPath, serviceAccountPrivateKeyPassword);
-#else
-		using var certificate = new X509Certificate2(serviceAccountPrivateKeyPath, serviceAccountPrivateKeyPassword);
-#endif
 		var clientToken = CreateClientToken(certificate, serviceAccountName,
 			disco.TokenEndpoint ?? throw new InvalidOperationException("Discovery document TokenEndpoint is null."));
 

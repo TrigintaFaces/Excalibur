@@ -17,7 +17,7 @@ namespace Excalibur.Outbox;
 /// </remarks>
 /// <example>
 /// <code>
-/// services.AddExcaliburOutbox(outbox =>
+/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 /// {
 ///     outbox.UseSqlServer(sql =>
 ///     {
@@ -40,7 +40,7 @@ namespace Excalibur.Outbox;
 ///                .RetentionPeriod(TimeSpan.FromDays(14));
 ///     })
 ///     .EnableBackgroundProcessing();
-/// });
+/// }));
 /// </code>
 /// </example>
 public interface IOutboxBuilder

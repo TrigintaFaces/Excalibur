@@ -33,14 +33,14 @@ public static class OutboxBuilderMongoDbExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburOutbox(outbox =&gt;
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =&gt;
 	/// {
 	///     outbox.UseMongoDB(mongo =&gt;
 	///     {
 	///         mongo.ConnectionString("mongodb://localhost:27017")
 	///              .DatabaseName("myapp");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

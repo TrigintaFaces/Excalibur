@@ -4,7 +4,7 @@
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
 
-using Excalibur.Dispatch.Compliance.Aws;
+using Excalibur.Compliance.Aws;
 
 using FakeItEasy;
 

@@ -38,7 +38,7 @@ public sealed class KafkaTransportConformanceTests
 			.WithName($"kafka-conformance-{Guid.NewGuid():N}")
 			.WithWaitStrategy(Wait.ForUnixContainer()
 				.UntilMessageIsLogged(".*Kafka Server started.*")
-				.UntilPortIsAvailable(9093))
+				.UntilInternalTcpPortIsAvailable(9093))
 			.WithCleanUp(true)
 			.Build();
 

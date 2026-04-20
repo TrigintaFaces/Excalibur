@@ -46,11 +46,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDis
 	private readonly ConcurrentDictionary<string, ProcessedEntry> _processedMessages = new(StringComparer.Ordinal);
 	private readonly ILogger<InMemoryDeduplicator> _logger;
 	private readonly Timer? _cleanupTimer;
-#if NET9_0_OR_GREATER
 	private readonly Lock _statsLock = new();
-#else
-	private readonly object _statsLock = new();
-#endif
 
 	private readonly ValueStopwatch _uptime = ValueStopwatch.StartNew();
 	private readonly SemaphoreSlim _cleanupGuard = new(1, 1);

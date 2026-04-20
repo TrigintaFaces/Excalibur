@@ -229,7 +229,7 @@ public static class EventSourcingBuilderExtensions
 
 		builder.Services.TryAddSingleton<Erasure.IAggregateDataSubjectMapping, TMapping>();
 
-		_ = builder.Services.AddSingleton<Dispatch.Compliance.IErasureContributor>(sp =>
+		_ = builder.Services.AddSingleton<global::Excalibur.Compliance.IErasureContributor>(sp =>
 		{
 			var eventStore = sp.GetRequiredKeyedService<IEventStore>("default");
 			var erasure = eventStore as IEventStoreErasure

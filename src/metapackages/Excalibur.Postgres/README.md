@@ -21,7 +21,7 @@ This registers: Dispatch core, PostgreSQL event sourcing, outbox, hosting, inbox
 | `Excalibur.Inbox.Postgres` | Idempotent message processing |
 | `Excalibur.Saga.Postgres` | Long-running process managers |
 | `Excalibur.LeaderElection.Postgres` | Multi-instance coordination |
-| `Excalibur.Dispatch.AuditLogging.Postgres` | Audit trail persistence |
+| `Excalibur.AuditLogging.Postgres` | Audit trail persistence |
 | `Excalibur.Compliance.Postgres` | GDPR/compliance features |
 | `Excalibur.Data.Postgres` | Data access layer |
 

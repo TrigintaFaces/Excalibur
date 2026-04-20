@@ -264,6 +264,19 @@ public static class DispatchServiceCollectionExtensions
 		// This allows the builder pattern to work without explicitly calling AddHandlersFromAssembly
 		_ = services.AddDispatchHandlers();
 
+		// Builder-mode idempotence guard. If a prior AddDispatch(configure) already
+		// materialised the pipeline (detected via DispatchBuilderSentinel), skip
+		// the builder path entirely to preserve first-configure-wins semantics.
+		// A second consumer configure lambda is NOT invoked — silent no-op
+		// masks consumer intent, so the guard fires *before* configure is
+		// called. Consumers wanting a different pipeline config must call
+		// AddDispatch(configure) exactly once per service collection.
+		// [S794 bd-ffecs4 / COMPASS msg 1480]
+		if (services.Any(static d => d.ServiceType == typeof(DispatchBuilderSentinel)))
+		{
+			return services;
+		}
+
 		// Mark that a builder-based configuration was applied, preventing subsequent
 		// parameterless AddDispatch() calls from overwriting the middleware invoker.
 		services.TryAddSingleton<DispatchBuilderSentinel>();

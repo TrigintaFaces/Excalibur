@@ -22,7 +22,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// <para>
 /// <b>Usage:</b>
 /// <code>
-/// services.AddExcaliburEventSourcing(es =&gt;
+/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 /// {
 ///     es.UseSqlServer(sql =&gt;
 ///     {
@@ -33,7 +33,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 ///            .SnapshotStoreTable("Snapshots");
 ///     })
 ///     .AddRepository&lt;OrderAggregate, Guid&gt;();
-/// });
+/// }));
 /// </code>
 /// </para>
 /// </remarks>

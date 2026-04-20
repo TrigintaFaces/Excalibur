@@ -14,19 +14,11 @@ public sealed class ZeroAllocationMessageFilter<TMessage>
 {
 	private readonly List<Func<TMessage, bool>> filters;
 
-#if NET9_0_OR_GREATER
 
 
 	private readonly Lock filterLock = new();
 
 
-#else
-
-
-	private readonly object filterLock = new();
-
-
-#endif
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ZeroAllocationMessageFilter{TMessage}" /> class.

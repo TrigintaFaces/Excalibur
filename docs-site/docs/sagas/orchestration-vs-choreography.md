@@ -14,7 +14,7 @@ Sagas can be implemented using two fundamentally different coordination approach
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Saga
@@ -217,11 +217,11 @@ services.AddExcalibur(builder =>
 });
 
 // Option 2: Direct registration
-services.AddExcaliburSaga(options =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(options =>
 {
     options.MaxConcurrency = 10;
     options.DefaultTimeout = TimeSpan.FromMinutes(30);
-});
+}));
 
 // Add SQL Server persistence
 services.AddSqlServerSagaStore(opts => opts.ConnectionString = connectionString);
@@ -279,16 +279,22 @@ sequenceDiagram
 public class PaymentService : IEventHandler<OrderPlaced>
 {
     private readonly IPaymentGateway _gateway;
-    private readonly IMessagePublisher _publisher;
+    private readonly IDispatcher _dispatcher;
+    private readonly IMessageContextAccessor _contextAccessor;
 
-    public PaymentService(IPaymentGateway gateway, IMessagePublisher publisher)
+    public PaymentService(
+        IPaymentGateway gateway,
+        IDispatcher dispatcher,
+        IMessageContextAccessor contextAccessor)
     {
         _gateway = gateway;
-        _publisher = publisher;
+        _dispatcher = dispatcher;
+        _contextAccessor = contextAccessor;
     }
 
     public async Task HandleAsync(OrderPlaced evt, CancellationToken ct)
     {
+        var context = _contextAccessor.MessageContext!.CreateChildContext();
         try
         {
             var paymentId = await _gateway.ChargeAsync(
@@ -296,20 +302,20 @@ public class PaymentService : IEventHandler<OrderPlaced>
                 evt.Amount,
                 ct);
 
-            await _publisher.PublishAsync(new PaymentProcessed
+            await _dispatcher.DispatchAsync(new PaymentProcessed
             {
                 OrderId = evt.OrderId,
                 PaymentId = paymentId,
                 Amount = evt.Amount
-            }, ct);
+            }, context, ct);
         }
         catch (PaymentException ex)
         {
-            await _publisher.PublishAsync(new PaymentFailed
+            await _dispatcher.DispatchAsync(new PaymentFailed
             {
                 OrderId = evt.OrderId,
                 Reason = ex.Message
-            }, ct);
+            }, context, ct);
         }
     }
 }
@@ -321,37 +327,43 @@ public class PaymentService : IEventHandler<OrderPlaced>
 public class InventoryService : IEventHandler<PaymentProcessed>
 {
     private readonly IInventoryRepository _inventory;
-    private readonly IMessagePublisher _publisher;
+    private readonly IDispatcher _dispatcher;
+    private readonly IMessageContextAccessor _contextAccessor;
 
-    public InventoryService(IInventoryRepository inventory, IMessagePublisher publisher)
+    public InventoryService(
+        IInventoryRepository inventory,
+        IDispatcher dispatcher,
+        IMessageContextAccessor contextAccessor)
     {
         _inventory = inventory;
-        _publisher = publisher;
+        _dispatcher = dispatcher;
+        _contextAccessor = contextAccessor;
     }
 
     public async Task HandleAsync(PaymentProcessed evt, CancellationToken ct)
     {
+        var context = _contextAccessor.MessageContext!.CreateChildContext();
         try
         {
             var reservation = await _inventory.ReserveAsync(
                 evt.OrderId,
                 ct);
 
-            await _publisher.PublishAsync(new InventoryReserved
+            await _dispatcher.DispatchAsync(new InventoryReserved
             {
                 OrderId = evt.OrderId,
                 ReservationId = reservation.Id
-            }, ct);
+            }, context, ct);
         }
         catch (InsufficientInventoryException ex)
         {
             // Publish failure event - triggers compensation
-            await _publisher.PublishAsync(new InventoryReservationFailed
+            await _dispatcher.DispatchAsync(new InventoryReservationFailed
             {
                 OrderId = evt.OrderId,
                 PaymentId = evt.PaymentId,
                 Reason = ex.Message
-            }, ct);
+            }, context, ct);
         }
     }
 }
@@ -363,12 +375,17 @@ public class InventoryService : IEventHandler<PaymentProcessed>
 public class PaymentCompensationHandler : IEventHandler<InventoryReservationFailed>
 {
     private readonly IPaymentGateway _gateway;
-    private readonly IMessagePublisher _publisher;
+    private readonly IDispatcher _dispatcher;
+    private readonly IMessageContextAccessor _contextAccessor;
 
-    public PaymentCompensationHandler(IPaymentGateway gateway, IMessagePublisher publisher)
+    public PaymentCompensationHandler(
+        IPaymentGateway gateway,
+        IDispatcher dispatcher,
+        IMessageContextAccessor contextAccessor)
     {
         _gateway = gateway;
-        _publisher = publisher;
+        _dispatcher = dispatcher;
+        _contextAccessor = contextAccessor;
     }
 
     public async Task HandleAsync(InventoryReservationFailed evt, CancellationToken ct)
@@ -376,11 +393,11 @@ public class PaymentCompensationHandler : IEventHandler<InventoryReservationFail
         // Compensate by refunding the payment
         await _gateway.RefundAsync(evt.PaymentId, ct);
 
-        await _publisher.PublishAsync(new PaymentRefunded
+        await _dispatcher.DispatchAsync(new PaymentRefunded
         {
             OrderId = evt.OrderId,
             PaymentId = evt.PaymentId
-        }, ct);
+        }, _contextAccessor.MessageContext!.CreateChildContext(), ct);
     }
 }
 ```
@@ -391,12 +408,17 @@ public class PaymentCompensationHandler : IEventHandler<InventoryReservationFail
 public class ShippingService : IEventHandler<InventoryReserved>
 {
     private readonly IShippingProvider _shipping;
-    private readonly IMessagePublisher _publisher;
+    private readonly IDispatcher _dispatcher;
+    private readonly IMessageContextAccessor _contextAccessor;
 
-    public ShippingService(IShippingProvider shipping, IMessagePublisher publisher)
+    public ShippingService(
+        IShippingProvider shipping,
+        IDispatcher dispatcher,
+        IMessageContextAccessor contextAccessor)
     {
         _shipping = shipping;
-        _publisher = publisher;
+        _dispatcher = dispatcher;
+        _contextAccessor = contextAccessor;
     }
 
     public async Task HandleAsync(InventoryReserved evt, CancellationToken ct)
@@ -406,12 +428,12 @@ public class ShippingService : IEventHandler<InventoryReserved>
             evt.ShippingAddress,
             ct);
 
-        await _publisher.PublishAsync(new ShipmentScheduled
+        await _dispatcher.DispatchAsync(new ShipmentScheduled
         {
             OrderId = evt.OrderId,
             ShipmentId = shipment.Id,
             EstimatedDelivery = shipment.EstimatedDelivery
-        }, ct);
+        }, _contextAccessor.MessageContext!.CreateChildContext(), ct);
     }
 }
 ```
@@ -491,12 +513,12 @@ public class ComplexOrderSaga : SagaBase<ComplexOrderState>
 public class NotificationHandler : IEventHandler<OrderShipped>
 {
     private readonly IEmailService _emailService;
-    private readonly IMessagePublisher _publisher;
+    private readonly IDispatcher _dispatcher;
 
-    public NotificationHandler(IEmailService emailService, IMessagePublisher publisher)
+    public NotificationHandler(IEmailService emailService, IDispatcher dispatcher)
     {
         _emailService = emailService;
-        _publisher = publisher;
+        _dispatcher = dispatcher;
     }
 
     public async Task HandleAsync(OrderShipped evt, CancellationToken ct)

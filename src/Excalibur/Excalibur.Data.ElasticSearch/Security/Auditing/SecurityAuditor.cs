@@ -6,11 +6,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 
 using Elastic.Clients.Elasticsearch;
-using Elastic.Clients.Elasticsearch.Core.Bulk;
-using Elastic.Clients.Elasticsearch.IndexManagement;
-using Elastic.Clients.Elasticsearch.Mapping;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
+using Excalibur.Data.ElasticSearch.Internal;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -47,6 +45,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		"Number of events in a bulk store batch");
 
 	private readonly ElasticsearchClient _elasticsearchClient;
+	private readonly ISecurityAuditStore _auditStore;
 	private readonly ILogger<SecurityAuditor> _logger;
 	private readonly SemaphoreSlim _auditSemaphore;
 	private readonly Timer? _complianceReportTimer;
@@ -84,8 +83,33 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		IOptions<AuditOptions> auditOptions,
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
 		ILogger<SecurityAuditor> logger)
+		: this(elasticsearchClient, CreateAuditStore(elasticsearchClient), auditOptions, monitoringOptions, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="SecurityAuditor"/> class
+	/// using a pre-built audit store adapter. Used by tests to substitute the
+	/// SDK via the <see cref="ISecurityAuditStore"/> seam (ADR-142 §D7).
+	/// </summary>
+	/// <param name="elasticsearchClient">
+	/// The Elasticsearch client (kept on the class for compliance reporters
+	/// and delegated service construction; the three SDK-fragile call paths
+	/// route through <paramref name="auditStore"/>).
+	/// </param>
+	/// <param name="auditStore"> The audit store seam adapter. </param>
+	/// <param name="auditOptions"> The audit configuration options. </param>
+	/// <param name="monitoringOptions"> The security monitoring configuration options. </param>
+	/// <param name="logger"> The logger for operational events. </param>
+	internal SecurityAuditor(
+		ElasticsearchClient elasticsearchClient,
+		ISecurityAuditStore auditStore,
+		IOptions<AuditOptions> auditOptions,
+		IOptions<SecurityMonitoringOptions> monitoringOptions,
+		ILogger<SecurityAuditor> logger)
 	{
 		_elasticsearchClient = elasticsearchClient ?? throw new ArgumentNullException(nameof(elasticsearchClient));
+		_auditStore = auditStore ?? throw new ArgumentNullException(nameof(auditStore));
 		Configuration = auditOptions?.Value ?? throw new ArgumentNullException(nameof(auditOptions));
 		_ = monitoringOptions?.Value ?? throw new ArgumentNullException(nameof(monitoringOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -343,19 +367,26 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		}
 	}
 
+	private static ISecurityAuditStore CreateAuditStore(ElasticsearchClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		return new SecurityAuditStoreAdapter(client);
+	}
+
 	/// <summary>
-	/// Initializes the audit log indices in Elasticsearch.
+	/// Initializes the audit log indices in Elasticsearch via the
+	/// <see cref="ISecurityAuditStore"/> seam.
 	/// </summary>
 	private async Task InitializeAuditIndicesAsync()
 	{
 		try
 		{
-			const string indexName = "security-audit-template";
-			var templateExists = await _elasticsearchClient.Indices.ExistsIndexTemplateAsync(indexName).ConfigureAwait(false);
+			var created = await _auditStore
+				.EnsureAuditIndexTemplateAsync(CancellationToken.None)
+				.ConfigureAwait(false);
 
-			if (!templateExists.Exists)
+			if (created)
 			{
-				await CreateAuditIndexTemplateAsync(indexName).ConfigureAwait(false);
 				_logger.LogInformation("Security audit index template created");
 			}
 		}
@@ -363,43 +394,6 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		{
 			_logger.LogError(ex, "Failed to initialize audit indices");
 		}
-	}
-
-	/// <summary>
-	/// Creates the index template for security audit logs.
-	/// </summary>
-	private async Task CreateAuditIndexTemplateAsync(string templateName)
-	{
-		var template = new PutIndexTemplateRequest(templateName)
-		{
-			IndexPatterns = new[] { "security-audit-*" },
-			Template = new IndexTemplateMapping
-			{
-				Settings = new IndexSettings
-				{
-					NumberOfShards = 1,
-					NumberOfReplicas = 1,
-				},
-				Mappings = new TypeMapping
-				{
-					Properties = new Properties
-					{
-						["eventId"] = new KeywordProperty(),
-						["timestamp"] = new DateProperty { Format = "strict_date_time" },
-						["eventType"] = new KeywordProperty(),
-						["severity"] = new KeywordProperty(),
-						["source"] = new KeywordProperty(),
-						["userId"] = new KeywordProperty(),
-						["sourceIpAddress"] = new IpProperty(),
-						["userAgent"] = new TextProperty(),
-						["details"] = new ObjectProperty(),
-						["integrityHash"] = new KeywordProperty(),
-					},
-				},
-			},
-		};
-
-		_ = await _elasticsearchClient.Indices.PutIndexTemplateAsync(template).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -467,24 +461,21 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 			BulkStoreSizeHistogram.Record(eventsToProcess.Count);
 
-			// Bulk index the events
-			var indexName = $"security-audit-{DateTimeOffset.UtcNow:yyyy-MM}";
-			var bulkRequest = new BulkRequest(indexName);
+			var result = await _auditStore
+				.BulkAppendEventsAsync(eventsToProcess, CancellationToken.None)
+				.ConfigureAwait(false);
 
-			foreach (var auditEvent in eventsToProcess)
+			if (!result.Success)
 			{
-				bulkRequest.Operations?.Add(new BulkIndexOperation<SecurityAuditEvent>(auditEvent) { Id = auditEvent.EventId });
-			}
-
-			var response = await _elasticsearchClient.BulkAsync(bulkRequest).ConfigureAwait(false);
-
-			if (!response.IsValidResponse)
-			{
-				_logger.LogError("Failed to store audit events in Elasticsearch: {Error}", response.DebugInformation);
+				_logger.LogError(
+					"Failed to store audit events in Elasticsearch: {Error}",
+					result.ErrorDetails);
 			}
 			else
 			{
-				_logger.LogDebug("Stored {EventCount} audit events in Elasticsearch", eventsToProcess.Count);
+				_logger.LogDebug(
+					"Stored {EventCount} audit events in Elasticsearch",
+					result.AppendedCount);
 			}
 		}
 		catch (Exception ex)

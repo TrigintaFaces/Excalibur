@@ -32,11 +32,7 @@ public abstract class TransactionScopeBase : ITransactionScope, ITransactionScop
 	private readonly List<Func<Task>> _onRollbackCallbacks = [];
 	private readonly List<Func<TransactionStatus, Task>> _onCompleteCallbacks = [];
 
-#if NET9_0_OR_GREATER
 	private readonly Lock _syncLock = new();
-#else
-	private readonly object _syncLock = new();
-#endif
 
 	/// <summary>
 	/// Gets a value indicating whether this scope has been disposed.

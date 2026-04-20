@@ -10,7 +10,7 @@ This guide covers configuring event stores and registering aggregate repositorie
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -22,12 +22,12 @@ This guide covers configuring event stores and registering aggregate repositorie
 
 ```csharp
 // Configure event sourcing with provider and repositories in one builder
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(sql => sql.ConnectionString(connectionString))
       .AddRepository<OrderAggregate, Guid>(id => new OrderAggregate())
       .UseIntervalSnapshots(100);
-});
+}));
 ```
 
 ## Event Store Providers
@@ -40,7 +40,7 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 
 ```csharp
 // Recommended: Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(sql =>
     {
@@ -49,13 +49,13 @@ services.AddExcaliburEventSourcing(es =>
            .SnapshotStoreSchema("dbo");
     })
     .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // This registers:
 // - IEventStore (SqlServerEventStore)
 // - ISnapshotStore (SqlServerSnapshotStore)
 // - ValidateOnStart (catches missing connection at startup)
-// Outbox is registered separately via AddExcaliburOutbox()
+// Outbox is registered separately via services.AddExcalibur(x => x.AddOutbox(...))
 ```
 
 :::tip Connection overloads
@@ -89,7 +89,7 @@ dotnet add package Excalibur.EventSourcing.Postgres
 
 ```csharp
 // Fluent builder registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UsePostgres(pg =>
     {
@@ -98,7 +98,7 @@ services.AddExcaliburEventSourcing(es =>
           .EventStoreTable("events");
     })
     .AddRepository<OrderAggregate, Guid>();
-});
+}));
 ```
 
 :::tip Postgres connection overloads
@@ -131,11 +131,11 @@ dotnet add package Excalibur.EventSourcing.InMemory
 
 ```csharp
 // Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseInMemory()
       .AddRepository<OrderAggregate, Guid>();
-});
+}));
 ```
 
 ## Repository Registration
@@ -145,12 +145,12 @@ services.AddExcaliburEventSourcing(es =>
 Register repositories for your aggregates:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddRepository<OrderAggregate, Guid>();
     builder.AddRepository<CustomerAggregate, Guid>();
     builder.AddRepository<InventoryAggregate, string>();
-});
+}));
 ```
 
 ### Custom Factory
@@ -158,11 +158,11 @@ services.AddExcaliburEventSourcing(builder =>
 When your aggregate requires custom construction:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddRepository<OrderAggregate, Guid>(
         key => new OrderAggregate(key, tenantId));
-});
+}));
 ```
 
 ### Per-Aggregate Repository Options
@@ -170,7 +170,7 @@ services.AddExcaliburEventSourcing(builder =>
 Configure repository behavior per aggregate type using `EventSourcedRepositoryOptions`:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddRepository<OrderAggregate, Guid>(
         key => new OrderAggregate(key),
@@ -181,7 +181,7 @@ services.AddExcaliburEventSourcing(builder =>
             opts.EnableAutoSnapshotUpgrade = true;
             opts.TargetSnapshotVersion = 2;
         });
-});
+}));
 ```
 
 | Option | Default | Description |
@@ -196,11 +196,11 @@ services.AddExcaliburEventSourcing(builder =>
 For aggregates using string identifiers:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddRepository<LegacyOrderAggregate>(
         key => new LegacyOrderAggregate(key));
-});
+}));
 ```
 
 ## Event Serialization
@@ -223,11 +223,11 @@ services.AddJsonSerialization(options =>
 ### Custom Serializer
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     // Register your custom IEventSerializer implementation
     builder.UseEventSerializer<MyCustomEventSerializer>();
-});
+}));
 ```
 
 ## Upcasting (Event Versioning)
@@ -235,7 +235,7 @@ services.AddExcaliburEventSourcing(builder =>
 Handle breaking changes in event schemas using message upcasters:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddUpcastingPipeline(upcasting =>
     {
@@ -249,7 +249,7 @@ services.AddExcaliburEventSourcing(builder =>
         // Enable auto-upcasting during replay
         upcasting.EnableAutoUpcastOnReplay();
     });
-});
+}));
 
 // Define upcaster
 public class OrderCreatedV1ToV2Upcaster : IMessageUpcaster<OrderCreatedV1, OrderCreated>
@@ -308,7 +308,7 @@ CREATE TABLE [EventSourcing].[Snapshots] (
 | `SnapshotStoreSchema` | `"dbo"` | Database schema for the snapshots table |
 | `SnapshotStoreTable` | `"EventStoreSnapshots"` | Name of snapshots table |
 | `OutboxSchema` | `"dbo"` | Database schema for the partitioned outbox table |
-| `OutboxTable` | `"EventSourcedOutbox"` | Name of partitioned outbox table (unified outbox uses `AddExcaliburOutbox()`) |
+| `OutboxTable` | `"EventSourcedOutbox"` | Name of partitioned outbox table (unified outbox uses `services.AddExcalibur(x => x.AddOutbox(...))`) |
 | `HealthChecks.RegisterHealthChecks` | `true` | Whether to register health checks |
 
 All schema and table names are validated against SQL injection using `SqlIdentifierValidator` (alphanumeric + underscore whitelist, bracket-escaped in queries).
@@ -328,7 +328,7 @@ When registering individual stores, use their lightweight options classes:
 To use custom table names (e.g., for multi-tenant isolation or naming conventions):
 
 ```csharp
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(opts =>
     {
@@ -338,7 +338,7 @@ services.AddExcaliburEventSourcing(es =>
         opts.SnapshotStoreSchema = "ordering";
         opts.SnapshotStoreTable = "AggregateSnapshots";
     });
-});
+}));
 ```
 
 ## Multiple Event Stores

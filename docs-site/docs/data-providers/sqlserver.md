@@ -10,7 +10,7 @@ The SQL Server provider offers full relational database support with Dapper-base
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A SQL Server instance (local, Azure SQL, or AWS RDS)
 - Familiarity with [data access](../data-access/index.md) and [IDb interface](../data-access/idb-interface.md)
 

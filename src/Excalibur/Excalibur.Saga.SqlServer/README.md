@@ -31,13 +31,13 @@ dotnet add package Excalibur.Saga.SqlServer
 
 ```csharp
 // Register SQL Server saga store via ISagaBuilder
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(x => x.AddSagas(saga =>
 {
     saga.UseSqlServer(sql =>
     {
         sql.ConnectionString = connectionString;
     });
-});
+}));
 
 // Or register individually
 services.AddSqlServerSagaStore(sql =>

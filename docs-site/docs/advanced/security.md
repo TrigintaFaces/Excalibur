@@ -10,10 +10,10 @@ This guide covers security hardening for Excalibur applications, including encry
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.Security
+  dotnet add package Excalibur.Security
   ```
 - Familiarity with [middleware](../middleware/index.md) and [encryption providers](../security/encryption-providers.md)
 

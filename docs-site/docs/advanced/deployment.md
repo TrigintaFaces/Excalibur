@@ -10,7 +10,7 @@ This guide covers production deployment patterns for Excalibur applications acro
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -37,11 +37,11 @@ Excalibur supports multiple deployment scenarios from simple web applications to
 ### Dockerfile
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY ["src/MyApp/MyApp.csproj", "src/MyApp/"]
 RUN dotnet restore "src/MyApp/MyApp.csproj"
@@ -352,7 +352,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: MyApp::MyApp.Function::FunctionHandler
-      Runtime: dotnet9
+      Runtime: dotnet10
       MemorySize: 512
       Timeout: 30
       Events:
@@ -419,7 +419,7 @@ Dispatch supports Native AOT compilation for serverless and edge deployment scen
 ```xml
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <PublishAot>true</PublishAot>
     <TrimMode>full</TrimMode>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
@@ -499,10 +499,10 @@ Full native AOT linking on Windows requires the Visual Studio C++ build tools. T
 
 ### AOT Sample Project
 
-A complete AOT sample is available at `samples/11-aot/Excalibur.Dispatch.Aot.Sample/`:
+A complete AOT sample is available at `samples/10-aot/Excalibur.Dispatch.Aot.Sample/`:
 
 ```bash
-cd samples/11-aot/Excalibur.Dispatch.Aot.Sample
+cd samples/10-aot/Excalibur.Dispatch.Aot.Sample
 dotnet build -c Release
 dotnet run -c Release
 ```

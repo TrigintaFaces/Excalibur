@@ -128,10 +128,17 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 	[Fact]
 	public async Task OpenCircuitBreakerAfterConsecutiveFailures()
 	{
-		// Arrange - mock a client that always fails
-		var failingClient = A.Fake<ElasticsearchClient>();
-		_ = A.CallTo(() => failingClient.SearchAsync<TestDocument>(A<SearchRequest>._, A<CancellationToken>._))
-				.Throws(new TransportException("Simulated transport failure."));
+		// Arrange - point a real ElasticsearchClient at an unreachable endpoint
+		// so every SearchAsync fails with TransportException (connection
+		// refused). Replaces the former FakeItEasy-based simulated failure
+		// per ADR-142 §D7 / S799 SdkFake debt-drain — the circuit breaker
+		// contract is behaviorally identical (repeated transport failures
+		// trip the breaker), and using a real client exercises the actual
+		// Elastic.Transport failure-propagation path.
+		var failingClientSettings = new ElasticsearchClientSettings(new Uri("http://127.0.0.1:1"))
+			.RequestTimeout(TimeSpan.FromMilliseconds(250))
+			.MaximumRetries(0);
+		var failingClient = new ElasticsearchClient(failingClientSettings);
 
 		var settings = CreateResilienceSettings(
 			circuitBreakerFailureThreshold: 2,

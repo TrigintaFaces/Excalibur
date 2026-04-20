@@ -46,9 +46,9 @@ Where:
 | `Excalibur.Dispatch.DeadLetterQueue` | `Excalibur.Dispatch.Observability` | `DeadLetterQueueMetrics.MeterName` |
 | `Excalibur.Dispatch.CircuitBreaker` | `Excalibur.Dispatch.Observability` | `CircuitBreakerMetrics.MeterName` |
 | `Excalibur.Dispatch.Observability.Context` | `Excalibur.Dispatch.Observability` | `ContextObservabilityTelemetryConstants.MeterName` |
-| `Excalibur.Dispatch.Compliance` | `Excalibur.Dispatch.Compliance` | `ComplianceMetrics.MeterName` |
-| `Excalibur.Dispatch.Compliance.Erasure` | `Excalibur.Dispatch.Compliance` | `ErasureTelemetryConstants.MeterName` |
-| `Excalibur.Dispatch.Encryption` | `Excalibur.Dispatch.Compliance` | `EncryptionTelemetry.MeterName` |
+| `Excalibur.Compliance` | `Excalibur.Compliance` | `ComplianceMetrics.MeterName` |
+| `Excalibur.Compliance.Erasure` | `Excalibur.Compliance` | `ErasureTelemetryConstants.MeterName` |
+| `Excalibur.Dispatch.Encryption` | `Excalibur.Compliance` | `EncryptionTelemetry.MeterName` |
 | `Excalibur.Dispatch.BackgroundServices` | `Excalibur.Outbox` | `BackgroundServiceMetrics.MeterName` |
 | `Excalibur.Dispatch.Sagas` | `Excalibur.Saga` | `SagaMetrics.MeterName` |
 | `Excalibur.Dispatch.WriteStores` | `Excalibur.Data.Abstractions` | `WriteStoreTelemetry.MeterName` |
@@ -102,7 +102,7 @@ Activity source names follow the same pattern as meter names. The framework regi
 | `Excalibur.Dispatch.Pipeline` | Dispatch |
 | `Excalibur.Dispatch.TimePolicy` | Dispatch |
 | `Excalibur.Dispatch.Streaming` | Dispatch |
-| `Excalibur.Dispatch.Compliance.Erasure` | Compliance |
+| `Excalibur.Compliance.Erasure` | Compliance |
 | `Excalibur.Data.Cdc` | Data.SqlServer |
 | `Excalibur.Data.Audit` | Data.ElasticSearch |
 | `Excalibur.LeaderElection` | LeaderElection |

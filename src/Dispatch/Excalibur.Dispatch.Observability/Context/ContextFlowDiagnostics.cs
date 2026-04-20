@@ -45,11 +45,7 @@ public sealed partial class ContextFlowDiagnostics(
 	private readonly ConcurrentDictionary<string, ContextHistory> _contextHistories =
 		new(StringComparer.Ordinal);
 
-#if NET9_0_OR_GREATER
 	private readonly Lock _historyEventsLock = new();
-#else
-	private readonly object _historyEventsLock = new();
-#endif
 	private readonly ConcurrentQueue<ContextAnomaly> _anomalies = new();
 	private volatile int _anomalyCount;
 

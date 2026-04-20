@@ -1,8 +1,8 @@
 // Global usings for Excalibur.Dispatch.Security.Tests
 // Union of all global usings from merged test projects
 
-global using Excalibur.Dispatch.AuditLogging;
-global using Excalibur.Dispatch.Compliance;
+global using Excalibur.AuditLogging;
+global using Excalibur.Compliance;
 
 global using Excalibur.Compliance.SqlServer;
 global using Excalibur.Security;

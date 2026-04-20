@@ -12,7 +12,7 @@ This guide explains why duplicate messages happen, how Excalibur protects you at
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -452,7 +452,7 @@ services.AddDispatch(dispatch =>
 });
 
 // Producer side: transactional outbox
-services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
 services.AddSqlServerOutboxStore(options =>
 {
     options.ConnectionString = connectionString;

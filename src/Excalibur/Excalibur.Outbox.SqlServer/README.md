@@ -33,7 +33,7 @@ dotnet add package Excalibur.Outbox.SqlServer
 
 ```csharp
 // Register via IOutboxBuilder (recommended)
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(x => x.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(sql =>
     {
@@ -41,7 +41,7 @@ services.AddExcaliburOutbox(outbox =>
            .SchemaName("Messaging")
            .TableName("OutboxMessages");
     });
-});
+}));
 
 // Or use with IDispatchBuilder
 builder.UseSqlServerOutboxStore(options =>

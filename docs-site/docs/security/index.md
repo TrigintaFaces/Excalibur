@@ -10,11 +10,11 @@ Excalibur provides comprehensive security features for enterprise applications, 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Security  # encryption, signing, input validation
+  dotnet add package Excalibur.Security  # encryption, signing, input validation
   ```
 - Familiarity with [middleware](../middleware/index.md) and [pipeline concepts](../pipeline/index.md)
 

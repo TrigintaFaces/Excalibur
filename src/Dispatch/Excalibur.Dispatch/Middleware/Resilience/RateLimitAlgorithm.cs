@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// </summary>
 /// <remarks>
 /// Renamed from <c>RateLimitAlgorithm</c> to avoid collision with
-/// <c>Excalibur.Dispatch.Security.RateLimitAlgorithm</c> which includes
+/// <c>Excalibur.Security.RateLimitAlgorithm</c> which includes
 /// an additional <c>Unknown</c> value and different integer assignments.
 /// </remarks>
 public enum MiddlewareRateLimitAlgorithm

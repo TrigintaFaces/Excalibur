@@ -10,7 +10,7 @@ Dispatch integrates with Google Cloud Monitoring for comprehensive observability
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A Google Cloud project with Monitoring API enabled
 - Familiarity with [production observability](./production-observability.md) and [metrics reference](./metrics-reference.md)
 

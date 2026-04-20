@@ -23,7 +23,7 @@ var builder = Host.CreateApplicationBuilder(args);
 var eventStoreConnectionString = builder.Configuration.GetConnectionString("EventStore")
 	?? throw new InvalidOperationException("EventStore connection string is required");
 
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
 	es.UseSqlServer(sql =>
 	{
@@ -31,7 +31,7 @@ builder.Services.AddExcaliburEventSourcing(es =>
 		   .EventStoreTable("EventStoreEvents")
 		   .SnapshotStoreTable("EventStoreSnapshots");
 	});
-});
+}));
 
 // Register aggregate repositories
 builder.Services.AddScoped<OrderRepository>();

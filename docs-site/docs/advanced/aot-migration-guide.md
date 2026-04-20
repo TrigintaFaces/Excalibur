@@ -10,7 +10,7 @@ This guide walks through migrating an existing Excalibur.Dispatch application fr
 
 ## Prerequisites
 
-- .NET 8.0+ (recommended: .NET 9 or later for best AOT support)
+- .NET 10.0 (current LTS with best AOT support)
 - `Excalibur.Dispatch.SourceGenerators` package referenced in your entry-point project
 
 ```bash
@@ -209,4 +209,4 @@ This means your application works identically under both JIT and AOT -- the same
 - [Native AOT Guide](native-aot.md) -- Full AOT setup from scratch
 - [AOT Compatibility Matrix](aot-compatibility.md) -- Per-package status
 - [Source Generators](source-generators.md) -- What gets generated and how
-- [AOT Sample](https://github.com/example/excalibur-dispatch/tree/main/samples/11-aot) -- Working example project
+- [AOT Sample](https://github.com/example/excalibur-dispatch/tree/main/samples/10-aot) -- Working example project

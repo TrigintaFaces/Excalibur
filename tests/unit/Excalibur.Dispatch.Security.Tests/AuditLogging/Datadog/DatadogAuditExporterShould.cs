@@ -6,7 +6,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.AuditLogging.Datadog;
+using Excalibur.AuditLogging.Datadog;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Datadog;
 

@@ -4,8 +4,8 @@
     <DispatchSourceGeneratorsPath Condition="'$(DispatchSourceGeneratorsPath)' == ''">$(MSBuildThisFileDirectory)..\</DispatchSourceGeneratorsPath>
 
     <!-- PERF-9: Enable C# 12 interceptors for compile-time dispatch optimization -->
-    <!-- Interceptors require .NET 8+ and explicit namespace opt-in -->
-    <InterceptorsNamespaces Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">$(InterceptorsNamespaces);Excalibur.Dispatch.Generated</InterceptorsNamespaces>
+    <!-- Interceptors require explicit namespace opt-in; net10.0 supports them unconditionally -->
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Excalibur.Dispatch.Generated</InterceptorsNamespaces>
   </PropertyGroup>
 
 </Project>

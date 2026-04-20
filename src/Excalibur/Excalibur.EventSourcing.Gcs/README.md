@@ -5,7 +5,7 @@ Google Cloud Storage cold event store for Excalibur event sourcing tiered storag
 ## Usage
 
 ```csharp
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(x => x.AddEventSourcing(es =>
 {
     es.UseTieredStorage(options =>
     {
@@ -16,7 +16,7 @@ services.AddExcaliburEventSourcing(es =>
         options.BucketName = "my-cold-events";
         options.ProjectId = "my-gcp-project";
     });
-});
+}));
 ```
 
 Implements `IColdEventStore` for archiving old events to Google Cloud Storage with gzip+JSON serialization.

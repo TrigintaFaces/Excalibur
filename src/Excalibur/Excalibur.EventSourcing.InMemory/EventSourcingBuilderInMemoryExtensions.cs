@@ -32,11 +32,11 @@ public static class EventSourcingBuilderInMemoryExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseInMemory()
 	///       .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder UseInMemory(this IEventSourcingBuilder builder)
@@ -56,14 +56,14 @@ public static class EventSourcingBuilderInMemoryExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseInMemory(inmemory =&gt;
 	///     {
 	///         inmemory.StoreName("test-store");
 	///     })
 	///     .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder UseInMemory(

@@ -14,10 +14,10 @@ Only SQL Server (and Postgres) backends implement `IAuditStore` with tamper-evid
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.Security
+  dotnet add package Excalibur.Security
   ```
 - Familiarity with [audit logging](../security/audit-logging.md) and [compliance](../compliance/audit-logging.md)
 
@@ -29,7 +29,7 @@ using Microsoft.Extensions.DependencyInjection;
 // Default audit logging (in-memory store)
 services.AddAuditLogging();
 
-// With the SQL Server store (package: Excalibur.Dispatch.AuditLogging.SqlServer)
+// With the SQL Server store (package: Excalibur.AuditLogging.SqlServer)
 services.AddSqlServerAuditStore(options =>
 {
     options.ConnectionString = connectionString;
@@ -61,10 +61,10 @@ Index audit events into Elasticsearch for full-text search, aggregation dashboar
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.AuditLogging.Elasticsearch
+dotnet add package Excalibur.AuditLogging.Elasticsearch
 ```
 
-**Dependencies:** `Excalibur.Dispatch.Compliance.Abstractions`, `Microsoft.Extensions.Http`
+**Dependencies:** `Excalibur.Compliance.Abstractions`, `Microsoft.Extensions.Http`
 
 ### Audit Sink (Real-Time)
 
@@ -128,10 +128,10 @@ Full parity with the Elasticsearch audit sink, built on raw `HttpClient` (no `Op
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.AuditLogging.OpenSearch
+dotnet add package Excalibur.AuditLogging.OpenSearch
 ```
 
-**Dependencies:** `Excalibur.Dispatch.Compliance.Abstractions`, `Microsoft.Extensions.Http`
+**Dependencies:** `Excalibur.Compliance.Abstractions`, `Microsoft.Extensions.Http`
 
 ### Audit Sink (Real-Time)
 
@@ -181,7 +181,7 @@ Export audit events to Datadog for log analytics and dashboards.
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.AuditLogging.Datadog
+dotnet add package Excalibur.AuditLogging.Datadog
 ```
 
 ### Setup
@@ -205,7 +205,7 @@ Export audit events to Splunk via HEC (HTTP Event Collector).
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.AuditLogging.Splunk
+dotnet add package Excalibur.AuditLogging.Splunk
 ```
 
 ### Setup
@@ -234,7 +234,7 @@ Export audit events to Azure Sentinel for SIEM analysis.
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.AuditLogging.Sentinel
+dotnet add package Excalibur.AuditLogging.Sentinel
 ```
 
 ### Setup
@@ -259,7 +259,7 @@ Persist audit events to SQL Server for relational querying and long-term retenti
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.AuditLogging.SqlServer
+dotnet add package Excalibur.AuditLogging.SqlServer
 ```
 
 ### Setup

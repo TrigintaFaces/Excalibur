@@ -36,7 +36,7 @@ public static class SagaServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services">The service collection to add services to.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddExcaliburSaga(this IServiceCollection services)
+	internal static IServiceCollection AddExcaliburSaga(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -60,6 +60,9 @@ public static class SagaServiceCollectionExtensions
 		services.TryAddSingleton<ISagaTypeRegistry, SagaTypeRegistry>();
 		services.TryAddSingleton<ISagaDispatchRegistry, SagaDispatchRegistry>();
 
+		// bd-x6rg45: fail loud at host start if the consumer forgot to pick a state store.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, SagaPrerequisiteValidator>());
+
 		return services;
 	}
 
@@ -69,7 +72,7 @@ public static class SagaServiceCollectionExtensions
 	/// <param name="services">The service collection to add services to.</param>
 	/// <param name="configure">The action to configure saga options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddExcaliburSaga(
+	internal static IServiceCollection AddExcaliburSaga(
 		this IServiceCollection services,
 		Action<SagaOptions> configure)
 	{
@@ -94,7 +97,7 @@ public static class SagaServiceCollectionExtensions
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddExcaliburSaga(
+	internal static IServiceCollection AddExcaliburSaga(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
@@ -127,13 +130,13 @@ public static class SagaServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSaga(saga => saga
+	/// services.AddExcalibur(x => x.AddSagas(saga => saga
 	///     .WithOrchestration(opts => opts.MaxRetryAttempts = 5)
 	///     .WithTimeouts(opts => opts.PollInterval = TimeSpan.FromSeconds(30))
-	///     .WithInstrumentation());
+	///     .WithInstrumentation()));
 	/// </code>
 	/// </example>
-	public static IServiceCollection AddExcaliburSaga(
+	internal static IServiceCollection AddExcaliburSaga(
 		this IServiceCollection services,
 		Action<ISagaBuilder> configure)
 	{

@@ -10,7 +10,7 @@ Change Data Capture (CDC) issues can cause projection lag, missed events, and da
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A running CDC deployment with SQL Server CDC enabled
 - Familiarity with [CDC patterns](../patterns/cdc.md) and [recovery runbooks](./recovery-runbooks.md)
 

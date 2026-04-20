@@ -4,7 +4,7 @@
 using System.Net;
 using System.Text.Json;
 
-using Excalibur.Dispatch.AuditLogging.Splunk;
+using Excalibur.AuditLogging.Splunk;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Splunk;
 

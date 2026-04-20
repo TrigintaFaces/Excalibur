@@ -25,11 +25,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	private readonly string _lockResource;
 	private readonly LeaderElectionOptions _options;
 	private readonly ILogger<SqlServerLeaderElection> _logger;
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 
 	private SqlConnection? _connection;
 	private CancellationTokenSource? _renewalCts;

@@ -10,7 +10,7 @@ Excalibur.Jobs provides background job scheduling, multi-step workflows, and dis
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Jobs
@@ -44,14 +44,14 @@ public class CleanupJob : IBackgroundJob
 
 ### 2. Register and Schedule
 
-Use `AddExcaliburJobHost` to set up the complete job hosting environment with Quartz.NET:
+Use `IExcaliburBuilder.AddJobs(...)` to set up the complete job hosting environment with Quartz.NET:
 
 ```csharp
 using System.Reflection;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.AddExcaliburJobHost(
+builder.Services.AddExcalibur(excalibur => excalibur.AddJobs(
     configureJobs: jobs =>
     {
         // Cron-scheduled job (runs at midnight daily)
@@ -70,13 +70,13 @@ builder.Services.AddExcaliburJobHost(
         jobs.AddJobIf(builder.Environment.IsProduction(), j =>
             j.AddJob<MetricsAggregationJob>("0 */15 * * * ?"));
     },
-    typeof(Program).Assembly);
+    typeof(Program).Assembly));
 
 var app = builder.Build();
 app.Run();
 ```
 
-That's it. `AddExcaliburJobHost` registers Quartz.NET, the hosted service, health checks, and all your jobs in one call.
+That's it. `IExcaliburBuilder.AddJobs(...)` registers Quartz.NET, the hosted service, health checks, and all your jobs in one call.
 
 ### 3. Run It
 
@@ -89,7 +89,7 @@ There are several ways to register jobs depending on your needs:
 ### Unified Entry Point (Recommended)
 
 ```csharp
-services.AddExcaliburJobHost(
+services.AddExcalibur(excalibur => excalibur.AddJobs(
     configureQuartz: q =>
     {
         // Low-level Quartz configuration (optional)
@@ -100,7 +100,7 @@ services.AddExcaliburJobHost(
         jobs.AddJob<CleanupJob>("0 0 0 * * ?");
         jobs.AddRecurringJob<PingJob>(TimeSpan.FromMinutes(1));
     },
-    typeof(Program).Assembly);
+    typeof(Program).Assembly));
 ```
 
 ### Individual Registration
@@ -176,11 +176,11 @@ Excalibur ships with several ready-to-use jobs. Each implements the Quartz `IJob
 Processes the [outbox table](outbox.md), publishing pending messages to transports. Use this for reliable at-least-once message delivery.
 
 ```csharp
-services.AddExcaliburJobHost(configureQuartz: q =>
+services.AddExcalibur(excalibur => excalibur.AddJobs(configureQuartz: q =>
 {
     // Register OutboxJob with its configuration section
     OutboxJob.ConfigureJob(q, builder.Configuration.GetSection("Jobs:Outbox"));
-});
+}));
 
 // Add its health check
 builder.Services.AddHealthChecks();
@@ -268,7 +268,7 @@ Each job tracks its health via `JobHeartbeatTracker`, a singleton that records w
 - **Degraded** — Last heartbeat between `DegradedThreshold` and `UnhealthyThreshold`
 - **Unhealthy** — No heartbeat recorded, or last heartbeat exceeds `UnhealthyThreshold` (default: 10 minutes)
 
-Health checks are registered per-job via each job's `ConfigureHealthChecks` static method. `AddExcaliburJobHost` automatically registers the `JobHeartbeatTracker` singleton.
+Health checks are registered per-job via each job's `ConfigureHealthChecks` static method. `IExcaliburBuilder.AddJobs(...)` automatically registers the `JobHeartbeatTracker` singleton.
 
 ## Distributed Coordination
 

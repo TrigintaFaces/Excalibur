@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Security;
-using Excalibur.Dispatch.Security.Diagnostics;
+using Excalibur.Security;
+using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-namespace Excalibur.Dispatch.Security.Tests.Diagnostics;
+
+using Excalibur.Security.Configuration;namespace Excalibur.Dispatch.Security.Tests.Diagnostics;
 
 /// <summary>
 /// Tests for SecurityHealthCheck (Sprint 696 T.21).

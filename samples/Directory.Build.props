@@ -18,7 +18,9 @@
     <!-- CA1852: Type can be sealed (sample helper types) -->
     <!-- CA1859: Change return type for performance (sample fixtures) -->
     <!-- IL2026: RequiresUnreferencedCode (AOT not required for samples) -->
-    <NoWarn>$(NoWarn);CS1591;CS8604;CS8625;CA1812;CA1852;CA1859;IL2026</NoWarn>
+    <!-- NU1510: net10 SDK package-pruning hint (informational; per-package cleanup tracked by S797 Workstream B) -->
+    <!-- CA1873: Avoid expensive log arguments (sample demo code; consistent with src NoWarn) -->
+    <NoWarn>$(NoWarn);CS1591;CS8604;CS8625;CA1812;CA1852;CA1859;IL2026;NU1510;CA1873</NoWarn>
   </PropertyGroup>
 
   <!-- ============================================================================================

@@ -7,7 +7,9 @@
     <!-- IDE0060: Unused parameters in hosting provider stubs (future implementation hooks) -->
     <!-- CS8764: Nullability return type mismatch on override methods -->
     <NoWarn>$(NoWarn);IDE0060;CS8764</NoWarn>
-    <DefineConstants>$(DefineConstants);AZURE_FUNCTIONS_SUPPORT</DefineConstants>
+    <!-- S797 remediation: AZURE_FUNCTIONS_SUPPORT DefineConstant removed. Per CLAUDE.md,
+         conditional compilation is not used for feature gating in this framework; this project
+         unconditionally depends on Microsoft.Azure.Functions.Worker so the code is always live. -->
     <RootNamespace>Excalibur.Dispatch.Hosting.AzureFunctions</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Hosting.AzureFunctions</AssemblyName>
     <PackageId>$(AssemblyName)</PackageId>

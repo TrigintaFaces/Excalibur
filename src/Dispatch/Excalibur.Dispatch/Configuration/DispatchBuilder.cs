@@ -8,7 +8,6 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Diagnostics;
@@ -54,10 +53,16 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		_profileRegistry = new PipelineProfileRegistry();
 		_bindingRegistry = new TransportBindingRegistry();
 
-		// Register core services
-		_ = Services.AddSingleton(_profileRegistry);
-		_ = Services.AddSingleton(_bindingRegistry);
-		_ = Services.AddSingleton<IMiddlewareApplicabilityStrategy, DefaultMiddlewareApplicabilityStrategy>();
+		// Register core services — first-wins TryAdd semantics so a consumer's
+		// explicit pre-registration of any of these services survives a
+		// subsequent AddDispatch(configure) call.
+		// IMiddlewareApplicabilityStrategy is already TryAdd-registered by
+		// AddDispatchPipeline (which always runs before this constructor via the
+		// AddDispatch entry points); the redundant ctor registration was the
+		// S794 D1 row 3 drifter and is intentionally removed here.
+		// [S794 bd-ffecs4 rows 1+2]
+		Services.TryAddSingleton(_profileRegistry);
+		Services.TryAddSingleton(_bindingRegistry);
 	}
 
 	/// <inheritdoc />
@@ -158,8 +163,22 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		Justification = "HandlerLifetimeAnalyzer uses reflection for handler constructor inspection which is safe for known registered handler types.")]
 	internal IDispatcher Build()
 	{
+		// Defense in depth — the AddDispatch(configure) entry point already
+		// guards against a second Build() invocation by short-circuiting before
+		// the builder runs. This guard protects the descriptor graph when
+		// Build() is reached through any future path that bypasses the entry
+		// point. [S794 bd-ffecs4 rows 5+7 / COMPASS msg 1480]
+		if (Services.Any(static d => d.ServiceType == typeof(DispatchRuntimeState)))
+		{
+			return new DeferredDispatcher(Services
+				.First(static d => d.ServiceType == typeof(DispatcherHolder))
+				.ImplementationInstance is DispatcherHolder holder
+					? holder
+					: new DispatcherHolder());
+		}
+
 		// Register the synthesizer used during runtime construction
-		_ = Services.AddSingleton<PipelineProfileSynthesizer>();
+		Services.TryAddSingleton<PipelineProfileSynthesizer>();
 
 		RegisterOptions();
 
@@ -168,7 +187,9 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			_ = Services.AddScoped(middlewareType);
 		}
 
-		// Register runtime state that materializes pipelines using the caller's provider scope
+		// Register runtime state that materializes pipelines using the caller's provider scope.
+		// Reached at most once per service collection due to the guard above plus the
+		// AddDispatch(configure) entry-point guard.
 		_ = Services.AddSingleton(BuildRuntimeState);
 
 		// Ensure the configured dispatch pipeline and middleware invoker use
@@ -189,9 +210,9 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		}));
 
 		var dispatcherHolder = new DispatcherHolder();
-		_ = Services.AddSingleton(dispatcherHolder);
+		Services.TryAddSingleton(dispatcherHolder);
 
-		_ = Services.AddSingleton(sp =>
+		Services.TryAddSingleton(sp =>
 		{
 			var dispatcher = ActivatorUtilities.CreateInstance<CoreDispatcher>(sp);
 			dispatcherHolder.Set(dispatcher);

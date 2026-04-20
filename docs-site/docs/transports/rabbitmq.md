@@ -9,7 +9,7 @@ RabbitMQ transport for flexible message routing, work queues, and traditional pu
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A running RabbitMQ server (or Docker: `docker run -p 5672:5672 -p 15672:15672 rabbitmq:management`)
 - Familiarity with [transport concepts](./index.md) and [choosing a transport](./choosing-a-transport.md)
 

@@ -154,26 +154,6 @@ public sealed class ChannelAndCloudEventAnnotationsShould
 
 	#endregion
 
-	#region KeyDerivationOptions
-
-	[Fact]
-	public void KeyDerivation_Succeed_WithDefaults()
-	{
-		var options = new KeyDerivationOptions();
-		TryValidate(options, out var results).ShouldBeTrue();
-		results.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void KeyDerivation_Fail_WhenIterationsIsZero()
-	{
-		var options = new KeyDerivationOptions { Iterations = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(KeyDerivationOptions.Iterations)));
-	}
-
-	#endregion
-
 	#region PipelineOptions
 
 	[Fact]

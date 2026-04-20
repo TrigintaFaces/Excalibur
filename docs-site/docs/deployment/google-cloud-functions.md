@@ -8,7 +8,7 @@
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A Google Cloud project with Cloud Functions API enabled
 - Google Cloud SDK (`gcloud`) installed locally
 - Familiarity with [ASP.NET Core deployment](./aspnet-core.md) and [dependency injection](../core-concepts/dependency-injection.md)
@@ -102,7 +102,7 @@ public class Startup : FunctionsStartup
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
@@ -124,7 +124,7 @@ public class Startup : FunctionsStartup
 
 # Deploy HTTP function
 gcloud functions deploy dispatch-function \
-  --runtime dotnet9 \
+  --runtime dotnet10 \
   --trigger-http \
   --allow-unauthenticated \
   --entry-point DispatchFunction \
@@ -201,7 +201,7 @@ gcloud pubsub topics create integration-events
 
 # Deploy function
 gcloud functions deploy pubsub-processor \
-  --runtime dotnet9 \
+  --runtime dotnet10 \
   --trigger-topic integration-events \
   --entry-point IntegrationEventProcessor \
   --region us-central1
@@ -261,7 +261,7 @@ public class OutboxProcessorFunction : ICloudEventFunction<SchedulerJobData>
 ```bash
 # Deploy function
 gcloud functions deploy outbox-processor \
-  --runtime dotnet9 \
+  --runtime dotnet10 \
   --trigger-http \
   --entry-point OutboxProcessorFunction \
   --region us-central1
@@ -402,7 +402,7 @@ public class ProjectionFunction : ICloudEventFunction<DocumentEventData>
 
 ```bash
 gcloud functions deploy projection-processor \
-  --runtime dotnet9 \
+  --runtime dotnet10 \
   --trigger-event providers/cloud.firestore/eventTypes/document.create \
   --trigger-resource "projects/PROJECT_ID/databases/(default)/documents/events/{aggregateId}/events/{eventId}" \
   --region us-central1
@@ -445,7 +445,7 @@ private string BuildCloudSqlConnectionString()
 
 ```bash
 gcloud functions deploy your-function \
-  --runtime dotnet9 \
+  --runtime dotnet10 \
   --trigger-http \
   --entry-point DispatchFunction \
   --region us-central1 \
@@ -556,7 +556,7 @@ public override void Configure(WebHostBuilder webHostBuilder)
 ```bash
 # Set minimum instances
 gcloud functions deploy your-function \
-  --runtime dotnet9 \
+  --runtime dotnet10 \
   --trigger-http \
   --entry-point DispatchFunction \
   --region us-central1 \
@@ -572,7 +572,7 @@ gcloud functions deploy your-function \
 ```bash
 # Increase memory (also increases CPU)
 gcloud functions deploy your-function \
-  --runtime dotnet9 \
+  --runtime dotnet10 \
   --trigger-http \
   --entry-point DispatchFunction \
   --region us-central1 \
@@ -601,12 +601,12 @@ obj/
 # cloudbuild.yaml (Cloud Build)
 steps:
   # Restore dependencies
-  - name: 'mcr.microsoft.com/dotnet/sdk:9.0'
+  - name: 'mcr.microsoft.com/dotnet/sdk:10.0'
     entrypoint: 'dotnet'
     args: ['restore']
 
   # Build
-  - name: 'mcr.microsoft.com/dotnet/sdk:9.0'
+  - name: 'mcr.microsoft.com/dotnet/sdk:10.0'
     entrypoint: 'dotnet'
     args: ['build', '-c', 'Release']
 
@@ -617,7 +617,7 @@ steps:
       - 'functions'
       - 'deploy'
       - 'dispatch-function'
-      - '--runtime=dotnet9'
+      - '--runtime=dotnet10'
       - '--trigger-http'
       - '--entry-point=DispatchFunction'
       - '--region=us-central1'
@@ -663,7 +663,7 @@ jobs:
       - name: Deploy function
         run: |
           gcloud functions deploy dispatch-function \
-            --runtime dotnet9 \
+            --runtime dotnet10 \
             --trigger-http \
             --allow-unauthenticated \
             --entry-point DispatchFunction \
@@ -682,7 +682,7 @@ REGIONS=("us-central1" "europe-west1" "asia-northeast1")
 
 for region in "${REGIONS[@]}"; do
   gcloud functions deploy dispatch-function-$region \
-    --runtime dotnet9 \
+    --runtime dotnet10 \
     --trigger-http \
     --entry-point DispatchFunction \
     --region $region
@@ -842,4 +842,4 @@ gcloud functions deploy dispatch-function \
 
 **Last Updated:** 2026-01-01
 **Framework:** Excalibur 1.0.0
-**Google Cloud Functions:** .NET 9 Runtime (2nd gen)
+**Google Cloud Functions:** .NET 10 Runtime (2nd gen)

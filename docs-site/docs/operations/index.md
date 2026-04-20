@@ -10,7 +10,7 @@ Operational guidance for running Excalibur in production environments, including
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A deployed Dispatch application
 - Familiarity with [configuration](../configuration/index.md) and [observability](../observability/index.md)
 

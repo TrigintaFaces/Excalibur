@@ -1,0 +1,71 @@
+#nullable enable
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExporterHealthResult!>!
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.ExportAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportResult!>!
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.ExportBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>! auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportBatchResult!>!
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.Name.get -> string!
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.OpenSearchAuditExporter(System.Net.Http.HttpClient! httpClient, Microsoft.Extensions.Options.IOptions<Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter!>! logger) -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.ApiKey.get -> string?
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.ApiKey.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.ApplicationName.get -> string?
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.ApplicationName.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.IndexPrefix.get -> string!
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.IndexPrefix.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.MaxRetryAttempts.get -> int
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.MaxRetryAttempts.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.NodeUrls.get -> System.Collections.Generic.List<string!>?
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.NodeUrls.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.OpenSearchAuditSinkOptions() -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.OpenSearchUrl.get -> string?
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.OpenSearchUrl.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.RefreshPolicy.get -> string!
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.RefreshPolicy.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.RetryBaseDelay.get -> System.TimeSpan
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.RetryBaseDelay.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.Timeout.get -> System.TimeSpan
+Excalibur.AuditLogging.OpenSearch.OpenSearchAuditSinkOptions.Timeout.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.ApiKey.get -> string?
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.ApiKey.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.ApplicationName.get -> string?
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.ApplicationName.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.BulkBatchSize.get -> int
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.BulkBatchSize.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.IndexPrefix.get -> string!
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.IndexPrefix.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.MaxRetryAttempts.get -> int
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.MaxRetryAttempts.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.NodeUrls.get -> System.Collections.Generic.List<string!>?
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.NodeUrls.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.OpenSearchExporterOptions() -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.OpenSearchUrl.get -> string!
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.OpenSearchUrl.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.RefreshPolicy.get -> string!
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.RefreshPolicy.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.RetryBaseDelay.get -> System.TimeSpan
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.RetryBaseDelay.set -> void
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.Timeout.get -> System.TimeSpan
+Excalibur.AuditLogging.OpenSearch.OpenSearchExporterOptions.Timeout.set -> void
+Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.BatchForwarded = 93531 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.EventForwarded = 93530 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.ForwardFailedBatchChunk = 93540 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.ForwardFailedHttpError = 93538 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.ForwardFailedStatus = 93535 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.ForwardFailedTimeout = 93539 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.ForwardRetried = 93536 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.HealthCheckFailed = 93537 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.SinkEventWritten = 93541 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.SinkHttpError = 93543 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.SinkRetried = 93545 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.SinkTimeout = 93544 -> int
+const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.SinkWriteFailed = 93542 -> int
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.IndexName(string! indexPrefix) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.NodeUri(System.Uri! nodeUri) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.NodeUris(System.Collections.Generic.IEnumerable<System.Uri!>! nodeUris) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
+static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddOpenSearchAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddOpenSearchAuditSink(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -43,15 +43,16 @@ The outbox pattern solves a common distributed systems problem: how to reliably 
 Uses the preset-based fluent API (ADR-098). Start with a preset (`Balanced`, `HighThroughput`, `HighReliability`) then override specific settings:
 
 ```csharp
-builder.Services.AddExcaliburOutbox(
-    OutboxOptions.Balanced()                                    // Sensible defaults
-        .WithBatchSize(50)                                      // Messages per batch
-        .WithPollingInterval(TimeSpan.FromSeconds(2))           // Check interval
-        .WithMaxRetries(3)                                      // Max retries
-        .WithRetryDelay(TimeSpan.FromSeconds(10))               // Retry delay
-        .WithRetentionPeriod(TimeSpan.FromHours(1))             // Keep messages for 1 hour
-        .WithCleanupInterval(TimeSpan.FromMinutes(5))           // Cleanup every 5 minutes
-        .Build());
+builder.Services.AddExcalibur(excalibur => excalibur
+    .AddOutbox(
+        OutboxOptions.Balanced()                                    // Sensible defaults
+            .WithBatchSize(50)                                      // Messages per batch
+            .WithPollingInterval(TimeSpan.FromSeconds(2))           // Check interval
+            .WithMaxRetries(3)                                      // Max retries
+            .WithRetryDelay(TimeSpan.FromSeconds(10))               // Retry delay
+            .WithRetentionPeriod(TimeSpan.FromHours(1))             // Keep messages for 1 hour
+            .WithCleanupInterval(TimeSpan.FromMinutes(5))           // Cleanup every 5 minutes
+            .Build()));
 ```
 
 ### Store Registration
@@ -62,7 +63,8 @@ builder.Services.AddOutbox<InMemoryOutboxStore>();
 builder.Services.AddInbox<InMemoryInboxStore>();
 
 // Production: Durable stores
-// builder.Services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
+// builder.Services.AddExcalibur(excalibur => excalibur
+//     .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 // builder.Services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 ```
 
@@ -153,7 +155,8 @@ This is essential for at-least-once delivery systems where messages may be redel
 
 ```csharp
 // Use durable SQL Server stores
-services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
+services.AddExcalibur(excalibur => excalibur
+    .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 ```
 

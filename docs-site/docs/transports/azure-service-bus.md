@@ -9,7 +9,7 @@ Azure Service Bus transport for enterprise-grade messaging with Azure-native int
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An Azure Service Bus namespace with connection string
 - Familiarity with [transport concepts](./index.md) and [choosing a transport](./choosing-a-transport.md)
 

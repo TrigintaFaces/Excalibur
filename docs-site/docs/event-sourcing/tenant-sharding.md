@@ -10,7 +10,7 @@ Route each tenant's data to a dedicated database shard for isolation, compliance
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the core package and your provider:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -71,7 +71,6 @@ services.AddSingleton<ITenantShardMap>(sp =>
 
     var options = new ShardMapOptions
     {
-        EnableTenantSharding = true,
         DefaultShardId = "shard-us-east",  // Unknown tenants go here
     };
 
@@ -82,18 +81,17 @@ services.AddSingleton<ITenantShardMap>(sp =>
 ### 2. Enable Sharding and Register Provider
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     // Step 1: Enable tenant sharding
     builder.EnableTenantSharding(options =>
     {
-        options.EnableTenantSharding = true;
         options.DefaultShardId = "shard-us-east";
     });
 
     // Step 2: Register the provider-specific resolver
     builder.UseSqlServerTenantEventStore();
-});
+}));
 ```
 
 That's it. `IEventStore` is now scoped per-request and routes to the correct shard based on the current tenant.
@@ -157,32 +155,33 @@ Each provider has a dedicated extension method that registers its `ITenantStoreR
 ### SQL Server Example
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
-    builder.EnableTenantSharding(opts => opts.EnableTenantSharding = true);
+    builder.EnableTenantSharding(opts => opts.DefaultShardId = "shard-us-east");
     builder.UseSqlServerTenantEventStore();
     // Schema defaults to dbo; override via ShardInfo.SchemaName per shard
-});
+}));
 ```
 
 ### PostgreSQL Example
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
-    builder.EnableTenantSharding(opts => opts.EnableTenantSharding = true);
+    builder.EnableTenantSharding(opts => opts.DefaultShardId = "shard-us-east");
     builder.UsePostgresTenantEventStore();
     // Schema defaults to public; override via ShardInfo.SchemaName per shard
     // Each shard gets its own NpgsqlDataSource for connection pooling
-});
+}));
 ```
 
 ## ShardMapOptions
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `EnableTenantSharding` | `false` | Master switch. When `false`, sharding is a no-op |
 | `DefaultShardId` | `null` | Shard ID for unknown tenants. When `null`, unknown tenants throw `TenantShardNotFoundException` |
+
+Sharding is enabled by calling `builder.EnableTenantSharding(...)`. Not calling the method leaves stores registered with their default lifetime and bypasses the tenant-routing decorator entirely.
 
 ## Automatic Tenant Placement
 
@@ -233,13 +232,13 @@ This is distinct from `ITenantStoreResolver` (which routes to entirely different
 When sharding is enabled, the event sourcing outbox uses the unified `IOutboxStore` and `ITransactionalOutboxWriter` interfaces. Configure per-aggregate staging strategy to control how integration events are staged:
 
 ```csharp
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.AddRepository<Order>(id => new Order(id), opts =>
     {
         opts.OutboxStagingStrategy = OutboxStagingStrategy.Transactional;
     });
-});
+}));
 ```
 
 The `PartitionKey` on `OutboundMessage` is set to the tenant ID (when available) or aggregate ID, enabling downstream partition-aware processing. See [Event Sourcing Outbox Integration](../patterns/outbox.md#event-sourcing-outbox-integration).

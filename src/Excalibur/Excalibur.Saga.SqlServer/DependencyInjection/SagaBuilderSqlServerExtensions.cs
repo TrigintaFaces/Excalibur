@@ -35,7 +35,7 @@ public static class SagaBuilderSqlServerExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSaga(saga =&gt;
+	/// services.AddExcalibur(x => x.AddSagas(saga =&gt;
 	/// {
 	///     saga.UseSqlServer(sql =&gt;
 	///     {
@@ -45,7 +45,7 @@ public static class SagaBuilderSqlServerExtensions
 	///     })
 	///     .WithOrchestration()
 	///     .WithTimeouts();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static ISagaBuilder UseSqlServer(

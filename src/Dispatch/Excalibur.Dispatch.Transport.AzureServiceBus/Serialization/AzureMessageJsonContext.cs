@@ -66,6 +66,8 @@ namespace Excalibur.Dispatch.Transport.Azure;
 [JsonSerializable(typeof(DeadLetterInfo))]
 [JsonSerializable(typeof(RetryInfo))]
 [JsonSerializable(typeof(List<DeadLetterInfo>))]
+[JsonSerializable(typeof(DeadLetterMessageEnvelope))]
+[JsonSerializable(typeof(StorageQueueMessageEnvelope))]
 
 // Common Azure types
 [JsonSerializable(typeof(byte[]))]

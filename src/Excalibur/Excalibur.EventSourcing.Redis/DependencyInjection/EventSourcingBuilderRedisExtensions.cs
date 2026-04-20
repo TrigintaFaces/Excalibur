@@ -35,7 +35,7 @@ public static class EventSourcingBuilderRedisExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseRedis(redis =&gt;
 	///     {
@@ -44,7 +44,7 @@ public static class EventSourcingBuilderRedisExtensions
 	///              .Database(0);
 	///     })
 	///       .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

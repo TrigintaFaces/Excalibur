@@ -13,11 +13,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 public sealed class TimeBoundBatchingStrategy(BatchOptions configuration) : IBatchingStrategy
 {
 	private readonly BatchOptions _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 	private readonly Queue<TimestampedBatch> _recentBatches = new();
 	private DateTimeOffset _lastBatchTime = DateTimeOffset.UtcNow;
 	private double _averageProcessingTime;

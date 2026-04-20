@@ -15,7 +15,7 @@
 	<PropertyGroup>
 		<!-- Compiler Settings -->
 		<LangVersion>latest</LangVersion>
-		<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 
@@ -98,7 +98,8 @@
 			     See: https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1812#when-to-suppress-warnings -->
 			<!-- CA1823: Unused private field — overlaps with IDE0052, tracked for incremental cleanup
 			     CA1711: Identifier suffix — false positive for domain types (EventArgs, Queue, EventHandler) -->
-			<NoWarn>$(NoWarn);NU5118;CA1873;RS0027;RS0041;CA1812;CA1859;CA1823;CA1711</NoWarn>
+			<!-- NU1510: net10 SDK package-pruning hint (informational; package cleanup tracked by Workstream B of S797) -->
+			<NoWarn>$(NoWarn);NU5118;CA1873;RS0027;RS0041;CA1812;CA1859;CA1823;CA1711;NU1510</NoWarn>
 		<!-- RS0016/RS0017: Treated as errors (via TreatWarningsAsErrors) to enforce public API baseline accuracy -->
 	</PropertyGroup>
 	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\README.md')">

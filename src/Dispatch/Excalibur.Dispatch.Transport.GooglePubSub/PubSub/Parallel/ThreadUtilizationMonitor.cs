@@ -18,11 +18,7 @@ public sealed class ThreadUtilizationMonitor : IDisposable
 	private readonly ValueHistogram _activeThreadsHistogram;
 	private readonly RateCounter _contextSwitchCount;
 	private readonly Timer _samplingTimer;
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 	private int _maxObservedThreads;
 	private readonly long _lastSampleTime;
 

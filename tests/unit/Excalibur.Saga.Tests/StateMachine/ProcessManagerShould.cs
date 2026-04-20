@@ -15,6 +15,7 @@ namespace Excalibur.Saga.Tests.StateMachine;
 /// Unit tests for <see cref="ProcessManager{TData}"/>.
 /// Verifies state machine transitions, event handling, and state definitions.
 /// </summary>
+[Collection("SagaContextFactoryRegistry")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Saga")]
 public sealed class ProcessManagerShould

@@ -10,7 +10,7 @@ The Dispatch source generators enable **compile-time service registration** with
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the source generator package:
   ```bash
   dotnet add package Excalibur.Dispatch.SourceGenerators
@@ -23,7 +23,7 @@ The Dispatch source generators enable **compile-time service registration** with
 |---------|-------------|
 | **No Runtime Reflection** | All service discovery happens at compile time |
 | **Faster Startup** | No assembly scanning required at application start |
-| **Native AOT Support** | Compatible with `PublishAot=true` for .NET 8+ |
+| **Native AOT Support** | Compatible with `PublishAot=true` |
 | **Trimming Safe** | No types unexpectedly removed by IL trimmer |
 | **Explicit Control** | Opt-in registration prevents surprises |
 

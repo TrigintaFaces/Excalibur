@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Compliance.KeyRotation;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.KeyRotation;
 
 [Trait("Category", TestCategories.Unit)]

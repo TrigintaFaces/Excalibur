@@ -9,11 +9,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </summary>
 public sealed class LeastLoadedDistributionStrategy : IWorkDistributionStrategy
 {
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 	private readonly Dictionary<int, WorkerLoad> _workerLoads;
 
 	/// <summary>

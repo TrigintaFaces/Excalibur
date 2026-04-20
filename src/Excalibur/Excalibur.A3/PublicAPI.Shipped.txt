@@ -361,6 +361,7 @@ Excalibur.A3.Exceptions.NotAuthorizedException.UserName.get -> string?
 Excalibur.A3.IAccessToken
 Excalibur.A3.IAccessToken.UserId.get -> string!
 Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.AuditExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsError = 181501 -> int
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsRetrieved = 181503 -> int
@@ -399,6 +400,7 @@ static Excalibur.A3.Exceptions.NotAuthorizedException.BecauseForbidden(Excalibur
 static Excalibur.A3.Exceptions.NotAuthorizedException.BecauseNotAuthenticated(System.Exception? exception = null) -> Excalibur.A3.Exceptions.NotAuthorizedException!
 static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddA3DispatchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddExcaliburA3(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
+static Microsoft.Extensions.DependencyInjection.AuditExcaliburBuilderExtensions.AddAudit(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions.AddDispatchAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.A3.Authentication.AuthClaims.Email -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.FamilyName -> string!

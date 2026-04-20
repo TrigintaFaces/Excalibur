@@ -8,7 +8,7 @@ using Testcontainers.LocalStack;
 
 using Tests.Shared.Fixtures;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
 
 /// <summary>
@@ -47,7 +47,7 @@ public class LocalStackContainerFixture : ContainerFixtureBase
 			.WithEnvironment("SERVICES", "kms")
 			.WithEnvironment("EAGER_SERVICE_LOADING", "1")
 			.WithWaitStrategy(Wait.ForUnixContainer()
-				.UntilPortIsAvailable(4566)
+				.UntilInternalTcpPortIsAvailable(4566)
 				.UntilHttpRequestIsSucceeded(r => r.ForPath("/_localstack/health").ForPort(4566)))
 			.Build();
 

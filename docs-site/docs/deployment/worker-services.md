@@ -10,7 +10,7 @@ Worker Services are ideal for dedicated background processing tasks like outbox 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -104,7 +104,7 @@ Excalibur supports two projection processing modes. Choose based on your consist
 Inline projections run during `SaveAsync()` and guarantee read-after-write consistency without a background worker:
 
 ```csharp
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.AddAggregate<OrderAggregate>(agg => agg.UseSqlServerStore(connectionString));
 
@@ -113,7 +113,7 @@ builder.Services.AddExcaliburEventSourcing(es =>
         .Inline()
         .When<OrderCreated>((proj, e) => { proj.Status = "Created"; proj.CustomerId = e.CustomerId; })
         .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
-});
+}));
 ```
 
 See [Projections -- Failure Handling](../event-sourcing/projections.md#failure-handling) for failure handling and recovery.
@@ -123,7 +123,7 @@ See [Projections -- Failure Handling](../event-sourcing/projections.md#failure-h
 For eventually-consistent projections, use `GlobalStreamProjectionHost` which processes events via checkpoint-based background polling:
 
 ```csharp
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.AddAggregate<OrderAggregate>(agg => agg.UseSqlServerStore(connectionString));
 
@@ -132,7 +132,7 @@ builder.Services.AddExcaliburEventSourcing(es =>
         .Async()
         .When<OrderCreated>((proj, e) => { proj.Status = "Created"; })
         .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
-});
+}));
 ```
 
 ## CDC Worker
@@ -366,7 +366,7 @@ await host.RunAsync();
 FROM mcr.microsoft.com/dotnet/runtime:8.0 AS base
 WORKDIR /app
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY ["OutboxWorker.csproj", "./"]
 RUN dotnet restore

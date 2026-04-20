@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using Excalibur.Data.Abstractions.Persistence;
 using Excalibur.Data.ElasticSearch.Diagnostics;
 using Excalibur.Data.SqlServer.Diagnostics;
-using Excalibur.Dispatch.Compliance.Diagnostics;
+using Excalibur.Compliance.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Observability.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;

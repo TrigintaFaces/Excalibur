@@ -12,7 +12,7 @@ In 2024, the ASP.NET Core team proposed an [Eventing Framework Epic for .NET 9](
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Familiarity with [getting started](../getting-started/index.md) and [transports](../transports/choosing-a-transport.md)
 
 ---

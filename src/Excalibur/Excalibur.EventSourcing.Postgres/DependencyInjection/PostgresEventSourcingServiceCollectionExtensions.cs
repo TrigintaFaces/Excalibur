@@ -26,11 +26,11 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <para>
 /// <b>For event store and snapshot store registration, use the canonical builder pattern:</b>
 /// <code>
-/// services.AddExcaliburEventSourcing(es =&gt;
+/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 /// {
 ///     es.UsePostgres(pg =&gt; pg.ConnectionString("Host=localhost;Database=MyApp;"))
 ///       .AddRepository&lt;OrderAggregate, Guid&gt;();
-/// });
+/// }));
 /// </code>
 /// </para>
 /// <para>

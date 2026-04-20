@@ -5,7 +5,7 @@ using Testcontainers.Azurite;
 
 using Tests.Shared.Fixtures;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
 
 /// <summary>
@@ -34,7 +34,7 @@ public class AzuriteContainerFixture : ContainerFixtureBase
 		_container = new AzuriteBuilder()
 			.WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
 			.WithName($"azurite-compliance-test-{Guid.NewGuid():N}")
-			.WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(10000))
+			.WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(10000))
 			.Build();
 
 		await _container.StartAsync(cancellationToken);

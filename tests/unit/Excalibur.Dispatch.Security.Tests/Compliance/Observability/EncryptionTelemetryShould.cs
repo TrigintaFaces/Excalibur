@@ -3,6 +3,7 @@
 
 using System.Diagnostics.Metrics;
 
+using Excalibur.Compliance.Observability;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Observability;
 
 [Trait("Category", TestCategories.Unit)]

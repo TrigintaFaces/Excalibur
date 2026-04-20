@@ -2,7 +2,7 @@
 <!-- Sprint 431 S431.5: OpenTelemetry Observability Sample -->
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>OpenTelemetrySample</RootNamespace>

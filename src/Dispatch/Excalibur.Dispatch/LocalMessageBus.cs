@@ -137,11 +137,7 @@ internal sealed partial class LocalMessageBus(
 		IMessageContext? context,
 		CancellationToken cancellationToken);
 
-#if NET9_0_OR_GREATER
 	private static readonly Lock PrecompiledDirectProviderLock = new();
-#else
-	private static readonly object PrecompiledDirectProviderLock = new();
-#endif
 	private static PrecompiledDirectProvider[] _precompiledDirectProviders = [];
 	private static volatile bool _precompiledDirectProvidersInitialized;
 	[ThreadStatic] private static LocalMessageBus? s_cachedNoContextBus;

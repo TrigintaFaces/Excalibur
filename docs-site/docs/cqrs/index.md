@@ -10,7 +10,7 @@ CQRS separates read and write operations into distinct models. Combined with eve
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -209,10 +209,10 @@ Configuration:
 
 ```csharp
 // Write side: Event sourcing with SQL Server
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(opts => opts.ConnectionString = writeConnectionString);
-});
+}));
 
 // Read side: Separate read database
 builder.Services.AddScoped<IDbConnection>(_ =>

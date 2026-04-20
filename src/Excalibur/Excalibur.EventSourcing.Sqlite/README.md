@@ -12,13 +12,13 @@ Lightweight SQLite event store and snapshot store for Excalibur event sourcing.
 ## Usage
 
 ```csharp
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(x => x.AddEventSourcing(es =>
 {
     es.UseSqlite(options =>
     {
         options.ConnectionString = "Data Source=events.db";
     });
-});
+}));
 ```
 
 Tables are auto-created on first use.

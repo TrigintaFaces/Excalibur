@@ -30,14 +30,14 @@ public static class OutboxBuilderDynamoDbExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburOutbox(outbox =&gt;
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =&gt;
 	/// {
 	///     outbox.UseDynamoDb(dynamo =&gt;
 	///     {
 	///         dynamo.ServiceUrl("http://localhost:8000")
 	///               .TableName("outbox");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

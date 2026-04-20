@@ -19,11 +19,7 @@ public sealed class LazyServiceInitializer<TService>(
 	where TService : class
 {
 	private readonly Func<TService> _factory = factory ?? throw new ArgumentNullException(nameof(factory));
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 	private TService? _instance;
 	private volatile bool _initialized;
 

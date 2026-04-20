@@ -4,7 +4,7 @@
 #pragma warning disable IL2026, IL3050 // Suppress for test - RequiresUnreferencedCode/RequiresDynamicCode
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 

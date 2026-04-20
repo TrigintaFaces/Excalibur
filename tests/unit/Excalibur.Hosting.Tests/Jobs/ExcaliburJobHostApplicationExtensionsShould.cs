@@ -50,7 +50,7 @@ public sealed class ExcaliburJobHostApplicationExtensionsShould : UnitTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		_ = HostingJobsServiceCollectionExtensions.AddExcaliburJobHost(services);
+		_ = services.AddExcalibur(static excalibur => excalibur.AddJobs());
 		_ = services.AddLogging();
 		_ = services.AddHealthChecks();
 		_ = services.AddOpenTelemetry().WithMetrics(static metrics => metrics.AddPrometheusExporter());

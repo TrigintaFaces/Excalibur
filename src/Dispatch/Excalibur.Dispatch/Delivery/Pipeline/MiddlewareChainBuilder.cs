@@ -75,11 +75,7 @@ internal sealed class MiddlewareChainBuilder
 	/// </summary>
 	private FrozenDictionary<ChainCacheKey, ChainExecutor>? _frozenChainCache;
 
-#if NET9_0_OR_GREATER
 	private readonly Lock _freezeLock = new();
-#else
-	private readonly object _freezeLock = new();
-#endif
 	private volatile bool _isFrozen;
 
 	/// <summary>

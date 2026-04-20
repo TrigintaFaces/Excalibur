@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Reflection;
-using System.Runtime.CompilerServices;
-
 using Excalibur.Dispatch.Hosting.AzureFunctions;
+using Excalibur.Dispatch.Hosting.Serverless.Tests.Bootstrap;
 
 using Microsoft.Azure.Functions.Worker;
 
@@ -15,7 +13,7 @@ namespace Excalibur.Dispatch.Hosting.Serverless.Tests;
 [Trait("Component", "Platform")]
 public sealed class AzureFunctionsHostProviderShould : UnitTestBase
 {
-	private readonly AzureFunctionsHostProvider _sut = new(EnabledTestLogger.Create());
+	private readonly AzureFunctionsHostProvider _sut = new(EnabledTestLogger.Create<AzureFunctionsHostProvider>());
 
 	[Fact]
 	public void Platform_ReturnAzureFunctions()
@@ -172,56 +170,70 @@ public sealed class AzureFunctionsHostProviderShould : UnitTestBase
 	}
 
 	[Fact]
-	public void InternalBootstrapTypes_ExposeExpectedDefaultBehavior()
+	public void TestBootstrapTypes_ExposeExpectedDefaultBehavior()
 	{
-		var providerType = typeof(AzureFunctionsHostProvider);
+		// After bd-15oadf the bootstrap types moved out of prod into
+		// Excalibur.Dispatch.Hosting.Serverless.Tests.Bootstrap. This test validates the
+		// test-only shims preserve the original prod shape so the assertions against the
+		// FunctionContext contract surface remain honest.
+		var invocationFeatures = new DefaultInvocationFeatures();
+		invocationFeatures.Set("enabled");
+		invocationFeatures.Get<string>().ShouldBe("enabled");
+		invocationFeatures.Cast<object>().ToArray().Length.ShouldBe(1);
 
-		var invocationFeaturesType = providerType.GetNestedType("DefaultInvocationFeatures", BindingFlags.NonPublic);
-		invocationFeaturesType.ShouldNotBeNull();
-		var invocationFeatures = Activator.CreateInstance(invocationFeaturesType!);
-		invocationFeatures.ShouldNotBeNull();
+		var traceContext = new DefaultTraceContext();
+		traceContext.TraceParent.ShouldStartWith("00-");
+		traceContext.TraceState.ShouldBe(string.Empty);
 
-		var setMethod = invocationFeaturesType!.GetMethod("Set")!.MakeGenericMethod(typeof(string));
-		_ = setMethod.Invoke(invocationFeatures, ["enabled"]);
-		var getMethod = invocationFeaturesType.GetMethod("Get")!.MakeGenericMethod(typeof(string));
-		getMethod.Invoke(invocationFeatures, null).ShouldBe("enabled");
-		var entries = ((System.Collections.IEnumerable)invocationFeatures!).Cast<object>().ToArray();
-		entries.Length.ShouldBe(1);
-
-		var traceContextType = providerType.GetNestedType("DefaultTraceContext", BindingFlags.NonPublic);
-		traceContextType.ShouldNotBeNull();
-		var traceContext = Activator.CreateInstance(traceContextType!);
-		traceContext.ShouldNotBeNull();
-		traceContextType!.GetProperty("TraceParent")!.GetValue(traceContext)!.ToString()!
-			.ShouldStartWith("00-");
-		traceContextType.GetProperty("TraceState")!.GetValue(traceContext).ShouldBeNull();
-
-		var retryContextType = providerType.GetNestedType("DefaultRetryContext", BindingFlags.NonPublic);
-		retryContextType.ShouldNotBeNull();
-		var retryContext = Activator.CreateInstance(retryContextType!);
-		retryContext.ShouldNotBeNull();
-		retryContextType!.GetProperty("RetryCount")!.GetValue(retryContext).ShouldBe(0);
-		retryContextType.GetProperty("MaxRetryCount")!.GetValue(retryContext).ShouldBe(3);
+		var retryContext = new DefaultRetryContext();
+		retryContext.RetryCount.ShouldBe(0);
+		retryContext.MaxRetryCount.ShouldBe(3);
 
 		Environment.SetEnvironmentVariable("WEBSITE_SITE_NAME", "orders-site");
 		try
 		{
-			var defaultContextType = providerType.GetNestedType("DefaultFunctionContext", BindingFlags.NonPublic);
-			defaultContextType.ShouldNotBeNull();
-			var uninitialized = RuntimeHelpers.GetUninitializedObject(defaultContextType!);
+			var ctx = new DefaultFunctionContext();
+			ctx.FunctionName.ShouldBe("orders-site");
+			ctx.FunctionId.ShouldBe("orders-site");
+			ctx.Features.ShouldBeNull();
 
-			defaultContextType!.GetProperty("FunctionName")!.GetValue(uninitialized).ShouldBe("orders-site");
-			var itemsProperty = defaultContextType.GetProperty("Items")!;
-			_ = itemsProperty.GetValue(uninitialized);
-			var itemsSetterEx = Should.Throw<TargetInvocationException>(() =>
-				itemsProperty.SetValue(uninitialized, new Dictionary<object, object>()));
-			itemsSetterEx.InnerException!.ShouldBeOfType<NotSupportedException>();
-			defaultContextType.GetProperty("Features")!.GetValue(uninitialized).ShouldBeNull();
+			// Property setter is guarded.
+			Should.Throw<NotSupportedException>(() =>
+				ctx.Items = new Dictionary<object, object>());
 		}
 		finally
 		{
 			Environment.SetEnvironmentVariable("WEBSITE_SITE_NAME", null);
 		}
+	}
+
+	[Fact]
+	public void DefaultFunctionContext_ItemsGetter_ReturnStableMutableDictionaryAcrossCalls()
+	{
+		// Regression guard for bd-2d8fjd: Items previously returned `new Dictionary<>()` on
+		// every get, silently discarding writes. The fix stores a per-instance backing dict
+		// so `ctx.Items["x"] = 1; ctx.Items["y"]` preserves "x", matching the
+		// Azure Functions FunctionContext.Items contract. After bd-15oadf the shim lives
+		// in the test project so this asserts directly against the moved type.
+		var ctx = new DefaultFunctionContext();
+
+		// (1) Reference stability — two property reads return the same instance.
+		var itemsA = ctx.Items;
+		var itemsB = ctx.Items;
+		ReferenceEquals(itemsA, itemsB).ShouldBeTrue(
+			"Items getter must return the same dictionary instance on successive calls.");
+
+		// (2) Mutation persistence — writes made via the returned IDictionary<> are visible
+		//     on subsequent getter reads.
+		itemsA["x"] = 1;
+		itemsA["y"] = 2;
+		ctx.Items.ContainsKey("x").ShouldBeTrue();
+		ctx.Items["x"].ShouldBe(1);
+		ctx.Items["y"].ShouldBe(2);
+
+		// (3) Property setter still guards against replacement.
+		Should.Throw<NotSupportedException>(() =>
+			ctx.Items = new Dictionary<object, object>());
 	}
 
 	[Fact]

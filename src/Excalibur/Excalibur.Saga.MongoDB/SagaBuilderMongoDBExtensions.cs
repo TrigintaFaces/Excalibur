@@ -34,7 +34,7 @@ public static class SagaBuilderMongoDbExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSaga(saga =&gt;
+	/// services.AddExcalibur(x => x.AddSagas(saga =&gt;
 	/// {
 	///     saga.UseMongoDB(mongo =&gt;
 	///     {
@@ -42,7 +42,7 @@ public static class SagaBuilderMongoDbExtensions
 	///              .DatabaseName("myapp")
 	///              .CollectionName("sagas");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

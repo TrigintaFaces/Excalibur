@@ -54,7 +54,7 @@ $Script:SmokeTestVersion = "99.0.0-smoketest"  # Use prerelease version for all 
 # Order matters for dependency resolution!
 $Script:DispatchPackages = @(
     'Excalibur.Dispatch.Abstractions',              # Must be first (dependency of all others)
-    'Excalibur.Dispatch.Compliance.Abstractions',   # Dependency of Dispatch (depends on Abstractions)
+    'Excalibur.Compliance.Abstractions',            # Dependency of Dispatch (moved src/Excalibur in S806)
     'Excalibur.Dispatch.Serialization.MemoryPack',  # Dependency of Dispatch
     'Excalibur.Dispatch'                            # Core dispatcher
 )
@@ -184,7 +184,7 @@ function Invoke-ConsumerPhase {
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -340,7 +340,7 @@ function Invoke-ValidationPhase {
 
         # Additional check: Verify no Excalibur references in deps.json
         Write-Info "Verifying dependency isolation..."
-        $depsJsonPath = Join-Path $Script:ConsumerDir 'bin/Release/net9.0/SmokeTest.deps.json'
+        $depsJsonPath = Join-Path $Script:ConsumerDir 'bin/Release/net10.0/SmokeTest.deps.json'
         if (Test-Path $depsJsonPath) {
             $depsContent = Get-Content -Path $depsJsonPath -Raw
             if ($depsContent -match 'Excalibur\.(?!Dispatch)') {

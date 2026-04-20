@@ -36,13 +36,13 @@ dotnet add package Excalibur.Saga.SqlServer
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-services.AddExcaliburSaga(options =>
+services.AddExcalibur(x => x.AddSagas(options =>
 {
     options.MaxConcurrency = 10;
     options.DefaultTimeout = TimeSpan.FromMinutes(30);
     options.MaxRetryAttempts = 3;
     options.RetryDelay = TimeSpan.FromMinutes(1);
-});
+}));
 
 // Add SQL Server persistence (optional)
 services.AddExcaliburSagaSqlServer(connectionString);

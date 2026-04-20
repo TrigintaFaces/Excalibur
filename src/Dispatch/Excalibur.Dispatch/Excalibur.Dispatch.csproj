@@ -92,15 +92,13 @@
     <!-- Polly removed - Use IRetryPolicy from Excalibur.Dispatch.Resilience or Excalibur.Dispatch.Resilience.Polly -->
     <PackageReference Include="System.Threading.Channels" />
     <PackageReference Include="System.Threading.RateLimiting" />
-    <!-- System.IO.Pipelines is in-box for net9.0, but needed as package for net8.0 -->
-    <PackageReference Include="System.IO.Pipelines" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <!-- System.IO.Pipelines is in-box for net10.0 (no package reference needed) -->
     <!-- Wasmtime REMOVED - No code in Dispatch uses it -->
     <!-- Database drivers REMOVED - Moved to Excalibur.Data.* provider packages -->
     <!-- FluentValidation moved to optional Excalibur.Dispatch.Validation.FluentValidation package -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-    <ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
     <!-- ADR-295: MemoryPack ProjectReference removed; opt-in via Excalibur.Dispatch.Serialization.MemoryPack package -->
     <!-- PERF-7/PERF-8 (Sprint 452): Source generators always enabled for AOT-compatible handler resolution -->
     <ProjectReference Include="..\Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />

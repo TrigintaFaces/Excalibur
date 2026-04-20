@@ -8,7 +8,7 @@ A comprehensive guide for migrating from MassTransit to Excalibur.Dispatch, cove
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An existing application using MassTransit
 - Familiarity with [getting started](../getting-started/index.md) and [transports](../transports/choosing-a-transport.md)
 
@@ -325,11 +325,11 @@ Remove MassTransit broker, use Dispatch outbox with custom publisher:
 ```csharp
 // Use Dispatch outbox with external transport
 builder.Services.AddDispatch(typeof(Program).Assembly);
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
-});
+}));
 
 // For external broker integration, use the transport layer
 // (RabbitMQ, Azure Service Bus, etc.) via transport packages
@@ -351,11 +351,11 @@ Remove message broker entirely, use database for messaging:
 ```csharp
 // Database-backed messaging via outbox
 builder.Services.AddDispatch(typeof(Program).Assembly);
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
-});
+}));
 
 // Background service processes outbox
 builder.Services.AddOutboxHostedService();
@@ -406,11 +406,11 @@ builder.Services.AddMassTransit(x =>
 **After (Dispatch):**
 ```csharp
 builder.Services.AddDispatch(typeof(Program).Assembly);
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
-});
+}));
 builder.Services.AddOutboxHostedService();
 ```
 
@@ -665,11 +665,11 @@ builder.Services.AddRabbitMqTransport(options =>
 });
 
 // Or use the outbox with transport integration
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
-});
+}));
 ```
 
 ### Issue 2: Complex Routing

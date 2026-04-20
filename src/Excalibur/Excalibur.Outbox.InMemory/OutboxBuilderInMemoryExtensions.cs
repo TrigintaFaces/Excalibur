@@ -47,21 +47,21 @@ public static class OutboxBuilderInMemoryExtensions
 	/// <example>
 	/// <code>
 	/// // Simple test configuration
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseInMemory()
 	///           .WithProcessing(p => p.BatchSize(10));
-	/// });
+	/// }));
 	///
 	/// // With custom limits
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseInMemory(inmemory =>
 	///     {
 	///         inmemory.MaxMessages(100)
 	///                 .RetentionPeriod(TimeSpan.FromMinutes(5));
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IOutboxBuilder UseInMemory(

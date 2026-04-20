@@ -5,11 +5,12 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Telemetry;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Configuration;
 
-namespace Excalibur.Dispatch.Security.Tests.Security;
+
+using Excalibur.Security.Configuration;namespace Excalibur.Dispatch.Security.Tests.Security;
 
 /// <summary>
 /// Depth tests for <see cref="SecurityMiddlewareExtensions"/>.

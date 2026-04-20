@@ -15,13 +15,13 @@ namespace Excalibur.EventSourcing.InMemory;
 /// </remarks>
 /// <example>
 /// <code>
-/// services.AddExcaliburEventSourcing(es =>
+/// services.AddExcalibur(x => x.AddEventSourcing(es =>
 /// {
 ///     es.UseInMemory(inmemory =>
 ///     {
 ///         inmemory.StoreName("test-store");
 ///     });
-/// });
+/// }));
 /// </code>
 /// </example>
 public interface IInMemoryEventSourcingBuilder

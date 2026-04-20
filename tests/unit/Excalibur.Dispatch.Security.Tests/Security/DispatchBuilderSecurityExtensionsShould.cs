@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Dispatch.Security.Tests.Security;
 
 /// <summary>
-/// Unit tests for <see cref="DispatchBuilderSecurityExtensions"/>.
+/// Unit tests for <see cref="SecurityExcaliburBuilderExtensions"/>.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Security)]
@@ -26,7 +26,7 @@ public sealed class DispatchBuilderSecurityExtensionsShould
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            DispatchBuilderSecurityExtensions.UseSecurity(null!, config));
+            SecurityExcaliburBuilderExtensions.UseSecurity(null!, config));
     }
 
     [Fact]

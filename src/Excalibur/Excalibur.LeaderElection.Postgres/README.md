@@ -33,11 +33,11 @@ services.AddPostgresLeaderElection(options =>
 Or using the builder pattern:
 
 ```csharp
-services.AddExcaliburLeaderElection(builder =>
+services.AddExcalibur(x => x.AddLeaderElection(builder =>
 {
     builder.UsePostgres(options =>
     {
         options.ConnectionString = connectionString;
     });
-});
+}));
 ```

@@ -13,14 +13,14 @@ Excalibur.Data.Postgres.Audit.PostgresAuditOptions.TableName.get -> string!
 Excalibur.Data.Postgres.Audit.PostgresAuditOptions.TableName.set -> void
 Excalibur.Data.Postgres.Audit.PostgresAuditOptions.Validate() -> void
 Excalibur.Data.Postgres.Audit.PostgresAuditStore
-Excalibur.Data.Postgres.Audit.PostgresAuditStore.CountAsync(Excalibur.Dispatch.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.Data.Postgres.Audit.PostgresAuditStore.CountAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Data.Postgres.Audit.PostgresAuditStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.Postgres.Audit.PostgresAuditStore.GetByIdAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEvent?>!
-Excalibur.Data.Postgres.Audit.PostgresAuditStore.GetLastEventAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEvent?>!
+Excalibur.Data.Postgres.Audit.PostgresAuditStore.GetByIdAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
+Excalibur.Data.Postgres.Audit.PostgresAuditStore.GetLastEventAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
 Excalibur.Data.Postgres.Audit.PostgresAuditStore.PostgresAuditStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.Audit.PostgresAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Audit.PostgresAuditStore!>! logger) -> void
-Excalibur.Data.Postgres.Audit.PostgresAuditStore.QueryAsync(Excalibur.Dispatch.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditEvent!>!>!
-Excalibur.Data.Postgres.Audit.PostgresAuditStore.StoreAsync(Excalibur.Dispatch.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEventId>!
-Excalibur.Data.Postgres.Audit.PostgresAuditStore.VerifyChainIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditIntegrityResult!>!
+Excalibur.Data.Postgres.Audit.PostgresAuditStore.QueryAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>!>!
+Excalibur.Data.Postgres.Audit.PostgresAuditStore.StoreAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEventId>!
+Excalibur.Data.Postgres.Audit.PostgresAuditStore.VerifyChainIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditIntegrityResult!>!
 Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore
 Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.ActivityGroupExistsAsync(string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.Postgres.Authorization.PostgresActivityGroupStore.CreateActivityGroupAsync(string? tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!

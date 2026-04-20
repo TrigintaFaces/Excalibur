@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance.Monitoring;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Monitoring;
 
 [Trait("Category", TestCategories.Unit)]

@@ -111,10 +111,10 @@ var connectionString = builder.Configuration.GetConnectionString("EventStore")
 builder.Services.AddDispatchWithSqlServer(connectionString);
 
 // Register aggregate repository
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.AddRepository<CounterAggregate, Guid>(id => new CounterAggregate(id));
-});
+}));
 
 var app = builder.Build();
 
@@ -299,7 +299,7 @@ var connectionString = builder.Configuration.GetConnectionString("EventStore")
 // Single call: Dispatch + SQL Server event sourcing (auto-discovers handlers)
 builder.Services.AddDispatchWithSqlServer(connectionString);
 
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(opts => opts.ConnectionString = connectionString);
     es.AddRepository<TodoAggregate, Guid>(id => new TodoAggregate(id));
@@ -314,7 +314,7 @@ builder.Services.AddExcaliburEventSourcing(es =>
             view.IsComplete = false;
         })
         .When<TodoCompleted>((view, _) => { view.IsComplete = true; }));
-});
+}));
 
 builder.Services.AddSqlServerProjectionStore<TodoView>(opts =>
 {

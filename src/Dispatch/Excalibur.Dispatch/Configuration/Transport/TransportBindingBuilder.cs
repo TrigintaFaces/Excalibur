@@ -15,7 +15,8 @@ namespace Excalibur.Dispatch.Configuration.Transport;
 /// </summary>
 internal sealed class TransportBindingBuilder(
 	string transportName,
-	ITransportAdapter adapter,
+	ITransportAdapter? adapter,
+	ITransportRegistry transportRegistry,
 	TransportBindingRegistry bindingRegistry)
 	: IInboundRouteBuilder
 {
@@ -82,16 +83,28 @@ internal sealed class TransportBindingBuilder(
 		// Determine the endpoint pattern
 		var endpointPattern = _routeName ?? _routeType?.Name ?? "*";
 
-		// Create the binding
-		var binding = new TransportBinding(
-			name: $"{transportName}:{endpointPattern}",
-			transportAdapter: adapter,
-			endpointPattern: endpointPattern,
-			pipelineProfile: null, // Profile will be resolved later
-			acceptedMessageKinds: MessageKinds.All,
-			priority: _options.Priority);
+		// When the adapter is already materialized we create an eager TransportBinding
+		// (preserves the previous behavior). When the adapter is only pending (factory
+		// registered via AddXTransport before the host is built), we emit a
+		// LazyTransportBinding which resolves the adapter from the registry on first
+		// access — after TransportAdapterHostedService.InitializeFactories runs.
+		ITransportBinding binding = adapter is not null
+			? new TransportBinding(
+				name: $"{transportName}:{endpointPattern}",
+				transportAdapter: adapter,
+				endpointPattern: endpointPattern,
+				pipelineProfile: null,
+				acceptedMessageKinds: MessageKinds.All,
+				priority: _options.Priority)
+			: new LazyTransportBinding(
+				name: $"{transportName}:{endpointPattern}",
+				transportName: transportName,
+				registry: transportRegistry,
+				endpointPattern: endpointPattern,
+				pipelineProfile: null,
+				acceptedMessageKinds: MessageKinds.All,
+				priority: _options.Priority);
 
-		// Register the binding
 		bindingRegistry.RegisterBinding(binding);
 	}
 }

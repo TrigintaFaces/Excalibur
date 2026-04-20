@@ -23,13 +23,4 @@ public sealed class ShardMapOptions
 	/// Default is <see langword="null"/>.
 	/// </value>
 	public string? DefaultShardId { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether tenant-aware data sharding is enabled.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> to enable tenant sharding (re-registers stores as Scoped);
-	/// <see langword="false"/> to keep default Singleton behavior. Default is <see langword="false"/>.
-	/// </value>
-	public bool EnableTenantSharding { get; set; }
 }

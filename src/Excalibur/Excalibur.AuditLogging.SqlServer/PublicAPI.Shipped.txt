@@ -1,0 +1,60 @@
+#nullable enable
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.CommandTimeoutSeconds.get -> int
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.CommandTimeoutSeconds.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.ConnectionString.get -> string!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.ConnectionString.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.FullyQualifiedTableName.get -> string!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.SchemaName.get -> string!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.SchemaName.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.SqlServerAuditAnnotationStoreOptions() -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.TableName.get -> string!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.TableName.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.BatchInsertSize.get -> int
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.BatchInsertSize.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.CommandTimeoutSeconds.get -> int
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.CommandTimeoutSeconds.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.ConnectionString.get -> string!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.ConnectionString.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.EnableDetailedTelemetry.get -> bool
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.EnableDetailedTelemetry.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.EnableHashChain.get -> bool
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.EnableHashChain.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.FullyQualifiedTableName.get -> string!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.Retention.get -> Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.Retention.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.SchemaName.get -> string!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.SchemaName.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.SqlServerAuditOptions() -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.TableName.get -> string!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.TableName.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.UsePartitioning.get -> bool
+Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions.UsePartitioning.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.CleanupBatchSize.get -> int
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.CleanupBatchSize.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.CleanupInterval.get -> System.TimeSpan
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.CleanupInterval.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.EnableRetentionEnforcement.get -> bool
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.EnableRetentionEnforcement.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.RetentionPeriod.get -> System.TimeSpan
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.RetentionPeriod.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.SqlServerAuditRetentionOptions() -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.CountAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.Dispose() -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.EnforceRetentionAsync(System.DateTimeOffset cutoffDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.GetByIdAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.GetLastEventAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.QueryAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>!>!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.SqlServerAuditStore(Microsoft.Extensions.Options.IOptions<Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.SqlServer.SqlServerAuditStore!>! logger) -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.StoreAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEventId>!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.StoreBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Compliance.AuditEvent!>! auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEventId>!>!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.VerifyChainIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditIntegrityResult!>!
+Microsoft.Extensions.DependencyInjection.SqlServerAuditServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.SqlServerAuditServiceCollectionExtensions.AddSqlServerAuditAnnotationStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerAuditServiceCollectionExtensions.AddSqlServerAuditAnnotationStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerAuditServiceCollectionExtensions.AddSqlServerAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerAuditServiceCollectionExtensions.AddSqlServerAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerAuditServiceCollectionExtensions.AddSqlServerAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

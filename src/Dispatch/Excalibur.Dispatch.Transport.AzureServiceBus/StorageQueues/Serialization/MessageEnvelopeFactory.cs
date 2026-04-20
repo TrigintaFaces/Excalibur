@@ -123,7 +123,7 @@ internal sealed class MessageEnvelopeFactory(
 
 			if (root.TryGetProperty("messageType", out _) && root.TryGetProperty("body", out _))
 			{
-				var envelope = JsonSerializer.Deserialize<StorageQueueMessageEnvelope>(messageText, JsonOptions);
+				var envelope = JsonSerializer.Deserialize(messageText, AzureMessageJsonContext.Default.StorageQueueMessageEnvelope);
 				if (envelope != null)
 				{
 					return ParseEnvelope(envelope, queueMessage);

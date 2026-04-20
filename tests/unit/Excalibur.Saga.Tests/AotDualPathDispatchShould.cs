@@ -21,7 +21,7 @@ namespace Excalibur.Saga.Tests;
 /// so the AOT code path does not throw <see cref="PlatformNotSupportedException"/>.
 /// Sprint 755 task b3awop (R-B6).
 /// </summary>
-[Collection("SagaStaticRegistry")]
+[Collection("SagaContextFactoryRegistry")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Saga")]
 [Trait("Feature", "AOT")]

@@ -494,6 +494,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'architecture/vertical-slice-architecture' },
             { type: 'doc', id: 'architecture/messagecontext-design' },
             { type: 'doc', id: 'architecture/messagecontext-items-usage' },
+            { type: 'doc', id: 'architecture/sdk-seam-pattern' },
           ],
         },
         {

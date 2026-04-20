@@ -89,27 +89,31 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 				}));
 		}
 
-		// Saga (builder API)
+		// Saga (builder API) — routed through IExcaliburBuilder bridge so the
+		// flat aggregator stays internal per ADR-325 composition-root policy.
 		if (options.UseSaga)
 		{
-			_ = services.AddExcaliburSaga(saga =>
-				saga.UseSqlServer(sql =>
-				{
-					sql.ConnectionString(options.ConnectionString);
-					options.SagaConfiguration?.Invoke(sql);
-				}));
+			_ = services.AddExcalibur(excalibur =>
+				excalibur.AddSagas(saga =>
+					saga.UseSqlServer(sql =>
+					{
+						sql.ConnectionString(options.ConnectionString);
+						options.SagaConfiguration?.Invoke(sql);
+					})));
 		}
 
-		// Leader Election (builder API)
+		// Leader Election (builder API) — routed through IExcaliburBuilder
+		// bridge so the flat aggregator stays internal per ADR-325.
 		if (options.UseLeaderElection)
 		{
-			_ = services.AddExcaliburLeaderElection(le =>
-				le.UseSqlServer(sql =>
-				{
-					sql.ConnectionString(options.ConnectionString)
-					   .LockResource("excalibur-leader");
-					options.LeaderElectionConfiguration?.Invoke(sql);
-				}));
+			_ = services.AddExcalibur(excalibur =>
+				excalibur.AddLeaderElection(le =>
+					le.UseSqlServer(sql =>
+					{
+						sql.ConnectionString(options.ConnectionString)
+						   .LockResource("excalibur-leader");
+						options.LeaderElectionConfiguration?.Invoke(sql);
+					})));
 		}
 
 		// Audit Logging

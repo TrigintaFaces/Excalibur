@@ -34,11 +34,7 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	/// </summary>
 	private Dictionary<Type, object>? _features;
 
-#if NET9_0_OR_GREATER
 	private readonly Lock _lockObject = new();
-#else
-	private readonly object _lockObject = new();
-#endif
 
 	// Lazy MessageId generation (PERF-5)
 	// volatile ensures cross-thread visibility for lazy-initialized fields

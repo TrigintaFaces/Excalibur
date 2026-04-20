@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Excalibur.Compliance.Postgres.Erasure;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;

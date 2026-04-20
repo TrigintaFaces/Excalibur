@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Validation;
 

@@ -10,7 +10,7 @@ Dispatch provides dedicated hosting packages for each deployment model. Each pac
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Familiarity with [dependency injection](../core-concepts/dependency-injection.md) and your target hosting model
 
 ## Hosting Packages
@@ -253,7 +253,7 @@ Leader election is designed for multi-instance deployments (Kubernetes, App Serv
 
 ```csharp
 // ASP.NET Core — use leader election for background processing
-services.AddExcaliburLeaderElection();
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection());
 
 // Serverless — use manual outbox processing instead
 // The function invocation IS the processing trigger

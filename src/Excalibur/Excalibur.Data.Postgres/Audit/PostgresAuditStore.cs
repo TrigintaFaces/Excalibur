@@ -8,7 +8,7 @@ using System.Text.Json;
 using Dapper;
 
 using Excalibur.Data.Postgres.Diagnostics;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

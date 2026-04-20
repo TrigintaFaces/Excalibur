@@ -8,7 +8,7 @@
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A Kubernetes cluster (local via minikube/kind or cloud-hosted)
 - Docker images built per the [Docker deployment guide](./docker.md)
 - Familiarity with [health checks](../observability/health-checks.md) and [leader election](../leader-election/index.md)

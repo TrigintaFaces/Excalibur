@@ -122,13 +122,14 @@ Order Placement Saga:
 ### Outbox Configuration
 
 ```csharp
-builder.Services.AddExcaliburOutbox(options =>
-{
-    options.BatchSize = 100;
-    options.PollingInterval = TimeSpan.FromSeconds(5);
-    options.MaxRetryCount = 3;
-    options.MessageRetentionPeriod = TimeSpan.FromDays(7);
-});
+builder.Services.AddExcalibur(excalibur => excalibur
+    .AddOutbox(options =>
+    {
+        options.BatchSize = 100;
+        options.PollingInterval = TimeSpan.FromSeconds(5);
+        options.MaxRetryCount = 3;
+        options.MessageRetentionPeriod = TimeSpan.FromDays(7);
+    }));
 ```
 
 ### Retry Policy

@@ -4,7 +4,8 @@
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
+using Excalibur.Compliance.KeyRotation;
 
 namespace Excalibur.Testing.Conformance;
 

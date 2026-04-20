@@ -10,10 +10,10 @@ GDPR Article 17 ("Right to be Forgotten") requires organizations to delete perso
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.Security
+  dotnet add package Excalibur.Security
   ```
 - Familiarity with [encryption architecture](../security/encryption-architecture.md) and [data masking](./data-masking.md)
 
@@ -56,6 +56,13 @@ services.AddInMemoryErasureStore();
 services.AddInMemoryLegalHoldStore();
 services.AddLegalHoldService();
 services.AddErasureScheduler();
+```
+
+:::tip Minimal wiring (Sprint 790 `bd-20ft0e` FIX 2)
+`AddGdprErasure(...)` now `TryAdd`-registers a default `IKeyManagementAdmin` (the in-memory `InMemoryKeyManagementProvider`), so the call above is sufficient for a working minimal wiring in samples, tests, or local development. Calling `AddComplianceEncryption(...)` later wins via first-registrant-TryAdd semantics when a real KMS provider is required. This closes a class of "hidden sibling dependency" defects where consumers were required to register a provider the public entry point never advertised.
+:::
+
+```csharp
 
 // Production (SQL Server storage)
 // Package: Excalibur.Compliance.SqlServer
@@ -512,7 +519,7 @@ if (eventStore is IEventStoreErasure erasure)
 All GDPR components use `DataSubjectHasher` for consistent SHA-256 hashing of data subject identifiers:
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 // Hash a data subject ID for lookup/storage
 var hashedId = DataSubjectHasher.HashDataSubjectId("user-12345");

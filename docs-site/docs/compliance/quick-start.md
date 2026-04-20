@@ -8,10 +8,10 @@
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.Security
+  dotnet add package Excalibur.Security
   ```
 - Familiarity with [security overview](../security/index.md) and [audit logging](./audit-logging.md)
 
@@ -32,7 +32,7 @@ This guide walks you through implementing baseline compliance capabilities using
 ## Prerequisites
 
 **Required:**
-- .NET 9.0 SDK or later
+- .NET 10.0 SDK
 - Visual Studio 2022, VS Code, or Rider
 - Basic C# knowledge
 - NuGet package management
@@ -97,7 +97,7 @@ All frameworks require the core security packages:
 dotnet add package Excalibur.Domain
 
 # Compliance features (GDPR erasure, SOC 2 validation)
-dotnet add package Excalibur.Dispatch.Compliance
+dotnet add package Excalibur.Compliance
 
 # Event sourcing (optional, for audit trail + domain events)
 dotnet add package Excalibur.EventSourcing
@@ -108,7 +108,7 @@ dotnet add package Excalibur.EventSourcing
 **For Production (SQL Server persistence):**
 ```bash
 # Audit log persistence
-dotnet add package Excalibur.Dispatch.AuditLogging.SqlServer
+dotnet add package Excalibur.AuditLogging.SqlServer
 
 # Erasure requests, legal holds persistence
 dotnet add package Excalibur.Compliance.SqlServer
@@ -120,7 +120,7 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 **For Audit Logging:**
 ```bash
 # Core audit logging (includes in-memory store)
-dotnet add package Excalibur.Dispatch.AuditLogging
+dotnet add package Excalibur.AuditLogging
 ```
 
 **For Testing:**
@@ -184,7 +184,7 @@ The `AddEncryption()` API uses a fluent builder pattern. Call `.UseKeyManagement
 **Usage (Data Classification Attributes):**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class Patient
 {
@@ -211,7 +211,7 @@ public class Patient
 **Development Configuration (In-Memory):**
 
 ```csharp
-// Package: Excalibur.Dispatch.AuditLogging
+// Package: Excalibur.AuditLogging
 // Default in-memory store for development/testing
 builder.Services.AddAuditLogging();
 ```
@@ -219,7 +219,7 @@ builder.Services.AddAuditLogging();
 **Production Configuration (SQL Server):**
 
 ```csharp
-// Package: Excalibur.Dispatch.AuditLogging.SqlServer
+// Package: Excalibur.AuditLogging.SqlServer
 builder.Services.AddSqlServerAuditStore(options =>
 {
     options.ConnectionString = builder.Configuration.GetConnectionString("Compliance")!;
@@ -231,7 +231,7 @@ builder.Services.AddSqlServerAuditStore(options =>
 **Usage:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class PatientService
 {
@@ -267,7 +267,7 @@ public class PatientService
 **Configuration:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 builder.Services.AddGdprErasure(options =>
 {
@@ -290,7 +290,7 @@ builder.Services.AddErasureScheduler();
 **Usage:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class UserController : ControllerBase
 {
@@ -319,7 +319,7 @@ public class UserController : ControllerBase
 **Configuration:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 builder.Services.AddSoc2ComplianceWithBuiltInValidators(options =>
 {

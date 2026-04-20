@@ -53,11 +53,7 @@ public partial class CdcProcessor : ICdcProcessor
 
 	private readonly SortedSet<(byte[] Lsn, string TableName)> _minHeap = new(new MinHeapComparer());
 
-#if NET9_0_OR_GREATER
 	private readonly Lock _minHeapLock = new();
-#else
-	private readonly object _minHeapLock = new();
-#endif
 
 	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
 

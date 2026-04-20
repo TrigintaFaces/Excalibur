@@ -22,13 +22,13 @@ namespace Excalibur.LeaderElection.SqlServer;
 /// <para>
 /// <b>Usage:</b>
 /// <code>
-/// services.AddExcaliburLeaderElection(le =&gt;
+/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
 ///     le.UseSqlServer(sql =&gt;
 ///     {
 ///         sql.ConnectionString("Server=...;Database=...")
 ///            .LockResource("MyApp.Leader");
 ///     })
-///     .WithHealthChecks());
+///     .WithHealthChecks()));
 /// </code>
 /// </para>
 /// </remarks>

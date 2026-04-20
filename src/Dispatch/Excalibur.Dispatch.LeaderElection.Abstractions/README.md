@@ -202,10 +202,10 @@ public interface ILeaderElectionFactory
 **Dependency Injection** (Builder API -- recommended):
 
 ```csharp
-services.AddExcaliburLeaderElection(le => le
+services.AddExcalibur(x => x.AddLeaderElection(le => le
     .UseConsul(opts => opts.ConsulAddress = "http://localhost:8500")
     .WithHealthChecks()
-    .WithFencingTokens());
+    .WithFencingTokens()));
 ```
 
 **Dependency Injection** (Factory pattern):

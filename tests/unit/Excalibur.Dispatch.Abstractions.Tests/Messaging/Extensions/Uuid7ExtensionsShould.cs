@@ -426,10 +426,7 @@ public sealed class Uuid7ExtensionsShould
 	{
 		// Arrange - A GUID whose version nibble is NOT 7.
 		// Note: Guid.NewGuid() returns UUID v7 on .NET 9+, so we cannot use it here.
-		// Guid.ToByteArray() uses mixed-endian: third group "4xxx" byte-swaps so
-		// bytes[6] gets the low byte (0x0x), not the version nibble. We use a GUID
-		// where the third group ensures bytes[6] & 0xF0 != 0x70 after the swap.
-		// Third group "1234" → bytes[6]=0x34, bytes[7]=0x12 → version nibble = 3.
+		// The third group's leading nibble is the UUID version. "1234" -> version 1 (non-v7).
 		var guid = new Guid("aaaaaaaa-bbbb-1234-cccc-dddddddddddd");
 
 		// Act

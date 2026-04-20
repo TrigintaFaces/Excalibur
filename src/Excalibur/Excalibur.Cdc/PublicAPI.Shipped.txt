@@ -129,9 +129,11 @@ Excalibur.Cdc.ICdcRecoveryBuilder.MaxAttempts(int count) -> Excalibur.Cdc.ICdcRe
 Excalibur.Cdc.ICdcRecoveryBuilder.OnPositionReset(Excalibur.Cdc.CdcPositionResetHandler! handler) -> Excalibur.Cdc.ICdcRecoveryBuilder!
 Excalibur.Cdc.ICdcRecoveryBuilder.Strategy(Excalibur.Cdc.StalePositionRecoveryStrategy strategy) -> Excalibur.Cdc.ICdcRecoveryBuilder!
 Excalibur.Cdc.ICdcRelationalStateStoreBuilder
+Excalibur.Cdc.ICdcRelationalStateStoreBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.ICdcRelationalStateStoreBuilder!
 Excalibur.Cdc.ICdcRelationalStateStoreBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.ICdcRelationalStateStoreBuilder!
 Excalibur.Cdc.ICdcRelationalStateStoreBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.ICdcRelationalStateStoreBuilder!
 Excalibur.Cdc.ICdcRelationalStateStoreBuilder.SchemaName(string! schema) -> Excalibur.Cdc.ICdcRelationalStateStoreBuilder!
+Excalibur.Cdc.ICdcRelationalStateStoreBuilder.TableName(string! tableName) -> Excalibur.Cdc.ICdcRelationalStateStoreBuilder!
 Excalibur.Cdc.ICdcStateStoreBuilder
 Excalibur.Cdc.ICdcStateStoreBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.ICdcStateStoreBuilder!
 Excalibur.Cdc.ICdcStateStoreBuilder.TableName(string! tableName) -> Excalibur.Cdc.ICdcStateStoreBuilder!

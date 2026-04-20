@@ -114,23 +114,48 @@ public sealed class OptionsValidatorsShould
 	// --- ShardMapOptionsValidator ---
 
 	[Fact]
-	public void PassShardMapWithNoSharding()
+	public void PassShardMapWhenShardMapNotRegistered()
 	{
+		// Deferred-registration scenario: validator activates before ITenantShardMap
+		// is added. Passes cleanly so downstream startup can continue. [bd-51k0mc]
 		var result = new ShardMapOptionsValidator().Validate(null,
-			new Data.Abstractions.Sharding.ShardMapOptions { EnableTenantSharding = false });
+			new Data.Abstractions.Sharding.ShardMapOptions());
 		result.Succeeded.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void PassShardMapWithShardingEnabled()
 	{
-		var result = new ShardMapOptionsValidator().Validate(null,
-			new Data.Abstractions.Sharding.ShardMapOptions
-			{
-				EnableTenantSharding = true,
-				DefaultShardId = "shard-1"
-			});
+		var shardMap = new FakeTenantShardMap(["shard-1"]);
+		var result = new ShardMapOptionsValidator(shardMap).Validate(null,
+			new Data.Abstractions.Sharding.ShardMapOptions { DefaultShardId = "shard-1" });
 		result.Succeeded.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void FailShardMapWhenDefaultShardIdMissing()
+	{
+		var shardMap = new FakeTenantShardMap(["shard-1"]);
+		var result = new ShardMapOptionsValidator(shardMap).Validate(null,
+			new Data.Abstractions.Sharding.ShardMapOptions { DefaultShardId = "shard-missing" });
+		result.Failed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void FailShardMapWhenNoShardsRegistered()
+	{
+		var shardMap = new FakeTenantShardMap([]);
+		var result = new ShardMapOptionsValidator(shardMap).Validate(null,
+			new Data.Abstractions.Sharding.ShardMapOptions());
+		result.Failed.ShouldBeTrue();
+	}
+
+	private sealed class FakeTenantShardMap(IReadOnlyCollection<string> shards) : Data.Abstractions.Sharding.ITenantShardMap
+	{
+		public Data.Abstractions.Sharding.ShardInfo GetShardInfo(string tenantId) =>
+			throw new NotSupportedException();
+
+		public IReadOnlyCollection<string> GetRegisteredShardIds() => shards;
 	}
 
 	// --- ArchivePolicyValidator ---

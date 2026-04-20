@@ -39,16 +39,16 @@ public sealed class VolatileDisposedFieldConformanceShould
 		"Excalibur.Dispatch.Transport.GooglePubSub",
 
 		// Dispatch compliance/security
-		"Excalibur.Dispatch.Compliance",
-		"Excalibur.Dispatch.Compliance.Aws",
-		"Excalibur.Dispatch.Compliance.Azure",
-		"Excalibur.Dispatch.Compliance.Vault",
-		"Excalibur.Dispatch.Security",
+		"Excalibur.Compliance",
+		"Excalibur.Compliance.Aws",
+		"Excalibur.Compliance.Azure",
+		"Excalibur.Compliance.Vault",
+		"Excalibur.Security",
 
 		// Dispatch infra
 		"Excalibur.Dispatch.Caching",
 		"Excalibur.Dispatch.Hosting.Serverless.Abstractions",
-		"Excalibur.Dispatch.AuditLogging.SqlServer",
+		"Excalibur.AuditLogging.SqlServer",
 		"Excalibur.Dispatch.Resilience.Polly",
 	];
 

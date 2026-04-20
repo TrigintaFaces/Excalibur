@@ -30,7 +30,7 @@ public static class OutboxBuilderRedisExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburOutbox(outbox =&gt;
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =&gt;
 	/// {
 	///     outbox.UseRedis(redis =&gt;
 	///     {
@@ -38,7 +38,7 @@ public static class OutboxBuilderRedisExtensions
 	///              .KeyPrefix("outbox")
 	///              .Database(0);
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

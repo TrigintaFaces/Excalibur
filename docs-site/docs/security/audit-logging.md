@@ -10,11 +10,11 @@ This guide covers the audit logging system in Excalibur.Dispatch, including conf
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.AuditLogging
-  dotnet add package Excalibur.Dispatch.AuditLogging.SqlServer  # or your provider
+  dotnet add package Excalibur.AuditLogging
+  dotnet add package Excalibur.AuditLogging.SqlServer  # or your provider
   ```
 - Familiarity with [security concepts](./index.md) and compliance requirements
 
@@ -35,15 +35,15 @@ The audit logging system provides a hash-chained, tamper-evident audit trail for
 
 ```bash
 # Core package
-dotnet add package Excalibur.Dispatch.AuditLogging
+dotnet add package Excalibur.AuditLogging
 
 # Storage providers
-dotnet add package Excalibur.Dispatch.AuditLogging.SqlServer
+dotnet add package Excalibur.AuditLogging.SqlServer
 
 # SIEM exporters
-dotnet add package Excalibur.Dispatch.AuditLogging.Splunk
-dotnet add package Excalibur.Dispatch.AuditLogging.Sentinel
-dotnet add package Excalibur.Dispatch.AuditLogging.Datadog
+dotnet add package Excalibur.AuditLogging.Splunk
+dotnet add package Excalibur.AuditLogging.Sentinel
+dotnet add package Excalibur.AuditLogging.Datadog
 ```
 
 ---
@@ -53,7 +53,7 @@ dotnet add package Excalibur.Dispatch.AuditLogging.Datadog
 ### Basic Configuration
 
 ```csharp
-using Excalibur.Dispatch.AuditLogging.SqlServer;
+using Excalibur.AuditLogging.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -256,7 +256,7 @@ else
 ### Splunk (HTTP Event Collector)
 
 ```csharp
-using Excalibur.Dispatch.AuditLogging.Splunk;
+using Excalibur.AuditLogging.Splunk;
 
 builder.Services.AddHttpClient<SplunkAuditExporter>();
 builder.Services.AddSingleton<IAuditLogExporter, SplunkAuditExporter>();
@@ -276,7 +276,7 @@ builder.Services.Configure<SplunkExporterOptions>(options =>
 ### Azure Sentinel (Log Analytics)
 
 ```csharp
-using Excalibur.Dispatch.AuditLogging.Sentinel;
+using Excalibur.AuditLogging.Sentinel;
 
 builder.Services.AddHttpClient<SentinelAuditExporter>();
 builder.Services.AddSingleton<IAuditLogExporter, SentinelAuditExporter>();
@@ -294,7 +294,7 @@ builder.Services.Configure<SentinelExporterOptions>(options =>
 ### Datadog (Logs API)
 
 ```csharp
-using Excalibur.Dispatch.AuditLogging.Datadog;
+using Excalibur.AuditLogging.Datadog;
 
 builder.Services.AddHttpClient<DatadogAuditExporter>();
 builder.Services.AddSingleton<IAuditLogExporter, DatadogAuditExporter>();

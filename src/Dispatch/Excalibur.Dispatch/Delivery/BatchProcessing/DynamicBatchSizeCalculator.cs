@@ -11,11 +11,7 @@ public sealed class DynamicBatchSizeCalculator
 	private const int MeasurementWindowSize = 10;
 	private readonly int _minBatchSize;
 	private readonly int _maxBatchSize;
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 
 	private readonly Queue<ThroughputMeasurement> _measurements;
 	private int _currentBatchSize;

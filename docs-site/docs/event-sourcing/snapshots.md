@@ -10,7 +10,7 @@ Snapshots optimize loading for aggregates with many events by storing periodic s
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -42,14 +42,14 @@ flowchart LR
 
 ```csharp
 // Recommended: Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(sql =>
     {
         sql.ConnectionString(connectionString);
     });
     es.UseIntervalSnapshots(100); // Every 100 events
-});
+}));
 
 // Alternative: Register stores separately
 services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
@@ -59,7 +59,7 @@ services.AddSqlServerSnapshotStore(opts => opts.ConnectionString = connectionStr
 ### Snapshot Strategies
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     // Interval-based (default) - snapshot every N events
     builder.UseIntervalSnapshots(100);
@@ -81,7 +81,7 @@ services.AddExcaliburEventSourcing(builder =>
 
     // Custom strategy
     builder.AddSnapshotStrategy<MyCustomStrategy>();
-});
+}));
 ```
 
 ## Auto-Snapshot Policies
@@ -91,13 +91,13 @@ Auto-snapshots evaluate after every `SaveAsync` and create snapshots automatical
 ### Basic Setup
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseAutoSnapshots(options =>
     {
         options.EventCountThreshold = 100; // Snapshot every 100 events
     });
-});
+}));
 ```
 
 ### Available Thresholds
@@ -114,7 +114,7 @@ Configure one or more thresholds on `AutoSnapshotOptions`. When **any** threshol
 All thresholds are `null` (disabled) by default. When all are `null`, auto-snapshots have zero overhead.
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseAutoSnapshots(options =>
     {
@@ -122,7 +122,7 @@ services.AddExcaliburEventSourcing(builder =>
         options.TimeThreshold = TimeSpan.FromHours(1);
         // Any single match triggers a snapshot
     });
-});
+}));
 ```
 
 ### Per-Aggregate Overrides
@@ -130,7 +130,7 @@ services.AddExcaliburEventSourcing(builder =>
 Different aggregate types often need different snapshot frequencies. Use `UseAutoSnapshots<TAggregate>()` to configure per-type thresholds that override the global defaults:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     // Global default: snapshot every 100 events
     builder.UseAutoSnapshots(options =>
@@ -152,7 +152,7 @@ services.AddExcaliburEventSourcing(builder =>
             context.EventsSinceSnapshot >= 200
             || context.CurrentVersion % 500 == 0;
     });
-});
+}));
 ```
 
 Per-aggregate options use named `IOptionsMonitor<AutoSnapshotOptions>` keyed by aggregate type name.
@@ -490,11 +490,11 @@ public class OrderSnapshotV1ToV2 : SnapshotUpgrader<OrderSnapshotStateV1, OrderS
 }
 
 // Register in DI
-services.AddExcaliburEventSourcing(builder => builder
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder => builder
     .AddSnapshotUpgrading(upgrading => upgrading
         .RegisterUpgrader(new OrderSnapshotV1ToV2(serializer))
         .SetCurrentVersion(2)
-        .EnableAutoUpgradeOnLoad()));
+        .EnableAutoUpgradeOnLoad())));
 ```
 
 The `SnapshotVersionManager` uses BFS to find the shortest upgrade path between any two versions, supporting multi-hop migrations (e.g., v1 &rarr; v2 &rarr; v3). Schema version is stored in the snapshot's `Metadata["SnapshotSchemaVersion"]` key.
@@ -609,11 +609,11 @@ public class OrderRepositorySnapshotTests : IClassFixture<WebApplicationFactory<
 
 ```csharp
 // In your test fixture or Startup
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseIntervalSnapshots(100);
     builder.AddRepository<Order, Guid>();
-});
+}));
 
 // Register in-memory stores for testing
 services.AddSingleton<IEventStore, InMemoryEventStore>();

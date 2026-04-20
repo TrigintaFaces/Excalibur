@@ -10,7 +10,7 @@ Projections transform event streams into read-optimized views (read models) for 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -82,7 +82,7 @@ flowchart TD
 The simplest and most common approach. Events update a read model during `SaveAsync()`:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddAggregate<OrderAggregate>(agg => agg.UseInMemoryStore());
 
@@ -99,7 +99,7 @@ services.AddExcaliburEventSourcing(builder =>
             proj.Status = "Shipped";
             proj.ShippedAt = e.ShippedAt;
         }));
-});
+}));
 ```
 
 After `SaveAsync`, the read model is immediately consistent:
@@ -304,7 +304,7 @@ public record OrderSummaryRecord(
     string Status,
     DateTimeOffset? ShippedAt = null);
 
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddImmutableProjection<OrderSummaryRecord>(p => p
         .Inline()
@@ -312,7 +312,7 @@ services.AddExcaliburEventSourcing(builder =>
             new OrderSummaryRecord(e.AggregateId, e.Amount, "Placed"))
         .WhenTransforming<OrderShipped>((proj, e) =>
             proj with { Status = "Shipped", ShippedAt = e.ShippedAt }));
-});
+}));
 ```
 
 ### WhenCreating vs WhenTransforming
@@ -450,7 +450,7 @@ Async projections are processed by `GlobalStreamProjectionHost` using checkpoint
 When catching up from position 0 on a large global stream (100B+ events), sequential processing would take years. Enable parallel catch-up to split the stream into ranges and process them concurrently:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseParallelCatchUp(opts =>
     {
@@ -459,7 +459,7 @@ services.AddExcaliburEventSourcing(builder =>
         opts.BatchSize = 1000;
         opts.CheckpointInterval = 5000;
     });
-});
+}));
 ```
 
 The infrastructure:
@@ -703,7 +703,7 @@ services.AddSqlServerProjectionStore<OrderDetail>(options =>
     options.TableName = "OrderDetails";
 });
 
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddProjection<OrderListItem>(p => p
         .Async()
@@ -725,7 +725,7 @@ services.AddExcaliburEventSourcing(builder =>
             proj.ShippingAddress = e.ShippingAddress;
         })
         .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
-});
+}));
 ```
 
 Both projections stay in sync automatically -- events are the synchronization mechanism.

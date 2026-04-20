@@ -7,7 +7,7 @@ description: Choose the right Excalibur packages for your application architectu
 # Package Guide
 
 :::tip Framework Maturity
-**44,000+ automated tests** | **119 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 8/9/10**
+**44,000+ automated tests** | **119 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 10.0**
 :::
 
 :::info Dispatch Stands Alone
@@ -79,7 +79,7 @@ These scenarios add domain modeling, persistence, or compliance packages on top 
 | Event-sourced system | + `Excalibur.EventSourcing`, `Excalibur.EventSourcing.SqlServer` |
 | CQRS with projections | + `Excalibur.Caching` |
 | Long-running workflows | + `Excalibur.Saga`, `Excalibur.Saga.SqlServer` |
-| SOC2/GDPR compliant system | + `Excalibur.Dispatch.Compliance.*`, `Excalibur.Dispatch.AuditLogging.*` |
+| SOC2/GDPR compliant system | + `Excalibur.Compliance.*`, `Excalibur.AuditLogging.*` |
 
 ---
 
@@ -172,10 +172,10 @@ See the [Pick Your Stack](pick-your-stack.md) guide for scenario-based package s
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.Compliance.*` | Compliance scanning, audit trail |
-| `Excalibur.Dispatch.AuditLogging.Datadog` | Datadog SIEM integration |
-| `Excalibur.Dispatch.AuditLogging.Sentinel` | Microsoft Sentinel integration |
-| `Excalibur.Dispatch.AuditLogging.Splunk` | Splunk integration |
+| `Excalibur.Compliance.*` | Compliance scanning, audit trail |
+| `Excalibur.AuditLogging.Datadog` | Datadog SIEM integration |
+| `Excalibur.AuditLogging.Sentinel` | Microsoft Sentinel integration |
+| `Excalibur.AuditLogging.Splunk` | Splunk integration |
 | `Excalibur.Compliance.SqlServer` | Key escrow persistence |
 
 ---
@@ -361,7 +361,7 @@ services.AddExcalibur(excalibur =>
 | Transports | `Excalibur.Dispatch.Transport.*` | Kafka, RabbitMQ, Azure Service Bus |
 | Experience metapackages | `Excalibur.Dispatch.{RabbitMQ,Kafka,Azure,Aws}` | One-line transport + resilience + observability |
 | Observability | `Excalibur.Dispatch.Observability` | Metrics, tracing |
-| Compliance | `Excalibur.Dispatch.Compliance.*` | Audit logging, SIEM |
+| Compliance | `Excalibur.Compliance.*` | Audit logging, SIEM |
 
 ### Excalibur (Domain & Persistence)
 
@@ -395,7 +395,7 @@ Use the serverless hosting packages (`Excalibur.Dispatch.Hosting.AzureFunctions`
 
 ### Where do compliance features live?
 
-In the `Excalibur.Dispatch.Compliance.*` and `Excalibur.Dispatch.AuditLogging.*` packages.
+In the `Excalibur.Compliance.*` and `Excalibur.AuditLogging.*` packages.
 
 ### What are the experience metapackages?
 

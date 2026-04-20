@@ -32,7 +32,7 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 
 ```csharp
 // Recommended: Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(x => x.AddEventSourcing(es =>
 {
     es.UseSqlServer(options =>
     {
@@ -40,7 +40,7 @@ services.AddExcaliburEventSourcing(es =>
         options.EventStoreSchema = "events";
     });
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
-});
+}));
 
 // Alternative: Direct registration
 services.AddSqlServerEventSourcing(options =>

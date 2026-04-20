@@ -1,127 +1,71 @@
-# Advanced Samples
+# 09-advanced — Advanced Patterns
 
-Production-grade patterns for event sourcing, CDC integration, distributed coordination, and background processing.
+Production-grade patterns for event sourcing, CDC integration, read-side projections, distributed coordination, scheduled jobs, and schema evolution.
 
-## Where to Start
+## Prerequisites
 
 These samples build on the fundamentals from [01-getting-started/](../01-getting-started/). If you haven't worked through [EventSourcingIntro](../01-getting-started/EventSourcingIntro/) yet, start there.
 
-### Learning Tracks
+## Subcategory Map
 
-Pick the track that matches what you're building:
+`09-advanced/` is split into five focused subcategories. Pick the one that matches what you're building:
 
-```
-Event Sourcing Track (start here for CQRS)
-  1. ProjectionsSample .............. In-memory projections, no infrastructure needed
-  2. SqlServerEventStore ............ Real persistence, aggregate rehydration
-  3. SnapshotStrategies ............. Performance optimization for loaded aggregates
-  4. CdcEventStoreElasticsearch ..... Full CQRS: CDC + projections + ES search + API
+| Subcategory | What It Covers | Typical Reader |
+|-------------|----------------|----------------|
+| [persistence-patterns/](persistence-patterns/) | Event stores (SQL Server, Cosmos, in-memory), snapshots, inbox, transactional handlers, multi-database, session state, multi-tenant sharding, cloud-storage snapshots | You're designing the write side of an event-sourced system |
+| [cdc/](cdc/) | Change Data Capture, anti-corruption layer, full CQRS pipelines (CDC → event store → projections), Quartz-scheduled CDC | You're integrating with legacy databases or building CQRS end-to-end |
+| [querying/](querying/) | Projections, streaming handlers with backpressure, validation, and 15+ data-provider repositories (ElasticSearch, CosmosDb, DynamoDb, Firestore, MongoDB, OpenSearch, Postgres, MySql, Redis) | You're designing the read side / picking a storage provider |
+| [deployment/](deployment/) | Background services, leader election, Quartz job workers, production middleware pipelines, test harnesses | You're running the system in production |
+| [advanced/](advanced/) | Event versioning and schema evolution (4 scenarios: domain, ecommerce, integration, GDPR) | You're designing for long-term schema change |
 
-CDC / Legacy Integration Track
-  1. CdcAntiCorruption .............. Schema adaptation, backfill, history gap recovery
-  2. CdcEventStoreElasticsearch ..... Full pipeline: CDC -> event store -> ES projections
+## Recommended Learning Tracks
 
-Versioning & Schema Evolution Track
-  1. Versioning.Examples/ ........... 4 sub-projects covering all versioning scenarios:
-     - EventUpcasting ............... BFS-based V1->V2->V3 aggregate replay
-     - EcommerceOrderVersioning ..... Order event evolution patterns
-     - IntegrationEventVersioning ... Cross-service message compatibility
-     - UserProfileVersioning ........ GDPR-aware schema evolution
+### Event Sourcing Track (start here for CQRS)
 
-Background Processing Track
-  1. BackgroundServices ............. 4 hosting patterns (at-least-once, transactional, etc.)
-  2. JobWorkerSample ................ Quartz scheduling, Redis coordination, health checks
-  3. ../13-jobs/CdcJobQuartz ........ Quartz-based CDC processing (scheduled alternative)
-```
+1. [persistence-patterns/ProjectionsSample](persistence-patterns/ProjectionsSample/) — in-memory projections, no infrastructure
+2. [persistence-patterns/SqlServerEventStore](persistence-patterns/SqlServerEventStore/) — real persistence, aggregate rehydration
+3. [persistence-patterns/SnapshotStrategies](persistence-patterns/SnapshotStrategies/) — performance optimization
+4. [cdc/CdcEventStoreElasticsearch](cdc/CdcEventStoreElasticsearch/) — full CQRS: CDC + projections + ES search + API
 
-## Event Sourcing
+### CDC / Legacy Integration Track
 
-| Sample | What You'll Learn | Infrastructure |
-|--------|-------------------|----------------|
-| [ProjectionsSample](ProjectionsSample/) | CQRS read models, inline projections, multi-stream projections, checkpoint tracking, rebuild patterns | None (in-memory) |
-| [SqlServerEventStore](SqlServerEventStore/) | SQL Server persistence, aggregate rehydration, direct event store access, configuration | Docker (SQL Server) |
-| [CosmosDbEventStore](CosmosDbEventStore/) | Cosmos DB partitioning, change feed, global distribution | Cosmos DB Emulator or Azure |
-| [SnapshotStrategies](SnapshotStrategies/) | Interval, time-based, size-based, composite snapshot strategies, tuning guide | None (in-memory) |
+1. [cdc/CdcAntiCorruption](cdc/CdcAntiCorruption/) — schema adaptation, backfill, history gap recovery
+2. [cdc/CdcEventStoreElasticsearch](cdc/CdcEventStoreElasticsearch/) — full pipeline: CDC → event store → ES projections
+3. [cdc/CdcJobQuartz](cdc/CdcJobQuartz/) — scheduled CDC alternative (Quartz)
 
-### Provider Selection Guide
+### Read Side / Data Provider Track
 
-| Provider | Best For | Consistency | Scaling |
-|----------|----------|-------------|---------|
-| **SQL Server** | Enterprise, ACID transactions | Strong | Vertical |
-| **Cosmos DB** | Global distribution, high throughput | Tunable | Horizontal |
-| **In-Memory** | Testing, development, learning | Strong | N/A |
+1. [querying/StreamingHandlers](querying/StreamingHandlers/) — backpressure and progress reporting
+2. [querying/ElasticSearch-GettingStarted](querying/ElasticSearch-GettingStarted/) — the simplest real read model
+3. [querying/ElasticSearch-Projections](querying/ElasticSearch-Projections/) — CQRS read model with `IProjectionStore`
+4. Pick the provider sample matching your production choice (CosmosDb / MongoDB / Postgres / etc.)
 
-## CDC & Legacy Integration
+### Versioning & Schema Evolution Track
 
-| Sample | What You'll Learn | Infrastructure |
-|--------|-------------------|----------------|
-| [CdcAntiCorruption](CdcAntiCorruption/) | Anti-corruption layer, schema adaptation (V1/V2/V3), CDC history backfill, data processing framework | Docker (SQL Server) |
-| [CdcEventStoreElasticsearch](CdcEventStoreElasticsearch/) | Full CQRS pipeline: CDC -> event store -> ES projections, `IProjectionStore<T>` vs `ElasticRepositoryBase<T>`, full-text search, aggregations | Docker (SQL Server + Elasticsearch) |
+1. [advanced/Versioning.Examples/EventUpcasting](advanced/Versioning.Examples/EventUpcasting/) — BFS-based V1→V2→V3 aggregate replay
+2. [advanced/Versioning.Examples/EcommerceOrderVersioning](advanced/Versioning.Examples/EcommerceOrderVersioning/) — multi-hop event transforms
+3. [advanced/Versioning.Examples/IntegrationEventVersioning](advanced/Versioning.Examples/IntegrationEventVersioning/) — cross-service compatibility
+4. [advanced/Versioning.Examples/UserProfileVersioning](advanced/Versioning.Examples/UserProfileVersioning/) — GDPR-aware schema evolution
 
-**Which CDC sample?**
-- **Start with CdcAntiCorruption** if you need to integrate with legacy databases and want focused ACL patterns
-- **Start with CdcEventStoreElasticsearch** if you want the full end-to-end CQRS story with search
+### Background Processing & Production Track
 
-## Versioning & Schema Evolution
-
-| Sample | What You'll Learn | Infrastructure |
-|--------|-------------------|----------------|
-| [Versioning.Examples/](Versioning.Examples/) | 4 sub-projects covering all event versioning scenarios | None (in-memory) |
-
-Sub-projects:
-
-| Sub-project | Scenario | Key Patterns |
-|-------------|----------|-------------|
-| EventUpcasting | Domain event V1->V2->V3 with aggregate replay | BFS path finding, auto-upcasting |
-| EcommerceOrderVersioning | Order event evolution with multi-hop transforms | Schema splitting (Total -> Subtotal + Tax) |
-| IntegrationEventVersioning | Cross-service message compatibility | UpcastingMessageBusDecorator, migration detection |
-| UserProfileVersioning | GDPR-focused schema evolution | Consent tracking, email encryption, assembly scanning |
-
-## Distributed Coordination
-
-| Sample | What You'll Learn | Infrastructure |
-|--------|-------------------|----------------|
-| [LeaderElection](LeaderElection/) | Redis-based leader election, TTL leases, failover callbacks | Docker (Redis) |
-| [SessionManagement](SessionManagement/) | Session-aware message processing, state tracking | None (in-memory) |
-
-## Validation
-
-| Sample | What You'll Learn | Infrastructure |
-|--------|-------------------|----------------|
-| [FluentValidationSample](FluentValidationSample/) | Pipeline validation, conditional rules, async validators, cross-field constraints | None |
-
-## Background Processing
-
-| Sample | What You'll Learn | Infrastructure |
-|--------|-------------------|----------------|
-| [BackgroundServices](BackgroundServices/) | 4 hosting patterns: at-least-once inbox, transactional, minimized window, basic polling | Varies by sub-project |
-| [JobWorkerSample](JobWorkerSample/) | Quartz scheduling, persistent store, Redis coordination, CDC/outbox/data processing jobs, health checks | Docker (SQL Server, Redis) |
-
-> **Looking for Quartz-based CDC scheduling?** See [13-jobs/CdcJobQuartz](../13-jobs/CdcJobQuartz/).
-
-## Other Advanced Patterns
-
-| Sample | What You'll Learn | Infrastructure |
-|--------|-------------------|----------------|
-| [StreamingHandlers](StreamingHandlers/) | `IAsyncEnumerable` streaming, backpressure, progress reporting, 4 handler types | None |
-| [InboxIdempotency](InboxIdempotency/) | At-least-once delivery with deduplication guarantees | None (in-memory) |
-| [TransactionalHandlers](TransactionalHandlers/) | ACID handler execution with TransactionScope | None (in-memory) |
-| [MultiDatabase](MultiDatabase/) | Event sourcing across multiple database systems | Docker |
-| [ProductionPipeline](ProductionPipeline/) | Full middleware stack: security, validation, transactions, observability | None (in-memory) |
-| [DataProcessingBackgroundService](DataProcessingBackgroundService/) | Background data processing with retry and error handling | None |
+1. [deployment/BackgroundServices](deployment/BackgroundServices/) — 4 hosting patterns
+2. [deployment/JobWorkerSample](deployment/JobWorkerSample/) — Quartz scheduling, persistent store, Redis coordination
+3. [deployment/LeaderElection](deployment/LeaderElection/) — singleton guarantees across replicas
+4. [deployment/ProductionPipeline](deployment/ProductionPipeline/) — full middleware stack
 
 ## Running Samples
 
 ```bash
 # Most samples (no infrastructure needed)
-dotnet run --project samples/09-advanced/ProjectionsSample
+dotnet run --project samples/09-advanced/persistence-patterns/ProjectionsSample
 
 # Samples with Docker dependencies
-cd samples/09-advanced/SqlServerEventStore
+cd samples/09-advanced/persistence-patterns/SqlServerEventStore
 docker-compose up -d    # Start infrastructure
 dotnet run              # Run the sample
 
-cd samples/09-advanced/CdcEventStoreElasticsearch
+cd samples/09-advanced/cdc/CdcEventStoreElasticsearch
 docker-compose up -d    # SQL Server + Elasticsearch
 dotnet run              # Web API at http://localhost:5000
 ```
@@ -131,11 +75,11 @@ dotnet run              # Web API at http://localhost:5000
 | Requirement | Needed By |
 |-------------|-----------|
 | .NET 9.0 SDK | All samples |
-| Docker Desktop | SqlServerEventStore, LeaderElection, CdcAntiCorruption, CdcEventStoreElasticsearch, BackgroundServices (some) |
-| Cosmos DB Emulator | CosmosDbEventStore |
+| Docker Desktop | `SqlServerEventStore`, `LeaderElection`, `CdcAntiCorruption`, `CdcEventStoreElasticsearch`, some `BackgroundServices` |
+| Cosmos DB Emulator | `CosmosDbEventStore` |
 
 ## Next Steps
 
-- [10-real-world/](../10-real-world/) -- Production-style samples combining multiple patterns
-- [Event Sourcing Documentation](../../docs-site/docs/event-sourcing/) -- Comprehensive guides
-- [CDC Pattern](../../docs-site/docs/patterns/cdc.md) -- Change Data Capture reference
+- [../11-real-world/](../11-real-world/) — production-style samples combining multiple patterns
+- [Event Sourcing Documentation](../../docs-site/docs/event-sourcing/)
+- [CDC Pattern](../../docs-site/docs/patterns/cdc.md)

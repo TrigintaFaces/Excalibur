@@ -30,6 +30,23 @@ namespace Excalibur.Cdc;
 public interface ICdcRelationalStateStoreBuilder : ICdcStateStoreBuilder
 {
 	/// <summary>
+	/// Sets the table name for CDC checkpoint persistence, narrowing the inherited return type
+	/// from <see cref="ICdcStateStoreBuilder"/> so relational-only members (e.g.
+	/// <see cref="ConnectionString"/>, <see cref="SchemaName"/>) remain chainable after this call.
+	/// </summary>
+	/// <param name="tableName">The table name.</param>
+	/// <returns>The builder for fluent chaining, typed as <see cref="ICdcRelationalStateStoreBuilder"/>.</returns>
+	new ICdcRelationalStateStoreBuilder TableName(string tableName);
+
+	/// <summary>
+	/// Binds state store options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section,
+	/// narrowing the inherited return type so relational-only members remain chainable after this call.
+	/// </summary>
+	/// <param name="sectionPath">The configuration section path.</param>
+	/// <returns>The builder for fluent chaining, typed as <see cref="ICdcRelationalStateStoreBuilder"/>.</returns>
+	new ICdcRelationalStateStoreBuilder BindConfiguration(string sectionPath);
+
+	/// <summary>
 	/// Sets the database schema for the CDC checkpoint table.
 	/// </summary>
 	/// <param name="schema">The schema name.</param>

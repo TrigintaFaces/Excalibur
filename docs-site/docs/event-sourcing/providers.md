@@ -22,11 +22,11 @@ Pick your database and copy the registration:
 | **Firestore** | `Excalibur.EventSourcing.Firestore` | `es.UseFirestore(opts => { ... })` |
 | **In-Memory** | `Excalibur.EventSourcing.InMemory` | `es.UseInMemory()` (builder only) |
 
-Each `AddXxxEventSourcing()` call registers `IEventStore` and `ISnapshotStore` for that provider. Outbox is registered separately via `AddExcaliburOutbox()`.
+Each `AddXxxEventSourcing()` call registers `IEventStore` and `ISnapshotStore` for that provider. Outbox is registered separately via `services.AddExcalibur(x => x.AddOutbox(...))`.
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the provider package for your database (see below)
 - Familiarity with [event sourcing concepts](./concepts.md) and [event store setup](../configuration/event-store-setup.md)
 
@@ -46,14 +46,14 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 using Microsoft.Extensions.DependencyInjection;
 
 // Recommended: Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(sql => sql.ConnectionString(connectionString))
       .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // Or with detailed options
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(sql =>
     {
@@ -61,7 +61,7 @@ services.AddExcaliburEventSourcing(es =>
            .EventStoreSchema("es")
            .SnapshotStoreSchema("es");
     });
-});
+}));
 
 // Individual stores
 services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
@@ -77,7 +77,7 @@ services.AddSqlServerSnapshotStore<IOrderDb>();
 services.AddSqlServerEventSourcing<IOrderDb>(); // registers event store + snapshots
 
 // Outbox is registered separately via the unified outbox package
-services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(connectionString));
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox.UseSqlServer(connectionString)));
 ```
 
 ---
@@ -96,14 +96,14 @@ dotnet add package Excalibur.EventSourcing.Postgres
 
 ```csharp
 // Recommended: Fluent builder registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UsePostgres(pg => pg.ConnectionString(connectionString))
       .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // With schema and table customization
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UsePostgres(pg =>
     {
@@ -113,21 +113,21 @@ services.AddExcaliburEventSourcing(es =>
           .SnapshotStoreSchema("events")
           .SnapshotStoreTable("snapshots");
     });
-});
+}));
 
 // With NpgsqlDataSource (recommended for connection pooling, Azure, JSONB)
 var dataSource = NpgsqlDataSource.Create(configuration.GetConnectionString("Postgres")!);
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UsePostgres(pg => pg.DataSource(dataSource))
       .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // Named connection string (resolved from IConfiguration)
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UsePostgres(pg => pg.ConnectionStringName("EventStore"));
-});
+}));
 ```
 
 :::tip Connection overloads
@@ -193,18 +193,18 @@ The Postgres provider works with **CockroachDB** and **YugabyteDB** out of the b
 
 ```csharp
 // CockroachDB
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UsePostgres(pg =>
         pg.ConnectionString("Host=cockroachdb.example.com;Port=26257;Database=events;..."));
-});
+}));
 
 // YugabyteDB
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UsePostgres(pg =>
         pg.ConnectionString("Host=yugabyte.example.com;Port=5433;Database=events;..."));
-});
+}));
 ```
 
 **Known considerations:**
@@ -237,7 +237,7 @@ dotnet add package Excalibur.EventSourcing.CosmosDb
 
 ```csharp
 // Recommended: Fluent builder registration (5 canonical connection overloads)
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseCosmosDb(cosmos =>
     {
@@ -246,22 +246,22 @@ services.AddExcaliburEventSourcing(es =>
               .ContainerName("event-store");
     })
     .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // With endpoint + auth key (Azure portal credentials)
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseCosmosDb(cosmos =>
         cosmos.Endpoint("https://myaccount.documents.azure.com:443/", authKey)
               .DatabaseName("events"));
-});
+}));
 
 // With pre-configured CosmosClient
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseCosmosDb(cosmos =>
         cosmos.Client(cosmosClient).DatabaseName("events"));
-});
+}));
 ```
 
 :::tip Connection overloads
@@ -307,7 +307,7 @@ dotnet add package Excalibur.EventSourcing.DynamoDb
 
 ```csharp
 // Recommended: Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseDynamoDb(options =>
     {
@@ -315,13 +315,13 @@ services.AddExcaliburEventSourcing(es =>
         options.Region = "us-east-1";
     })
     .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // Or with IConfiguration binding
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseDynamoDb(configuration.GetSection("DynamoDb"));
-});
+}));
 
 // Alternative: Direct registration
 services.AddDynamoDbEventStore(options =>
@@ -350,7 +350,7 @@ dotnet add package Excalibur.EventSourcing.Firestore
 
 ```csharp
 // Recommended: Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseFirestore(options =>
     {
@@ -358,13 +358,13 @@ services.AddExcaliburEventSourcing(es =>
         options.CollectionName = "events";
     })
     .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // Or with IConfiguration binding
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseFirestore(configuration.GetSection("Firestore"));
-});
+}));
 
 // Alternative: Direct registration
 services.AddFirestoreEventStore(options =>
@@ -394,7 +394,7 @@ dotnet add package Excalibur.EventSourcing.MongoDB
 
 ```csharp
 // Recommended: Fluent builder registration (4 canonical connection overloads)
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseMongoDB(mg =>
     {
@@ -403,22 +403,22 @@ services.AddExcaliburEventSourcing(es =>
           .CollectionName("event_store_events");
     })
     .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // With pre-configured IMongoClient
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseMongoDB(mg => mg.Client(mongoClient).DatabaseName("events"))
       .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // With DI-aware client factory
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseMongoDB(mg =>
         mg.ClientFactory(sp => sp.GetRequiredService<IMongoClient>())
           .DatabaseName("events"));
-});
+}));
 ```
 
 :::tip Connection overloads
@@ -460,13 +460,13 @@ dotnet add package Excalibur.EventSourcing.Sqlite
 ### Setup
 
 ```csharp
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlite(options =>
     {
         options.ConnectionString = "Data Source=events.db";
     });
-});
+}));
 ```
 
 Registers both `IEventStore` and `ISnapshotStore` backed by SQLite.
@@ -489,11 +489,11 @@ For unit and integration tests:
 
 ```csharp
 // Recommended: Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseInMemory()
       .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // Alternative: Direct registration
 services.AddInMemoryEventStore();
@@ -565,7 +565,7 @@ dotnet add package Excalibur.EventSourcing.AzureBlob
 ```
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseAzureBlobColdEventStore(opts =>
     {
@@ -573,7 +573,7 @@ services.AddExcaliburEventSourcing(builder =>
         opts.ContainerName = "event-archive";
         opts.BlobPrefix = "events";
     });
-});
+}));
 ```
 
 ### AWS S3
@@ -583,7 +583,7 @@ dotnet add package Excalibur.EventSourcing.AwsS3
 ```
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseAwsS3ColdEventStore(opts =>
     {
@@ -591,7 +591,7 @@ services.AddExcaliburEventSourcing(builder =>
         opts.Region = "us-east-1";
         opts.KeyPrefix = "events";
     });
-});
+}));
 ```
 
 ### Google Cloud Storage
@@ -601,14 +601,14 @@ dotnet add package Excalibur.EventSourcing.Gcs
 ```
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseGcsColdEventStore(opts =>
     {
         opts.BucketName = "my-event-archive";
         opts.ObjectPrefix = "events";
     });
-});
+}));
 ```
 
 ### Cold Store Comparison

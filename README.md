@@ -132,7 +132,7 @@ You continue to dispatch messages through `IDispatcher`; Excalibur layers domain
 | **Dispatch Transports** | `Excalibur.Dispatch.Transport.AzureServiceBus`, `Excalibur.Dispatch.Transport.AwsSqs`, `Excalibur.Dispatch.Transport.Kafka`, `Excalibur.Dispatch.Transport.RabbitMQ`, `Excalibur.Dispatch.Transport.GooglePubSub`, `Excalibur.Dispatch.Transport.Grpc`, `Excalibur.Dispatch.Transport.InMemory` | Bring only the transports you need; no domain logic included. |
 | **Excalibur Domain/CQRS** | `Excalibur.Domain`, `Excalibur.EventSourcing`, `Excalibur.EventSourcing.*`, `Excalibur.Saga.*` | Aggregates, repositories, snapshots, sagas, and serialization helpers (`EventTypeNameHelper`). |
 | **Excalibur Hosting** | `Excalibur.Hosting.Web`, `Excalibur.Hosting.AzureFunctions`, `Excalibur.Hosting.AwsLambda`, `Excalibur.Hosting.GoogleCloudFunctions` | Opinionated hosting templates that compose Dispatch + Excalibur. |
-| **Compliance & Coordination** | `Excalibur.Dispatch.Compliance.*`, `Excalibur.Dispatch.AuditLogging.*`, `Excalibur.LeaderElection.*` | Audit logging, masking, key escrow, leader election, and cross-cutting governance. |
+| **Compliance & Coordination** | `Excalibur.Compliance.*`, `Excalibur.AuditLogging.*`, `Excalibur.LeaderElection.*` | Audit logging, masking, key escrow, leader election, and cross-cutting governance. |
 
 The [`Directory.Packages.props`](Directory.Packages.props) file lists every published package and version.
 
@@ -146,13 +146,12 @@ Dispatch is optimized for high-throughput, low-latency messaging with lean local
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Standard dispatch** | 47.8 ns / 168 B | Full pipeline with context, routing, and correlation |
-| **Direct-local dispatch** | 45.0 ns / 168 B | Optimized local path with middleware bypass |
-| **Ultra-local dispatch** | 33.2 ns / 24 B | Lowest-overhead path, near-zero allocation |
-| **Handler registry lookup** | 3.5 ns / 0 B | FrozenDictionary, zero allocation |
-| **Handler invocation** | 5.7 ns / 0 B | Direct delegate, zero allocation |
-| **Handler activation** | 24.3 ns / 0 B | Pre-created context, zero allocation |
-| **100 concurrent commands** | 5,090 ns / 12.2 KB | Scales linearly with low memory pressure |
+| **Standard dispatch** | 62.8 ns / 240 B | Full pipeline with context, routing, and correlation |
+| **Ultra-local dispatch** | 33.3 ns / 24 B | Lowest-overhead path, near-zero allocation |
+| **Singleton-promoted** | 33.0 ns / 24 B | Cached direct handler path |
+| **Handler invocation** | 6.0 ns / 0 B | Direct delegate, zero allocation |
+| **Handler activation** | 24.4 ns / 0 B | Pre-created context, zero allocation |
+| **100 concurrent commands** | 6,696 ns / 19.4 KB | Scales linearly |
 
 ### Optimizations Included
 

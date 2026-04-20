@@ -10,7 +10,7 @@ Get started quickly with `dotnet new` templates for Excalibur projects.
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the template pack:
   ```bash
   dotnet new install Excalibur.Dispatch.Templates
@@ -201,7 +201,7 @@ dotnet run
 ```
 
 **What's included:**
-- Saga orchestration via `AddExcaliburSaga()` unified builder
+- Saga orchestration via `services.AddExcalibur(x => x.AddSaga(...))` unified builder
 - Sample `OrderSaga` process manager with 3 steps (CollectPayment, ReserveInventory, ShipOrder) including compensation
 - `OrderSagaData` implementing `ISagaData`
 - Messages: `StartOrderProcessing` action + domain events
@@ -228,7 +228,7 @@ dotnet run
 ```
 
 **What's included:**
-- Outbox pattern via `AddExcaliburOutbox()` unified builder
+- Outbox pattern via `services.AddExcalibur(x => x.AddOutbox(...))` unified builder
 - Sample `PlaceOrderHandler` using `IActionHandler<PlaceOrderCommand>` with outbox publishing
 - Messages: `PlaceOrderCommand` action + `OrderPlacedEvent`
 - Builder configuration: `UseSqlServer()`, `WithProcessing()`, `EnableBackgroundProcessing()`
@@ -249,7 +249,7 @@ dotnet new excalibur-outbox -n MyOutbox --Database inmemory
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--Framework` | choice | `net10.0` | Target framework (`net8.0`, `net9.0`, `net10.0`) |
+| `--Framework` | choice | `net10.0` | Target framework (`net10.0`) |
 | `--IncludeDocker` | bool | `false` | Include Dockerfile and .dockerignore |
 | `--IncludeTests` | bool | `false` | Include test project (xUnit + Shouldly + FakeItEasy) |
 
@@ -493,14 +493,11 @@ protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event sw
 
 ### Dockerfile Framework Tags
 
-When using `--IncludeDocker`, the generated Dockerfile automatically uses the correct .NET base image tag matching your `--Framework` selection:
+When using `--IncludeDocker`, the generated Dockerfile uses the .NET 10 base images (`sdk:10.0` for build stage, `aspnet:10.0` for runtime):
 
 ```bash
-# net8.0 → Dockerfile uses sdk:8.0 and aspnet:8.0
-dotnet new dispatch-api -n MyApi --Framework net8.0 --IncludeDocker
-
-# net9.0 → Dockerfile uses sdk:9.0 and aspnet:9.0
-dotnet new dispatch-api -n MyApi --Framework net9.0 --IncludeDocker
+dotnet new dispatch-api -n MyApi --IncludeDocker
+# → Dockerfile uses sdk:10.0 and aspnet:10.0
 ```
 
 Worker templates use `runtime:` instead of `aspnet:` for the final stage image.

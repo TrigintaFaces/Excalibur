@@ -41,23 +41,23 @@ public static class SqlServerLeaderElectionBuilderExtensions
 	/// <example>
 	/// <code>
 	/// // Connection string
-	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
 	///     le.UseSqlServer(sql =&gt;
 	///     {
 	///         sql.ConnectionString(configuration.GetConnectionString("LeaderElection")!)
 	///            .LockResource("MyApp.Leader");
-	///     }));
+	///     })));
 	///
 	/// // Named connection string
-	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
 	///     le.UseSqlServer(sql =&gt;
 	///     {
 	///         sql.ConnectionStringName("LeaderElection")
 	///            .LockResource("MyApp.Leader");
-	///     }));
+	///     })));
 	///
 	/// // Connection factory (Azure Managed Identity)
-	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
 	///     le.UseSqlServer(sql =&gt;
 	///     {
 	///         sql.ConnectionFactory(sp =&gt;
@@ -67,14 +67,14 @@ public static class SqlServerLeaderElectionBuilderExtensions
 	///             return () =&gt; new SqlConnection(connStr);
 	///         })
 	///         .LockResource("MyApp.Leader");
-	///     }));
+	///     })));
 	///
 	/// // Bind from appsettings.json
-	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
 	///     le.UseSqlServer(sql =&gt;
 	///     {
 	///         sql.BindConfiguration("LeaderElection:SqlServer");
-	///     }));
+	///     })));
 	/// </code>
 	/// </example>
 	public static ILeaderElectionBuilder UseSqlServer(

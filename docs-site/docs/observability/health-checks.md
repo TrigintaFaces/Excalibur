@@ -8,7 +8,7 @@ Implementing comprehensive health checks for Excalibur applications to enable mo
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -363,7 +363,7 @@ This means you can safely call `AddDispatchHealthChecks()` in every application.
 using Microsoft.Extensions.DependencyInjection;
 
 // Only outbox is registered, so only the outbox health check is added
-builder.Services.AddExcaliburOutbox(options => { /* ... */ });
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(options => { /* ... */ }));
 
 builder.Services.AddHealthChecks()
     .AddDispatchHealthChecks(); // Only adds outbox check

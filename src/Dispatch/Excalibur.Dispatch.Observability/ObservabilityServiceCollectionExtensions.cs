@@ -303,8 +303,8 @@ public static class ObservabilityServiceCollectionExtensions
 				telemetryOptions.EnableRequestTrackingTelemetryModule = true;
 				telemetryOptions.EnableDependencyTrackingTelemetryModule = true;
 				telemetryOptions.EnablePerformanceCounterCollectionModule = true;
-				telemetryOptions.EnableEventCounterCollectionModule = true;
-				telemetryOptions.EnableAdaptiveSampling = false; // We want all context flow data
+				// AppInsights SDK v3 removed EnableEventCounterCollectionModule (moved to OTel-native counters)
+				// and EnableAdaptiveSampling (deprecated in favor of OTel sampling). OTel path is canonical.
 			});
 		}
 	}

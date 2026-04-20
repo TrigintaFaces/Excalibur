@@ -729,8 +729,6 @@ Excalibur.Data.Abstractions.Sharding.ShardInfo.ShardInfo(string! ShardId, string
 Excalibur.Data.Abstractions.Sharding.ShardMapOptions
 Excalibur.Data.Abstractions.Sharding.ShardMapOptions.DefaultShardId.get -> string?
 Excalibur.Data.Abstractions.Sharding.ShardMapOptions.DefaultShardId.set -> void
-Excalibur.Data.Abstractions.Sharding.ShardMapOptions.EnableTenantSharding.get -> bool
-Excalibur.Data.Abstractions.Sharding.ShardMapOptions.EnableTenantSharding.set -> void
 Excalibur.Data.Abstractions.Sharding.ShardMapOptions.ShardMapOptions() -> void
 Excalibur.Data.Abstractions.Sharding.TenantShardNotFoundException
 Excalibur.Data.Abstractions.Sharding.TenantShardNotFoundException.TenantId.get -> string!

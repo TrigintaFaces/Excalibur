@@ -10,7 +10,7 @@ Ultra-local dispatch is the lowest-overhead local command/query execution path i
 
 ## Before You Start
 
-- .NET 8.0+ (or .NET 9/10)
+- .NET 10.0
 - `Excalibur.Dispatch` and `Excalibur.Dispatch.Abstractions`
 - Familiarity with [Actions and Handlers](../core-concepts/actions-and-handlers.md) and [Message Context](../core-concepts/message-context.md)
 

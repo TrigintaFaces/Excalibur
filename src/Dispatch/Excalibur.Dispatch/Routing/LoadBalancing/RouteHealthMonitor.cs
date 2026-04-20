@@ -471,11 +471,7 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 	private sealed class RouteHealthInfo
 	{
 		private const int MaxLatencyWindowSize = 100;
-#if NET9_0_OR_GREATER
 		private readonly Lock _lock = new();
-#else
-		private readonly object _lock = new();
-#endif
 		private readonly Queue<double> _latencyWindow = new();
 		private double _latencyWindowTotal;
 

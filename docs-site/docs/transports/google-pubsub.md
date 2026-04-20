@@ -9,7 +9,7 @@ Google Cloud Pub/Sub transport for scalable, GCP-native messaging with global av
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A Google Cloud project with Pub/Sub API enabled
 - Familiarity with [choosing a transport](./choosing-a-transport.md) and [dependency injection](../core-concepts/dependency-injection.md)
 

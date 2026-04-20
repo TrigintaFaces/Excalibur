@@ -141,7 +141,6 @@ static Excalibur.Application.Requests.Jobs.JobResult.operator ==(Excalibur.Appli
 static Excalibur.Application.ValidationExtensions.IsValidCorrelationId<T>(this FluentValidation.IRuleBuilder<T, System.Guid>! ruleBuilder) -> FluentValidation.IRuleBuilderOptions<T, System.Guid>!
 static Excalibur.Application.ValidationExtensions.IsValidTenantId<T>(this FluentValidation.IRuleBuilder<T, string!>! ruleBuilder) -> FluentValidation.IRuleBuilderOptions<T, string!>!
 static Microsoft.Extensions.DependencyInjection.ExcaliburApplicationServiceCollectionExtensions.AddActivities(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ExcaliburApplicationServiceCollectionExtensions.AddExcaliburApplicationServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Application.Requests.Jobs.JobResult.NoWorkPerformed -> Excalibur.Application.Requests.Jobs.JobResult
 static readonly Excalibur.Application.Requests.Jobs.JobResult.OperationSucceeded -> Excalibur.Application.Requests.Jobs.JobResult
 virtual Excalibur.Application.Requests.Commands.CommandBase.ActivityDescription.get -> string!

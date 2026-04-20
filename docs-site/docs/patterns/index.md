@@ -10,7 +10,7 @@ Dispatch provides implementations of common messaging patterns for building reli
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -79,12 +79,12 @@ services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)))
           .EnableBackgroundProcessing();
-});
+}));
 
 // In your handler
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>
@@ -176,11 +176,11 @@ services.AddDispatch(dispatch =>
 });
 
 // Outbox for reliable publishing
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
-});
+}));
 
 // Inbox for idempotent processing
 services.AddSqlServerInboxStore(opts => opts.ConnectionString = connectionString);

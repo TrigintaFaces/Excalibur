@@ -14,11 +14,7 @@ namespace Excalibur.Dispatch.Timing;
 internal sealed class DefaultTimeoutMonitor : ITimeoutMonitor
 {
 	private readonly ConcurrentDictionary<TimeoutOperationType, OperationStatistics> _statistics = new();
-#if NET9_0_OR_GREATER
 	private readonly Lock _lockObject = new();
-#else
-	private readonly object _lockObject = new();
-#endif
 
 	/// <inheritdoc />
 	public ITimeoutOperationToken StartOperation(TimeoutOperationType operationType, TimeoutContext? context = null) =>
@@ -119,11 +115,7 @@ internal sealed class DefaultTimeoutMonitor : ITimeoutMonitor
 	private sealed class OperationStatistics
 	{
 		private readonly List<TimeSpan> _durations = [];
-#if NET9_0_OR_GREATER
 		private readonly Lock _lock = new();
-#else
-		private readonly object _lock = new();
-#endif
 		private TimeSpan _totalDuration = TimeSpan.Zero;
 
 		public OperationStatistics(TimeoutOperationType operationType, TimeSpan duration, bool success, bool timedOut)

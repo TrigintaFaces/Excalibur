@@ -3,7 +3,7 @@
 
 using Amazon;
 
-using Excalibur.Dispatch.Compliance.Aws;
+using Excalibur.Compliance.Aws;
 
 using Shouldly;
 

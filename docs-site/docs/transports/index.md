@@ -10,7 +10,7 @@ Dispatch supports multiple message transports for distributed messaging. You can
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the core package plus your transport:
   ```bash
   dotnet add package Excalibur.Dispatch

@@ -10,10 +10,10 @@ Dispatch provides tamper-evident audit logging with cryptographic hash chaining 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.Security
+  dotnet add package Excalibur.Security
   ```
 - Familiarity with [security overview](../security/index.md) and [audit logging providers](../observability/audit-logging-providers.md)
 
@@ -45,11 +45,18 @@ Each audit event includes a hash of the previous event, creating an immutable ch
 ### Configuration
 
 ```csharp
-// Development/testing — in-memory store (no persistence)
+// One-call minimal wiring (Sprint 790 `bd-20ft0e` FIX 5)
+// Registers audit store + annotation store + audit context + AuditMiddleware
+// with the default in-memory providers in a single call. Override any piece
+// by registering the concrete service before or after the call — standard
+// TryAdd semantics apply.
+services.AddExcalibur(excalibur => excalibur.AddAudit());
+
+// Development/testing — in-memory store (no persistence), manual composition
 services.AddAuditLogging();
 
 // Production — SQL Server with inline options configuration
-// Package: Excalibur.Dispatch.AuditLogging.SqlServer
+// Package: Excalibur.AuditLogging.SqlServer
 services.AddSqlServerAuditStore(options =>
 {
     options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
@@ -638,8 +645,8 @@ Annotations let auditors enrich stored events with tags, bookmarks, and notes wi
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.AuditLogging` | In-memory store + RBAC decorator |
-| `Excalibur.Dispatch.AuditLogging.SqlServer` | SQL Server persistence |
+| `Excalibur.AuditLogging` | In-memory store + RBAC decorator |
+| `Excalibur.AuditLogging.SqlServer` | SQL Server persistence |
 
 ### Configuration
 
@@ -648,7 +655,7 @@ Annotations let auditors enrich stored events with tags, bookmarks, and notes wi
 services.AddAuditAnnotations();
 
 // SQL Server (production)
-// Package: Excalibur.Dispatch.AuditLogging.SqlServer
+// Package: Excalibur.AuditLogging.SqlServer
 services.AddSqlServerAuditAnnotationStore(options =>
 {
     options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");

@@ -30,14 +30,14 @@ public static class SagaBuilderDynamoDbExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSaga(saga =&gt;
+	/// services.AddExcalibur(x => x.AddSagas(saga =&gt;
 	/// {
 	///     saga.UseDynamoDb(dynamo =&gt;
 	///     {
 	///         dynamo.ServiceUrl("http://localhost:8000")
 	///               .TableName("sagas");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

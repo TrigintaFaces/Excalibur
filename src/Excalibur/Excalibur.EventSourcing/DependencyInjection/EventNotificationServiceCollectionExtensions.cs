@@ -36,13 +36,13 @@ public static class EventNotificationServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =>
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =>
 	/// {
 	///     builder.AddProjection&lt;OrderSummary&gt;(p => p
 	///         .Inline()
 	///         .When&lt;OrderPlaced&gt;((proj, e) => { proj.Total = e.Amount; })
 	///         .When&lt;OrderShipped&gt;((proj, e) => { proj.ShippedAt = e.ShippedAt; }));
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder AddProjection<TProjection>(
@@ -87,10 +87,10 @@ public static class EventNotificationServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt;
 	/// {
 	///     builder.AddProjectionsFromAssembly(typeof(OrderSummary).Assembly);
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("Assembly scanning uses reflection to discover IProjectionConfiguration<T> implementations.")]
@@ -174,10 +174,10 @@ public static class EventNotificationServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt;
 	/// {
 	///     builder.AddEventNotificationHandlersFromAssembly(typeof(OrderNotificationHandler).Assembly);
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("Assembly scanning uses reflection to discover IEventNotificationHandler<T> implementations.")]
@@ -229,10 +229,10 @@ public static class EventNotificationServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt;
 	/// {
 	///     builder.UseProjectionRecovery();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder UseProjectionRecovery(

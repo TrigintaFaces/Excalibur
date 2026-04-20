@@ -289,11 +289,7 @@ internal sealed class AdaptiveBatchProcessor : BatchProcessorBase
 	private sealed class AdaptiveMetrics
 	{
 		private const int MaxHistorySize = 100;
-#if NET9_0_OR_GREATER
 		private readonly Lock _lock = new();
-#else
-		private readonly object _lock = new();
-#endif
 		private readonly Queue<BatchMetric> _recentBatches = new();
 
 		public void RecordBatchResult(

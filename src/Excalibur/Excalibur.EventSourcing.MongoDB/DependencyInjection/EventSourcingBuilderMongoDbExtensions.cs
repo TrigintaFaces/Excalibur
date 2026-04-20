@@ -38,7 +38,7 @@ public static class EventSourcingBuilderMongoDbExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseMongoDB(mongo =&gt;
 	///     {
@@ -46,7 +46,7 @@ public static class EventSourcingBuilderMongoDbExtensions
 	///              .DatabaseName("events");
 	///     })
 	///     .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

@@ -46,11 +46,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	private static FrozenDictionary<Type, Func<IServiceProvider, IMessageContext, object>>? _frozenActivationPlanCache;
 	private static FrozenDictionary<Type, Func<IServiceProvider, IMessageContext, object>>? _frozenRegisteredActivationPlanCache;
 	private static FrozenDictionary<Type, Func<IServiceProvider, IMessageContext, object>>? _frozenFactoryActivationPlanCache;
-#if NET9_0_OR_GREATER
 	private static readonly Lock _cacheLock = new();
-#else
-	private static readonly object _cacheLock = new();
-#endif
 
 	private enum ServiceResolutionMode
 	{

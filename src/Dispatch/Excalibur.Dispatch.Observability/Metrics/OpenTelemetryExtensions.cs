@@ -48,8 +48,8 @@ public static class OpenTelemetryExtensions
 		StreamingHandlerTelemetryConstants.MeterName,  // "Excalibur.Dispatch.Streaming"
 
 		// Dispatch Compliance (external package — string literals)
-		"Excalibur.Dispatch.Compliance",               // ComplianceMetrics.MeterName
-		"Excalibur.Dispatch.Compliance.Erasure",       // ErasureTelemetryConstants.MeterName
+		"Excalibur.Compliance",               // ComplianceMetrics.MeterName
+		"Excalibur.Compliance.Erasure",       // ErasureTelemetryConstants.MeterName
 		"Excalibur.Dispatch.Encryption",               // EncryptionTelemetry.MeterName
 
 		// Excalibur EventSourcing (external package)
@@ -92,7 +92,7 @@ public static class OpenTelemetryExtensions
 		DispatchTelemetryConstants.ActivitySources.PoisonMessage,                   // "Excalibur.Dispatch.PoisonMessage"
 		DispatchTelemetryConstants.ActivitySources.PoisonMessageMiddleware,         // "Excalibur.Dispatch.PoisonMessage.Middleware"
 		DispatchTelemetryConstants.ActivitySources.PoisonMessageCleanup,            // "Excalibur.Dispatch.PoisonMessage.Cleanup"
-		DispatchTelemetryConstants.ActivitySources.AuditLoggingMiddleware,          // "Excalibur.Dispatch.AuditLoggingMiddleware"
+		DispatchTelemetryConstants.ActivitySources.AuditLoggingMiddleware,          // "Excalibur.AuditLoggingMiddleware"
 		DispatchTelemetryConstants.ActivitySources.CircuitBreakerMiddleware,        // "Excalibur.Dispatch.CircuitBreakerMiddleware"
 		DispatchTelemetryConstants.ActivitySources.RetryMiddleware,                 // "Excalibur.Dispatch.RetryMiddleware"
 		DispatchTelemetryConstants.ActivitySources.UnifiedBatchingMiddleware,       // "Excalibur.Dispatch.UnifiedBatchingMiddleware"
@@ -109,7 +109,7 @@ public static class OpenTelemetryExtensions
 		Http.W3CTraceContextTelemetryConstants.ActivitySourceName,                  // "Excalibur.Dispatch.Observability.W3CTraceContext"
 
 		// Dispatch Compliance (external package)
-		"Excalibur.Dispatch.Compliance.Erasure",                                   // ErasureTelemetryConstants.ActivitySourceName
+		"Excalibur.Compliance.Erasure",                                   // ErasureTelemetryConstants.ActivitySourceName
 
 		// Excalibur Outbox background services
 		"Excalibur.Dispatch.BackgroundServices",                                    // BackgroundServiceActivitySource.SourceName

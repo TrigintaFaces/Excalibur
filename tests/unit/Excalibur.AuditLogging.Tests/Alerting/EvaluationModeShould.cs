@@ -1,0 +1,27 @@
+using Excalibur.AuditLogging.Alerting;
+
+
+using Excalibur.AuditLogging;namespace Excalibur.AuditLogging.Tests.Alerting;
+
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class EvaluationModeShould
+{
+    [Fact]
+    public void Define_real_time_as_zero()
+    {
+        ((int)EvaluationMode.RealTime).ShouldBe(0);
+    }
+
+    [Fact]
+    public void Define_batch_as_one()
+    {
+        ((int)EvaluationMode.Batch).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Have_two_defined_values()
+    {
+        Enum.GetValues<EvaluationMode>().Length.ShouldBe(2);
+    }
+}

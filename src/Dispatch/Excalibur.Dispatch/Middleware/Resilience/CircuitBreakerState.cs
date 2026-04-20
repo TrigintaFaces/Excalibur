@@ -20,11 +20,7 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// </remarks>
 internal sealed class CircuitBreakerState(CircuitBreakerOptions options)
 {
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 	private int _failureCount;
 	private int _successCount;
 

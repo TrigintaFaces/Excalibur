@@ -10,7 +10,7 @@ Sagas coordinate multi-step business processes where failure in one step require
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Saga
@@ -187,23 +187,23 @@ public class ShipOrderStep : ISagaStep<OrderSagaData>
 using Microsoft.Extensions.DependencyInjection;
 
 // Registration with SQL Server persistence
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
         .WithOrchestration()
         .WithTimeouts();
-});
+}));
 
 // Or with Postgres persistence (5 canonical connection overloads)
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     saga.UsePostgres(pg => pg.ConnectionString(connectionString))
         .WithOrchestration()
         .WithTimeouts();
-});
+}));
 
 // Cloud providers
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     saga.UseCosmosDb(cosmos =>
     {
@@ -211,18 +211,18 @@ services.AddExcaliburSaga(saga =>
               .DatabaseName("myapp")
               .ContainerName("sagas");
     });
-});
+}));
 
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     saga.UseDynamoDb(options =>
     {
         options.Connection.Region = "us-east-1";
         options.TableName = "sagas";
     });
-});
+}));
 
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     saga.UseMongoDB(mongo =>
     {
@@ -230,16 +230,16 @@ services.AddExcaliburSaga(saga =>
              .DatabaseName("myapp")
              .CollectionName("sagas");
     });
-});
+}));
 
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     saga.UseFirestore(options =>
     {
         options.ProjectId = "my-project";
         options.CollectionName = "sagas";
     });
-});
+}));
 
 // Execution via ISagaOrchestrator
 public class OrderController
@@ -382,12 +382,12 @@ public class OrderEventHandler : IEventHandler<OrderPlaced>
 Persist saga state to SQL Server for durability:
 
 ```csharp
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
         .WithOrchestration()
         .WithTimeouts();
-});
+}));
 ```
 
 The SQL Server store provides:
@@ -411,11 +411,11 @@ var sagas = await correlationQuery.FindByPropertyAsync("CustomerId", "cust-456",
 Register the SQL Server correlation query via the builder:
 
 ```csharp
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
         .WithCorrelationQuery();
-});
+}));
 ```
 
 The SQL Server implementation requires the `02-SagaCorrelationIndex.sql` migration for optimal performance. Property names in `FindByPropertyAsync` are validated against a `[GeneratedRegex]` whitelist to prevent JSON path injection.
@@ -440,11 +440,11 @@ The saga engine also checks `ISagaIdempotencyProvider` before executing compensa
 For SQL Server persistence, register the idempotency provider:
 
 ```csharp
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
         .WithSqlServerIdempotency(sql => sql.ConnectionString(connectionString));
-});
+}));
 ```
 
 ## Retry Policies

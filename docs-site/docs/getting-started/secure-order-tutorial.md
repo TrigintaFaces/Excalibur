@@ -27,8 +27,8 @@ cd OrderSystem
 dotnet add package Excalibur.Application
 dotnet add package Excalibur.A3
 dotnet add package Excalibur.A3.Abstractions
-dotnet add package Excalibur.Dispatch.AuditLogging
-dotnet add package Excalibur.Dispatch.Compliance.Abstractions
+dotnet add package Excalibur.AuditLogging
+dotnet add package Excalibur.Compliance.Abstractions
 ```
 
 ## Step 2: Upgrade to Structured Commands
@@ -224,7 +224,7 @@ The grant management endpoints below are **admin-only plumbing**. If you just wa
 ```csharp title="Handlers/GrantManagementEndpoints.cs"
 using Excalibur.A3.Authorization.Grants;  // AddGrantCommand, RevokeGrantCommand (from Excalibur.A3 package)
 using Excalibur.Dispatch.Abstractions;    // IDispatcher
-using Excalibur.Dispatch.Compliance;      // IAuditLogger, AuditEvent, AuditEventType, AuditOutcome
+using Excalibur.Compliance;      // IAuditLogger, AuditEvent, AuditEventType, AuditOutcome
 
 namespace OrderSystem.Handlers;
 
@@ -338,11 +338,11 @@ builder.Services.AddDispatch(dispatch =>
 });
 
 // 2. Event Sourcing (aggregates + event store)
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(opts => opts.ConnectionString = connectionString);
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
-});
+}));
 builder.Services.AddSqlServerProjectionStore<OrderSummary>(opts => opts.ConnectionString = connectionString);
 
 // 3. A3 Grant-Based Authorization
@@ -469,7 +469,7 @@ Response returned to caller
 | Layer | Package | What It Does |
 |-------|---------|-------------|
 | **Authorization** | `Excalibur.A3` | Checks grants before handler executes — unauthorized commands are rejected |
-| **Audit logging** | `Excalibur.Dispatch.AuditLogging` | Records who did what, when, and whether it succeeded |
+| **Audit logging** | `Excalibur.AuditLogging` | Records who did what, when, and whether it succeeded |
 | **Structured commands** | `Excalibur.Application` | Correlation IDs, tenant isolation, and transaction control on every command |
 
 ## Key Concepts
@@ -541,7 +541,7 @@ Before going to production, swap out the demo defaults:
 |-----------|----------|
 | Resource-level authorization | Use `ResourceCommandBase<TResourceType, TResponse>` for per-resource grants |
 | RBAC on audit data itself | `AddRbacAuditStore()` to restrict who can read audit logs |
-| Datadog audit export | `Excalibur.Dispatch.AuditLogging.Datadog` package |
+| Datadog audit export | `Excalibur.AuditLogging.Datadog` package |
 | Time-expiring grants | Set `ExpiresOn` on grants — expired grants are automatically inactive |
 | Custom grant stores | Implement `IGrantStore` and register via `UseGrantStore<T>()` |
 

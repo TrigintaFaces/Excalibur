@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.ElasticSearch.IndexManagement;
+using Excalibur.Data.ElasticSearch.Internal;
 
 using Tests.Shared.Categories;
 
@@ -14,19 +15,30 @@ namespace Excalibur.Data.Tests.ElasticSearch.IndexManagement;
 /// Unit tests for <see cref="IndexLifecycleManager"/>.
 /// Tests T401.11 scenarios: ILM policy creation, deletion, rollover, status, and phase advancement.
 /// </summary>
+/// <remarks>
+/// S800 bd-qhzapp: constructed via the internal
+/// <see cref="IIndexLifecycleOperations"/> seam (ADR-142 §D7). The SDK
+/// <c>ElasticsearchClient</c> is no longer instantiated for the bulk of
+/// tests — the public-ctor null-guard is exercised with a null literal
+/// cast only, and behavioral tests use <see cref="FakeItEasy"/> against
+/// the internal seam interface.
+/// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Elasticsearch")]
 public sealed class IndexLifecycleManagerShould
 {
-	private readonly ElasticsearchClient _fakeClient;
+	private readonly IIndexLifecycleOperations _fakeOps;
 	private readonly ILogger<IndexLifecycleManager> _logger;
 	private readonly IndexLifecycleManager _sut;
 
 	public IndexLifecycleManagerShould()
 	{
-		_fakeClient = A.Fake<ElasticsearchClient>();
+		// S800 bd-qhzapp: fake the internal IIndexLifecycleOperations seam
+		// instead of the concrete ElasticsearchClient — removes the SDK from
+		// the behavioral surface entirely (per ADR-142 §D7).
+		_fakeOps = A.Fake<IIndexLifecycleOperations>();
 		_logger = NullLogger<IndexLifecycleManager>.Instance;
-		_sut = new IndexLifecycleManager(_fakeClient, _logger);
+		_sut = new IndexLifecycleManager(_fakeOps, _logger);
 	}
 
 	#region Constructor Tests
@@ -35,8 +47,20 @@ public sealed class IndexLifecycleManagerShould
 	public void ThrowArgumentNullException_WhenClientIsNull()
 	{
 		// Act & Assert
+		// Cast disambiguates between (ElasticsearchClient, ILogger) public ctor
+		// and the (IIndexLifecycleOperations, ILogger) internal test-seam ctor
+		// added in S800 bd-qhzapp. Public-ctor null-guard fires through
+		// CreateOperations helper's ArgumentNullException.ThrowIfNull(client).
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new IndexLifecycleManager(null!, _logger));
+			new IndexLifecycleManager((ElasticsearchClient)null!, _logger));
+	}
+
+	[Fact]
+	public void ThrowArgumentNullException_WhenOperationsIsNull()
+	{
+		// Act & Assert — internal test-seam ctor null-guard on the seam.
+		_ = Should.Throw<ArgumentNullException>(() =>
+			new IndexLifecycleManager((IIndexLifecycleOperations)null!, _logger));
 	}
 
 	[Fact]
@@ -44,7 +68,7 @@ public sealed class IndexLifecycleManagerShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new IndexLifecycleManager(_fakeClient, null!));
+			new IndexLifecycleManager(_fakeOps, null!));
 	}
 
 	#endregion

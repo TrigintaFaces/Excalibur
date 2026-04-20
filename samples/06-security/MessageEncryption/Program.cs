@@ -3,7 +3,7 @@
 
 // Message Encryption Sample
 // =========================
-// This sample demonstrates how to use Excalibur.Dispatch.Security for message encryption:
+// This sample demonstrates how to use Excalibur.Security for message encryption:
 // - Payload encryption/decryption using DataProtection API
 // - Field-level encryption for sensitive data (PII, PCI)
 // - Key rotation patterns
@@ -16,10 +16,10 @@
 
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 using Excalibur.Dispatch.Serialization;
 
 using MessageEncryptionSample.Messages;

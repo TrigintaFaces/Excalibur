@@ -179,6 +179,14 @@ Excalibur.Data.ElasticSearch.IElasticRepositoryBase<TDocument>.RemoveAsync(strin
 Excalibur.Data.ElasticSearch.IElasticRepositoryBase<TDocument>.UpdateAsync(string! documentId, System.Collections.Generic.Dictionary<string!, object!>! updatedFields, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IElasticRepositoryBaseQuery<TDocument>
 Excalibur.Data.ElasticSearch.IElasticRepositoryBaseQuery<TDocument>.SearchAsync(Elastic.Clients.Elasticsearch.SearchRequestDescriptor<TDocument!>! searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.SearchResponse<TDocument!>!>!
+Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder
+Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
+Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.Client(Elastic.Clients.Elasticsearch.ElasticsearchClient! client) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
+Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, Elastic.Clients.Elasticsearch.ElasticsearchClient!>! factory) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
+Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.CloudId(string! cloudId) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
+Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.IndexPrefix(string! prefix) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
+Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.NodeUri(System.Uri! uri) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
+Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.NodeUris(System.Collections.Generic.IEnumerable<System.Uri!>! uris) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
 Excalibur.Data.ElasticSearch.IElasticsearchHealthClient
 Excalibur.Data.ElasticSearch.IElasticsearchHealthClient.GetClusterHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.Cluster.HealthResponse!>!
 Excalibur.Data.ElasticSearch.IIndexInitializer
@@ -296,7 +304,7 @@ Excalibur.Data.ElasticSearch.IndexManagement.IIndexOperationsManager.UpdateIndex
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.CreateOrUpdateTemplateAsync(string! templateName, Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.DeleteTemplateAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.GetTemplatesAsync(string? namePattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Elastic.Clients.Elasticsearch.IndexManagement.IndexTemplateItem!>!>!
+Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.GetTemplatesAsync(string? namePattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor!>!>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.TemplateExistsAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.ValidateTemplateAsync(Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.IndexManagement.TemplateValidationResult!>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager
@@ -427,12 +435,25 @@ Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Template
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Template.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Version.get -> long?
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Version.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.ComposedOf.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.ComposedOf.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.IndexPatterns.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.IndexPatterns.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.Metadata.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.Name.get -> string!
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.Name.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.Priority.get -> int?
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.Priority.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.Version.get -> long?
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor.Version.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager.CreateOrUpdateComponentTemplateAsync(string! templateName, Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager.CreateOrUpdateTemplateAsync(string! templateName, Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager.DeleteComponentTemplateAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager.DeleteTemplateAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager.GetTemplatesAsync(string? namePattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Elastic.Clients.Elasticsearch.IndexManagement.IndexTemplateItem!>!>!
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager.GetTemplatesAsync(string? namePattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor!>!>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager.IndexTemplateManager(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager!>! logger) -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager.MigrateTemplateAsync(string! templateName, Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration! newTemplate, Excalibur.Data.ElasticSearch.IndexManagement.TemplateMigrationOptions! migrationOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.IndexManagement.TemplateMigrationResult!>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateManager.TemplateExistsAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -2943,6 +2964,7 @@ Excalibur.Data.ElasticSearch.TimeoutOptions.SearchTimeout.init -> void
 Excalibur.Data.ElasticSearch.TimeoutOptions.TimeoutOptions() -> void
 Microsoft.Extensions.DependencyInjection.ElasticSearchHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions
+Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSourcingBuilderExtensions
 Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ElasticSearchTenantShardingExtensions
 Microsoft.Extensions.DependencyInjection.ElasticsearchPersistenceServiceCollectionExtensions
@@ -3055,11 +3077,14 @@ static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExte
 static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! configureShared, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSourcingBuilderExtensions.AddElasticSearchProjections(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! configureShared, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSourcingBuilderExtensions.AddElasticSearchProjections(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, string! nodeUri, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchIndexManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Elastic.Clients.Elasticsearch.ElasticsearchClient! client, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry, System.Action<Elastic.Clients.Elasticsearch.ElasticsearchClientSettings!>? configureSettings = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddExcaliburElasticSearch(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddMonitoredResilientElasticsearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry = null, System.Action<Elastic.Clients.Elasticsearch.ElasticsearchClientSettings!>? configureSettings = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddRepository<TRepositoryInterface, TRepository>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddResilientElasticsearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions! resilienceOptions, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -3087,12 +3112,3 @@ virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.Initialize
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.SearchAsync(Elastic.Clients.Elasticsearch.SearchRequestDescriptor<TDocument!>! searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.SearchResponse<TDocument!>!>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.UpdateAsync(string! documentId, System.Collections.Generic.Dictionary<string!, object!>! updatedFields, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder
-Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
-Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.Client(Elastic.Clients.Elasticsearch.ElasticsearchClient! client) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
-Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, Elastic.Clients.Elasticsearch.ElasticsearchClient!>! factory) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
-Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.CloudId(string! cloudId) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
-Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.IndexPrefix(string! prefix) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
-Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.NodeUri(System.Uri! uri) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
-Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder.NodeUris(System.Collections.Generic.IEnumerable<System.Uri!>! uris) -> Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!
-static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddExcaliburElasticSearch(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

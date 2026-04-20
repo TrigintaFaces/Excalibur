@@ -45,7 +45,15 @@ public sealed class TransportBinding : ITransportBinding
 			var regexPattern = "^" + Regex.Escape(endpointPattern)
 				.Replace(@"\*", ".*", StringComparison.Ordinal)
 				.Replace(@"\?", ".", StringComparison.Ordinal) + "$";
-			_endpointRegex = new Regex(regexPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+			// Defense-in-depth ReDoS guard: consumer-configured endpoint patterns reach
+			// this call site and could in theory construct a pathological backtracking
+			// regex. Explicit MatchTimeout bounds the worst-case evaluation time to a
+			// second rather than allowing unbounded catastrophic backtracking.
+			// [S795 bd-ilwc63]
+			_endpointRegex = new Regex(
+				regexPattern,
+				RegexOptions.Compiled | RegexOptions.IgnoreCase,
+				matchTimeout: TimeSpan.FromSeconds(1));
 		}
 	}
 

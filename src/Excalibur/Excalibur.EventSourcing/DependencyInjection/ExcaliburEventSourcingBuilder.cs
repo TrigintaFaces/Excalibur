@@ -35,10 +35,10 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// </para>
 /// <para> <b> Usage: </b>
 /// <code>
-///services.AddExcaliburEventSourcing(builder =&gt; builder
+///services.AddExcalibur(x => x.AddEventSourcing(builder =&gt; builder
 ///.AddRepository&lt;OrderAggregate, Guid&gt;()
 ///.UseIntervalSnapshots(100)
-///.UseSnapshotStrategy&lt;CustomStrategy&gt;());
+///.UseSnapshotStrategy&lt;CustomStrategy&gt;()));
 /// </code>
 /// </para>
 /// </remarks>
@@ -166,8 +166,8 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	/// </para>
 	/// <para> <b> Usage: </b>
 	/// <code>
-	///services.AddExcaliburEventSourcing(builder =&gt; builder
-	///.AddRepository&lt;OrderAggregate, Guid&gt;());  // Uses OrderAggregate.Create(id)
+	///services.AddExcalibur(x => x.AddEventSourcing(builder =&gt; builder
+	///.AddRepository&lt;OrderAggregate, Guid&gt;()));  // Uses OrderAggregate.Create(id)
 	/// </code>
 	/// </para>
 	/// </remarks>

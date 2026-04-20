@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Excalibur.Hosting.Builders;
 using Excalibur.Saga;
+using Excalibur.Saga.DependencyInjection;
 
 using Microsoft.Extensions.Configuration;
 
@@ -37,6 +38,25 @@ public static class SagaExcaliburBuilderExtensions
 			_ = builder.Services.AddExcaliburSaga();
 		}
 
+		return builder;
+	}
+
+	/// <summary>
+	/// Configures saga processing for the Excalibur host using the
+	/// <see cref="ISagaBuilder"/> sub-feature builder (orchestration, timeouts,
+	/// instrumentation, storage provider).
+	/// </summary>
+	/// <param name="builder">The Excalibur builder.</param>
+	/// <param name="configure">Action to configure saga sub-features.</param>
+	/// <returns>The same builder for fluent chaining.</returns>
+	public static IExcaliburBuilder AddSagas(
+		this IExcaliburBuilder builder,
+		Action<ISagaBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		_ = builder.Services.AddExcaliburSaga(configure);
 		return builder;
 	}
 

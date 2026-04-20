@@ -10,7 +10,7 @@ Excalibur.A3 provides a unified **Authentication, Authorization, and Audit** (A3
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   # Full-stack (CQRS, Dispatch pipeline, authentication services)

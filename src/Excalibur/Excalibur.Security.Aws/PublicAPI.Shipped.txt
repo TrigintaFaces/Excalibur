@@ -1,0 +1,15 @@
+#nullable enable
+Excalibur.Security.Aws.AwsSecurityEventId
+Excalibur.Security.Aws.ISecurityAwsBuilder
+Excalibur.Security.Aws.ISecurityAwsBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Security.Aws.ISecurityAwsBuilder!
+Excalibur.Security.Aws.ISecurityAwsBuilder.Region(string! region) -> Excalibur.Security.Aws.ISecurityAwsBuilder!
+Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions
+const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerCredentialStoreCreated = 70901 -> int
+const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRequestFailed = 70923 -> int
+const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrieveFailed = 70924 -> int
+const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrieved = 70922 -> int
+const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrieving = 70920 -> int
+const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerSecretNotFound = 70921 -> int
+const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerStored = 70926 -> int
+const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerStoring = 70925 -> int
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions.AddDispatchSecurityAws(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Aws.ISecurityAwsBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

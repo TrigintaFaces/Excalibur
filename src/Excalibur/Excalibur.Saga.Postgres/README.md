@@ -27,10 +27,10 @@ This package is included in the following metapackages:
 services.AddPostgresSagaStore("Host=localhost;Database=myapp;");
 
 // Via ISagaBuilder
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(x => x.AddSagas(saga =>
 {
     saga.UsePostgres("Host=localhost;Database=myapp;");
-});
+}));
 
 // With options
 services.AddPostgresSagaStore(options =>

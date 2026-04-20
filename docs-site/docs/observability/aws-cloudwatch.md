@@ -10,7 +10,7 @@ Dispatch integrates with AWS CloudWatch for comprehensive monitoring of serverle
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An AWS account with CloudWatch access
 - Familiarity with [production observability](./production-observability.md) and [metrics reference](./metrics-reference.md)
 
@@ -145,7 +145,7 @@ builder.Services.AddAwsLambdaServerless(options =>
 // Configure Lambda-specific options
 builder.Services.Configure<AwsLambdaOptions>(options =>
 {
-    options.Runtime = "dotnet8";
+    options.Runtime = "dotnet10";
     options.EnableProvisionedConcurrency = true;
     options.ReservedConcurrency = 100;
 });
@@ -162,8 +162,8 @@ public class AwsLambdaOptions
     // Reserved concurrency limit (null = no limit)
     public int? ReservedConcurrency { get; set; }
 
-    // Lambda runtime (default: "dotnet8")
-    public string Runtime { get; set; } = "dotnet8";
+    // Lambda runtime (default: "dotnet10")
+    public string Runtime { get; set; } = "dotnet10";
 
     // Handler name for deployment
     public string? Handler { get; set; }

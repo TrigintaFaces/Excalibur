@@ -8,7 +8,7 @@ A comprehensive guide for migrating from NServiceBus to Excalibur, covering mess
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An existing application using NServiceBus
 - Familiarity with [getting started](../getting-started/index.md) and [transports](../transports/choosing-a-transport.md)
 
@@ -323,11 +323,11 @@ builder.Services.AddSingleton<IMessageSession>(endpointInstance);
 
 // Add Dispatch for domain logic
 builder.Services.AddDispatch(typeof(Program).Assembly);
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
-});
+}));
 
 var app = builder.Build();
 ```
@@ -374,11 +374,11 @@ public class NServiceBusBridgeHandler : IHandleMessages<OrderPlaced>
 }
 
 // Use Dispatch outbox for reliable local messaging
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
-});
+}));
 ```
 
 **Benefits:**
@@ -393,11 +393,11 @@ Remove NServiceBus entirely, replace with Dispatch + external broker:
 ```csharp
 // Dispatch with outbox and transport integration
 builder.Services.AddDispatch(typeof(Program).Assembly);
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
-});
+}));
 builder.Services.AddOutboxHostedService();
 
 // For broker-backed transport, add the appropriate transport package
@@ -443,11 +443,11 @@ var endpointInstance = await Endpoint.Start(endpointConfiguration);
 **After (Dispatch):**
 ```csharp
 builder.Services.AddDispatch(typeof(Program).Assembly);
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
-});
+}));
 builder.Services.AddOutboxHostedService();
 ```
 
@@ -589,10 +589,10 @@ persistence.ConnectionBuilder(() => new SqlConnection(connectionString));
 **After (Dispatch):**
 ```csharp
 builder.Services.AddDispatch(typeof(Program).Assembly);
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString);
-});
+}));
 ```
 
 ## Feature Mapping

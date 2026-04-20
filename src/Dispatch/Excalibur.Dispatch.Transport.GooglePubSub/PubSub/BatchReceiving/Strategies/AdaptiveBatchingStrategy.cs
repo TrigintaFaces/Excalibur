@@ -16,11 +16,7 @@ public sealed partial class AdaptiveBatchingStrategy : IBatchingStrategy
 {
 	private readonly IOptions<BatchOptions> _options;
 	private readonly ILogger<AdaptiveBatchingStrategy> _logger;
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 
 	private readonly Queue<BatchResult> _recentResults;
 	private readonly int _windowSize = 20;

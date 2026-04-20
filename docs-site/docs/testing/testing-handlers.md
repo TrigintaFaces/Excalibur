@@ -12,7 +12,7 @@ This guide covers the three levels of testing you will use most often: unit test
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the testing packages:
   ```bash
   dotnet add package xunit

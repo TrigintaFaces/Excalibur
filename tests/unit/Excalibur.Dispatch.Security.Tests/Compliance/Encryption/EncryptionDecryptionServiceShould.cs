@@ -5,8 +5,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
-using ComplianceEncryptionOptions = Excalibur.Dispatch.Compliance.EncryptionOptions;
+using ComplianceEncryptionOptions = Excalibur.Compliance.Configuration.EncryptionOptions;
 
+using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
 /// <summary>

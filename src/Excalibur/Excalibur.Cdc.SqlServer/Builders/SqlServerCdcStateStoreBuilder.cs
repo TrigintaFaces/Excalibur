@@ -62,7 +62,7 @@ internal sealed class SqlServerCdcStateStoreBuilder : ICdcRelationalStateStoreBu
 	}
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder TableName(string tableName)
+	public ICdcRelationalStateStoreBuilder TableName(string tableName)
 	{
 		if (string.IsNullOrWhiteSpace(tableName))
 		{
@@ -74,11 +74,15 @@ internal sealed class SqlServerCdcStateStoreBuilder : ICdcRelationalStateStoreBu
 	}
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder BindConfiguration(string sectionPath)
+	public ICdcRelationalStateStoreBuilder BindConfiguration(string sectionPath)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 
 		BindConfigurationPath = sectionPath;
 		return this;
 	}
+
+	ICdcStateStoreBuilder ICdcStateStoreBuilder.TableName(string tableName) => TableName(tableName);
+
+	ICdcStateStoreBuilder ICdcStateStoreBuilder.BindConfiguration(string sectionPath) => BindConfiguration(sectionPath);
 }

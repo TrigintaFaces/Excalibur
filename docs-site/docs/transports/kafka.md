@@ -9,7 +9,7 @@ Apache Kafka transport for high-throughput event streaming with configurable ord
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A running Apache Kafka cluster (or Docker: `docker run -p 9092:9092 confluentinc/cp-kafka`)
 - Familiarity with [transport concepts](./index.md) and [choosing a transport](./choosing-a-transport.md)
 

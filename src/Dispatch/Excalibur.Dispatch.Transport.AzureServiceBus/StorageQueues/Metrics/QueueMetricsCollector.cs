@@ -60,11 +60,7 @@ public sealed partial class QueueMetricsCollector(ILogger<QueueMetricsCollector>
 		description: "Approximate number of messages in the queue");
 
 	private readonly ILogger<QueueMetricsCollector> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 
 	/// <summary>
 	/// Local counters for snapshot generation.

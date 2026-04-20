@@ -3,8 +3,8 @@
 
 using Dapper;
 
-using Excalibur.Dispatch.AuditLogging.SqlServer;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.AuditLogging.SqlServer;
+using Excalibur.Compliance;
 
 using Microsoft.Data.SqlClient;
 

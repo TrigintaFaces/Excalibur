@@ -4,11 +4,12 @@
 using System.Runtime.InteropServices;
 using System.Security;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Configuration;
 
-namespace Excalibur.Dispatch.Security.Tests;
+
+using Excalibur.Security.CredentialStores;namespace Excalibur.Dispatch.Security.Tests;
 
 [UnitTest]
 [Trait(TraitNames.Component, TestComponents.Security)]

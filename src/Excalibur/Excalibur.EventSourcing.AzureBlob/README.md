@@ -5,7 +5,7 @@ Azure Blob Storage cold event store for Excalibur event sourcing tiered storage.
 ## Usage
 
 ```csharp
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(x => x.AddEventSourcing(es =>
 {
     es.UseTieredStorage(options =>
     {
@@ -16,7 +16,7 @@ services.AddExcaliburEventSourcing(es =>
         options.ConnectionString = "UseDevelopmentStorage=true";
         options.ContainerName = "cold-events";
     });
-});
+}));
 ```
 
 Implements `IColdEventStore` for archiving old events to Azure Blob Storage with gzip+JSON serialization.

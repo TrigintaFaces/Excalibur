@@ -30,14 +30,14 @@ public static class SagaBuilderFirestoreExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSaga(saga =&gt;
+	/// services.AddExcalibur(x => x.AddSagas(saga =&gt;
 	/// {
 	///     saga.UseFirestore(firestore =&gt;
 	///     {
 	///         firestore.ProjectId("my-project")
 	///                  .CollectionName("sagas");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

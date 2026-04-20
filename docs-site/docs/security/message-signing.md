@@ -8,7 +8,7 @@ description: Ensure message integrity and authenticity with HMAC, ECDSA, Ed25519
 
 Excalibur.Dispatch provides message signing to ensure messages haven't been tampered with during transmission. The signing infrastructure supports both symmetric (HMAC) and asymmetric (ECDSA, Ed25519, RSA) algorithms.
 
-**Package:** `Excalibur.Dispatch.Security`
+**Package:** `Excalibur.Security`
 
 ## Architecture
 
@@ -120,8 +120,8 @@ Security options are configured via `IConfiguration` (e.g., `appsettings.json`):
 
 Signing requires an `IKeyProvider` to supply key material. Cloud-specific packages provide implementations:
 
-- **`Excalibur.Dispatch.Security.Azure`** — Azure Key Vault
-- **`Excalibur.Dispatch.Security.Aws`** — AWS KMS
+- **`Excalibur.Security.Azure`** — Azure Key Vault
+- **`Excalibur.Security.Aws`** — AWS KMS
 
 For local development, register a custom `IKeyProvider`:
 

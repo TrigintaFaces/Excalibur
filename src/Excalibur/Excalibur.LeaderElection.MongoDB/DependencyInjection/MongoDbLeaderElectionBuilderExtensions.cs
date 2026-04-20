@@ -40,14 +40,14 @@ public static class MongoDbLeaderElectionBuilderExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
 	/// {
 	///     le.UseMongoDB("my-service:leader", mongo =&gt;
 	///     {
 	///         mongo.ConnectionString("mongodb://localhost:27017")
 	///              .DatabaseName("myapp");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

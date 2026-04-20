@@ -7,7 +7,7 @@ using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
 
 /// <summary>

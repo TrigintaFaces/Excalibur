@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 
+using Excalibur.Compliance.Erasure;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
 /// <summary>

@@ -25,11 +25,7 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 	private readonly string _lockKey;
 	private readonly LeaderElectionOptions _options;
 	private readonly ILogger<RedisLeaderElection> _logger;
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 
 	private CancellationTokenSource? _renewalCts;
 	private Task? _renewalTask;

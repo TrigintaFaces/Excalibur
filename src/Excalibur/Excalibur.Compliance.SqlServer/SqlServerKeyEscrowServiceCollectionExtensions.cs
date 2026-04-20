@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Excalibur.Compliance.SqlServer;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;

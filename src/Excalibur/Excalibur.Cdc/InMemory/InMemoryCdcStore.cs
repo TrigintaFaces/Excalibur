@@ -21,11 +21,7 @@ internal sealed class InMemoryCdcStore : IInMemoryCdcStore
 	private readonly ConcurrentBag<InMemoryCdcChange> _processedChanges = [];
 	private readonly InMemoryCdcOptions _options;
 
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryCdcStore"/> class.

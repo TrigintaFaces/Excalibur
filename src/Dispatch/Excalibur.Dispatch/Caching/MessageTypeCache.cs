@@ -18,14 +18,8 @@ internal static class MessageTypeCache
 {
 	private const int MaxCacheEntries = 1024;
 
-#if NET9_0_OR_GREATER
 	private static readonly Lock _initLock = new();
 
-#else
-
-	private static readonly object _initLock = new();
-
-#endif
 
 	/// <summary>
 	/// Pre-computed type metadata using frozen collections for O(1) lookup performance.

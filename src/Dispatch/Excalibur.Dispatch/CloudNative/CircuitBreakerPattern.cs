@@ -34,18 +34,10 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 	private readonly ILogger _logger;
 	private readonly SemaphoreSlim _halfOpenSemaphore;
 	private readonly List<IPatternObserver> _observers = [];
-#if NET9_0_OR_GREATER
 	private readonly Lock _observerLock = new();
-#else
-	private readonly object _observerLock = new();
-#endif
 
 	private readonly CircuitBreakerMetrics _metrics = new();
-#if NET9_0_OR_GREATER
 	private readonly Lock _stateLock = new();
-#else
-	private readonly object _stateLock = new();
-#endif
 	private readonly ConcurrentDictionary<string, long> _operationLatencies = new(StringComparer.Ordinal);
 	private int _consecutiveFailures;
 	private int _consecutiveSuccesses;

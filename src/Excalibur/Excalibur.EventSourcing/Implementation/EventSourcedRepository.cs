@@ -49,8 +49,8 @@ namespace Excalibur.EventSourcing.Implementation;
 ///.RegisterUpcaster&lt;OrderCreatedV1, OrderCreatedV2&gt;(new OrderCreatedV1ToV2())
 ///.EnableAutoUpcastOnReplay());
 ///
-///services.AddExcaliburEventSourcing(builder =&gt; builder
-///.AddRepository&lt;OrderAggregate, Guid&gt;());
+///services.AddExcalibur(x => x.AddEventSourcing(builder =&gt; builder
+///.AddRepository&lt;OrderAggregate, Guid&gt;()));
 /// </code>
 /// </para>
 /// </remarks>

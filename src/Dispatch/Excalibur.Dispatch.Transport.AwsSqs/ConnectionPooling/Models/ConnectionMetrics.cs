@@ -14,11 +14,7 @@ internal sealed class ConnectionMetrics(string metricsPrefix) : IDisposable
 	// Retain metricsPrefix for future use when wiring to an IMeterFactory-based metrics pipeline.
 	private readonly string _metricsPrefix = metricsPrefix;
 
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 	private long _acquisitions;
 	private long _hits;
 	private long _errors;

@@ -40,7 +40,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 	/// <example>
 	/// <code>
 	/// // Connection string
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseSqlServer(sql =&gt;
 	///     {
@@ -49,19 +49,19 @@ public static class EventSourcingBuilderSqlServerExtensions
 	///            .SnapshotStoreSchema("es");
 	///     })
 	///     .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
+	/// }));
 	///
 	/// // Named connection string
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseSqlServer(sql =&gt;
 	///     {
 	///         sql.ConnectionStringName("EventStore");
 	///     });
-	/// });
+	/// }));
 	///
 	/// // Connection factory (Azure Managed Identity)
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseSqlServer(sql =&gt;
 	///     {
@@ -72,16 +72,16 @@ public static class EventSourcingBuilderSqlServerExtensions
 	///             return () =&gt; new SqlConnection(connStr);
 	///         });
 	///     });
-	/// });
+	/// }));
 	///
 	/// // Bind from appsettings.json
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseSqlServer(sql =&gt;
 	///     {
 	///         sql.BindConfiguration("EventSourcing:SqlServer");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder UseSqlServer(

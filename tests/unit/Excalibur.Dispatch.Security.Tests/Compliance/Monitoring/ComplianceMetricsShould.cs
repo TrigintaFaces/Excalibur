@@ -3,6 +3,7 @@
 
 using System.Diagnostics.Metrics;
 
+using Excalibur.Compliance.Monitoring;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Monitoring;
 
 [Trait("Category", TestCategories.Unit)]
@@ -43,7 +44,7 @@ public sealed class ComplianceMetricsShould : IDisposable
 	public void HaveCorrectMeterName()
 	{
 		// Assert
-		_sut.Meter.Name.ShouldBe("Excalibur.Dispatch.Compliance");
+		_sut.Meter.Name.ShouldBe("Excalibur.Compliance");
 	}
 
 	[Fact]

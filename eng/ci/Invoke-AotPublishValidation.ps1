@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Runs `dotnet publish` with PublishAot=true on the AOT sample application
-    (samples/11-aot/), which transitively references shipping packages.
+    (samples/10-aot/), which transitively references shipping packages.
     Captures IL2xxx (trim) and IL3xxx (AOT) warnings, groups them by package,
     and produces JSON and HTML reports for CI consumption.
 
@@ -60,7 +60,7 @@ Write-Log "OutputPath: $OutputPath"
 
 # Locate the AOT sample project
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$aotSampleProject = Join-Path $repoRoot 'samples' '11-aot' 'Excalibur.Dispatch.Aot.Sample' 'Excalibur.Dispatch.Aot.Sample.csproj'
+$aotSampleProject = Join-Path $repoRoot 'samples' '10-aot' 'Excalibur.Dispatch.Aot.Sample' 'Excalibur.Dispatch.Aot.Sample.csproj'
 
 if (-not (Test-Path $aotSampleProject)) {
     Write-Log "AOT sample project not found at: $aotSampleProject" 'ERROR'
@@ -254,7 +254,7 @@ $htmlBody = @"
     <h1>AOT Publish Validation Report</h1>
     <p><strong>Date:</strong> $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</p>
     <p><strong>Configuration:</strong> $Configuration | <strong>Runtime:</strong> $(if ($Runtime) { $Runtime } else { 'default' })</p>
-    <p><strong>Sample Project:</strong> samples/11-aot/Excalibur.Dispatch.Aot.Sample</p>
+    <p><strong>Sample Project:</strong> samples/10-aot/Excalibur.Dispatch.Aot.Sample</p>
 
     <div class="summary">
         <div class="card $(if ($publishExitCode -eq 0) { 'pass' } else { 'fail' })">

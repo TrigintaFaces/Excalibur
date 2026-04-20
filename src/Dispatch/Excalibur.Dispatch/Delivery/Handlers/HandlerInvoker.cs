@@ -60,11 +60,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	/// </summary>
 	private static volatile bool _isFrozen;
 
-#if NET9_0_OR_GREATER
 	private static readonly Lock PrecompiledProviderLock = new();
-#else
-	private static readonly object PrecompiledProviderLock = new();
-#endif
 	private static PrecompiledInvokerProvider[] _precompiledProviders = [];
 	private static readonly ConcurrentDictionary<(Type HandlerType, Type MessageType), CachedPrecompiledInvoker> _precompiledInvokerCache = new();
 	private static readonly ConcurrentDictionary<(Type HandlerType, Type MessageType), InvokerFunc> _knownInvokerCache = new();

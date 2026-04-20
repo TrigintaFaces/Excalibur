@@ -21,10 +21,10 @@ namespace Excalibur.Saga.DependencyInjection;
 /// </remarks>
 /// <example>
 /// <code>
-/// services.AddExcaliburSaga(saga => saga
+/// services.AddExcalibur(x => x.AddSagas(saga => saga
 ///     .WithOrchestration(opts => opts.MaxRetryAttempts = 5)
 ///     .WithTimeouts(opts => opts.PollInterval = TimeSpan.FromSeconds(30))
-///     .WithInstrumentation());
+///     .WithInstrumentation()));
 /// </code>
 /// </example>
 public interface ISagaBuilder

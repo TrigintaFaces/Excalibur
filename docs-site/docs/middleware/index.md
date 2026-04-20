@@ -14,7 +14,7 @@ Without middleware, every handler ends up with copy-pasted try/catch logging, ma
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Dispatch

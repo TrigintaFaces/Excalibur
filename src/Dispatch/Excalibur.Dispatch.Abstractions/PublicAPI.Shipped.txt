@@ -780,9 +780,6 @@ Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Title.get -> string!
 Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Title.set -> void
 Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Type.get -> string!
 Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Type.set -> void
-Excalibur.Dispatch.Abstractions.IMessagePublisher
-Excalibur.Dispatch.Abstractions.IMessagePublisher.PublishAsync<TMessage>(TMessage message, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Abstractions.IMessagePublisher.PublishAsync<TMessage>(TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.IMessageResult
 Excalibur.Dispatch.Abstractions.IMessageResult.AuthorizationResult.get -> object?
 Excalibur.Dispatch.Abstractions.IMessageResult.CacheHit.get -> bool

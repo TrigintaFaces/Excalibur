@@ -10,7 +10,7 @@ Excalibur.Dispatch.Caching integrates caching directly into the dispatch pipelin
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Dispatch.Caching
@@ -261,12 +261,16 @@ dotnet add package Excalibur.Caching
 ```
 
 ```csharp
-// Register projection caching after dispatch caching
+// Register projection caching after dispatch caching.
+// AddProjectionCaching(...) is the canonical extension on IEventSourcingBuilder
+// per ADR-321/325 (the pre-unification AddExcaliburProjectionCaching aggregator
+// is internal to Excalibur.Caching).
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.UseCaching(o => o.Enabled = true);
 });
-builder.Services.AddExcaliburProjectionCaching();
+builder.Services.AddExcalibur(excalibur => excalibur
+    .AddEventSourcing(es => es.AddProjectionCaching()));
 ```
 
 Implement `IProjectionTagResolver<T>` to map domain events to cache tags:

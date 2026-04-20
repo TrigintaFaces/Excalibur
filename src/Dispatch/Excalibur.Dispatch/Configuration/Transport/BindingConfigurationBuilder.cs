@@ -44,9 +44,35 @@ internal sealed class BindingConfigurationBuilder(ITransportRegistry transportRe
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 
-		var adapter = _transportRegistry.GetTransportAdapter(transportName)
-					  ?? throw new ArgumentException($"Transport '{transportName}' is not registered", nameof(transportName));
+		// Accept either a materialized adapter or a pending factory registration.
+		// When only a factory is present, the binding defers adapter resolution to
+		// startup (via LazyTransportBinding) — this keeps AddEventBindings order-
+		// independent from AddXTransport and lets ValidateOnStart surface any
+		// truly-missing-transport references at host start. [bd-20ft0e FIX 4]
+		var adapter = _transportRegistry.GetTransportAdapter(transportName);
+		if (adapter is null)
+		{
+			var hasPendingFactory = false;
+			if (_transportRegistry is TransportRegistry concrete)
+			{
+				foreach (var pending in concrete.GetPendingFactoryNames())
+				{
+					if (string.Equals(pending, transportName, StringComparison.Ordinal))
+					{
+						hasPendingFactory = true;
+						break;
+					}
+				}
+			}
 
-		return new TransportBindingBuilder(transportName, adapter, _bindingRegistry);
+			if (!hasPendingFactory)
+			{
+				// Unknown transport — defer to ValidateOnStart by recording a pending
+				// name so the startup validator can fail with a clear message.
+				_bindingRegistry.RegisterPendingTransportReference(transportName);
+			}
+		}
+
+		return new TransportBindingBuilder(transportName, adapter, _transportRegistry, _bindingRegistry);
 	}
 }

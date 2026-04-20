@@ -10,7 +10,7 @@ The Cron Timer transport enables scheduled message dispatching using cron expres
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -126,6 +126,8 @@ builder.Services.AddCronTimerTransport("my-timer", "0 * * * *", options =>
 ---
 
 ## Cron Expression Reference
+
+The cron timer supports standard 5-field and 6-field (with seconds) cron expressions. The parser **auto-detects** the format from the whitespace-field count of the expression, so you can pass a 6-field expression (e.g. `*/10 * * * * *`) directly to `AddCronTimerTransport(...)` without setting any additional option. Named macros (`@hourly`, `@daily`, `@weekly`, etc.) bypass the counter and work in both modes. An explicit `CronScheduleOptions.IncludeSeconds = true` hint still wins via OR, so existing code that opts in manually continues to behave exactly as before.
 
 The cron timer supports standard 5-field and 6-field (with seconds) cron expressions:
 

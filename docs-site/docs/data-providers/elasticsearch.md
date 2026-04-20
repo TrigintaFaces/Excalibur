@@ -10,7 +10,7 @@ The Elasticsearch provider offers full-text search and analytics with a resilien
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An Elasticsearch cluster (local, Elastic Cloud, or AWS OpenSearch)
 - Familiarity with [data access](../data-access/index.md) and [projections](../event-sourcing/projections.md)
 
@@ -132,7 +132,7 @@ Manage indices, templates, aliases, and ILM policies:
 A separate package provides an Elasticsearch audit sink for real-time audit event indexing:
 
 ```bash
-dotnet add package Excalibur.Dispatch.AuditLogging.Elasticsearch
+dotnet add package Excalibur.AuditLogging.Elasticsearch
 ```
 
 ```csharp

@@ -10,7 +10,7 @@ Snapshots store the current state of an aggregate, avoiding the need to replay a
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -38,12 +38,12 @@ Load snapshot at version 9,900
 
 ```csharp
 // Configure event sourcing with provider and snapshot strategy in one builder
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseSqlServer(sql => sql.ConnectionString(connectionString));
     builder.AddRepository<OrderAggregate, Guid>();
     builder.UseIntervalSnapshots(100);  // Snapshot every 100 events
-});
+}));
 ```
 
 ## Snapshot Strategies
@@ -116,10 +116,10 @@ Store snapshots in the same database as events (default):
 
 ```csharp
 // SQL Server stores snapshots in the Snapshots table alongside events
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(opts => opts.ConnectionString = connectionString);
-});
+}));
 ```
 
 ### Separate Store
@@ -131,10 +131,10 @@ Use a different storage backend for snapshots:
 services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
 
 // Use a custom snapshot manager
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseSnapshotManager<RedisSnapshotManager>();
-});
+}));
 ```
 
 ## Implementing Snapshot Methods

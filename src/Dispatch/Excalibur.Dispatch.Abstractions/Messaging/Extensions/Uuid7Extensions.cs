@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
 using Medo;
@@ -15,21 +14,18 @@ namespace Excalibur.Dispatch.Abstractions.Messaging;
 /// <para>
 /// UUID v7 is a time-ordered UUID format defined in RFC 9562. It includes a Unix timestamp
 /// with millisecond precision, making it suitable for use as a database primary key with
-/// natural time-based ordering. All UUIDs use big-endian byte order per the RFC specification.
+/// natural time-based ordering.
+/// </para>
+/// <para>
+/// Built on Medo.Uuid7 v3.x. Version detection and timestamp extraction delegate to the
+/// Medo library to avoid manual byte-layout handling, which changed between v1 and v3
+/// (v3's default <c>ToGuid()</c> returns a mixed-endian <see cref="Guid"/> that round-trips
+/// via <c>Uuid7.FromGuid</c> but whose raw <see cref="Guid.ToByteArray()"/> layout no longer
+/// places the version nibble at byte index 6).
 /// </para>
 /// </remarks>
 public static class Uuid7Extensions
 {
-	/// <summary>
-	/// Maximum cache size before clearing.
-	/// </summary>
-	private const int MaxCacheEntries = 1024;
-
-	/// <summary>
-	/// Cache for parsed UUID v7 instances to avoid repeated parsing.
-	/// </summary>
-	private static readonly ConcurrentDictionary<string, (bool valid, Uuid7? uuid)> ParseCache = new(StringComparer.Ordinal);
-
 	/// <summary>
 	/// Thread-local buffer for batch generation to avoid allocations.
 	/// </summary>
@@ -115,31 +111,25 @@ public static class Uuid7Extensions
 	/// Extracts the timestamp from a UUID v7 Guid.
 	/// </summary>
 	/// <param name="uuid"> The UUID v7 Guid. </param>
-	/// <returns> The timestamp embedded in the UUID, or null if extraction fails. </returns>
+	/// <returns> The timestamp embedded in the UUID, or null if extraction fails or the Guid is not a v7 UUID. </returns>
 	public static DateTimeOffset? ExtractTimestamp(Guid uuid)
 	{
+		if (uuid == Guid.Empty)
+		{
+			return null;
+		}
+
 		try
 		{
-			// Extract timestamp from UUID v7 manually UUID v7 has 48-bit timestamp in the first 6 bytes
-			var bytes = uuid.ToByteArray();
-
-			// Check if this is likely a UUID v7 (version bits)
-			if ((bytes[6] & 0xF0) != 0x70)
+			var uuid7 = Uuid7.FromGuid(uuid);
+			if (uuid7.Version != 7)
 			{
 				return null;
 			}
 
-			// Extract the 48-bit timestamp (big-endian)
-			var timestamp = ((long)bytes[0] << 40) |
-							((long)bytes[1] << 32) |
-							((long)bytes[2] << 24) |
-							((long)bytes[3] << 16) |
-							((long)bytes[4] << 8) |
-							bytes[5];
-
-			return DateTimeOffset.FromUnixTimeMilliseconds(timestamp);
+			return uuid7.ToDateTimeOffset();
 		}
-		catch
+		catch (InvalidOperationException)
 		{
 			return null;
 		}
@@ -157,20 +147,8 @@ public static class Uuid7Extensions
 			return null;
 		}
 
-		try
-		{
-			// Accept standard Guid format only for extraction
-			if (Guid.TryParse(uuidString, out var guid))
-			{
-				return ExtractTimestamp(guid);
-			}
-
-			return null;
-		}
-		catch
-		{
-			return null;
-		}
+		// Accept standard Guid format only for extraction
+		return Guid.TryParse(uuidString, out var guid) ? ExtractTimestamp(guid) : null;
 	}
 
 	/// <summary>
@@ -178,7 +156,8 @@ public static class Uuid7Extensions
 	/// </summary>
 	/// <param name="uuidString"> The string to validate. </param>
 	/// <returns> <c> true </c> if the string is a valid UUID v7; otherwise, <c> false </c>. </returns>
-	public static bool IsValidUuid7String(string? uuidString) => !string.IsNullOrWhiteSpace(uuidString) && TryParseUuid7(uuidString, out _);
+	public static bool IsValidUuid7String(string? uuidString) =>
+		!string.IsNullOrWhiteSpace(uuidString) && Guid.TryParse(uuidString, out _);
 
 	/// <summary>
 	/// Validates whether a GUID is a valid UUID v7.
@@ -187,11 +166,14 @@ public static class Uuid7Extensions
 	/// <returns> <c> true </c> if the GUID is a valid UUID v7; otherwise, <c> false </c>. </returns>
 	public static bool IsValidUuid7Guid(Guid guidValue)
 	{
+		if (guidValue == Guid.Empty)
+		{
+			return false;
+		}
+
 		try
 		{
-			// Check version bits directly from Guid bytes (version 7 => 0b0111xxxx)
-			var bytes = guidValue.ToByteArray();
-			return (bytes[6] & 0xF0) == 0x70;
+			return Uuid7.FromGuid(guidValue).Version == 7;
 		}
 		catch
 		{
@@ -216,7 +198,7 @@ public static class Uuid7Extensions
 	/// Converts a GUID to a UUID v7 string.
 	/// </summary>
 	/// <param name="guidValue"> The GUID to convert. </param>
-	/// <returns> The UUID v7 string, or null if conversion fails. </returns>
+	/// <returns> The UUID v7 string, or null if the GUID is empty or not a v7 UUID. </returns>
 	public static string? ToUuid7String(Guid guidValue)
 	{
 		if (guidValue == Guid.Empty)
@@ -224,7 +206,9 @@ public static class Uuid7Extensions
 			return null;
 		}
 
-		// If it is a valid v7 Guid, return the canonical Guid string form
+		// If it is a valid v7 Guid, return the canonical Guid string form.
+		// Medo.Uuid7 v3's default ToGuid() preserves the v7 version nibble in the Guid's
+		// string representation, so Guid.ToString() is the round-trippable form.
 		return IsValidUuid7Guid(guidValue)
 			? guidValue.ToString()
 			: null;
@@ -288,43 +272,5 @@ public static class Uuid7Extensions
 		{
 			spinner.SpinOnce();
 		}
-	}
-
-	/// <summary>
-	/// Tries to parse a UUID v7 string with caching for performance.
-	/// </summary>
-	/// <param name="uuidString"> The string to parse. </param>
-	/// <param name="uuid"> The parsed UUID if successful. </param>
-	/// <returns> <c> true </c> if parsing was successful; otherwise, <c> false </c>. </returns>
-	private static bool TryParseUuid7(string uuidString, out Uuid7 uuid)
-	{
-		// Only support Guid parsing here to avoid dependency on additional Medo APIs
-		if (ParseCache.TryGetValue(uuidString, out var cached))
-		{
-			uuid = cached.uuid ?? default;
-			return cached.valid;
-		}
-
-		var canCache = ParseCache.Count < MaxCacheEntries;
-
-		if (Guid.TryParse(uuidString, out _))
-		{
-			// We cannot construct a Uuid7 instance without Medo conversion; mark as valid format
-			uuid = default;
-			if (canCache)
-			{
-				_ = ParseCache.TryAdd(uuidString, (true, null));
-			}
-
-			return true;
-		}
-
-		uuid = default;
-		if (canCache)
-		{
-			_ = ParseCache.TryAdd(uuidString, (false, null));
-		}
-
-		return false;
 	}
 }

@@ -10,7 +10,7 @@ The outbox pattern ensures reliable message delivery by storing messages in the 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Outbox
@@ -38,11 +38,11 @@ With an outbox:
 ## Basic Setup
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
-});
+}));
 ```
 
 Alternatively, use the unified builder:
@@ -63,7 +63,7 @@ services.AddExcalibur(excalibur =>
 ### Fluent Builder API
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(sql =>
     {
@@ -87,7 +87,7 @@ services.AddExcaliburOutbox(outbox =>
                .CleanupInterval(TimeSpan.FromHours(6));
     })
     .EnableBackgroundProcessing();
-});
+}));
 ```
 
 ### Preset-Based API
@@ -96,23 +96,23 @@ Use presets for common scenarios:
 
 ```csharp
 // High throughput (event streaming, analytics)
-services.AddExcaliburOutbox(OutboxOptions.HighThroughput().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighThroughput().Build()));
 
 // Balanced (most applications)
-services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
 
 // High reliability (financial, critical systems)
-services.AddExcaliburOutbox(OutboxOptions.HighReliability().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighReliability().Build()));
 ```
 
 Customize presets:
 
 ```csharp
-services.AddExcaliburOutbox(
+services.AddExcalibur(excalibur => excalibur.AddOutbox(
     OutboxOptions.HighThroughput()
         .WithBatchSize(2000)
         .WithProcessorId("worker-1")
-        .Build());
+        .Build()));
 ```
 
 ## Preset Comparison

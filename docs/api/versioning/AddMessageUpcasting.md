@@ -210,26 +210,37 @@ var repo = serviceProvider.GetRequiredService<IEventSourcedRepository<User>>();
 var user = await repo.GetAsync(userId);  // V1 events upcasted to latest
 ```
 
-### With Message Bus
+### With Integration Event Dispatch
 
-For integration events, inject `IUpcastingPipeline` and upcast before publishing:
+Upcasting on the publish path is handled automatically by the dispatch pipeline when
+`AddMessageUpcasting(...)` is registered: an upcasting middleware sits in front of the
+handler resolution and rewrites the inbound message to its latest version before the
+handler runs. Producers therefore should always emit the **current** event version —
+they own the schema and have no reason to publish stale shapes.
+
+For consumer-side projections that read historical events from the store, upcasting is
+applied automatically on `LoadAsync` (see "Auto-upcast on replay" above).
+
+For ad-hoc upcasting outside the dispatch pipeline (e.g. one-off migration tooling),
+inject `IUpcastingPipeline` directly:
 
 ```csharp
-public class UpcastingMessagePublisher : IMessagePublisher
+public sealed class EventMigrationTool
 {
-    private readonly IMessagePublisher _inner;
     private readonly IUpcastingPipeline _pipeline;
+    private readonly IDispatcher _dispatcher;
 
-    public UpcastingMessagePublisher(IMessagePublisher inner, IUpcastingPipeline pipeline)
+    public EventMigrationTool(IUpcastingPipeline pipeline, IDispatcher dispatcher)
     {
-        _inner = inner;
         _pipeline = pipeline;
+        _dispatcher = dispatcher;
     }
 
-    public async Task PublishAsync<T>(T message) where T : IIntegrationEvent
+    public async Task RepublishAsync<T>(T legacyEvent, IMessageContext context, CancellationToken ct)
+        where T : IDispatchMessage
     {
-        var upcasted = _pipeline.Upcast(message);
-        await _inner.PublishAsync(upcasted);
+        var upcasted = _pipeline.Upcast(legacyEvent);
+        await _dispatcher.DispatchAsync(upcasted, context, ct);
     }
 }
 ```

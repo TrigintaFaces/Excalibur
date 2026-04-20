@@ -30,7 +30,7 @@ public static class GcsColdEventStoreExtensions
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseTieredStorage(policy =&gt; policy.MaxAge = TimeSpan.FromDays(90));
 	///     es.UseGcsColdEventStore(gcs =&gt;
@@ -38,7 +38,7 @@ public static class GcsColdEventStoreExtensions
 	///         gcs.ProjectId("my-project")
 	///            .BucketName("my-cold-events");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

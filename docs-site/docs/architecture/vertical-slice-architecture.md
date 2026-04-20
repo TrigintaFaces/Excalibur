@@ -264,7 +264,7 @@ Vertical slices work well when features are independent and the team wants to mi
 ## See Also
 
 - [Minimal API Hosting Bridge](../deployment/minimal-api-bridge.md) -- Map HTTP endpoints to Dispatch messages
-- [Healthcare API Sample](https://github.com/TrigintaFaces/Excalibur/tree/main/samples/12-vertical-slice-api) -- Full working example
+- [Healthcare API Sample](https://github.com/TrigintaFaces/Excalibur/tree/main/samples/11-real-world/HealthcareApi) -- Full working example
 - [ASP.NET Core Deployment](../deployment/aspnet-core.md) -- General hosting guide
 - [Actions and Handlers](../core-concepts/actions-and-handlers.md) -- Message types and handler patterns
 

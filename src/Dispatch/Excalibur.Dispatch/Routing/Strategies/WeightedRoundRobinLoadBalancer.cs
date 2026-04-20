@@ -22,11 +22,7 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 
 	private readonly ILogger<WeightedRoundRobinLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly ConcurrentDictionary<string, RouteState> _routeStates = new(StringComparer.Ordinal);
-#if NET9_0_OR_GREATER
 	private readonly Lock _snapshotLock = new();
-#else
-	private readonly object _snapshotLock = new();
-#endif
 	private RouteDefinition[] _weightedRoutesSnapshot = [];
 	private Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
 	private int _currentIndex;
@@ -158,11 +154,7 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 
 	private sealed class RouteState
 	{
-#if NET9_0_OR_GREATER
 		private readonly Lock _lock = new();
-#else
-		private readonly object _lock = new();
-#endif
 		private double _totalLatency;
 
 		public long TotalRequests { get; set; }

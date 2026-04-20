@@ -10,7 +10,7 @@ AWS Simple Queue Service (SQS) transport with optional SNS integration for AWS-n
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An AWS account with SQS access
 - Familiarity with [choosing a transport](./choosing-a-transport.md) and [dependency injection](../core-concepts/dependency-injection.md)
 

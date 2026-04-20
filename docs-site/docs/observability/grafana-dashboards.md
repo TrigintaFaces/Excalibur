@@ -8,7 +8,7 @@ Building comprehensive Grafana dashboards for monitoring Excalibur applications 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A Grafana instance with Prometheus data source
 - Familiarity with [metrics reference](./metrics-reference.md) and [production observability](./production-observability.md)
 

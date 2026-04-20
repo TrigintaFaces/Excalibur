@@ -12,7 +12,7 @@ For an overview of all serialization options, see [Serialization](./serializatio
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the core package plus your chosen provider:
   ```bash
   dotnet add package Excalibur.Dispatch

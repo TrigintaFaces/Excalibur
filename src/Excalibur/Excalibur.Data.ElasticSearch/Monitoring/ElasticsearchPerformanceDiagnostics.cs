@@ -344,11 +344,7 @@ public sealed class ElasticsearchPerformanceDiagnostics(
 	/// <param name="initialSuccess"> Whether the initial operation was successful. </param>
 	public sealed class PerformanceMetrics(string operationType, TimeSpan initialDuration, bool initialSuccess)
 	{
-#if NET9_0_OR_GREATER
 		private readonly Lock _lock = new();
-#else
-		private readonly object _lock = new();
-#endif
 		private long _totalOperations = 1;
 		private long _successfulOperations = initialSuccess ? 1 : 0;
 		private double _totalDurationMs = initialDuration.TotalMilliseconds;

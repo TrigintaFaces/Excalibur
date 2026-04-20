@@ -68,7 +68,7 @@ CREATE TABLE [dbo].[EventStoreSnapshots] (
 );
 
 -- Outbox table (default: dbo.OutboxMessages, configurable via ISqlServerOutboxBuilder)
--- Note: The outbox is managed separately via AddExcaliburOutbox().
+-- Note: The outbox is managed separately via services.AddExcalibur(x => x.AddOutbox(...)).
 CREATE TABLE [dbo].[OutboxMessages] (
     [Id] NVARCHAR(256) NOT NULL PRIMARY KEY,
     [MessageType] NVARCHAR(512) NOT NULL,

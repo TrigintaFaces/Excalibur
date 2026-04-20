@@ -249,11 +249,7 @@ public sealed partial class OrderingKeyManager : IDisposable
 		Justification = "orderingKey parameter is used by the auto-property initialization")]
 	private sealed class OrderingKeyState(string orderingKey)
 	{
-#if NET9_0_OR_GREATER
 		private readonly Lock _lock = new();
-#else
-		private readonly object _lock = new();
-#endif
 		private long _messageCount;
 		private long _outOfSequenceCount;
 		private long _lastSequence = -1;

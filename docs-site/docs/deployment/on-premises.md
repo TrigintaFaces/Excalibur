@@ -8,7 +8,7 @@
 
 ## Before You Start
 
-- **.NET 8.0+** runtime installed on target servers
+- **.NET 10.0** runtime installed on target servers
 - IIS (Windows) or systemd (Linux) configured for hosting
 - Familiarity with [ASP.NET Core deployment](./aspnet-core.md) and [worker services](./worker-services.md)
 
@@ -30,7 +30,7 @@ Deploy Excalibur applications to on-premises infrastructure using IIS, Windows S
 
 - Windows Server 2019 or later
 - IIS 10+ with ASP.NET Core Hosting Bundle
-- .NET 9 Runtime or SDK
+- .NET 10.0 Runtime or SDK
 
 ### Install ASP.NET Core Hosting Bundle
 
@@ -193,7 +193,7 @@ await host.RunAsync();
 ```xml
 <Project Sdk="Microsoft.NET.Sdk.Worker">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>

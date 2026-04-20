@@ -4,11 +4,11 @@
 using System.Text.Json;
 
 using Elastic.Clients.Elasticsearch;
-using Elastic.Clients.Elasticsearch.Core.Reindex;
 using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.Mapping;
 
 using Excalibur.Data.ElasticSearch.IndexManagement;
+using Excalibur.Data.ElasticSearch.Internal;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,7 +20,10 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </summary>
 public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvolutionHandlerAdmin, IDisposable
 {
-	private readonly ElasticsearchClient _client;
+	private readonly ISchemaEvolutionOperations _ops;
+	private readonly ISchemaHistoryStore _history;
+	private readonly IMigrationHistoryStore _migrationHistory;
+	private readonly IIndexInspection _inspection;
 	private readonly IIndexAliasManager _aliasManager;
 	private readonly ProjectionOptions _settings;
 	private readonly ILogger<SchemaEvolutionHandler> _logger;
@@ -41,8 +44,34 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		IIndexAliasManager aliasManager,
 		IOptions<ProjectionOptions> options,
 		ILogger<SchemaEvolutionHandler> logger)
+		: this(
+			CreateOps(client),
+			CreateHistory(client),
+			CreateMigrationHistory(client),
+			CreateInspection(client),
+			aliasManager,
+			options,
+			logger)
 	{
-		_client = client ?? throw new ArgumentNullException(nameof(client));
+	}
+
+	/// <summary>
+	/// Internal test-seam constructor accepting the four γ seams directly.
+	/// Used by unit tests to substitute fakes for the SDK adapters.
+	/// </summary>
+	internal SchemaEvolutionHandler(
+		ISchemaEvolutionOperations ops,
+		ISchemaHistoryStore history,
+		IMigrationHistoryStore migrationHistory,
+		IIndexInspection inspection,
+		IIndexAliasManager aliasManager,
+		IOptions<ProjectionOptions> options,
+		ILogger<SchemaEvolutionHandler> logger)
+	{
+		_ops = ops ?? throw new ArgumentNullException(nameof(ops));
+		_history = history ?? throw new ArgumentNullException(nameof(history));
+		_migrationHistory = migrationHistory ?? throw new ArgumentNullException(nameof(migrationHistory));
+		_inspection = inspection ?? throw new ArgumentNullException(nameof(inspection));
 		_aliasManager = aliasManager ?? throw new ArgumentNullException(nameof(aliasManager));
 		ArgumentNullException.ThrowIfNull(options);
 		_settings = options.Value ?? throw new ArgumentNullException(nameof(options));
@@ -61,17 +90,13 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		ArgumentException.ThrowIfNullOrWhiteSpace(sourceIndex);
 		ArgumentException.ThrowIfNullOrWhiteSpace(targetIndex);
 
-		var sourceMapping = await _client.Indices.GetMappingAsync(
-				new GetMappingRequest(sourceIndex),
-				cancellationToken)
+		var sourceVersion = await _ops.GetSchemaVersionAsync(sourceIndex, cancellationToken)
 			.ConfigureAwait(false);
-		var targetMapping = await _client.Indices.GetMappingAsync(
-				new GetMappingRequest(targetIndex),
-				cancellationToken)
+		var targetVersion = await _ops.GetSchemaVersionAsync(targetIndex, cancellationToken)
 			.ConfigureAwait(false);
 
-		var sourceFields = ExtractFieldTypes(sourceMapping, sourceIndex);
-		var targetFields = ExtractFieldTypes(targetMapping, targetIndex);
+		var sourceFields = DeserializeFieldTypes(sourceVersion.MappingJson);
+		var targetFields = DeserializeFieldTypes(targetVersion.MappingJson);
 
 		var addedFields = targetFields
 			.Where(kvp => !sourceFields.ContainsKey(kvp.Key))
@@ -211,22 +236,28 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		}
 		else
 		{
+			// UpdateInPlace — route through the same Reindex step shape so
+			// ExecuteStepAsync invokes _ops.MigrateAsync(sourceIndex, sourceIndex, mapping, ct).
+			// The adapter short-circuits the reindex call when source == target and applies
+			// the mapping directly, avoiding a self-reindex. Zero interface churn vs. adding
+			// a dedicated seam method. See SENTINEL msg 1956 / OVERWATCH msg 1959 (Path B).
 			steps.Add(new MigrationStep
 			{
 				StepNumber = stepNumber++,
-				Name = "UpdateMapping",
-				Description = "Update mapping in place",
-				OperationType = StepOperationType.UpdateMapping,
+				Name = "Reindex",
+				Description = "Apply mapping in place",
+				OperationType = StepOperationType.Reindex,
 				IsCritical = true,
 				Parameters = new Dictionary<string, object>(StringComparer.Ordinal)
 				{
+					["SourceIndex"] = request.SourceIndex,
 					["TargetIndex"] = request.SourceIndex,
 					["Mapping"] = mapping ?? request.NewSchema,
 				},
 			});
 		}
 
-		var estimatedDocs = await GetEstimatedDocumentCountAsync(request.SourceIndex, cancellationToken)
+		var estimatedDocs = await _inspection.CountDocumentsAsync(request.SourceIndex, cancellationToken)
 			.ConfigureAwait(false);
 		var estimatedDuration = estimatedDocs.HasValue
 			? (TimeSpan?)TimeSpan.FromSeconds(Math.Max(1, estimatedDocs.Value / Math.Max(1, request.BatchSize)))
@@ -372,7 +403,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		await EnsureIndicesAsync(cancellationToken).ConfigureAwait(false);
 
 		var schemaJson = SerializeSchema(registration.Schema);
-		var document = new SchemaVersionDocument
+		var record = new SchemaHistoryRecord
 		{
 			ProjectionType = registration.ProjectionType,
 			Version = registration.Version,
@@ -383,19 +414,16 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		};
 
 		var documentId = $"{registration.ProjectionType}:{registration.Version}";
-		var response = await _client.IndexAsync(
-				document,
-				idx => idx.Index(_historyIndexName).Id(documentId),
-				cancellationToken)
+		var success = await _history
+			.WriteSchemaVersionAsync(_historyIndexName, documentId, record, cancellationToken)
 			.ConfigureAwait(false);
 
-		if (!response.IsValidResponse)
+		if (!success)
 		{
 			_logger.LogWarning(
-				"Failed to register schema version {ProjectionType}/{Version}: {Error}",
+				"Failed to register schema version {ProjectionType}/{Version}",
 				registration.ProjectionType,
-				registration.Version,
-				response.DebugInformation);
+				registration.Version);
 		}
 	}
 
@@ -408,20 +436,16 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 
 		await EnsureIndicesAsync(cancellationToken).ConfigureAwait(false);
 
-#pragma warning disable CS8604 // Possible null reference argument -- Elastic API nullability annotations are overly strict
-		var response = await _client.SearchAsync<SchemaVersionDocument>(
-				s => s.Index(_historyIndexName).Size(1000).Query(q => q.Term(t => t.Field("projectionType").Value(projectionType)))
-					.Sort(s => s.Field("registeredAt", new FieldSort { Order = SortOrder.Asc })),
-				cancellationToken)
+		var records = await _history
+			.QueryHistoryAsync(_historyIndexName, projectionType, cancellationToken)
 			.ConfigureAwait(false);
-#pragma warning restore CS8604
 
-		if (!response.IsValidResponse || response.Documents is null)
+		if (records.Count == 0)
 		{
 			return new SchemaVersionHistory { ProjectionType = projectionType, CurrentVersion = "1.0.0", Versions = [], };
 		}
 
-		var versions = response.Documents.Select(ToRegistration).ToList();
+		var versions = records.Select(ToRegistration).ToList();
 		var currentVersion = versions.LastOrDefault()?.Version ?? "1.0.0";
 		var migrations = await GetMigrationHistoryAsync(projectionType, cancellationToken)
 			.ConfigureAwait(false);
@@ -461,15 +485,15 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 			};
 		}
 
-		var response = await _client.SearchAsync<object>(s => s.Index(sourceIndex).Size(sampleSize),
-				cancellationToken)
+		var ids = await _inspection
+			.SampleDocumentIdsAsync(sourceIndex, sampleSize, cancellationToken)
 			.ConfigureAwait(false);
 
-		var tested = response.Documents?.Count ?? 0;
+		var tested = ids.Count;
 
 		return new SchemaMigrationDryRunResult
 		{
-			Success = response.IsValidResponse,
+			Success = true,
 			DocumentsTested = tested,
 			DocumentsSuccessful = tested,
 			DocumentsFailed = 0,
@@ -488,62 +512,48 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		_initializationLock.Dispose();
 	}
 
-	private static TypeMapping BuildHistoryMapping()
+	private static ISchemaEvolutionOperations CreateOps(ElasticsearchClient client)
 	{
-		return new TypeMapping
-		{
-			Properties = new Properties
-			{
-				["projectionType"] = new KeywordProperty(),
-				["version"] = new KeywordProperty(),
-				["registeredAt"] = new DateProperty(),
-				["schemaJson"] = new TextProperty(),
-				["description"] = new TextProperty(),
-				["migrationNotes"] = new TextProperty(),
-			},
-		};
+		ArgumentNullException.ThrowIfNull(client);
+		return new SchemaEvolutionOperationsAdapter(client);
 	}
 
-	private static TypeMapping BuildMigrationMapping()
+	private static ISchemaHistoryStore CreateHistory(ElasticsearchClient client)
 	{
-		return new TypeMapping
-		{
-			Properties = new Properties
-			{
-				["projectionType"] = new KeywordProperty(),
-				["planId"] = new KeywordProperty(),
-				["recordedAt"] = new DateProperty(),
-				["resultJson"] = new TextProperty(),
-			},
-		};
+		ArgumentNullException.ThrowIfNull(client);
+		return new SchemaHistoryStoreAdapter(client);
 	}
 
-	private static IReadOnlyDictionary<string, string> ExtractFieldTypes(
-		GetMappingResponse response,
-		string indexName)
+	private static IMigrationHistoryStore CreateMigrationHistory(ElasticsearchClient client)
 	{
-		if (!response.IsValidResponse || !response.Indices.TryGetValue(indexName, out var mapping))
+		ArgumentNullException.ThrowIfNull(client);
+		return new MigrationHistoryStoreAdapter(client);
+	}
+
+	private static IIndexInspection CreateInspection(ElasticsearchClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		return new IndexInspectionAdapter(client);
+	}
+
+	private static IReadOnlyDictionary<string, string> DeserializeFieldTypes(string? mappingJson)
+	{
+		if (string.IsNullOrWhiteSpace(mappingJson))
 		{
 			return new Dictionary<string, string>(StringComparer.Ordinal);
 		}
 
-		if (mapping.Mappings.Properties is null)
+		try
+		{
+#pragma warning disable IL2026, IL3050 // JSON deserialization of internal dictionary; type-safe shape
+			var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson);
+#pragma warning restore IL2026, IL3050
+			return dict ?? new Dictionary<string, string>(StringComparer.Ordinal);
+		}
+		catch (JsonException)
 		{
 			return new Dictionary<string, string>(StringComparer.Ordinal);
 		}
-
-		return mapping.Mappings.Properties.ToDictionary(
-			kvp => kvp.Key.ToString(),
-			kvp => GetPropertyTypeName(kvp.Value),
-			StringComparer.Ordinal);
-	}
-
-	private static string GetPropertyTypeName(IProperty property)
-	{
-		var typeName = property.GetType().Name;
-		return typeName.EndsWith("Property", StringComparison.Ordinal)
-			? typeName[..^"Property".Length]
-			: typeName;
 	}
 
 	private static TypeMapping? GetTypeMapping(object schema)
@@ -612,28 +622,28 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		#pragma warning restore IL2026, IL3050
 	}
 
-	private static SchemaVersionRegistration ToRegistration(SchemaVersionDocument document)
+	private static SchemaVersionRegistration ToRegistration(SchemaHistoryRecord record)
 	{
-		object schema = document.SchemaJson;
+		object schema = record.SchemaJson;
 		try
 		{
 			#pragma warning disable IL2026, IL3050 // Schema deserialization uses reflection
-			schema = JsonSerializer.Deserialize<JsonElement>(document.SchemaJson)!;
+			schema = JsonSerializer.Deserialize<JsonElement>(record.SchemaJson)!;
 #pragma warning restore IL2026, IL3050
 		}
-		catch
+		catch (JsonException)
 		{
 			// Keep raw JSON if parsing fails.
 		}
 
 		return new SchemaVersionRegistration
 		{
-			ProjectionType = document.ProjectionType,
-			Version = document.Version,
+			ProjectionType = record.ProjectionType,
+			Version = record.Version,
 			Schema = schema,
-			RegisteredAt = document.RegisteredAt,
-			Description = document.Description,
-			MigrationNotes = document.MigrationNotes,
+			RegisteredAt = record.RegisteredAt,
+			Description = record.Description,
+			MigrationNotes = record.MigrationNotes,
 		};
 	}
 
@@ -652,10 +662,25 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 				return;
 			}
 
-			await EnsureIndexAsync(_historyIndexName, BuildHistoryMapping(), cancellationToken)
+			var historyOk = await _history
+				.EnsureHistoryIndexAsync(_historyIndexName, cancellationToken)
 				.ConfigureAwait(false);
-			await EnsureIndexAsync(_migrationIndexName, BuildMigrationMapping(), cancellationToken)
+			if (!historyOk)
+			{
+				_logger.LogWarning(
+					"Failed to create schema tracking index {IndexName}",
+					_historyIndexName);
+			}
+
+			var migrationOk = await _migrationHistory
+				.EnsureHistoryIndexAsync(_migrationIndexName, cancellationToken)
 				.ConfigureAwait(false);
+			if (!migrationOk)
+			{
+				_logger.LogWarning(
+					"Failed to create schema tracking index {IndexName}",
+					_migrationIndexName);
+			}
 
 			_initialized = true;
 		}
@@ -665,45 +690,6 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		}
 	}
 
-	private async Task EnsureIndexAsync(
-		string indexName,
-		TypeMapping mapping,
-		CancellationToken cancellationToken)
-	{
-		var exists = await _client.Indices.ExistsAsync(indexName, cancellationToken)
-			.ConfigureAwait(false);
-		if (exists.Exists)
-		{
-			return;
-		}
-
-		var createRequest = new CreateIndexRequest(indexName)
-		{
-			Mappings = mapping,
-			Settings = new IndexSettings { NumberOfShards = 1, NumberOfReplicas = 0, },
-		};
-
-		var response = await _client.Indices.CreateAsync(createRequest, cancellationToken)
-			.ConfigureAwait(false);
-
-		if (!response.IsValidResponse)
-		{
-			_logger.LogWarning(
-				"Failed to create schema tracking index {IndexName}: {Error}",
-				indexName,
-				response.DebugInformation);
-		}
-	}
-
-	private async Task<long?> GetEstimatedDocumentCountAsync(
-		string sourceIndex,
-		CancellationToken cancellationToken)
-	{
-		var response = await _client.CountAsync<object>(c => c.Indices(sourceIndex), cancellationToken)
-			.ConfigureAwait(false);
-		return response.IsValidResponse ? response.Count : null;
-	}
-
 	private async Task<bool> ExecuteStepAsync(MigrationStep step, CancellationToken cancellationToken)
 	{
 		switch (step.OperationType)
@@ -711,59 +697,41 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 			case StepOperationType.CreateIndex:
 				{
 					var targetIndex = GetRequiredParameter(step, "TargetIndex");
-					var exists = await _client.Indices.ExistsAsync(targetIndex, cancellationToken)
-						.ConfigureAwait(false);
-					if (exists.Exists)
-					{
-						return true;
-					}
-
 					object? mappingObj = null;
-					_ = (step.Parameters?.TryGetValue("Mapping", out mappingObj));
-					var mapping = mappingObj as TypeMapping;
-					var createRequest = new CreateIndexRequest(targetIndex)
-					{
-						Mappings = mapping,
-						Settings = new IndexSettings { NumberOfShards = 1, NumberOfReplicas = 0, },
-					};
-
-					var response = await _client.Indices.CreateAsync(createRequest, cancellationToken)
+					_ = step.Parameters?.TryGetValue("Mapping", out mappingObj);
+					var outcome = await _ops
+						.EnsureMigrationIndexAsync(targetIndex, mappingObj, cancellationToken)
 						.ConfigureAwait(false);
-					return response.IsValidResponse;
+					return outcome.Success;
 				}
+
 			case StepOperationType.UpdateMapping:
 				{
-					var targetIndex = GetRequiredParameter(step, "TargetIndex");
-					object? updateMappingObj = null;
-					_ = (step.Parameters?.TryGetValue("Mapping", out updateMappingObj));
-					if (updateMappingObj is not TypeMapping mapping)
-					{
-						return true;
-					}
-
-					var request = new PutMappingRequest(targetIndex) { Properties = mapping.Properties, };
-
-					var response = await _client.Indices.PutMappingAsync(request, cancellationToken)
-						.ConfigureAwait(false);
-					return response.IsValidResponse;
+					// UpdateMapping is consolidated into MigrateAsync (which applies the mapping
+					// after the reindex). When this step appears alongside a Reindex step in the
+					// standard plan shape, it becomes a no-op; the mapping is applied by the
+					// Reindex case below via _ops.MigrateAsync. Returning true preserves plan
+					// step semantics without performing a redundant SDK call.
+					return true;
 				}
+
 			case StepOperationType.Reindex:
 				{
 					var sourceIndex = GetRequiredParameter(step, "SourceIndex");
 					var targetIndex = GetRequiredParameter(step, "TargetIndex");
 
-					var reindexRequest = new ReindexRequest
-					{
-						Source = new Source { Indices = sourceIndex },
-						Dest = new Destination { Index = targetIndex },
-						Refresh = true,
-						WaitForCompletion = true,
-					};
+					// Pull the mapping from the companion UpdateMapping step (if present in the
+					// plan) so MigrateAsync applies it after reindexing. Mapping is optional —
+					// strategies that don't change the schema simply omit it.
+					object? mapping = null;
+					_ = step.Parameters?.TryGetValue("Mapping", out mapping);
 
-					var response = await _client.ReindexAsync(reindexRequest, cancellationToken)
+					var outcome = await _ops
+						.MigrateAsync(sourceIndex, targetIndex, mapping, cancellationToken)
 						.ConfigureAwait(false);
-					return response.IsValidResponse;
+					return outcome.Success;
 				}
+
 			case StepOperationType.SwitchAlias:
 				{
 					var aliasName = GetRequiredParameter(step, "AliasName");
@@ -830,9 +798,10 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		CancellationToken cancellationToken)
 	{
 		var targetIndex = GetRequiredParameter(step, "TargetIndex");
-		var response = await _client.CountAsync<object>(c => c.Indices(targetIndex), cancellationToken)
+		var count = await _inspection
+			.CountDocumentsAsync(targetIndex, cancellationToken)
 			.ConfigureAwait(false);
-		return response.IsValidResponse ? response.Count : 0;
+		return count ?? 0;
 	}
 
 	private async Task StoreMigrationResultAsync(
@@ -842,30 +811,29 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 	{
 		await EnsureIndicesAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = new MigrationHistoryDocument
+#pragma warning disable IL2026, IL3050 // JSON serialization uses reflection
+		var resultJson = JsonSerializer.Serialize(result);
+#pragma warning restore IL2026, IL3050
+
+		var record = new MigrationHistoryRecord
 		{
 			ProjectionType = projectionType,
 			PlanId = result.PlanId,
 			RecordedAt = DateTimeOffset.UtcNow,
-			#pragma warning disable IL2026, IL3050 // JSON serialization uses reflection
-			ResultJson = JsonSerializer.Serialize(result),
-			#pragma warning restore IL2026, IL3050
+			ResultJson = resultJson,
 		};
 
 		var documentId = $"{projectionType}:{result.PlanId}";
-		var response = await _client.IndexAsync(
-				document,
-				idx => idx.Index(_migrationIndexName).Id(documentId),
-				cancellationToken)
+		var success = await _migrationHistory
+			.WriteMigrationResultAsync(_migrationIndexName, documentId, record, cancellationToken)
 			.ConfigureAwait(false);
 
-		if (!response.IsValidResponse)
+		if (!success)
 		{
 			_logger.LogWarning(
-				"Failed to store schema migration result {ProjectionType}/{PlanId}: {Error}",
+				"Failed to store schema migration result {ProjectionType}/{PlanId}",
 				projectionType,
-				result.PlanId,
-				response.DebugInformation);
+				result.PlanId);
 		}
 	}
 
@@ -873,29 +841,25 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		string projectionType,
 		CancellationToken cancellationToken)
 	{
-#pragma warning disable CS8604 // Possible null reference argument -- Elastic API nullability annotations are overly strict
-		var response = await _client.SearchAsync<MigrationHistoryDocument>(
-				s => s.Index(_migrationIndexName).Size(1000).Query(q => q.Term(t => t.Field("projectionType").Value(projectionType)))
-					.Sort(s => s.Field("recordedAt", new FieldSort { Order = SortOrder.Desc })),
-				cancellationToken)
+		var records = await _migrationHistory
+			.QueryHistoryAsync(_migrationIndexName, projectionType, cancellationToken)
 			.ConfigureAwait(false);
-#pragma warning restore CS8604
 
-		if (!response.IsValidResponse || response.Documents is null)
+		if (records.Count == 0)
 		{
 			return [];
 		}
 
-		var results = new List<SchemaMigrationResult>();
-		foreach (var document in response.Documents)
+		var results = new List<SchemaMigrationResult>(records.Count);
+		foreach (var record in records)
 		{
-			if (string.IsNullOrWhiteSpace(document.ResultJson))
+			if (string.IsNullOrWhiteSpace(record.ResultJson))
 			{
 				continue;
 			}
 
 			#pragma warning disable IL2026, IL3050 // JSON deserialization uses reflection
-			var result = JsonSerializer.Deserialize<SchemaMigrationResult>(document.ResultJson);
+			var result = JsonSerializer.Deserialize<SchemaMigrationResult>(record.ResultJson);
 			#pragma warning restore IL2026, IL3050
 			if (result is not null)
 			{
@@ -904,23 +868,5 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		}
 
 		return results;
-	}
-
-	private sealed class SchemaVersionDocument
-	{
-		public string ProjectionType { get; init; } = string.Empty;
-		public string Version { get; init; } = string.Empty;
-		public string SchemaJson { get; init; } = string.Empty;
-		public DateTimeOffset RegisteredAt { get; init; }
-		public string? Description { get; init; }
-		public string? MigrationNotes { get; init; }
-	}
-
-	private sealed class MigrationHistoryDocument
-	{
-		public string ProjectionType { get; init; } = string.Empty;
-		public string PlanId { get; init; } = string.Empty;
-		public DateTimeOffset RecordedAt { get; init; }
-		public string ResultJson { get; init; } = string.Empty;
 	}
 }

@@ -34,17 +34,25 @@ public static class TenantShardingServiceCollectionExtensions
 	/// (e.g., <c>InMemoryTenantShardMap</c>) and provider-specific
 	/// <see cref="ITenantStoreResolver{TStore}"/> implementations.
 	/// </para>
+	/// <para>
+	/// <b>Registration semantics:</b> calling this method <b>replaces any previously
+	/// registered <see cref="IEventStore"/></b> with <see cref="TenantRoutingEventStore"/>.
+	/// Tenant routing is a whole-cloth replacement (not a wrapping decorator) because
+	/// <see cref="TenantRoutingEventStore"/> resolves the correct store per tenant via
+	/// <see cref="ITenantStoreResolver{TStore}"/>. If your host needs a single-tenant
+	/// <see cref="IEventStore"/> alongside sharding, do not call this method — use
+	/// provider-specific extensions directly.
+	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt;
 	/// {
 	///     builder.EnableTenantSharding(options =&gt;
 	///     {
-	///         options.EnableTenantSharding = true;
 	///         options.DefaultShardId = "shard-default";
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder EnableTenantSharding(
@@ -54,21 +62,18 @@ public static class TenantShardingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		var options = new ShardMapOptions();
-		configure(options);
-
-		if (!options.EnableTenantSharding)
-		{
-			return builder;
-		}
-
+		// Calling this method is the opt-in: sharding is always enabled when the
+		// fluent extension is invoked. [bd-51k0mc]
 		builder.Services.Configure(configure);
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ShardMapOptions>, ShardMapOptionsValidator>());
 		builder.Services.AddOptionsWithValidateOnStart<ShardMapOptions>();
 
-		// Register tenant-routing decorators as Scoped (per-request tenant resolution)
-		builder.Services.AddScoped<IEventStore, TenantRoutingEventStore>();
+		// Register tenant-routing decorator as Scoped (per-request tenant resolution).
+		// Idempotent: if EnableTenantSharding is invoked more than once, the second
+		// call is a no-op rather than double-registering TenantRoutingEventStore.
+		// [S792 bd-a38h4t]
+		RegisterTenantRoutingEventStore(builder.Services);
 
 		return builder;
 	}
@@ -82,18 +87,26 @@ public static class TenantShardingServiceCollectionExtensions
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// Unlike the <see cref="Action{T}"/>-based overload, this always registers the
-	/// tenant-routing decorator. Set <see cref="ShardMapOptions.EnableTenantSharding"/>
-	/// to <see langword="false"/> in configuration to disable sharding at runtime
-	/// via <c>ValidateOnStart</c>.
+	/// Calling this method is the opt-in: sharding is always enabled when the
+	/// extension is invoked. To avoid registering the tenant-routing decorator,
+	/// do not call this method. [bd-51k0mc]
+	/// </para>
+	/// <para>
+	/// <b>Registration semantics:</b> calling this method <b>replaces any previously
+	/// registered <see cref="IEventStore"/></b> with <see cref="TenantRoutingEventStore"/>.
+	/// Tenant routing is a whole-cloth replacement (not a wrapping decorator) because
+	/// <see cref="TenantRoutingEventStore"/> resolves the correct store per tenant via
+	/// <see cref="ITenantStoreResolver{TStore}"/>. If your host needs a single-tenant
+	/// <see cref="IEventStore"/> alongside sharding, do not call this method — use
+	/// provider-specific extensions directly.
 	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt;
 	/// {
 	///     builder.EnableTenantSharding(configuration.GetSection("TenantSharding"));
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
@@ -113,9 +126,49 @@ public static class TenantShardingServiceCollectionExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ShardMapOptions>, ShardMapOptionsValidator>());
 
-		// Register tenant-routing decorators as Scoped (per-request tenant resolution)
-		builder.Services.AddScoped<IEventStore, TenantRoutingEventStore>();
+		// Register tenant-routing decorator as Scoped (per-request tenant resolution).
+		// Idempotent: if EnableTenantSharding is invoked more than once, the second
+		// call is a no-op rather than double-registering TenantRoutingEventStore.
+		// [S792 bd-a38h4t]
+		RegisterTenantRoutingEventStore(builder.Services);
 
 		return builder;
+	}
+
+	/// <summary>
+	/// Registers <see cref="TenantRoutingEventStore"/> as the
+	/// <see cref="IEventStore"/> implementation, removing any prior registration
+	/// (including a previous <see cref="TenantRoutingEventStore"/> — which makes
+	/// repeated <c>EnableTenantSharding</c> calls a no-op rather than a
+	/// double-registration).
+	/// </summary>
+	private static void RegisterTenantRoutingEventStore(IServiceCollection services)
+	{
+		// Idempotence guard — if TenantRoutingEventStore is already the registered
+		// IEventStore, do nothing. This prevents duplicate enumerable resolutions
+		// and matches the spec-§5.2 idempotence pin.
+		for (var i = 0; i < services.Count; i++)
+		{
+			var descriptor = services[i];
+			if (descriptor.ServiceType == typeof(IEventStore)
+				&& descriptor.ImplementationType == typeof(TenantRoutingEventStore))
+			{
+				return;
+			}
+		}
+
+		// Replace any prior IEventStore descriptor. Tenant routing is a
+		// whole-cloth replacement (routes via ITenantStoreResolver<IEventStore>
+		// rather than wrapping a single inner store), so no prior descriptor
+		// needs to be captured.
+		for (var i = services.Count - 1; i >= 0; i--)
+		{
+			if (services[i].ServiceType == typeof(IEventStore))
+			{
+				services.RemoveAt(i);
+			}
+		}
+
+		services.Add(ServiceDescriptor.Scoped<IEventStore, TenantRoutingEventStore>());
 	}
 }

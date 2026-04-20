@@ -88,34 +88,34 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Dispatch.Security` | AOT-safe | |
-| `Excalibur.Dispatch.Security.Aws` | AOT-safe | |
-| `Excalibur.Dispatch.Security.Azure` | AOT-safe | |
+| `Excalibur.Security` | AOT-safe | |
+| `Excalibur.Security.Aws` | AOT-safe | |
+| `Excalibur.Security.Azure` | AOT-safe | |
 
 ### Compliance
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Dispatch.Compliance.Abstractions` | AOT-safe | |
-| `Excalibur.Dispatch.Compliance` | AOT-safe | Reflection paths annotated with `[DynamicallyAccessedMembers]` (Sprint 757) |
-| `Excalibur.Dispatch.Compliance.Aws` | **Not compatible** | AWS KMS SDK dependency |
-| `Excalibur.Dispatch.Compliance.Azure` | AOT-safe | |
-| `Excalibur.Dispatch.Compliance.Vault` | AOT-safe | |
+| `Excalibur.Compliance.Abstractions` | AOT-safe | |
+| `Excalibur.Compliance` | AOT-safe | Reflection paths annotated with `[DynamicallyAccessedMembers]` (Sprint 757) |
+| `Excalibur.Compliance.Aws` | **Not compatible** | AWS KMS SDK dependency |
+| `Excalibur.Compliance.Azure` | AOT-safe | |
+| `Excalibur.Compliance.Vault` | AOT-safe | |
 
 ### Audit Logging
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Dispatch.AuditLogging` | AOT-safe | |
-| `Excalibur.Dispatch.AuditLogging.Aws` | AOT-safe | |
-| `Excalibur.Dispatch.AuditLogging.Datadog` | AOT-safe | |
-| `Excalibur.Dispatch.AuditLogging.Elasticsearch` | AOT-safe | |
-| `Excalibur.Dispatch.AuditLogging.GoogleCloud` | AOT-safe | |
-| `Excalibur.Dispatch.AuditLogging.OpenSearch` | AOT-safe | |
-| `Excalibur.Dispatch.AuditLogging.Postgres` | AOT-safe | |
-| `Excalibur.Dispatch.AuditLogging.Sentinel` | AOT-safe | |
-| `Excalibur.Dispatch.AuditLogging.Splunk` | AOT-safe | |
-| `Excalibur.Dispatch.AuditLogging.SqlServer` | AOT-safe | |
+| `Excalibur.AuditLogging` | AOT-safe | |
+| `Excalibur.AuditLogging.Aws` | AOT-safe | |
+| `Excalibur.AuditLogging.Datadog` | AOT-safe | |
+| `Excalibur.AuditLogging.Elasticsearch` | AOT-safe | |
+| `Excalibur.AuditLogging.GoogleCloud` | AOT-safe | |
+| `Excalibur.AuditLogging.OpenSearch` | AOT-safe | |
+| `Excalibur.AuditLogging.Postgres` | AOT-safe | |
+| `Excalibur.AuditLogging.Sentinel` | AOT-safe | |
+| `Excalibur.AuditLogging.Splunk` | AOT-safe | |
+| `Excalibur.AuditLogging.SqlServer` | AOT-safe | |
 
 ### Claim Check
 

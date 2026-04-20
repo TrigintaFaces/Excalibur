@@ -98,7 +98,7 @@ $resolveEventHandler = [System.ResolveEventHandler] {
             foreach ($versionDir in $packageVersions) {
                 Write-Host "DEBUG: Checking version: $($versionDir.Name)"
                 # Try multiple target framework monikers
-                foreach ($tfm in @("net9.0", "net8.0", "netstandard2.1", "netstandard2.0")) {
+                foreach ($tfm in @("net10.0", "netstandard2.1", "netstandard2.0")) {
                     $dllPath = Join-Path $versionDir.FullName "lib\$tfm\$($assemblyName.Name).dll"
                     Write-Host "DEBUG: Checking NuGet path: $dllPath"
                     if (Test-Path $dllPath) {

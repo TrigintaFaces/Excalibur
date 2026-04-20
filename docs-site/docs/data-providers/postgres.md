@@ -10,7 +10,7 @@ The PostgreSQL provider offers full relational database support with Npgsql-base
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A PostgreSQL instance (local or cloud-hosted)
 - Familiarity with [data access](../data-access/index.md) and [IDb interface](../data-access/idb-interface.md)
 

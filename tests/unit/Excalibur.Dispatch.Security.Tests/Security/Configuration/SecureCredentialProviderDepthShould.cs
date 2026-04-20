@@ -3,7 +3,7 @@
 
 using System.Security;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Configuration;
 

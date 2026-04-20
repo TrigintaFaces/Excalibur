@@ -407,7 +407,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		return q => q.Terms(t => t
 			.Field(GetExactMatchFieldName(fieldName, fieldType))
-			.Term(new TermsQueryField(values)));
+			.Terms(new TermsQueryField(values)));
 	}
 
 	private static FieldValue ConvertToFieldValue(object? value)

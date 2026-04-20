@@ -3,11 +3,12 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Configuration;
 
-namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
+
+using Excalibur.Security.EventStores;namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
 
 /// <summary>
 /// Depth tests for <see cref="ElasticsearchSecurityEventStore"/>.

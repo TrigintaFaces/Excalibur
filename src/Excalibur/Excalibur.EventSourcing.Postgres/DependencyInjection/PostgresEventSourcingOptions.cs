@@ -18,7 +18,7 @@ namespace Excalibur.EventSourcing.Postgres.DependencyInjection;
 /// <para>
 /// <b>Usage:</b>
 /// <code>
-/// services.AddExcaliburEventSourcing(es =&gt;
+/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 /// {
 ///     es.UsePostgres(pg =&gt;
 ///     {
@@ -26,7 +26,7 @@ namespace Excalibur.EventSourcing.Postgres.DependencyInjection;
 ///           .EventStoreSchema("public")
 ///           .EventStoreTable("events");
 ///     });
-/// });
+/// }));
 /// </code>
 /// </para>
 /// <para>

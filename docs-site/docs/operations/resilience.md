@@ -10,7 +10,7 @@ Excalibur providers are designed for operational resilience, handling transient 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the packages for your data provider:
   ```bash
   dotnet add package Excalibur.Data.SqlServer  # or Excalibur.Data.Postgres
@@ -25,7 +25,7 @@ The `SqlServerRetryPolicy` handles transient failures with exponential backoff a
 
 ```csharp
 // Event sourcing - configure storage options via builder
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(options =>
     {
@@ -33,16 +33,16 @@ services.AddExcaliburEventSourcing(es =>
         options.EventStoreSchema = "dbo";
         options.EventStoreTable = "EventStoreEvents";
     });
-});
+}));
 
 // Outbox - configure storage and processing via fluent builder
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.MaxRetryCount(5)
                                 .RetryDelay(TimeSpan.FromMinutes(5)))
           .EnableBackgroundProcessing();
-});
+}));
 ```
 
 **Transient Error Codes:**
@@ -97,14 +97,14 @@ Cloud providers (CosmosDB, DynamoDB, Firestore) primarily use SDK-managed retry 
 
 ```csharp
 // CosmosDB - SDK handles 408, 503, 504, 429 automatically
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseCosmosDb(cosmos =>
     {
         cosmos.ConnectionString(connectionString)
               .DatabaseName("events");
     });
-});
+}));
 ```
 
 ## CDC Position Recovery

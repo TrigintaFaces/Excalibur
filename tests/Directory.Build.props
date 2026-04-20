@@ -54,7 +54,8 @@
     <!-- CS8604: Possible null reference argument (tests intentionally pass null to verify behavior) -->
     <!-- CS9113: Parameter is unread (test helper classes use primary constructors for consistency) -->
     <!-- CS8625: Cannot convert null literal to non-nullable (tests intentionally test null scenarios) -->
-    <NoWarn>$(NoWarn);CS1591;SA1600;SA1611;SA1615;SA1618;SA1648;RCS1141;SA1402;RCS1046;CA1307;CA1707;CA1305;CA1848;CA1849;CA1854;CA1860;CA1812;CA1873;CA5394;CA1506;CA2000;CA1310;xUnit1030;MA0020;MA0044;NU1504;CS8602;CS8604;CS8625;CS9113;CA1711;CA1823;CA1852;CA1859</NoWarn>
+    <!-- NU1510: net10 SDK package-pruning hint (informational; per-package cleanup tracked by S797 Workstream B) -->
+    <NoWarn>$(NoWarn);CS1591;SA1600;SA1611;SA1615;SA1618;SA1648;RCS1141;SA1402;RCS1046;CA1307;CA1707;CA1305;CA1848;CA1849;CA1854;CA1860;CA1812;CA1873;CA5394;CA1506;CA2000;CA1310;xUnit1030;MA0020;MA0044;NU1504;CS8602;CS8604;CS8625;CS9113;CA1711;CA1823;CA1852;CA1859;NU1510</NoWarn>
 
     <!-- Allow test-friendly code style -->
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>

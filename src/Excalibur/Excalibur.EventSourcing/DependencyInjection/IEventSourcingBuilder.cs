@@ -23,12 +23,12 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// </remarks>
 /// <example>
 /// <code>
-/// services.AddExcaliburEventSourcing(builder =>
+/// services.AddExcalibur(x => x.AddEventSourcing(builder =>
 /// {
 ///     builder.AddRepository&lt;OrderAggregate, Guid&gt;()
 ///            .UseIntervalSnapshots(100)
 ///            .UseEventStore&lt;SqlServerEventStore&gt;();
-/// });
+/// }));
 /// </code>
 /// </example>
 public interface IEventSourcingBuilder

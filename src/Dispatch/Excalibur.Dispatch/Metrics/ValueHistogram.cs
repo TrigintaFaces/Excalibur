@@ -12,11 +12,7 @@ namespace Excalibur.Dispatch.Metrics;
 /// </summary>
 public sealed class ValueHistogram : IMetric
 {
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 	private readonly List<double> _values = [];
 	private long _count;
 	private double _sum;

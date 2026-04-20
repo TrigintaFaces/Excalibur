@@ -119,11 +119,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 	[LoggerMessage(LogLevel.Information,
 		"Transport adapter '{TransportName}' stopped successfully via lifecycle manager")]
 	private partial void LogTransportAdapterStoppedViaLifecycleManager(string transportName);
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="TransportAdapterHostedService"/> class.

@@ -14,7 +14,7 @@ Throwing exceptions for business validation ("order not found", "insufficient st
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Dispatch

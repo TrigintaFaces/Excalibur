@@ -17,11 +17,7 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 	private readonly ILogger<CircuitBreakerPolicy>? _logger;
 	private readonly string _name;
 	private readonly Func<Exception, bool>? _shouldHandle;
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 
 	private CircuitState _state = CircuitState.Closed;
 	private int _consecutiveFailures;

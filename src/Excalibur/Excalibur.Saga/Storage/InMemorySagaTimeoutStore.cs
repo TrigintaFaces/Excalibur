@@ -24,11 +24,7 @@ namespace Excalibur.Saga.Storage;
 internal sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
 {
 	private readonly ConcurrentDictionary<string, SagaTimeout> _timeouts = new();
-#if NET9_0_OR_GREATER
 	private readonly Lock _dueLock = new();
-#else
-	private readonly object _dueLock = new();
-#endif
 
 	/// <inheritdoc />
 	public Task ScheduleTimeoutAsync(SagaTimeout timeout, CancellationToken cancellationToken)

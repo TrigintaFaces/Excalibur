@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Elastic.Clients.Elasticsearch.IndexManagement;
-
-
 namespace Excalibur.Data.ElasticSearch.IndexManagement;
 
 /// <summary>
@@ -53,6 +50,6 @@ public interface IIndexTemplateManager
 	/// <param name="namePattern"> The pattern to match template names against. If null, returns all templates. </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{IEnumerable}" /> containing the matching templates. </returns>
-	Task<IEnumerable<IndexTemplateItem>> GetTemplatesAsync(string? namePattern, CancellationToken cancellationToken);
+	Task<IEnumerable<IndexTemplateDescriptor>> GetTemplatesAsync(string? namePattern, CancellationToken cancellationToken);
 
 }

@@ -1,6 +1,7 @@
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
-namespace Excalibur.Dispatch.Security.Tests;
+
+using Excalibur.Security.Configuration;namespace Excalibur.Dispatch.Security.Tests;
 
 /// <summary>
 /// Unit tests for SecurityOptions configuration.

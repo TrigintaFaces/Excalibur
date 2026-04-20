@@ -1,16 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 using Amazon.KeyManagementService;
 
-using Excalibur.Dispatch.Compliance.Aws;
+using Excalibur.Compliance.Aws;
 using Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
-using Excalibur.Dispatch.Compliance.Vault;
+using Excalibur.Compliance.Vault;
 
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-// Encryption types are now in Excalibur.Dispatch.Compliance directly (namespace flattened)
+// Encryption types are now in Excalibur.Compliance directly (namespace flattened)
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.EndToEnd;
 
 /// <summary>

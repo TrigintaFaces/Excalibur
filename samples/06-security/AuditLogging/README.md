@@ -1,6 +1,6 @@
 ﻿# Compliance Audit Logging Sample
 
-This sample demonstrates compliance audit logging for enterprise applications, covering SOC2, HIPAA, and GDPR requirements with `Excalibur.Dispatch.Security`.
+This sample demonstrates compliance audit logging for enterprise applications, covering SOC2, HIPAA, and GDPR requirements with `Excalibur.Security`.
 
 ## Prerequisites
 
@@ -223,4 +223,4 @@ builder.Services.AddSingleton<ISecurityEventStore, FileSecurityEventStore>(sp =>
 - [SOC2 Compliance](https://www.aicpa.org/soc2)
 - [HIPAA Security Rule](https://www.hhs.gov/hipaa/for-professionals/security/)
 - [GDPR Requirements](https://gdpr-info.eu/)
-- [Excalibur.Dispatch.Security Package](../../../src/Dispatch/Excalibur.Dispatch.Security/)
+- [Excalibur.Security Package](../../../src/Dispatch/Excalibur.Security/)

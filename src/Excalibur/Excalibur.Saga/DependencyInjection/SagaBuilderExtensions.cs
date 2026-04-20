@@ -151,14 +151,14 @@ public static class SagaBuilderExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSaga(saga => saga
+	/// services.AddExcalibur(x => x.AddSagas(saga => saga
 	///     .WithOutbox(options =>
 	///     {
 	///         options.PublishDelegate = async (events, sagaId, ct) =>
 	///         {
 	///             // publish events through outbox store
 	///         };
-	///     }));
+	///     })));
 	/// </code>
 	/// </example>
 	public static ISagaBuilder WithOutbox(

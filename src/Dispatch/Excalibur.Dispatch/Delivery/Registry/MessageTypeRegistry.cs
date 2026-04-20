@@ -19,15 +19,9 @@ public static class MessageTypeRegistry
 {
 	private static readonly Dictionary<string, Type> TypeNameToType = [];
 	private static readonly Dictionary<string, Type> SimpleNameToType = [];
-#if NET9_0_OR_GREATER
 
 	private static readonly Lock RegistryLock = new();
 
-#else
-
-	private static readonly object RegistryLock = new();
-
-#endif
 	private static volatile bool _isInitialized;
 
 	/// <summary>

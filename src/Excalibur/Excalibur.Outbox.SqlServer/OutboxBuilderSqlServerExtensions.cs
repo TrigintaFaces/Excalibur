@@ -39,7 +39,7 @@ public static class OutboxBuilderSqlServerExtensions
 	/// <example>
 	/// <code>
 	/// // Connection string
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseSqlServer(sql =>
 	///     {
@@ -48,19 +48,19 @@ public static class OutboxBuilderSqlServerExtensions
 	///            .TableName("OutboxMessages");
 	///     })
 	///     .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	///
 	/// // Named connection string
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseSqlServer(sql =>
 	///     {
 	///         sql.ConnectionStringName("OutboxDb");
 	///     });
-	/// });
+	/// }));
 	///
 	/// // Connection factory (Azure Managed Identity)
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseSqlServer(sql =>
 	///     {
@@ -71,16 +71,16 @@ public static class OutboxBuilderSqlServerExtensions
 	///             return () => new SqlConnection(connStr);
 	///         });
 	///     });
-	/// });
+	/// }));
 	///
 	/// // Bind from appsettings.json
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseSqlServer(sql =>
 	///     {
 	///         sql.BindConfiguration("Outbox:SqlServer");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

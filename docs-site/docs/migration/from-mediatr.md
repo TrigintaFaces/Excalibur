@@ -8,7 +8,7 @@ A comprehensive guide for migrating from MediatR to Excalibur.Dispatch, covering
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An existing application using MediatR
 - Familiarity with [getting started](../getting-started/index.md) and [actions and handlers](../core-concepts/actions-and-handlers.md)
 
@@ -557,11 +557,11 @@ Reliable message publishing with transactional outbox:
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
 // Add outbox with SQL Server storage and processing options
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
-});
+}));
 
 // Events are automatically stored in outbox
 public class OrderCommandHandler : IActionHandler<CreateOrderCommand>

@@ -26,11 +26,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 	private readonly ILogger<SqsLongPollingReceiver> _logger;
 	private readonly SemaphoreSlim _receiveLock;
 	private readonly Dictionary<string, CancellationTokenSource> _activePolling;
-#if NET9_0_OR_GREATER
 	private readonly Lock _pollingLock = new();
-#else
-	private readonly object _pollingLock = new();
-#endif
 
 	private long _totalReceiveOperations;
 	private long _totalMessagesReceived;

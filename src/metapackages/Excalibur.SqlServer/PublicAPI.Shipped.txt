@@ -1,6 +1,6 @@
 #nullable enable
 Excalibur.SqlServer.ExcaliburSqlServerOptions
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureAuditLogging(System.Action<Excalibur.Dispatch.AuditLogging.SqlServer.SqlServerAuditOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureAuditLogging(System.Action<Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureErasure(System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureInbox(System.Action<Excalibur.Inbox.SqlServer.ISqlServerInboxBuilder!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!

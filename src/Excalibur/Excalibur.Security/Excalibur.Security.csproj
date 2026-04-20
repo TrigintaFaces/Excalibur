@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -6,11 +6,15 @@
     <AssemblyName>Excalibur.Security</AssemblyName>
     <!-- NuGet Package Metadata -->
     <PackageId>Excalibur.Security</PackageId>
-    <Description>Security implementations for the Excalibur framework, including Argon2id password hashing.</Description>
-    <PackageTags>excalibur;security;password;hashing;argon2;cryptography</PackageTags>
-    <!-- AOT: Compatible. Pure computation (Argon2id hashing). IConfiguration overload carries [RequiresDynamicCode]. -->
+    <Description>Security implementations for the Excalibur framework: Argon2id password hashing, credential stores, security event stores, message encryption, input validation, and audit logging.</Description>
+    <PackageTags>excalibur;security;password;hashing;argon2;cryptography;validation;auditing;credentials</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Security.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -23,14 +27,39 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Security.Abstractions\Excalibur.Security.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Argon2id password hashing -->
     <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
+    <!-- Validation -->
+    <PackageReference Include="FluentValidation" />
+    <!-- Security and Cryptography -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" />
+    <!-- Configuration and Options -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <!-- Logging and Hosting -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Excalibur.Security.Abstractions\Excalibur.Security.Abstractions.csproj" />
+    <!-- TODO (S807): Move to Excalibur.Security.Azure and Excalibur.Security.Aws projects per R0.3/R0.5 architectural fix -->
+    <Compile Remove="Configuration\Stores\AzureKeyVaultCredentialStore.cs" />
+    <Compile Remove="AzureServiceBusOptions.cs" />
+    <Compile Remove="AzureServiceBusOptionsValidator.cs" />
+    <Compile Remove="AwsSecretsManagerCredentialStore.cs" />
+    <!-- SecureKeyProvider uses Azure.Security.KeyVault.Secrets - move to Excalibur.Security.Azure -->
+    <Compile Remove="Signing\SecureKeyProvider.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />

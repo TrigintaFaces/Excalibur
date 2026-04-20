@@ -418,21 +418,21 @@ public sealed class Sprint522CleanupVerificationShould
 	private static string? FindProjectFile(string fileName)
 	{
 		var basePath = FindProjectRoot();
-		var path = Path.Combine(basePath, "samples", "11-aot", "Excalibur.Dispatch.Aot.Sample", fileName);
+		var path = Path.Combine(basePath, "samples", "10-aot", "Excalibur.Dispatch.Aot.Sample", fileName);
 		return File.Exists(path) ? path : null;
 	}
 
 	private static string? FindProgramFile()
 	{
 		var basePath = FindProjectRoot();
-		var path = Path.Combine(basePath, "samples", "11-aot", "Excalibur.Dispatch.Aot.Sample", "Program.cs");
+		var path = Path.Combine(basePath, "samples", "10-aot", "Excalibur.Dispatch.Aot.Sample", "Program.cs");
 		return File.Exists(path) ? path : null;
 	}
 
 	private static string? FindReadmeFile()
 	{
 		var basePath = FindProjectRoot();
-		var path = Path.Combine(basePath, "samples", "11-aot", "Excalibur.Dispatch.Aot.Sample", "README.md");
+		var path = Path.Combine(basePath, "samples", "10-aot", "Excalibur.Dispatch.Aot.Sample", "README.md");
 		return File.Exists(path) ? path : null;
 	}
 

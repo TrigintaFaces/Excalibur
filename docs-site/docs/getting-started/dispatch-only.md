@@ -28,7 +28,7 @@ You can safely ignore all of these unless your requirements grow:
 - `Excalibur.EventSourcing.*` — event stores and snapshots
 - `Excalibur.Saga.*` — long-running workflows
 - `Excalibur.Hosting` — unified builder (`AddExcalibur()`)
-- `Excalibur.Dispatch.Compliance.*` — regulatory compliance
+- `Excalibur.Compliance.*` — regulatory compliance
 - Any transport package — messages dispatch in-process by default
 
 ## Complete Working Example

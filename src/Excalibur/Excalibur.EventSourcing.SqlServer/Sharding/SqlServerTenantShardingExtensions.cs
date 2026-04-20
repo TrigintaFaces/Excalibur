@@ -38,14 +38,14 @@ public static class SqlServerTenantShardingExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// services.AddExcaliburEventSourcing(builder =&gt;
+    /// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt;
     /// {
     ///     builder.EnableTenantSharding(options =&gt;
     ///     {
-    ///         options.EnableTenantSharding = true;
+    ///         options.DefaultShardId = "shard-default";
     ///     });
     ///     builder.UseSqlServerTenantEventStore();
-    /// });
+    /// }));
     /// </code>
     /// </example>
     public static IEventSourcingBuilder UseSqlServerTenantEventStore(

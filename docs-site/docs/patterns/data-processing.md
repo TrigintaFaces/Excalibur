@@ -10,7 +10,7 @@ Excalibur's data processing module provides a producer-consumer pipeline for bat
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Data.DataProcessing
@@ -251,7 +251,7 @@ END
 GO
 ```
 
-If you customize `SchemaName` or `TableName` in `DataProcessingOptions`, update the script accordingly. A complete setup script is included in the [DataProcessingBackgroundService sample](https://github.com/nickniverson/Excalibur.Dispatch/tree/main/samples/09-advanced/DataProcessingBackgroundService/setup-database.sql).
+If you customize `SchemaName` or `TableName` in `DataProcessingOptions`, update the script accordingly. A complete setup script is included in the [DataProcessingBackgroundService sample](https://github.com/nickniverson/Excalibur.Dispatch/tree/main/samples/09-advanced/deployment/DataProcessingBackgroundService/setup-database.sql).
 
 ## Orchestration Connection
 
@@ -271,7 +271,7 @@ The key value is `"Excalibur.DataProcessing.Orchestration"`.
 
 ## Multi-Database
 
-When processors need different source databases, use .NET 8 keyed services:
+When processors need different source databases, use keyed services (introduced in .NET 8, stable in .NET 10):
 
 ```csharp
 var orchestrationDb = builder.Configuration.GetConnectionString("Orchestration");

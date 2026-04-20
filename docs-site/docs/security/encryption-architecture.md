@@ -10,11 +10,11 @@ Excalibur provides comprehensive encryption capabilities for data at rest and in
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.Security
-  dotnet add package Excalibur.Dispatch.Compliance.Abstractions
+  dotnet add package Excalibur.Security
+  dotnet add package Excalibur.Compliance.Abstractions
   ```
 - Familiarity with [middleware concepts](../middleware/index.md) and [encryption providers](./encryption-providers.md)
 
@@ -24,9 +24,9 @@ The encryption architecture is built on three core components:
 
 | Component | Purpose | Package |
 |-----------|---------|---------|
-| `IEncryptionProvider` | Field-level encryption/decryption | `Excalibur.Dispatch.Compliance.Abstractions` |
-| `IKeyManagementProvider` | Key lifecycle and rotation | `Excalibur.Dispatch.Compliance.Abstractions` |
-| `MessageEncryptionMiddleware` | Pipeline message encryption | `Excalibur.Dispatch.Security` |
+| `IEncryptionProvider` | Field-level encryption/decryption | `Excalibur.Compliance.Abstractions` |
+| `IKeyManagementProvider` | Key lifecycle and rotation | `Excalibur.Compliance.Abstractions` |
+| `MessageEncryptionMiddleware` | Pipeline message encryption | `Excalibur.Security` |
 
 ```mermaid
 flowchart TB
@@ -88,7 +88,7 @@ The default encryption provider uses AES-256-GCM, providing authenticated encryp
 ### Basic Usage
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 // Inject IEncryptionProvider
 public class MyService
@@ -207,7 +207,7 @@ public interface IKeyManagementProvider
 ### In-Memory (Development Only)
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 // Development/testing only — keys are stored in memory
 builder.Services.AddDevEncryption();
@@ -221,7 +221,7 @@ builder.Services.AddDevEncryption();
 ### Azure Key Vault
 
 ```csharp
-using Excalibur.Dispatch.Compliance.Azure;
+using Excalibur.Compliance.Azure;
 
 builder.Services.AddAzureKeyVaultKeyManagement(options =>
 {
@@ -244,7 +244,7 @@ builder.Services.AddAzureKeyVaultKeyManagement(options =>
 ### AWS KMS
 
 ```csharp
-using Excalibur.Dispatch.Compliance.Aws;
+using Excalibur.Compliance.Aws;
 
 builder.Services.AddAwsKmsKeyManagement(options =>
 {
@@ -262,7 +262,7 @@ builder.Services.AddAwsKmsKeyManagement(options =>
 ### HashiCorp Vault
 
 ```csharp
-using Excalibur.Dispatch.Compliance.Vault;
+using Excalibur.Compliance.Vault;
 
 builder.Services.AddVaultKeyManagement(options =>
 {
@@ -287,7 +287,7 @@ builder.Services.AddVaultKeyManagement(options =>
 The middleware provides transparent encryption/decryption in the dispatch pipeline:
 
 ```csharp
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 builder.Services.AddDispatch()
     .AddMessageEncryption(options =>
@@ -304,7 +304,7 @@ builder.Services.AddDispatch()
 Mark messages containing sensitive data for automatic encryption:
 
 ```csharp
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 // Messages implementing ISensitiveMessage are automatically encrypted
 public class CreatePatientAction : IDispatchAction, ISensitiveMessage
@@ -353,7 +353,7 @@ sequenceDiagram
 Mark fields for automatic encryption at rest:
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class Patient
 {
@@ -378,7 +378,7 @@ public class Patient
 For more control over field encryption:
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class PaymentInfo
 {
@@ -428,8 +428,8 @@ builder.Services.AddEventSourcing(options =>
 |-----------|---------|---------|
 | `EncryptingEventStoreDecorator` | `Excalibur.EventSourcing` | Event store encryption |
 | `EncryptingProjectionStoreDecorator` | `Excalibur.EventSourcing` | Projection encryption |
-| `EncryptingInboxStoreDecorator` | `Excalibur.Dispatch.Compliance` | Inbox message encryption |
-| `EncryptingOutboxStoreDecorator` | `Excalibur.Dispatch.Compliance` | Outbox message encryption |
+| `EncryptingInboxStoreDecorator` | `Excalibur.Compliance` | Inbox message encryption |
+| `EncryptingOutboxStoreDecorator` | `Excalibur.Compliance` | Outbox message encryption |
 
 ### Mixed-Mode Migration
 
@@ -459,7 +459,7 @@ builder.Services.AddEventSourcing(options =>
 Re-encrypt data when keys rotate:
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class KeyRotationJob : BackgroundService
 {
@@ -503,7 +503,7 @@ public class KeyRotationJob : BackgroundService
 Configure lazy migration to automatically re-encrypt plaintext data on read/write:
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 builder.Services.Configure<EncryptionOptions>(options =>
 {

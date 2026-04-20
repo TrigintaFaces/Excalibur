@@ -32,7 +32,7 @@ AOT eliminates JIT warmup, giving faster startup. However, source-generated dese
 
 ## 2. Dockerfile Recipes
 
-Three production-ready Dockerfiles. All examples use .NET 10. For .NET 8 or 9, replace image tags accordingly (e.g., `sdk:10.0` to `sdk:9.0`).
+Three production-ready Dockerfiles. All examples use .NET 10.
 
 ### 2.1 JIT (Default)
 

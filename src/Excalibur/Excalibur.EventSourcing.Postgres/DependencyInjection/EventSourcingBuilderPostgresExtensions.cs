@@ -34,7 +34,7 @@ public static class EventSourcingBuilderPostgresExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UsePostgres(pg =&gt;
 	///     {
@@ -42,7 +42,7 @@ public static class EventSourcingBuilderPostgresExtensions
 	///           .EventStoreSchema("public");
 	///     })
 	///     .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder UsePostgres(

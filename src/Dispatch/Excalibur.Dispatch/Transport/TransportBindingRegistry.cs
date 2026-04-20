@@ -15,13 +15,29 @@ internal sealed class TransportBindingRegistry : IDisposable
 {
 	private readonly ConcurrentDictionary<string, ITransportBinding> _bindings = new(StringComparer.Ordinal);
 	private readonly List<ITransportBinding> _orderedBindings = [];
-#if NET9_0_OR_GREATER
+	private readonly ConcurrentDictionary<string, byte> _pendingTransportReferences = new(StringComparer.Ordinal);
 	private readonly Lock _writeSync = new();
-#else
-	private readonly object _writeSync = new();
-#endif
 	private volatile ITransportBinding[] _orderedBindingsSnapshot = [];
 	private volatile bool _disposed;
+
+	/// <summary>
+	/// Records a binding reference to a transport name that is not currently
+	/// registered. The startup <c>BindingRegistrationValidator</c> surfaces these
+	/// as <c>ValidateOnStart</c> failures. [bd-20ft0e FIX 4]
+	/// </summary>
+	/// <param name="transportName">The transport name referenced by a binding.</param>
+	public void RegisterPendingTransportReference(string transportName)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
+		_pendingTransportReferences[transportName] = 0;
+	}
+
+	/// <summary>
+	/// Gets the set of transport names referenced by bindings that were not
+	/// registered at <c>AddEventBindings</c> time.
+	/// </summary>
+	public IReadOnlyCollection<string> GetPendingTransportReferences() =>
+		(IReadOnlyCollection<string>)_pendingTransportReferences.Keys;
 
 	/// <summary>
 	/// Registers a transport binding.

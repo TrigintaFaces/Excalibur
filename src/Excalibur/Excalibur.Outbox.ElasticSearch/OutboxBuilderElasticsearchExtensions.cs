@@ -30,14 +30,14 @@ public static class OutboxBuilderElasticsearchExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburOutbox(outbox =&gt;
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =&gt;
 	/// {
 	///     outbox.UseElasticSearch(es =&gt;
 	///     {
 	///         es.NodeUri(new Uri("http://localhost:9200"))
 	///           .IndexName("my-outbox");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

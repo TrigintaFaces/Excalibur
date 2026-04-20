@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Options;
 
+using Excalibur.Compliance.Soc2;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 
 /// <summary>

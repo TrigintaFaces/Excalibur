@@ -110,19 +110,17 @@ The local feed is created at `artifacts/_packages/`. This validates that:
 - Dependencies resolve properly
 - No circular package references exist
 
-**Multi-Targeting:**
+**Target Framework:**
 
-All shipping packages target `net8.0`, `net9.0`, and `net10.0`:
+All shipping packages target `net10.0` (single-target; .NET 8 and .NET 9 multi-targeting was dropped — project is .NET 10-only).
 
 ```bash
-# Build for specific framework
-dotnet build -f net8.0
-dotnet build -f net9.0
-dotnet build -f net10.0
+# Build
+dotnet build
 
-# Pack produces multi-TFM packages
+# Pack produces single-TFM packages
 dotnet pack src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj
-# Creates: Excalibur.Dispatch.1.0.0.nupkg with lib/net8.0/, lib/net9.0/, and lib/net10.0/
+# Creates: Excalibur.Dispatch.1.0.0.nupkg with lib/net10.0/
 ```
 
 ### Local Package Validation (AD-328-1, AD-328-2)
@@ -524,7 +522,7 @@ Provider packages follow the convention `Dispatch.{Feature}.{Provider}`:
 ```csharp
 // CORRECT
 namespace Excalibur.Dispatch.Transport.Azure;
-namespace Excalibur.Dispatch.Compliance.Aws;
+namespace Excalibur.Compliance.Aws;
 namespace Excalibur.Dispatch.LeaderElection;
 
 // INCORRECT - too deep

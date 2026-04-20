@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 using Tests.Shared.Fixtures;
 using Tests.Shared.Infrastructure;

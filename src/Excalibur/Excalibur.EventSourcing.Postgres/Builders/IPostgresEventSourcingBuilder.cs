@@ -26,7 +26,7 @@ namespace Excalibur.EventSourcing.Postgres;
 /// <para>
 /// <b>Usage:</b>
 /// <code>
-/// services.AddExcaliburEventSourcing(es =&gt;
+/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 /// {
 ///     es.UsePostgres(pg =&gt;
 ///     {
@@ -37,7 +37,7 @@ namespace Excalibur.EventSourcing.Postgres;
 ///           .SnapshotStoreTable("snapshots");
 ///     })
 ///     .AddRepository&lt;OrderAggregate, Guid&gt;();
-/// });
+/// }));
 /// </code>
 /// </para>
 /// </remarks>

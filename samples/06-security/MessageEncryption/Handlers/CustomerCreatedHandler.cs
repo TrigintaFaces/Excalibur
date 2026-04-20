@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Compliance;
-using Excalibur.Dispatch.Security;
+using Excalibur.Compliance;
+using Excalibur.Security;
 
 using MessageEncryptionSample.Messages;
 

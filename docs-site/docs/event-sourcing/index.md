@@ -14,7 +14,7 @@ Traditional CRUD overwrites state on every save -- you lose the history of *how*
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -149,7 +149,7 @@ public class Order : AggregateRoot<Guid>
 ### 3. Configure Event Sourcing
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     // Register repositories with explicit factory
     builder.AddRepository<Order, Guid>(id => new Order());
@@ -162,7 +162,7 @@ services.AddExcaliburEventSourcing(builder =>
     //     .AddIntervalStrategy(50)
     //     .AddTimeBasedStrategy(TimeSpan.FromMinutes(5))
     //     .RequireAll());
-});
+}));
 
 // Add SQL Server event store (separate package)
 services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);

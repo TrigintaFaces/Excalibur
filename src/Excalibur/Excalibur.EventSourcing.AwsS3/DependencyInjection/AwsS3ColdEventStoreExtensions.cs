@@ -29,7 +29,7 @@ public static class AwsS3ColdEventStoreExtensions
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseTieredStorage(policy =&gt; policy.MaxAge = TimeSpan.FromDays(90));
 	///     es.UseAwsS3ColdEventStore(s3 =&gt;
@@ -37,7 +37,7 @@ public static class AwsS3ColdEventStoreExtensions
 	///         s3.BucketName("my-cold-events")
 	///           .Region("us-east-1");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

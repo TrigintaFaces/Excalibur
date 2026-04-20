@@ -10,7 +10,7 @@ using System.Text.Json;
 using Dapper;
 
 using Excalibur.Data.Abstractions.Validation;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance.Encryption;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

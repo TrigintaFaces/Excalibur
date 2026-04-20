@@ -23,8 +23,8 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 
 | Package | What It Bundles | DI Entry Point |
 |---------|----------------|----------------|
-| `Excalibur.Dispatch.SqlServer` | Core dispatch + SQL Server event sourcing + outbox + hosting | `AddExcaliburEventSourcing()` |
-| `Excalibur.Dispatch.Postgres` | Core dispatch + Postgres event sourcing + outbox + hosting | `AddExcaliburEventSourcing()` |
+| `Excalibur.Dispatch.SqlServer` | Core dispatch + SQL Server event sourcing + outbox + hosting | `services.AddExcalibur(x => x.AddEventSourcing(...))` |
+| `Excalibur.Dispatch.Postgres` | Core dispatch + Postgres event sourcing + outbox + hosting | `services.AddExcalibur(x => x.AddEventSourcing(...))` |
 | `Excalibur.Dispatch.RabbitMQ` | RabbitMQ transport + resilience + observability | `AddDispatchRabbitMQ()` |
 | `Excalibur.Dispatch.Kafka` | Kafka transport + serialization | `AddDispatchKafka()` |
 | `Excalibur.Dispatch.Azure` | Azure Service Bus + Azure Key Vault | `AddDispatchAzure()` |
@@ -57,14 +57,14 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.Security` | Encryption, signing, rate limiting, authentication |
-| `Excalibur.Dispatch.Security.Aws` | AWS KMS key management |
-| `Excalibur.Dispatch.Security.Azure` | Azure Key Vault key management |
-| `Excalibur.Dispatch.Compliance` | GDPR erasure, compliance monitoring |
-| `Excalibur.Dispatch.Compliance.Abstractions` | Compliance interfaces |
-| `Excalibur.Dispatch.Compliance.Aws` | AWS compliance integration |
-| `Excalibur.Dispatch.Compliance.Azure` | Azure compliance integration |
-| `Excalibur.Dispatch.Compliance.Vault` | HashiCorp Vault compliance integration |
+| `Excalibur.Security` | Encryption, signing, rate limiting, authentication |
+| `Excalibur.Security.Aws` | AWS KMS key management |
+| `Excalibur.Security.Azure` | Azure Key Vault key management |
+| `Excalibur.Compliance` | GDPR erasure, compliance monitoring |
+| `Excalibur.Compliance.Abstractions` | Compliance interfaces |
+| `Excalibur.Compliance.Aws` | AWS compliance integration |
+| `Excalibur.Compliance.Azure` | Azure compliance integration |
+| `Excalibur.Compliance.Vault` | HashiCorp Vault compliance integration |
 | `Excalibur.Compliance.SqlServer` | SQL Server compliance store |
 | `Excalibur.Compliance.Postgres` | PostgreSQL compliance store |
 
@@ -72,16 +72,16 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.AuditLogging` | Core audit logging framework |
-| `Excalibur.Dispatch.AuditLogging.SqlServer` | SQL Server audit store |
-| `Excalibur.Dispatch.AuditLogging.Postgres` | PostgreSQL audit store |
-| `Excalibur.Dispatch.AuditLogging.Elasticsearch` | Elasticsearch audit store |
-| `Excalibur.Dispatch.AuditLogging.Splunk` | Splunk SIEM exporter |
-| `Excalibur.Dispatch.AuditLogging.Sentinel` | Microsoft Sentinel SIEM exporter |
-| `Excalibur.Dispatch.AuditLogging.Datadog` | Datadog SIEM exporter |
-| `Excalibur.Dispatch.AuditLogging.Aws` | AWS CloudWatch audit exporter |
-| `Excalibur.Dispatch.AuditLogging.GoogleCloud` | Google Cloud audit exporter |
-| `Excalibur.Dispatch.AuditLogging.OpenSearch` | OpenSearch audit store |
+| `Excalibur.AuditLogging` | Core audit logging framework |
+| `Excalibur.AuditLogging.SqlServer` | SQL Server audit store |
+| `Excalibur.AuditLogging.Postgres` | PostgreSQL audit store |
+| `Excalibur.AuditLogging.Elasticsearch` | Elasticsearch audit store |
+| `Excalibur.AuditLogging.Splunk` | Splunk SIEM exporter |
+| `Excalibur.AuditLogging.Sentinel` | Microsoft Sentinel SIEM exporter |
+| `Excalibur.AuditLogging.Datadog` | Datadog SIEM exporter |
+| `Excalibur.AuditLogging.Aws` | AWS CloudWatch audit exporter |
+| `Excalibur.AuditLogging.GoogleCloud` | Google Cloud audit exporter |
+| `Excalibur.AuditLogging.OpenSearch` | OpenSearch audit store |
 
 ## Transports
 

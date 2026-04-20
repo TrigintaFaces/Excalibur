@@ -10,7 +10,7 @@ Source generators produce code at compile time. This guide explains how to view 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A project using Excalibur.Dispatch source generators:
   ```bash
   dotnet add package Excalibur.Dispatch.SourceGenerators.Analyzers
@@ -35,7 +35,7 @@ After building, generated files appear in:
 ```
 obj/
 └── Debug/
-    └── net8.0/
+    └── net10.0/
         └── GeneratedFiles/
             └── Excalibur.Dispatch.SourceGenerators/
                 ├── PrecompiledHandlerRegistry.g.cs
@@ -58,7 +58,7 @@ obj/
 
 1. Add MSBuild configuration above
 2. Build the project
-3. Navigate to `obj/Debug/net8.0/GeneratedFiles/`
+3. Navigate to `obj/Debug/net10.0/GeneratedFiles/`
 4. Open files directly
 
 ### Method 3: Go to Definition
@@ -218,13 +218,13 @@ To compare generated output across builds:
 
 ```bash
 # Save current state
-cp -r obj/Debug/net8.0/GeneratedFiles ./generated-before
+cp -r obj/Debug/net10.0/GeneratedFiles ./generated-before
 
 # Make changes and rebuild
 dotnet build
 
 # Compare
-diff -r ./generated-before obj/Debug/net8.0/GeneratedFiles
+diff -r ./generated-before obj/Debug/net10.0/GeneratedFiles
 ```
 
 ## CI/CD Considerations
@@ -236,7 +236,7 @@ For build verification:
 - name: Build and verify generators
   run: |
     dotnet build -p:EmitCompilerGeneratedFiles=true
-    ls -la obj/Debug/net8.0/GeneratedFiles/Excalibur.Dispatch.SourceGenerators/
+    ls -la obj/Debug/net10.0/GeneratedFiles/Excalibur.Dispatch.SourceGenerators/
 ```
 
 Generated files should NOT be committed to source control - they're build artifacts.

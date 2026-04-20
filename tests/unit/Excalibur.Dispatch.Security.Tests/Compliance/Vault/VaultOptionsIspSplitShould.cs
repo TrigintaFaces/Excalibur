@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Reflection;
-using Excalibur.Dispatch.Compliance.Vault;
+using Excalibur.Compliance.Vault;
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Vault;
 

@@ -241,11 +241,7 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		_disposed = true;
 
 		// Signal shutdown to background tasks
-#if NET8_0_OR_GREATER
 		await _shutdownCts.CancelAsync().ConfigureAwait(false);
-#else
-		_shutdownCts.Cancel();
-#endif
 
 		// Wait for tracked background tasks to complete (atomic drain)
 		try

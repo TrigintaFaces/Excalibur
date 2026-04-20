@@ -22,7 +22,7 @@ The messaging framework handles **how messages flow through the system**.
 |---------|-------------|
 | [Dispatch](api-dispatch/Dispatch.html) | Core dispatcher, pipelines, middleware |
 | [Excalibur.Dispatch.Abstractions](api-dispatch/Excalibur.Dispatch.Abstractions.html) | IDomainEvent, IIntegrationEvent, serialization |
-| [Excalibur.Dispatch.Compliance](api-dispatch/Excalibur.Dispatch.Compliance.html) | Encryption, data protection |
+| [Excalibur.Compliance](api-dispatch/Excalibur.Compliance.html) | Encryption, data protection |
 | [Excalibur.Dispatch.Observability](api-dispatch/Excalibur.Dispatch.Observability.html) | OpenTelemetry metrics, tracing |
 | [Excalibur.Dispatch.Caching](api-dispatch/Excalibur.Dispatch.Caching.html) | Caching infrastructure |
 | [Dispatch.EventSourcing](api-dispatch/Dispatch.EventSourcing.html) | Event sourcing patterns |

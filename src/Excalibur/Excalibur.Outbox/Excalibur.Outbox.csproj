@@ -55,5 +55,17 @@
     <InternalsVisibleTo Include="Excalibur.Outbox.Tests" />
     <InternalsVisibleTo Include="Excalibur.Outbox.SqlServer" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
+    <!-- S795 A4: IVT granted to test assemblies that retain direct aggregator
+         access per COMPASS msg 1498 §1. -->
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
+    <InternalsVisibleTo Include="Excalibur.Data.DynamoDb.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.InMemory.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.MongoDB.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.Redis.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Hosting.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Tests" />
   </ItemGroup>
 </Project>

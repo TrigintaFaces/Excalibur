@@ -4,7 +4,7 @@
 using System.Net;
 using System.Text.Json;
 
-using Excalibur.Dispatch.AuditLogging.Sentinel;
+using Excalibur.AuditLogging.Sentinel;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Sentinel;
 

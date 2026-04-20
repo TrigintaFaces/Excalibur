@@ -4,8 +4,8 @@
 using Amazon;
 using Amazon.KeyManagementService;
 
-using Excalibur.Dispatch.Compliance;
-using Excalibur.Dispatch.Compliance.Aws;
+using Excalibur.Compliance;
+using Excalibur.Compliance.Aws;
 
 using FakeItEasy;
 

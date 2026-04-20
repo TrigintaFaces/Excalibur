@@ -86,11 +86,7 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 	private readonly ConcurrentDictionary<string, HashSet<string>> _keyToTags = new(StringComparer.Ordinal);
 
 	// Lock for atomic updates to HashSets
-#if NET9_0_OR_GREATER
 	private readonly Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
 
 	/// <inheritdoc />
 	public Task RegisterKeyAsync(string key, string[] tags, CancellationToken cancellationToken)

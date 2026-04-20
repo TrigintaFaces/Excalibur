@@ -32,7 +32,7 @@ public static class KubernetesLeaderElectionBuilderExtensions
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
 	/// {
 	///     le.UseKubernetes(k8s =&gt;
 	///     {
@@ -40,7 +40,7 @@ public static class KubernetesLeaderElectionBuilderExtensions
 	///            .LeaseName("my-app-leader")
 	///            .LeaseDuration(15);
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

@@ -46,39 +46,7 @@ public sealed class WebServiceCollectionExtensionsShould : UnitTestBase
 		resolved.Value.StatusTypeBaseUrl.ShouldBe("https://custom.example.com");
 	}
 
-	[Fact]
-	public void AddExcaliburWebServicesRegistersServices()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var configuration = new ConfigurationBuilder().Build();
-
-		// Act
-		services.AddExcaliburWebServices(configuration, typeof(WebServiceCollectionExtensionsShould).Assembly);
-
-		// Assert
-		services.Count.ShouldBeGreaterThan(0);
-	}
-
-	[Fact]
-	public void ThrowWhenServicesIsNullForWebServices()
-	{
-		// Arrange
-		var configuration = new ConfigurationBuilder().Build();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			((IServiceCollection)null!).AddExcaliburWebServices(configuration));
-	}
-
-	[Fact]
-	public void ThrowWhenConfigurationIsNullForWebServices()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddExcaliburWebServices(null!));
-	}
+	// AddExcaliburWebServices(...) was deleted in S804 (bd-sdhocq A9). See ADR-325 §2.
+	// Consumer wiring is now `services.AddExcalibur(x => x.ScanAssemblies(...))` with
+	// explicit API versioning opt-in.
 }

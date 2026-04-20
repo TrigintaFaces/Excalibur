@@ -13,6 +13,10 @@
     <InternalsVisibleTo Include="Excalibur.Tests" />
     <InternalsVisibleTo Include="Excalibur.A3.Tests" />
     <InternalsVisibleTo Include="Excalibur.Benchmarks" />
+    <!-- S795 A1: IVT to Conformance.Tests — pin AddExcaliburAuditMinimalWiringConformanceTests
+         directly exercises the internal aggregator per COMPASS msg 1498 §1 condition 1
+         (legitimately testing the internal aggregator's behavior). -->
+    <InternalsVisibleTo Include="Excalibur.Testing.Conformance.Tests" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Audit\Requests\" />

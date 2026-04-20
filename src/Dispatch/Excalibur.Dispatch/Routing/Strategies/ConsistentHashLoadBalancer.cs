@@ -22,11 +22,7 @@ internal partial class ConsistentHashLoadBalancer(
 	private static readonly Dictionary<string, int> EmptyRouteWeightSnapshot = new(0, StringComparer.Ordinal);
 
 	private readonly ILogger<ConsistentHashLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-#if NET9_0_OR_GREATER
 	private readonly Lock _rebuildLock = new();
-#else
-	private readonly object _rebuildLock = new();
-#endif
 	private HashRingSnapshot _hashRingSnapshot = HashRingSnapshot.Empty;
 	private Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
 

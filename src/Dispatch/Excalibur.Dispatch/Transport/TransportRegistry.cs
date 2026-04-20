@@ -17,11 +17,7 @@ internal sealed class TransportRegistry : ITransportRegistry
 
 	private readonly ConcurrentDictionary<string, TransportRegistration> _transports = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, TransportFactoryRegistration> _factories = new(StringComparer.Ordinal);
-#if NET9_0_OR_GREATER
 	private readonly Lock _snapshotUpdateGate = new();
-#else
-	private readonly object _snapshotUpdateGate = new();
-#endif
 	private volatile string[] _transportNamesSnapshot = [];
 	private string? _defaultTransportName;
 

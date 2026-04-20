@@ -1,0 +1,74 @@
+#nullable enable
+Excalibur.Compliance.Aws.AwsKmsCacheOptions
+Excalibur.Compliance.Aws.AwsKmsCacheOptions.AwsKmsCacheOptions() -> void
+Excalibur.Compliance.Aws.AwsKmsCacheOptions.DataKeyCacheDurationSeconds.get -> int
+Excalibur.Compliance.Aws.AwsKmsCacheOptions.DataKeyCacheDurationSeconds.set -> void
+Excalibur.Compliance.Aws.AwsKmsCacheOptions.DataKeyCacheMaxSize.get -> int
+Excalibur.Compliance.Aws.AwsKmsCacheOptions.DataKeyCacheMaxSize.set -> void
+Excalibur.Compliance.Aws.AwsKmsCacheOptions.EnableDataKeyCache.get -> bool
+Excalibur.Compliance.Aws.AwsKmsCacheOptions.EnableDataKeyCache.set -> void
+Excalibur.Compliance.Aws.AwsKmsCacheOptions.MetadataCacheDurationSeconds.get -> int
+Excalibur.Compliance.Aws.AwsKmsCacheOptions.MetadataCacheDurationSeconds.set -> void
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions.AwsKmsHistoricalKeyOptions() -> void
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions.CacheKeyVersions.get -> bool
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions.CacheKeyVersions.set -> void
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions.MaxCacheAge.get -> System.TimeSpan
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions.MaxCacheAge.set -> void
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions.Region.get -> Amazon.RegionEndpoint?
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions.Region.set -> void
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyProvider
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyProvider.AwsKmsHistoricalKeyProvider(Amazon.KeyManagementService.IAmazonKeyManagementService! kmsClient, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions!>! options, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Aws.AwsKmsOptions!>! kmsOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Aws.AwsKmsHistoricalKeyProvider!>! logger) -> void
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyProvider.GetKeyVersionAsync(string! keyId, System.DateTimeOffset asOf, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyProvider.ListKeyVersionsAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.AwsKmsKeyPolicyOptions() -> void
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.CreateMultiRegionKeys.get -> bool
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.CreateMultiRegionKeys.set -> void
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.DefaultDeletionRetentionDays.get -> int
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.DefaultDeletionRetentionDays.set -> void
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.DefaultKeySpec.get -> string!
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.DefaultKeySpec.set -> void
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.EnableAutoRotation.get -> bool
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.EnableAutoRotation.set -> void
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.ReplicaRegions.get -> System.Collections.Generic.List<Amazon.RegionEndpoint!>!
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.ReplicaRegions.set -> void
+Excalibur.Compliance.Aws.AwsKmsOptions
+Excalibur.Compliance.Aws.AwsKmsOptions.AwsKmsOptions() -> void
+Excalibur.Compliance.Aws.AwsKmsOptions.BuildKeyAlias(string! keyId) -> string!
+Excalibur.Compliance.Aws.AwsKmsOptions.Cache.get -> Excalibur.Compliance.Aws.AwsKmsCacheOptions!
+Excalibur.Compliance.Aws.AwsKmsOptions.Cache.set -> void
+Excalibur.Compliance.Aws.AwsKmsOptions.Environment.get -> string?
+Excalibur.Compliance.Aws.AwsKmsOptions.Environment.set -> void
+Excalibur.Compliance.Aws.AwsKmsOptions.KeyAliasPrefix.get -> string!
+Excalibur.Compliance.Aws.AwsKmsOptions.KeyAliasPrefix.set -> void
+Excalibur.Compliance.Aws.AwsKmsOptions.KeyPolicy.get -> Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions!
+Excalibur.Compliance.Aws.AwsKmsOptions.KeyPolicy.set -> void
+Excalibur.Compliance.Aws.AwsKmsOptions.Region.get -> Amazon.RegionEndpoint?
+Excalibur.Compliance.Aws.AwsKmsOptions.Region.set -> void
+Excalibur.Compliance.Aws.AwsKmsOptions.ServiceUrl.get -> string?
+Excalibur.Compliance.Aws.AwsKmsOptions.ServiceUrl.set -> void
+Excalibur.Compliance.Aws.AwsKmsOptions.UseFipsEndpoint.get -> bool
+Excalibur.Compliance.Aws.AwsKmsOptions.UseFipsEndpoint.set -> void
+Excalibur.Compliance.Aws.AwsKmsProvider
+Excalibur.Compliance.Aws.AwsKmsProvider.AwsKmsProvider(Amazon.KeyManagementService.IAmazonKeyManagementService! kmsClient, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Aws.AwsKmsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Aws.AwsKmsProvider!>! logger, Microsoft.Extensions.Caching.Memory.IMemoryCache? metadataCache = null) -> void
+Excalibur.Compliance.Aws.AwsKmsProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Aws.AwsKmsProvider.Dispose() -> void
+Excalibur.Compliance.Aws.AwsKmsProvider.GetActiveKeyAsync(string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Aws.AwsKmsProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Aws.AwsKmsProvider.GetKeyVersionAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Aws.AwsKmsProvider.ListKeysAsync(Excalibur.Compliance.KeyStatus? status, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
+Excalibur.Compliance.Aws.AwsKmsProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!
+Excalibur.Compliance.Aws.AwsKmsProvider.SuspendKeyAsync(string! keyId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Aws.IHistoricalKeyProvider
+Excalibur.Compliance.Aws.IHistoricalKeyProvider.GetKeyVersionAsync(string! keyId, System.DateTimeOffset asOf, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Aws.IHistoricalKeyProvider.ListKeyVersionsAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
+Excalibur.Compliance.Aws.IComplianceAwsBuilder
+Excalibur.Compliance.Aws.IComplianceAwsBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
+Excalibur.Compliance.Aws.IComplianceAwsBuilder.Environment(string! environment) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
+Excalibur.Compliance.Aws.IComplianceAwsBuilder.KeyAliasPrefix(string! prefix) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
+Excalibur.Compliance.Aws.IComplianceAwsBuilder.Region(string! region) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
+Excalibur.Compliance.Aws.IComplianceAwsBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
+Excalibur.Compliance.Aws.IComplianceAwsBuilder.UseFipsEndpoint(bool useFips = true) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
+Microsoft.Extensions.DependencyInjection.AwsComplianceServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AwsComplianceServiceCollectionExtensions.AddAwsKmsKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Aws.IComplianceAwsBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -21,6 +21,7 @@
   <!-- Excalibur internal references (always ProjectReference) -->
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data\Excalibur.Data.csproj" />
+    <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />
   </ItemGroup>
   <!-- Development mode: Dispatch ProjectReferences -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">

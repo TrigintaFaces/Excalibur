@@ -3,11 +3,8 @@
 
 using System.Text.Json.Serialization;
 
-using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.Core;
-
-using EncryptionOptions = Excalibur.Dispatch.Options.Core.EncryptionOptions;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
@@ -67,64 +64,6 @@ public sealed class CoreOptionsDepthShould
 	{
 		// Assert
 		Enum.GetValues<CompressionType>().Length.ShouldBe(5);
-	}
-
-	// --- EncryptionOptions ---
-
-	[Fact]
-	public void EncryptionOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new EncryptionOptions();
-
-		// Assert
-		options.Enabled.ShouldBeFalse();
-		options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
-		options.Key.ShouldBeNull();
-		options.KeyDerivation.ShouldBeNull();
-		options.EnableKeyRotation.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void EncryptionOptions_AllProperties_AreSettable()
-	{
-		// Arrange
-		var key = new byte[] { 1, 2, 3, 4 };
-		var kdf = new KeyDerivationOptions();
-
-		// Act
-		var options = new EncryptionOptions
-		{
-			Enabled = true,
-			Algorithm = EncryptionAlgorithm.Aes256CbcHmac,
-			Key = key,
-			KeyDerivation = kdf,
-			EnableKeyRotation = true,
-		};
-
-		// Assert
-		options.Enabled.ShouldBeTrue();
-		options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
-		options.Key.ShouldBe(key);
-		options.KeyDerivation.ShouldBe(kdf);
-		options.EnableKeyRotation.ShouldBeTrue();
-	}
-
-	// --- EncryptionAlgorithm enum ---
-
-	[Fact]
-	public void EncryptionAlgorithm_HasExpectedValues()
-	{
-		// Assert -- Compliance canonical enum (Sprint 671 T.2: Dispatch enum deleted)
-		((int)EncryptionAlgorithm.Aes256Gcm).ShouldBe(0);
-		((int)EncryptionAlgorithm.Aes256CbcHmac).ShouldBe(1);
-	}
-
-	[Fact]
-	public void EncryptionAlgorithm_HasExpectedCount()
-	{
-		// Assert -- Compliance canonical enum has 2 values
-		Enum.GetValues<EncryptionAlgorithm>().Length.ShouldBe(2);
 	}
 
 	// --- HealthCheckOptions ---
@@ -268,38 +207,6 @@ public sealed class CoreOptionsDepthShould
 
 		// Assert
 		result.ReferenceHandler.ShouldBeNull();
-	}
-
-	// --- KeyDerivationOptions ---
-
-	[Fact]
-	public void KeyDerivationOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new KeyDerivationOptions();
-
-		// Assert
-		options.Password.ShouldBeNull();
-		options.Salt.ShouldBeNull();
-		options.Iterations.ShouldBe(100_000);
-	}
-
-	[Fact]
-	public void KeyDerivationOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new KeyDerivationOptions
-		{
-			Password = "secret",
-			Salt = [0x01, 0x02, 0x03],
-			Iterations = 200_000,
-		};
-
-		// Assert
-		options.Password.ShouldBe("secret");
-		options.Salt.ShouldNotBeNull();
-		options.Salt.Length.ShouldBe(3);
-		options.Iterations.ShouldBe(200_000);
 	}
 
 	// --- MessageBusHealthCheckOptions ---

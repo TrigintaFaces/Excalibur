@@ -10,7 +10,7 @@ Dispatch supports multiple serialization formats for messages. Choose based on y
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -157,7 +157,7 @@ services.AddDispatch(dispatch =>
 
 ### Transport Encryption
 
-Encryption is handled by the `Excalibur.Dispatch.Security` package, not the serializer:
+Encryption is handled by the `Excalibur.Security` package, not the serializer:
 
 ```csharp
 services.AddDispatch(dispatch =>
@@ -175,7 +175,7 @@ services.AddDispatch(dispatch =>
 Field-level encryption uses the `[EncryptedField]` attribute on `byte[]` properties. For string data, serialize to bytes first:
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class CustomerProjection
 {

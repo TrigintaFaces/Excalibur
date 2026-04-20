@@ -10,7 +10,7 @@ The `AggregateTestFixture<T>` class provides a fluent Given-When-Then API for te
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Familiarity with [event sourcing concepts](../event-sourcing/index.md) and [domain modeling](../domain-modeling/entities.md)
 
 ## Installation

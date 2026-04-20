@@ -66,7 +66,7 @@ internal static class DispatchTelemetryConstants
 		/// <summary>
 		/// Audit logging middleware operations.
 		/// </summary>
-		public const string AuditLoggingMiddleware = "Excalibur.Dispatch.AuditLoggingMiddleware";
+		public const string AuditLoggingMiddleware = "Excalibur.AuditLoggingMiddleware";
 
 		/// <summary>
 		/// Circuit breaker middleware operations.

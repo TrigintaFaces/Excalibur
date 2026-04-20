@@ -4,12 +4,16 @@
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for configuring leader election services using the builder pattern.
+/// Internal extension methods for configuring leader election services using the builder pattern.
+/// Consumers opt-in via <c>IExcaliburBuilder.AddLeaderElection(...)</c>.
 /// </summary>
-public static class LeaderElectionBuilderServiceCollectionExtensions
+internal static class LeaderElectionBuilderServiceCollectionExtensions
 {
 	/// <summary>
 	/// Adds leader election services using the builder pattern for provider selection.
@@ -19,13 +23,13 @@ public static class LeaderElectionBuilderServiceCollectionExtensions
 	/// <returns>The service collection for chaining.</returns>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburLeaderElection(le => le
+	/// services.AddExcalibur(x => x.AddLeaderElection(le => le
 	///     .UseInMemory()
 	///     .WithHealthChecks()
-	///     .WithFencingTokens());
+	///     .WithFencingTokens()));
 	/// </code>
 	/// </example>
-	public static IServiceCollection AddExcaliburLeaderElection(
+	internal static IServiceCollection AddExcaliburLeaderElection(
 		this IServiceCollection services,
 		Action<ILeaderElectionBuilder> configure)
 	{
@@ -35,6 +39,11 @@ public static class LeaderElectionBuilderServiceCollectionExtensions
 		// Register base options with validation
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.ValidateOnStart();
+
+		// bd-x6rg45: fail loud at host start if the consumer forgot to pick a provider.
+		// Idempotent via TryAddEnumerable — re-registering AddLeaderElection does not
+		// double-register the validator.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LeaderElectionPrerequisiteValidator>());
 
 		var builder = new LeaderElectionBuilder(services);
 		configure(builder);

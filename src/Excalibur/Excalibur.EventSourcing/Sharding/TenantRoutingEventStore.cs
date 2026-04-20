@@ -13,7 +13,7 @@ namespace Excalibur.EventSourcing.Sharding;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Registered as Scoped when <see cref="ShardMapOptions.EnableTenantSharding"/> is true.
+/// Registered as Scoped when <c>IEventSourcingBuilder.EnableTenantSharding(...)</c> is called.
 /// All <see cref="IEventStore"/> methods route transparently.
 /// </para>
 /// <para>

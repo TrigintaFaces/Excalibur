@@ -47,7 +47,7 @@ public static class OutboxBuilderPostgresExtensions
 	/// <example>
 	/// <code>
 	/// // Connection string
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UsePostgres(postgres =>
 	///     {
@@ -58,10 +58,10 @@ public static class OutboxBuilderPostgresExtensions
 	///                 .MaxAttempts(5);
 	///     })
 	///     .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	///
 	/// // IDb factory
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UsePostgres(postgres =>
 	///     {
@@ -69,7 +69,7 @@ public static class OutboxBuilderPostgresExtensions
 	///                 .SchemaName("messaging");
 	///     })
 	///     .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IOutboxBuilder UsePostgres(

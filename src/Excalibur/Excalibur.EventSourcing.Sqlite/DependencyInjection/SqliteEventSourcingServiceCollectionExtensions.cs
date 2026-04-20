@@ -29,13 +29,13 @@ public static class SqliteEventSourcingServiceCollectionExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseSqlite(options =&gt;
 	///     {
 	///         options.ConnectionString = "Data Source=events.db";
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder UseSqlite(

@@ -2590,18 +2590,6 @@ Excalibur.Dispatch.Options.Core.DeadLetterOptions.QueueName.get -> string!
 Excalibur.Dispatch.Options.Core.DeadLetterOptions.QueueName.set -> void
 Excalibur.Dispatch.Options.Core.DeadLetterOptions.RecoveryInterval.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Core.DeadLetterOptions.RecoveryInterval.set -> void
-Excalibur.Dispatch.Options.Core.EncryptionOptions
-Excalibur.Dispatch.Options.Core.EncryptionOptions.Algorithm.get -> Excalibur.Dispatch.Compliance.EncryptionAlgorithm
-Excalibur.Dispatch.Options.Core.EncryptionOptions.Algorithm.set -> void
-Excalibur.Dispatch.Options.Core.EncryptionOptions.EnableKeyRotation.get -> bool
-Excalibur.Dispatch.Options.Core.EncryptionOptions.EnableKeyRotation.set -> void
-Excalibur.Dispatch.Options.Core.EncryptionOptions.Enabled.get -> bool
-Excalibur.Dispatch.Options.Core.EncryptionOptions.Enabled.set -> void
-Excalibur.Dispatch.Options.Core.EncryptionOptions.EncryptionOptions() -> void
-Excalibur.Dispatch.Options.Core.EncryptionOptions.Key.get -> byte[]?
-Excalibur.Dispatch.Options.Core.EncryptionOptions.Key.set -> void
-Excalibur.Dispatch.Options.Core.EncryptionOptions.KeyDerivation.get -> Excalibur.Dispatch.Options.Core.KeyDerivationOptions?
-Excalibur.Dispatch.Options.Core.EncryptionOptions.KeyDerivation.set -> void
 Excalibur.Dispatch.Options.Core.HealthCheckOptions
 Excalibur.Dispatch.Options.Core.HealthCheckOptions.Enabled.get -> bool
 Excalibur.Dispatch.Options.Core.HealthCheckOptions.Enabled.set -> void
@@ -2627,14 +2615,6 @@ Excalibur.Dispatch.Options.Core.JsonSerializationOptions.MaxDepth.get -> int
 Excalibur.Dispatch.Options.Core.JsonSerializationOptions.MaxDepth.set -> void
 Excalibur.Dispatch.Options.Core.JsonSerializationOptions.PreserveReferences.get -> bool
 Excalibur.Dispatch.Options.Core.JsonSerializationOptions.PreserveReferences.set -> void
-Excalibur.Dispatch.Options.Core.KeyDerivationOptions
-Excalibur.Dispatch.Options.Core.KeyDerivationOptions.Iterations.get -> int
-Excalibur.Dispatch.Options.Core.KeyDerivationOptions.Iterations.set -> void
-Excalibur.Dispatch.Options.Core.KeyDerivationOptions.KeyDerivationOptions() -> void
-Excalibur.Dispatch.Options.Core.KeyDerivationOptions.Password.get -> string?
-Excalibur.Dispatch.Options.Core.KeyDerivationOptions.Password.set -> void
-Excalibur.Dispatch.Options.Core.KeyDerivationOptions.Salt.get -> byte[]?
-Excalibur.Dispatch.Options.Core.KeyDerivationOptions.Salt.set -> void
 Excalibur.Dispatch.Options.Core.LoggingOptions
 Excalibur.Dispatch.Options.Core.LoggingOptions.EnhancedLogging.get -> bool
 Excalibur.Dispatch.Options.Core.LoggingOptions.EnhancedLogging.set -> void

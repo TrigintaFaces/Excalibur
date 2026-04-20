@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 using Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
-using Excalibur.Dispatch.Compliance.Vault;
+using Excalibur.Compliance.Vault;
 
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Vault;
 
 /// <summary>

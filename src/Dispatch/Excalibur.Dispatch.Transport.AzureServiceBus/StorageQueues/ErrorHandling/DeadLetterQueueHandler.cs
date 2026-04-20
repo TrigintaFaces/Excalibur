@@ -202,8 +202,6 @@ internal sealed class DeadLetterQueueHandler(
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Dead letter envelope deserialization uses JSON reflection by design")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Dead letter envelope deserialization uses JSON reflection by design")]
 	public async Task<int> RecoverMessagesAsync(CancellationToken cancellationToken, int maxMessages = 10)
 	{
 		if (maxMessages <= 0)
@@ -221,7 +219,7 @@ internal sealed class DeadLetterQueueHandler(
 			{
 				try
 				{
-					var envelope = JsonSerializer.Deserialize<DeadLetterMessageEnvelope>(message.Body.ToString());
+					var envelope = JsonSerializer.Deserialize(message.Body.ToString(), AzureMessageJsonContext.Default.DeadLetterMessageEnvelope);
 					if (envelope != null && ShouldRecover(envelope))
 					{
 						// Send back to main queue

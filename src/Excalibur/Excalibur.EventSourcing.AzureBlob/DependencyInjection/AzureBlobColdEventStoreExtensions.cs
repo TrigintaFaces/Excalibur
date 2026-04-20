@@ -29,7 +29,7 @@ public static class AzureBlobColdEventStoreExtensions
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseTieredStorage(policy =&gt; policy.MaxAge = TimeSpan.FromDays(90));
 	///     es.UseAzureBlobColdEventStore(blob =&gt;
@@ -37,7 +37,7 @@ public static class AzureBlobColdEventStoreExtensions
 	///         blob.ConnectionString("UseDevelopmentStorage=true")
 	///             .ContainerName("cold-events");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

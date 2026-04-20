@@ -3,11 +3,12 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Configuration;
 
-namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
+
+using Excalibur.Security.EventStores;namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
 
 /// <summary>
 /// Unit tests for <see cref="FileSecurityEventStore"/> internal class.

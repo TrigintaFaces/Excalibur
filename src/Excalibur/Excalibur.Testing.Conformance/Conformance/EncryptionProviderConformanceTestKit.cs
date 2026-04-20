@@ -6,7 +6,7 @@
 
 using System.Text;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 namespace Excalibur.Testing.Conformance;
 

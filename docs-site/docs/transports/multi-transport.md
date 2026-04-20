@@ -9,7 +9,7 @@ Dispatch supports routing messages to multiple transports based on type or predi
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install Excalibur.Dispatch plus two or more transport packages:
   ```bash
   dotnet add package Excalibur.Dispatch

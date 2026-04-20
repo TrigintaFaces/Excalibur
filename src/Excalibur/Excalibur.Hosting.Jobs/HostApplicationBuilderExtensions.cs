@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,7 @@ public static class ExcaliburJobHostBuilderExtensions
 	/// This method is ideal for .NET Worker Service applications and provides a fluent way to configure job hosting services directly on
 	/// the host builder.
 	/// </remarks>
+	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
 	public static IHostApplicationBuilder AddExcaliburJobHost(
 		this IHostApplicationBuilder builder,
 		params Assembly[] assemblies)
@@ -50,6 +52,7 @@ public static class ExcaliburJobHostBuilderExtensions
 	/// This overload allows for custom Quartz.NET configuration and is perfect for production scenarios requiring persistent job stores,
 	/// clustering, or advanced scheduling features.
 	/// </remarks>
+	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
 	public static IHostApplicationBuilder AddExcaliburJobHost(
 		this IHostApplicationBuilder builder,
 		Action<IServiceCollectionQuartzConfigurator>? configureQuartz,

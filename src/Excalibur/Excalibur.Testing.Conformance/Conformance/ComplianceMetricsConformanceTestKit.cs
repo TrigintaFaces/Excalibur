@@ -4,7 +4,7 @@
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 namespace Excalibur.Testing.Conformance;
 
@@ -118,10 +118,10 @@ public abstract class ComplianceMetricsConformanceTestKit
 					"Expected Meter property to return non-null instance.");
 			}
 
-			if (meter.Name != "Excalibur.Dispatch.Compliance")
+			if (meter.Name != "Excalibur.Compliance")
 			{
 				throw new TestFixtureAssertionException(
-					$"Expected Meter.Name to be 'Excalibur.Dispatch.Compliance', but got '{meter.Name}'.");
+					$"Expected Meter.Name to be 'Excalibur.Compliance', but got '{meter.Name}'.");
 			}
 		}
 		finally

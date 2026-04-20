@@ -16,211 +16,211 @@
     },
     {
       "line": 50,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Aws/AwsAuditServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Aws/AwsAuditServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 52,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Aws/AwsAuditServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Aws/AwsAuditServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 51,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Datadog/DatadogServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Datadog/DatadogServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 53,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Datadog/DatadogServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Datadog/DatadogServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 51,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Elasticsearch/ElasticsearchServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Elasticsearch/ElasticsearchServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 53,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Elasticsearch/ElasticsearchServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Elasticsearch/ElasticsearchServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 95,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Elasticsearch/ElasticsearchServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Elasticsearch/ElasticsearchServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 97,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Elasticsearch/ElasticsearchServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Elasticsearch/ElasticsearchServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 51,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.GoogleCloud/GoogleCloudServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.GoogleCloud/GoogleCloudServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 53,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.GoogleCloud/GoogleCloudServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.GoogleCloud/GoogleCloudServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 51,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.OpenSearch/OpenSearchServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.OpenSearch/OpenSearchServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 53,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.OpenSearch/OpenSearchServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.OpenSearch/OpenSearchServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 95,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.OpenSearch/OpenSearchServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.OpenSearch/OpenSearchServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 97,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.OpenSearch/OpenSearchServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.OpenSearch/OpenSearchServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 52,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Postgres/PostgresAuditServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Postgres/PostgresAuditServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 54,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Postgres/PostgresAuditServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Postgres/PostgresAuditServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 51,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Sentinel/SentinelServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Sentinel/SentinelServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 53,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Sentinel/SentinelServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Sentinel/SentinelServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 46,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Splunk/SplunkServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Splunk/SplunkServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 48,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Splunk/SplunkServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Splunk/SplunkServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 70,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Splunk/SplunkServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Splunk/SplunkServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 72,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.Splunk/SplunkServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.Splunk/SplunkServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 62,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.SqlServer/SqlServerAuditServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.SqlServer/SqlServerAuditServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 64,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.SqlServer/SqlServerAuditServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.SqlServer/SqlServerAuditServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 146,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.SqlServer/SqlServerAuditServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.SqlServer/SqlServerAuditServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
       "warningId": "IL2026"
     },
     {
       "line": 148,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging.SqlServer/SqlServerAuditServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging.SqlServer/SqlServerAuditServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
       "warningId": "IL3050"
     },
     {
       "line": 296,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 298,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 353,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 355,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 425,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 427,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 461,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 484,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 600,
-      "file": "src/Dispatch/Excalibur.Dispatch.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.AuditLogging/AuditLoggingServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
@@ -454,271 +454,271 @@
     },
     {
       "line": 77,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance.Aws/AwsComplianceServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance.Aws/AwsComplianceServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 79,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance.Aws/AwsComplianceServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance.Aws/AwsComplianceServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 146,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance.Azure/AzureKeyVaultServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance.Azure/AzureKeyVaultServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 148,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance.Azure/AzureKeyVaultServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance.Azure/AzureKeyVaultServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 92,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance.Vault/VaultServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance.Vault/VaultServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 94,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance.Vault/VaultServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance.Vault/VaultServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 424,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/ComplianceServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/ComplianceServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 426,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/ComplianceServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/ComplianceServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 483,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/ComplianceServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/ComplianceServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 485,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/ComplianceServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/ComplianceServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 112,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Configuration/EncryptionServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Configuration/EncryptionServiceCollectionExtensions.cs",
       "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 114,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Configuration/EncryptionServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Configuration/EncryptionServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 52,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 54,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 216,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 218,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 269,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 271,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Erasure/ErasureServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 63,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 65,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 111,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 113,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 163,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 165,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 215,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 217,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 263,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 265,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 313,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 315,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 363,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 365,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 409,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 411,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 455,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 457,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/GdprServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/GdprServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 310,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Masking/RegexDataMasker.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Masking/RegexDataMasker.cs",
       "justification": "MaskObject<T> is already annotated with [RequiresUnreferencedCode]. Callers accept the trimming risk.",
       "warningId": "IL2067"
     },
     {
       "line": 312,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Masking/RegexDataMasker.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Masking/RegexDataMasker.cs",
       "justification": "MaskObject<T> is already annotated with [RequiresUnreferencedCode]. Callers accept the trimming risk.",
       "warningId": "IL2072"
     },
     {
       "line": 52,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Migration/MigrationServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Migration/MigrationServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 54,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Migration/MigrationServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Migration/MigrationServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 86,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Monitoring/MonitoringServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Monitoring/MonitoringServiceCollectionExtensions.cs",
       "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 88,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Monitoring/MonitoringServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Monitoring/MonitoringServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },
     {
       "line": 48,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Retention/RetentionEnforcementBackgroundService.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Retention/RetentionEnforcementBackgroundService.cs",
       "justification": "EnforceRetentionAsync uses reflection to discover PersonalDataAttribute annotations. ",
       "warningId": "IL2026"
     },
     {
       "line": 50,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Soc2/Soc2ServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Soc2/Soc2ServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL2026"
     },
     {
       "line": 52,
-      "file": "src/Dispatch/Excalibur.Dispatch.Compliance/Soc2/Soc2ServiceCollectionExtensions.cs",
+      "file": "src/Dispatch/Excalibur.Compliance/Soc2/Soc2ServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.",
       "warningId": "IL3050"
     },

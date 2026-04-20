@@ -17,9 +17,12 @@ namespace Excalibur.Dispatch.Tests.Diagnostics;
 public sealed class DispatchTelemetryConstantsUsageShould
 {
 	[Fact]
-	public void HaveAllActivitySourcesStartingWithExcaliburDispatch()
+	public void HaveAllActivitySourcesStartingWithApprovedPrefix()
 	{
-		// Arrange
+		// Per S806 COMPASS msg 2120: activity-source names track package namespace.
+		// Dispatch middleware uses "Excalibur.Dispatch.*"; package-moved concerns like
+		// AuditLoggingMiddleware use their concern-root (e.g. "Excalibur.AuditLoggingMiddleware").
+		// Framework-wide invariant is "Excalibur.*".
 		var fields = GetConstStringFields(typeof(DispatchTelemetryConstants.ActivitySources));
 
 		// Assert
@@ -28,7 +31,7 @@ public sealed class DispatchTelemetryConstantsUsageShould
 		foreach (var field in fields)
 		{
 			var value = (string)field.GetRawConstantValue()!;
-			value.ShouldStartWith("Excalibur.Dispatch.");
+			value.ShouldStartWith("Excalibur.");
 		}
 	}
 

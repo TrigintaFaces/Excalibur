@@ -10,7 +10,7 @@ Excalibur provides a CLI tool (`excalibur-migrate`) for managing database schema
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Access to the target database (SQL Server or PostgreSQL)
 - Familiarity with [event store setup](../configuration/event-store-setup.md)
 
@@ -307,7 +307,7 @@ jobs:
           excalibur-migrate up \
             --provider sqlserver \
             --connection "${{ secrets.DB_CONNECTION_STRING }}" \
-            --assembly ./src/MyApp/bin/Release/net9.0/MyApp.dll \
+            --assembly ./src/MyApp/bin/Release/net10.0/MyApp.dll \
             --verbose
 ```
 
@@ -326,7 +326,7 @@ steps:
       excalibur-migrate up \
         --provider sqlserver \
         --connection "$(DbConnectionString)" \
-        --assembly ./src/MyApp/bin/Release/net9.0/MyApp.dll \
+        --assembly ./src/MyApp/bin/Release/net10.0/MyApp.dll \
         --verbose
     displayName: 'Apply Migrations'
 ```

@@ -34,13 +34,13 @@ public static class AutoSnapshotServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt;
 	/// {
 	///     builder.UseAutoSnapshots(options =&gt;
 	///     {
 	///         options.EventCountThreshold = 100;
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder UseAutoSnapshots(
@@ -72,10 +72,10 @@ public static class AutoSnapshotServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt;
 	/// {
 	///     builder.UseAutoSnapshots(configuration.GetSection("AutoSnapshot"));
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
@@ -114,7 +114,7 @@ public static class AutoSnapshotServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt;
 	/// {
 	///     builder.UseAutoSnapshots(options =&gt;
 	///     {
@@ -126,7 +126,7 @@ public static class AutoSnapshotServiceCollectionExtensions
 	///         options.EventCountThreshold = 50;   // Orders snapshot more frequently
 	///         options.TimeThreshold = TimeSpan.FromHours(1);
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 #pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)

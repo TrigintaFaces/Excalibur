@@ -14,7 +14,7 @@ The outbox pattern ensures reliable message publishing by storing messages in th
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch.Patterns
@@ -76,7 +76,7 @@ services.AddDispatch(dispatch =>
 });
 
 // Recommended: Use presets for common scenarios
-services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
 
 // Add SQL Server outbox storage
 services.AddSqlServerOutboxStore(options =>
@@ -114,21 +114,21 @@ Start from a preset and override specific settings:
 
 ```csharp
 // High throughput with larger batches
-services.AddExcaliburOutbox(OutboxOptions.HighThroughput()
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighThroughput()
     .WithBatchSize(2000)
     .WithProcessorId("worker-1")
-    .Build());
+    .Build()));
 
 // Balanced with custom retention
-services.AddExcaliburOutbox(OutboxOptions.Balanced()
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced()
     .WithRetentionPeriod(TimeSpan.FromDays(14))
     .WithMaxRetries(7)
-    .Build());
+    .Build()));
 
 // High reliability with disabled cleanup (manual cleanup preferred)
-services.AddExcaliburOutbox(OutboxOptions.HighReliability()
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighReliability()
     .DisableAutomaticCleanup()
-    .Build());
+    .Build()));
 ```
 
 ### Full Custom Configuration
@@ -136,7 +136,7 @@ services.AddExcaliburOutbox(OutboxOptions.HighReliability()
 For advanced users who need complete control:
 
 ```csharp
-services.AddExcaliburOutbox(OutboxOptions.Custom()
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Custom()
     .WithBatchSize(500)
     .WithPollingInterval(TimeSpan.FromMilliseconds(500))
     .WithParallelism(6)
@@ -146,7 +146,7 @@ services.AddExcaliburOutbox(OutboxOptions.Custom()
     .WithCleanupInterval(TimeSpan.FromHours(2))
     .WithProcessorId("custom-processor")
     .EnableBackgroundProcessing()
-    .Build());
+    .Build()));
 ```
 
 ### Usage in Handlers
@@ -245,7 +245,7 @@ services.AddSqlServerOutboxStore(options =>
 ### PostgreSQL
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UsePostgres(postgres =>
     {
@@ -253,75 +253,75 @@ services.AddExcaliburOutbox(outbox =>
                 .SchemaName("outbox")
                 .TableName("outbox_messages");
     });
-});
+}));
 ```
 
 ### Redis
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseRedis(redis =>
     {
         redis.ConnectionString("localhost:6379")
              .KeyPrefix("outbox:");
     });
-});
+}));
 
 // Or with an existing ConnectionMultiplexer from DI
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseRedis(redis =>
     {
         redis.Multiplexer(existingMultiplexer)
              .KeyPrefix("outbox:");
     });
-});
+}));
 ```
 
 ### MongoDB
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseMongoDB(mongo =>
     {
         mongo.ConnectionString(connectionString)
              .DatabaseName("myapp");
     });
-});
+}));
 ```
 
 ### Elasticsearch
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseElasticSearch(options =>
     {
         options.IndexName = "excalibur-outbox";
         options.DefaultBatchSize = 100;
     });
-});
+}));
 ```
 
 ### Firestore
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseFirestore(options =>
     {
         options.ProjectId = "my-gcp-project";
         options.CollectionName = "outbox";
     });
-});
+}));
 ```
 
 ### Cosmos DB
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseCosmosDb(cosmos =>
     {
@@ -329,20 +329,20 @@ services.AddExcaliburOutbox(outbox =>
               .DatabaseName("myapp")
               .ContainerName("outbox");
     });
-});
+}));
 ```
 
 ### DynamoDB
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseDynamoDb(options =>
     {
         options.Connection.Region = "us-east-1";
         options.TableName = "outbox";
     });
-});
+}));
 ```
 
 ## Database Schema
@@ -378,7 +378,7 @@ WHERE [ProcessedAt] IS NULL;
 
 ```csharp
 // Use presets - background processing enabled by default
-services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
 
 // Add storage
 services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
@@ -394,7 +394,7 @@ For enterprise scheduling needs, use `OutboxProcessorJob` from `Excalibur.Jobs`:
 ```csharp
 // Install: dotnet add package Excalibur.Jobs
 
-services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
 services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // Register the Quartz.NET outbox processor job
@@ -409,10 +409,10 @@ For serverless environments (Azure Functions, AWS Lambda):
 
 ```csharp
 // Use Custom preset to disable background processing
-services.AddExcaliburOutbox(OutboxOptions.Custom()
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Custom()
     .WithBatchSize(50)
     .WithMaxRetries(3)
-    .Build());  // EnableBackgroundProcessing defaults to true in presets
+    .Build()));  // EnableBackgroundProcessing defaults to true in presets
 
 services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
@@ -436,7 +436,7 @@ public class OutboxProcessorFunction
 The outbox uses the configured `IOutboxPublisher` to send messages. The default behavior dispatches through the registered message bus:
 
 ```csharp
-services.AddExcaliburOutbox();
+services.AddExcalibur(excalibur => excalibur.AddOutbox());
 services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // Messages are dispatched through IDispatcher by default
@@ -455,7 +455,7 @@ services.AddDispatch(dispatch =>
     });
 });
 
-services.AddExcaliburOutbox();
+services.AddExcalibur(excalibur => excalibur.AddOutbox());
 services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // Register Kafka publisher for outbox
@@ -532,7 +532,7 @@ public class WebhookOutboxPublisher : IOutboxPublisher
     // Implement other required methods...
 }
 
-services.AddExcaliburOutbox();
+services.AddExcalibur(excalibur => excalibur.AddOutbox());
 services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 services.AddSingleton<IOutboxPublisher, WebhookOutboxPublisher>();
 ```
@@ -543,13 +543,13 @@ services.AddSingleton<IOutboxPublisher, WebhookOutboxPublisher>();
 
 ```csharp
 // Use HighReliability preset for aggressive retries (10 retries, 15 min delay)
-services.AddExcaliburOutbox(OutboxOptions.HighReliability().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighReliability().Build()));
 
 // Or customize retry behavior
-services.AddExcaliburOutbox(OutboxOptions.Balanced()
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced()
     .WithMaxRetries(7)
     .WithRetryDelay(TimeSpan.FromMinutes(2))
-    .Build());
+    .Build()));
 
 services.AddSqlServerOutboxStore(options =>
 {
@@ -578,16 +578,16 @@ All presets enable automatic cleanup by default with appropriate intervals:
 
 ```csharp
 // Balanced: 7-day retention, hourly cleanup
-services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
 
 // HighReliability: 30-day retention, 6-hour cleanup interval
-services.AddExcaliburOutbox(OutboxOptions.HighReliability().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighReliability().Build()));
 
 // Custom retention
-services.AddExcaliburOutbox(OutboxOptions.Balanced()
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced()
     .WithRetentionPeriod(TimeSpan.FromDays(14))
     .WithCleanupInterval(TimeSpan.FromHours(2))
-    .Build());
+    .Build()));
 
 services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 ```
@@ -708,7 +708,7 @@ When using event sourcing, integration events can be staged to the unified outbo
 ### Configuration
 
 ```csharp
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(sql => sql.ConnectionString(connectionString));
 
@@ -717,13 +717,13 @@ services.AddExcaliburEventSourcing(es =>
     {
         opts.OutboxStagingStrategy = OutboxStagingStrategy.Transactional;
     });
-});
+}));
 
 // Register the unified outbox store (required for Transactional and EventuallyConsistent)
-services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(opts =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox.UseSqlServer(opts =>
 {
     opts.ConnectionString = connectionString;
-}));
+})));
 ```
 
 ### How Auto Resolution Works
@@ -769,7 +769,7 @@ At high event rates (100K+ events/sec), the single outbox table becomes a conten
 ### Enable Partitioned Processing
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString);
 
@@ -781,7 +781,7 @@ services.AddExcaliburOutbox(outbox =>
         opts.PollingInterval = TimeSpan.FromSeconds(1);
         opts.ErrorBackoffInterval = TimeSpan.FromSeconds(5);
     });
-});
+}));
 ```
 
 ### Partitioning Strategies

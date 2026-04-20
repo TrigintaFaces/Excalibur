@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Reflection;
-
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Application;
+using Excalibur.Domain;
 
 using Excalibur.Hosting.Builders;
 using Excalibur.Hosting.Configuration;
@@ -92,33 +91,22 @@ public static class ExcaliburHostingServiceCollectionExtensions
 		var builder = new ExcaliburBuilder(services);
 		configure(builder);
 
-		return services;
-	}
-
-	/// <summary>
-	/// Registers Excalibur application and data layer services along with common context values.
-	/// </summary>
-	/// <param name="services"> The service collection to configure. </param>
-	/// <param name="assemblies"> Assemblies containing handlers and validators. </param>
-	/// <param name="useLocalClientAddress"> Whether to register the local machine address as <see cref="Excalibur.Domain.IClientAddress" />. </param>
-	/// <param name="tenantId"> The tenant identifier. Defaults to <see cref="TenantDefaults.DefaultTenantId"/>. </param>
-	/// <returns> The updated service collection. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="services" /> is null. </exception>
-	public static IServiceCollection AddExcaliburBaseServices(
-		this IServiceCollection services,
-		Assembly[] assemblies,
-		bool useLocalClientAddress = false,
-		string tenantId = TenantDefaults.DefaultTenantId)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		// ADR-078: Register Dispatch primitives first (IDispatcher, IMessageBus, etc.)
-		_ = services.AddDispatch(assemblies);
-
-		_ = services.AddExcaliburDataServices();
-		_ = services.AddExcaliburApplicationServices(assemblies);
-		_ = services.AddExcaliburContextServices(tenantId, localAddress: useLocalClientAddress);
+		// Register the Excalibur core cross-cutting primitives (context family +
+		// IActivityContext) AFTER configure(builder) so that explicit consumer
+		// registrations inside the builder callback win against these TryAdd
+		// defaults. Rationale: TryAdd is a no-op when a registration exists — it
+		// is not a Replace. Registering after configure guarantees:
+		//   * consumer did nothing → TryAdd lands the default;
+		//   * consumer registered a custom impl in configure → their descriptor is
+		//     already present, TryAdd is the no-op, and their impl wins.
+		// [S793 bd-sdhocq P0 / COMPASS msg 1449 §1]
+		_ = services.AddExcaliburContextServices();
+		services.TryAddScoped<IActivityContext, ActivityContext>();
 
 		return services;
 	}
+
+	// AddExcaliburBaseServices(...) was deleted in S804 (bd-sdhocq A8) per ADR-325 §2.
+	// The canonical composition path is services.AddExcalibur(x => x.ScanAssemblies(...))
+	// with explicit .UseTenant(...) / .UseLocalClientAddress() opt-ins.
 }

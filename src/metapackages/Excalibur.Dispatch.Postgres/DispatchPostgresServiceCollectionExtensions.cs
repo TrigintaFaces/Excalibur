@@ -28,8 +28,10 @@ public static class DispatchPostgresServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
 		_ = services.AddDispatch(configureDispatch);
-		_ = services.AddExcaliburEventSourcing(es =>
-			es.UsePostgres(pg => pg.ConnectionString(connectionString)));
+		// Route through IExcaliburBuilder bridge so AddExcaliburEventSourcing
+		// stays internal per ADR-325.
+		_ = services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+			es.UsePostgres(pg => pg.ConnectionString(connectionString))));
 
 		return services;
 	}

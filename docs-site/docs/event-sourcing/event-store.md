@@ -10,7 +10,7 @@ The event store is the persistence layer for event-sourced aggregates. It stores
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -53,10 +53,10 @@ public interface IEventStore
 ### SQL Server
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseEventStore<SqlServerEventStore>();
-});
+}));
 
 // SQL Server event store is typically added via Excalibur.Hosting
 services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
@@ -66,20 +66,20 @@ services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString
 
 ```csharp
 // Fluent builder registration (5 canonical connection overloads)
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UsePostgres(pg =>
     {
         pg.ConnectionString(connectionString)
           .EventStoreSchema("events");
     });
-});
+}));
 
 // With pre-configured NpgsqlDataSource
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UsePostgres(pg => pg.DataSource(npgsqlDataSource));
-});
+}));
 ```
 
 See [Event Store Providers](providers.md) for full PostgreSQL setup details including all 5 connection overloads.
@@ -87,10 +87,10 @@ See [Event Store Providers](providers.md) for full PostgreSQL setup details incl
 ### In-Memory (Testing)
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseEventStore<InMemoryEventStore>();
-});
+}));
 ```
 
 ## Database Schema
@@ -232,7 +232,7 @@ For global stream reading and projections, see the [Projections](projections.md)
 
 ```csharp
 // Register event sourcing with SQL Server
-services.AddExcaliburEventSourcing();
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing());
 
 // Configure serialization via DI
 services.AddJsonSerialization(options =>
@@ -298,13 +298,13 @@ See [GDPR Erasure](../compliance/gdpr-erasure.md) for complete implementation in
 
 ```csharp
 // SQL Server event sourcing automatically registers health checks
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseSqlServer(sql =>
     {
         sql.ConnectionString(connectionString);
     });
-});
+}));
 ```
 
 ## Observability

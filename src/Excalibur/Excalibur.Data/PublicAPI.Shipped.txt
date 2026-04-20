@@ -101,7 +101,6 @@ Excalibur.Data.ProjectionDb.ProjectionDb(System.Data.IDbConnection! connection) 
 Excalibur.Data.SagaDb
 Excalibur.Data.SagaDb.SagaDb(System.Data.IDbConnection! connection) -> void
 Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions
-Microsoft.Extensions.DependencyInjection.ExcaliburDataServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions
 const Excalibur.Data.Diagnostics.DataEventId.CheckingExternalSources = 110008 -> int
 const Excalibur.Data.Diagnostics.DataEventId.ConfigurationValidated = 110100 -> int
@@ -140,9 +139,6 @@ static Excalibur.Data.ActivityContextExtensions.ServiceProvider(this Excalibur.D
 static Excalibur.Data.ActivityContextExtensions.TenantId(this Excalibur.Domain.IActivityContext! context) -> string!
 static Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions.Default.get -> System.Text.Json.JsonSerializerOptions!
 static Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions.IgnoreStream.get -> System.Text.Json.JsonSerializerOptions!
-static Microsoft.Extensions.DependencyInjection.ExcaliburDataServiceCollectionExtensions.AddExcaliburDataServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ExcaliburDataServiceCollectionExtensions.AddExcaliburDataServicesWithPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ExcaliburDataServiceCollectionExtensions.AddExcaliburDataServicesWithPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Persistence.PersistenceConfiguration!>! configurePersistence) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions.AddPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions.AddPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions.AddPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Persistence.PersistenceConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -1,8 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Version>$(VersionPrefix)</Version>
@@ -11,7 +11,7 @@
   <!-- Sprint 431 S431.4: Compliance audit logging sample -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Security\Excalibur.Dispatch.Security.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Security\Excalibur.Security.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox\Excalibur.Outbox.csproj" />

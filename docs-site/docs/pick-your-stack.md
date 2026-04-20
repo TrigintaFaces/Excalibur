@@ -274,7 +274,7 @@ Complete provider + transport — everything you need:
 <PackageReference Include="Excalibur.Dispatch.RabbitMQ" />
 
 <!-- Cross-cutting concerns (opt-in) -->
-<PackageReference Include="Excalibur.Dispatch.Security" />
+<PackageReference Include="Excalibur.Security" />
 <PackageReference Include="Excalibur.Dispatch.Validation.FluentValidation" />
 <PackageReference Include="Excalibur.Dispatch.Caching" />
 ```

@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.Delivery;
 
 using Excalibur.Outbox;
+using Excalibur.Outbox.DependencyInjection;
 using Excalibur.Outbox.Outbox;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -30,7 +31,7 @@ public static class OutboxServiceCollectionExtensions
 	/// <para>
 	/// <b>Usage:</b>
 	/// <code>
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseSqlServer(sql =>
 	///     {
@@ -41,21 +42,21 @@ public static class OutboxServiceCollectionExtensions
 	///     .WithProcessing(p => p.BatchSize(100).PollingInterval(TimeSpan.FromSeconds(5)))
 	///     .WithCleanup(c => c.EnableAutoCleanup(true).RetentionPeriod(TimeSpan.FromDays(14)))
 	///     .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	/// </code>
 	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
 	/// // Minimal configuration with SQL Server
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseSqlServer(sql => sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;"))
 	///           .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	///
 	/// // Full configuration with all options
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseSqlServer(sql =>
 	///     {
@@ -80,10 +81,10 @@ public static class OutboxServiceCollectionExtensions
 	///                .CleanupInterval(TimeSpan.FromHours(6));
 	///     })
 	///     .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
-	public static IServiceCollection AddExcaliburOutbox(
+	internal static IServiceCollection AddExcaliburOutbox(
 		this IServiceCollection services,
 		Action<IOutboxBuilder> configure)
 	{
@@ -121,17 +122,17 @@ public static class OutboxServiceCollectionExtensions
 	/// <example>
 	/// <code>
 	/// // Using a preset
-	/// services.AddExcaliburOutbox(OutboxOptions.HighThroughput().Build());
+	/// services.AddExcalibur(x => x.AddOutbox(OutboxOptions.HighThroughput().Build()));
 	///
 	/// // Using a preset with overrides
-	/// services.AddExcaliburOutbox(
+	/// services.AddExcalibur(x => x.AddOutbox(
 	///     OutboxOptions.HighThroughput()
 	///         .WithBatchSize(2000)
 	///         .WithProcessorId("worker-1")
-	///         .Build());
+	///         .Build()));
 	/// </code>
 	/// </example>
-	public static IServiceCollection AddExcaliburOutbox(
+	internal static IServiceCollection AddExcaliburOutbox(
 		this IServiceCollection services,
 		OutboxOptions options)
 	{
@@ -166,18 +167,18 @@ public static class OutboxServiceCollectionExtensions
 	/// <b>Prefer the fluent builder overload or preset-based overload:</b>
 	/// <code>
 	/// // Preset-based (recommended)
-	/// services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
+	/// services.AddExcalibur(x => x.AddOutbox(OutboxOptions.Balanced().Build()));
 	///
 	/// // Fluent builder
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseSqlServer(sql => sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;"))
 	///           .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	/// </code>
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddExcaliburOutbox(this IServiceCollection services)
+	internal static IServiceCollection AddExcaliburOutbox(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -197,6 +198,9 @@ public static class OutboxServiceCollectionExtensions
 	{
 		// ADR-078: Register Dispatch primitives first (IDispatcher, IMessageBus, etc.)
 		_ = services.AddDispatch();
+
+		// bd-x6rg45: fail loud at host start if the consumer forgot to pick an outbox store.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, OutboxPrerequisiteValidator>());
 	}
 
 	/// <summary>

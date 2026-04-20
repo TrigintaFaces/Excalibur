@@ -3,8 +3,8 @@
 
 using System.Text;
 
-using Excalibur.Dispatch.Compliance;
-using Excalibur.Dispatch.Security;
+using Excalibur.Compliance;
+using Excalibur.Security;
 
 using FakeItEasy;
 

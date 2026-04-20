@@ -60,7 +60,7 @@ All transport methods support named overloads: `dispatch.UseKafka("analytics", k
 | `UseObservability()` | `Excalibur.Dispatch.Observability` | `dispatch.UseObservability(obs => ...)` |
 | `UseResilience()` | `Excalibur.Dispatch.Resilience.Polly` | `dispatch.UseResilience(res => ...)` |
 | `UseCaching()` | `Excalibur.Dispatch.Caching` | `dispatch.UseCaching()` |
-| `UseSecurity()` | `Excalibur.Dispatch.Security` | `dispatch.UseSecurity(configuration)` |
+| `UseSecurity()` | `Excalibur.Security` | `dispatch.UseSecurity(configuration)` |
 
 ### Standalone IServiceCollection Methods
 
@@ -77,7 +77,7 @@ These standalone methods remain available for consumers who prefer direct regist
 | `AddDispatchObservability()` | Observability | `Excalibur.Dispatch.Observability` |
 | `UseDispatchResilience()` | Resilience (Polly) | `Excalibur.Dispatch.Resilience.Polly` |
 | `UseCaching()` | Caching (on `IDispatchBuilder`) | `Excalibur.Dispatch.Caching` |
-| `UseSecurity()` | Security (on `IDispatchBuilder`) | `Excalibur.Dispatch.Security` |
+| `UseSecurity()` | Security (on `IDispatchBuilder`) | `Excalibur.Security` |
 | `AddMessagePackSerializer()` | MessagePack serialization | `Excalibur.Dispatch.Serialization.MessagePack` |
 | `AddMemoryPackSerializer()` | MemoryPack serialization | `Excalibur.Dispatch.Serialization.MemoryPack` |
 
@@ -233,10 +233,10 @@ The following packages register `ValidateOnStart()` + `ValidateDataAnnotations()
 |---|---|---|
 | `Excalibur.Dispatch` | `DispatchTelemetryOptions`, `CircuitBreakerOptions`, `TimePolicyOptions`, `OutboxOptions` | Yes |
 | `Excalibur.Dispatch.Observability` | `ContextObservabilityOptions`, `TelemetrySanitizerOptions` | Yes |
-| `Excalibur.Dispatch.Security` | `JwtAuthenticationOptions`, `SigningOptions` | Yes |
+| `Excalibur.Security` | `JwtAuthenticationOptions`, `SigningOptions` | Yes |
 | `Excalibur.Dispatch.Resilience.Polly` | `PollyResilienceOptions` | Yes |
 | `Excalibur.Dispatch.Caching` | `CacheOptions` | Yes |
-| `Excalibur.Dispatch.Compliance` | `ErasureOptions` | Yes |
+| `Excalibur.Compliance` | `ErasureOptions` | Yes |
 | `Excalibur.Dispatch.Patterns` | `ClaimCheckOptions` | Yes |
 | `Excalibur.Dispatch.Transport.RabbitMQ` | `RabbitMqTransportOptions` | Yes |
 | `Excalibur.Dispatch.Transport.GooglePubSub` | `StreamingPullOptions`, `OrderingKeyOptions` | Yes |

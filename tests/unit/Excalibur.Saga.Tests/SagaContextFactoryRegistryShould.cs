@@ -12,7 +12,7 @@ namespace Excalibur.Saga.Tests;
 /// freeze behavior, and edge cases.
 /// Sprint 739 B.5: Wave 4 AOT-safe dispatch path tests.
 /// </summary>
-[Collection("SagaStaticRegistry")]
+[Collection("SagaContextFactoryRegistry")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Saga")]
 [Trait("Feature", "AOT")]

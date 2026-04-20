@@ -7,7 +7,7 @@ using System.Text;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Telemetry;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using FakeItEasy;
 

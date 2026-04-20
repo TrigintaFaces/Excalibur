@@ -125,9 +125,9 @@ Use this table to convert `ProjectReference` paths to `PackageReference` package
 | ProjectReference Path | PackageReference Name |
 |-----------------------|----------------------|
 | `src/Dispatch/Excalibur.Dispatch.Caching/...` | `Excalibur.Dispatch.Caching` |
-| `src/Dispatch/Excalibur.Dispatch.Security/...` | `Excalibur.Dispatch.Security` |
-| `src/Dispatch/Excalibur.Dispatch.Security.Aws/...` | `Excalibur.Dispatch.Security.Aws` |
-| `src/Dispatch/Excalibur.Dispatch.Security.Azure/...` | `Excalibur.Dispatch.Security.Azure` |
+| `src/Dispatch/Excalibur.Security/...` | `Excalibur.Security` |
+| `src/Dispatch/Excalibur.Security.Aws/...` | `Excalibur.Security.Aws` |
+| `src/Dispatch/Excalibur.Security.Azure/...` | `Excalibur.Security.Azure` |
 | `src/Dispatch/Excalibur.Dispatch.Observability/...` | `Excalibur.Dispatch.Observability` |
 | `src/Dispatch/Excalibur.Dispatch.Resilience.Polly/...` | `Excalibur.Dispatch.Resilience.Polly` |
 | `src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/...` | `Excalibur.Dispatch.Validation.FluentValidation` |

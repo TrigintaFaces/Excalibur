@@ -10,7 +10,7 @@ This section covers advanced scenarios, deployment patterns, security hardening,
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A working Dispatch application
 - Completion of [Getting Started](../getting-started/index.md) and [Core Concepts](../core-concepts/index.md)
 

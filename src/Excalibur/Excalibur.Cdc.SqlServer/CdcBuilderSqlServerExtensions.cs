@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Excalibur.Cdc.Processing;
+using Excalibur.Data.SqlServer;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -359,6 +360,12 @@ public static class CdcBuilderSqlServerExtensions
 	{
 		// Register default CdcRecoveryOptions if not already registered
 		builder.Services.TryAddSingleton(Options.Create(new CdcRecoveryOptions()));
+
+		// TryAdd the SQL Server IDataAccessPolicyFactory. The CdcProcessor and
+		// DataChangeEventProcessor both require it for Polly-wrapped SQL calls.
+		// Consumers who register their own policy factory retain precedence via
+		// TryAdd semantics. [bd-20ft0e FIX 1]
+		builder.Services.TryAddSingleton<IDataAccessPolicyFactory, SqlDataAccessPolicyFactory>();
 
 		// Auto-register IDatabaseOptions when configured via the builder.
 		// TryAdd ensures manual registration still takes precedence.

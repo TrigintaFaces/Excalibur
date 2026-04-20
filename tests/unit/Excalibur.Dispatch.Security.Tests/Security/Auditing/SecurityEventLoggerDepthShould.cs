@@ -4,7 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Auditing;
 

@@ -38,11 +38,7 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 	private readonly string _providerName;
 	private readonly TagCardinalityGuard _instanceGuard;
 
-#if NET9_0_OR_GREATER
 	private readonly Lock _stopwatchLock = new();
-#else
-	private readonly object _stopwatchLock = new();
-#endif
 	private ValueStopwatch? _leaseStopwatch;
 	private volatile bool _disposed;
 

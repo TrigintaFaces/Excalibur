@@ -31,7 +31,7 @@ public sealed class DispatchTelemetryConstantsShould
 		DispatchTelemetryConstants.ActivitySources.PoisonMessage.ShouldBe("Excalibur.Dispatch.PoisonMessage");
 		DispatchTelemetryConstants.ActivitySources.PoisonMessageMiddleware.ShouldBe("Excalibur.Dispatch.PoisonMessage.Middleware");
 		DispatchTelemetryConstants.ActivitySources.PoisonMessageCleanup.ShouldBe("Excalibur.Dispatch.PoisonMessage.Cleanup");
-		DispatchTelemetryConstants.ActivitySources.AuditLoggingMiddleware.ShouldBe("Excalibur.Dispatch.AuditLoggingMiddleware");
+		DispatchTelemetryConstants.ActivitySources.AuditLoggingMiddleware.ShouldBe("Excalibur.AuditLoggingMiddleware");
 		DispatchTelemetryConstants.ActivitySources.CircuitBreakerMiddleware.ShouldBe("Excalibur.Dispatch.CircuitBreakerMiddleware");
 		DispatchTelemetryConstants.ActivitySources.RetryMiddleware.ShouldBe("Excalibur.Dispatch.RetryMiddleware");
 		DispatchTelemetryConstants.ActivitySources.UnifiedBatchingMiddleware.ShouldBe("Excalibur.Dispatch.UnifiedBatchingMiddleware");
@@ -121,6 +121,9 @@ public sealed class DispatchTelemetryConstantsShould
 	[Fact]
 	public void AllActivitySources_StartWithBaseNamespace()
 	{
+		// Per S806 COMPASS msg 2120: activity-source names track package namespace, not a single fixed prefix.
+		// AuditLoggingMiddleware lives under "Excalibur.AuditLoggingMiddleware" (audit-concern root),
+		// not under "Excalibur.Dispatch.*" (dispatch-concern root). Framework-wide invariant is "Excalibur.*".
 		var sources = new[]
 		{
 			DispatchTelemetryConstants.ActivitySources.Core,
@@ -138,7 +141,7 @@ public sealed class DispatchTelemetryConstantsShould
 
 		foreach (var source in sources)
 		{
-			source.ShouldStartWith(DispatchTelemetryConstants.BaseNamespace);
+			source.ShouldStartWith("Excalibur.");
 		}
 	}
 }

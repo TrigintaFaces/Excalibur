@@ -1,3 +1,4 @@
+using Excalibur.Compliance.Configuration;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -16,7 +17,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_HaveDefaultPurposeOfDefault()
 	{
 		// Arrange & Act
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 
 		// Assert
 		options.DefaultPurpose.ShouldBe("default");
@@ -26,7 +27,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_DefaultRequireFipsComplianceToFalse()
 	{
 		// Arrange & Act
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 
 		// Assert
 		options.RequireFipsCompliance.ShouldBeFalse();
@@ -36,7 +37,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_DefaultTenantIdToNull()
 	{
 		// Arrange & Act
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 
 		// Assert
 		options.DefaultTenantId.ShouldBeNull();
@@ -46,7 +47,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_DefaultIncludeTimingMetadataToTrue()
 	{
 		// Arrange & Act
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 
 		// Assert
 		options.IncludeTimingMetadata.ShouldBeTrue();
@@ -56,7 +57,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_DefaultEncryptionAgeWarningThresholdToNull()
 	{
 		// Arrange & Act
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 
 		// Assert
 		options.EncryptionAgeWarningThreshold.ShouldBeNull();
@@ -70,7 +71,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_AllowSettingCustomPurpose()
 	{
 		// Arrange
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 
 		// Act
 		options.DefaultPurpose = "field-encryption";
@@ -83,7 +84,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_AllowEnablingFipsCompliance()
 	{
 		// Arrange
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 
 		// Act
 		options.RequireFipsCompliance = true;
@@ -96,7 +97,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_AllowSettingTenantId()
 	{
 		// Arrange
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 
 		// Act
 		options.DefaultTenantId = "tenant-123";
@@ -109,7 +110,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_AllowDisablingTimingMetadata()
 	{
 		// Arrange
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 
 		// Act
 		options.IncludeTimingMetadata = false;
@@ -122,7 +123,7 @@ public sealed class EncryptionOptionsShould
 	public void EncryptionOptions_AllowSettingWarningThreshold()
 	{
 		// Arrange
-		var options = new Dispatch.Compliance.EncryptionOptions();
+		var options = new global::Excalibur.Compliance.Configuration.EncryptionOptions();
 		var threshold = TimeSpan.FromDays(90);
 
 		// Act

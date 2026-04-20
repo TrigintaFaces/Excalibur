@@ -26,11 +26,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 	private readonly ILogger<SecureElasticsearchAuthenticationProvider> _logger;
 	private readonly Timer _rotationTimer;
 	private readonly SemaphoreSlim _rotationSemaphore;
-#if NET9_0_OR_GREATER
 	private readonly Lock _eventLock = new();
-#else
-	private readonly object _eventLock = new();
-#endif
 
 	private volatile bool _disposed;
 	private volatile int _consecutiveFailures;

@@ -24,7 +24,7 @@ public static class ThrottlingPipelineExtensions
 	/// </para>
 	/// <para>
 	/// For identity-based abuse prevention (per-user, per-API-key, per-IP), see
-	/// <c>Excalibur.Dispatch.Security.RateLimitingMiddleware</c> and its <c>UseSecurityRateLimiting()</c> extension.
+	/// <c>Excalibur.Security.RateLimitingMiddleware</c> and its <c>UseSecurityRateLimiting()</c> extension.
 	/// </para>
 	/// <para>
 	/// Throttling options must be configured separately via

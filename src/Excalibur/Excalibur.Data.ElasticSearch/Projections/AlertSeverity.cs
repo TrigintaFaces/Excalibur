@@ -9,7 +9,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </summary>
 /// <remarks>
 /// Renamed from <c>AlertSeverity</c> to avoid collision with
-/// <c>Excalibur.Dispatch.Compliance.AlertSeverity</c> (key rotation alerts).
+/// <c>Excalibur.Compliance.AlertSeverity</c> (key rotation alerts).
 /// </remarks>
 public enum ProjectionAlertSeverity
 {

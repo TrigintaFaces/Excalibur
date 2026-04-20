@@ -63,8 +63,10 @@ builder.Services.AddDispatch(dispatch =>
 // ============================================================
 // The outbox builder configures the storage provider and processing behavior.
 // The UseOutbox() middleware above handles pipeline integration;
-// AddExcaliburOutbox() configures the backend infrastructure.
-builder.Services.AddExcaliburOutbox(outbox =>
+// IExcaliburBuilder.AddOutbox(...) configures the backend infrastructure
+// as the canonical public path per ADR-321/325 (the legacy
+// AddExcaliburOutbox aggregator is internal to Excalibur.Outbox).
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
 	outbox.UseInMemory() // In-memory for demo; use UseSqlServer() in production
 		.WithProcessing(processing =>
@@ -81,7 +83,7 @@ builder.Services.AddExcaliburOutbox(outbox =>
 				.CleanupInterval(TimeSpan.FromMinutes(5)); // Run cleanup every 5 minutes
 		})
 		.EnableBackgroundProcessing(); // Start the background processor hosted service
-});
+}));
 
 // ============================================================
 // Configure Inbox infrastructure (store)
@@ -245,7 +247,8 @@ logger.LogInformation("");
 logger.LogInformation("=== Production Considerations ===");
 logger.LogInformation("");
 logger.LogInformation("For production, replace InMemory stores with durable implementations:");
-logger.LogInformation("  services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));");
+logger.LogInformation("  services.AddExcalibur(excalibur => excalibur");
+logger.LogInformation("      .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));");
 logger.LogInformation("  services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));");
 
 logger.LogInformation("");

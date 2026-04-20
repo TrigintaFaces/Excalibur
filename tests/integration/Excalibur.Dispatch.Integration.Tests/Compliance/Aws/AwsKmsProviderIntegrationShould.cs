@@ -4,13 +4,13 @@
 
 using Amazon.KeyManagementService;
 
-using Excalibur.Dispatch.Compliance.Aws;
+using Excalibur.Compliance.Aws;
 using Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
 
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Aws;
 
 /// <summary>

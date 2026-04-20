@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-#pragma warning disable CA2012 // Use ValueTasks correctly — FakeItEasy .Returns() stores ValueTask
-
 using System.Text;
 
 using Azure.Messaging.ServiceBus;
 
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.AzureServiceBus;
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -19,28 +18,26 @@ namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus.DeadLetter;
 /// Unit tests for <see cref="ServiceBusDeadLetterQueueManager"/>.
 /// Validates Move, Get, Reprocess, Statistics, Purge, and error handling.
 /// </summary>
+/// <remarks>
+/// S798-A5 re-migration (FORGE Q1=(c) reshape <c>f5c960341</c>): fakes the
+/// flat use-case <see cref="IServiceBusClient"/> surface
+/// (<c>SendMessageAsync</c>, <c>PeekDlqMessagesAsync</c>, <c>PurgeDlqAsync</c>).
+/// No <c>ServiceBusClient</c> / <c>ServiceBusSender</c> / <c>ServiceBusReceiver</c>
+/// fakes remain — SDK non-virtual-overload fragility (ADR-142 §D7) is fully
+/// neutralized.
+/// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 {
-	private readonly ServiceBusClient _fakeClient;
-	private readonly ServiceBusSender _fakeSender;
-	private readonly ServiceBusReceiver _fakeReceiver;
+	private readonly IServiceBusClient _fakeClient;
 	private readonly ServiceBusDeadLetterQueueManager _sut;
 
 	private static readonly byte[] TestBody = Encoding.UTF8.GetBytes("test-body");
 
 	public ServiceBusDeadLetterQueueManagerShould()
 	{
-		_fakeClient = A.Fake<ServiceBusClient>();
-		_fakeSender = A.Fake<ServiceBusSender>();
-		_fakeReceiver = A.Fake<ServiceBusReceiver>();
-
-		A.CallTo(() => _fakeClient.CreateSender(A<string>._))
-			.Returns(_fakeSender);
-
-		A.CallTo(() => _fakeClient.CreateReceiver(A<string>._, A<ServiceBusReceiverOptions>._))
-			.Returns(_fakeReceiver);
+		_fakeClient = A.Fake<IServiceBusClient>();
 
 		var options = Microsoft.Extensions.Options.Options.Create(new ServiceBusDeadLetterOptions
 		{
@@ -59,7 +56,7 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	#region MoveToDeadLetterAsync
 
 	[Fact]
-	public async Task MoveToDeadLetterAsync_SendsMessageViaSender()
+	public async Task MoveToDeadLetterAsync_SendsMessageViaAdapter()
 	{
 		// Arrange
 		var message = new TransportMessage
@@ -74,9 +71,10 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 
 		// Assert
 		dlqId.ShouldBe("msg-1");
-		A.CallTo(() => _fakeSender.SendMessageAsync(
-			A<ServiceBusMessage>.That.Matches(m => m.MessageId == "msg-1"),
-			A<CancellationToken>._))
+		A.CallTo(() => _fakeClient.SendMessageAsync(
+				"orders",
+				A<ServiceBusMessage>.That.Matches(m => m.MessageId == "msg-1"),
+				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -88,8 +86,9 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 		var exception = new InvalidOperationException("Boom");
 
 		ServiceBusMessage? capturedMessage = null;
-		A.CallTo(() => _fakeSender.SendMessageAsync(A<ServiceBusMessage>._, A<CancellationToken>._))
-			.Invokes((ServiceBusMessage m, CancellationToken _) => capturedMessage = m)
+		A.CallTo(() => _fakeClient.SendMessageAsync(
+				A<string>._, A<ServiceBusMessage>._, A<CancellationToken>._))
+			.Invokes((string _, ServiceBusMessage m, CancellationToken _) => capturedMessage = m)
 			.Returns(Task.CompletedTask);
 
 		// Act
@@ -137,8 +136,8 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 				subject: "Timeout"),
 		};
 
-		A.CallTo(() => _fakeReceiver.PeekMessagesAsync(
-			A<int>._, A<long?>._, A<CancellationToken>._))
+		A.CallTo(() => _fakeClient.PeekDlqMessagesAsync(
+				"orders", A<int>._, A<CancellationToken>._))
 			.Returns(peekedMessages);
 
 		// Act
@@ -154,8 +153,8 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	public async Task GetDeadLetterMessagesAsync_ReturnsEmpty_WhenNoneAvailable()
 	{
 		// Arrange
-		A.CallTo(() => _fakeReceiver.PeekMessagesAsync(
-			A<int>._, A<long?>._, A<CancellationToken>._))
+		A.CallTo(() => _fakeClient.PeekDlqMessagesAsync(
+				"orders", A<int>._, A<CancellationToken>._))
 			.Returns(Array.Empty<ServiceBusReceivedMessage>());
 
 		// Act
@@ -181,19 +180,17 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 
 		// Assert
 		result.SuccessCount.ShouldBe(1);
-		A.CallTo(() => _fakeSender.SendMessageAsync(
-			A<ServiceBusMessage>.That.Matches(m => m.MessageId == "msg-rp-1"),
-			A<CancellationToken>._))
+		A.CallTo(() => _fakeClient.SendMessageAsync(
+				"orders",
+				A<ServiceBusMessage>.That.Matches(m => m.MessageId == "msg-rp-1"),
+				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
 	public async Task ReprocessDeadLetterMessagesAsync_UsesTargetQueueOverride()
 	{
-		// Arrange — need to verify the sender is created for "retry-queue"
-		A.CallTo(() => _fakeClient.CreateSender("retry-queue"))
-			.Returns(_fakeSender);
-
+		// Arrange
 		var dlqMessages = new[] { CreateDeadLetterMessage("msg-1", "orders") };
 		var options = new ReprocessOptions
 		{
@@ -206,6 +203,11 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 
 		// Assert
 		result.SuccessCount.ShouldBe(1);
+		A.CallTo(() => _fakeClient.SendMessageAsync(
+				"retry-queue",
+				A<ServiceBusMessage>._,
+				A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -237,8 +239,9 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	{
 		// Arrange
 		ServiceBusMessage? capturedMessage = null;
-		A.CallTo(() => _fakeSender.SendMessageAsync(A<ServiceBusMessage>._, A<CancellationToken>._))
-			.Invokes((ServiceBusMessage m, CancellationToken _) => capturedMessage = m)
+		A.CallTo(() => _fakeClient.SendMessageAsync(
+				A<string>._, A<ServiceBusMessage>._, A<CancellationToken>._))
+			.Invokes((string _, ServiceBusMessage m, CancellationToken _) => capturedMessage = m)
 			.Returns(Task.CompletedTask);
 
 		var transformedBody = Encoding.UTF8.GetBytes("transformed");
@@ -262,7 +265,8 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	{
 		// Arrange
 		var produceCount = 0;
-		A.CallTo(() => _fakeSender.SendMessageAsync(A<ServiceBusMessage>._, A<CancellationToken>._))
+		A.CallTo(() => _fakeClient.SendMessageAsync(
+				A<string>._, A<ServiceBusMessage>._, A<CancellationToken>._))
 			.Invokes(() => produceCount++)
 			.Returns(Task.CompletedTask);
 
@@ -287,7 +291,8 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	public async Task ReprocessDeadLetterMessagesAsync_TracksFailures()
 	{
 		// Arrange
-		A.CallTo(() => _fakeSender.SendMessageAsync(A<ServiceBusMessage>._, A<CancellationToken>._))
+		A.CallTo(() => _fakeClient.SendMessageAsync(
+				A<string>._, A<ServiceBusMessage>._, A<CancellationToken>._))
 			.Throws(new InvalidOperationException("Service Bus unavailable"));
 
 		var dlqMessages = new[] { CreateDeadLetterMessage("msg-fail", "orders") };
@@ -339,8 +344,8 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	public async Task GetStatisticsAsync_ReturnsZero_WhenEmpty()
 	{
 		// Arrange
-		A.CallTo(() => _fakeReceiver.PeekMessagesAsync(
-			A<int>._, A<long?>._, A<CancellationToken>._))
+		A.CallTo(() => _fakeClient.PeekDlqMessagesAsync(
+				"orders", A<int>._, A<CancellationToken>._))
 			.Returns(Array.Empty<ServiceBusReceivedMessage>());
 
 		// Act
@@ -357,41 +362,34 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	#region PurgeDeadLetterQueueAsync
 
 	[Fact]
-	public async Task PurgeDeadLetterQueueAsync_CompletesAllMessages()
+	public async Task PurgeDeadLetterQueueAsync_ReturnsCountFromAdapter()
 	{
-		// Arrange — first call returns 2 messages, second call returns empty (end of purge)
-		var msg1 = ServiceBusModelFactory.ServiceBusReceivedMessage(
-			body: BinaryData.FromBytes(TestBody), messageId: "purge-1");
-		var msg2 = ServiceBusModelFactory.ServiceBusReceivedMessage(
-			body: BinaryData.FromBytes(TestBody), messageId: "purge-2");
-
-		var callCount = 0;
-		A.CallTo(() => _fakeReceiver.ReceiveMessagesAsync(
-			A<int>._, A<TimeSpan?>._, A<CancellationToken>._))
-			.ReturnsLazily(() =>
-			{
-				callCount++;
-				if (callCount == 1)
-					return Task.FromResult<IReadOnlyList<ServiceBusReceivedMessage>>(new[] { msg1, msg2 });
-				return Task.FromResult<IReadOnlyList<ServiceBusReceivedMessage>>(Array.Empty<ServiceBusReceivedMessage>());
-			});
+		// Arrange — the adapter encapsulates the receive/complete cycle; manager
+		// just forwards the drain and surfaces the total count.
+		A.CallTo(() => _fakeClient.PurgeDlqAsync(
+				"orders",
+				A<int>._,
+				A<TimeSpan>._,
+				A<CancellationToken>._))
+			.Returns(2);
 
 		// Act
 		var purgedCount = await _sut.PurgeDeadLetterQueueAsync(CancellationToken.None);
 
 		// Assert
 		purgedCount.ShouldBe(2);
-		A.CallTo(() => _fakeReceiver.CompleteMessageAsync(A<ServiceBusReceivedMessage>._, A<CancellationToken>._))
-			.MustHaveHappened(2, Times.Exactly);
+		A.CallTo(() => _fakeClient.PurgeDlqAsync(
+				"orders", 10, TimeSpan.FromSeconds(1), A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
 	public async Task PurgeDeadLetterQueueAsync_ReturnsZero_WhenEmpty()
 	{
 		// Arrange
-		A.CallTo(() => _fakeReceiver.ReceiveMessagesAsync(
-			A<int>._, A<TimeSpan?>._, A<CancellationToken>._))
-			.Returns(Array.Empty<ServiceBusReceivedMessage>());
+		A.CallTo(() => _fakeClient.PurgeDlqAsync(
+				"orders", A<int>._, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(0);
 
 		// Act
 		var purgedCount = await _sut.PurgeDeadLetterQueueAsync(CancellationToken.None);
@@ -428,32 +426,8 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	public void Dispose()
 	{
 		_sut.Dispose();
-		if (_fakeReceiver is IAsyncDisposable asyncReceiver)
-		{
-			asyncReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
-		}
-		else if (_fakeReceiver is IDisposable receiverDisposable)
-		{
-			receiverDisposable.Dispose();
-		}
-
-		if (_fakeSender is IAsyncDisposable asyncSender)
-		{
-			asyncSender.DisposeAsync().AsTask().GetAwaiter().GetResult();
-		}
-		else if (_fakeSender is IDisposable senderDisposable)
-		{
-			senderDisposable.Dispose();
-		}
-
-		if (_fakeClient is IAsyncDisposable asyncClient)
-		{
-			asyncClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
-		}
-		else if (_fakeClient is IDisposable clientDisposable)
-		{
-			clientDisposable.Dispose();
-		}
+		// _fakeClient is a fake of the internal IServiceBusClient interface,
+		// which does not derive from IDisposable/IAsyncDisposable — nothing to dispose.
 	}
 
 	private static DeadLetterMessage CreateDeadLetterMessage(

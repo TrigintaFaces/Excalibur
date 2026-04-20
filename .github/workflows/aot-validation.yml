@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
-      - 'samples/11-aot/**'
+      - 'samples/10-aot/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
       - 'eng/ci/Invoke-AotSuppressionAudit.ps1'
@@ -15,7 +15,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
-      - 'samples/11-aot/**'
+      - 'samples/10-aot/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
       - 'eng/ci/Invoke-AotSuppressionAudit.ps1'
@@ -224,7 +224,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Publishing AOT sample binary for smoke test..."
-          dotnet publish samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
+          dotnet publish samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
             --configuration Release \
             --runtime linux-x64 \
             --verbosity minimal \
@@ -236,7 +236,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BINARY="samples/11-aot/Excalibur.Dispatch.Aot.Sample/bin/Release/net10.0/linux-x64/publish/Excalibur.Dispatch.Aot.Sample"
+          BINARY="samples/10-aot/Excalibur.Dispatch.Aot.Sample/bin/Release/net10.0/linux-x64/publish/Excalibur.Dispatch.Aot.Sample"
           if [ ! -f "$BINARY" ]; then
             echo "::error::AOT binary not found at $BINARY"
             exit 1
@@ -252,7 +252,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BINARY="samples/11-aot/Excalibur.Dispatch.Aot.Sample/bin/Release/net10.0/linux-x64/publish/Excalibur.Dispatch.Aot.Sample"
+          BINARY="samples/10-aot/Excalibur.Dispatch.Aot.Sample/bin/Release/net10.0/linux-x64/publish/Excalibur.Dispatch.Aot.Sample"
           chmod +x "$BINARY"
           echo "Running AOT smoke test..."
           timeout 60 "$BINARY" 2>&1 | tee aot-smoke-test.log

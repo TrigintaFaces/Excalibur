@@ -68,9 +68,9 @@ public sealed class PipelineScenarioTests
 
 		services.AddEventSerializer();
 #pragma warning disable IL2026 // RequiresUnreferencedCode -- test code, not AOT-published
-		services.AddExcaliburEventSourcing(builder =>
+		services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			builder.AddRepository<PipelineOrderAggregate, Guid>(
-				_ => new PipelineOrderAggregate()));
+				_ => new PipelineOrderAggregate())));
 #pragma warning restore IL2026
 		services.AddInMemoryEventStore();
 
@@ -143,9 +143,9 @@ public sealed class PipelineScenarioTests
 
 		services.AddEventSerializer();
 #pragma warning disable IL2026
-		services.AddExcaliburEventSourcing(builder =>
+		services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			builder.AddRepository<PipelineOrderAggregate, Guid>(
-				_ => new PipelineOrderAggregate()));
+				_ => new PipelineOrderAggregate())));
 #pragma warning restore IL2026
 		services.AddInMemoryEventStore();
 
@@ -194,9 +194,9 @@ public sealed class PipelineScenarioTests
 		});
 
 #pragma warning disable IL2026
-		services.AddExcaliburEventSourcing(builder =>
+		services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			builder.AddRepository<PipelineOrderAggregate, Guid>(
-				_ => new PipelineOrderAggregate()));
+				_ => new PipelineOrderAggregate())));
 #pragma warning restore IL2026
 		services.AddInMemoryEventStore();
 

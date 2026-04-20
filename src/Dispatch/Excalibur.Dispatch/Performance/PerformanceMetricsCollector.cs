@@ -15,16 +15,8 @@ public sealed class PerformanceMetricsCollector : IPerformanceMetricsCollector, 
 	private readonly ConcurrentDictionary<string, ComponentMetricsData> _middlewareMetrics = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, BatchProcessingMetricsData> _batchMetrics = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, QueueMetricsData> _queueMetrics = new(StringComparer.Ordinal);
-#if NET9_0_OR_GREATER
 	private readonly Lock _pipelineMetricsLock = new();
-#else
-	private readonly object _pipelineMetricsLock = new();
-#endif
-#if NET9_0_OR_GREATER
 	private readonly Lock _handlerMetricsLock = new();
-#else
-	private readonly object _handlerMetricsLock = new();
-#endif
 
 	private PipelineMetricsData _pipelineMetrics = PipelineMetricsData.Empty;
 	private HandlerRegistryMetricsData _handlerMetrics = HandlerRegistryMetricsData.Empty;

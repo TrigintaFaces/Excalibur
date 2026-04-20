@@ -10,7 +10,7 @@ Domain events represent facts that have happened in your domain. They are immuta
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch.Abstractions
@@ -177,19 +177,19 @@ public record OrderCreatedIntegrationEvent(
 
 ### Event Transformation
 
-Transform domain events to integration events using `IMessagePublisher`. Use `IMessageContextAccessor` to access the current context and `CreateChildContext()` to propagate correlation metadata:
+Transform domain events to integration events using `IDispatcher`. Use `IMessageContextAccessor` to access the current context and `CreateChildContext()` to propagate correlation metadata:
 
 ```csharp
 public class OrderCreatedPublisher : IEventHandler<OrderCreated>
 {
-    private readonly IMessagePublisher _publisher;
+    private readonly IDispatcher _dispatcher;
     private readonly IMessageContextAccessor _contextAccessor;
 
     public OrderCreatedPublisher(
-        IMessagePublisher publisher,
+        IDispatcher dispatcher,
         IMessageContextAccessor contextAccessor)
     {
-        _publisher = publisher;
+        _dispatcher = dispatcher;
         _contextAccessor = contextAccessor;
     }
 
@@ -208,7 +208,7 @@ public class OrderCreatedPublisher : IEventHandler<OrderCreated>
         // - TraceParent (OpenTelemetry)
         var childContext = _contextAccessor.MessageContext?.CreateChildContext();
 
-        await _publisher.PublishAsync(integrationEvent, childContext!, ct);
+        await _dispatcher.DispatchAsync(integrationEvent, childContext!, ct);
     }
 }
 ```
@@ -281,7 +281,7 @@ Events are serialized using the configured serializer. JSON (System.Text.Json) i
 
 ```csharp
 // Register event sourcing
-services.AddExcaliburEventSourcing();
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing());
 
 // Default: JSON (System.Text.Json) -- works with any POCO event type.
 // For binary serialization, install the provider package and call a single method:

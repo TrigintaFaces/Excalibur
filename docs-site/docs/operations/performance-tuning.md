@@ -10,7 +10,7 @@ This guide covers performance optimization for event sourcing, outbox processing
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A deployed Excalibur application with observability enabled
 - Familiarity with [metrics reference](../observability/metrics-reference.md) and [caching](../performance/caching.md)
 

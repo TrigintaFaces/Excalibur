@@ -10,7 +10,7 @@ As your system evolves, event schemas change. Event versioning enables graceful 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -112,7 +112,7 @@ public class OrderCreatedV1ToV2 : IMessageUpcaster<OrderCreatedV1, OrderCreated>
 Register upcasters using the builder pattern:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     // Register upcasters via the pipeline builder
     builder.AddUpcastingPipeline(upcasting =>
@@ -126,7 +126,7 @@ services.AddExcaliburEventSourcing(builder =>
         // Enable automatic upcasting during event replay
         upcasting.EnableAutoUpcastOnReplay();
     });
-});
+}));
 ```
 
 Event types use the `EventType` property for serialization, which defaults to the class name. Override it in `DomainEvent`-derived records for custom type names:
@@ -345,14 +345,14 @@ Multiple upcasters chain automatically:
 
 ```csharp
 // Event evolution: V1 -> V2 -> V3
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddUpcastingPipeline(upcasting =>
     {
         upcasting.RegisterUpcaster<OrderCreatedV1, OrderCreatedV2>(new V1ToV2Upcaster());  // 1 -> 2
         upcasting.RegisterUpcaster<OrderCreatedV2, OrderCreated>(new V2ToV3Upcaster());   // 2 -> 3
     });
-});
+}));
 
 // Loading V1 event automatically upgrades through chain:
 // V1 -> V2 -> V3 (current)
@@ -425,7 +425,7 @@ public class EventVersioningTests
     {
         // Arrange - use DI to get configured repository with upcasting
         var services = new ServiceCollection();
-        services.AddExcaliburEventSourcing(builder =>
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
             builder.UseEventStore<InMemoryEventStore>();
             builder.AddRepository<Order, Guid>();
@@ -435,7 +435,7 @@ public class EventVersioningTests
                     new OrderCreatedUpcaster());
                 upcasting.EnableAutoUpcastOnReplay();
             });
-        });
+        }));
 
         var sp = services.BuildServiceProvider();
         var repository = sp.GetRequiredService<IEventSourcedRepository<Order, Guid>>();

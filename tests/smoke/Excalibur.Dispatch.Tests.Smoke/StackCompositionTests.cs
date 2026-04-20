@@ -4,7 +4,7 @@
 using System;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -55,9 +55,10 @@ public sealed class StackCompositionTests
 		var services = new ServiceCollection();
 		services.AddLogging();
 
-		// Act -- register event sourcing (includes AddDispatch internally)
-		var regException = Record.Exception(() => services.AddExcaliburEventSourcing());
-		regException.ShouldBeNull("AddExcaliburEventSourcing() registration should not throw");
+		// Act -- register event sourcing via builder chain
+		var regException = Record.Exception(() =>
+			services.AddExcalibur(excalibur => excalibur.AddEventSourcing()));
+		regException.ShouldBeNull("AddExcalibur(x => x.AddEventSourcing()) registration should not throw");
 
 		// Assert -- build provider and resolve key services
 		using var provider = services.BuildServiceProvider();
@@ -114,7 +115,7 @@ public sealed class StackCompositionTests
 		// Note: AddDispatchValidation() excluded pending Excalibur.Dispatch-fkidg fix
 		var regException = Record.Exception(() =>
 		{
-			services.AddExcaliburEventSourcing();
+			services.AddExcalibur(excalibur => excalibur.AddEventSourcing());
 			services.AddRabbitMQTransport(rmq => rmq.HostName("localhost"));
 			services.AddPollyResilience();
 		});

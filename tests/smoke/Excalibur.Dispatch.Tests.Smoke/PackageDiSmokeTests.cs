@@ -21,7 +21,8 @@ using Microsoft.Extensions.Logging;
 
 using Xunit;
 
-namespace Excalibur.Dispatch.Tests.Smoke;
+
+using Excalibur.Security.Configuration;namespace Excalibur.Dispatch.Tests.Smoke;
 
 /// <summary>
 /// Per-package DI registration smoke tests per spec §4.3.
@@ -155,10 +156,10 @@ public sealed class PackageDiSmokeTests
 		// DISPATCH SECURITY
 		// ══════════════════════════════════════════════════════════
 
-		yield return Reg("Excalibur.Dispatch.Security", s =>
+		yield return Reg("Excalibur.Security", s =>
 			s.AddDispatchSecurityMiddleware(
-				(Excalibur.Dispatch.Security.SecurityOptions opt) => { }));
-		yield return Reg("Excalibur.Dispatch.Security.Azure", s =>
+				(Excalibur.Security.Configuration.SecurityOptions opt) => { }));
+		yield return Reg("Excalibur.Security.Azure", s =>
 			s.AddDispatchSecurityAzure(azure => azure.VaultUri("https://test.vault.azure.net")));
 
 		// ══════════════════════════════════════════════════════════
@@ -171,54 +172,54 @@ public sealed class PackageDiSmokeTests
 		// DISPATCH AUDIT LOGGING
 		// ══════════════════════════════════════════════════════════
 
-		yield return Reg("Excalibur.Dispatch.AuditLogging", s => s.AddAuditLogging());
-		yield return Reg("Excalibur.Dispatch.AuditLogging [RBAC]", s =>
+		yield return Reg("Excalibur.AuditLogging", s => s.AddAuditLogging());
+		yield return Reg("Excalibur.AuditLogging [RBAC]", s =>
 		{
 			s.AddAuditLogging();
 			s.AddRbacAuditStore();
 		});
-		yield return Reg("Excalibur.Dispatch.AuditLogging.Aws", s =>
+		yield return Reg("Excalibur.AuditLogging.Aws", s =>
 			s.AddAwsAuditExporter(_ => { }));
-		yield return Reg("Excalibur.Dispatch.AuditLogging.Datadog", s =>
+		yield return Reg("Excalibur.AuditLogging.Datadog", s =>
 			s.AddDatadogAuditExporter(_ => { }));
-		yield return Reg("Excalibur.Dispatch.AuditLogging.Elasticsearch", s =>
+		yield return Reg("Excalibur.AuditLogging.Elasticsearch", s =>
 			s.AddElasticsearchAuditExporter(_ => { }));
-		yield return Reg("Excalibur.Dispatch.AuditLogging.GoogleCloud", s =>
+		yield return Reg("Excalibur.AuditLogging.GoogleCloud", s =>
 			s.AddGoogleCloudAuditExporter(_ => { }));
-		yield return Reg("Excalibur.Dispatch.AuditLogging.Postgres", s =>
+		yield return Reg("Excalibur.AuditLogging.Postgres", s =>
 			PostgresAuditServiceCollectionExtensions.AddPostgresAuditStore(
-				s, (Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions opt) => { }));
-		yield return Reg("Excalibur.Dispatch.AuditLogging.Sentinel", s =>
+				s, (Excalibur.AuditLogging.Postgres.PostgresAuditOptions opt) => { }));
+		yield return Reg("Excalibur.AuditLogging.Sentinel", s =>
 			s.AddSentinelAuditExporter(_ => { }));
-		yield return Reg("Excalibur.Dispatch.AuditLogging.Splunk", s =>
+		yield return Reg("Excalibur.AuditLogging.Splunk", s =>
 			s.AddSplunkAuditExporter(_ => { }));
-		yield return Reg("Excalibur.Dispatch.AuditLogging.SqlServer", s =>
+		yield return Reg("Excalibur.AuditLogging.SqlServer", s =>
 			s.AddSqlServerAuditStore(_ => { }));
 
 		// ══════════════════════════════════════════════════════════
 		// DISPATCH COMPLIANCE
 		// ══════════════════════════════════════════════════════════
 
-		yield return Reg("Excalibur.Dispatch.Compliance [Erasure]", s => s.AddCascadeErasure());
-		yield return Reg("Excalibur.Dispatch.Compliance [InMemoryErasureStore]", s => s.AddInMemoryErasureStore());
-		yield return Reg("Excalibur.Dispatch.Compliance [LegalHold]", s => s.AddLegalHoldService());
-		yield return Reg("Excalibur.Dispatch.Compliance [InMemoryLegalHold]", s => s.AddInMemoryLegalHoldStore());
-		yield return Reg("Excalibur.Dispatch.Compliance [DataInventory]", s => s.AddDataInventoryService());
-		yield return Reg("Excalibur.Dispatch.Compliance [InMemoryDataInventory]", s => s.AddInMemoryDataInventoryStore());
-		yield return Reg("Excalibur.Dispatch.Compliance [ErasureVerification]", s => s.AddErasureVerificationService());
-		yield return Reg("Excalibur.Dispatch.Compliance [Metrics]", s => s.AddComplianceMetrics());
-		yield return Reg("Excalibur.Dispatch.Compliance [SOC2Store]", s => s.AddInMemorySoc2ReportStore());
-		yield return Reg("Excalibur.Dispatch.Compliance [SOC2Monitoring]", s => s.AddSoc2ContinuousMonitoring());
-		yield return Reg("Excalibur.Dispatch.Compliance [PciDss]", s => s.AddPciDssDataMasking());
-		yield return Reg("Excalibur.Dispatch.Compliance [Hipaa]", s => s.AddHipaaDataMasking());
-		yield return Reg("Excalibur.Dispatch.Compliance [StrictMasking]", s => s.AddStrictDataMasking());
-		yield return Reg("Excalibur.Dispatch.Compliance [DevEncryption]", s => s.AddDevEncryption());
-		yield return Reg("Excalibur.Dispatch.Compliance [FIPS]", s => s.AddFipsValidation());
-		yield return Reg("Excalibur.Dispatch.Compliance.Aws", s =>
+		yield return Reg("Excalibur.Compliance [Erasure]", s => s.AddCascadeErasure());
+		yield return Reg("Excalibur.Compliance [InMemoryErasureStore]", s => s.AddInMemoryErasureStore());
+		yield return Reg("Excalibur.Compliance [LegalHold]", s => s.AddLegalHoldService());
+		yield return Reg("Excalibur.Compliance [InMemoryLegalHold]", s => s.AddInMemoryLegalHoldStore());
+		yield return Reg("Excalibur.Compliance [DataInventory]", s => s.AddDataInventoryService());
+		yield return Reg("Excalibur.Compliance [InMemoryDataInventory]", s => s.AddInMemoryDataInventoryStore());
+		yield return Reg("Excalibur.Compliance [ErasureVerification]", s => s.AddErasureVerificationService());
+		yield return Reg("Excalibur.Compliance [Metrics]", s => s.AddComplianceMetrics());
+		yield return Reg("Excalibur.Compliance [SOC2Store]", s => s.AddInMemorySoc2ReportStore());
+		yield return Reg("Excalibur.Compliance [SOC2Monitoring]", s => s.AddSoc2ContinuousMonitoring());
+		yield return Reg("Excalibur.Compliance [PciDss]", s => s.AddPciDssDataMasking());
+		yield return Reg("Excalibur.Compliance [Hipaa]", s => s.AddHipaaDataMasking());
+		yield return Reg("Excalibur.Compliance [StrictMasking]", s => s.AddStrictDataMasking());
+		yield return Reg("Excalibur.Compliance [DevEncryption]", s => s.AddDevEncryption());
+		yield return Reg("Excalibur.Compliance [FIPS]", s => s.AddFipsValidation());
+		yield return Reg("Excalibur.Compliance.Aws", s =>
 			s.AddAwsKmsKeyManagement(_ => { }));
-		yield return Reg("Excalibur.Dispatch.Compliance.Azure", s =>
+		yield return Reg("Excalibur.Compliance.Azure", s =>
 			s.AddAzureKeyVaultKeyManagement(_ => { }));
-		yield return Reg("Excalibur.Dispatch.Compliance.Vault", s =>
+		yield return Reg("Excalibur.Compliance.Vault", s =>
 			s.AddVaultKeyManagement(_ => { }));
 
 		// ══════════════════════════════════════════════════════════
@@ -308,7 +309,8 @@ public sealed class PackageDiSmokeTests
 		// ══════════════════════════════════════════════════════════
 
 		yield return Reg("Excalibur.Domain [BoundedContext]", s => s.AddBoundedContextEnforcement());
-		yield return Reg("Excalibur.Data", s => s.AddExcaliburDataServices());
+		// S804 bd-sdhocq A6: AddExcaliburDataServices deleted. Data wiring is via AddExcalibur root.
+		yield return Reg("Excalibur.Data", s => s.AddExcalibur(_ => { }));
 		yield return Reg("Excalibur.Data [Persistence]", s => s.AddPersistence());
 		yield return Reg("Excalibur.Data.InMemory [SnapshotStore]", s => s.AddInMemorySnapshotStore());
 		yield return Reg("Excalibur.Data.InMemory [InboxStore]", s => s.AddInMemoryInboxStore());
@@ -331,7 +333,7 @@ public sealed class PackageDiSmokeTests
 		// EXCALIBUR EVENT SOURCING
 		// ══════════════════════════════════════════════════════════
 
-		yield return Reg("Excalibur.EventSourcing", s => s.AddExcaliburEventSourcing());
+		yield return Reg("Excalibur.EventSourcing", s => s.AddExcalibur(x => x.AddEventSourcing()));
 		yield return Reg("Excalibur.EventSourcing [MaterializedViews]", s => s.AddMaterializedViews());
 		yield return Reg("Excalibur.EventSourcing [SnapshotUpgrader]", s => s.AddSnapshotUpgraderRegistry());
 		yield return Reg("Excalibur.EventSourcing [SnapshotEncryption]", s => s.AddSnapshotEncryption());
@@ -342,65 +344,65 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.EventSourcing.SqlServer", s =>
 			s.AddSqlServerEventStore(() => new Microsoft.Data.SqlClient.SqlConnection(MockConnectionString)));
 		yield return Reg("Excalibur.EventSourcing.Postgres", s =>
-			s.AddExcaliburEventSourcing(es =>
-				es.UsePostgres(pg => pg.ConnectionString(MockPostgresConnectionString))));
+			s.AddExcalibur(x => x.AddEventSourcing(es =>
+				es.UsePostgres(pg => pg.ConnectionString(MockPostgresConnectionString)))));
 		yield return Reg("Excalibur.EventSourcing.CosmosDb", s =>
-			s.AddExcaliburEventSourcing(es =>
-				es.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081;AccountKey=smoke=="))));
+			s.AddExcalibur(x => x.AddEventSourcing(es =>
+				es.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081;AccountKey=smoke==")))));
 		yield return Reg("Excalibur.EventSourcing.DynamoDb", s =>
-			s.AddExcaliburEventSourcing(es =>
-				es.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000"))));
+			s.AddExcalibur(x => x.AddEventSourcing(es =>
+				es.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")))));
 		yield return Reg("Excalibur.EventSourcing.Firestore", s =>
-			s.AddExcaliburEventSourcing(es =>
-				es.UseFirestore(fs => fs.ProjectId("smoke-project"))));
+			s.AddExcalibur(x => x.AddEventSourcing(es =>
+				es.UseFirestore(fs => fs.ProjectId("smoke-project")))));
 		yield return Reg("Excalibur.EventSourcing.Redis", s =>
-			s.AddExcaliburEventSourcing(es =>
-				es.UseRedis(redis => redis.ConnectionString("localhost:6379"))));
+			s.AddExcalibur(x => x.AddEventSourcing(es =>
+				es.UseRedis(redis => redis.ConnectionString("localhost:6379")))));
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR OUTBOX
 		// ══════════════════════════════════════════════════════════
 
-		yield return Reg("Excalibur.Outbox", s => s.AddExcaliburOutbox());
+		yield return Reg("Excalibur.Outbox", s => s.AddExcalibur(x => x.AddOutbox(_ => { })));
 		yield return Reg("Excalibur.Outbox [HostedService]", s => s.AddOutboxHostedService());
 		yield return Reg("Excalibur.Outbox [InboxHostedService]", s => s.AddInboxHostedService());
 		yield return Reg("Excalibur.Outbox.SqlServer", s =>
 			s.AddSqlServerOutboxStore(opts => opts.ConnectionString = MockConnectionString));
 		yield return Reg("Excalibur.Outbox.CosmosDb", s =>
-			s.AddExcaliburOutbox(outbox =>
-				outbox.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081;AccountKey=smoke=="))));
+			s.AddExcalibur(x => x.AddOutbox(outbox =>
+				outbox.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081;AccountKey=smoke==")))));
 		yield return Reg("Excalibur.Outbox.DynamoDb", s =>
-			s.AddExcaliburOutbox(outbox =>
-				outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000"))));
+			s.AddExcalibur(x => x.AddOutbox(outbox =>
+				outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")))));
 		yield return Reg("Excalibur.Outbox.Firestore", s =>
-			s.AddExcaliburOutbox(outbox =>
-				outbox.UseFirestore(fs => fs.ProjectId("smoke-project"))));
+			s.AddExcalibur(x => x.AddOutbox(outbox =>
+				outbox.UseFirestore(fs => fs.ProjectId("smoke-project")))));
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR LEADER ELECTION
 		// ══════════════════════════════════════════════════════════
 
-		yield return Reg("Excalibur.LeaderElection", s => s.AddExcaliburLeaderElection());
+		yield return Reg("Excalibur.LeaderElection", s => s.AddExcalibur(x => x.AddLeaderElection(_ => { })));
 		yield return Reg("Excalibur.LeaderElection [Telemetry]", s => s.AddLeaderElectionTelemetry());
 		yield return Reg("Excalibur.LeaderElection [HealthCheck]", s => s.AddLeaderElectionHealthCheck());
 		yield return Reg("Excalibur.LeaderElection [Watcher]", s => s.AddLeaderElectionWatcher());
 		yield return Reg("Excalibur.LeaderElection.InMemory", s => s.AddInMemoryLeaderElection());
 		yield return Reg("Excalibur.LeaderElection.Redis", s =>
-			s.AddExcaliburLeaderElection(le =>
+			s.AddExcalibur(x => x.AddLeaderElection(le =>
 				le.UseRedis(redis => redis
 					.ConnectionString("localhost:6379")
-					.LockKey("smoke-lock"))));
+					.LockKey("smoke-lock")))));
 		yield return Reg("Excalibur.LeaderElection.SqlServer", s =>
-			s.AddExcaliburLeaderElection(le =>
+			s.AddExcalibur(x => x.AddLeaderElection(le =>
 				le.UseSqlServer(sql => sql
 					.ConnectionString(MockConnectionString)
-					.LockResource("smoke-lock"))));
+					.LockResource("smoke-lock")))));
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR SAGA
 		// ══════════════════════════════════════════════════════════
 
-		yield return Reg("Excalibur.Saga", s => s.AddExcaliburSaga());
+		yield return Reg("Excalibur.Saga", s => s.AddExcalibur(x => x.AddSagas()));
 		yield return Reg("Excalibur.Saga [Timeout]", s => s.AddSagaTimeoutDelivery());
 		yield return Reg("Excalibur.Saga [Instrumentation]", s => s.AddSagaInstrumentation());
 		yield return Reg("Excalibur.Saga [Correlation]", s => s.AddSagaCorrelation());
@@ -424,7 +426,8 @@ public sealed class PackageDiSmokeTests
 		// EXCALIBUR APPLICATION
 		// ══════════════════════════════════════════════════════════
 
-		yield return Reg("Excalibur.Application", s => s.AddExcaliburApplicationServices());
+		// S804 bd-sdhocq A7: AddExcaliburApplicationServices deleted. Use AddExcalibur + ScanAssemblies.
+		yield return Reg("Excalibur.Application", s => s.AddExcalibur(b => b.ScanAssemblies(typeof(PackageDiSmokeTests).Assembly)));
 		yield return Reg("Excalibur.Application [Activities]", s => s.AddActivities());
 
 		// ══════════════════════════════════════════════════════════
@@ -448,11 +451,13 @@ public sealed class PackageDiSmokeTests
 		// ══════════════════════════════════════════════════════════
 
 		yield return Reg("Excalibur.Hosting", s => s.AddExcalibur(_ => { }));
+		// S804 bd-sdhocq A8: AddExcaliburBaseServices deleted. Replaced by AddExcalibur + ScanAssemblies.
 		yield return Reg("Excalibur.Hosting [BaseServices]", s =>
-			s.AddExcaliburBaseServices(Array.Empty<Assembly>()));
+			s.AddExcalibur(b => b.ScanAssemblies(Array.Empty<Assembly>())));
 		yield return Reg("Excalibur.Hosting.HealthChecks", s => s.AddExcaliburHealthChecks());
-		yield return Reg("Excalibur.Hosting.Web", s =>
-			s.AddExcaliburWebServices(EmptyConfiguration));
+		// S804 bd-sdhocq A9: AddExcaliburWebServices deleted. Web hosting wires via AddExcalibur
+		// + explicit API versioning opt-in (not bundled at composition root).
+		yield return Reg("Excalibur.Hosting.Web", s => s.AddGlobalExceptionHandler());
 		yield return Reg("Excalibur.Hosting.AwsLambda [Excalibur]", s => s.AddExcaliburAwsLambdaServerless());
 		yield return Reg("Excalibur.Hosting.AzureFunctions [Excalibur]", s => s.AddExcaliburAzureFunctionsServerless());
 		yield return Reg("Excalibur.Hosting.GoogleCloudFunctions [Excalibur]", s => s.AddExcaliburGoogleCloudFunctionsServerless());

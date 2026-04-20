@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Configuration.Transport;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 using IBindingConfigBuilder = Excalibur.Dispatch.Abstractions.Configuration.ITransportBindingBuilder;
 using Transport = Excalibur.Dispatch.Configuration.Transport;
@@ -36,9 +38,18 @@ public static class ServiceCollectionTransportExtensions
 		var bindingRegistry = GetOrCreateBindingRegistry(services);
 #pragma warning restore CA2000
 
-		// Create and configure binding builder
+		// Create and configure binding builder. FromTransport() now accepts pending
+		// factories as well as materialized adapters; the binding registry records
+		// any truly-unknown references and the BindingRegistrationValidator reports
+		// them at host start via ValidateOnStart. [bd-20ft0e FIX 4]
 		var bindingBuilder = new Transport.BindingConfigurationBuilder(transportRegistry, bindingRegistry);
 		configure(bindingBuilder);
+
+		// Wire a ValidateOnStart hook so missing-transport references fail fast at
+		// host start with a clear, named error rather than at first dispatch.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<BindingRegistrationValidationOptions>, BindingRegistrationValidator>());
+		_ = services.AddOptions<BindingRegistrationValidationOptions>().ValidateOnStart();
 
 		return services;
 	}

@@ -4,8 +4,8 @@
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Compliance;
-using Excalibur.Dispatch.Security;
+using Excalibur.Compliance;
+using Excalibur.Security;
 
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;

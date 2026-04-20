@@ -34,7 +34,7 @@ public static class RedisLeaderElectionBuilderExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
 	/// {
 	///     le.UseRedis(redis =&gt;
 	///     {
@@ -42,7 +42,7 @@ public static class RedisLeaderElectionBuilderExtensions
 	///              .LockKey("myapp:leader")
 	///              .Database(0);
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

@@ -10,7 +10,7 @@ The DynamoDB provider implements `ICloudNativePersistenceProvider` for AWS serve
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An AWS account with DynamoDB access
 - Familiarity with [data access](../data-access/index.md) and [IDb interface](../data-access/idb-interface.md)
 

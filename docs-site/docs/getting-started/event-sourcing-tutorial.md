@@ -381,10 +381,10 @@ var connectionString = builder.Configuration.GetConnectionString("OrderDb")
 builder.Services.AddDispatchWithSqlServer(connectionString);
 
 // Register aggregate repository + projections
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
-});
+}));
 builder.Services.AddSqlServerProjectionStore<OrderSummary>(opts => opts.ConnectionString = connectionString);
 
 var app = builder.Build();

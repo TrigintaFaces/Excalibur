@@ -3,6 +3,7 @@
 
 using System.Runtime.CompilerServices;
 
+using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
 /// <summary>

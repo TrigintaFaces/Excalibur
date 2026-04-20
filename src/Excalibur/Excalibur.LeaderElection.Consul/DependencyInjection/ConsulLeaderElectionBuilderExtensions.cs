@@ -30,7 +30,7 @@ public static class ConsulLeaderElectionBuilderExtensions
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
 	/// {
 	///     le.UseConsul(consul =&gt;
 	///     {
@@ -38,7 +38,7 @@ public static class ConsulLeaderElectionBuilderExtensions
 	///               .Token("my-acl-token")
 	///               .LockKey("my-app/leader");
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

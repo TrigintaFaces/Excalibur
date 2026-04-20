@@ -8,7 +8,7 @@
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Docker Desktop or Docker Engine installed
 - Familiarity with [ASP.NET Core deployment](./aspnet-core.md) and [dependency injection](../core-concepts/dependency-injection.md)
 
@@ -30,7 +30,7 @@ This guide covers Docker containerization for Excalibur applications, including 
 
 ```dockerfile
 # Minimal ASP.NET Core application with Excalibur.Dispatch
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 WORKDIR /app
 COPY publish/ ./
 ENTRYPOINT ["dotnet", "YourApp.dll"]
@@ -57,7 +57,7 @@ docker run -p 8080:8080 your-app:latest
 
 ```dockerfile
 # Build stage
-FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Copy project files
@@ -83,7 +83,7 @@ RUN dotnet publish "YourApp.csproj" \
     /p:UseAppHost=false
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 WORKDIR /app
 
 # Create non-root user
@@ -189,7 +189,7 @@ docker-compose down -v
 
 ```dockerfile
 # Production Dockerfile with optimizations
-FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Copy and restore (cached layer)
@@ -211,7 +211,7 @@ RUN dotnet publish "src/YourApp/YourApp.csproj" \
     -p:PublishSingleFile=false
 
 # Runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 WORKDIR /app
 
 # Install curl for health checks
@@ -261,7 +261,7 @@ az container create \
 
 ```dockerfile
 # Enable background services in container
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 WORKDIR /app
 
 # ... (previous steps)
@@ -282,13 +282,13 @@ ENTRYPOINT ["dotnet", "YourApp.dll"]
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure outbox with SQL Server storage and background processing
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(builder.Configuration.GetConnectionString("Default")!)
           .WithProcessing(p => p.BatchSize(100)
                                 .PollingInterval(TimeSpan.FromSeconds(30)))
           .EnableBackgroundProcessing();
-});
+}));
 
 var app = builder.Build();
 app.Run();
@@ -379,13 +379,13 @@ trivy image your-app:latest
 
 ```dockerfile
 # GOOD: Alpine (smaller attack surface)
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 
 # ACCEPTABLE: Debian Slim
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-bookworm-slim
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-bookworm-slim
 
 # AVOID: Full Debian (larger attack surface)
-# FROM mcr.microsoft.com/dotnet/aspnet:9.0
+# FROM mcr.microsoft.com/dotnet/aspnet:10.0
 ```
 
 ### 4. Secrets Management
@@ -582,4 +582,4 @@ jobs:
 
 **Last Updated:** 2026-01-01
 **Framework:** Excalibur 1.0.0
-**Target:** Docker 20.10+, .NET 9.0
+**Target:** Docker 20.10+, .NET 10.0

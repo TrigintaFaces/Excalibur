@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.AuditLogging;
+using Excalibur.AuditLogging;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 
 /// <summary>
-/// Targeted tests to push Excalibur.Dispatch.AuditLogging coverage from 91.5% to 95%+.
+/// Targeted tests to push Excalibur.AuditLogging coverage from 91.5% to 95%+.
 /// Covers branches and paths not exercised by the existing test suites.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
