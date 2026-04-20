@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.WolverineComparisonBenchmarks-20260420-180222</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8117/25H2/2025Update/HudsonValley2)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.202
+  [Host] : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=comparative-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+InvocationCount=1  IterationCount=10  UnrollFactor=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                             </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch: Single command&#39;</td><td>11.44 &mu;s</td><td>2.141 &mu;s</td><td>1.416 &mu;s</td><td>1.01</td><td>0.16</td><td>552 B</td><td>1.00</td>
+</tr><tr><td>&#39;Dispatch: Single command (ultra-local)&#39;</td><td>11.16 &mu;s</td><td>1.726 &mu;s</td><td>1.027 &mu;s</td><td>0.99</td><td>0.14</td><td>5400 B</td><td>9.78</td>
+</tr><tr><td>&#39;Wolverine: Single command (InvokeAsync)&#39;</td><td>26.85 &mu;s</td><td>4.542 &mu;s</td><td>3.004 &mu;s</td><td>2.38</td><td>0.37</td><td>8904 B</td><td>16.13</td>
+</tr><tr><td>&#39;Wolverine: Single command (SendAsync)&#39;</td><td>93.83 &mu;s</td><td>10.819 &mu;s</td><td>7.156 &mu;s</td><td>8.31</td><td>1.10</td><td>15344 B</td><td>27.80</td>
+</tr><tr><td>&#39;Dispatch: Event to 2 handlers&#39;</td><td>16.14 &mu;s</td><td>2.356 &mu;s</td><td>1.559 &mu;s</td><td>1.43</td><td>0.21</td><td>10656 B</td><td>19.30</td>
+</tr><tr><td>&#39;Wolverine: Event publish&#39;</td><td>97.07 &mu;s</td><td>9.691 &mu;s</td><td>5.767 &mu;s</td><td>8.59</td><td>1.06</td><td>15336 B</td><td>27.78</td>
+</tr><tr><td>&#39;Dispatch: 10 concurrent commands&#39;</td><td>15.40 &mu;s</td><td>3.284 &mu;s</td><td>1.954 &mu;s</td><td>1.36</td><td>0.22</td><td>5680 B</td><td>10.29</td>
+</tr><tr><td>&#39;Wolverine: 10 concurrent commands&#39;</td><td>38.10 &mu;s</td><td>5.933 &mu;s</td><td>3.925 &mu;s</td><td>3.37</td><td>0.50</td><td>9184 B</td><td>16.64</td>
+</tr><tr><td>&#39;Dispatch: Query with return value&#39;</td><td>17.33 &mu;s</td><td>1.545 &mu;s</td><td>0.919 &mu;s</td><td>1.53</td><td>0.19</td><td>456 B</td><td>0.83</td>
+</tr><tr><td>&#39;Wolverine: Query with return value&#39;</td><td>32.13 &mu;s</td><td>3.863 &mu;s</td><td>2.555 &mu;s</td><td>2.84</td><td>0.38</td><td>11552 B</td><td>20.93</td>
+</tr><tr><td>&#39;Dispatch: 100 concurrent commands&#39;</td><td>24.42 &mu;s</td><td>2.972 &mu;s</td><td>1.768 &mu;s</td><td>2.16</td><td>0.28</td><td>22048 B</td><td>39.94</td>
+</tr><tr><td>&#39;Wolverine: 100 concurrent commands&#39;</td><td>114.49 &mu;s</td><td>5.206 &mu;s</td><td>2.723 &mu;s</td><td>10.14</td><td>1.14</td><td>71632 B</td><td>129.77</td>
+</tr><tr><td>&#39;Dispatch: Batch queries (10)&#39;</td><td>21.10 &mu;s</td><td>1.927 &mu;s</td><td>1.275 &mu;s</td><td>1.87</td><td>0.23</td><td>3880 B</td><td>7.03</td>
+</tr><tr><td>&#39;Wolverine: Batch queries (10)&#39;</td><td>46.16 &mu;s</td><td>7.653 &mu;s</td><td>5.062 &mu;s</td><td>4.09</td><td>0.62</td><td>14488 B</td><td>26.25</td>
+</tr></tbody></table>
+</body>
+</html>

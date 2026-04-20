@@ -7,6 +7,8 @@ using Elastic.Clients.Elasticsearch.Mapping;
 
 using Excalibur.Data.ElasticSearch.IndexManagement;
 
+using FrameworkIndexTemplateDescriptor = Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor;
+
 namespace Excalibur.Data.ElasticSearch.Internal;
 
 /// <summary>
@@ -96,7 +98,7 @@ internal sealed class IndexTemplateStoreAdapter : IIndexTemplateStore
 	}
 
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<IndexTemplateDescriptor>> ListAsync(
+	public async Task<IReadOnlyList<FrameworkIndexTemplateDescriptor>> ListAsync(
 		string namePattern,
 		CancellationToken cancellationToken)
 	{
@@ -110,7 +112,7 @@ internal sealed class IndexTemplateStoreAdapter : IIndexTemplateStore
 			return [];
 		}
 
-		var result = new List<IndexTemplateDescriptor>(response.IndexTemplates.Count);
+		var result = new List<FrameworkIndexTemplateDescriptor>(response.IndexTemplates.Count);
 		foreach (var item in response.IndexTemplates)
 		{
 			result.Add(Project(item));
@@ -119,19 +121,23 @@ internal sealed class IndexTemplateStoreAdapter : IIndexTemplateStore
 		return result;
 	}
 
-	private static IndexTemplateDescriptor Project(IndexTemplateItem item)
+	private static FrameworkIndexTemplateDescriptor Project(IndexTemplateItem item)
 	{
 		var name = item.Name?.ToString() ?? string.Empty;
 		var inner = item.IndexTemplate;
 
 		var patterns = inner?.IndexPatterns is { } ip
-			? ip.Select(static p => p?.ToString() ?? string.Empty).ToArray()
+			? ip.ToString()?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? Array.Empty<string>()
 			: Array.Empty<string>();
 
 		IReadOnlyList<string>? composedOf = null;
-		if (inner?.ComposedOf is { } co && co.Count > 0)
+		if (inner?.ComposedOf is { } co)
 		{
-			composedOf = co.Select(static n => n?.ToString() ?? string.Empty).ToArray();
+			var coStr = co.ToString();
+			if (!string.IsNullOrEmpty(coStr))
+			{
+				composedOf = coStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+			}
 		}
 
 		IReadOnlyDictionary<string, string>? metadata = null;
@@ -145,7 +151,7 @@ internal sealed class IndexTemplateStoreAdapter : IIndexTemplateStore
 			metadata = dict;
 		}
 
-		return new IndexTemplateDescriptor
+		return new FrameworkIndexTemplateDescriptor
 		{
 			Name = name,
 			IndexPatterns = patterns,

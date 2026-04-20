@@ -77,7 +77,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		ArgumentNullException.ThrowIfNull(document);
 
 		var response = await _client
-			.IndexAsync(document, (IndexName)_indexName, cancellationToken).ConfigureAwait(false);
+			.IndexAsync(document, idx => idx.Index(_indexName), cancellationToken).ConfigureAwait(false);
 
 		if (response.IsValidResponse)
 		{
@@ -164,7 +164,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		SearchRequestDescriptor<TDocument> searchRequest,
 		CancellationToken cancellationToken)
 	{
-		var response = await _client.SearchAsync(searchRequest, cancellationToken).ConfigureAwait(false);
+		var response = await _client.SearchAsync<TDocument>(searchRequest, cancellationToken).ConfigureAwait(false);
 
 		if (response.IsValidResponse)
 		{

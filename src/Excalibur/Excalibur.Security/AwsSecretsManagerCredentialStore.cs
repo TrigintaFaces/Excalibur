@@ -11,7 +11,7 @@ using Excalibur.Security.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace Excalibur.Security.CredentialStores;
+namespace Excalibur.Security;
 
 /// <summary>
 /// AWS Secrets Manager credential store implementation for secure credential management. Provides integration with AWS Secrets Manager for

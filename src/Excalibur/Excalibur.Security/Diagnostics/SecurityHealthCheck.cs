@@ -5,7 +5,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
 
-using Excalibur.Security.Configuration;namespace Excalibur.Security.Diagnostics;
+namespace Excalibur.Security.Diagnostics;
 
 /// <summary>
 /// Health check for the security subsystem.

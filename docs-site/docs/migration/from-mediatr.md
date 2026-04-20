@@ -786,14 +786,16 @@ builder.Services.AddDispatch(dispatch =>
 
 ## Performance Comparison
 
-Latest benchmark sources:
-- `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-report-github.md` (March 2, 2026)
-- `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.md` (March 2, 2026)
+Latest benchmark sources (20260420 epoch):
+- `benchmarks/baselines/net10.0/dispatch-comparative-20260420/results/Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-report-github.md` (April 20, 2026)
+- `benchmarks/baselines/net10.0/dispatch-comparative-20260420/results/Excalibur.Dispatch.Benchmarks.Comparative.MediatRWarmPathComparisonBenchmarks-report-github.md` (April 20, 2026)
+- `benchmarks/baselines/net10.0/dispatch-comparative-20260420/results/Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.md` (April 20, 2026)
 
 Latest comparative validation run:
-- `pwsh eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks,WolverineComparisonBenchmarks,MassTransitMediatorComparisonBenchmarks` (March 2, 2026)
-- `pwsh eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes WolverineInProcessComparisonBenchmarks` (March 2, 2026)
-- Result: `5/5` classes passed, `93` rows, `0` failures (combined summaries: `benchmark-matrix-summary-20260302-114222.md` and `benchmark-matrix-summary-20260302-114611.md`)
+- Date: April 20, 2026 (Sprint 812)
+- BenchmarkDotNet 0.15.8 on .NET 10.0.6 / SDK 10.0.202
+- Result: 16 reports captured (8 Comparative + 8 WarmPath), GREEN intra-report (Dispatch leads every competitor row), methodology divergence vs prior `20260302` baseline per BDN 0.15.4→0.15.8 shift
+- Summaries: `benchmarks/runs/S812/benchmark-matrix-summary-20260420.md` + `benchmark-warmpath-matrix-summary-20260420.md`
 
 | Scenario | MediatR | Excalibur | Relative Result |
 |----------|---------|-------------------|-----------------|

@@ -234,7 +234,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 			{
 				Size = maxResults,
 				Query = BuildErrorQuery(fromDate, toDate, projectionType),
-				Sort = new SortOptions[] { SortOptions.Field(new Field("timestamp"), new FieldSort { Order = SortOrder.Desc }) },
+				Sort = [new SortOptions { Field = new FieldSort("timestamp") { Order = SortOrder.Desc } }],
 			};
 
 			var response = await _client.SearchAsync<ProjectionErrorRecord>(searchRequest, cancellationToken).ConfigureAwait(false);
@@ -273,7 +273,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 				Query =
 					new BoolQuery
 					{
-						Should = [.. errorIdList.Select(id => new TermQuery(new Field("id")) { Value = id }).Cast<Query>()],
+						Should = [.. errorIdList.Select(id => (Query)new TermQuery { Field = "id", Value = id })],
 					},
 				Script = new Script
 				{
@@ -308,11 +308,11 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 	/// </summary>
 	private static Query BuildErrorQuery(DateTime fromDate, DateTime toDate, string? projectionType)
 	{
-		var queries = new List<Query> { new DateRangeQuery(new Field("timestamp")) { Gte = fromDate, Lte = toDate } };
+		var queries = new List<Query> { new DateRangeQuery("timestamp") { Gte = fromDate, Lte = toDate } };
 
 		if (!string.IsNullOrWhiteSpace(projectionType))
 		{
-			queries.Add(new TermQuery(new Field("projectionType")) { Value = projectionType });
+			queries.Add(new TermQuery { Field = "projectionType", Value = projectionType });
 		}
 
 		return queries.Count == 1
@@ -329,9 +329,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 		{
 			await EnsureErrorIndexExistsAsync(cancellationToken).ConfigureAwait(false);
 
-			var indexRequest = new IndexRequest<ProjectionErrorRecord>(_errorIndexName) { Document = record };
-
-			var response = await _client.IndexAsync(indexRequest, cancellationToken).ConfigureAwait(false);
+			var response = await _client.IndexAsync(record, idx => idx.Index(_errorIndexName), cancellationToken).ConfigureAwait(false);
 
 			if (!response.IsValidResponse)
 			{

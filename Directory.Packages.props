@@ -69,7 +69,7 @@
 		<!-- Containers / Testing -->
 		<PackageVersion Include="Testcontainers" Version="4.11.0" />
 		<PackageVersion Include="Testcontainers.MongoDb" Version="4.11.0" />
-		<PackageVersion Include="WolverineFx" Version="5.2.0" />
+		<PackageVersion Include="WolverineFx" Version="5.31.1" />
 		<!-- Test frameworks -->
 		<PackageVersion Include="xunit" Version="2.9.3" />
 		<PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
@@ -254,15 +254,16 @@
 		<PackageVersion Include="protobuf-net" Version="3.2.45" />
 		<PackageVersion Include="Microsoft.Data.SqlClient" Version="7.0.0" />
 		<PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.6" />
-		<PackageVersion Include="MassTransit" Version="8.4.1" />
-		<PackageVersion Include="MediatR" Version="12.2.0" />
+		<PackageVersion Include="MassTransit" Version="8.5.9" />
+		<PackageVersion Include="MediatR" Version="12.5.0" />
+		<PackageVersion Include="NServiceBus" Version="10.1.3" />
 		<PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.6" />
 		<PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.6" />
 		<PackageVersion Include="Microsoft.Extensions.Configuration.Memory" Version="10.0.6" />
 		<PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
 		<PackageVersion Include="IdentityModel" Version="7.0.0" />
 		<PackageVersion Include="System.Diagnostics.PerformanceCounter" Version="10.0.6" />
-		<PackageVersion Include="Elastic.Clients.Elasticsearch" Version="8.17.0" />
+		<PackageVersion Include="Elastic.Clients.Elasticsearch" Version="9.3.4" />
 		<PackageVersion Include="OpenSearch.Client" Version="1.8.0" />
 		<PackageVersion Include="Elastic.Transport" Version="0.16.0" />
 		<PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.6" />

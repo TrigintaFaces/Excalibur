@@ -72,7 +72,7 @@ internal sealed class SchemaHistoryStoreAdapter : ISchemaHistoryStore
 				s => s.Index(indexName)
 					.Size(1000)
 					.Query(q => q.Term(t => t.Field("projectionType").Value(projectionType)))
-					.Sort(s => s.Field("registeredAt", new FieldSort { Order = SortOrder.Asc })),
+					.Sort(s => s.Field(f => f.Field("registeredAt").Order(SortOrder.Asc))),
 				cancellationToken)
 			.ConfigureAwait(false);
 #pragma warning restore CS8604

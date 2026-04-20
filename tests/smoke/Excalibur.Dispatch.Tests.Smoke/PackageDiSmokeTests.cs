@@ -22,7 +22,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 
 
-using Excalibur.Security.Configuration;namespace Excalibur.Dispatch.Tests.Smoke;
+namespace Excalibur.Dispatch.Tests.Smoke;
 
 /// <summary>
 /// Per-package DI registration smoke tests per spec §4.3.
@@ -158,7 +158,7 @@ public sealed class PackageDiSmokeTests
 
 		yield return Reg("Excalibur.Security", s =>
 			s.AddDispatchSecurityMiddleware(
-				(Excalibur.Security.Configuration.SecurityOptions opt) => { }));
+				(Excalibur.Security.SecurityOptions opt) => { }));
 		yield return Reg("Excalibur.Security.Azure", s =>
 			s.AddDispatchSecurityAzure(azure => azure.VaultUri("https://test.vault.azure.net")));
 

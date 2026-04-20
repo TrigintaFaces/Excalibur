@@ -219,14 +219,14 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IInboxStoreAd
 	{
 		var mustClauses = new List<Query>
 		{
-			new TermQuery(new Field("status")) { Value = (int)InboxStatus.Failed },
-			new NumberRangeQuery(new Field("retryCount")) { Lt = maxRetries },
+			new TermQuery { Field = "status", Value = (int)InboxStatus.Failed },
+			new NumberRangeQuery("retryCount") { Lt = maxRetries },
 		};
 
 		if (olderThan.HasValue)
 		{
 			mustClauses.Add(
-				new DateRangeQuery(new Field("lastAttemptAt")) { Lt = (DateMath)olderThan.Value.DateTime });
+				new DateRangeQuery("lastAttemptAt") { Lt = (DateMath)olderThan.Value.DateTime });
 		}
 
 		var response = await _client.SearchAsync<ElasticsearchInboxDocument>(s => s

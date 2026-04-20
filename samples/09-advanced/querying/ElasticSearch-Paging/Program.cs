@@ -99,7 +99,7 @@ for (var page = 1; page <= 3; page++)
         .Index("logs-paging")
         .From(from)
         .Size(pageSize)
-        .Sort(s => s.Field(f => f.Timestamp, new FieldSort { Order = SortOrder.Desc }));
+        .Sort(s => s.Field(f => f.Field("timestamp").Order(SortOrder.Desc)));
 
     var response = await repo.SearchAsync(searchDescriptor, ct).ConfigureAwait(false);
 
@@ -148,8 +148,8 @@ for (var page = 1; page <= 3; page++)
     var searchDescriptor = new SearchRequestDescriptor<LogEntry>()
         .Index("logs-paging")
         .Size(pageSize)
-        .Sort(s => s.Field(f => f.Timestamp, new FieldSort { Order = SortOrder.Desc }))
-        .Sort(s => s.Field(f => f.Id, new FieldSort { Order = SortOrder.Asc }));
+        .Sort(s => s.Field(f => f.Field("timestamp").Order(SortOrder.Desc)))
+        .Sort(s => s.Field(f => f.Field("id").Order(SortOrder.Asc)));
 
     // For pages after the first, provide the cursor from the previous page's last hit
     if (searchAfterValues is not null)

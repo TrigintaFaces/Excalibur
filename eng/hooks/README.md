@@ -23,6 +23,28 @@ Enforces ADR-050 namespace depth requirements before commits are accepted.
 
 **See**: `.git/hooks/README.md` for detailed documentation
 
+### pre-push
+Enforces `CHANGELOG.md [Unreleased]` update when pushing significant changes.
+
+**What it does:**
+- Computes the range of commits being pushed (`remote_sha..local_sha` or vs `origin/main` for new branches)
+- Checks whether any "significant" paths changed:
+  - `src/**`, `eng/ci/**`, `.github/workflows/**`
+  - `Directory.Packages.props`, `Directory.Build.{props,targets}`
+  - `templates/**`, `.editorconfig`, `RELEASE.md`, `CONTRIBUTING.md`
+  - `management/architecture/adr-*.md`
+- Excluded (never significant on their own): `/sprints/`, `/reports/`, `framework-governance.json`, `PublicAPI.*.txt`, `/.template.config/`
+- If significant changes exist, requires both:
+  1. `CHANGELOG.md` modified in the push range
+  2. The `## [Unreleased]` block specifically differs between base and head
+
+**Bypass options (use sparingly):**
+- `SKIP_CHANGELOG_CHECK=1 git push …`
+- Add `[skip changelog]` to any commit message in the push range
+- `git push --no-verify`
+
+**Why this exists:** Pre-S811 we accumulated 4 sprints (S808–S811) of shipping changes, 36 dep bumps, 60 public-API promotions, and multiple source fixes without a single CHANGELOG entry. This hook enforces the update at push time so drift is caught before it compounds.
+
 ## Installation
 
 ### Manual Installation

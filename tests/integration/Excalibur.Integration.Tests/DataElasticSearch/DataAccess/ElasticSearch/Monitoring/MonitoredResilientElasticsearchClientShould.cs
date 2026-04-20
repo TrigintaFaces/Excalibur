@@ -36,7 +36,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		try
 		{
 			_elasticsearchContainer = new ElasticsearchBuilder()
-				.WithImage("elasticsearch:8.11.0")
+				.WithImage("docker.elastic.co/elasticsearch/elasticsearch:9.0.0")
 				.WithEnvironment("discovery.type", "single-node")
 				.WithEnvironment("xpack.security.enabled", "false")
 				.WithPortBinding(9200, true)
@@ -90,7 +90,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Arrange
 		var testDoc = new TestDocument { Id = "test-1", Name = "Test Document", Value = 42 };
-		var indexRequest = new IndexRequest<TestDocument>("test-index", testDoc.Id) { Document = testDoc };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
 
 		// Act
 		var response = await _client!.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
@@ -109,7 +109,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Arrange - Index a test document first
 		var testDoc = new TestDocument { Id = "test-2", Name = "Search Test", Value = 100 };
-		var indexRequest = new IndexRequest<TestDocument>("test-index", testDoc.Id) { Document = testDoc };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
 		_ = await _client!.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
 
 		// Wait for indexing
@@ -117,7 +117,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		var searchRequest = new SearchRequest(Indices.Parse("test-index"))
 		{
-			Query = new MatchQuery(new Field("name")) { Query = "Search" },
+			Query = new MatchQuery { Field = "name", Query = "Search" },
 			Size = 10,
 		};
 
@@ -214,7 +214,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Arrange - Index a document first so the index exists for aggregation queries
 		var testDoc = new TestDocument { Id = "agg-test", Name = "Aggregation Test", Value = 42 };
-		var indexRequest = new IndexRequest<TestDocument>("test-index", testDoc.Id) { Document = testDoc };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
 		_ = await _client!.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
 
 		// Wait for indexing to complete
@@ -256,7 +256,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Act - Perform a normal operation
 		var testDoc = new TestDocument { Id = "cb-test", Name = "Circuit Breaker Test", Value = 123 };
-		var indexRequest = new IndexRequest<TestDocument>("test-index", testDoc.Id) { Document = testDoc };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
 		var response = await _client.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
@@ -271,7 +271,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Arrange - Perform some operations to potentially populate metrics
 		var testDoc = new TestDocument { Id = "metrics-test", Name = "Metrics Test", Value = 456 };
-		var indexRequest = new IndexRequest<TestDocument>("test-index", testDoc.Id) { Document = testDoc };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
 		_ = await _client!.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
 
 		// Act - Get metrics (may be empty due to sampling), reset, and get again

@@ -54,8 +54,6 @@ internal sealed class ComponentTemplateStoreAdapter : IComponentTemplateStore
 								_ = meta.Add(kvp.Key, kvp.Value ?? new object());
 							}
 						}
-
-						return meta;
 					}),
 				cancellationToken)
 			.ConfigureAwait(false);

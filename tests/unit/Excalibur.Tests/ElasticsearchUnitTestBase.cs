@@ -155,7 +155,7 @@ public abstract class ElasticsearchUnitTestBase : IDisposable
 		}));
 
 		// Capture the request for verification
-		_ = A.CallTo(() => MockClient.SearchAsync(A<SearchRequestDescriptor<TDocument>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => MockClient.SearchAsync<TDocument>(A<SearchRequestDescriptor<TDocument>>._, A<CancellationToken>._))
 			.Invokes((SearchRequestDescriptor<TDocument> request, CancellationToken ct) => CapturedRequests.Add(new CapturedRequest
 			{
 				RequestType = "Search",

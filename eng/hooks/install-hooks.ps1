@@ -28,33 +28,33 @@ if (-not (Test-Path ".git/hooks")) {
     New-Item -ItemType Directory -Path ".git/hooks" -Force | Out-Null
 }
 
-# Install pre-commit hook
-$sourceHook = "eng/hooks/pre-commit"
-$targetHook = ".git/hooks/pre-commit"
+function Install-Hook {
+    param([string]$HookName)
 
-if (Test-Path $sourceHook) {
-    Write-Host "Installing pre-commit hook..." -ForegroundColor Cyan
+    $sourceHook = "eng/hooks/$HookName"
+    $targetHook = ".git/hooks/$HookName"
 
-    # Check if hook already exists
-    if (Test-Path $targetHook) {
-        Write-Host "  ⚠ Existing hook found - creating backup" -ForegroundColor Yellow
-        $backupPath = ".git/hooks/pre-commit.backup.$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-        Copy-Item $targetHook $backupPath
-        Write-Host "  Backup saved: $backupPath" -ForegroundColor Gray
+    if (Test-Path $sourceHook) {
+        Write-Host "Installing $HookName hook..." -ForegroundColor Cyan
+
+        if (Test-Path $targetHook) {
+            Write-Host "  ⚠ Existing hook found - creating backup" -ForegroundColor Yellow
+            $backupPath = ".git/hooks/$HookName.backup.$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+            Copy-Item $targetHook $backupPath
+            Write-Host "  Backup saved: $backupPath" -ForegroundColor Gray
+        }
+
+        Copy-Item $sourceHook $targetHook -Force
+        git update-index --chmod=+x $targetHook 2>$null
+
+        Write-Host "  ✓ $HookName hook installed" -ForegroundColor Green
+    } else {
+        Write-Host "  ⚠ WARNING: $sourceHook not found - skipping" -ForegroundColor Yellow
     }
-
-    # Copy hook
-    Copy-Item $sourceHook $targetHook -Force
-
-    # Make executable (Git Bash will honor this)
-    # PowerShell doesn't have chmod, but Git for Windows handles executable bit
-    # We can use git update-index to mark it executable
-    git update-index --chmod=+x $targetHook 2>$null
-
-    Write-Host "  ✓ pre-commit hook installed" -ForegroundColor Green
-} else {
-    Write-Host "  ⚠ WARNING: $sourceHook not found - skipping" -ForegroundColor Yellow
 }
+
+Install-Hook "pre-commit"
+Install-Hook "pre-push"
 
 Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
@@ -73,5 +73,5 @@ Write-Host "Documentation:" -ForegroundColor Cyan
 Write-Host "  eng/hooks/README.md - Installation and usage guide" -ForegroundColor Gray
 Write-Host "  .git/hooks/README.md - Detailed hook behavior (after installation)" -ForegroundColor Gray
 Write-Host ""
-Write-Host "✓ You're all set! The pre-commit hook will now validate namespace depth." -ForegroundColor Green
+Write-Host "✓ You're all set! Hooks installed: pre-commit (namespace depth) + pre-push (CHANGELOG)." -ForegroundColor Green
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan

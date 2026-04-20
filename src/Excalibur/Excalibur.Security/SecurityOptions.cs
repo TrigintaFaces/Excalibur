@@ -6,7 +6,7 @@ using Excalibur.Compliance;
 
 
 
-namespace Excalibur.Security.Configuration;
+namespace Excalibur.Security;
 
 /// <summary>
 /// Unified security configuration options.

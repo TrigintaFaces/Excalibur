@@ -10,7 +10,7 @@ using Excalibur.Security;
 using Microsoft.Extensions.Configuration;
 
 
-using Excalibur.Security.Configuration;namespace Excalibur.Dispatch.Security.Tests.Security;
+namespace Excalibur.Dispatch.Security.Tests.Security;
 
 /// <summary>
 /// Depth tests for <see cref="SecurityMiddlewareExtensions"/>.

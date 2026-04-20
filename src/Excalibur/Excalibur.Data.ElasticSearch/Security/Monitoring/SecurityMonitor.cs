@@ -133,7 +133,7 @@ internal sealed class SecurityMonitor : IElasticsearchSecurityMonitor, IAsyncDis
 					.Query(static q => q
 						.Bool(static b => b
 							.Must(static m => m
-								.Term(static t => t.Field(new Field("status")).Value("pending")))))
+								.Term(static t => t.Field("status").Value("pending")))))
 					.Size(100),
 				cancellationToken).ConfigureAwait(false);
 
@@ -178,7 +178,7 @@ internal sealed class SecurityMonitor : IElasticsearchSecurityMonitor, IAsyncDis
 			var eventsResponse = await _elasticClient.SearchAsync<SecurityEvent>(
 				static s => s
 					.Query(static q => q
-						.Range(r => r.DateRange(dr => dr.Field(new Field("timestamp")).Gte(DateMath.Now.Subtract(TimeSpan.FromHours(24))))))
+						.Range(r => r.DateRange(dr => dr.Field("timestamp").Gte(DateMath.Now.Subtract(TimeSpan.FromHours(24))))))
 					.Size(1000),
 				cancellationToken).ConfigureAwait(false);
 
@@ -990,7 +990,7 @@ internal sealed class SecurityMonitor : IElasticsearchSecurityMonitor, IAsyncDis
 		{
 			Must =
 			[
-				new DateRangeQuery(new Field("timestamp"))
+				new DateRangeQuery("timestamp")
 				{
 					Gte = DateMath.Now.Subtract(alertRequest.EndTime.Subtract(alertRequest.StartTime)),
 				},
@@ -1097,8 +1097,8 @@ internal sealed class SecurityMonitor : IElasticsearchSecurityMonitor, IAsyncDis
 									.Term(t => t.Field(f => f.UserId).Value(userId)),
 								m => m.Term(t => t.Field(f => f.Success).Value(value: false)),
 								m => m.Range(r => r.DateRange(dr =>
-									dr.Field(new Field("timestamp")).Gte(DateMath.Now.Subtract(TimeSpan.FromDays(30))))))))
-					.Sort(so => so.Field(f => f.Timestamp, new FieldSort { Order = SortOrder.Desc }))
+									dr.Field("timestamp").Gte(DateMath.Now.Subtract(TimeSpan.FromDays(30))))))))
+					.Sort(so => so.Field(f => f.Field("timestamp").Order(SortOrder.Desc)))
 					.Size(10000),
 				cancellationToken).ConfigureAwait(false);
 

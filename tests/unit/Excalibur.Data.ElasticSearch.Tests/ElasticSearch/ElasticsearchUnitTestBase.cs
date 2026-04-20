@@ -151,7 +151,7 @@ public abstract class ElasticsearchUnitTestBase : IDisposable
 		// If Hit-level details (scores, etc.) are needed, tests can set up their own mocks
 
 		// Capture the request for verification
-		_ = A.CallTo(() => MockClient.SearchAsync(A<SearchRequestDescriptor<TDocument>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => MockClient.SearchAsync<TDocument>(A<SearchRequestDescriptor<TDocument>>._, A<CancellationToken>._))
 			.Invokes((SearchRequestDescriptor<TDocument> request, CancellationToken ct) => CapturedRequests.Add(new CapturedRequest
 			{
 				RequestType = "Search",

@@ -198,7 +198,7 @@ public sealed class ElasticOrderProjectionUpdater(
 				.Query(q => q.Term(t => t.Field(f => f.CustomerId).Value(customerId)))
 				.From(skip)
 				.Size(take)
-				.Sort(so => so.Field(f => f.CreatedAt, new FieldSort { Order = SortOrder.Desc })),
+				.Sort(so => so.Field(f => f.Field("createdAt").Order(SortOrder.Desc))),
 			cancellationToken);
 
 		if (!response.IsValidResponse)

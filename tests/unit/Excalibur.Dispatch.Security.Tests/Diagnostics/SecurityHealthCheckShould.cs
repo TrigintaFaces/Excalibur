@@ -8,7 +8,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
 
-using Excalibur.Security.Configuration;namespace Excalibur.Dispatch.Security.Tests.Diagnostics;
+namespace Excalibur.Dispatch.Security.Tests.Diagnostics;
 
 /// <summary>
 /// Tests for SecurityHealthCheck (Sprint 696 T.21).

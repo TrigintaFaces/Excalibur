@@ -1,0 +1,488 @@
+# Package Category Map
+#
+# Purpose: declare the architectural category for every shipping package. The
+# `transitive-bloat-report.ps1` governance gate uses this to decide which
+# packages to scan for prohibited provider-SDK transitives (Azure.*, AWSSDK,
+# Amazon.*, Google.Cloud, Google.Apis, Confluent.Kafka, RabbitMQ.Client,
+# MongoDB.Driver, StackExchange.Redis, Elastic.Clients, Microsoft.Data.SqlClient,
+# Npgsql).
+#
+# Category semantics:
+#   Abstractions   — contracts only; must not pull ANY provider SDK transitively
+#   Core           — canonical Excalibur.Dispatch package; same prohibition as Abstractions
+#   Provider       — concrete provider implementation; MAY reference its own vendor SDK
+#   Framework      — cross-cutting pieces (Observability, Caching, Resilience, Serialization,
+#                    Middleware, SourceGenerators, Testing); NOT scanned — may need infra deps
+#   Hosting        — opinionated hosting bridges (AspNetCore, AwsLambda, AzureFunctions, etc.)
+#   Excalibur      — DDD/CQRS framework-layer (Domain, EventSourcing, Application, Saga, Outbox,
+#                    Inbox, LeaderElection, A3, Compliance, AuditLogging, Data, Cdc, Jobs, Security)
+#   Metapackage    — aggregator packages (Excalibur.Postgres, Excalibur.SqlServer)
+#   Tool           — standalone tools (Migrate.Tool)
+#
+# Only `Core` and `Abstractions` are scanned by the transitive-bloat gate.
+# When adding a new project: copy an entry with the matching role + category.
+
+version: 1
+
+packages:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Dispatch Core + Abstractions
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Dispatch
+    category: Core
+  - id: Excalibur.Dispatch.Abstractions
+    category: Abstractions
+  - id: Excalibur.Dispatch.Hosting.Serverless.Abstractions
+    category: Abstractions
+  - id: Excalibur.Dispatch.LeaderElection.Abstractions
+    category: Abstractions
+  - id: Excalibur.Dispatch.Transport.Abstractions
+    category: Abstractions
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Dispatch Framework (cross-cutting, non-provider)
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Dispatch.Analyzers
+    category: Framework
+  - id: Excalibur.Dispatch.Caching
+    category: Framework
+  - id: Excalibur.Dispatch.Observability
+    category: Framework
+  - id: Excalibur.Dispatch.Patterns
+    category: Framework
+  - id: Excalibur.Dispatch.Patterns.Hosting.Json
+    category: Framework
+  - id: Excalibur.Dispatch.Patterns.ClaimCheck.InMemory
+    category: Framework
+  - id: Excalibur.Dispatch.Resilience.Polly
+    category: Framework
+  - id: Excalibur.Dispatch.Serialization.Avro
+    category: Framework
+  - id: Excalibur.Dispatch.Serialization.MemoryPack
+    category: Framework
+  - id: Excalibur.Dispatch.Serialization.MessagePack
+    category: Framework
+  - id: Excalibur.Dispatch.Serialization.Protobuf
+    category: Framework
+  - id: Excalibur.Dispatch.SourceGenerators
+    category: Framework
+  - id: Excalibur.Dispatch.SourceGenerators.Analyzers
+    category: Framework
+  - id: Excalibur.Dispatch.Testing
+    category: Framework
+  - id: Excalibur.Dispatch.Testing.Shouldly
+    category: Framework
+  - id: Excalibur.Dispatch.Validation.FluentValidation
+    category: Framework
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Dispatch Hosting
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Dispatch.Hosting.AspNetCore
+    category: Hosting
+  - id: Excalibur.Dispatch.Hosting.AwsLambda
+    category: Hosting
+  - id: Excalibur.Dispatch.Hosting.AzureFunctions
+    category: Hosting
+  - id: Excalibur.Dispatch.Hosting.GoogleCloudFunctions
+    category: Hosting
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Dispatch Transport providers (vendor SDKs expected)
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Dispatch.Transport.AwsSqs
+    category: Provider
+  - id: Excalibur.Dispatch.Transport.AzureServiceBus
+    category: Provider
+  - id: Excalibur.Dispatch.Transport.GooglePubSub
+    category: Provider
+  - id: Excalibur.Dispatch.Transport.Grpc
+    category: Provider
+  - id: Excalibur.Dispatch.Transport.Kafka
+    category: Provider
+  - id: Excalibur.Dispatch.Transport.RabbitMQ
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Dispatch vendor-specific feature packs (vendor SDKs expected)
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Dispatch.Aws
+    category: Provider
+  - id: Excalibur.Dispatch.Azure
+    category: Provider
+  - id: Excalibur.Dispatch.Patterns.Azure
+    category: Provider
+  - id: Excalibur.Dispatch.ClaimCheck.AwsS3
+    category: Provider
+  - id: Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage
+    category: Provider
+  - id: Excalibur.Dispatch.Observability.Aws
+    category: Provider
+  - id: Excalibur.Dispatch.Kafka
+    category: Provider
+  - id: Excalibur.Dispatch.Postgres
+    category: Provider
+  - id: Excalibur.Dispatch.RabbitMQ
+    category: Provider
+  - id: Excalibur.Dispatch.SqlServer
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur framework Abstractions
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.A3.Abstractions
+    category: Abstractions
+  - id: Excalibur.A3.Governance.Abstractions
+    category: Abstractions
+  - id: Excalibur.Compliance.Abstractions
+    category: Abstractions
+  - id: Excalibur.Data.Abstractions
+    category: Abstractions
+  - id: Excalibur.EventSourcing.Abstractions
+    category: Abstractions
+  - id: Excalibur.Jobs.Abstractions
+    category: Abstractions
+  - id: Excalibur.Security.Abstractions
+    category: Abstractions
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur framework-layer (DDD / CQRS / app services)
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.A3
+    category: Excalibur
+  - id: Excalibur.A3.Core
+    category: Excalibur
+  - id: Excalibur.A3.Governance
+    category: Excalibur
+  - id: Excalibur.Application
+    category: Excalibur
+  - id: Excalibur.Caching
+    category: Excalibur
+  - id: Excalibur.Cdc
+    category: Excalibur
+  - id: Excalibur.Compliance
+    category: Excalibur
+  - id: Excalibur.Data
+    category: Excalibur
+  - id: Excalibur.Data.DataProcessing
+    category: Excalibur
+  - id: Excalibur.Data.IdentityMap
+    category: Excalibur
+  - id: Excalibur.Domain
+    category: Excalibur
+  - id: Excalibur.EventSourcing
+    category: Excalibur
+  - id: Excalibur.Inbox
+    category: Excalibur
+  - id: Excalibur.Jobs
+    category: Excalibur
+  - id: Excalibur.LeaderElection
+    category: Excalibur
+  - id: Excalibur.Outbox
+    category: Excalibur
+  - id: Excalibur.Saga
+    category: Excalibur
+  - id: Excalibur.Security
+    category: Excalibur
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur hosting
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Hosting
+    category: Hosting
+  - id: Excalibur.Hosting.Aws
+    category: Hosting
+  - id: Excalibur.Hosting.AwsLambda
+    category: Hosting
+  - id: Excalibur.Hosting.AzureFunctions
+    category: Hosting
+  - id: Excalibur.Hosting.Compliance
+    category: Hosting
+  - id: Excalibur.Hosting.GoogleCloudFunctions
+    category: Hosting
+  - id: Excalibur.Hosting.HealthChecks
+    category: Hosting
+  - id: Excalibur.Hosting.Jobs
+    category: Hosting
+  - id: Excalibur.Hosting.Logging.Serilog
+    category: Hosting
+  - id: Excalibur.Hosting.Observability
+    category: Hosting
+  - id: Excalibur.Hosting.Serverless
+    category: Hosting
+  - id: Excalibur.Hosting.Web
+    category: Hosting
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur AuditLogging providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.AuditLogging
+    category: Excalibur
+  - id: Excalibur.AuditLogging.Aws
+    category: Provider
+  - id: Excalibur.AuditLogging.Datadog
+    category: Provider
+  - id: Excalibur.AuditLogging.Elasticsearch
+    category: Provider
+  - id: Excalibur.AuditLogging.GoogleCloud
+    category: Provider
+  - id: Excalibur.AuditLogging.OpenSearch
+    category: Provider
+  - id: Excalibur.AuditLogging.Postgres
+    category: Provider
+  - id: Excalibur.AuditLogging.Sentinel
+    category: Provider
+  - id: Excalibur.AuditLogging.Splunk
+    category: Provider
+  - id: Excalibur.AuditLogging.SqlServer
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur Cdc providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Cdc.CosmosDb
+    category: Provider
+  - id: Excalibur.Cdc.DynamoDb
+    category: Provider
+  - id: Excalibur.Cdc.Firestore
+    category: Provider
+  - id: Excalibur.Cdc.MongoDB
+    category: Provider
+  - id: Excalibur.Cdc.Postgres
+    category: Provider
+  - id: Excalibur.Cdc.SqlServer
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur Compliance providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Compliance.Aws
+    category: Provider
+  - id: Excalibur.Compliance.Azure
+    category: Provider
+  - id: Excalibur.Compliance.Postgres
+    category: Provider
+  - id: Excalibur.Compliance.SqlServer
+    category: Provider
+  - id: Excalibur.Compliance.Vault
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur Data providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Data.CosmosDb
+    category: Provider
+  - id: Excalibur.Data.DynamoDb
+    category: Provider
+  - id: Excalibur.Data.ElasticSearch
+    category: Provider
+  - id: Excalibur.Data.Firestore
+    category: Provider
+  - id: Excalibur.Data.IdentityMap.SqlServer
+    category: Provider
+  - id: Excalibur.Data.InMemory
+    category: Provider
+  - id: Excalibur.Data.MongoDB
+    category: Provider
+  - id: Excalibur.Data.MySql
+    category: Provider
+  - id: Excalibur.Data.OpenSearch
+    category: Provider
+  - id: Excalibur.Data.Postgres
+    category: Provider
+  - id: Excalibur.Data.Redis
+    category: Provider
+  - id: Excalibur.Data.SqlServer
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur EventSourcing providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.EventSourcing.AwsS3
+    category: Provider
+  - id: Excalibur.EventSourcing.AzureBlob
+    category: Provider
+  - id: Excalibur.EventSourcing.CosmosDb
+    category: Provider
+  - id: Excalibur.EventSourcing.DynamoDb
+    category: Provider
+  - id: Excalibur.EventSourcing.Firestore
+    category: Provider
+  - id: Excalibur.EventSourcing.Gcs
+    category: Provider
+  - id: Excalibur.EventSourcing.InMemory
+    category: Provider
+  - id: Excalibur.EventSourcing.MongoDB
+    category: Provider
+  - id: Excalibur.EventSourcing.Postgres
+    category: Provider
+  - id: Excalibur.EventSourcing.Redis
+    category: Provider
+  - id: Excalibur.EventSourcing.SqlServer
+    category: Provider
+  - id: Excalibur.EventSourcing.Sqlite
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur Inbox providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Inbox.CosmosDb
+    category: Provider
+  - id: Excalibur.Inbox.DynamoDb
+    category: Provider
+  - id: Excalibur.Inbox.ElasticSearch
+    category: Provider
+  - id: Excalibur.Inbox.Firestore
+    category: Provider
+  - id: Excalibur.Inbox.InMemory
+    category: Provider
+  - id: Excalibur.Inbox.MongoDB
+    category: Provider
+  - id: Excalibur.Inbox.Postgres
+    category: Provider
+  - id: Excalibur.Inbox.Redis
+    category: Provider
+  - id: Excalibur.Inbox.SqlServer
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur Jobs providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Jobs.Aws
+    category: Provider
+  - id: Excalibur.Jobs.Azure
+    category: Provider
+  - id: Excalibur.Jobs.Cdc
+    category: Excalibur
+  - id: Excalibur.Jobs.DataProcessing
+    category: Excalibur
+  - id: Excalibur.Jobs.GoogleCloud
+    category: Provider
+  - id: Excalibur.Jobs.Redis
+    category: Provider
+  - id: Excalibur.Jobs.SqlServer
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur LeaderElection providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.LeaderElection.Consul
+    category: Provider
+  - id: Excalibur.LeaderElection.InMemory
+    category: Provider
+  - id: Excalibur.LeaderElection.Kubernetes
+    category: Provider
+  - id: Excalibur.LeaderElection.MongoDB
+    category: Provider
+  - id: Excalibur.LeaderElection.Postgres
+    category: Provider
+  - id: Excalibur.LeaderElection.Redis
+    category: Provider
+  - id: Excalibur.LeaderElection.SqlServer
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur Outbox providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Outbox.CosmosDb
+    category: Provider
+  - id: Excalibur.Outbox.DynamoDb
+    category: Provider
+  - id: Excalibur.Outbox.ElasticSearch
+    category: Provider
+  - id: Excalibur.Outbox.Firestore
+    category: Provider
+  - id: Excalibur.Outbox.InMemory
+    category: Provider
+  - id: Excalibur.Outbox.MongoDB
+    category: Provider
+  - id: Excalibur.Outbox.Postgres
+    category: Provider
+  - id: Excalibur.Outbox.Redis
+    category: Provider
+  - id: Excalibur.Outbox.SqlServer
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur Saga providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Saga.CosmosDb
+    category: Provider
+  - id: Excalibur.Saga.DynamoDb
+    category: Provider
+  - id: Excalibur.Saga.Firestore
+    category: Provider
+  - id: Excalibur.Saga.MongoDB
+    category: Provider
+  - id: Excalibur.Saga.Postgres
+    category: Provider
+  - id: Excalibur.Saga.SqlServer
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur A3 Policy engines
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.A3.Policy.Cedar
+    category: Provider
+  - id: Excalibur.A3.Policy.Opa
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Excalibur Security providers
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Security.Aws
+    category: Provider
+  - id: Excalibur.Security.Azure
+    category: Provider
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Testing / Conformance
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Testing
+    category: Framework
+  - id: Excalibur.Testing.Conformance
+    category: Framework
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Tools
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Migrate.Tool
+    category: Tool
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Metapackages (aggregators — depend on multiple providers)
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: Excalibur.Postgres
+    category: Metapackage
+  - id: Excalibur.SqlServer
+    category: Metapackage
+
+# Architectural rules (informational — governance scripts may consume in future).
+# The current transitive-bloat-report.ps1 only reads `category`; these are here
+# for readability and future enforcement scripts.
+rules:
+  prohibited_in_core_and_abstractions:
+    # Provider-vendor SDK prefixes that must NOT appear in Core/Abstractions transitive graphs.
+    - Azure.
+    - AWSSDK
+    - Amazon.
+    - Google.Cloud
+    - Google.Apis
+    - Confluent.Kafka
+    - RabbitMQ.Client
+    - MongoDB.Driver
+    - StackExchange.Redis
+    - Elastic.Clients
+    - Microsoft.Data.SqlClient
+    - Npgsql
+
+  # Forbidden cross-category references (examples; not yet enforced in script):
+  from_abstractions:
+    notAllowedToReference:
+      - Provider
+      - Hosting
+      - Excalibur   # Abstractions must not depend on framework-layer concretes
+  from_core:
+    notAllowedToReference:
+      - Provider
+      - Hosting

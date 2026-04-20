@@ -87,7 +87,7 @@
     <PackageReference Include="CloudNative.CloudEvents.SystemTextJson" />
     <PackageReference Include="Cronos" />
     <!-- ADR-295: MemoryPack removed from core; JSON is the default, binary serializers are opt-in provider packages -->
-    <PackageReference Include="Microsoft.ApplicationInsights" />
+    <!-- Microsoft.ApplicationInsights removed: unused in Core (no .cs references) and its v3+ transitive graph pulls Azure.Core + Azure.Monitor.OpenTelemetry.Exporter into Core, which violates the no-provider-SDK-in-Core governance rule. Telemetry/OTel integration belongs in Excalibur.Dispatch.Observability. -->
     <PackageReference Include="Microsoft.AspNetCore.Authorization" />
     <!-- Polly removed - Use IRetryPolicy from Excalibur.Dispatch.Resilience or Excalibur.Dispatch.Resilience.Polly -->
     <PackageReference Include="System.Threading.Channels" />

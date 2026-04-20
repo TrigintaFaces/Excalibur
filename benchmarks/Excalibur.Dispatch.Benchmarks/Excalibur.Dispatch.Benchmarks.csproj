@@ -19,10 +19,17 @@
     <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Condition="'$(OS)' == 'Windows_NT'" />
     <PackageReference Include="MassTransit" />
     <PackageReference Include="MediatR" />
+    <PackageReference Include="NServiceBus" />
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="MemoryPack" />
+    <!-- WolverineFx 5.31.1 transitively requires CodeAnalysis 5.0.0 via JasperFx.RuntimeCompiler.
+         Central pin is 4.14.0 (HOLD per S810 COMPASS msg 2233). Override scoped to benchmarks only. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" VersionOverride="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" VersionOverride="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" VersionOverride="5.0.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />

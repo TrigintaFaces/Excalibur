@@ -165,12 +165,12 @@ internal sealed class SchemaEvolutionOperationsAdapter : ISchemaEvolutionOperati
 		string indexName,
 		bool allowDefault)
 	{
-		if (!response.IsValidResponse || !response.Indices.TryGetValue(indexName, out var mapping))
+		if (!response.IsValidResponse || !response.Mappings.TryGetValue(indexName, out var mapping))
 		{
 			return null;
 		}
 
-		var properties = mapping.Mappings.Properties;
+		var properties = mapping.Mappings?.Properties;
 		if (properties is null)
 		{
 			return allowDefault

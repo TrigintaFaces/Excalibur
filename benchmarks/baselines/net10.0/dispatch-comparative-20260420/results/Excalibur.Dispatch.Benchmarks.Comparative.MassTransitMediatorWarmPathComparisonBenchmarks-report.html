@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.MassTransitMediatorWarmPathComparisonBenchmarks-20260420-111550</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8117/25H2/2025Update/HudsonValley2)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.202
+  [Host] : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=warmpath-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                                    </th><th>Mean   </th><th>Error </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch (local): Single command&#39;</td><td>87.18 ns</td><td>0.607 ns</td><td>0.507 ns</td><td>1.00</td><td>0.01</td><td>0.0186</td><td>-</td><td>352 B</td><td>1.00</td>
+</tr><tr><td>&#39;MassTransit Mediator (in-process): Single command&#39;</td><td>1,236.83 ns</td><td>24.018 ns</td><td>32.064 ns</td><td>14.19</td><td>0.37</td><td>0.1869</td><td>-</td><td>3544 B</td><td>10.07</td>
+</tr><tr><td>&#39;Dispatch (local): Notification to 2 handlers&#39;</td><td>138.03 ns</td><td>1.197 ns</td><td>0.999 ns</td><td>1.58</td><td>0.01</td><td>0.0198</td><td>-</td><td>376 B</td><td>1.07</td>
+</tr><tr><td>&#39;MassTransit Mediator (in-process): Notification to 2 consumers&#39;</td><td>1,751.99 ns</td><td>20.723 ns</td><td>19.385 ns</td><td>20.10</td><td>0.24</td><td>0.2213</td><td>-</td><td>4176 B</td><td>11.86</td>
+</tr><tr><td>&#39;Dispatch (local): Query with return&#39;</td><td>105.01 ns</td><td>1.386 ns</td><td>1.228 ns</td><td>1.20</td><td>0.02</td><td>0.0288</td><td>-</td><td>544 B</td><td>1.55</td>
+</tr><tr><td>&#39;MassTransit Mediator (in-process): Query with return&#39;</td><td>19,676.29 ns</td><td>483.048 ns</td><td>1,378.163 ns</td><td>225.71</td><td>15.78</td><td>0.6104</td><td>-</td><td>11653 B</td><td>33.11</td>
+</tr><tr><td>&#39;Dispatch (local): 10 concurrent commands&#39;</td><td>1,060.64 ns</td><td>10.403 ns</td><td>9.731 ns</td><td>12.17</td><td>0.13</td><td>0.1698</td><td>-</td><td>3200 B</td><td>9.09</td>
+</tr><tr><td>&#39;MassTransit Mediator (in-process): 10 concurrent commands&#39;</td><td>12,515.54 ns</td><td>245.788 ns</td><td>344.560 ns</td><td>143.57</td><td>3.97</td><td>1.8921</td><td>-</td><td>35648 B</td><td>101.27</td>
+</tr><tr><td>&#39;Dispatch (local): 100 concurrent commands&#39;</td><td>9,179.82 ns</td><td>83.936 ns</td><td>78.514 ns</td><td>105.30</td><td>1.05</td><td>1.6174</td><td>0.0458</td><td>30560 B</td><td>86.82</td>
+</tr><tr><td>&#39;MassTransit Mediator (in-process): 100 concurrent commands&#39;</td><td>123,882.74 ns</td><td>2,443.552 ns</td><td>4,406.228 ns</td><td>1,421.09</td><td>50.60</td><td>18.7988</td><td>0.1221</td><td>355329 B</td><td>1,009.46</td>
+</tr></tbody></table>
+</body>
+</html>

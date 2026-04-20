@@ -69,7 +69,7 @@ internal sealed class MigrationHistoryStoreAdapter : IMigrationHistoryStore
 				s => s.Index(indexName)
 					.Size(1000)
 					.Query(q => q.Term(t => t.Field("projectionType").Value(projectionType)))
-					.Sort(s => s.Field("recordedAt", new FieldSort { Order = SortOrder.Desc })),
+					.Sort(s => s.Field(f => f.Field("recordedAt").Order(SortOrder.Desc))),
 				cancellationToken)
 			.ConfigureAwait(false);
 #pragma warning restore CS8604

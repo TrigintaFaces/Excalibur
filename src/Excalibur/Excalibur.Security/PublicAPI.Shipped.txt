@@ -402,28 +402,28 @@ Excalibur.Security.SecureCredentialProvider.GetCredentialAsync(string! key, Syst
 Excalibur.Security.SecureCredentialProvider.RotateCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Security.SecureCredentialProvider.SecureCredentialProvider(Microsoft.Extensions.Logging.ILogger<Excalibur.Security.SecureCredentialProvider!>! logger, System.Collections.Generic.IEnumerable<Excalibur.Security.ICredentialStore!>! credentialStores) -> void
 Excalibur.Security.SecureCredentialProvider.ValidateCredentialAsync(string! key, Excalibur.Security.CredentialRequirements! requirements, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.CredentialValidationResult!>!
-Excalibur.Security.Configuration.SecurityAuthenticationOptions
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.EnableAuthentication.get -> bool
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.EnableAuthentication.set -> void
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.JwtAudience.get -> string?
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.JwtAudience.set -> void
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.JwtIssuer.get -> string?
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.JwtIssuer.set -> void
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.JwtSigningKey.get -> string?
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.JwtSigningKey.set -> void
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.RequireAuthentication.get -> bool
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.RequireAuthentication.set -> void
-Excalibur.Security.Configuration.SecurityAuthenticationOptions.SecurityAuthenticationOptions() -> void
-Excalibur.Security.Configuration.SecurityEncryptionOptions
-Excalibur.Security.Configuration.SecurityEncryptionOptions.AwsKmsKeyArn.get -> string?
-Excalibur.Security.Configuration.SecurityEncryptionOptions.AwsKmsKeyArn.set -> void
-Excalibur.Security.Configuration.SecurityEncryptionOptions.AzureKeyVaultUrl.get -> System.Uri?
-Excalibur.Security.Configuration.SecurityEncryptionOptions.AzureKeyVaultUrl.set -> void
-Excalibur.Security.Configuration.SecurityEncryptionOptions.EnableEncryption.get -> bool
-Excalibur.Security.Configuration.SecurityEncryptionOptions.EnableEncryption.set -> void
-Excalibur.Security.Configuration.SecurityEncryptionOptions.EncryptionAlgorithm.get -> Excalibur.Compliance.EncryptionAlgorithm
-Excalibur.Security.Configuration.SecurityEncryptionOptions.EncryptionAlgorithm.set -> void
-Excalibur.Security.Configuration.SecurityEncryptionOptions.SecurityEncryptionOptions() -> void
+Excalibur.Security.SecurityAuthenticationOptions
+Excalibur.Security.SecurityAuthenticationOptions.EnableAuthentication.get -> bool
+Excalibur.Security.SecurityAuthenticationOptions.EnableAuthentication.set -> void
+Excalibur.Security.SecurityAuthenticationOptions.JwtAudience.get -> string?
+Excalibur.Security.SecurityAuthenticationOptions.JwtAudience.set -> void
+Excalibur.Security.SecurityAuthenticationOptions.JwtIssuer.get -> string?
+Excalibur.Security.SecurityAuthenticationOptions.JwtIssuer.set -> void
+Excalibur.Security.SecurityAuthenticationOptions.JwtSigningKey.get -> string?
+Excalibur.Security.SecurityAuthenticationOptions.JwtSigningKey.set -> void
+Excalibur.Security.SecurityAuthenticationOptions.RequireAuthentication.get -> bool
+Excalibur.Security.SecurityAuthenticationOptions.RequireAuthentication.set -> void
+Excalibur.Security.SecurityAuthenticationOptions.SecurityAuthenticationOptions() -> void
+Excalibur.Security.SecurityEncryptionOptions
+Excalibur.Security.SecurityEncryptionOptions.AwsKmsKeyArn.get -> string?
+Excalibur.Security.SecurityEncryptionOptions.AwsKmsKeyArn.set -> void
+Excalibur.Security.SecurityEncryptionOptions.AzureKeyVaultUrl.get -> System.Uri?
+Excalibur.Security.SecurityEncryptionOptions.AzureKeyVaultUrl.set -> void
+Excalibur.Security.SecurityEncryptionOptions.EnableEncryption.get -> bool
+Excalibur.Security.SecurityEncryptionOptions.EnableEncryption.set -> void
+Excalibur.Security.SecurityEncryptionOptions.EncryptionAlgorithm.get -> Excalibur.Compliance.EncryptionAlgorithm
+Excalibur.Security.SecurityEncryptionOptions.EncryptionAlgorithm.set -> void
+Excalibur.Security.SecurityEncryptionOptions.SecurityEncryptionOptions() -> void
 Excalibur.Security.SecurityEvent
 Excalibur.Security.SecurityEvent.AdditionalData.get -> System.Collections.Generic.IDictionary<string!, object?>!
 Excalibur.Security.SecurityEvent.AdditionalData.init -> void
@@ -484,39 +484,39 @@ Excalibur.Security.SecurityEventType.SuspiciousActivity = 8 -> Excalibur.Securit
 Excalibur.Security.SecurityEventType.ValidationError = 5 -> Excalibur.Security.SecurityEventType
 Excalibur.Security.SecurityEventType.ValidationFailure = 4 -> Excalibur.Security.SecurityEventType
 Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions
-Excalibur.Security.Configuration.SecurityOptions
-Excalibur.Security.Configuration.SecurityOptions.Authentication.get -> Excalibur.Security.Configuration.SecurityAuthenticationOptions!
-Excalibur.Security.Configuration.SecurityOptions.Authentication.set -> void
-Excalibur.Security.Configuration.SecurityOptions.CustomHeaders.get -> System.Collections.Generic.IDictionary<string!, string!>!
-Excalibur.Security.Configuration.SecurityOptions.CustomHeaders.init -> void
-Excalibur.Security.Configuration.SecurityOptions.EnableSecurityHeaders.get -> bool
-Excalibur.Security.Configuration.SecurityOptions.EnableSecurityHeaders.set -> void
-Excalibur.Security.Configuration.SecurityOptions.Encryption.get -> Excalibur.Security.Configuration.SecurityEncryptionOptions!
-Excalibur.Security.Configuration.SecurityOptions.Encryption.set -> void
-Excalibur.Security.Configuration.SecurityOptions.RateLimiting.get -> Excalibur.Security.Configuration.SecurityRateLimitOptions!
-Excalibur.Security.Configuration.SecurityOptions.RateLimiting.set -> void
-Excalibur.Security.Configuration.SecurityOptions.SecurityOptions() -> void
-Excalibur.Security.Configuration.SecurityOptions.Signing.get -> Excalibur.Security.Configuration.SecuritySigningOptions!
-Excalibur.Security.Configuration.SecurityOptions.Signing.set -> void
-Excalibur.Security.Configuration.SecurityRateLimitOptions
-Excalibur.Security.Configuration.SecurityRateLimitOptions.DefaultRateLimits.get -> Excalibur.Security.RateLimits!
-Excalibur.Security.Configuration.SecurityRateLimitOptions.DefaultRateLimits.set -> void
-Excalibur.Security.Configuration.SecurityRateLimitOptions.EnableRateLimiting.get -> bool
-Excalibur.Security.Configuration.SecurityRateLimitOptions.EnableRateLimiting.set -> void
-Excalibur.Security.Configuration.SecurityRateLimitOptions.RateLimitAlgorithm.get -> Excalibur.Security.RateLimitAlgorithm
-Excalibur.Security.Configuration.SecurityRateLimitOptions.RateLimitAlgorithm.set -> void
-Excalibur.Security.Configuration.SecurityRateLimitOptions.SecurityRateLimitOptions() -> void
+Excalibur.Security.SecurityOptions
+Excalibur.Security.SecurityOptions.Authentication.get -> Excalibur.Security.SecurityAuthenticationOptions!
+Excalibur.Security.SecurityOptions.Authentication.set -> void
+Excalibur.Security.SecurityOptions.CustomHeaders.get -> System.Collections.Generic.IDictionary<string!, string!>!
+Excalibur.Security.SecurityOptions.CustomHeaders.init -> void
+Excalibur.Security.SecurityOptions.EnableSecurityHeaders.get -> bool
+Excalibur.Security.SecurityOptions.EnableSecurityHeaders.set -> void
+Excalibur.Security.SecurityOptions.Encryption.get -> Excalibur.Security.SecurityEncryptionOptions!
+Excalibur.Security.SecurityOptions.Encryption.set -> void
+Excalibur.Security.SecurityOptions.RateLimiting.get -> Excalibur.Security.SecurityRateLimitOptions!
+Excalibur.Security.SecurityOptions.RateLimiting.set -> void
+Excalibur.Security.SecurityOptions.SecurityOptions() -> void
+Excalibur.Security.SecurityOptions.Signing.get -> Excalibur.Security.SecuritySigningOptions!
+Excalibur.Security.SecurityOptions.Signing.set -> void
+Excalibur.Security.SecurityRateLimitOptions
+Excalibur.Security.SecurityRateLimitOptions.DefaultRateLimits.get -> Excalibur.Security.RateLimits!
+Excalibur.Security.SecurityRateLimitOptions.DefaultRateLimits.set -> void
+Excalibur.Security.SecurityRateLimitOptions.EnableRateLimiting.get -> bool
+Excalibur.Security.SecurityRateLimitOptions.EnableRateLimiting.set -> void
+Excalibur.Security.SecurityRateLimitOptions.RateLimitAlgorithm.get -> Excalibur.Security.RateLimitAlgorithm
+Excalibur.Security.SecurityRateLimitOptions.RateLimitAlgorithm.set -> void
+Excalibur.Security.SecurityRateLimitOptions.SecurityRateLimitOptions() -> void
 Excalibur.Security.SecuritySeverity
 Excalibur.Security.SecuritySeverity.Critical = 3 -> Excalibur.Security.SecuritySeverity
 Excalibur.Security.SecuritySeverity.High = 2 -> Excalibur.Security.SecuritySeverity
 Excalibur.Security.SecuritySeverity.Low = 0 -> Excalibur.Security.SecuritySeverity
 Excalibur.Security.SecuritySeverity.Medium = 1 -> Excalibur.Security.SecuritySeverity
-Excalibur.Security.Configuration.SecuritySigningOptions
-Excalibur.Security.Configuration.SecuritySigningOptions.EnableSigning.get -> bool
-Excalibur.Security.Configuration.SecuritySigningOptions.EnableSigning.set -> void
-Excalibur.Security.Configuration.SecuritySigningOptions.SecuritySigningOptions() -> void
-Excalibur.Security.Configuration.SecuritySigningOptions.SigningAlgorithm.get -> Excalibur.Security.SigningAlgorithm
-Excalibur.Security.Configuration.SecuritySigningOptions.SigningAlgorithm.set -> void
+Excalibur.Security.SecuritySigningOptions
+Excalibur.Security.SecuritySigningOptions.EnableSigning.get -> bool
+Excalibur.Security.SecuritySigningOptions.EnableSigning.set -> void
+Excalibur.Security.SecuritySigningOptions.SecuritySigningOptions() -> void
+Excalibur.Security.SecuritySigningOptions.SigningAlgorithm.get -> Excalibur.Security.SigningAlgorithm
+Excalibur.Security.SecuritySigningOptions.SigningAlgorithm.set -> void
 Excalibur.Security.SignatureFormat
 Excalibur.Security.SignatureFormat.Base64 = 0 -> Excalibur.Security.SignatureFormat
 Excalibur.Security.SignatureFormat.Binary = 2 -> Excalibur.Security.SignatureFormat
@@ -805,7 +805,7 @@ static Excalibur.Security.InputValidationResult.Success() -> Excalibur.Security.
 static Excalibur.Security.KeyProviderExtensions.StoreKeyPairAsync(this Excalibur.Security.IKeyProvider! provider, string! keyId, byte[]! privateKey, byte[]! publicKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddAsymmetricSigning(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.SigningOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Configuration.SecurityOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.SecurityOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddJwtAuthentication(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddJwtAuthentication(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.JwtAuthenticationOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddMessageEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

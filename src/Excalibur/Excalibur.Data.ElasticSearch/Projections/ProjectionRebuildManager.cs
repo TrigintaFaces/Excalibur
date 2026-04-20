@@ -207,18 +207,18 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 	{
 		await EnsureOperationsIndexExistsAsync(cancellationToken).ConfigureAwait(false);
 
-		var queries = new List<Query> { new DateRangeQuery(new Field("startedAt")) { Gte = fromDate, Lte = toDate, }, };
+		var queries = new List<Query> { new DateRangeQuery("startedAt") { Gte = fromDate, Lte = toDate, }, };
 
 		if (!string.IsNullOrWhiteSpace(projectionType))
 		{
-			queries.Add(new TermQuery(new Field("projectionType")) { Value = projectionType, });
+			queries.Add(new TermQuery { Field = "projectionType", Value = projectionType, });
 		}
 
 		var request = new SearchRequest(_operationsIndexName)
 		{
 			Size = 100,
 			Query = queries.Count == 1 ? queries[0] : new BoolQuery { Must = queries.ToArray() },
-			Sort = new List<SortOptions> { SortOptions.Field(new Field("startedAt"), new FieldSort { Order = SortOrder.Desc }), },
+			Sort = [new SortOptions { Field = new FieldSort("startedAt") { Order = SortOrder.Desc } }],
 		};
 
 		var response = await _client.SearchAsync<ProjectionRebuildOperationDocument>(

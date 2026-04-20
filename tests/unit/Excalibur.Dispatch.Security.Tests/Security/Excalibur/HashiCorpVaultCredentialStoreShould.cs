@@ -9,7 +9,7 @@ using Excalibur.Security;
 using Microsoft.Extensions.Configuration;
 
 
-using Excalibur.Security.CredentialStores;namespace Excalibur.Dispatch.Security.Tests;
+namespace Excalibur.Dispatch.Security.Tests;
 
 [UnitTest]
 [Trait(TraitNames.Component, TestComponents.Security)]

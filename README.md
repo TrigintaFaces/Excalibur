@@ -144,14 +144,18 @@ Dispatch is optimized for high-throughput, low-latency messaging with lean local
 
 ### Key Metrics
 
+From the 20260420 epoch baseline (`benchmarks/baselines/net10.0/dispatch-comparative-20260420/`, BenchmarkDotNet 0.15.8, .NET 10.0.6 / SDK 10.0.202, i9-14900K):
+
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Standard dispatch** | 62.8 ns / 240 B | Full pipeline with context, routing, and correlation |
-| **Ultra-local dispatch** | 33.3 ns / 24 B | Lowest-overhead path, near-zero allocation |
-| **Singleton-promoted** | 33.0 ns / 24 B | Cached direct handler path |
-| **Handler invocation** | 6.0 ns / 0 B | Direct delegate, zero allocation |
-| **Handler activation** | 24.4 ns / 0 B | Pre-created context, zero allocation |
-| **100 concurrent commands** | 6,696 ns / 19.4 KB | Scales linearly |
+| **Standard dispatch** | 70.87 ns / 240 B | Full pipeline with context, routing, and correlation (`MediatRWarmPathComparisonBenchmarks`) |
+| **Ultra-local dispatch** | 34.56 ns / 24 B | Lowest-overhead path, near-zero allocation |
+| **Singleton-promoted** | 33.67 ns / 24 B | Cached direct handler path |
+| **Handler invocation** | 6.0 ns / 0 B | Direct delegate, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
+| **Handler activation** | 24.4 ns / 0 B | Pre-created context, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
+| **100 concurrent commands** | 7,293.79 ns / 19,360 B | Scales linearly (WarmPath — one row under investigation pending methodology-matched rerun) |
+
+**Competitor comparisons** (ns, WarmPath): Dispatch ultra-local **1.28× faster than MediatR** with 6.3× less memory; Dispatch **2.64× faster than Wolverine** on InvokeAsync; Dispatch **leads MassTransit Mediator** on every in-process tier.
 
 ### Optimizations Included
 

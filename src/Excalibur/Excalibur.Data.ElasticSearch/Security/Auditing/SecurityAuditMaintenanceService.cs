@@ -80,7 +80,7 @@ internal sealed class SecurityAuditMaintenanceService
 					.Indices("security-audit-*")
 					.Query(new MatchAllQuery())
 					.Size(maxResults)
-					.Sort(static so => so.Field(static f => f.Timestamp, new FieldSort { Order = SortOrder.Asc })),
+					.Sort(static so => so.Field(static f => f.Field("timestamp").Order(SortOrder.Asc))),
 				cancellationToken).ConfigureAwait(false);
 
 			if (!searchResponse.IsValidResponse)

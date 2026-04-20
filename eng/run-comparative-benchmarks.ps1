@@ -226,7 +226,9 @@ $filters = if ($CiSmoke) {
         "*TransportQueueParityComparisonBenchmarks.Dispatch_QueuedCommand_EndToEnd*",
         "*WolverineComparisonBenchmarks.Dispatch_SingleCommand*",
         "*MassTransitComparisonBenchmarks.Dispatch_SingleCommand*",
-        "*PipelineComparisonBenchmarks.Dispatch_WithPipelineBehaviors*"
+        "*PipelineComparisonBenchmarks.Dispatch_WithPipelineBehaviors*",
+        "*RoutingFirstParityBenchmarks.Dispatch_SingleCommand*",
+        "*NServiceBusComparisonBenchmarks.Dispatch_SingleCommand*"
     )
 }
 else {
@@ -237,7 +239,9 @@ else {
         "*TransportQueueParityComparisonBenchmarks*",
         "*WolverineComparisonBenchmarks*",
         "*MassTransitComparisonBenchmarks*",
-        "*PipelineComparisonBenchmarks*"
+        "*PipelineComparisonBenchmarks*",
+        "*RoutingFirstParityBenchmarks*",
+        "*NServiceBusComparisonBenchmarks*"
     )
 }
 
@@ -326,7 +330,9 @@ $expectedReports = @(
     "Excalibur.Dispatch.Benchmarks.Comparative.TransportQueueParityComparisonBenchmarks-report-github.md",
     "Excalibur.Dispatch.Benchmarks.Comparative.WolverineComparisonBenchmarks-report-github.md",
     "Excalibur.Dispatch.Benchmarks.Comparative.MassTransitComparisonBenchmarks-report-github.md",
-    "Excalibur.Dispatch.Benchmarks.Comparative.PipelineComparisonBenchmarks-report-github.md"
+    "Excalibur.Dispatch.Benchmarks.Comparative.PipelineComparisonBenchmarks-report-github.md",
+    "Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.md",
+    "Excalibur.Dispatch.Benchmarks.Comparative.NServiceBusComparisonBenchmarks-report-github.md"
 )
 
 $missingReports = @()

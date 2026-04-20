@@ -13,7 +13,7 @@ This page is forward-looking guidance for consumers. For the sprint's architectu
 ## What changed
 
 - **Target framework:** `<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>` → `<TargetFramework>net10.0</TargetFramework>` across every shipping project.
-- **Dependencies refreshed:** `Microsoft.Extensions.*` → `10.0.6`, `Azure.Functions.Worker` → `2.51.0`, `OpenTelemetry` → `1.15.2`, `Polly` → `8.6.6`, Elastic.Transport → `0.10.1`, Elasticsearch client → `8.17.0`, plus the AWS/Azure/GCP SDK families.
+- **Dependencies refreshed:** `Microsoft.Extensions.*` → `10.0.6`, `Azure.Functions.Worker` → `2.51.0`, `OpenTelemetry` → `1.15.2`, `Polly` → `8.6.6`, Elastic.Transport → `0.16.0`, Elasticsearch client → `9.3.4`, plus the AWS/Azure/GCP SDK families.
 - **Preprocessor cleanup:** 705 deletions of dead `#if NET8_0` / `#if NET9_0` branches. `IsExternalInit.cs` in `Excalibur.Dispatch.SourceGenerators` retains its `#if NETSTANDARD2_0` polyfill because Roslyn source generators must target `netstandard2.0` for compatibility with the Roslyn SDK — this is TFM polyfill, not feature gating.
 - **PublicAPI baselines:** Per-TFM `PublicAPI.Shipped.txt` variance removed. Each shipping package now owns a single baseline.
 - **CI shard matrix:** 10 shards execute once per build instead of once per TFM. Per-TFM shard multipliers retired.
@@ -89,8 +89,8 @@ If your project directly references any of the packages Dispatch also pulls in (
 | `Azure.Security.KeyVault.Secrets` | `4.10.0` |
 | `OpenTelemetry*` | `1.15.2` |
 | `Polly` | `8.6.6` |
-| `Elastic.Transport` | `0.10.1` |
-| `Elastic.Clients.Elasticsearch` | `8.17.0` |
+| `Elastic.Transport` | `0.16.0` |
+| `Elastic.Clients.Elasticsearch` | `9.3.4` |
 
 No public Excalibur.Dispatch API signatures changed as part of the dep refresh.
 

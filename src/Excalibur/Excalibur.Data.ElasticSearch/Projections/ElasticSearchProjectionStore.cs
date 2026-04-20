@@ -256,7 +256,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var searchRequest = BuildSearchRequest(filters, options);
 
 		var response = await _client!
-			.SearchAsync(searchRequest, cancellationToken)
+			.SearchAsync<ElasticSearchProjectionDocument>(searchRequest, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (!response.IsValidResponse)

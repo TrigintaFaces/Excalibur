@@ -6,7 +6,8 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Security;
-using Excalibur.Security.CredentialStores;
+
+
 using Excalibur.Security.EventStores;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

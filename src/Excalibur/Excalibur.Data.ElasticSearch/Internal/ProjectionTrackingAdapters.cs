@@ -88,7 +88,7 @@ internal sealed class ProjectionEventLookupAdapter : IProjectionEventLookup
 				.Index(_readIndexName)
 				.Size(1)
 				.Query(q => q.Term(t => t.Field("projectionType").Value(projectionType)))
-				.Sort(ss => ss.Field("readTimestamp", new FieldSort { Order = SortOrder.Desc })),
+				.Sort(ss => ss.Field(f => f.Field("readTimestamp").Order(SortOrder.Desc))),
 			cancellationToken).ConfigureAwait(false);
 
 		return response.Documents?.FirstOrDefault();
@@ -139,7 +139,7 @@ internal sealed class ProjectionEventScanAdapter : IProjectionEventScan
 		var response = await _inner.SearchAsync<WriteEventDocument>(s => s
 				.Index(_writeIndexName)
 				.Size(1)
-				.Sort(ss => ss.Field("writeTimestamp", new FieldSort { Order = SortOrder.Desc })),
+				.Sort(ss => ss.Field(f => f.Field("writeTimestamp").Order(SortOrder.Desc))),
 			cancellationToken).ConfigureAwait(false);
 
 		return response.Documents?.FirstOrDefault()?.WriteTimestamp;
@@ -197,7 +197,7 @@ internal sealed class ProjectionEventScanAdapter : IProjectionEventScan
 
 			if (search.SortByReadTimestampDesc)
 			{
-				_ = s.Sort(ss => ss.Field("readTimestamp", new FieldSort { Order = SortOrder.Desc }));
+				_ = s.Sort(ss => ss.Field(f => f.Field("readTimestamp").Order(SortOrder.Desc)));
 			}
 		}, cancellationToken).ConfigureAwait(false);
 
@@ -210,7 +210,7 @@ internal sealed class ProjectionEventScanAdapter : IProjectionEventScan
 				.Index(_writeIndexName)
 				.Size(maxResults)
 				.Query(q => q.Range(r => r.DateRange(dr => dr.Field("writeTimestamp").Lte(cutoff))))
-				.Sort(ss => ss.Field("writeTimestamp", new FieldSort { Order = SortOrder.Asc })),
+				.Sort(ss => ss.Field(f => f.Field("writeTimestamp").Order(SortOrder.Asc))),
 			cancellationToken).ConfigureAwait(false);
 
 		return response.Documents?.ToArray() ?? [];

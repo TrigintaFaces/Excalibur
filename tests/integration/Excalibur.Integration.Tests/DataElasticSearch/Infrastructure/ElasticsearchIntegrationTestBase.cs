@@ -173,7 +173,7 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 	protected virtual async Task StartContainerAsync()
 	{
 		var builder = new ElasticsearchBuilder()
-			.WithImage("docker.elastic.co/elasticsearch/elasticsearch:8.15.0")
+			.WithImage("docker.elastic.co/elasticsearch/elasticsearch:9.0.0")
 			.WithName($"es-test-{Guid.NewGuid():N}")
 			.WithEnvironment("discovery.type", "single-node")
 			.WithEnvironment("xpack.security.enabled", EnableSecurity.ToString().ToUpperInvariant())
@@ -408,7 +408,7 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 
 		configure?.Invoke(searchRequest);
 
-		var response = await Client.SearchAsync(searchRequest).ConfigureAwait(false);
+		var response = await Client.SearchAsync<TDocument>(searchRequest).ConfigureAwait(false);
 		response.IsValidResponse.ShouldBeTrue("Search failed");
 
 		return response.Documents;
