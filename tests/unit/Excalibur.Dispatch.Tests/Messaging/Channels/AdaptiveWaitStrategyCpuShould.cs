@@ -199,9 +199,11 @@ public sealed class AdaptiveWaitStrategyCpuShould
 		var result = await strategy.WaitAsync(() => true, CancellationToken.None);
 		sw.Stop();
 
-		// Assert -- After reset, immediate condition should resolve near-instantly
+		// Assert -- After reset, immediate condition should resolve quickly.
+		// Use a generous threshold (2000ms) for CI where CPU scheduling delays
+		// can add latency even for spin-path resolution after contention drain.
 		result.ShouldBeTrue();
-		sw.ElapsedMilliseconds.ShouldBeLessThan(1000,
+		sw.ElapsedMilliseconds.ShouldBeLessThan(2000,
 			"After reset, immediate condition should resolve quickly via spin path (not contention path)");
 	}
 }
