@@ -66,8 +66,8 @@ public sealed class IndexTemplateManagerIntegrationShould : IDisposable
 	public async Task DeleteTemplateAsyncRemoveTemplateWhenTemplateExists()
 	{
 		// Arrange
-		var templateName = "delete-test-template";
-		var template = new IndexTemplateConfiguration { IndexPatterns = ["delete-test-*"], Priority = 100 };
+		var templateName = $"delete-test-template-{Guid.NewGuid():N}";
+		var template = new IndexTemplateConfiguration { IndexPatterns = [$"{templateName}-*"], Priority = 100 };
 
 		_ = await _manager.CreateOrUpdateTemplateAsync(templateName, template, CancellationToken.None).ConfigureAwait(false);
 
@@ -77,8 +77,18 @@ public sealed class IndexTemplateManagerIntegrationShould : IDisposable
 		// Assert
 		result.ShouldBeTrue();
 
-		// Verify template no longer exists
-		var exists = await _manager.TemplateExistsAsync(templateName, CancellationToken.None).ConfigureAwait(false);
+		// ES 9 may need a brief settling window after template deletion.
+		var exists = true;
+		for (var attempt = 0; attempt < 5 && exists; attempt++)
+		{
+			if (attempt > 0)
+			{
+				await Task.Delay(200, CancellationToken.None).ConfigureAwait(false);
+			}
+
+			exists = await _manager.TemplateExistsAsync(templateName, CancellationToken.None).ConfigureAwait(false);
+		}
+
 		exists.ShouldBeFalse();
 	}
 }

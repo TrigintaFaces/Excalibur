@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Domain;
+namespace Excalibur.EventSourcing.Abstractions;
 
 /// <summary>
 /// Defines the navigation direction for pagination operations.

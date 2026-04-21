@@ -4,11 +4,11 @@
 namespace Excalibur.Tests.Domain;
 
 /// <summary>
-/// Unit tests for <see cref="CursorPageResult{T}"/>.
+/// Unit tests for <see cref="CursorPagedResult{T}"/>.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Domain")]
-public sealed class CursorPageResultShould
+public sealed class CursorPagedResultShould
 {
 	[Fact]
 	public void Constructor_SetsAllProperties()
@@ -19,7 +19,7 @@ public sealed class CursorPageResultShould
 		const long totalRecords = 100;
 
 		// Act
-		var result = new CursorPageResult<string>(items, pageSize, totalRecords);
+		var result = new CursorPagedResult<string>(items, pageSize, totalRecords);
 
 		// Assert
 		result.Items.ShouldBe(items);
@@ -31,7 +31,7 @@ public sealed class CursorPageResultShould
 	public void TotalPages_CalculatesCorrectly()
 	{
 		// Arrange & Act
-		var result = new CursorPageResult<int>([1, 2, 3], 10, 95);
+		var result = new CursorPagedResult<int>([1, 2, 3], 10, 95);
 
 		// Assert - 95 records / 10 per page = 10 pages (rounded up)
 		result.TotalPages.ShouldBe(10);
@@ -41,7 +41,7 @@ public sealed class CursorPageResultShould
 	public void TotalPages_ReturnsZero_WhenPageSizeIsZero()
 	{
 		// Arrange & Act
-		var result = new CursorPageResult<int>([1, 2], 0, 100);
+		var result = new CursorPagedResult<int>([1, 2], 0, 100);
 
 		// Assert
 		result.TotalPages.ShouldBe(0);
@@ -51,7 +51,7 @@ public sealed class CursorPageResultShould
 	public void TotalPages_CalculatesCorrectly_ForExactDivision()
 	{
 		// Arrange & Act
-		var result = new CursorPageResult<int>([1], 10, 100);
+		var result = new CursorPagedResult<int>([1], 10, 100);
 
 		// Assert - 100 records / 10 per page = 10 pages exactly
 		result.TotalPages.ShouldBe(10);
@@ -61,7 +61,7 @@ public sealed class CursorPageResultShould
 	public void TotalPages_CalculatesCorrectly_WithRemainder()
 	{
 		// Arrange & Act
-		var result = new CursorPageResult<int>([1], 10, 101);
+		var result = new CursorPagedResult<int>([1], 10, 101);
 
 		// Assert - 101 records / 10 per page = 11 pages (rounded up)
 		result.TotalPages.ShouldBe(11);
@@ -74,10 +74,10 @@ public sealed class CursorPageResultShould
 		var items = new[] { "a", "b" };
 		const int pageSize = 5;
 		const long totalRecords = 50;
-		var result = new CursorPageResult<string>(items, pageSize, totalRecords);
+		var result = new CursorPagedResult<string>(items, pageSize, totalRecords);
 
 		// Act
-		result.Deconstruct(out var deconstructedItems, out var deconstructedPageSize, out var deconstructedTotalRecords);
+		result.Deconstruct(out var deconstructedItems, out var deconstructedPageSize, out var deconstructedTotalRecords, out _);
 
 		// Assert
 		deconstructedItems.ShouldBe(items);
@@ -93,7 +93,7 @@ public sealed class CursorPageResultShould
 		var newItems = new[] { 4, 5, 6 };
 
 		// Act
-		var result = new CursorPageResult<int>(originalItems, 10, 100) { Items = newItems };
+		var result = new CursorPagedResult<int>(originalItems, 10, 100) { Items = newItems };
 
 		// Assert
 		result.Items.ShouldBe(newItems);
@@ -103,7 +103,7 @@ public sealed class CursorPageResultShould
 	public void PageSize_CanBeModifiedViaInit()
 	{
 		// Arrange & Act
-		var result = new CursorPageResult<int>([1], 10, 100) { PageSize = 25 };
+		var result = new CursorPagedResult<int>([1], 10, 100) { PageSize = 25 };
 
 		// Assert
 		result.PageSize.ShouldBe(25);
@@ -113,7 +113,7 @@ public sealed class CursorPageResultShould
 	public void TotalRecords_CanBeModifiedViaInit()
 	{
 		// Arrange & Act
-		var result = new CursorPageResult<int>([1], 10, 100) { TotalRecords = 500 };
+		var result = new CursorPagedResult<int>([1], 10, 100) { TotalRecords = 500 };
 
 		// Assert
 		result.TotalRecords.ShouldBe(500);
@@ -130,7 +130,7 @@ public sealed class CursorPageResultShould
 		};
 
 		// Act
-		var result = new CursorPageResult<TestItem>(items, 10, 2);
+		var result = new CursorPagedResult<TestItem>(items, 10, 2);
 
 		// Assert
 		result.Items.Count().ShouldBe(2);
@@ -141,7 +141,7 @@ public sealed class CursorPageResultShould
 	public void WorksWithEmptyCollection()
 	{
 		// Arrange & Act
-		var result = new CursorPageResult<string>([], 10, 0);
+		var result = new CursorPagedResult<string>([], 10, 0);
 
 		// Assert
 		result.Items.ShouldBeEmpty();

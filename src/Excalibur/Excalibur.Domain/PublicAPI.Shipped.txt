@@ -73,21 +73,6 @@ Excalibur.Domain.Concurrency.IETag.IncomingValue.set -> void
 Excalibur.Domain.Concurrency.IETag.OutgoingValue.get -> string?
 Excalibur.Domain.Concurrency.IETag.OutgoingValue.set -> void
 Excalibur.Domain.Cultures
-Excalibur.Domain.CursorPageRequest<TCursor>
-Excalibur.Domain.CursorPageRequest<TCursor>.CursorPageRequest(int pageSize, Excalibur.Domain.PageNavigation navigation) -> void
-Excalibur.Domain.CursorPageRequest<TCursor>.Deconstruct(out int pageSize, out Excalibur.Domain.PageNavigation navigation, out TCursor? cursor) -> void
-Excalibur.Domain.CursorPageRequest<TCursor>.Navigation.get -> Excalibur.Domain.PageNavigation
-Excalibur.Domain.CursorPageRequest<TCursor>.PageSize.get -> int
-Excalibur.Domain.CursorPageResult<T>
-Excalibur.Domain.CursorPageResult<T>.CursorPageResult(System.Collections.Generic.IEnumerable<T>! items, int pageSize, long totalRecords) -> void
-Excalibur.Domain.CursorPageResult<T>.Deconstruct(out System.Collections.Generic.IEnumerable<T>! items, out int pageSize, out long totalRecords) -> void
-Excalibur.Domain.CursorPageResult<T>.Items.get -> System.Collections.Generic.IEnumerable<T>!
-Excalibur.Domain.CursorPageResult<T>.Items.init -> void
-Excalibur.Domain.CursorPageResult<T>.PageSize.get -> int
-Excalibur.Domain.CursorPageResult<T>.PageSize.init -> void
-Excalibur.Domain.CursorPageResult<T>.TotalPages.get -> int
-Excalibur.Domain.CursorPageResult<T>.TotalRecords.get -> long
-Excalibur.Domain.CursorPageResult<T>.TotalRecords.init -> void
 Excalibur.Domain.ExcaliburHeaderNames
 Excalibur.Domain.Exceptions.DomainException
 Excalibur.Domain.Exceptions.DomainException.DomainException() -> void
@@ -196,15 +181,17 @@ Excalibur.Domain.Model.ValueObjects.IValueObject.GetEqualityComponents() -> Syst
 Excalibur.Domain.Model.ValueObjects.Money
 Excalibur.Domain.Model.ValueObjects.Money.Amount.get -> decimal
 Excalibur.Domain.Model.ValueObjects.Money.CompareTo(Excalibur.Domain.Model.ValueObjects.Money? other) -> int
-Excalibur.Domain.Model.ValueObjects.Money.CultureName.get -> string!
-Excalibur.Domain.Model.ValueObjects.Money.CurrencySymbol.get -> string!
+Excalibur.Domain.Model.ValueObjects.Money.CurrencyCode.get -> string!
 Excalibur.Domain.Model.ValueObjects.Money.Denomination.get -> decimal?
-Excalibur.Domain.Model.ValueObjects.Money.ISOCurrencyCode.get -> string!
 Excalibur.Domain.Model.ValueObjects.Money.IsBillsOnly.get -> bool
 Excalibur.Domain.Model.ValueObjects.Money.IsCoinsOnly.get -> bool
-Excalibur.Domain.Model.ValueObjects.Money.Money(decimal amount, string? cultureName = "en-US") -> void
-Excalibur.Domain.Model.ValueObjects.Money.Money(decimal amount, string? cultureName, decimal denomination) -> void
+Excalibur.Domain.Model.ValueObjects.Money.Money(decimal amount, string! currencyCode = "USD") -> void
+Excalibur.Domain.Model.ValueObjects.Money.Money(decimal amount, string! currencyCode, decimal denomination) -> void
+Excalibur.Domain.Model.ValueObjects.Money.ToDecimal() -> decimal
+Excalibur.Domain.Model.ValueObjects.Money.ToDouble() -> double
 Excalibur.Domain.Model.ValueObjects.Money.ToString(string! format) -> string!
+Excalibur.Domain.Model.ValueObjects.Money.ToString(string! format, System.Globalization.CultureInfo! culture) -> string!
+Excalibur.Domain.Model.ValueObjects.Money.ToString(System.Globalization.CultureInfo! culture) -> string!
 Excalibur.Domain.Model.ValueObjects.Money.UnitCount.get -> int
 Excalibur.Domain.Model.ValueObjects.ValueObjectBase
 Excalibur.Domain.Model.ValueObjects.ValueObjectBase.Equals(Excalibur.Domain.Model.ValueObjects.ValueObjectBase? other) -> bool
@@ -214,28 +201,9 @@ Excalibur.Domain.OrderedEventProcessor.Dispose() -> void
 Excalibur.Domain.OrderedEventProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Domain.OrderedEventProcessor.OrderedEventProcessor() -> void
 Excalibur.Domain.OrderedEventProcessor.ProcessAsync(System.Func<System.Threading.Tasks.Task!>! processEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Domain.PageNavigation
-Excalibur.Domain.PageNavigation.First = 0 -> Excalibur.Domain.PageNavigation
-Excalibur.Domain.PageNavigation.Last = 3 -> Excalibur.Domain.PageNavigation
-Excalibur.Domain.PageNavigation.Next = 2 -> Excalibur.Domain.PageNavigation
-Excalibur.Domain.PageNavigation.Previous = 1 -> Excalibur.Domain.PageNavigation
-Excalibur.Domain.PageableResult<T>
-Excalibur.Domain.PageableResult<T>.GetEnumerator() -> System.Collections.Generic.IEnumerator<T!>!
-Excalibur.Domain.PageableResult<T>.HasNextPage.get -> bool
-Excalibur.Domain.PageableResult<T>.HasPreviousPage.get -> bool
-Excalibur.Domain.PageableResult<T>.IsFirstPage.get -> bool
-Excalibur.Domain.PageableResult<T>.IsLastPage.get -> bool
-Excalibur.Domain.PageableResult<T>.Items.get -> System.Collections.Generic.IList<T!>!
-Excalibur.Domain.PageableResult<T>.PageNumber.get -> int
-Excalibur.Domain.PageableResult<T>.PageSize.get -> int
-Excalibur.Domain.PageableResult<T>.PageableResult(System.Collections.Generic.IEnumerable<T!>! items, int? pageNumber = null, int? pageSize = null, long? totalItems = null) -> void
-Excalibur.Domain.PageableResult<T>.TotalItems.get -> long
-Excalibur.Domain.PageableResult<T>.TotalPages.get -> int
-Excalibur.Domain.PageableResult<T>.this[int index].get -> T!
 Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions
-abstract Excalibur.Domain.CursorPageRequest<TCursor>.GetCursor() -> TCursor?
 abstract Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEventInternal(Excalibur.Dispatch.Abstractions.IDomainEvent! event) -> void
 abstract Excalibur.Domain.Model.EntityBase<TKey>.Key.get -> TKey
 abstract Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.BusinessKey.get -> TBusinessKey
@@ -290,17 +258,20 @@ static Excalibur.Domain.Model.ValueObjects.Money.CAD(decimal amount) -> Excalibu
 static Excalibur.Domain.Model.ValueObjects.Money.CHF(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.Divide(Excalibur.Domain.Model.ValueObjects.Money! money, decimal divisor) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.EUR(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
-static Excalibur.Domain.Model.ValueObjects.Money.From(decimal amount, string! cultureName = "en-US") -> Excalibur.Domain.Model.ValueObjects.Money!
-static Excalibur.Domain.Model.ValueObjects.Money.From(double amount, string! cultureName = "en-US") -> Excalibur.Domain.Model.ValueObjects.Money!
-static Excalibur.Domain.Model.ValueObjects.Money.From(float amount, string! cultureName = "en-US") -> Excalibur.Domain.Model.ValueObjects.Money!
-static Excalibur.Domain.Model.ValueObjects.Money.From(int amount, string! cultureName = "en-US") -> Excalibur.Domain.Model.ValueObjects.Money!
-static Excalibur.Domain.Model.ValueObjects.Money.From(long amount, string! cultureName = "en-US") -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.From(decimal amount, string! currencyCode = "USD") -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.From(double amount, string! currencyCode = "USD") -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.From(float amount, string! currencyCode = "USD") -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.From(int amount, string! currencyCode = "USD") -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.From(long amount, string! currencyCode = "USD") -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.From(string! amount, string! cultureName = "en-US") -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.Parse(string! amount, string! currencyCode = "USD", System.Globalization.CultureInfo? culture = null) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.GBP(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.JPY(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.Multiply(Excalibur.Domain.Model.ValueObjects.Money! money, decimal multiplier) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.Subtract(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.USD(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.explicit operator double(Excalibur.Domain.Model.ValueObjects.Money! money) -> double
+static Excalibur.Domain.Model.ValueObjects.Money.implicit operator decimal(Excalibur.Domain.Model.ValueObjects.Money! money) -> decimal
 static Excalibur.Domain.Model.ValueObjects.Money.operator *(Excalibur.Domain.Model.ValueObjects.Money! money, decimal multiplier) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.operator *(decimal multiplier, Excalibur.Domain.Model.ValueObjects.Money! money) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.operator +(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!

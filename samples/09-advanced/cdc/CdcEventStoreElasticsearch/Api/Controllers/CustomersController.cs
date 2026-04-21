@@ -109,13 +109,7 @@ public sealed class CustomersController : ControllerBase
 			.CountAsync(filters, cancellationToken)
 			.ConfigureAwait(false);
 
-		var result = new PagedResult<CustomerSearchProjection>
-		{
-			Items = items,
-			TotalCount = (int)totalCount,
-			Page = request.Page,
-			PageSize = request.PageSize
-		};
+		var result = new PagedResult<CustomerSearchProjection>(items, request.Page, request.PageSize, totalCount);
 
 		_logger.LogDebug(
 			"Customer search returned {Count} of {Total} results",
@@ -184,13 +178,7 @@ public sealed class CustomersController : ControllerBase
 			.CountAsync(filters, cancellationToken)
 			.ConfigureAwait(false);
 
-		var result = new PagedResult<CustomerSearchProjection>
-		{
-			Items = items,
-			TotalCount = (int)totalCount,
-			Page = page,
-			PageSize = pageSize
-		};
+		var result = new PagedResult<CustomerSearchProjection>(items, page, pageSize, totalCount);
 
 		return Ok(result);
 	}

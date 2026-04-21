@@ -4,11 +4,11 @@
 namespace Excalibur.Tests.Domain;
 
 /// <summary>
-/// Unit tests for <see cref="PageableResult{T}"/>.
+/// Unit tests for <see cref="PagedResult{T}"/>.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Domain")]
-public sealed class PageableResultShould
+public sealed class PagedResultShould
 {
 	[Fact]
 	public void Constructor_WithItemsOnly_UsesDefaults()
@@ -17,7 +17,7 @@ public sealed class PageableResultShould
 		var items = new[] { new TestEntity("1"), new TestEntity("2") };
 
 		// Act
-		var result = new PageableResult<TestEntity>(items);
+		var result = new PagedResult<TestEntity>(items);
 
 		// Assert
 		result.Items.Count.ShouldBe(2);
@@ -33,7 +33,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(10);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 2, pageSize: 10, totalItems: 50);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 2, pageSize: 10, totalItems: 50);
 
 		// Assert
 		result.PageNumber.ShouldBe(2);
@@ -47,7 +47,7 @@ public sealed class PageableResultShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new PageableResult<TestEntity>(null!));
+			new PagedResult<TestEntity>(null!));
 	}
 
 	[Fact]
@@ -58,7 +58,7 @@ public sealed class PageableResultShould
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentException>(() =>
-			new PageableResult<TestEntity>(items, pageNumber: 0, pageSize: 10));
+			new PagedResult<TestEntity>(items, pageNumber: 0, pageSize: 10));
 		exception.ParamName.ShouldBe("pageNumber");
 	}
 
@@ -70,7 +70,7 @@ public sealed class PageableResultShould
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentException>(() =>
-			new PageableResult<TestEntity>(items, pageNumber: -1, pageSize: 10));
+			new PagedResult<TestEntity>(items, pageNumber: -1, pageSize: 10));
 		exception.ParamName.ShouldBe("pageNumber");
 	}
 
@@ -82,7 +82,7 @@ public sealed class PageableResultShould
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentException>(() =>
-			new PageableResult<TestEntity>(items, pageNumber: 1, pageSize: 0));
+			new PagedResult<TestEntity>(items, pageNumber: 1, pageSize: 0));
 		exception.ParamName.ShouldBe("pageSize");
 	}
 
@@ -94,7 +94,7 @@ public sealed class PageableResultShould
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentException>(() =>
-			new PageableResult<TestEntity>(items, pageNumber: 1, pageSize: -1));
+			new PagedResult<TestEntity>(items, pageNumber: 1, pageSize: -1));
 		exception.ParamName.ShouldBe("pageSize");
 	}
 
@@ -106,7 +106,7 @@ public sealed class PageableResultShould
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentException>(() =>
-			new PageableResult<TestEntity>(items, pageNumber: 2, pageSize: null));
+			new PagedResult<TestEntity>(items, pageNumber: 2, pageSize: null));
 		exception.ParamName.ShouldBe("pageSize");
 	}
 
@@ -118,7 +118,7 @@ public sealed class PageableResultShould
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentException>(() =>
-			new PageableResult<TestEntity>(items, pageNumber: null, pageSize: 10));
+			new PagedResult<TestEntity>(items, pageNumber: null, pageSize: 10));
 		exception.ParamName.ShouldBe("pageNumber");
 	}
 
@@ -130,7 +130,7 @@ public sealed class PageableResultShould
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentException>(() =>
-			new PageableResult<TestEntity>(items, totalItems: 5)); // 5 < 10 items
+			new PagedResult<TestEntity>(items, totalItems: 5)); // 5 < 10 items
 		exception.ParamName.ShouldBe("totalItems");
 	}
 
@@ -141,7 +141,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(10);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 95);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 95);
 
 		// Assert - 95 / 10 = 10 pages (rounded up)
 		result.TotalPages.ShouldBe(10);
@@ -154,7 +154,7 @@ public sealed class PageableResultShould
 		var items = Array.Empty<TestEntity>();
 
 		// Act
-		var result = new PageableResult<TestEntity>(items);
+		var result = new PagedResult<TestEntity>(items);
 
 		// Assert - empty collection has 0 page size
 		result.TotalPages.ShouldBe(0);
@@ -167,7 +167,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(100);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 100);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 100);
 
 		// Assert
 		result.HasNextPage.ShouldBeTrue();
@@ -180,7 +180,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(100);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 10, pageSize: 10, totalItems: 100);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 10, pageSize: 10, totalItems: 100);
 
 		// Assert
 		result.HasNextPage.ShouldBeFalse();
@@ -193,7 +193,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(100);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 2, pageSize: 10, totalItems: 100);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 2, pageSize: 10, totalItems: 100);
 
 		// Assert
 		result.HasPreviousPage.ShouldBeTrue();
@@ -206,7 +206,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(100);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 100);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 100);
 
 		// Assert
 		result.HasPreviousPage.ShouldBeFalse();
@@ -219,7 +219,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(100);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 100);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 100);
 
 		// Assert
 		result.IsFirstPage.ShouldBeTrue();
@@ -232,7 +232,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(100);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 5, pageSize: 10, totalItems: 100);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 5, pageSize: 10, totalItems: 100);
 
 		// Assert
 		result.IsFirstPage.ShouldBeFalse();
@@ -245,7 +245,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(100);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 10, pageSize: 10, totalItems: 100);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 10, pageSize: 10, totalItems: 100);
 
 		// Assert
 		result.IsLastPage.ShouldBeTrue();
@@ -258,7 +258,7 @@ public sealed class PageableResultShould
 		var items = CreateItems(100);
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 100);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 1, pageSize: 10, totalItems: 100);
 
 		// Assert
 		result.IsLastPage.ShouldBeFalse();
@@ -276,7 +276,7 @@ public sealed class PageableResultShould
 		};
 
 		// Act
-		var result = new PageableResult<TestEntity>(items);
+		var result = new PagedResult<TestEntity>(items);
 
 		// Assert
 		result[0].Id.ShouldBe("first");
@@ -289,7 +289,7 @@ public sealed class PageableResultShould
 	{
 		// Arrange
 		var items = CreateItems(5);
-		var result = new PageableResult<TestEntity>(items);
+		var result = new PagedResult<TestEntity>(items);
 
 		// Act
 		var count = 0;
@@ -310,7 +310,7 @@ public sealed class PageableResultShould
 		var items = Enumerable.Range(21, 10).Select(i => new TestEntity(i.ToString())).ToList();
 
 		// Act
-		var result = new PageableResult<TestEntity>(items, pageNumber: 3, pageSize: 10, totalItems: 50);
+		var result = new PagedResult<TestEntity>(items, pageNumber: 3, pageSize: 10, totalItems: 50);
 
 		// Assert
 		result.Items.Count.ShouldBe(10);

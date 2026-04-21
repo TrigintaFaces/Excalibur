@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Globalization;
+
 using Excalibur.Domain.Model.ValueObjects;
 
 namespace Excalibur.Tests.Domain.Model.ValueObjects;
@@ -21,28 +23,23 @@ public sealed class MoneyDepthShould
 
 		// Assert
 		money.Amount.ShouldBe(100m);
-		money.CultureName.ShouldBe("en-US");
-		money.CurrencySymbol.ShouldBe("$");
-		money.ISOCurrencyCode.ShouldBe("USD");
+		money.CurrencyCode.ShouldBe("USD");
 		money.Denomination.ShouldBeNull();
 		money.UnitCount.ShouldBe(0);
 	}
 
 	[Fact]
-	public void Constructor_WithNullCulture_DefaultsToEnUS()
+	public void Constructor_WithNullCurrencyCode_ThrowsArgumentException()
 	{
-		// Arrange & Act
-		var money = new Money(50m, null);
-
-		// Assert
-		money.CultureName.ShouldBe("en-US");
+		// Arrange & Act & Assert
+		Should.Throw<ArgumentException>(() => new Money(50m, null!));
 	}
 
 	[Fact]
 	public void Constructor_WithDenomination_CalculatesUnitCount()
 	{
 		// Arrange & Act
-		var money = new Money(100m, "en-US", 20m);
+		var money = new Money(100m, "USD", 20m);
 
 		// Assert
 		money.Denomination.ShouldBe(20m);
@@ -53,7 +50,7 @@ public sealed class MoneyDepthShould
 	public void Constructor_WithZeroDenomination_UnitCountIsZero()
 	{
 		// Arrange & Act
-		var money = new Money(100m, "en-US", 0m);
+		var money = new Money(100m, "USD", 0m);
 
 		// Assert
 		money.UnitCount.ShouldBe(0);
@@ -63,7 +60,7 @@ public sealed class MoneyDepthShould
 	public void IsBillsOnly_True_WhenDenominationGtEq1()
 	{
 		// Arrange
-		var money = new Money(100m, "en-US", 5m);
+		var money = new Money(100m, "USD", 5m);
 
 		// Assert
 		money.IsBillsOnly.ShouldBeTrue();
@@ -74,7 +71,7 @@ public sealed class MoneyDepthShould
 	public void IsCoinsOnly_True_WhenDenominationLt1()
 	{
 		// Arrange
-		var money = new Money(5m, "en-US", 0.25m);
+		var money = new Money(5m, "USD", 0.25m);
 
 		// Assert
 		money.IsCoinsOnly.ShouldBeTrue();
@@ -146,49 +143,49 @@ public sealed class MoneyDepthShould
 	public void USD_CreatesUSDollar()
 	{
 		var money = Money.USD(50m);
-		money.ISOCurrencyCode.ShouldBe("USD");
+		money.CurrencyCode.ShouldBe("USD");
 	}
 
 	[Fact]
 	public void EUR_CreatesEuro()
 	{
 		var money = Money.EUR(50m);
-		money.ISOCurrencyCode.ShouldBe("EUR");
+		money.CurrencyCode.ShouldBe("EUR");
 	}
 
 	[Fact]
 	public void GBP_CreatesBritishPound()
 	{
 		var money = Money.GBP(50m);
-		money.ISOCurrencyCode.ShouldBe("GBP");
+		money.CurrencyCode.ShouldBe("GBP");
 	}
 
 	[Fact]
 	public void JPY_CreatesYen()
 	{
 		var money = Money.JPY(1000m);
-		money.ISOCurrencyCode.ShouldBe("JPY");
+		money.CurrencyCode.ShouldBe("JPY");
 	}
 
 	[Fact]
 	public void CHF_CreatesSwissFranc()
 	{
 		var money = Money.CHF(75m);
-		money.ISOCurrencyCode.ShouldBe("CHF");
+		money.CurrencyCode.ShouldBe("CHF");
 	}
 
 	[Fact]
 	public void CAD_CreatesCanadianDollar()
 	{
 		var money = Money.CAD(60m);
-		money.ISOCurrencyCode.ShouldBe("CAD");
+		money.CurrencyCode.ShouldBe("CAD");
 	}
 
 	[Fact]
 	public void AUD_CreatesAustralianDollar()
 	{
 		var money = Money.AUD(80m);
-		money.ISOCurrencyCode.ShouldBe("AUD");
+		money.CurrencyCode.ShouldBe("AUD");
 	}
 
 	// Operators
@@ -328,14 +325,16 @@ public sealed class MoneyDepthShould
 	public void ToString_FormatsWithCulture()
 	{
 		var money = Money.USD(1234.56m);
-		money.ToString().ShouldContain("1,234.56");
+		// Culture-specific formatting
+		money.ToString(CultureInfo.GetCultureInfo("en-US")).ShouldContain("$");
+		money.ToString(CultureInfo.GetCultureInfo("en-US")).ShouldContain("1,234.56");
 	}
 
 	[Fact]
 	public void ToString_WithFormat_UsesFormat()
 	{
 		var money = Money.USD(1234.56m);
-		var formatted = money.ToString("N2");
+		var formatted = money.ToString("N2", CultureInfo.InvariantCulture);
 		formatted.ShouldContain("1,234.56");
 	}
 
@@ -343,7 +342,7 @@ public sealed class MoneyDepthShould
 	[Fact]
 	public void GetEqualityComponents_IncludesAmountCurrencyDenomination()
 	{
-		var money = new Money(100m, "en-US", 20m);
+		var money = new Money(100m, "USD", 20m);
 		var components = money.GetEqualityComponents().ToList();
 
 		components.Count.ShouldBe(3);

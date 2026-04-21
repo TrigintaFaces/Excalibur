@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 
 using CdcEventStoreElasticsearch.Api.Models;
 using CdcEventStoreElasticsearch.Projections;
-using CdcEventStoreElasticsearch.Repositories;
+using CdcEventStoreElasticsearch.Queries;
 
+using Elastic.Clients.Elasticsearch;
+
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.AspNetCore.Mvc;
@@ -16,68 +19,76 @@ namespace CdcEventStoreElasticsearch.Api.Controllers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Demonstrates the <b>two-tier query pattern</b> for Elasticsearch projections:
+/// All read operations are dispatched through the Excalibur Dispatch pipeline as
+/// <b>queries</b>, enabling cross-cutting concerns (logging, validation, caching,
+/// telemetry) to observe every read path without coupling the controller to
+/// infrastructure.
+/// </para>
+/// <para>
+/// The controller is responsible only for HTTP concerns:
+/// <list type="bullet">
+/// <item>Mapping request DTOs to query objects</item>
+/// <item>Dispatching queries through the pipeline</item>
+/// <item>Mapping handler results to response DTOs</item>
+/// <item>Returning appropriate HTTP status codes</item>
+/// </list>
+/// </para>
+/// <para>
+/// The handler layer uses the <b>two-tier query pattern</b> for Elasticsearch projections:
 /// </para>
 /// <list type="bullet">
 /// <item>
 /// <b>IProjectionStore&lt;T&gt;</b> — Portable dictionary-based filters for simple
 /// equality, range, and contains queries. Works across all backends.
-/// Used by: <c>GET /api/orders</c>, <c>GET /api/orders/{id}</c>,
-/// <c>GET /api/orders/by-customer</c>, <c>GET /api/orders/by-status</c>.
 /// </item>
 /// <item>
 /// <b>OrderFullTextSearchRepository</b> — Native Elasticsearch queries for
 /// full-text search, aggregations, fuzzy matching, and relevance scoring.
-/// Used by: <c>GET /api/orders/search</c>, <c>GET /api/orders/statistics</c>.
 /// </item>
 /// </list>
-/// <para>
-/// Both target the <b>same Elasticsearch index</b> (resolved via
-/// <c>ElasticSearchProjectionIndexConvention</c>), kept in sync by the
-/// projection handlers processing the same event stream.
-/// </para>
 /// </remarks>
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
 public sealed class OrdersController : ControllerBase
 {
-	private readonly IProjectionStore<OrderSearchProjection> _projectionStore;
-	private readonly OrderFullTextSearchRepository _searchRepository;
+	private readonly IDispatcher _dispatcher;
 	private readonly ILogger<OrdersController> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OrdersController"/> class.
 	/// </summary>
+	/// <param name="dispatcher">The Dispatch pipeline dispatcher.</param>
+	/// <param name="logger">The logger.</param>
 	public OrdersController(
-		IProjectionStore<OrderSearchProjection> projectionStore,
-		OrderFullTextSearchRepository searchRepository,
+		IDispatcher dispatcher,
 		ILogger<OrdersController> logger)
 	{
-		_projectionStore = projectionStore;
-		_searchRepository = searchRepository;
+		_dispatcher = dispatcher;
 		_logger = logger;
 	}
 
 	/// <summary>
 	/// Gets an order by ID.
 	/// </summary>
-	/// <param name="id">The order ID.</param>
+	/// <param name="id">The order document ID.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The order projection if found.</returns>
+	/// <returns>The order if found.</returns>
 	[HttpGet("{id}")]
-	[ProducesResponseType(typeof(OrderSearchProjection), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(OrderDto), StatusCodes.Status200OK)]
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<IActionResult> GetById(string id, CancellationToken cancellationToken)
 	{
-		var order = await _projectionStore.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+		var query = new GetOrderByIdQuery(id);
+		var result = await DispatchQueryAsync<GetOrderByIdQuery, OrderSearchProjection?>(query, cancellationToken)
+			.ConfigureAwait(false);
 
-		if (order is null)
+		if (!result.Succeeded || result.ReturnValue is null)
 		{
 			return NotFound(new { Message = $"Order {id} not found" });
 		}
 
-		return Ok(order);
+		return Ok(OrderMapper.ToDto(result.ReturnValue));
 	}
 
 	/// <summary>
@@ -87,152 +98,91 @@ public sealed class OrdersController : ControllerBase
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>Paged list of matching orders.</returns>
 	[HttpGet]
-	[ProducesResponseType(typeof(PagedResult<OrderSearchProjection>), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(PagedResult<OrderDto>), StatusCodes.Status200OK)]
 	public async Task<IActionResult> Search([FromQuery] OrderSearchRequest request, CancellationToken cancellationToken)
 	{
-		var filters = new Dictionary<string, object>();
-
-		// Build filters from request
-		if (request.CustomerId.HasValue)
+		var query = new SearchOrdersQuery
 		{
-			filters["customerId"] = request.CustomerId.Value.ToString();
-		}
-
-		if (!string.IsNullOrWhiteSpace(request.Status))
-		{
-			filters["status"] = request.Status;
-		}
-
-		if (request.MinAmount.HasValue)
-		{
-			filters["totalAmount:gte"] = request.MinAmount.Value;
-		}
-
-		if (request.MaxAmount.HasValue)
-		{
-			filters["totalAmount:lte"] = request.MaxAmount.Value;
-		}
-
-		if (request.FromDate.HasValue)
-		{
-			filters["orderDate:gte"] = request.FromDate.Value;
-		}
-
-		if (request.ToDate.HasValue)
-		{
-			filters["orderDate:lte"] = request.ToDate.Value;
-		}
-
-		if (request.Tags is { Length: > 0 })
-		{
-			filters["tags:in"] = request.Tags;
-		}
-
-		var skip = (request.Page - 1) * request.PageSize;
-		var options = new QueryOptions(Skip: skip, Take: request.PageSize);
-
-		var items = await _projectionStore
-			.QueryAsync(filters, options, cancellationToken)
-			.ConfigureAwait(false);
-
-		var totalCount = await _projectionStore
-			.CountAsync(filters, cancellationToken)
-			.ConfigureAwait(false);
-
-		var result = new PagedResult<OrderSearchProjection>
-		{
-			Items = items,
-			TotalCount = (int)totalCount,
+			Query = request.Query,
+			CustomerId = request.CustomerId,
+			Status = request.Status,
+			MinAmount = request.MinAmount,
+			MaxAmount = request.MaxAmount,
+			FromDate = request.FromDate,
+			ToDate = request.ToDate,
+			Tags = request.Tags,
 			Page = request.Page,
 			PageSize = request.PageSize
 		};
 
+		var result = await DispatchQueryAsync<SearchOrdersQuery, PagedResult<OrderSearchProjection>>(query, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (!result.Succeeded)
+		{
+			return Ok(new PagedResult<OrderDto>([]));
+		}
+
+		var dto = OrderMapper.ToDto(result.ReturnValue!);
+
 		_logger.LogDebug(
 			"Order search returned {Count} of {Total} results",
-			result.Items.Count,
-			totalCount);
+			dto.Items.Count,
+			dto.TotalItems);
 
-		return Ok(result);
+		return Ok(dto);
 	}
 
 	/// <summary>
 	/// Gets orders for a specific customer.
 	/// </summary>
 	/// <param name="customerId">The customer ID.</param>
-	/// <param name="page">Page number.</param>
+	/// <param name="page">Page number (1-based).</param>
 	/// <param name="pageSize">Page size.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>Orders for the customer.</returns>
 	[HttpGet("by-customer/{customerId}")]
-	[ProducesResponseType(typeof(PagedResult<OrderSearchProjection>), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(PagedResult<OrderDto>), StatusCodes.Status200OK)]
 	public async Task<IActionResult> GetByCustomer(
 		Guid customerId,
 		[FromQuery] int page = 1,
 		[FromQuery] int pageSize = 20,
 		CancellationToken cancellationToken = default)
 	{
-		var filters = new Dictionary<string, object> { ["customerId"] = customerId.ToString() };
+		var query = new GetOrdersByCustomerQuery(customerId) { Page = page, PageSize = pageSize };
 
-		var skip = (page - 1) * pageSize;
-		var options = new QueryOptions(Skip: skip, Take: pageSize);
-
-		var items = await _projectionStore
-			.QueryAsync(filters, options, cancellationToken)
+		var result = await DispatchQueryAsync<GetOrdersByCustomerQuery, PagedResult<OrderSearchProjection>>(query, cancellationToken)
 			.ConfigureAwait(false);
 
-		var totalCount = await _projectionStore
-			.CountAsync(filters, cancellationToken)
-			.ConfigureAwait(false);
-
-		var result = new PagedResult<OrderSearchProjection>
-		{
-			Items = items,
-			TotalCount = (int)totalCount,
-			Page = page,
-			PageSize = pageSize
-		};
-
-		return Ok(result);
+		return Ok(result.Succeeded
+			? OrderMapper.ToDto(result.ReturnValue!)
+			: new PagedResult<OrderDto>([]));
 	}
 
 	/// <summary>
 	/// Gets orders by status.
 	/// </summary>
 	/// <param name="status">The order status.</param>
-	/// <param name="page">Page number.</param>
+	/// <param name="page">Page number (1-based).</param>
 	/// <param name="pageSize">Page size.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>Orders with the specified status.</returns>
 	[HttpGet("by-status/{status}")]
-	[ProducesResponseType(typeof(PagedResult<OrderSearchProjection>), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(PagedResult<OrderDto>), StatusCodes.Status200OK)]
 	public async Task<IActionResult> GetByStatus(
 		string status,
 		[FromQuery] int page = 1,
 		[FromQuery] int pageSize = 20,
 		CancellationToken cancellationToken = default)
 	{
-		var filters = new Dictionary<string, object> { ["status"] = status };
+		var query = new GetOrdersByStatusQuery(status) { Page = page, PageSize = pageSize };
 
-		var skip = (page - 1) * pageSize;
-		var options = new QueryOptions(Skip: skip, Take: pageSize);
-
-		var items = await _projectionStore
-			.QueryAsync(filters, options, cancellationToken)
+		var result = await DispatchQueryAsync<GetOrdersByStatusQuery, PagedResult<OrderSearchProjection>>(query, cancellationToken)
 			.ConfigureAwait(false);
 
-		var totalCount = await _projectionStore
-			.CountAsync(filters, cancellationToken)
-			.ConfigureAwait(false);
-
-		var result = new PagedResult<OrderSearchProjection>
-		{
-			Items = items,
-			TotalCount = (int)totalCount,
-			Page = page,
-			PageSize = pageSize
-		};
-
-		return Ok(result);
+		return Ok(result.Succeeded
+			? OrderMapper.ToDto(result.ReturnValue!)
+			: new PagedResult<OrderDto>([]));
 	}
 
 	/// <summary>
@@ -243,38 +193,29 @@ public sealed class OrdersController : ControllerBase
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>Recent orders.</returns>
 	[HttpGet("recent")]
-	[ProducesResponseType(typeof(IEnumerable<OrderSearchProjection>), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(IEnumerable<OrderDto>), StatusCodes.Status200OK)]
 	public async Task<IActionResult> GetRecent(
 		[FromQuery] int days = 7,
 		[FromQuery] int limit = 50,
 		CancellationToken cancellationToken = default)
 	{
-		var fromDate = DateTime.UtcNow.AddDays(-days);
+		var query = new GetRecentOrdersQuery { Days = days, Limit = limit };
 
-		var filters = new Dictionary<string, object> { ["orderDate:gte"] = fromDate };
-
-		var options = new QueryOptions(Take: limit, OrderBy: "orderDate", Descending: true);
-
-		var items = await _projectionStore
-			.QueryAsync(filters, options, cancellationToken)
+		var result = await DispatchQueryAsync<GetRecentOrdersQuery, IReadOnlyList<OrderSearchProjection>>(query, cancellationToken)
 			.ConfigureAwait(false);
 
-		return Ok(items);
+		return Ok(result.Succeeded
+			? OrderMapper.ToDto(result.ReturnValue!)
+			: Array.Empty<OrderDto>());
 	}
 
 	// ========================================================================
 	// Native Elasticsearch Queries (via OrderFullTextSearchRepository)
 	// ========================================================================
-	// The endpoints below use ElasticRepositoryBase<T> for capabilities that
-	// IProjectionStore<T>'s dictionary filters cannot express: full-text search
-	// with relevance scoring, fuzzy matching, and server-side aggregations.
-	//
-	// Both query paths (IProjectionStore + ElasticRepositoryBase) target the
-	// SAME index, resolved via ElasticSearchProjectionIndexConvention.
-	// ========================================================================
 
 	/// <summary>
 	/// Full-text search across orders using native Elasticsearch queries.
+	/// Uses cursor-based pagination for efficient deep paging.
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -283,49 +224,54 @@ public sealed class OrdersController : ControllerBase
 	/// <c>multi_match</c> query with fuzzy matching.
 	/// </para>
 	/// <para>
-	/// This endpoint uses <see cref="OrderFullTextSearchRepository"/> (native ES)
-	/// instead of <c>IProjectionStore&lt;T&gt;</c> because dictionary-based filters
-	/// cannot express full-text search with relevance scoring and field boosting.
+	/// Pass the <c>nextCursor</c> value from the response as the
+	/// <c>cursor</c> query parameter to retrieve the next page.
 	/// </para>
 	/// </remarks>
-	/// <param name="q">The search text.</param>
-	/// <param name="limit">Maximum results to return.</param>
+	/// <param name="request">The full-text search request.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>Orders ranked by relevance.</returns>
+	/// <returns>Orders ranked by relevance with a cursor for the next page.</returns>
 	[HttpGet("search")]
-	[ProducesResponseType(typeof(IEnumerable<OrderSearchProjection>), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(CursorPagedResult<OrderDto>), StatusCodes.Status200OK)]
 	[ProducesResponseType(StatusCodes.Status400BadRequest)]
 	public async Task<IActionResult> FullTextSearch(
-		[FromQuery] string q,
-		[FromQuery] int limit = 20,
+		[FromQuery] FullTextSearchRequest request,
 		CancellationToken cancellationToken = default)
 	{
-		if (string.IsNullOrWhiteSpace(q))
+		if (string.IsNullOrWhiteSpace(request.Q))
 		{
 			return BadRequest(new { Message = "Search query 'q' is required" });
 		}
 
-		var response = await _searchRepository
-			.FullTextSearchAsync(q, limit, cancellationToken)
+		var query = new FullTextSearchOrdersQuery(request.Q)
+		{
+			Limit = request.Limit,
+			Cursor = request.Cursor,
+			Navigation = request.Navigation
+		};
+
+		var result = await DispatchQueryAsync<FullTextSearchOrdersQuery, CursorPagedResult<OrderSearchProjection>>(query, cancellationToken)
 			.ConfigureAwait(false);
 
-		if (!response.IsValidResponse)
+		if (!result.Succeeded)
 		{
-			_logger.LogWarning("Elasticsearch full-text search failed: {Error}", response.DebugInformation);
-			return Ok(Array.Empty<OrderSearchProjection>());
+			_logger.LogWarning("Full-text search dispatch failed for query '{Query}'", request.Q);
+			return Ok(new CursorPagedResult<OrderDto>([], 0, 0));
 		}
 
-		_logger.LogDebug(
-			"Full-text search for '{Query}' returned {Count} results in {ElapsedMs}ms",
-			q,
-			response.Documents.Count,
-			response.Took);
+		var dto = OrderMapper.ToDto(result.ReturnValue!);
 
-		return Ok(response.Documents);
+		_logger.LogDebug(
+			"Full-text search for '{Query}' returned {Count} results",
+			request.Q,
+			dto.Items.Count());
+
+		return Ok(dto);
 	}
 
 	/// <summary>
 	/// Advanced search combining full-text queries with structured filters.
+	/// Uses cursor-based pagination via Elasticsearch <c>search_after</c>.
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -336,53 +282,51 @@ public sealed class OrdersController : ControllerBase
 	/// </list>
 	/// </para>
 	/// <para>
-	/// This is the recommended pattern when consumers need both search and filtering.
-	/// Results are sorted by relevance score first, then by date.
+	/// Pass the <c>nextCursor</c> value from the response as the
+	/// <c>cursor</c> query parameter to retrieve the next page.
 	/// </para>
 	/// </remarks>
-	/// <param name="q">Optional full-text search query.</param>
-	/// <param name="status">Optional status filter.</param>
-	/// <param name="minAmount">Optional minimum order amount.</param>
-	/// <param name="maxAmount">Optional maximum order amount.</param>
-	/// <param name="page">Page number.</param>
-	/// <param name="pageSize">Page size.</param>
+	/// <param name="request">The advanced search request with filters and cursor.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>Orders matching the combined search criteria.</returns>
+	/// <returns>Orders matching the combined search criteria with a cursor for the next page.</returns>
 	[HttpGet("search/advanced")]
-	[ProducesResponseType(typeof(IEnumerable<OrderSearchProjection>), StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(CursorPagedResult<OrderDto>), StatusCodes.Status200OK)]
 	public async Task<IActionResult> AdvancedSearch(
-		[FromQuery] string? q = null,
-		[FromQuery] string? status = null,
-		[FromQuery] decimal? minAmount = null,
-		[FromQuery] decimal? maxAmount = null,
-		[FromQuery] int page = 1,
-		[FromQuery] int pageSize = 20,
+		[FromQuery] AdvancedSearchRequest request,
 		CancellationToken cancellationToken = default)
 	{
-		var skip = (page - 1) * pageSize;
+		var query = new AdvancedSearchOrdersQuery
+		{
+			SearchText = request.Q,
+			CustomerId = request.CustomerId,
+			Status = request.Status,
+			MinAmount = request.MinAmount,
+			MaxAmount = request.MaxAmount,
+			FromDate = request.FromDate,
+			ToDate = request.ToDate,
+			Tags = request.Tags,
+			PageSize = request.PageSize,
+			Cursor = request.Cursor,
+			Navigation = request.Navigation
+		};
 
-		var response = await _searchRepository
-			.AdvancedSearchAsync(q, status, minAmount, maxAmount, skip, pageSize, cancellationToken)
+		var result = await DispatchQueryAsync<AdvancedSearchOrdersQuery, CursorPagedResult<OrderSearchProjection>>(query, cancellationToken)
 			.ConfigureAwait(false);
 
-		if (!response.IsValidResponse)
+		if (!result.Succeeded)
 		{
-			_logger.LogWarning("Elasticsearch advanced search failed: {Error}", response.DebugInformation);
-			return Ok(Array.Empty<OrderSearchProjection>());
+			_logger.LogWarning("Advanced search dispatch failed");
+			return Ok(new CursorPagedResult<OrderDto>([], 0, 0));
 		}
+
+		var dto = OrderMapper.ToDto(result.ReturnValue!);
 
 		_logger.LogDebug(
 			"Advanced search returned {Count} of {Total} results",
-			response.Documents.Count,
-			response.Total);
+			dto.Items.Count(),
+			dto.TotalRecords);
 
-		return Ok(new PagedResult<OrderSearchProjection>
-		{
-			Items = response.Documents.ToList(),
-			TotalCount = (int)response.Total,
-			Page = page,
-			PageSize = pageSize
-		});
+		return Ok(dto);
 	}
 
 	/// <summary>
@@ -397,41 +341,55 @@ public sealed class OrdersController : ControllerBase
 	/// <item>Monthly order trends</item>
 	/// </list>
 	/// </para>
-	/// <para>
-	/// Aggregations are a native Elasticsearch feature with no equivalent in
-	/// <c>IProjectionStore&lt;T&gt;</c>. This endpoint demonstrates when to
-	/// "graduate" from the generic interface to native queries.
-	/// </para>
 	/// </remarks>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>Aggregated order statistics.</returns>
 	[HttpGet("statistics")]
-	[ProducesResponseType(StatusCodes.Status200OK)]
+	[ProducesResponseType(typeof(OrderStatisticsDto), StatusCodes.Status200OK)]
 	public async Task<IActionResult> GetStatistics(CancellationToken cancellationToken)
 	{
-		var response = await _searchRepository
-			.GetOrderStatisticsAsync(cancellationToken)
+		var query = new GetOrderStatisticsQuery();
+
+		var result = await DispatchQueryAsync<GetOrderStatisticsQuery, SearchResponse<OrderSearchProjection>>(query, cancellationToken)
 			.ConfigureAwait(false);
 
-		if (!response.IsValidResponse)
+		if (!result.Succeeded || !result.ReturnValue!.IsValidResponse)
 		{
-			_logger.LogWarning("Elasticsearch aggregation query failed: {Error}", response.DebugInformation);
-			return Ok(new { Error = "Statistics unavailable" });
+			_logger.LogWarning("Elasticsearch aggregation query failed");
+			return Ok(new OrderStatisticsDto());
 		}
 
-		// Extract aggregation results into a consumer-friendly shape
-		var result = new
+		var response = result.ReturnValue;
+
+		var dto = new OrderStatisticsDto
 		{
 			TotalRevenue = response.Aggregations?.GetSum("total_revenue")?.Value ?? 0d,
 			AverageOrderValue = response.Aggregations?.GetAverage("avg_order_value")?.Value ?? 0d,
 			ByStatus = response.Aggregations?.GetStringTerms("by_status")?.Buckets
-				.Select(b => new { Status = b.Key.Value?.ToString(), Count = b.DocCount })
-				.ToList(),
+				.Select(b => new StatusCountDto { Status = b.Key.Value?.ToString(), Count = b.DocCount })
+				.ToList() ?? [],
 			MonthlyTrend = response.Aggregations?.GetDateHistogram("orders_over_time")?.Buckets
-				.Select(b => new { Month = b.KeyAsString, Count = b.DocCount })
-				.ToList()
+				.Select(b => new MonthlyTrendDto { Month = b.KeyAsString, Count = b.DocCount })
+				.ToList() ?? []
 		};
 
-		return Ok(result);
+		return Ok(dto);
+	}
+
+	// ========================================================================
+	// Helper: Dispatch a query through the pipeline
+	// ========================================================================
+
+	private async Task<IMessageResult<TResult>> DispatchQueryAsync<TQuery, TResult>(
+		TQuery query,
+		CancellationToken cancellationToken)
+		where TQuery : IDispatchAction<TResult>
+	{
+		using var scope = HttpContext.RequestServices.CreateScope();
+		var context = scope.ServiceProvider.GetRequiredService<IMessageContext>();
+
+		return await _dispatcher
+			.DispatchAsync<TQuery, TResult>(query, context, cancellationToken)
+			.ConfigureAwait(false);
 	}
 }

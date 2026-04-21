@@ -99,17 +99,17 @@ public sealed class MoneyTypeHandlerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Parse_UseCustomCulture()
+	public void Parse_UseCustomCurrencyCode()
 	{
 		// Arrange
-		var handler = new MoneyTypeHandler("fr-FR");
+		var handler = new MoneyTypeHandler("EUR");
 
 		// Act
 		var result = handler.Parse(42.50m);
 
 		// Assert
 		result.Amount.ShouldBe(42.50m);
-		result.CultureName.ShouldBe("fr-FR");
+		result.CurrencyCode.ShouldBe("EUR");
 	}
 
 	[Fact]

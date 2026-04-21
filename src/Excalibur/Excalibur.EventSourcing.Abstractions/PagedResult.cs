@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Domain;
+namespace Excalibur.EventSourcing.Abstractions;
 
 /// <summary>
 /// Represents a paginated result for a collection of items, with metadata about pagination.
 /// </summary>
 /// <typeparam name="T"> The type of the items in the paginated result. </typeparam>
-public sealed class PageableResult<T>
+public sealed class PagedResult<T>
 	where T : class
 {
 	/// <summary>
-	/// Initializes a new instance of the <see cref="PageableResult{T}" /> class.
+	/// Initializes a new instance of the <see cref="PagedResult{T}" /> class.
 	/// </summary>
 	/// <param name="items"> The collection of items for the current page. </param>
 	/// <param name="pageNumber"> The current page number (1-based). Optional. Defaults to 1 if not provided. </param>
@@ -22,7 +22,7 @@ public sealed class PageableResult<T>
 	/// <exception cref="ArgumentException">
 	/// Thrown when the provided pagination arguments are inconsistent or invalid (e.g., page number or page size is less than or equal to zero).
 	/// </exception>
-	public PageableResult(IEnumerable<T> items, int? pageNumber = null, int? pageSize = null, long? totalItems = null)
+	public PagedResult(IEnumerable<T> items, int? pageNumber = null, int? pageSize = null, long? totalItems = null)
 	{
 		ArgumentNullException.ThrowIfNull(items);
 

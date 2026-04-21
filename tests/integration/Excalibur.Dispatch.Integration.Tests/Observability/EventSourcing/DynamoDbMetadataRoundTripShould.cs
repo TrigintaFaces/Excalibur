@@ -56,9 +56,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that simple string metadata values round-trip correctly.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Preserve_SimpleStringMetadata()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -93,9 +94,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that numeric metadata values round-trip correctly.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Preserve_NumericMetadata()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -133,9 +135,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that null metadata is handled correctly.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Handle_NullMetadata()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -156,9 +159,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that empty dictionary metadata is handled correctly.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Handle_EmptyMetadata()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -190,9 +194,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that metadata with special characters round-trips correctly.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Preserve_SpecialCharacters()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -237,9 +242,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that metadata with nested objects round-trips correctly.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Preserve_NestedObjects()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -280,9 +286,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that metadata with arrays round-trips correctly.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Preserve_ArrayValues()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -322,9 +329,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that metadata is preserved across multiple events in a single append.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Preserve_MetadataAcrossMultipleEvents()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -358,9 +366,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that metadata is preserved across multiple append operations.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Preserve_MetadataAcrossMultipleAppends()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -400,9 +409,10 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 	/// <summary>
 	/// Verifies that large metadata (within DynamoDB item size limits) round-trips correctly.
 	/// </summary>
-	[Fact]
+	[SkippableFact]
 	public async Task Preserve_LargeMetadata()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Excalibur.Domain.Model.ValueObjects;
 
 namespace Excalibur.Tests.Domain;
@@ -10,36 +12,32 @@ namespace Excalibur.Tests.Domain;
 public sealed class MoneyShould : UnitTestBase
 {
 	[Fact]
-	public void Create_WithDefaults_UsesEnUsCulture()
+	public void Create_WithDefaults_UsesUsdCurrency()
 	{
 		// Arrange & Act
 		var money = new Money(100m);
 
 		// Assert
 		money.Amount.ShouldBe(100m);
-		money.CultureName.ShouldBe("en-US");
-		money.CurrencySymbol.ShouldBe("$");
-		money.ISOCurrencyCode.ShouldBe("USD");
+		money.CurrencyCode.ShouldBe("USD");
 	}
 
 	[Fact]
-	public void Create_WithGbpCulture_ReturnsCorrectSymbols()
+	public void Create_WithGbpCurrency_ReturnsCorrectCode()
 	{
 		// Arrange & Act
-		var money = new Money(50m, "en-GB");
+		var money = new Money(50m, "GBP");
 
 		// Assert
 		money.Amount.ShouldBe(50m);
-		money.CultureName.ShouldBe("en-GB");
-		money.CurrencySymbol.ShouldBe("£");
-		money.ISOCurrencyCode.ShouldBe("GBP");
+		money.CurrencyCode.ShouldBe("GBP");
 	}
 
 	[Fact]
 	public void Create_WithDenomination_CalculatesUnitCount()
 	{
 		// Arrange & Act
-		var money = new Money(100m, "en-US", 20m);
+		var money = new Money(100m, "USD", 20m);
 
 		// Assert
 		money.Amount.ShouldBe(100m);
@@ -57,7 +55,7 @@ public sealed class MoneyShould : UnitTestBase
 
 		// Assert
 		money.Amount.ShouldBe(99.99m);
-		money.CultureName.ShouldBe("en-US");
+		money.CurrencyCode.ShouldBe("USD");
 	}
 
 	[Fact]
@@ -165,10 +163,10 @@ public sealed class MoneyShould : UnitTestBase
 		// Arrange
 		var money = new Money(1234.56m);
 
-		// Act
-		var result = money.ToString();
+		// Act — culture-neutral: "Amount CurrencyCode"
+		var result = money.ToString(CultureInfo.GetCultureInfo("en-US"));
 
-		// Assert
+		// Assert — en-US formats as "$1,234.56"
 		result.ShouldContain("$");
 		result.ShouldContain("1,234.56");
 	}
@@ -189,8 +187,8 @@ public sealed class MoneyShould : UnitTestBase
 	public void Addition_DifferentCurrencies_ThrowsInvalidOperationException()
 	{
 		// Arrange
-		var usd = new Money(100m, "en-US");
-		var gbp = new Money(50m, "en-GB");
+		var usd = new Money(100m, "USD");
+		var gbp = new Money(50m, "GBP");
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => usd + gbp);
@@ -202,8 +200,8 @@ public sealed class MoneyShould : UnitTestBase
 	public void Subtraction_DifferentCurrencies_ThrowsInvalidOperationException()
 	{
 		// Arrange
-		var usd = new Money(100m, "en-US");
-		var eur = new Money(50m, "de-DE");
+		var usd = new Money(100m, "USD");
+		var eur = new Money(50m, "EUR");
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() => usd - eur);
@@ -213,8 +211,8 @@ public sealed class MoneyShould : UnitTestBase
 	public void GreaterThan_DifferentCurrencies_ThrowsInvalidOperationException()
 	{
 		// Arrange
-		var usd = new Money(100m, "en-US");
-		var gbp = new Money(50m, "en-GB");
+		var usd = new Money(100m, "USD");
+		var gbp = new Money(50m, "GBP");
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() => _ = usd > gbp);
@@ -224,8 +222,8 @@ public sealed class MoneyShould : UnitTestBase
 	public void LessThan_DifferentCurrencies_ThrowsInvalidOperationException()
 	{
 		// Arrange
-		var usd = new Money(100m, "en-US");
-		var gbp = new Money(50m, "en-GB");
+		var usd = new Money(100m, "USD");
+		var gbp = new Money(50m, "GBP");
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() => _ = usd < gbp);
@@ -235,8 +233,8 @@ public sealed class MoneyShould : UnitTestBase
 	public void CompareTo_DifferentCurrencies_ThrowsInvalidOperationException()
 	{
 		// Arrange
-		var usd = new Money(100m, "en-US");
-		var gbp = new Money(50m, "en-GB");
+		var usd = new Money(100m, "USD");
+		var gbp = new Money(50m, "GBP");
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() => usd.CompareTo(gbp));
@@ -266,7 +264,7 @@ public sealed class MoneyShould : UnitTestBase
 	public void Create_WithZeroDenomination_SetsUnitCountToZero()
 	{
 		// Arrange & Act
-		var money = new Money(100m, "en-US", 0m);
+		var money = new Money(100m, "USD", 0m);
 
 		// Assert
 		money.UnitCount.ShouldBe(0);
@@ -276,7 +274,7 @@ public sealed class MoneyShould : UnitTestBase
 	public void IsCoinsOnly_WithCoinDenomination_ReturnsTrue()
 	{
 		// Arrange
-		var money = new Money(5m, "en-US", 0.25m);
+		var money = new Money(5m, "USD", 0.25m);
 
 		// Assert
 		money.IsCoinsOnly.ShouldBeTrue();
@@ -304,7 +302,7 @@ public sealed class MoneyShould : UnitTestBase
 		var money = new Money(1234.567m);
 
 		// Act
-		var result = money.ToString("N2");
+		var result = money.ToString("N2", CultureInfo.InvariantCulture);
 
 		// Assert
 		result.ShouldContain("1,234.57");
@@ -314,7 +312,7 @@ public sealed class MoneyShould : UnitTestBase
 	public void GetEqualityComponents_IncludesAllComponents()
 	{
 		// Arrange
-		var money = new Money(100m, "en-US", 20m);
+		var money = new Money(100m, "USD", 20m);
 
 		// Act
 		var components = money.GetEqualityComponents().ToList();
@@ -433,13 +431,10 @@ public sealed class MoneyShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Create_WithNullCultureName_UsesDefault()
+	public void Create_WithNullCurrencyCode_ThrowsArgumentException()
 	{
-		// Arrange & Act
-		var money = new Money(100m, null);
-
-		// Assert
-		money.CultureName.ShouldBe("en-US");
+		// Arrange & Act & Assert
+		_ = Should.Throw<ArgumentException>(() => new Money(100m, null!));
 	}
 
 	#endregion T419.10: Edge Cases

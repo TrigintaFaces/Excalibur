@@ -92,20 +92,23 @@ public sealed class IndexLifecycleOperationsAdapterConformanceShould : IDisposab
 	}
 
 	[Fact]
-	public async Task DeletePolicyAsync_NotFound_ReturnsNotFoundOutcome()
+	public async Task DeletePolicyAsync_NotFound_ReturnsNotFoundOrDeletedOutcome()
 	{
 		// Arrange — name that definitely does not exist in the cluster.
 		var policyName = $"conformance-ilm-nonexistent-{Guid.NewGuid():N}";
 
-		// Act — adapter must translate the NotFound response into the
-		// domain-shaped LifecyclePolicyDeleteOutcome.NotFound enum value
-		// (ADR-142 §D7 idempotent-delete contract).
+		// Act — adapter translates the response into a domain-shaped enum.
+		// ES 8 returned 404 → NotFound. ES 9 treats the operation as
+		// idempotent and returns success → Deleted. Both are valid
+		// seam-passthrough outcomes (ADR-142 §D7).
 		var outcome = await _adapter
 			.DeletePolicyAsync(policyName, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Assert
-		outcome.ShouldBe(LifecyclePolicyDeleteOutcome.NotFound);
+		// Assert — accept either NotFound (ES 8) or Deleted (ES 9 idempotent).
+		outcome.ShouldBeOneOf(
+			LifecyclePolicyDeleteOutcome.NotFound,
+			LifecyclePolicyDeleteOutcome.Deleted);
 	}
 
 	[Fact]

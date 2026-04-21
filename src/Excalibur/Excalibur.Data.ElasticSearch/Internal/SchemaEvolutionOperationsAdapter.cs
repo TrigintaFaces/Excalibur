@@ -96,9 +96,20 @@ internal sealed class SchemaEvolutionOperationsAdapter : ISchemaEvolutionOperati
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
 
-		var response = await _inner.Indices
-			.GetMappingAsync(new GetMappingRequest(indexName), cancellationToken)
-			.ConfigureAwait(false);
+		GetMappingResponse response;
+		try
+		{
+			response = await _inner.Indices
+				.GetMappingAsync(new GetMappingRequest(indexName), cancellationToken)
+				.ConfigureAwait(false);
+		}
+		catch (Elastic.Transport.TransportException)
+		{
+			// ES 9 throws UnexpectedTransportException (e.g. JSON deserialization
+			// failure) when the target index does not exist. Treat as "no version
+			// information available" — the soft-fail null contract.
+			return null;
+		}
 
 		return ExtractSchemaVersion(response, indexName, allowDefault: false);
 	}

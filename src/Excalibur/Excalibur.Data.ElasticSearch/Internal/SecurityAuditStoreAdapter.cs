@@ -65,11 +65,14 @@ internal sealed class SecurityAuditStoreAdapter : ISecurityAuditStore
 		ArgumentNullException.ThrowIfNull(events);
 
 		var indexName = $"{AuditIndexPrefix}-{DateTimeOffset.UtcNow:yyyy-MM}";
-		var bulkRequest = new BulkRequest(indexName);
+		var bulkRequest = new BulkRequest(indexName)
+		{
+			Operations = new List<IBulkOperation>(),
+		};
 
 		foreach (var auditEvent in events)
 		{
-			bulkRequest.Operations?.Add(
+			bulkRequest.Operations.Add(
 				new BulkIndexOperation<SecurityAuditEvent>(auditEvent) { Id = auditEvent.EventId });
 		}
 

@@ -246,4 +246,41 @@ static Excalibur.EventSourcing.Abstractions.FilterParser.Parse(string! key) -> E
 static Excalibur.EventSourcing.Abstractions.MigrationResult.Failed(string! errorMessage, System.Exception? exception = null) -> Excalibur.EventSourcing.Abstractions.MigrationResult!
 static Excalibur.EventSourcing.Abstractions.MigrationResult.NoMigrationsPending() -> Excalibur.EventSourcing.Abstractions.MigrationResult!
 static Excalibur.EventSourcing.Abstractions.MigrationResult.Succeeded(System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.AppliedMigration!>! appliedMigrations) -> Excalibur.EventSourcing.Abstractions.MigrationResult!
+Excalibur.EventSourcing.Abstractions.CursorPageRequest<TCursor>
+Excalibur.EventSourcing.Abstractions.CursorPageRequest<TCursor>.CursorPageRequest(int pageSize, Excalibur.EventSourcing.Abstractions.PageNavigation navigation) -> void
+Excalibur.EventSourcing.Abstractions.CursorPageRequest<TCursor>.Deconstruct(out int pageSize, out Excalibur.EventSourcing.Abstractions.PageNavigation navigation, out TCursor? cursor) -> void
+Excalibur.EventSourcing.Abstractions.CursorPageRequest<TCursor>.Navigation.get -> Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.CursorPageRequest<TCursor>.PageSize.get -> int
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.CursorPagedResult(System.Collections.Generic.IEnumerable<T>! items, int pageSize, long totalRecords, string? nextCursor = null) -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.Deconstruct(out System.Collections.Generic.IEnumerable<T>! items, out int pageSize, out long totalRecords, out string? nextCursor) -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.HasMore.get -> bool
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.Items.get -> System.Collections.Generic.IEnumerable<T>!
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.Items.init -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.NextCursor.get -> string?
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.NextCursor.init -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.PageSize.get -> int
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.PageSize.init -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.TotalPages.get -> int
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.TotalRecords.get -> long
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.TotalRecords.init -> void
+Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PageNavigation.First = 0 -> Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PageNavigation.Last = 3 -> Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PageNavigation.Next = 2 -> Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PageNavigation.Previous = 1 -> Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PagedResult<T>
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.GetEnumerator() -> System.Collections.Generic.IEnumerator<T!>!
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.HasNextPage.get -> bool
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.HasPreviousPage.get -> bool
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.IsFirstPage.get -> bool
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.IsLastPage.get -> bool
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.Items.get -> System.Collections.Generic.IList<T!>!
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.PageNumber.get -> int
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.PageSize.get -> int
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.PagedResult(System.Collections.Generic.IEnumerable<T!>! items, int? pageNumber = null, int? pageSize = null, long? totalItems = null) -> void
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.TotalItems.get -> long
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.TotalPages.get -> int
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.this[int index].get -> T!
+abstract Excalibur.EventSourcing.Abstractions.CursorPageRequest<TCursor>.GetCursor() -> TCursor?
 static Excalibur.EventSourcing.Abstractions.QueryOptions.Default.get -> Excalibur.EventSourcing.Abstractions.QueryOptions!

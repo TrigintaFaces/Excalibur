@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Globalization;
+
 using Excalibur.Domain.Model.ValueObjects;
 
 namespace Excalibur.Tests.Domain.Model.ValueObjects;
@@ -18,7 +20,7 @@ public sealed class MoneyFunctionalShould
         var result = a + b;
 
         result.Amount.ShouldBe(15.75m);
-        result.ISOCurrencyCode.ShouldBe("USD");
+        result.CurrencyCode.ShouldBe("USD");
     }
 
     [Fact]
@@ -170,13 +172,13 @@ public sealed class MoneyFunctionalShould
     [Fact]
     public void FactoryMethods_ShouldCreateCorrectCurrencies()
     {
-        Money.USD(100m).ISOCurrencyCode.ShouldBe("USD");
-        Money.EUR(100m).ISOCurrencyCode.ShouldBe("EUR");
-        Money.GBP(100m).ISOCurrencyCode.ShouldBe("GBP");
-        Money.JPY(100m).ISOCurrencyCode.ShouldBe("JPY");
-        Money.CHF(100m).ISOCurrencyCode.ShouldBe("CHF");
-        Money.CAD(100m).ISOCurrencyCode.ShouldBe("CAD");
-        Money.AUD(100m).ISOCurrencyCode.ShouldBe("AUD");
+        Money.USD(100m).CurrencyCode.ShouldBe("USD");
+        Money.EUR(100m).CurrencyCode.ShouldBe("EUR");
+        Money.GBP(100m).CurrencyCode.ShouldBe("GBP");
+        Money.JPY(100m).CurrencyCode.ShouldBe("JPY");
+        Money.CHF(100m).CurrencyCode.ShouldBe("CHF");
+        Money.CAD(100m).CurrencyCode.ShouldBe("CAD");
+        Money.AUD(100m).CurrencyCode.ShouldBe("AUD");
     }
 
     [Fact]
@@ -195,43 +197,43 @@ public sealed class MoneyFunctionalShould
     [Fact]
     public void From_Decimal_ShouldWork()
     {
-        var money = Money.From(99.99m, "en-US");
+        var money = Money.From(99.99m, "USD");
         money.Amount.ShouldBe(99.99m);
-        money.ISOCurrencyCode.ShouldBe("USD");
+        money.CurrencyCode.ShouldBe("USD");
     }
 
     [Fact]
     public void From_Double_ShouldWork()
     {
-        var money = Money.From(49.99, "en-US");
+        var money = Money.From(49.99, "USD");
         money.Amount.ShouldBe(49.99m);
     }
 
     [Fact]
     public void From_Float_ShouldWork()
     {
-        var money = Money.From(29.99f, "en-US");
+        var money = Money.From(29.99f, "USD");
         money.Amount.ShouldBe(29.99m);
     }
 
     [Fact]
     public void From_Int_ShouldWork()
     {
-        var money = Money.From(100, "en-US");
+        var money = Money.From(100, "USD");
         money.Amount.ShouldBe(100m);
     }
 
     [Fact]
     public void From_Long_ShouldWork()
     {
-        var money = Money.From(1000L, "en-US");
+        var money = Money.From(1000L, "USD");
         money.Amount.ShouldBe(1000m);
     }
 
     [Fact]
     public void Denomination_ShouldCalculateUnitCount()
     {
-        var money = new Money(100m, "en-US", 20m);
+        var money = new Money(100m, "USD", 20m);
 
         money.Denomination.ShouldBe(20m);
         money.UnitCount.ShouldBe(5); // 100 / 20 = 5
@@ -242,7 +244,7 @@ public sealed class MoneyFunctionalShould
     [Fact]
     public void Denomination_CoinDenomination_ShouldIdentifyAsCoins()
     {
-        var money = new Money(2.50m, "en-US", 0.25m);
+        var money = new Money(2.50m, "USD", 0.25m);
 
         money.Denomination.ShouldBe(0.25m);
         money.UnitCount.ShouldBe(10);
@@ -253,7 +255,7 @@ public sealed class MoneyFunctionalShould
     [Fact]
     public void Denomination_ZeroDenomination_ShouldReturnZeroUnitCount()
     {
-        var money = new Money(100m, "en-US", 0m);
+        var money = new Money(100m, "USD", 0m);
         money.UnitCount.ShouldBe(0);
     }
 
@@ -261,7 +263,7 @@ public sealed class MoneyFunctionalShould
     public void ToString_ShouldFormatAsCurrency()
     {
         var money = Money.USD(1234.56m);
-        var result = money.ToString();
+        var result = money.ToString(CultureInfo.InvariantCulture);
 
         // Should contain the amount formatted as currency
         result.ShouldContain("1");
@@ -272,7 +274,7 @@ public sealed class MoneyFunctionalShould
     public void ToString_WithFormat_ShouldApplyFormat()
     {
         var money = Money.USD(1234.56m);
-        var result = money.ToString("N2");
+        var result = money.ToString("N2", CultureInfo.InvariantCulture);
 
         result.ShouldContain("1");
         result.ShouldContain("234");
@@ -280,11 +282,9 @@ public sealed class MoneyFunctionalShould
     }
 
     [Fact]
-    public void NullCultureName_ShouldDefaultToEnUS()
+    public void NullCurrencyCode_ShouldThrowArgumentException()
     {
-        var money = new Money(50m, null);
-        money.CultureName.ShouldBe("en-US");
-        money.ISOCurrencyCode.ShouldBe("USD");
+        Should.Throw<ArgumentException>(() => new Money(50m, null!));
     }
 
     [Fact]

@@ -29,6 +29,7 @@ using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Excalibur.Data.ElasticSearch;
 using Excalibur.Data.ElasticSearch.Projections;
+using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.Options;
 
@@ -94,20 +95,44 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 
 	/// <summary>
 	/// Performs a full-text search across order fields (customer name, status, product names, tags).
+	/// Uses Elasticsearch's <c>search_after</c> for efficient cursor-based pagination
+	/// with bidirectional navigation support.
 	/// </summary>
 	/// <param name="searchText">The search text to match against multiple fields.</param>
+	/// <param name="take">Number of results to return per page.</param>
+	/// <param name="searchAfter">
+	/// Cursor from a previous page's boundary hit (<see cref="Elastic.Clients.Elasticsearch.Core.Search.Hit{T}.Sort"/>).
+	/// Pass <c>null</c> for the first or last page.
+	/// </param>
+	/// <param name="navigation">
+	/// The page navigation direction. <see cref="PageNavigation.Previous"/> and
+	/// <see cref="PageNavigation.Last"/> reverse the sort order; the caller must
+	/// reverse the returned results to restore the expected display order.
+	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>Search response with matching orders and metadata (scores, highlights).</returns>
 	/// <remarks>
-	/// This uses Elasticsearch's <c>multi_match</c> query, which is not available
-	/// through <c>IProjectionStore&lt;T&gt;</c>'s dictionary-based filter API.
-	/// Results are ranked by relevance score.
+	/// <para>
+	/// Bidirectional cursor pagination works by reversing the sort direction:
+	/// <list type="bullet">
+	/// <item><b>First</b> — No cursor, normal sort order.</item>
+	/// <item><b>Next</b> — <c>search_after</c> with last item's sort values, normal sort.</item>
+	/// <item><b>Previous</b> — <c>search_after</c> with first item's sort values, reversed sort. Caller reverses results.</item>
+	/// <item><b>Last</b> — No cursor, reversed sort. Caller reverses results.</item>
+	/// </list>
+	/// </para>
 	/// </remarks>
 	public async Task<SearchResponse<OrderSearchProjection>> FullTextSearchAsync(
 		string searchText,
 		int take = 20,
+		IList<FieldValue>? searchAfter = null,
+		PageNavigation navigation = PageNavigation.Next,
 		CancellationToken cancellationToken = default)
 	{
+		var reverse = navigation is PageNavigation.Previous or PageNavigation.Last;
+		var scoreOrder = reverse ? SortOrder.Asc : SortOrder.Desc;
+		var tiebreakerOrder = reverse ? SortOrder.Desc : SortOrder.Asc;
+
 		var request = new SearchRequestDescriptor<OrderSearchProjection>();
 		request
 			.Size(take)
@@ -123,7 +148,17 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 						"externalOrderId"
 					})
 					.Fuzziness(new Fuzziness("AUTO"))
-					.Type(TextQueryType.BestFields)));
+					.Type(TextQueryType.BestFields)))
+			.Sort(so => so
+				.Score(sc => sc.Order(scoreOrder))
+				.Field("orderId.keyword", f => f.Order(tiebreakerOrder)));
+
+		// First/Last navigate without a cursor; Next/Previous use the cursor
+		if (navigation is PageNavigation.Next or PageNavigation.Previous
+			&& searchAfter is { Count: > 0 })
+		{
+			request.SearchAfter(searchAfter);
+		}
 
 		return await SearchAsync(request, cancellationToken).ConfigureAwait(false);
 	}
@@ -166,33 +201,61 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 	}
 
 	/// <summary>
-	/// Searches orders with combined full-text and filter criteria.
+	/// Searches orders with combined full-text and structured filter criteria.
+	/// Uses Elasticsearch's <c>search_after</c> for efficient cursor-based pagination.
 	/// </summary>
 	/// <param name="searchText">Optional full-text search query.</param>
+	/// <param name="customerId">Optional customer ID filter.</param>
 	/// <param name="status">Optional status filter.</param>
 	/// <param name="minAmount">Optional minimum order amount.</param>
 	/// <param name="maxAmount">Optional maximum order amount.</param>
-	/// <param name="skip">Number of results to skip.</param>
-	/// <param name="take">Number of results to return.</param>
+	/// <param name="fromDate">Optional minimum order date.</param>
+	/// <param name="toDate">Optional maximum order date.</param>
+	/// <param name="tags">Optional tags filter (any match).</param>
+	/// <param name="take">Number of results to return per page.</param>
+	/// <param name="searchAfter">
+	/// Cursor from the previous page's last hit (<see cref="Elastic.Clients.Elasticsearch.Core.Search.Hit{T}.Sort"/>).
+	/// Pass <c>null</c> for the first page.
+	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>Search response with matching orders.</returns>
 	/// <remarks>
+	/// <para>
 	/// Demonstrates combining a full-text <c>must</c> clause with structured
 	/// <c>filter</c> clauses in a <c>bool</c> query. Filters don't affect
 	/// relevance scoring and are cacheable by Elasticsearch.
+	/// </para>
+	/// <para>
+	/// Cursor-based pagination via <c>search_after</c> replaces offset-based
+	/// <c>from</c>/<c>size</c> paging. Offset paging degrades for deep pages because
+	/// Elasticsearch must score and discard all preceding documents. With
+	/// <c>search_after</c>, each page resumes directly from the last sort value,
+	/// keeping query cost constant regardless of page depth.
+	/// </para>
+	/// <para>
+	/// To iterate pages: capture the <c>Sort</c> array from the last
+	/// <see cref="Elastic.Clients.Elasticsearch.Core.Search.Hit{T}"/> in the response
+	/// and pass it as <paramref name="searchAfter"/> on the next call.
+	/// </para>
 	/// </remarks>
 	public async Task<SearchResponse<OrderSearchProjection>> AdvancedSearchAsync(
 		string? searchText = null,
+		Guid? customerId = null,
 		string? status = null,
 		decimal? minAmount = null,
 		decimal? maxAmount = null,
-		int skip = 0,
+		DateTime? fromDate = null,
+		DateTime? toDate = null,
+		string[]? tags = null,
 		int take = 20,
+		IList<FieldValue>? searchAfter = null,
+		PageNavigation navigation = PageNavigation.Next,
 		CancellationToken cancellationToken = default)
 	{
+		var reverse = navigation is PageNavigation.Previous or PageNavigation.Last;
+
 		var request = new SearchRequestDescriptor<OrderSearchProjection>();
 		request
-			.From(skip)
 			.Size(take)
 			.Query(q => q
 				.Bool(b =>
@@ -209,6 +272,13 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 
 					// Structured filters in "filter" (cacheable, no scoring)
 					var filters = new List<Action<QueryDescriptor<OrderSearchProjection>>>();
+
+					if (customerId.HasValue)
+					{
+						filters.Add(f => f.Term(t => t
+							.Field("customerId.keyword")
+							.Value(customerId.Value.ToString())));
+					}
 
 					if (!string.IsNullOrWhiteSpace(status))
 					{
@@ -234,14 +304,46 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 							})));
 					}
 
+					if (fromDate.HasValue || toDate.HasValue)
+					{
+						filters.Add(f => f.Range(r => r
+							.DateRange(dr =>
+							{
+								dr.Field("orderDate");
+								if (fromDate.HasValue)
+								{
+									dr.Gte(fromDate.Value);
+								}
+								if (toDate.HasValue)
+								{
+									dr.Lte(toDate.Value);
+								}
+							})));
+					}
+
+					if (tags is { Length: > 0 })
+					{
+						filters.Add(f => f.Terms(t => t
+							.Field("tags.keyword")
+							.Terms(new TermsQueryField(tags.Select(tag => FieldValue.String(tag)).ToArray()))));
+					}
+
 					if (filters.Count > 0)
 					{
 						b.Filter(filters.ToArray());
 					}
 				}))
 			.Sort(so => so
-				.Score(sc => sc.Order(SortOrder.Desc))
-				.Field("orderDate", f => f.Order(SortOrder.Desc)));
+				.Score(sc => sc.Order(reverse ? SortOrder.Asc : SortOrder.Desc))
+				.Field("orderDate", f => f.Order(reverse ? SortOrder.Asc : SortOrder.Desc))
+				.Field("orderId.keyword", f => f.Order(reverse ? SortOrder.Desc : SortOrder.Asc)));
+
+		// First/Last navigate without a cursor; Next/Previous use the cursor
+		if (navigation is PageNavigation.Next or PageNavigation.Previous
+			&& searchAfter is { Count: > 0 })
+		{
+			request.SearchAfter(searchAfter);
+		}
 
 		return await SearchAsync(request, cancellationToken).ConfigureAwait(false);
 	}

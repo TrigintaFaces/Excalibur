@@ -94,7 +94,7 @@ internal sealed class IndexTemplateStoreAdapter : IIndexTemplateStore
 			.ExistsIndexTemplateAsync(templateName, cancellationToken)
 			.ConfigureAwait(false);
 
-		return response.IsValidResponse;
+		return response.Exists;
 	}
 
 	/// <inheritdoc/>

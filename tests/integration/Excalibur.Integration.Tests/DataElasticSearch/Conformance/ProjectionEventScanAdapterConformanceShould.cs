@@ -79,11 +79,25 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IDisposable
 
 		_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);
 
-		var results = await _adapter
-			.SearchReadsAsync(
-				new ReadEventSearch(ProjectionType: "OrderProjection", MaxResults: 10),
-				CancellationToken.None)
-			.ConfigureAwait(false);
+		// ES 9 may need a brief settling window after refresh before
+		// documents are visible in search results.
+		IReadOnlyList<ReadEventDocument>? results = null;
+		for (var attempt = 0; attempt < 5; attempt++)
+		{
+			results = await _adapter
+				.SearchReadsAsync(
+					new ReadEventSearch(ProjectionType: "OrderProjection", MaxResults: 10),
+					CancellationToken.None)
+				.ConfigureAwait(false);
+
+			if (results is { Count: > 0 })
+			{
+				break;
+			}
+
+			await Task.Delay(200, CancellationToken.None).ConfigureAwait(false);
+			_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);
+		}
 
 		results.ShouldNotBeNull();
 		results.ShouldContain(d => d.EventId == eventId);
@@ -107,9 +121,22 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IDisposable
 
 		_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);
 
-		var count = await _adapter
-			.GetDocumentCountAsync(_readIndex, ProjectionCountFilter.ReadsByProjectionType, projection, CancellationToken.None)
-			.ConfigureAwait(false);
+		// ES 9 may need a brief settling window after refresh.
+		long count = 0;
+		for (var attempt = 0; attempt < 5; attempt++)
+		{
+			count = await _adapter
+				.GetDocumentCountAsync(_readIndex, ProjectionCountFilter.ReadsByProjectionType, projection, CancellationToken.None)
+				.ConfigureAwait(false);
+
+			if (count == 3)
+			{
+				break;
+			}
+
+			await Task.Delay(200, CancellationToken.None).ConfigureAwait(false);
+			_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);
+		}
 
 		count.ShouldBe(3);
 	}

@@ -2,7 +2,7 @@ namespace Excalibur.Tests.Domain;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Domain")]
-public sealed class PageableResultDepthShould
+public sealed class PagedResultDepthShould
 {
     private static readonly string[] EnumeratorExpectedItems = ["a", "b", "c"];
     private static readonly string[] TwoStringItems = ["a", "b"];
@@ -14,7 +14,7 @@ public sealed class PageableResultDepthShould
         var items = new[] { "a", "b", "c" };
 
         // Act
-        var result = new PageableResult<string>(items);
+        var result = new PagedResult<string>(items);
 
         // Assert
         result.Items.Count.ShouldBe(3);
@@ -35,7 +35,7 @@ public sealed class PageableResultDepthShould
         var items = new[] { "a", "b" };
 
         // Act
-        var result = new PageableResult<string>(items, pageNumber: 2, pageSize: 2, totalItems: 10);
+        var result = new PagedResult<string>(items, pageNumber: 2, pageSize: 2, totalItems: 10);
 
         // Assert
         result.PageNumber.ShouldBe(2);
@@ -52,7 +52,7 @@ public sealed class PageableResultDepthShould
     public void Constructor_FirstPage_ReportsCorrectly()
     {
         // Arrange & Act
-        var result = new PageableResult<string>(["a"], pageNumber: 1, pageSize: 1, totalItems: 5);
+        var result = new PagedResult<string>(["a"], pageNumber: 1, pageSize: 1, totalItems: 5);
 
         // Assert
         result.IsFirstPage.ShouldBeTrue();
@@ -64,7 +64,7 @@ public sealed class PageableResultDepthShould
     public void Constructor_LastPage_ReportsCorrectly()
     {
         // Arrange & Act
-        var result = new PageableResult<string>(["a"], pageNumber: 5, pageSize: 1, totalItems: 5);
+        var result = new PagedResult<string>(["a"], pageNumber: 5, pageSize: 1, totalItems: 5);
 
         // Assert
         result.IsLastPage.ShouldBeTrue();
@@ -76,63 +76,63 @@ public sealed class PageableResultDepthShould
     public void Constructor_ThrowOnNullItems()
     {
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => new PageableResult<string>(null!));
+        Should.Throw<ArgumentNullException>(() => new PagedResult<string>(null!));
     }
 
     [Fact]
     public void Constructor_ThrowWhenPageNumberZero()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => new PageableResult<string>(["a"], pageNumber: 0, pageSize: 10));
+        Should.Throw<ArgumentException>(() => new PagedResult<string>(["a"], pageNumber: 0, pageSize: 10));
     }
 
     [Fact]
     public void Constructor_ThrowWhenPageSizeZero()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => new PageableResult<string>(["a"], pageNumber: 1, pageSize: 0));
+        Should.Throw<ArgumentException>(() => new PagedResult<string>(["a"], pageNumber: 1, pageSize: 0));
     }
 
     [Fact]
     public void Constructor_ThrowWhenPageNumberNegative()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => new PageableResult<string>(["a"], pageNumber: -1, pageSize: 10));
+        Should.Throw<ArgumentException>(() => new PagedResult<string>(["a"], pageNumber: -1, pageSize: 10));
     }
 
     [Fact]
     public void Constructor_ThrowWhenPageSizeNegative()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => new PageableResult<string>(["a"], pageNumber: 1, pageSize: -1));
+        Should.Throw<ArgumentException>(() => new PagedResult<string>(["a"], pageNumber: 1, pageSize: -1));
     }
 
     [Fact]
     public void Constructor_ThrowWhenPageNumberWithoutPageSize()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => new PageableResult<string>(["a"], pageNumber: 1));
+        Should.Throw<ArgumentException>(() => new PagedResult<string>(["a"], pageNumber: 1));
     }
 
     [Fact]
     public void Constructor_ThrowWhenPageSizeWithoutPageNumber()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => new PageableResult<string>(["a"], pageSize: 10));
+        Should.Throw<ArgumentException>(() => new PagedResult<string>(["a"], pageSize: 10));
     }
 
     [Fact]
     public void Constructor_ThrowWhenTotalItemsLessThanItemCount()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => new PageableResult<string>(["a", "b", "c"], totalItems: 1));
+        Should.Throw<ArgumentException>(() => new PagedResult<string>(["a", "b", "c"], totalItems: 1));
     }
 
     [Fact]
     public void Indexer_ReturnCorrectItem()
     {
         // Arrange
-        var result = new PageableResult<string>(["first", "second", "third"]);
+        var result = new PagedResult<string>(["first", "second", "third"]);
 
         // Act & Assert
         result[0].ShouldBe("first");
@@ -144,7 +144,7 @@ public sealed class PageableResultDepthShould
     public void GetEnumerator_IterateItems()
     {
         // Arrange
-        var result = new PageableResult<string>(["a", "b", "c"]);
+        var result = new PagedResult<string>(["a", "b", "c"]);
         var items = new List<string>();
 
         // Act
@@ -162,7 +162,7 @@ public sealed class PageableResultDepthShould
     public void TotalPages_CalculateCorrectly_WithRemainder()
     {
         // Arrange: 11 items, 3 per page = 4 pages
-        var result = new PageableResult<string>(["a", "b", "c"], pageNumber: 1, pageSize: 3, totalItems: 11);
+        var result = new PagedResult<string>(["a", "b", "c"], pageNumber: 1, pageSize: 3, totalItems: 11);
 
         // Act & Assert
         result.TotalPages.ShouldBe(4);
@@ -172,7 +172,7 @@ public sealed class PageableResultDepthShould
     public void TotalPages_CalculateCorrectly_ExactDivision()
     {
         // Arrange: 9 items, 3 per page = 3 pages
-        var result = new PageableResult<string>(["a", "b", "c"], pageNumber: 1, pageSize: 3, totalItems: 9);
+        var result = new PagedResult<string>(["a", "b", "c"], pageNumber: 1, pageSize: 3, totalItems: 9);
 
         // Act & Assert
         result.TotalPages.ShouldBe(3);
@@ -182,7 +182,7 @@ public sealed class PageableResultDepthShould
     public void EmptyItems_HandleCorrectly()
     {
         // Arrange & Act
-        var result = new PageableResult<string>(Array.Empty<string>());
+        var result = new PagedResult<string>(Array.Empty<string>());
 
         // Assert
         result.Items.ShouldBeEmpty();
@@ -201,7 +201,7 @@ public sealed class PageableResultDepthShould
         IEnumerable<string> items = TwoStringItems.AsEnumerable();
 
         // Act
-        var result = new PageableResult<string>(items);
+        var result = new PagedResult<string>(items);
 
         // Assert
         result.Items.Count.ShouldBe(2);

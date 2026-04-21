@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Excalibur.Domain.Model.ValueObjects;
 
 namespace Excalibur.Tests.Domain.Model.ValueObjects;
@@ -14,7 +16,7 @@ public sealed class MoneyExtendedShould
 
 		// Assert
 		money.Amount.ShouldBe(100.50m);
-		money.ISOCurrencyCode.ShouldBe("USD");
+		money.CurrencyCode.ShouldBe("USD");
 	}
 
 	[Fact]
@@ -81,7 +83,7 @@ public sealed class MoneyExtendedShould
 		var money = Money.USD(50m);
 
 		// Assert
-		money.ISOCurrencyCode.ShouldBe("USD");
+		money.CurrencyCode.ShouldBe("USD");
 		money.Amount.ShouldBe(50m);
 	}
 
@@ -92,7 +94,7 @@ public sealed class MoneyExtendedShould
 		var money = Money.EUR(50m);
 
 		// Assert
-		money.ISOCurrencyCode.ShouldBe("EUR");
+		money.CurrencyCode.ShouldBe("EUR");
 	}
 
 	[Fact]
@@ -102,7 +104,7 @@ public sealed class MoneyExtendedShould
 		var money = Money.GBP(50m);
 
 		// Assert
-		money.ISOCurrencyCode.ShouldBe("GBP");
+		money.CurrencyCode.ShouldBe("GBP");
 	}
 
 	[Fact]
@@ -112,7 +114,7 @@ public sealed class MoneyExtendedShould
 		var money = Money.JPY(1000m);
 
 		// Assert
-		money.ISOCurrencyCode.ShouldBe("JPY");
+		money.CurrencyCode.ShouldBe("JPY");
 	}
 
 	[Fact]
@@ -122,7 +124,7 @@ public sealed class MoneyExtendedShould
 		var money = Money.CHF(50m);
 
 		// Assert
-		money.ISOCurrencyCode.ShouldBe("CHF");
+		money.CurrencyCode.ShouldBe("CHF");
 	}
 
 	[Fact]
@@ -132,7 +134,7 @@ public sealed class MoneyExtendedShould
 		var money = Money.CAD(50m);
 
 		// Assert
-		money.ISOCurrencyCode.ShouldBe("CAD");
+		money.CurrencyCode.ShouldBe("CAD");
 	}
 
 	[Fact]
@@ -142,7 +144,7 @@ public sealed class MoneyExtendedShould
 		var money = Money.AUD(50m);
 
 		// Assert
-		money.ISOCurrencyCode.ShouldBe("AUD");
+		money.CurrencyCode.ShouldBe("AUD");
 	}
 
 	[Fact]
@@ -377,7 +379,7 @@ public sealed class MoneyExtendedShould
 	public void Denomination_WhenSet_CalculatesUnitCount()
 	{
 		// Arrange & Act
-		var money = new Money(100m, "en-US", 20m);
+		var money = new Money(100m, "USD", 20m);
 
 		// Assert
 		money.Denomination.ShouldBe(20m);
@@ -390,7 +392,7 @@ public sealed class MoneyExtendedShould
 	public void Denomination_WhenCoin_IsCoinsOnly()
 	{
 		// Arrange & Act
-		var money = new Money(0.50m, "en-US", 0.25m);
+		var money = new Money(0.50m, "USD", 0.25m);
 
 		// Assert
 		money.Denomination.ShouldBe(0.25m);
@@ -403,21 +405,17 @@ public sealed class MoneyExtendedShould
 	public void Denomination_Zero_UnitCountIsZero()
 	{
 		// Arrange & Act
-		var money = new Money(100m, "en-US", 0m);
+		var money = new Money(100m, "USD", 0m);
 
 		// Assert
 		money.UnitCount.ShouldBe(0);
 	}
 
 	[Fact]
-	public void NullCultureName_DefaultsToEnUS()
+	public void NullCurrencyCode_ThrowsArgumentException()
 	{
-		// Act
-		var money = new Money(10m, null);
-
-		// Assert
-		money.CultureName.ShouldBe("en-US");
-		money.ISOCurrencyCode.ShouldBe("USD");
+		// Act & Assert
+		Should.Throw<ArgumentException>(() => new Money(10m, null!));
 	}
 
 	[Fact]
@@ -427,7 +425,7 @@ public sealed class MoneyExtendedShould
 		var money = Money.USD(1234.56m);
 
 		// Act
-		var result = money.ToString();
+		var result = money.ToString(CultureInfo.InvariantCulture);
 
 		// Assert
 		result.ShouldNotBeNullOrEmpty();
@@ -441,7 +439,7 @@ public sealed class MoneyExtendedShould
 		var money = Money.USD(1234.56m);
 
 		// Act
-		var result = money.ToString("N2");
+		var result = money.ToString("N2", CultureInfo.InvariantCulture);
 
 		// Assert
 		result.ShouldNotBeNullOrEmpty();

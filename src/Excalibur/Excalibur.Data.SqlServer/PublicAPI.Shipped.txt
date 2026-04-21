@@ -342,11 +342,11 @@ Excalibur.Data.SqlServer.SqlServerProviderOptions.SqlServerProviderOptions() -> 
 Excalibur.Data.SqlServer.TypeHandlers.DateOnlyTypeHandler
 Excalibur.Data.SqlServer.TypeHandlers.DateOnlyTypeHandler.DateOnlyTypeHandler(System.IFormatProvider? formatProvider = null) -> void
 Excalibur.Data.SqlServer.TypeHandlers.MoneyTypeHandler
-Excalibur.Data.SqlServer.TypeHandlers.MoneyTypeHandler.MoneyTypeHandler(string! cultureName = "en-US", byte precision = 19, byte scale = 4) -> void
+Excalibur.Data.SqlServer.TypeHandlers.MoneyTypeHandler.MoneyTypeHandler(string! currencyCode = "USD", byte precision = 19, byte scale = 4) -> void
 Excalibur.Data.SqlServer.TypeHandlers.NullableDateOnlyTypeHandler
 Excalibur.Data.SqlServer.TypeHandlers.NullableDateOnlyTypeHandler.NullableDateOnlyTypeHandler(System.IFormatProvider? formatProvider = null) -> void
 Excalibur.Data.SqlServer.TypeHandlers.NullableMoneyTypeHandler
-Excalibur.Data.SqlServer.TypeHandlers.NullableMoneyTypeHandler.NullableMoneyTypeHandler(string! cultureName = "en-US", byte precision = 19, byte scale = 4) -> void
+Excalibur.Data.SqlServer.TypeHandlers.NullableMoneyTypeHandler.NullableMoneyTypeHandler(string! currencyCode = "USD", byte precision = 19, byte scale = 4) -> void
 Excalibur.Data.SqlServer.TypeHandlers.NullableTimeOnlyTypeHandler
 Excalibur.Data.SqlServer.TypeHandlers.NullableTimeOnlyTypeHandler.NullableTimeOnlyTypeHandler(System.IFormatProvider? formatProvider = null) -> void
 Excalibur.Data.SqlServer.TypeHandlers.TimeOnlyTypeHandler

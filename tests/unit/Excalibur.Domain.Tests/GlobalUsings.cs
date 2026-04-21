@@ -10,3 +10,4 @@ global using Microsoft.Extensions.Options;
 
 global using Excalibur.Dispatch.Abstractions;
 global using Excalibur.Domain;
+global using Excalibur.EventSourcing.Abstractions;

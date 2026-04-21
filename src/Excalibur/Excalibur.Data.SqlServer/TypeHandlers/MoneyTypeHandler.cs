@@ -14,17 +14,17 @@ using Microsoft.Data.SqlClient;
 namespace Excalibur.Data.SqlServer.TypeHandlers;
 
 /// <summary>
-/// Type handler for mapping the Money class to SQL Server database columns using Dapper. Handles non-nullable Money types.
+/// Type handler for mapping the <see cref="Money"/> class to SQL Server database columns using Dapper.
+/// Handles non-nullable <see cref="Money"/> types.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="MoneyTypeHandler" /> class. </remarks>
-/// <param name="cultureName"> The name of the culture to use for parsing and formatting (e.g., "en-US"). </param>
-/// <param name="precision"> The SQL precision for storing the decimal value. </param>
-/// <param name="scale"> The SQL scale for storing the decimal value. </param>
+/// <param name="currencyCode">The ISO 4217 currency code (e.g., "USD", "EUR"). Defaults to "USD".</param>
+/// <param name="precision">The SQL precision for storing the decimal value.</param>
+/// <param name="scale">The SQL scale for storing the decimal value.</param>
 /// <remarks>
-/// The default culture is "en-US", the precision is 19, and the scale is 4. Ensure these match the database column definitions to avoid
-/// truncation or errors.
+/// The default currency code is "USD", the precision is 19, and the scale is 4.
+/// Ensure precision and scale match the database column definitions to avoid truncation or errors.
 /// </remarks>
-public sealed class MoneyTypeHandler(string cultureName = "en-US", byte precision = 19, byte scale = 4) : SqlMapper.TypeHandler<Money>
+public sealed class MoneyTypeHandler(string currencyCode = "USD", byte precision = 19, byte scale = 4) : SqlMapper.TypeHandler<Money>
 {
 	/// <inheritdoc />
 	public override Money Parse(object value)
@@ -36,12 +36,12 @@ public sealed class MoneyTypeHandler(string cultureName = "en-US", byte precisio
 
 		return value switch
 		{
-			decimal decimalValue => Money.From(decimalValue, cultureName),
-			double doubleValue => Money.From(doubleValue, cultureName),
-			float floatValue => Money.From(floatValue, cultureName),
-			int intValue => Money.From(intValue, cultureName),
-			long longValue => Money.From(longValue, cultureName),
-			string stringValue => Money.From(stringValue, cultureName),
+			decimal decimalValue => Money.From(decimalValue, currencyCode),
+			double doubleValue => Money.From(doubleValue, currencyCode),
+			float floatValue => Money.From(floatValue, currencyCode),
+			int intValue => Money.From(intValue, currencyCode),
+			long longValue => Money.From(longValue, currencyCode),
+			string stringValue => Money.Parse(stringValue, currencyCode),
 			_ => throw new DataException($"Cannot convert type {value.GetType()} to Money."),
 		};
 	}

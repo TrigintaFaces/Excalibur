@@ -111,10 +111,10 @@ public sealed class NullableMoneyTypeHandlerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Parse_UseCustomCulture()
+	public void Parse_UseCustomCurrencyCode()
 	{
 		// Arrange
-		var handler = new NullableMoneyTypeHandler("fr-FR");
+		var handler = new NullableMoneyTypeHandler("EUR");
 
 		// Act
 		var result = handler.Parse(42.50m);
@@ -122,7 +122,7 @@ public sealed class NullableMoneyTypeHandlerShould : UnitTestBase
 		// Assert
 		result.ShouldNotBeNull();
 		result.Amount.ShouldBe(42.50m);
-		result.CultureName.ShouldBe("fr-FR");
+		result.CurrencyCode.ShouldBe("EUR");
 	}
 
 	[Fact]

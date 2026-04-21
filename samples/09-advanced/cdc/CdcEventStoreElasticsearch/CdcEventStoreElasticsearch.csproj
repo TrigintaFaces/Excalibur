@@ -20,6 +20,10 @@
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Domain\Excalibur.Domain.csproj" />
   </ItemGroup>
+  <!-- Excalibur Application (CQRS commands, queries, request pipeline) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
+  </ItemGroup>
   <!-- CDC from SQL Server (Anti-Corruption Layer) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />

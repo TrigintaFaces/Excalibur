@@ -30,6 +30,18 @@ internal sealed class IndexInspectionAdapter : IIndexInspection
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
 
+		// ES 9 returns a valid count=0 response even for non-existent indices.
+		// Pre-check existence so callers can distinguish "empty index" from
+		// "index does not exist" (null contract).
+		var exists = await _inner.Indices
+			.ExistsAsync(indexName, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (!exists.Exists)
+		{
+			return null;
+		}
+
 		var response = await _inner.CountAsync<object>(
 				c => c.Indices(indexName),
 				cancellationToken)

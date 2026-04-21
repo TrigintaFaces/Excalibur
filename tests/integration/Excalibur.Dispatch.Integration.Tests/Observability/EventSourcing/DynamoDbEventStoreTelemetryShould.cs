@@ -46,9 +46,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 
 	#region Event Store Span Creation Tests
 
-	[Fact]
+	[SkippableFact]
 	public async Task CreateActivitySpanForAppendOperation()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -70,9 +72,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 		appendActivity.GetTagItem(EventSourcingTags.ExpectedVersion).ShouldBe(-1L);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task CreateActivitySpanForLoadOperation()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -98,9 +102,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 		loadActivity.GetTagItem(EventSourcingTags.AggregateType).ShouldBe("TestAggregate");
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task CreateActivitySpanForLoadWithFromVersion()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -129,9 +135,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 
 	#region Tag Verification Tests
 
-	[Fact]
+	[SkippableFact]
 	public async Task SetEventCountTagOnSuccessfulAppend()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -150,9 +158,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 		appendActivity.GetTagItem(EventSourcingTags.EventCount).ShouldBe(5);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SetVersionTagOnSuccessfulAppend()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -171,9 +181,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 		appendActivity.GetTagItem(EventSourcingTags.Version).ShouldBe(0L);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SetEventCountTagOnSuccessfulLoad()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -201,9 +213,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 
 	#region Operation Result Tests
 
-	[Fact]
+	[SkippableFact]
 	public async Task SetSuccessResultOnSuccessfulAppend()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -222,9 +236,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 		appendActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SetSuccessResultOnSuccessfulLoad()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -246,9 +262,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 		loadActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SetConcurrencyConflictResultOnVersionMismatch()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -277,9 +295,10 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 		appendActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.ConcurrencyConflict);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SetConcurrencyConflictOnDynamoDbConditionCheckFailed()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
 		// Arrange
 		// This tests the case where DynamoDB returns ConditionalCheckFailedException
 		// which happens when there is a concurrency violation
@@ -316,9 +335,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 
 	#region Multiple Operations Sequence Tests
 
-	[Fact]
+	[SkippableFact]
 	public async Task RecordMultipleOperationsInSequence()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -350,9 +371,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 		}
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task MaintainTraceContextAcrossOperations()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -389,9 +412,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 
 	#region Empty Result Tests
 
-	[Fact]
+	[SkippableFact]
 	public async Task HandleEmptyLoadResultGracefully()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
@@ -412,9 +437,11 @@ public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEv
 		loadActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task HandleEmptyAppendGracefully()
 	{
+		Skip.IfNot(_fixture.IsInitialized, "LocalStack/Docker is not available");
+
 		// Arrange
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
