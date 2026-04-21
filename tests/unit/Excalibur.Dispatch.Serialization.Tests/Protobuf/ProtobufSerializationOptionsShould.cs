@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.Protobuf;
 /// - Options can be configured via Options pattern
 /// - Wire format enum values are valid
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class ProtobufSerializationOptionsShould
 {
 	[Fact]

@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance.Erasure;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

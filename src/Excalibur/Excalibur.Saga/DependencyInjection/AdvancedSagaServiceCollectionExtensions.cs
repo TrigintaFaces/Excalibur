@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Saga;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Idempotency;
 using Excalibur.Saga.Implementation;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -41,7 +44,45 @@ public static class AdvancedSagaServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configure);
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = optionsBuilder.ValidateOnStart();
+
+		// Register AOT-safe validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AdvancedSagaOptions>, AdvancedSagaOptionsValidator>());
+
+		// Register core services
+		services.TryAddSingleton<ISagaRetryPolicy, DefaultSagaRetryPolicy>();
+		services.TryAddSingleton<ISagaIdempotencyProvider, InMemorySagaIdempotencyProvider>();
+		services.TryAddSingleton<IDispatchMiddleware, AdvancedSagaMiddleware>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds advanced saga orchestration services to the service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddDispatchAdvancedSagas(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<AdvancedSagaOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		// Register AOT-safe validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AdvancedSagaOptions>, AdvancedSagaOptionsValidator>());
 
 		// Register core services
 		services.TryAddSingleton<ISagaRetryPolicy, DefaultSagaRetryPolicy>();
@@ -88,8 +129,11 @@ public static class AdvancedSagaServiceCollectionExtensions
 				opt.CleanupInterval = options.CleanupInterval;
 				opt.CompletedSagaRetention = options.CompletedSagaRetention;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		// Register AOT-safe validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AdvancedSagaOptions>, AdvancedSagaOptionsValidator>());
 
 		// Register core services with fallbacks
 		services.TryAddSingleton<ISagaRetryPolicy, DefaultSagaRetryPolicy>();

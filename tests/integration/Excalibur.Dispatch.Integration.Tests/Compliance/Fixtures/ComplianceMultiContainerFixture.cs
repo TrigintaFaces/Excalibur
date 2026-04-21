@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
 
@@ -82,11 +83,20 @@ public class ComplianceMultiContainerFixture : IAsyncLifetime
 	/// <inheritdoc/>
 	public async Task DisposeAsync()
 	{
-		await Task.WhenAll(
-			_sqlServer.DisposeAsync(),
-			_vault.DisposeAsync(),
-			_localStack.DisposeAsync()
-		);
+		try
+		{
+			await TestTimeouts.WithTimeout(
+				Task.WhenAll(
+					_sqlServer.DisposeAsync(),
+					_vault.DisposeAsync(),
+					_localStack.DisposeAsync()),
+				TestTimeouts.ContainerDispose,
+				"ComplianceMultiContainerFixture disposal");
+		}
+		catch (TimeoutException)
+		{
+			// Container disposal timed out -- allow test host to exit cleanly
+		}
 	}
 }
 

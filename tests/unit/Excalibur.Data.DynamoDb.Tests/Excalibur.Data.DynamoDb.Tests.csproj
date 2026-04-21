@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <!-- Extracted concern.provider packages -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.DynamoDb\Excalibur.Cdc.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.DynamoDb\Excalibur.EventSourcing.DynamoDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.DynamoDb\Excalibur.Inbox.DynamoDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.DynamoDb\Excalibur.Outbox.DynamoDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.DynamoDb\Excalibur.Saga.DynamoDb.csproj" />

@@ -7,7 +7,7 @@ description: Choose the right Excalibur packages for your application architectu
 # Package Guide
 
 :::tip Framework Maturity
-**44,000+ automated tests** | **119 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 8/9/10**
+**44,000+ automated tests** | **119 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 10.0**
 :::
 
 :::info Dispatch Stands Alone
@@ -20,15 +20,17 @@ Excalibur is one framework with focused package families. Install only what your
 
 | Package Family | Purpose | When to Add |
 |----------------|---------|-------------|
-| `Excalibur.Dispatch.*` | Messaging, pipeline, handlers, transports | Always — this is the foundation |
+| `Excalibur.Dispatch.*` | Messaging, pipeline, handlers, transports | Always -- this is the foundation |
+| `Excalibur.Dispatch.{RabbitMQ,Kafka,Azure,Aws}` | Experience metapackages bundling transport + resilience + observability | When you want one-line transport setup |
 | `Excalibur.Domain` | Aggregates, entities, value objects | When you need rich domain modeling |
 | `Excalibur.EventSourcing.*` | Event stores, snapshots, persistence | When you need event sourcing |
 | `Excalibur.Saga.*` | Sagas and process managers | When you need long-running workflows |
 | `Excalibur.Hosting.*` | ASP.NET Core, serverless hosting | When you need opinionated hosting templates |
 | `Excalibur.LeaderElection.*` | Distributed coordination | When you need single-leader guarantees |
+| `Excalibur.SqlServer`, `Excalibur.Postgres` | Full-stack database metapackages: event sourcing + outbox + inbox + sagas + leader election + audit + compliance | When you want one-line database setup |
 
 :::tip Key Rule
-All packages share the `Excalibur.*` namespace. You never rewrite existing code when adding new capabilities — just install additional packages.
+All packages share the `Excalibur.*` namespace. You never rewrite existing code when adding new capabilities -- just install additional packages.
 :::
 
 ---
@@ -77,9 +79,81 @@ These scenarios add domain modeling, persistence, or compliance packages on top 
 | Event-sourced system | + `Excalibur.EventSourcing`, `Excalibur.EventSourcing.SqlServer` |
 | CQRS with projections | + `Excalibur.Caching` |
 | Long-running workflows | + `Excalibur.Saga`, `Excalibur.Saga.SqlServer` |
-| SOC2/GDPR compliant system | + `Excalibur.Dispatch.Compliance.*`, `Excalibur.Dispatch.AuditLogging.*` |
+| SOC2/GDPR compliant system | + `Excalibur.Compliance.*`, `Excalibur.AuditLogging.*` |
 
 ---
+
+## Experience Metapackages
+
+For the fastest setup, use the experience metapackages. Each bundles a transport with Polly resilience and OpenTelemetry observability into a single `AddDispatch*()` call:
+
+| Metapackage | Method | Includes |
+|-------------|--------|----------|
+| `Excalibur.Dispatch.RabbitMQ` | `AddDispatchRabbitMQ()` | RabbitMQ transport + Polly resilience + OpenTelemetry observability |
+| `Excalibur.Dispatch.Kafka` | `AddDispatchKafka()` | Kafka transport + Polly resilience + OpenTelemetry observability |
+| `Excalibur.Dispatch.Azure` | `AddDispatchAzure()` | Azure Service Bus transport + Polly resilience + OpenTelemetry observability |
+| `Excalibur.Dispatch.Aws` | `AddDispatchAws()` | AWS SQS transport + Polly resilience + OpenTelemetry observability |
+
+```csharp
+// One line: transport + resilience + observability
+services.AddDispatchRabbitMQ(rmq =>
+{
+    rmq.ConnectionString("amqp://guest:guest@localhost:5672/");
+});
+```
+
+Each method also accepts an optional `Action<IDispatchBuilder>` for additional pipeline configuration (handlers, caching, validation, etc.):
+
+```csharp
+services.AddDispatchKafka(
+    kafka =>
+    {
+        kafka.BootstrapServers("localhost:9092")
+             .ConfigureConsumer(c => c.GroupId("order-service"));
+    },
+    dispatch =>
+    {
+        dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+        dispatch.UseCaching();
+    });
+```
+
+If you need fine-grained control over which features are included, use the individual packages (`Excalibur.Dispatch.Transport.RabbitMQ`, etc.) with explicit `AddDispatch()` builder calls instead.
+
+---
+
+## Full-Stack Database Metapackages
+
+For production deployments, the full-stack database metapackages bundle event sourcing, outbox, inbox, sagas, leader election, audit logging, compliance, and data access into a single `AddExcalibur*()` call:
+
+| Metapackage | Method | Includes |
+|-------------|--------|----------|
+| `Excalibur.SqlServer` | `AddExcaliburSqlServer()` | EventSourcing + Outbox + Inbox + Sagas + Leader Election + Audit Logging + Compliance + Data Access (SQL Server) |
+| `Excalibur.Postgres` | `AddExcaliburPostgres()` | EventSourcing + Outbox + Inbox + Sagas + Leader Election + Audit Logging + Compliance + Data Access (PostgreSQL) |
+
+```csharp
+// One line: complete SQL Server stack
+services.AddExcaliburSqlServer(sql =>
+{
+    sql.ConnectionString = connectionString;
+    sql.UseLeaderElection = true;   // default: true
+    sql.UseAuditLogging = true;     // default: true
+    sql.UseCompliance = true;       // default: true
+});
+
+// Or PostgreSQL
+services.AddExcaliburPostgres(pg =>
+{
+    pg.ConnectionString = connectionString;
+    pg.UseLeaderElection = true;
+    pg.UseAuditLogging = true;
+});
+```
+
+All features default to enabled. Disable individual features by setting the corresponding `Use*` property to `false`.
+
+See the [Pick Your Stack](pick-your-stack.md) guide for scenario-based package selection.
+
 
 ## Hosting Packages
 
@@ -98,10 +172,10 @@ These scenarios add domain modeling, persistence, or compliance packages on top 
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.Compliance.*` | Compliance scanning, audit trail |
-| `Excalibur.Dispatch.AuditLogging.Datadog` | Datadog SIEM integration |
-| `Excalibur.Dispatch.AuditLogging.Sentinel` | Microsoft Sentinel integration |
-| `Excalibur.Dispatch.AuditLogging.Splunk` | Splunk integration |
+| `Excalibur.Compliance.*` | Compliance scanning, audit trail |
+| `Excalibur.AuditLogging.Datadog` | Datadog SIEM integration |
+| `Excalibur.AuditLogging.Sentinel` | Microsoft Sentinel integration |
+| `Excalibur.AuditLogging.Splunk` | Splunk integration |
 | `Excalibur.Compliance.SqlServer` | Key escrow persistence |
 
 ---
@@ -115,11 +189,8 @@ dotnet add package Excalibur.Dispatch
 ```
 
 ```csharp
-// Program.cs
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Program.cs -- auto-discovers handlers from the entry assembly
+services.AddDispatch();
 ```
 
 ```csharp
@@ -195,7 +266,7 @@ dotnet add package Excalibur.Hosting
 ```
 
 ```csharp
-// Program.cs — sensible defaults
+// Program.cs -- sensible defaults
 services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>());
@@ -205,7 +276,7 @@ services.AddExcalibur(excalibur =>
 Need transports or custom pipelines? Call `AddDispatch` with a builder action:
 
 ```csharp
-// Program.cs — with custom messaging configuration
+// Program.cs -- with custom messaging configuration
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -259,8 +330,8 @@ services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
     dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
-    dispatch.AddObservability();
-    dispatch.AddResilience(res => res.DefaultRetryCount = 3);
+    dispatch.UseObservability();
+    dispatch.UseResilience(res => res.DefaultRetryCount = 3);
 });
 
 services.AddExcalibur(excalibur =>
@@ -288,8 +359,9 @@ services.AddExcalibur(excalibur =>
 | Context | `Excalibur.Dispatch` | `MessageContext`, correlation |
 | Serialization | `Excalibur.Dispatch.Serialization.*` | MemoryPack, MessagePack |
 | Transports | `Excalibur.Dispatch.Transport.*` | Kafka, RabbitMQ, Azure Service Bus |
+| Experience metapackages | `Excalibur.Dispatch.{RabbitMQ,Kafka,Azure,Aws}` | One-line transport + resilience + observability |
 | Observability | `Excalibur.Dispatch.Observability` | Metrics, tracing |
-| Compliance | `Excalibur.Dispatch.Compliance.*` | Audit logging, SIEM |
+| Compliance | `Excalibur.Compliance.*` | Audit logging, SIEM |
 
 ### Excalibur (Domain & Persistence)
 
@@ -303,6 +375,7 @@ services.AddExcalibur(excalibur =>
 | Hosting | `Excalibur.Hosting.*` | Web, Worker templates |
 | Leader election | `Excalibur.LeaderElection.*` | Distributed coordination |
 | Caching | `Excalibur.Caching` | Projection invalidation |
+| Full-stack metapackages | `Excalibur.SqlServer`, `Excalibur.Postgres` | `AddExcaliburSqlServer()`, `AddExcaliburPostgres()` |
 
 ---
 
@@ -322,7 +395,11 @@ Use the serverless hosting packages (`Excalibur.Dispatch.Hosting.AzureFunctions`
 
 ### Where do compliance features live?
 
-In the `Excalibur.Dispatch.Compliance.*` and `Excalibur.Dispatch.AuditLogging.*` packages.
+In the `Excalibur.Compliance.*` and `Excalibur.AuditLogging.*` packages.
+
+### What are the experience metapackages?
+
+The `Excalibur.Dispatch.RabbitMQ`, `.Kafka`, `.Azure`, and `.Aws` packages are convenience metapackages that bundle a transport with Polly resilience and OpenTelemetry observability. Use them for the fastest setup; use the individual transport packages for fine-grained control.
 
 ---
 

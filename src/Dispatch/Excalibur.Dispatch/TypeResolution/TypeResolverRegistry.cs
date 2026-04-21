@@ -13,15 +13,9 @@ namespace Excalibur.Dispatch.TypeResolution;
 internal static class TypeResolverRegistry
 {
 	private static readonly List<ITypeResolver> Resolvers = [];
-#if NET9_0_OR_GREATER
 
 	private static readonly Lock Lock = new();
 
-#else
-
-	private static readonly object Lock = new();
-
-#endif
 
 	/// <summary>
 	/// Registers a type resolver.

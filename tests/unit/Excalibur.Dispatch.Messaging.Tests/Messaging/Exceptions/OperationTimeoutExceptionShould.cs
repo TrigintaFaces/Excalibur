@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// Tests for <see cref="OperationTimeoutException"/> to verify operation timeout
 /// error handling with HTTP 408 status code and duration information.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class OperationTimeoutExceptionShould
 {
 	[Fact]
@@ -114,7 +114,7 @@ public sealed class OperationTimeoutExceptionShould
 		// Assert
 		exception.Operation.ShouldBe("LongRunningTask");
 		exception.Duration.ShouldBe(elapsed);
-		exception.InnerException.ShouldBe(operationCanceledException);
+		exception.InnerException!.ShouldBe(operationCanceledException);
 	}
 
 	[Fact]
@@ -202,7 +202,7 @@ public sealed class OperationTimeoutExceptionShould
 		var exception = new OperationTimeoutException("Timeout occurred", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)

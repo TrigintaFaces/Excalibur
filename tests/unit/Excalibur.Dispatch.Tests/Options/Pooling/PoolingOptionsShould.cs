@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Options.Pooling;
 
 namespace Excalibur.Dispatch.Tests.Options.Pooling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PoolingOptionsShould
 {
 	[Fact]

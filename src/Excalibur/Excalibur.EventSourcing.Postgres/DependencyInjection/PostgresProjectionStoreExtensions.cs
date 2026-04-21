@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Postgres;
+using Excalibur.EventSourcing.Postgres.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -41,11 +42,13 @@ public static class PostgresProjectionStoreExtensions
 
 			options.Value.Validate();
 
+			#pragma warning disable IL2026, IL3050 // PostgresProjectionStore uses reflection-based JSON serialization
 			return new PostgresProjectionStore<TProjection>(
-				options.Value.ConnectionString,
+				options.Value.ConnectionString ?? throw new InvalidOperationException("PostgresProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				options.Value.TableName,
 				options.Value.JsonSerializerOptions);
+			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;
@@ -90,6 +93,73 @@ public static class PostgresProjectionStoreExtensions
 				options?.TableName,
 				options?.JsonSerializerOptions);
 		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple Postgres projection stores that share a common connection string,
+	/// reducing boilerplate when multiple projections target the same database.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The shared Postgres connection string.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddPostgresProjections("Host=localhost;Database=mydb", projections =>
+	/// {
+	///     projections.Add&lt;OrderSummary&gt;();
+	///     projections.Add&lt;CustomerProfile&gt;(options => options.TableName = "customers");
+	///     projections.Add&lt;ProductCatalog&gt;();
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddPostgresProjections(
+		this IServiceCollection services,
+		string connectionString,
+		Action<PostgresProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new PostgresProjectionRegistrar(services, connectionString);
+		configure(registrar);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple Postgres projection stores with shared options configuration,
+	/// allowing advanced settings like custom table names, JSON serialization, and timeouts.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureShared">Shared options applied to all projections before per-projection overrides.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddPostgresProjections(
+	///     shared => { shared.ConnectionString = connStr; shared.SchemaName = "projections"; },
+	///     projections =>
+	///     {
+	///         projections.Add&lt;OrderSummary&gt;();
+	///         projections.Add&lt;CustomerProfile&gt;(options => options.TableName = "customers");
+	///     });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddPostgresProjections(
+		this IServiceCollection services,
+		Action<PostgresProjectionStoreOptions> configureShared,
+		Action<PostgresProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configureShared);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new PostgresProjectionRegistrar(services, configureShared);
+		configure(registrar);
 
 		return services;
 	}

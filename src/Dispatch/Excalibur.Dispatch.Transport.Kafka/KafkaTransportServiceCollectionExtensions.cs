@@ -155,6 +155,8 @@ public static class KafkaTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers the core Kafka services with the service collection.
 	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Schema Registry registration is opt-in and uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Schema Registry registration is opt-in and uses reflection by design")]
 	private static void RegisterKafkaServices(
 		IServiceCollection services,
 		KafkaTransportOptions transportOptions)
@@ -196,7 +198,6 @@ public static class KafkaTransportServiceCollectionExtensions
 					}
 				}
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(
@@ -221,7 +222,6 @@ public static class KafkaTransportServiceCollectionExtensions
 					cloudEventOptions.OffsetReset = transportOptions.ConsumerOptions.AutoOffsetReset;
 				}
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton(static sp => sp.GetRequiredService<IOptions<KafkaCloudEventOptions>>().Value);
@@ -255,6 +255,7 @@ public static class KafkaTransportServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="transportName">The transport name for keyed services.</param>
 	/// <param name="options">The Schema Registry configuration options.</param>
+	[RequiresUnreferencedCode("Schema Registry uses reflection for subject name strategies and serialization")]
 	private static void RegisterSchemaRegistryServices(
 		IServiceCollection services,
 		string transportName,
@@ -358,6 +359,8 @@ public static class KafkaTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers a keyed <see cref="ITransportSubscriber"/> composed with telemetry.
 	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "KafkaTransportSubscriber uses Activator.CreateInstance for subject name strategies")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "KafkaTransportSubscriber uses Activator.CreateInstance for subject name strategies")]
 	private static void RegisterSubscriber(
 		IServiceCollection services,
 		string name,

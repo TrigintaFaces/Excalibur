@@ -126,15 +126,9 @@ public class CreateOrderHandler : IActionHandler<CreateOrderCommand, Guid>
 ### Service Registration
 
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
-
-services.AddExcaliburEventSourcing(builder =>
-{
-    builder.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
-});
+services.AddExcalibur(excalibur => excalibur
+    .AddDispatch(dispatch => dispatch.AddHandlersFromAssembly(typeof(Program).Assembly))
+    .AddEventSourcing(es => es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id))));
 
 services.AddInMemoryEventStore();
 ```

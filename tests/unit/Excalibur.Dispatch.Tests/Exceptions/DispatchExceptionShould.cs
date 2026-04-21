@@ -6,8 +6,8 @@ using Excalibur.Dispatch.Exceptions;
 
 namespace Excalibur.Dispatch.Tests.Exceptions;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchExceptionShould
 {
 	[Fact]
@@ -49,7 +49,7 @@ public sealed class DispatchExceptionShould
 
 		// Assert
 		ex.Message.ShouldBe("outer");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -213,7 +213,7 @@ public sealed class DispatchExceptionShould
 		details.SuggestedAction.ShouldBe("Check the field values");
 		details.Category.ShouldBe("Validation");
 		details.Severity.ShouldBe("Warning");
-		details.Instance.ShouldContain("urn:excalibur:error:");
+		details.Instance!.ShouldContain("urn:excalibur:error:");
 	}
 
 	[Fact]

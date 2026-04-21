@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Resilience;
 /// Unit tests for <see cref="RetryAttribute"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RetryAttributeShould
 {
 	[Fact]

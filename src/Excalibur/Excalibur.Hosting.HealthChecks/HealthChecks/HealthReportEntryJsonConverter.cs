@@ -24,8 +24,10 @@ internal sealed class HealthReportEntryJsonConverter : JsonConverter<HealthRepor
 
 	/// <inheritdoc />
 	/// <remarks> Writes a <see cref="HealthReportEntry" /> to JSON format. </remarks>
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(Utf8JsonWriter, TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(Utf8JsonWriter, TValue, JsonSerializerOptions)")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "HealthReportEntry.Data and Tags are well-known collection types; serialization is safe.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026",
+		Justification = "HealthReportEntry.Data and Tags are well-known collection types; all members are preserved.")]
 	public override void Write(Utf8JsonWriter writer, HealthReportEntry value, JsonSerializerOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(writer);

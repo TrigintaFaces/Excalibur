@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-
-#if USE_SOURCE_GENERATION || PUBLISH_AOT
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
@@ -46,8 +44,7 @@ public sealed class HandlerInvokerAot : IHandlerInvoker, IValueTaskHandlerInvoke
 	/// <summary>
 	/// Invokes a handler using AOT-compatible source-generated code and returns a <see cref="ValueTask{TResult}"/>.
 	/// </summary>
+	[RequiresUnreferencedCode("Handler invocation may require reflection to call handler methods")]
 	public ValueTask<object?> InvokeValueTaskAsync(object handler, IDispatchMessage message, CancellationToken cancellationToken)
 		=> new(InvokeAsync(handler, message, cancellationToken));
 }
-
-#endif

@@ -27,11 +27,7 @@ public sealed class CompositeSnapshotStrategy : ISnapshotStrategy
 
 	private volatile IReadOnlyList<ISnapshotStrategy> _strategies;
 	private readonly CompositeMode _mode;
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CompositeSnapshotStrategy"/> class.

@@ -37,7 +37,7 @@ internal sealed class SimpleMessageResult : IMessageResult
 	/// <inheritdoc/>
 	public bool CacheHit { get; }
 
-	// R0.8: Make property static - property must be instance member to implement IMessageResult interface
+	// MA0041: Property must remain instance member to implement IMessageResult interface.
 #pragma warning disable MA0041
 
 	/// <summary>

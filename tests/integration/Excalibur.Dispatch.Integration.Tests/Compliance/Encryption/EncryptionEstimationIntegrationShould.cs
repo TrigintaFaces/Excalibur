@@ -1,14 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Compliance;
-using Excalibur.Dispatch.Security;
+using Excalibur.Compliance;
+using Excalibur.Security;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
+using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Encryption;
 
 /// <summary>
@@ -19,7 +20,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Encryption;
 /// when services are wired up through dependency injection with realistic scenarios.
 /// </remarks>
 [Trait("Category", TestCategories.Integration)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class EncryptionEstimationIntegrationShould : IDisposable
 {
 	private readonly ServiceProvider _serviceProvider;

@@ -5,7 +5,7 @@ namespace Excalibur.Cdc.DynamoDb;
 
 /// <summary>
 /// Internal implementation of <see cref="ICdcStateStoreBuilder"/> for DynamoDB CDC.
-/// Maps SchemaName -> no-op (DynamoDB has no schema concept), TableName -> TableName.
+/// DynamoDB uses IAM/SDK credentials, not connection strings, and has no schema concept.
 /// </summary>
 internal sealed class DynamoDbCdcStateStoreBuilder : ICdcStateStoreBuilder
 {
@@ -18,35 +18,6 @@ internal sealed class DynamoDbCdcStateStoreBuilder : ICdcStateStoreBuilder
 
 	/// <summary>Gets the BindConfiguration section path, if set.</summary>
 	internal string? BindConfigurationPath { get; private set; }
-
-	/// <summary>Gets the connection string name to resolve from configuration, if set.</summary>
-	internal string? StateConnectionStringName { get; private set; }
-
-	/// <inheritdoc/>
-	/// <remarks>For DynamoDB, this sets the service URL or region endpoint for the state store.</remarks>
-	public ICdcStateStoreBuilder ConnectionString(string connectionString)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		// DynamoDB uses service URL / region; accept and store for state store configuration.
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ICdcStateStoreBuilder ConnectionStringName(string name)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(name);
-		StateConnectionStringName = name;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	/// <remarks>No-op for DynamoDB as it does not have a schema concept. The value is accepted but ignored.</remarks>
-	public ICdcStateStoreBuilder SchemaName(string schema)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(schema);
-		// DynamoDB has no schema concept; accept but ignore.
-		return this;
-	}
 
 	/// <inheritdoc/>
 	/// <remarks>Maps to <see cref="DynamoDbCdcStateStoreOptions.TableName"/>.</remarks>

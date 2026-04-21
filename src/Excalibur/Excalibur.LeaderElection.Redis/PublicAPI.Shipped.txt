@@ -1,4 +1,12 @@
 #nullable enable
+Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder
+Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.BindConfiguration(string! sectionPath) -> Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!
+Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.ConnectionMultiplexer(StackExchange.Redis.IConnectionMultiplexer! multiplexer) -> Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!
+Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.ConnectionMultiplexerFactory(System.Func<System.IServiceProvider!, StackExchange.Redis.IConnectionMultiplexer!>! factory) -> Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!
+Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.ConnectionString(string! connectionString) -> Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!
+Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.Database(int database) -> Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!
+Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.KeyPrefix(string! prefix) -> Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!
+Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.LockKey(string! lockKey) -> Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!
 Excalibur.LeaderElection.Redis.RedisLeaderElection
 Excalibur.LeaderElection.Redis.RedisLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.Redis.RedisLeaderElection.CandidateId.get -> string!
@@ -15,9 +23,4 @@ Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory.CreateElection(string!
 Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
 Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory.RedisLeaderElectionFactory(StackExchange.Redis.IConnectionMultiplexer! redis, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory) -> void
 Microsoft.Extensions.DependencyInjection.RedisLeaderElectionBuilderExtensions
-Microsoft.Extensions.DependencyInjection.RedisLeaderElectionExtensions
-static Microsoft.Extensions.DependencyInjection.RedisLeaderElectionBuilderExtensions.UseRedis(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, string! lockKey) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
-static Microsoft.Extensions.DependencyInjection.RedisLeaderElectionBuilderExtensions.UseRedisFactory(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
-static Microsoft.Extensions.DependencyInjection.RedisLeaderElectionExtensions.AddRedisLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! lockKey) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.RedisLeaderElectionExtensions.AddRedisLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! lockKey, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.RedisLeaderElectionExtensions.AddRedisLeaderElectionFactory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisLeaderElectionBuilderExtensions.UseRedis(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!

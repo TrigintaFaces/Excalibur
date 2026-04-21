@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.EventSourcing.Migration;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -38,6 +40,10 @@ public static class MigrationServiceCollectionExtensions
 	/// </code>
 	/// </para>
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddEventSourcingMigration(
 		this IServiceCollection services,
 		Action<MigrationRunnerOptions>? configure = null)
@@ -52,11 +58,41 @@ public static class MigrationServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = services.AddOptions<MigrationOptions>()
-			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		// Register services
+		services.TryAddSingleton<IEventBatchMigrator, EventBatchMigrator>();
+		services.TryAddSingleton<IMigrationRunner, MigrationRunner>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds event sourcing migration services to the service collection
+	/// using an <see cref="IConfiguration"/> section for migration runner options.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind migration runner options from.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddEventSourcingMigration(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<MigrationRunnerOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		_ = services.AddOptions<MigrationOptions>()
 			.ValidateOnStart();
 
 		// Register services

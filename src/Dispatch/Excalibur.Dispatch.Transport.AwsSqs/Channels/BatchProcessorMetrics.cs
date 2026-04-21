@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Metrics for batch processor.
 /// </summary>
-public sealed class BatchProcessorMetrics
+internal sealed class BatchProcessorMetrics
 {
 	private long _messagesReceived;
 	private long _messagesSent;

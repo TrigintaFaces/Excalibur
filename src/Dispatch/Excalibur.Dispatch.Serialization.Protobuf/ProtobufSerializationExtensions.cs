@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.Protobuf;
@@ -13,90 +14,89 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for registering Protobuf serialization support.
 /// </summary>
-/// <remarks>
-/// This is an opt-in serialization package for GCP/AWS/external Protobuf interoperability.
-/// Does NOT change Excalibur.Dispatch defaults (MemoryPack remains internal wire format).
-/// </remarks>
 public static class ProtobufSerializationExtensions
 {
 	/// <summary>
-	/// Adds Protobuf serialization support to the Dispatch pipeline.
-	/// This is an opt-in package for Google Cloud Platform and AWS interoperability.
+	/// Adds Protobuf as the binary serializer for internal persistence (Outbox, Inbox, Event Store).
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Optional configuration delegate for Protobuf serialization options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddProtobufSerialization(
-		this IServiceCollection services,
-		Action<ProtobufSerializationOptions>? configure = null)
+	/// <param name="services"> The service collection. </param>
+	/// <returns> The service collection for method chaining. </returns>
+	/// <remarks>
+	/// <para>
+	/// This is the single entry point for opting into Protobuf. It registers:
+	/// </para>
+	/// <list type="bullet">
+	/// <item><description><see cref="ISerializer"/> — Protobuf serializer singleton.</description></item>
+	/// <item><description>Serializer registry — Protobuf registered with ID <see cref="SerializerIds.Protobuf"/> and set as current.</description></item>
+	/// </list>
+	/// <para>
+	/// <b>Usage:</b>
+	/// </para>
+	/// <code>
+	/// services.AddProtobufSerializer();
+	/// </code>
+	/// <para>
+	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer (ADR-295).
+	/// Call this method to opt into Protobuf for Google Cloud Platform and AWS interoperability.
+	/// </para>
+	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddProtobufSerializer(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Always register options
-		var optionsBuilder = services.AddOptions<ProtobufSerializationOptions>()
-			.Configure(options =>
-			{
-				configure?.Invoke(options);
-			});
-		optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		var serializer = new ProtobufSerializer();
 
-		// Register the consolidated Protobuf serializer
-		services.TryAddSingleton<ProtobufSerializer>();
-		services.TryAddSingleton<ISerializer>(sp => sp.GetRequiredService<ProtobufSerializer>());
+		services.TryAddSingleton<ISerializer>(serializer);
+
+		_ = services.AddOptions<PluggableSerializationOptions>()
+			.ValidateOnStart();
+
+		services.PostConfigure<PluggableSerializationOptions>(options =>
+		{
+			options.AddRegistration(registry => registry.Register(SerializerIds.Protobuf, serializer));
+			options.CurrentSerializerName = "Protobuf";
+		});
 
 		return services;
 	}
 
 	/// <summary>
-	/// Registers the Protobuf serializer with the serialization builder (framework-assigned ID: 4).
+	/// Adds Protobuf as the binary serializer with custom options.
 	/// </summary>
-	/// <param name="builder">The serialization builder.</param>
-	/// <returns>The builder for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This extension enables the builder pattern:
-	/// </para>
-	/// <code>
-	/// services.AddDispatch()
-	///     .ConfigureSerialization(config =>
-	///     {
-	///         config.RegisterProtobuf();
-	///         config.UseProtobuf();
-	///     });
-	/// </code>
-	/// </remarks>
-	public static ISerializationBuilder RegisterProtobuf(this ISerializationBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		return builder.Register(new ProtobufSerializer(), SerializerIds.Protobuf);
-	}
-
-	/// <summary>
-	/// Gets the Protobuf pluggable serializer singleton instance for use with <see cref="ISerializerRegistry"/>.
-	/// </summary>
-	/// <returns>The Protobuf pluggable serializer instance.</returns>
-	public static ISerializer GetPluggableSerializer() => new ProtobufSerializer();
-
-	/// <summary>
-	/// Adds the Protobuf serializer to the pluggable serialization system.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="setAsCurrent">
-	/// Whether to set Protobuf as the current serializer for new payloads.
-	/// Default is <c>false</c> (MemoryPack remains default).
-	/// </param>
-	/// <returns>The service collection for method chaining.</returns>
-	public static IServiceCollection AddProtobufPluggableSerialization(
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configure"> Configuration delegate for Protobuf serialization options. </param>
+	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddProtobufSerializer(
 		this IServiceCollection services,
-		bool setAsCurrent = false)
+		Action<ProtobufSerializationOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		return PluggableSerializationServiceCollectionExtensions
-			.AddPluggableSerializer(
-				services,
-				SerializerIds.Protobuf,
-				new ProtobufSerializer(),
-				setAsCurrent);
+		var options = new ProtobufSerializationOptions();
+		configure(options);
+
+		var serializer = new ProtobufSerializer(options);
+
+		services.TryAddSingleton<ISerializer>(serializer);
+
+		_ = services.AddOptions<PluggableSerializationOptions>()
+			.ValidateOnStart();
+
+		services.PostConfigure<PluggableSerializationOptions>(opts =>
+		{
+			opts.AddRegistration(registry => registry.Register(SerializerIds.Protobuf, serializer));
+			opts.CurrentSerializerName = "Protobuf";
+		});
+
+		return services;
 	}
 }

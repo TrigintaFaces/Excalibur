@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.DataProcessing.Exceptions;
 /// Unit tests for <see cref="InvalidDataProcessorException"/>.
 /// </summary>
 [UnitTest]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InvalidDataProcessorExceptionShould : UnitTestBase
 {
 	[Fact]
@@ -66,7 +66,7 @@ public sealed class InvalidDataProcessorExceptionShould : UnitTestBase
 		var ex = new InvalidDataProcessorException(processorType: null, message: null, innerException: inner);
 
 		// Assert
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]
@@ -100,6 +100,6 @@ public sealed class InvalidDataProcessorExceptionShould : UnitTestBase
 
 		// Assert
 		ex.Message.ShouldBe("test message");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 }

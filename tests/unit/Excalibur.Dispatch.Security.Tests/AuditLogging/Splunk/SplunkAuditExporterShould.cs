@@ -4,7 +4,7 @@
 using System.Net;
 using System.Text.Json;
 
-using Excalibur.Dispatch.AuditLogging.Splunk;
+using Excalibur.AuditLogging.Splunk;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Splunk;
 
@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Splunk;
 /// Unit tests for <see cref="SplunkAuditExporter"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SplunkAuditExporterShould : IDisposable
 {
 	private readonly MockHttpMessageHandler _mockHandler;
@@ -131,7 +131,7 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.EventId.ShouldBe(auditEvent.EventId);
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 		result.IsTransientError.ShouldBeFalse();
 	}
 
@@ -308,7 +308,7 @@ public sealed class SplunkAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Connection refused");
+		result.ErrorMessage!.ShouldContain("Connection refused");
 	}
 
 	[Fact]
@@ -343,7 +343,7 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldContain("Connection refused");
+		result.ErrorMessage!.ShouldContain("Connection refused");
 	}
 
 	[Fact]
@@ -359,7 +359,7 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 	}
 
 	#endregion HttpRequestException and Timeout Tests
@@ -542,8 +542,8 @@ public sealed class SplunkAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
-		result.ErrorMessage.ShouldContain("Unexpected status code");
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldContain("Unexpected status code");
 	}
 
 	[Fact]

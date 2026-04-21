@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 /// <summary>
 /// Depth coverage tests for <see cref="ClaimCheckMessageSerializer"/> edge cases.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code")]
 [SuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Test code")]
 public sealed class ClaimCheckMessageSerializerDepthShould

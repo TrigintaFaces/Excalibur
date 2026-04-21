@@ -145,7 +145,7 @@ public readonly struct MongoDbCdcPosition : IEquatable<MongoDbCdcPosition>
 	/// </summary>
 	/// <returns>A <see cref="TokenChangePosition"/> representing this position.</returns>
 	public ChangePosition ToChangePosition() =>
-		IsValid ? new TokenChangePosition(TokenString) : TokenChangePosition.Empty;
+		IsValid ? new TokenChangePosition(TokenString!) : TokenChangePosition.Empty;
 
 	/// <summary>
 	/// Creates a <see cref="MongoDbCdcPosition"/> from a <see cref="ChangePosition"/>.

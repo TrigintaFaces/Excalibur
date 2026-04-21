@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Decorators;
 /// Tests for <see cref="TelemetryTransportReceiver"/>.
 /// Verifies that OpenTelemetry metrics are recorded on receive, acknowledge, and reject operations.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class TelemetryTransportReceiverShould : IDisposable
 {
 	private readonly ITransportReceiver _innerReceiver = A.Fake<ITransportReceiver>();

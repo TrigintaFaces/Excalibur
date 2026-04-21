@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DependencyInjection;
 /// Integration tests for <see cref="ExcaliburOptions"/> root options class
 /// and its 5 nested subsystem options (Sprint 502, bd-giiwd).
 /// </summary>
-[Trait("Category", "Integration")]
-[Trait("Component", "DependencyInjection")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.DependencyInjection)]
 public sealed class ExcaliburOptionsIntegrationShould : IDisposable
 {
 	private ServiceProvider? _serviceProvider;

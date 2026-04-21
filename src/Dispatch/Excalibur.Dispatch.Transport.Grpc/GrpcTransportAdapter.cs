@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Transport;
 
@@ -24,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// adding lifecycle management and health reporting.
 /// </para>
 /// </remarks>
-internal sealed partial class GrpcTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class GrpcTransportAdapter : ITransportAdapter, ITransportAdapterLifecycle, ITransportHealthChecker, ITransportHealthMetrics, IAsyncDisposable
 {
 	private const string AdapterName = "grpc";
 	private const string TransportTypeName = "grpc";
@@ -107,6 +108,10 @@ internal sealed partial class GrpcTransportAdapter : ITransportAdapter, ITranspo
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.")]
 	public async Task SendAsync(
 		IDispatchMessage message,
 		string destination,

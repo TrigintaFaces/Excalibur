@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Options.Serialization;
 /// Unit tests for <see cref="MessageSerializerOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class MessageSerializerOptionsShould
 {

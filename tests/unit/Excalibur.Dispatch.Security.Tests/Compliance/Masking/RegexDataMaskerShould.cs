@@ -1,3 +1,4 @@
+using Excalibur.Compliance.Masking;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -7,7 +8,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Masking;
 /// Unit tests for <see cref="RegexDataMasker"/>.
 /// </summary>
 [UnitTest]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Masking")]
 public sealed class RegexDataMaskerShould
 {

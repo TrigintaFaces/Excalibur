@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Metrics;
 /// <remarks>
 /// Tests the histogram bucket struct used for metrics collection.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Metrics")]
 [Trait("Priority", "0")]
 public sealed class HistogramBucketShould

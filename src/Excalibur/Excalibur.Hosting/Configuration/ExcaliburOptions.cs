@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Excalibur.Hosting.Configuration;
 
 /// <summary>
@@ -88,12 +90,14 @@ public sealed class EventSourcingOptions
 	/// Gets or sets the snapshot frequency (number of events between snapshots).
 	/// </summary>
 	/// <value>100 by default.</value>
+	[Range(1, int.MaxValue)]
 	public int SnapshotFrequency { get; set; } = 100;
 
 	/// <summary>
 	/// Gets or sets the default stream read batch size.
 	/// </summary>
 	/// <value>500 by default.</value>
+	[Range(1, int.MaxValue)]
 	public int DefaultReadBatchSize { get; set; } = 500;
 }
 
@@ -125,12 +129,14 @@ public sealed class ExcaliburOutboxOptions
 	/// Gets or sets the maximum batch size for outbox message processing.
 	/// </summary>
 	/// <value>100 by default.</value>
+	[Range(1, int.MaxValue)]
 	public int MaxBatchSize { get; set; } = 100;
 
 	/// <summary>
 	/// Gets or sets the maximum number of retry attempts for failed outbox messages.
 	/// </summary>
 	/// <value>3 by default.</value>
+	[Range(1, int.MaxValue)]
 	public int MaxRetryAttempts { get; set; } = 3;
 }
 
@@ -224,5 +230,6 @@ public sealed class CdcOptions
 	/// Gets or sets the maximum batch size for CDC change processing.
 	/// </summary>
 	/// <value>200 by default.</value>
+	[Range(1, int.MaxValue)]
 	public int MaxBatchSize { get; set; } = 200;
 }

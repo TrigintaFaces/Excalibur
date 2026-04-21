@@ -25,7 +25,7 @@ internal static class RecordHandlerDiscovery
 	internal static IEnumerable<(Type InterfaceType, Type ImplementationType)> DiscoverHandlers(IEnumerable<Assembly> assembliesToScan) =>
 		assembliesToScan.SelectMany(assembly =>
 			assembly.GetTypes()
-				.Where(type => type is { IsClass: true, IsAbstract: false, IsInterface: false }) // Ensure it's a concrete class
+				.Where(type => type is { IsClass: true, IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false }) // Ensure it's a concrete class
 				.SelectMany(type => type.GetInterfaces()
 					.Where(interfaceType =>
 						interfaceType.IsGenericType &&

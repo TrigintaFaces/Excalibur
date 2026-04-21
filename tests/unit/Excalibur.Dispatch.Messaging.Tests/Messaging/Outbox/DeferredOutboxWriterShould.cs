@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Messaging.Tests.Messaging.Outbox;
 /// Unit tests for <see cref="DeferredOutboxWriter"/>.
 /// Validates buffering behavior, error paths, and scheduled delivery.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DeferredOutboxWriterShould : UnitTestBase
 {
 	private readonly IMessageContextAccessor _contextAccessor = A.Fake<IMessageContextAccessor>();

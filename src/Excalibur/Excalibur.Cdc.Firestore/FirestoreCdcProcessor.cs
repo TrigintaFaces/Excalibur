@@ -39,11 +39,7 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 	private readonly IFirestoreCdcStateStore _stateStore;
 	private readonly ILogger<FirestoreCdcProcessor> _logger;
 	private readonly Channel<FirestoreDataChangeEvent> _channel;
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _positionLock = new();
-#else
-	private readonly object _positionLock = new();
-#endif
+	private readonly Lock _positionLock = new();
 
 	private FirestoreChangeListener? _listener;
 	private FirestoreCdcPosition _currentPosition;

@@ -1,9 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
+using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using MongoDB.Driver;
 
@@ -12,73 +19,160 @@ namespace Excalibur.EventSourcing.MongoDB;
 /// <summary>
 /// Extension methods for configuring MongoDB event sourcing on <see cref="IEventSourcingBuilder"/>.
 /// </summary>
-/// <remarks>
-/// <para>
-/// These extensions provide fluent provider selection following the established
-/// builder pattern (see <c>EventSourcingBuilderCosmosDbExtensions</c>).
-/// </para>
-/// </remarks>
 public static class EventSourcingBuilderMongoDbExtensions
 {
+	/// <summary>
+	/// Sentinel connection string used when the builder provides an <see cref="IMongoClient"/> directly.
+	/// Passes <see cref="MongoDbEventStoreOptions.Validate"/> without being used for actual connections.
+	/// </summary>
+	private const string BuilderManagedConnectionSentinel = "mongodb://builder-managed-client";
+
 	/// <summary>
 	/// Configures the event sourcing builder to use MongoDB for event storage.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
-	/// <param name="configure">Configuration action for MongoDB event store options.</param>
+	/// <param name="configure">Configuration action for the MongoDB event sourcing builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
-	///     es.UseMongoDB(options =&gt;
+	///     es.UseMongoDB(mongo =&gt;
 	///     {
-	///         options.ConnectionString = configuration.GetConnectionString("MongoDB")!;
-	///         options.DatabaseName = "events";
+	///         mongo.ConnectionString(configuration.GetConnectionString("MongoDB")!)
+	///              .DatabaseName("events");
 	///     })
 	///     .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static IEventSourcingBuilder UseMongoDB(
 		this IEventSourcingBuilder builder,
-		Action<MongoDbEventStoreOptions> configure)
+		Action<IMongoDBEventSourcingBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.AddMongoDbEventStore(configure);
+		var options = new MongoDbEventStoreOptions();
+		var mongoBuilder = new MongoDBEventSourcingBuilder(options);
+		configure(mongoBuilder);
+
+		var hasBuilderConnection = mongoBuilder.ClientInstance is not null
+			|| mongoBuilder.ClientFactoryFunc is not null;
+
+		// When builder provides a client, set sentinel so options validation passes.
+		if (hasBuilderConnection)
+		{
+			options.ConnectionString = BuilderManagedConnectionSentinel;
+		}
+
+		RegisterOptionsAndServices(builder, mongoBuilder, options, hasBuilderConnection);
 
 		return builder;
 	}
 
-	/// <summary>
-	/// Configures the event sourcing builder to use MongoDB with an existing client.
-	/// </summary>
-	/// <param name="builder">The event sourcing builder.</param>
-	/// <param name="clientFactory">Factory function that provides a MongoDB client.</param>
-	/// <param name="configure">Action to configure event store options.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/>, <paramref name="clientFactory"/>, or <paramref name="configure"/> is null.
-	/// </exception>
-	/// <remarks>
-	/// Use this overload for advanced scenarios like shared client instances,
-	/// custom connection pooling, or integration with existing MongoDB infrastructure.
-	/// </remarks>
-	public static IEventSourcingBuilder UseMongoDB(
-		this IEventSourcingBuilder builder,
-		Func<IServiceProvider, IMongoClient> clientFactory,
-		Action<MongoDbEventStoreOptions> configure)
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IEventSourcingBuilder builder,
+		MongoDBEventSourcingBuilder mongoBuilder,
+		MongoDbEventStoreOptions options,
+		bool hasBuilderConnection)
 	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(clientFactory);
-		ArgumentNullException.ThrowIfNull(configure);
+		// Register options from builder state
+		_ = builder.Services.Configure<MongoDbEventStoreOptions>(opt =>
+		{
+			opt.ConnectionString = options.ConnectionString;
+			opt.DatabaseName = options.DatabaseName;
+			opt.CollectionName = options.CollectionName;
+			opt.CounterCollectionName = options.CounterCollectionName;
+		});
 
-		_ = builder.Services.AddMongoDbEventStore(clientFactory, configure);
+		// Register BindConfiguration if set
+		if (mongoBuilder.BindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<MongoDbEventStoreOptions>()
+				.BindConfiguration(mongoBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
 
-		return builder;
+		// Register ValidateOnStart + validator
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbEventStoreOptions>, MongoDbEventStoreOptionsValidator>());
+		builder.Services.AddOptions<MongoDbEventStoreOptions>().ValidateOnStart();
+
+		// Register store based on connection path
+		if (hasBuilderConnection)
+		{
+			RegisterClientAndStore(builder.Services, mongoBuilder);
+		}
+		else
+		{
+			RegisterStoreFromOptions(builder.Services);
+		}
+	}
+
+	/// <summary>
+	/// Registers <see cref="IMongoClient"/> and the event store using the client-taking constructor.
+	/// </summary>
+	private static void RegisterClientAndStore(
+		IServiceCollection services,
+		MongoDBEventSourcingBuilder mongoBuilder)
+	{
+		if (mongoBuilder.ClientInstance is not null)
+		{
+			var client = mongoBuilder.ClientInstance;
+			services.TryAddSingleton<IMongoClient>(client);
+		}
+		else if (mongoBuilder.ClientFactoryFunc is not null)
+		{
+			var factory = mongoBuilder.ClientFactoryFunc;
+			services.TryAddSingleton<IMongoClient>(factory);
+		}
+
+		services.TryAddScoped<IEventStore>(sp =>
+		{
+			var client = sp.GetRequiredService<IMongoClient>();
+			var opts = sp.GetRequiredService<IOptions<MongoDbEventStoreOptions>>();
+			var logger = sp.GetRequiredService<ILogger<MongoDbEventStore>>();
+			var internalSerializer = sp.GetService<ISerializer>();
+			var payloadSerializer = sp.GetService<IPayloadSerializer>();
+
+			return new MongoDbEventStore(
+				client,
+				opts,
+				logger,
+				internalSerializer,
+				payloadSerializer);
+		});
+	}
+
+	/// <summary>
+	/// Registers the event store using the options-only constructor (creates own client from ConnectionString).
+	/// </summary>
+	private static void RegisterStoreFromOptions(IServiceCollection services)
+	{
+		services.TryAddScoped<IEventStore>(sp =>
+		{
+			var opts = sp.GetRequiredService<IOptions<MongoDbEventStoreOptions>>();
+			var logger = sp.GetRequiredService<ILogger<MongoDbEventStore>>();
+			var internalSerializer = sp.GetService<ISerializer>();
+			var payloadSerializer = sp.GetService<IPayloadSerializer>();
+
+			return new MongoDbEventStore(
+				opts,
+				logger,
+				internalSerializer,
+				payloadSerializer);
+		});
 	}
 }

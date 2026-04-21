@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Testing.Tests.Transport;
 /// </summary>
 [UnitTest]
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemoryTransportSenderConformanceShould : TransportSenderConformanceTests, IDisposable
 {
 	private const string Destination = "conformance-test-dest";

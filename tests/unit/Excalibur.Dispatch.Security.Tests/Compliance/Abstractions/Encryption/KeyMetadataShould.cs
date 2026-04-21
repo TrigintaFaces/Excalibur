@@ -6,9 +6,9 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Encryption;
 /// <summary>
 /// Unit tests for <see cref="KeyMetadata"/> record.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
-[Trait("Feature", "Encryption")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
+[Trait(TraitNames.Feature, TestFeatures.Encryption)]
 public sealed class KeyMetadataShould : UnitTestBase
 {
 	[Fact]

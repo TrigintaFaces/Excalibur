@@ -60,16 +60,6 @@ public interface IKafkaConsumerBuilder
 	IKafkaConsumerBuilder EnableAutoCommit(bool enable = true);
 
 	/// <summary>
-	/// Sets the auto-commit interval when auto-commit is enabled.
-	/// </summary>
-	/// <param name="interval">The interval between auto-commits.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="interval"/> is negative or zero.
-	/// </exception>
-	IKafkaConsumerBuilder AutoCommitInterval(TimeSpan interval);
-
-	/// <summary>
 	/// Sets the session timeout for detecting consumer failures.
 	/// </summary>
 	/// <param name="timeout">The session timeout duration.</param>
@@ -78,26 +68,6 @@ public interface IKafkaConsumerBuilder
 	/// Thrown when <paramref name="timeout"/> is negative or zero.
 	/// </exception>
 	IKafkaConsumerBuilder SessionTimeout(TimeSpan timeout);
-
-	/// <summary>
-	/// Sets the maximum poll interval before the consumer is considered failed.
-	/// </summary>
-	/// <param name="interval">The maximum poll interval.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="interval"/> is negative or zero.
-	/// </exception>
-	IKafkaConsumerBuilder MaxPollInterval(TimeSpan interval);
-
-	/// <summary>
-	/// Sets the maximum number of messages to fetch in a single poll.
-	/// </summary>
-	/// <param name="maxMessages">The maximum batch size for consuming.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="maxMessages"/> is less than or equal to zero.
-	/// </exception>
-	IKafkaConsumerBuilder MaxBatchSize(int maxMessages);
 
 	/// <summary>
 	/// Adds an additional consumer configuration property.
@@ -149,7 +119,7 @@ internal sealed class KafkaConsumerBuilder : IKafkaConsumerBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the auto-commit interval when auto-commit is enabled.</summary>
 	public IKafkaConsumerBuilder AutoCommitInterval(TimeSpan interval)
 	{
 		if (interval <= TimeSpan.Zero)
@@ -173,7 +143,7 @@ internal sealed class KafkaConsumerBuilder : IKafkaConsumerBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the maximum poll interval before consumer failure.</summary>
 	public IKafkaConsumerBuilder MaxPollInterval(TimeSpan interval)
 	{
 		if (interval <= TimeSpan.Zero)
@@ -185,7 +155,7 @@ internal sealed class KafkaConsumerBuilder : IKafkaConsumerBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the maximum messages to fetch in a single poll.</summary>
 	public IKafkaConsumerBuilder MaxBatchSize(int maxMessages)
 	{
 		if (maxMessages <= 0)

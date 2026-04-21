@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.Protobuf;
 /// - AOT scenarios (reflection-free paths)
 /// - Binary wire format support
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class ProtobufMessageSerializerShould
 {
 	private readonly ProtobufSerializer _sut;

@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Queues;
 /// Regression tests for InstanceAwareQueue -- Sprint 690 T.12 (DisposeAsync timeout)
 /// and T.24 (TryPopAsync allocation reduction).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InstanceAwareQueueShould
 {
 	[Fact]

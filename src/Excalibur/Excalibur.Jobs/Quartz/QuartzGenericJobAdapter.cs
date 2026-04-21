@@ -33,8 +33,10 @@ public sealed class QuartzGenericJobAdapter<TJob, TContext>(
 	private readonly ILogger<QuartzGenericJobAdapter<TJob, TContext>> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
+	[UnconditionalSuppressMessage("AOT", "IL2046",
+		Justification = "IJob.Execute is defined in Quartz.NET and cannot be annotated. The implementation uses JsonSerializer which may require unreferenced code.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IJob.Execute is defined in Quartz.NET and cannot be annotated. The implementation uses JsonSerializer which may require dynamic code.")]
 	public async Task Execute(IJobExecutionContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
@@ -51,7 +53,9 @@ public sealed class QuartzGenericJobAdapter<TJob, TContext>(
 		{
 			try
 			{
+				#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 				jobContext = JsonSerializer.Deserialize<TContext>(jsonContext);
+				#pragma warning restore IL2026, IL3050
 			}
 			catch (JsonException ex)
 			{

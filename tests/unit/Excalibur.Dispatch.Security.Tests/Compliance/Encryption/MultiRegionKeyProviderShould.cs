@@ -4,10 +4,11 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class MultiRegionKeyProviderShould : IDisposable
 {
 	private readonly IKeyManagementProvider _primaryProvider;
@@ -140,7 +141,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 
 		// Assert
 		health.IsHealthy.ShouldBeFalse();
-		health.ErrorMessage.ShouldContain("Connection failed");
+		health.ErrorMessage!.ShouldContain("Connection failed");
 	}
 
 	[Fact]

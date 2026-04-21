@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Dispatch.Transport.Google;
 
@@ -15,6 +16,7 @@ public sealed class GoogleTelemetryOptions
 	/// <value>
 	/// Project ID for Google Cloud Monitoring
 	/// </value>
+	[Required]
 	public required string ProjectId { get; set; }
 
 	/// <summary>
@@ -47,6 +49,7 @@ public sealed class GoogleTelemetryOptions
 	/// <value>
 	/// Batch size for metric exports
 	/// </value>
+	[Range(1, int.MaxValue)]
 	public int BatchSize { get; set; } = 200;
 
 	/// <summary>
@@ -63,6 +66,7 @@ public sealed class GoogleTelemetryOptions
 	/// <value>
 	/// Resource type for metrics
 	/// </value>
+	[Required]
 	public string ResourceType { get; set; } = "global";
 
 	/// <summary>
@@ -71,5 +75,6 @@ public sealed class GoogleTelemetryOptions
 	/// <value>
 	/// Metric name prefix
 	/// </value>
+	[Required]
 	public string MetricPrefix { get; set; } = "custom.googleapis.com/dispatch";
 }

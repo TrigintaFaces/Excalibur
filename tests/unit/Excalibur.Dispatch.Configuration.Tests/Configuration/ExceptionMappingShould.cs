@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 /// Tests TypedExceptionMapping, AsyncTypedExceptionMapping, and ConditionalExceptionMapping.
 /// </remarks>
 [Trait("Category", "Unit")]
-[Trait("Component", "Configuration")]
+[Trait(TraitNames.Component, TestComponents.Configuration)]
 [Trait("Priority", "0")]
 public sealed class ExceptionMappingShould
 {

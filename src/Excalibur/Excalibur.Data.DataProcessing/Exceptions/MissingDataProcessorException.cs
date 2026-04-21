@@ -37,20 +37,42 @@ public sealed class MissingDataProcessorException : ApiException
 		RecordType = recordType;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MissingDataProcessorException" /> class with default values.
+	/// </summary>
 	public MissingDataProcessorException() : base()
 	{
+		RecordType = string.Empty;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MissingDataProcessorException" /> class with a specified error message.
+	/// </summary>
+	/// <param name="message">The error message.</param>
 	public MissingDataProcessorException(string message) : base(message)
 	{
+		RecordType = string.Empty;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MissingDataProcessorException" /> class with a specified error message and inner exception.
+	/// </summary>
+	/// <param name="message">The error message.</param>
+	/// <param name="innerException">The inner exception.</param>
 	public MissingDataProcessorException(string message, Exception? innerException) : base(message, innerException)
 	{
+		RecordType = string.Empty;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MissingDataProcessorException" /> class with a status code, message, and inner exception.
+	/// </summary>
+	/// <param name="statusCode">The HTTP status code.</param>
+	/// <param name="message">The error message.</param>
+	/// <param name="innerException">The inner exception.</param>
 	public MissingDataProcessorException(int statusCode, string? message, Exception? innerException) : base(statusCode, message, innerException)
 	{
+		RecordType = string.Empty;
 	}
 
 	/// <summary>

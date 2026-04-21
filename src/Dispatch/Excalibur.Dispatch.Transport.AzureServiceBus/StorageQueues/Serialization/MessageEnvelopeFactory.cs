@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 using Azure.Storage.Queues.Models;
@@ -12,6 +13,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Messaging;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Transport.Azure;
@@ -121,7 +123,7 @@ internal sealed class MessageEnvelopeFactory(
 
 			if (root.TryGetProperty("messageType", out _) && root.TryGetProperty("body", out _))
 			{
-				var envelope = JsonSerializer.Deserialize<StorageQueueMessageEnvelope>(messageText, JsonOptions);
+				var envelope = JsonSerializer.Deserialize(messageText, AzureMessageJsonContext.Default.StorageQueueMessageEnvelope);
 				if (envelope != null)
 				{
 					return ParseEnvelope(envelope, queueMessage);
@@ -304,25 +306,21 @@ internal sealed class MessageEnvelopeFactory(
 			}
 		}
 
-		// Try to resolve message type
-		var messageType = ResolveMessageType(envelope.MessageType);
 		object message;
+		Type messageType;
 
-		if (messageType != null)
+		if (!RuntimeFeature.IsDynamicCodeSupported)
 		{
-			// Use reflection to call the generic Deserialize method
-			var deserializeMethod = typeof(IPayloadSerializer).GetMethod(nameof(IPayloadSerializer.Deserialize))!;
-			var genericDeserializeMethod = deserializeMethod.MakeGenericMethod(messageType);
-			message = genericDeserializeMethod.Invoke(_serializer, [envelope.Body])!;
-			context.SetItem("MessageType", messageType.Name);
+			// AOT path: use pre-populated typed registry (no reflection)
+			(message, messageType) = DeserializeViaRegistry(envelope);
 		}
 		else
 		{
-			// Fallback to envelope itself
-			message = envelope;
-			messageType = typeof(StorageQueueMessageEnvelope);
-			context.SetItem("MessageType", "StorageQueueMessageEnvelope");
+			// JIT path: existing MakeGenericMethod (unchanged behavior)
+			(message, messageType) = DeserializeViaReflection(envelope);
 		}
+
+		context.SetItem("MessageType", messageType.Name);
 
 		return new ParsedMessageResult
 		{
@@ -330,14 +328,55 @@ internal sealed class MessageEnvelopeFactory(
 			Context = context,
 			MessageType = messageType,
 			IsCloudEvent = false,
-			Metadata = new Dictionary<string, object?>
-(StringComparer.Ordinal)
+			Metadata = new Dictionary<string, object?>(StringComparer.Ordinal)
 			{
 				["Envelope.MessageType"] = envelope.MessageType,
 				["Envelope.Timestamp"] = envelope.Timestamp,
 				["Envelope.PropertyCount"] = envelope.Properties.Count,
 			},
 		};
+	}
+
+	/// <summary>
+	/// AOT-safe deserialization path using the pre-populated <see cref="MessageDeserializerRegistry"/>.
+	/// Falls back to the raw envelope if the message type is not registered.
+	/// </summary>
+	private (object Message, Type Type) DeserializeViaRegistry(StorageQueueMessageEnvelope envelope)
+	{
+		var registry = _serviceProvider.GetService<MessageDeserializerRegistry>();
+		var result = registry?.TryDeserialize(envelope.MessageType, _serializer, envelope.Body);
+
+		if (result.HasValue)
+		{
+			return result.Value;
+		}
+
+		_logger.LogWarning(
+			"AOT deserialization: message type '{MessageType}' not found in registry. " +
+			"Register with AddStorageQueueMessage<TMessage>() during DI composition. Falling back to raw envelope.",
+			envelope.MessageType);
+
+		return (envelope, typeof(StorageQueueMessageEnvelope));
+	}
+
+	/// <summary>
+	/// JIT-only deserialization path using reflection and <see cref="System.Reflection.MethodInfo.MakeGenericMethod"/>.
+	/// </summary>
+	[RequiresDynamicCode("Calls System.Reflection.MethodInfo.MakeGenericMethod(params Type[])")]
+	[RequiresUnreferencedCode("Calls MessageEnvelopeFactory.ResolveMessageType(String)")]
+	private (object Message, Type Type) DeserializeViaReflection(StorageQueueMessageEnvelope envelope)
+	{
+		var resolvedType = ResolveMessageType(envelope.MessageType);
+
+		if (resolvedType != null)
+		{
+			var deserializeMethod = typeof(IPayloadSerializer).GetMethod(nameof(IPayloadSerializer.Deserialize))!;
+			var genericDeserializeMethod = deserializeMethod.MakeGenericMethod(resolvedType);
+			var message = genericDeserializeMethod.Invoke(_serializer, [envelope.Body])!;
+			return (message, resolvedType);
+		}
+
+		return (envelope, typeof(StorageQueueMessageEnvelope));
 	}
 
 	private ParsedMessageResult ParsePlainMessage(string messageText, QueueMessage queueMessage)

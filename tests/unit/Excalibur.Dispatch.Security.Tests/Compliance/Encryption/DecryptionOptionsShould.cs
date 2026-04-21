@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Per AD-255-3, these tests verify the decryption options configuration.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class DecryptionOptionsShould
 {
 	#region Default Value Tests

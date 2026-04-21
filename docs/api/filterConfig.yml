@@ -1,0 +1,41 @@
+# DocFX Filter Configuration
+# Controls which APIs are included in the generated documentation
+
+apiRules:
+  # Include all public APIs
+  - include:
+      uidRegex: ^Dispatch\..*
+      type: Type
+  - include:
+      uidRegex: ^Excalibur\..*
+      type: Type
+  # Exclude internal implementation details
+  - exclude:
+      uidRegex: .*\.Internal\..*
+      type: Namespace
+  - exclude:
+      uidRegex: .*\.Generated\..*
+      type: Namespace
+  # Exclude test-related namespaces that might leak through
+  - exclude:
+      uidRegex: .*\.Tests\..*
+      type: Namespace
+  - exclude:
+      uidRegex: .*\.Testing\..*
+      type: Namespace
+  # Include Microsoft.Extensions.DependencyInjection extensions
+  - include:
+      uidRegex: ^Microsoft\.Extensions\.DependencyInjection\..*ServiceCollectionExtensions$
+      type: Type
+
+attributeRules:
+  # Include types with EditorBrowsable(Always)
+  - include:
+      uidRegex: .*
+      type: Type
+  # Exclude obsolete members by default (can be overridden)
+  - exclude:
+      uidRegex: .*
+      type: Member
+      hasAttribute:
+        uid: System.ObsoleteAttribute

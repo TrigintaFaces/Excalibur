@@ -137,7 +137,7 @@ README.md                  # This file
 Messages/
    OrderEvents.cs          # MemoryPackable event classes
 Handlers/
-    OrderEventHandlers.cs  # Event handlers for processing
+    OrderHandlers.cs  # Event handlers for processing
 ```
 
 ## NativeAOT Deployment
@@ -154,20 +154,19 @@ All serialization code is source-generated at compile time - no runtime reflecti
 
 ## Configuration
 
-MemoryPack can be registered as the binary serializer for outbox/inbox persistence:
+MemoryPack can be registered as the binary serializer for outbox/inbox persistence with a single call:
 
 ```csharp
-// Register Dispatch with JSON serializer for messaging
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
 });
 
-// Register MemoryPack as the ISerializer for binary serialization (Outbox/Inbox)
-services.AddSingleton<ISerializer>(
-    MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
+// One call registers MemoryPack as the binary serializer
+services.AddMemoryPackSerializer();
 ```
+
+Consumer event types do **not** need `[MemoryPackable]` or any other serializer-specific attributes. Only the internal envelope wrapper uses MemoryPack attributes.
 
 ## Related Samples
 

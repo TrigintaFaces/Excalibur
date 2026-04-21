@@ -67,6 +67,6 @@ public sealed class ExcaliburGoogleCloudFunctionsServiceCollectionExtensionsShou
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddExcaliburGoogleCloudFunctionsServerless(null!));
+			services.AddExcaliburGoogleCloudFunctionsServerless((Action<ServerlessHostOptions>)null!));
 	}
 }

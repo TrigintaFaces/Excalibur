@@ -9,6 +9,9 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// Defines gRPC method descriptors for the dispatch transport service.
 /// Uses manual method definitions instead of Grpc.Tools code generation.
 /// </summary>
+/// <remarks>
+/// AOT-safe: all marshallers use source-generated <see cref="GrpcJsonSerializerContext"/> (zero reflection).
+/// </remarks>
 internal static class GrpcMethodDescriptors
 {
 	/// <summary>

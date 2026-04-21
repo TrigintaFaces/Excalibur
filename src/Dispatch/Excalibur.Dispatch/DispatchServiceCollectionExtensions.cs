@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
@@ -39,7 +40,11 @@ public static class DispatchServiceCollectionExtensions
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "Handler activator registration remains trim-aware; AOT paths rely on generated handlers and precompiled activators.")]
+		Justification = "Handler activator and LocalMessageBus use reflection for dispatch plan construction; AOT paths rely on source-generated handlers and precompiled activators.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "HandlerActivator and LocalMessageBus require dynamic code for typed invoker construction. In AOT scenarios, source-generated dispatchers bypass these code paths.")]
 	public static IServiceCollection AddDispatchPipeline(this IServiceCollection services)
 	{
 		services.TryAddSingleton<IMessageBusProvider, MessageBusProvider>();
@@ -61,6 +66,9 @@ public static class DispatchServiceCollectionExtensions
 			(IProgressDispatcher)sp.GetRequiredService<IDispatcher>());
 		services.TryAddSingleton<IDirectLocalDispatcher>(static sp =>
 			(IDirectLocalDispatcher)sp.GetRequiredService<IDispatcher>());
+		// Legacy fallback: discovers middleware from DI via GetServices<IDispatchMiddleware>().
+		// When DispatchBuilder.Build() is called (the modern path), these TryAdd registrations
+		// are replaced via Services.Replace() with builder-materialized middleware.
 		services.TryAddSingleton<IDispatchPipeline>(sp => new DispatchPipeline(
 			sp.GetServices<IDispatchMiddleware>(),
 			sp.GetRequiredService<IMiddlewareApplicabilityStrategy>()));
@@ -79,9 +87,19 @@ public static class DispatchServiceCollectionExtensions
 		services.TryAddSingleton<IHandlerActivator, HandlerActivator>();
 		services.TryAddSingleton<DispatchJsonSerializer>();
 
+		// Default JSON event serializer (ADR-295: JSON-first). Consumers can override with binary
+		// serializer packages (e.g., AddMemoryPackSerializer()) which register their own IEventSerializer.
+		services.TryAddSingleton<IEventSerializer>(static _ => new JsonEventSerializer());
+
 		// Default no-op telemetry sanitizer — overridden by AddDispatchObservability() with HashingTelemetrySanitizer
 		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.Telemetry.ITelemetrySanitizer>(
 			static _ => Excalibur.Dispatch.Abstractions.Telemetry.NullTelemetrySanitizer.Instance);
+
+		// Register telemetry provider by default so metrics and traces are emitted
+		// automatically when the consumer adds OpenTelemetry with AddDispatchInstrumentation().
+		// This follows the ASP.NET Core pattern: instrumentation is always available,
+		// consumers just need to subscribe via AddOpenTelemetry().
+		_ = services.AddDispatchTelemetry();
 
 		services.TryAddSingleton<LocalMessageBus>();
 		_ = services.AddMessageBus(
@@ -106,6 +124,14 @@ public static class DispatchServiceCollectionExtensions
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 		Justification =
 			"Handler registration uses source generation when USE_SOURCE_GENERATION is defined, falls back to reflection otherwise.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Handler warmup uses expression compilation. In AOT scenarios, source-generated dispatchers bypass these code paths.")]
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2072:Target parameter of 'HandlerRegistry.Register' has DynamicallyAccessedMemberTypes requirements.",
+		Justification = "Handler types come from DI ServiceDescriptor.ImplementationType which lacks annotations. In AOT scenarios, source-generated registration bypasses this code path.")]
 	public static IServiceCollection AddDispatchHandlers(this IServiceCollection services, params Assembly[]? assembliesToScan)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -184,11 +210,19 @@ public static class DispatchServiceCollectionExtensions
 		_ = services.AddDispatchPipeline();
 		_ = services.AddDispatchHandlers(assemblies);
 
-		// Ensure default AddDispatch() gets optimized runtime materialization and
-		// stateless handler singleton promotion without requiring explicit builder usage.
-		using var builder = new DispatchBuilder(services);
-		EnableDefaultPerformancePromotion(builder);
-		_ = builder.Build();
+		// Guard: if a builder-based AddDispatch(configure) already called Build(),
+		// skip — the builder path already materialized the pipeline.
+		if (services.Any(static d => d.ServiceType == typeof(DispatchBuilderSentinel)))
+		{
+			return services;
+		}
+
+		// Apply default performance promotion without calling Build().
+		// Build() replaces IDispatchMiddlewareInvoker with a builder-materialized snapshot,
+		// which would prevent any middleware registered later (via AddDispatchMiddleware<T>())
+		// from being discovered by the legacy GetServices<IDispatchMiddleware>() path.
+		_ = services.Configure<DispatchOptions>(static opt =>
+			opt.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = true);
 
 		return services;
 	}
@@ -230,11 +264,38 @@ public static class DispatchServiceCollectionExtensions
 		// This allows the builder pattern to work without explicitly calling AddHandlersFromAssembly
 		_ = services.AddDispatchHandlers();
 
+		// Builder-mode idempotence guard. If a prior AddDispatch(configure) already
+		// materialised the pipeline (detected via DispatchBuilderSentinel), skip
+		// the builder path entirely to preserve first-configure-wins semantics.
+		// A second consumer configure lambda is NOT invoked — silent no-op
+		// masks consumer intent, so the guard fires *before* configure is
+		// called. Consumers wanting a different pipeline config must call
+		// AddDispatch(configure) exactly once per service collection.
+		// [S794 bd-ffecs4 / COMPASS msg 1480]
+		if (services.Any(static d => d.ServiceType == typeof(DispatchBuilderSentinel)))
+		{
+			return services;
+		}
+
+		// Mark that a builder-based configuration was applied, preventing subsequent
+		// parameterless AddDispatch() calls from overwriting the middleware invoker.
+		services.TryAddSingleton<DispatchBuilderSentinel>();
+
 		// Create builder and apply default performance promotion BEFORE configure,
 		// so consumers can opt out via configure action if desired.
 		using var builder = new DispatchBuilder(services);
 		EnableDefaultPerformancePromotion(builder);
 		configure?.Invoke(builder);
+
+		// Zero-config: auto-scan entry assembly for handlers if none were registered
+		if (!builder.HasHandlerRegistrations)
+		{
+			var entryAssembly = Assembly.GetEntryAssembly();
+			if (entryAssembly != null)
+			{
+				builder.AddHandlersFromAssembly(entryAssembly);
+			}
+		}
 
 		// Materialize pipelines — without this call, ConfigurePipeline() configurations are silently lost
 		_ = builder.Build();
@@ -294,11 +355,11 @@ public static class DispatchServiceCollectionExtensions
 	TMiddleware>(this IServiceCollection services)
 		where TMiddleware : class, IDispatchMiddleware
 	{
-		if (services.All(static d => d.ServiceType != typeof(IDispatchMiddleware) || d.ImplementationType != typeof(TMiddleware)))
-		{
-			_ = services.AddSingleton<TMiddleware>();
-			_ = services.AddSingleton<IDispatchMiddleware>(static sp => sp.GetRequiredService<TMiddleware>());
-		}
+		services.TryAddSingleton<TMiddleware>();
+
+		// Also register as IDispatchMiddleware so the legacy GetServices<IDispatchMiddleware>()
+		// discovery path (used when DispatchBuilder.Build() hasn't run) can find it.
+		_ = services.AddSingleton<IDispatchMiddleware>(static sp => sp.GetRequiredService<TMiddleware>());
 
 		return services;
 	}
@@ -313,7 +374,7 @@ public static class DispatchServiceCollectionExtensions
 		// Build a list of concrete types implementing the handler interfaces
 		var handlerTypes = assemblies
 			.SelectMany(static a => a.GetTypes())
-			.Where(static t => t is { IsAbstract: false, IsInterface: false })
+			.Where(static t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false })
 			.Select(static t => new
 			{
 				Type = t,
@@ -342,4 +403,10 @@ public static class DispatchServiceCollectionExtensions
 			}
 		}
 	}
+
+	/// <summary>
+	/// Internal marker to detect that a builder-based AddDispatch(configure) has been called.
+	/// Prevents subsequent parameterless AddDispatch() from overwriting the configured middleware invoker.
+	/// </summary>
+	internal sealed class DispatchBuilderSentinel;
 }

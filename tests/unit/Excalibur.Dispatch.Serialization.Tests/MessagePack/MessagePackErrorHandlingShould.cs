@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// Tests for error handling in the consolidated <see cref="MpkSerializer"/>.
 /// Verifies proper exception types and messages.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class MessagePackErrorHandlingShould : UnitTestBase
 {
 	#region Deserialize Error Handling (default options)
@@ -231,7 +231,7 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 		// Act & Assert
 		var ex = Should.Throw<SerializationException>(() =>
 			serializer.Deserialize<TestPluggableMessage>(corrupt.AsSpan()));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -276,7 +276,7 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 		// Act & Assert
 		var ex = Should.Throw<SerializationException>(() =>
 			serializer.DeserializeObject(corrupt, typeof(TestPluggableMessage)));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -306,7 +306,7 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 		// Act & Assert
 		var ex = Should.Throw<SerializationException>(() =>
 			serializer.SerializeObject(badObj, typeof(NonSerializableForTests)));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 	}
 
 	#endregion
@@ -321,26 +321,18 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddMessagePackSerialization());
+			services.AddMessagePackSerializer());
 	}
 
 	[Fact]
-	public void GetPluggableSerializer_WithNullOptions_ThrowsArgumentNull()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			MessagePackSerializationExtensions.GetPluggableSerializer(null!));
-	}
-
-	[Fact]
-	public void AddMessagePackPluggableSerialization_WithNullServices_ThrowsArgumentNull()
+	public void AddMessagePackSerializer_WithNullServices_ThrowsArgumentNull()
 	{
 		// Arrange
 		IServiceCollection services = null!;
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddMessagePackPluggableSerialization());
+			services.AddMessagePackSerializer());
 	}
 
 	[Fact]
@@ -351,7 +343,7 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddMessagePackPluggableSerialization(null!));
+			services.AddMessagePackSerializer(null!));
 	}
 
 	#endregion

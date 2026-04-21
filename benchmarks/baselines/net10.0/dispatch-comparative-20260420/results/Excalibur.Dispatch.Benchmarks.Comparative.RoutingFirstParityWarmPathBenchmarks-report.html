@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityWarmPathBenchmarks-20260420-113448</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8117/25H2/2025Update/HudsonValley2)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.202
+  [Host] : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=warmpath-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                                                 </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch: pre-routed local command&#39;</td><td>113.6 ns</td><td>0.57 ns</td><td>0.53 ns</td><td>1.00</td><td>0.01</td><td>0.0148</td><td>280 B</td><td>1.00</td>
+</tr><tr><td>&#39;Dispatch: pre-routed local query&#39;</td><td>120.1 ns</td><td>2.32 ns</td><td>2.49 ns</td><td>1.06</td><td>0.02</td><td>0.0250</td><td>472 B</td><td>1.69</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SQS)&#39;</td><td>177.9 ns</td><td>3.24 ns</td><td>3.33 ns</td><td>1.57</td><td>0.03</td><td>0.0160</td><td>304 B</td><td>1.09</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Service Bus)&#39;</td><td>180.6 ns</td><td>1.36 ns</td><td>1.20 ns</td><td>1.59</td><td>0.01</td><td>0.0160</td><td>304 B</td><td>1.09</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SNS)&#39;</td><td>175.3 ns</td><td>1.13 ns</td><td>1.00 ns</td><td>1.54</td><td>0.01</td><td>0.0160</td><td>304 B</td><td>1.09</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS EventBridge)&#39;</td><td>182.2 ns</td><td>2.99 ns</td><td>2.79 ns</td><td>1.60</td><td>0.02</td><td>0.0160</td><td>304 B</td><td>1.09</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Event Hubs)&#39;</td><td>179.9 ns</td><td>0.84 ns</td><td>0.79 ns</td><td>1.58</td><td>0.01</td><td>0.0160</td><td>304 B</td><td>1.09</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (gRPC)&#39;</td><td>172.4 ns</td><td>0.43 ns</td><td>0.38 ns</td><td>1.52</td><td>0.01</td><td>0.0160</td><td>304 B</td><td>1.09</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SQS) throughput profile&#39;</td><td>237.4 ns</td><td>0.94 ns</td><td>0.88 ns</td><td>2.09</td><td>0.01</td><td>0.0186</td><td>352 B</td><td>1.26</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SQS) retry profile&#39;</td><td>240.2 ns</td><td>3.13 ns</td><td>2.77 ns</td><td>2.11</td><td>0.03</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SQS) poison profile&#39;</td><td>223.8 ns</td><td>0.88 ns</td><td>0.69 ns</td><td>1.97</td><td>0.01</td><td>0.0174</td><td>328 B</td><td>1.17</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SQS) observability profile&#39;</td><td>316.3 ns</td><td>1.72 ns</td><td>1.44 ns</td><td>2.78</td><td>0.02</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Service Bus) throughput profile&#39;</td><td>252.8 ns</td><td>0.77 ns</td><td>0.68 ns</td><td>2.23</td><td>0.01</td><td>0.0186</td><td>352 B</td><td>1.26</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Service Bus) retry profile&#39;</td><td>242.9 ns</td><td>4.57 ns</td><td>4.49 ns</td><td>2.14</td><td>0.04</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Service Bus) poison profile&#39;</td><td>229.7 ns</td><td>0.80 ns</td><td>0.71 ns</td><td>2.02</td><td>0.01</td><td>0.0174</td><td>328 B</td><td>1.17</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Service Bus) observability profile&#39;</td><td>319.2 ns</td><td>1.01 ns</td><td>0.89 ns</td><td>2.81</td><td>0.01</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SNS) throughput profile&#39;</td><td>239.2 ns</td><td>2.25 ns</td><td>1.88 ns</td><td>2.11</td><td>0.02</td><td>0.0186</td><td>352 B</td><td>1.26</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SNS) retry profile&#39;</td><td>235.4 ns</td><td>1.20 ns</td><td>1.06 ns</td><td>2.07</td><td>0.01</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SNS) poison profile&#39;</td><td>227.6 ns</td><td>4.10 ns</td><td>3.63 ns</td><td>2.00</td><td>0.03</td><td>0.0174</td><td>328 B</td><td>1.17</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS SNS) observability profile&#39;</td><td>320.1 ns</td><td>1.71 ns</td><td>1.52 ns</td><td>2.82</td><td>0.02</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS EventBridge) throughput profile&#39;</td><td>247.4 ns</td><td>3.35 ns</td><td>5.31 ns</td><td>2.18</td><td>0.05</td><td>0.0186</td><td>352 B</td><td>1.26</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS EventBridge) retry profile&#39;</td><td>239.0 ns</td><td>1.45 ns</td><td>1.36 ns</td><td>2.10</td><td>0.01</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS EventBridge) poison profile&#39;</td><td>223.3 ns</td><td>0.97 ns</td><td>0.81 ns</td><td>1.97</td><td>0.01</td><td>0.0174</td><td>328 B</td><td>1.17</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (AWS EventBridge) observability profile&#39;</td><td>324.3 ns</td><td>2.04 ns</td><td>1.91 ns</td><td>2.86</td><td>0.02</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Event Hubs) throughput profile&#39;</td><td>251.7 ns</td><td>2.44 ns</td><td>2.29 ns</td><td>2.22</td><td>0.02</td><td>0.0186</td><td>352 B</td><td>1.26</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Event Hubs) retry profile&#39;</td><td>240.4 ns</td><td>1.65 ns</td><td>1.47 ns</td><td>2.12</td><td>0.02</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Event Hubs) poison profile&#39;</td><td>226.3 ns</td><td>1.43 ns</td><td>1.19 ns</td><td>1.99</td><td>0.01</td><td>0.0174</td><td>328 B</td><td>1.17</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Azure Event Hubs) observability profile&#39;</td><td>323.6 ns</td><td>1.99 ns</td><td>1.86 ns</td><td>2.85</td><td>0.02</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (gRPC) throughput profile&#39;</td><td>236.1 ns</td><td>0.81 ns</td><td>0.63 ns</td><td>2.08</td><td>0.01</td><td>0.0186</td><td>352 B</td><td>1.26</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (gRPC) retry profile&#39;</td><td>236.5 ns</td><td>0.86 ns</td><td>0.76 ns</td><td>2.08</td><td>0.01</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (gRPC) poison profile&#39;</td><td>219.3 ns</td><td>2.07 ns</td><td>1.73 ns</td><td>1.93</td><td>0.02</td><td>0.0174</td><td>328 B</td><td>1.17</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (gRPC) observability profile&#39;</td><td>315.9 ns</td><td>1.10 ns</td><td>0.98 ns</td><td>2.78</td><td>0.02</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (Kafka)&#39;</td><td>175.5 ns</td><td>1.01 ns</td><td>0.94 ns</td><td>1.54</td><td>0.01</td><td>0.0160</td><td>304 B</td><td>1.09</td>
+</tr><tr><td>&#39;Dispatch: pre-routed remote event (RabbitMQ)&#39;</td><td>176.1 ns</td><td>1.71 ns</td><td>1.43 ns</td><td>1.55</td><td>0.01</td><td>0.0160</td><td>304 B</td><td>1.09</td>
+</tr><tr><td>&#39;Dispatch: pre-routed Kafka throughput profile&#39;</td><td>237.3 ns</td><td>0.87 ns</td><td>0.73 ns</td><td>2.09</td><td>0.01</td><td>0.0186</td><td>352 B</td><td>1.26</td>
+</tr><tr><td>&#39;Dispatch: pre-routed Kafka retry profile&#39;</td><td>240.7 ns</td><td>1.15 ns</td><td>0.96 ns</td><td>2.12</td><td>0.01</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed Kafka poison profile&#39;</td><td>228.0 ns</td><td>0.86 ns</td><td>0.76 ns</td><td>2.01</td><td>0.01</td><td>0.0174</td><td>328 B</td><td>1.17</td>
+</tr><tr><td>&#39;Dispatch: pre-routed Kafka observability profile&#39;</td><td>321.9 ns</td><td>1.65 ns</td><td>1.38 ns</td><td>2.83</td><td>0.02</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed RabbitMQ throughput profile&#39;</td><td>243.1 ns</td><td>1.98 ns</td><td>1.75 ns</td><td>2.14</td><td>0.02</td><td>0.0186</td><td>352 B</td><td>1.26</td>
+</tr><tr><td>&#39;Dispatch: pre-routed RabbitMQ retry profile&#39;</td><td>234.4 ns</td><td>1.65 ns</td><td>1.54 ns</td><td>2.06</td><td>0.02</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr><tr><td>&#39;Dispatch: pre-routed RabbitMQ poison profile&#39;</td><td>221.3 ns</td><td>0.93 ns</td><td>0.73 ns</td><td>1.95</td><td>0.01</td><td>0.0174</td><td>328 B</td><td>1.17</td>
+</tr><tr><td>&#39;Dispatch: pre-routed RabbitMQ observability profile&#39;</td><td>319.8 ns</td><td>1.45 ns</td><td>1.29 ns</td><td>2.81</td><td>0.02</td><td>0.0196</td><td>376 B</td><td>1.34</td>
+</tr></tbody></table>
+</body>
+</html>

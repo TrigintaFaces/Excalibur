@@ -436,7 +436,7 @@ public sealed class MultiConditionalSagaStepShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Step failed");
+		result.ErrorMessage!.ShouldContain("Step failed");
 	}
 
 	[Fact]
@@ -567,7 +567,7 @@ public sealed class MultiConditionalSagaStepShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Compensation failed");
+		result.ErrorMessage!.ShouldContain("Compensation failed");
 	}
 
 	#endregion

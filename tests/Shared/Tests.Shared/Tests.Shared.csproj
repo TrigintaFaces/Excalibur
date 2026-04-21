@@ -10,6 +10,9 @@
     <AssemblyName>Tests.Shared</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="Fixtures\servicebus-emulator-config.json" CopyToOutputDirectory="PreserveNewest" Link="Fixtures\servicebus-emulator-config.json" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Test Frameworks -->
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
@@ -27,6 +30,12 @@
     <PackageReference Include="Testcontainers.Kafka" />
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="Testcontainers.MongoDb" />
+    <PackageReference Include="Testcontainers.LocalStack" />
+    <PackageReference Include="Testcontainers.ServiceBus" />
+    <!-- AWS SDK for SQS fixture -->
+    <PackageReference Include="AWSSDK.SQS" />
+    <!-- Azure Service Bus for fixture -->
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
     <!-- Database Drivers for Test Fixtures (Required by SqlServerContainerFixture, PostgresContainerFixture) -->
     <!-- NOTE: These are NOT in core Dispatch anymore (Sprint 306 T3.X-2). Tests need them directly. -->
     <PackageReference Include="Microsoft.Data.SqlClient" />

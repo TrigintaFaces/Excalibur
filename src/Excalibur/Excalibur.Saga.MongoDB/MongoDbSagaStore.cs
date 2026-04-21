@@ -110,7 +110,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaId);
-		var document = await _collection
+		var document = await _collection!
 			.Find(filter)
 			.FirstOrDefaultAsync(cancellationToken)
 			.ConfigureAwait(false);
@@ -135,7 +135,9 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+#pragma warning disable IL2026, IL3050 // AOT: MongoDB saga store uses reflection-based JSON serialization
 		var stateJson = _serializer.Serialize(sagaState);
+#pragma warning restore IL2026, IL3050
 		var now = DateTimeOffset.UtcNow;
 
 		var filter = Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId);
@@ -151,7 +153,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 
 		var options = new UpdateOptions { IsUpsert = true };
 
-		_ = await _collection.UpdateOneAsync(filter, update, options, cancellationToken)
+		_ = await _collection!.UpdateOneAsync(filter, update, options, cancellationToken)
 			.ConfigureAwait(false);
 
 		LogSagaSaved(typeof(TSagaState).Name, sagaState.SagaId, sagaState.Completed);
@@ -207,7 +209,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 			indexBuilder.Ascending(d => d.IsCompleted),
 			new CreateIndexOptions { Name = "ix_is_completed" });
 
-		_ = await _collection.Indexes.CreateManyAsync(
+		_ = await _collection!.Indexes.CreateManyAsync(
 			[typeIndex, completedIndex],
 			cancellationToken).ConfigureAwait(false);
 

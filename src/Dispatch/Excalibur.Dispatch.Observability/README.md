@@ -2,6 +2,19 @@
 
 Observability and telemetry for the Excalibur framework.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.RabbitMQ` | Starter | Transport + Resilience + Observability |
+| `Excalibur.Dispatch.Kafka` | Starter | Transport + Resilience + Observability |
+| `Excalibur.Dispatch.Azure` | Starter | Transport + Resilience + Observability |
+| `Excalibur.Dispatch.Aws` | Starter | Transport + Resilience + Observability |
+
+> **Tip:** This package is automatically included when you install any transport starter metapackage.
+
 ## Installation
 
 ```bash

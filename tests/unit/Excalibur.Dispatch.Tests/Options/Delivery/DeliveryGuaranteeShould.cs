@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Options.Delivery;
 
 namespace Excalibur.Dispatch.Tests.Options.Delivery;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DeliveryGuaranteeShould
 {
     [Theory]

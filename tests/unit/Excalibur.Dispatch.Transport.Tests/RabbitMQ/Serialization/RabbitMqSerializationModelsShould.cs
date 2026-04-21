@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport.RabbitMQ;
 
 namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Serialization;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RabbitMqSerializationModelsShould
 {
 	[Fact]
@@ -186,7 +186,7 @@ public sealed class RabbitMqSerializationModelsShould
 		// Assert
 		attempt.AttemptNumber.ShouldBe(2);
 		attempt.AttemptTime.ShouldBe(now);
-		attempt.Error.ShouldBe("Connection refused");
+		attempt.Error!.ShouldBe("Connection refused");
 		attempt.NextDelay.ShouldBe(TimeSpan.FromSeconds(10));
 	}
 
@@ -197,7 +197,7 @@ public sealed class RabbitMqSerializationModelsShould
 		var attempt = new RetryAttempt(1, DateTimeOffset.UtcNow, null, TimeSpan.FromSeconds(5));
 
 		// Assert
-		attempt.Error.ShouldBeNull();
+		attempt.Error!.ShouldBeNull();
 	}
 
 	[Fact]

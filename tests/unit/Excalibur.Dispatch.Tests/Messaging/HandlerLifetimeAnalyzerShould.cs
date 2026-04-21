@@ -10,8 +10,8 @@ using Excalibur.Dispatch.Delivery.Handlers;
 
 namespace Excalibur.Dispatch.Tests.Messaging;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class HandlerLifetimeAnalyzerShould
 {
 	[Fact]
@@ -262,27 +262,32 @@ public sealed class HandlerLifetimeAnalyzerShould
 			Task.FromResult("result");
 	}
 
-	public sealed class HandlerWithSingletonDep(ISingletonDep dep) : IActionHandler<TestCommand>
+	#pragma warning disable CS9113
+	public sealed class HandlerWithSingletonDep(ISingletonDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
-	public sealed class HandlerWithScopedDep(IScopedDep dep) : IActionHandler<TestCommand>
+	#pragma warning disable CS9113
+	public sealed class HandlerWithScopedDep(IScopedDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
-	public sealed class HandlerWithTransientDep(ITransientDep dep) : IActionHandler<TestCommand>
+	#pragma warning disable CS9113
+	public sealed class HandlerWithTransientDep(ITransientDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
-	public sealed class HandlerWithUnknownDep(IUnknownDep dep) : IActionHandler<TestCommand>
+	#pragma warning disable CS9113
+	public sealed class HandlerWithUnknownDep(IUnknownDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
-	public sealed class HandlerWithLoggerDep(ILogger<HandlerWithLoggerDep> logger) : IActionHandler<TestCommand>
+	#pragma warning disable CS9113
+	public sealed class HandlerWithLoggerDep(ILogger<HandlerWithLoggerDep> _logger) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}

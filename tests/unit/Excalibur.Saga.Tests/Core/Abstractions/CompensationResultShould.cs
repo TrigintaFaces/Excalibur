@@ -41,7 +41,7 @@ public sealed class CompensationResultShould
 		var result = new CompensationResult();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -51,7 +51,7 @@ public sealed class CompensationResultShould
 		var result = new CompensationResult();
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -95,7 +95,7 @@ public sealed class CompensationResultShould
 		var result = new CompensationResult { ErrorMessage = "Compensation failed at step 3" };
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Compensation failed at step 3");
+		result.ErrorMessage!.ShouldBe("Compensation failed at step 3");
 	}
 
 	[Fact]
@@ -108,7 +108,7 @@ public sealed class CompensationResultShould
 		var result = new CompensationResult { Exception = exception };
 
 		// Assert
-		result.Exception.ShouldBeSameAs(exception);
+		result.Exception!.ShouldBeSameAs(exception);
 	}
 
 	[Fact]
@@ -139,8 +139,8 @@ public sealed class CompensationResultShould
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
 		result.StepsCompensated.ShouldBe(3);
-		result.ErrorMessage.ShouldBeNull();
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -162,8 +162,8 @@ public sealed class CompensationResultShould
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
 		result.StepsCompensated.ShouldBe(2);
-		result.ErrorMessage.ShouldBe("Failed to compensate step 3");
-		result.Exception.ShouldBeSameAs(exception);
+		result.ErrorMessage!.ShouldBe("Failed to compensate step 3");
+		result.Exception!.ShouldBeSameAs(exception);
 	}
 
 	[Fact]
@@ -181,7 +181,7 @@ public sealed class CompensationResultShould
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
 		result.StepsCompensated.ShouldBe(4);
-		result.ErrorMessage.ShouldContain("steps compensated");
+		result.ErrorMessage!.ShouldContain("steps compensated");
 	}
 
 	#endregion Comprehensive Result Tests

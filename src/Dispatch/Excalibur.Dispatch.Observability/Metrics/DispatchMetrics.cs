@@ -5,14 +5,15 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Diagnostics;
-using Excalibur.Dispatch.Observability.Diagnostics;
+
+using TagCardinalityGuard = Excalibur.Dispatch.Observability.Diagnostics.TagCardinalityGuard;
 
 namespace Excalibur.Dispatch.Observability.Metrics;
 
 /// <summary>
 /// Provides centralized metrics collection for Dispatch messaging operations.
 /// </summary>
-public sealed class DispatchMetrics : IDispatchMetrics, IDisposable
+public sealed class DispatchMetrics : IDispatchMetrics, IDispatchMetricsAdmin, IDisposable
 {
 	/// <summary>
 	/// The meter name for Dispatch metrics.

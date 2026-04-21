@@ -12,7 +12,7 @@ This guide helps you make that decision and shows how to start simple and evolve
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the core package:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -248,21 +248,22 @@ services.AddDispatch(dispatch =>
 
 ## Serialization Considerations
 
-All transports use the same serialization layer. The default is MemoryPack for maximum .NET performance, but if your consumers include non-.NET services, switch to a cross-platform format:
+All transports use the same serialization layer. The default is JSON (System.Text.Json) which works out of the box with any POCO type. For high-throughput .NET-only scenarios, switch to a binary format:
 
 | Scenario | Recommended Serializer |
 |----------|----------------------|
-| .NET-only consumers | MemoryPack (default) |
+| General purpose | System.Text.Json (default) |
+| .NET-only, max performance | MemoryPack (opt-in) |
 | Mixed language consumers | System.Text.Json or Protobuf |
 | Maximum compactness | MessagePack |
 | Schema evolution needed | Protobuf |
 
 ```csharp
-// Switch to JSON for cross-language compatibility
-services.AddJsonSerialization();
+// Switch to MemoryPack for .NET-only maximum performance
+services.AddMemoryPackSerializer();
 
 // Or MessagePack for compact binary
-services.AddMessagePackSerialization();
+services.AddMessagePackSerializer();
 ```
 
 ## Resilience Across Transports

@@ -7,6 +7,8 @@ using Google.Protobuf;
 
 using Testcontainers.PubSub;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Dispatch.Integration.Tests.Transport.GooglePubSub;
 
 /// <summary>
@@ -14,9 +16,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.GooglePubSub;
 /// Verifies message publishing to a real Pub/Sub emulator container, including
 /// single publishes, batch publishes, attribute support, and data round-tripping.
 /// </summary>
-[Trait("Category", "Integration")]
-[Trait("Provider", "GooglePubSub")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait("Database", "GooglePubSub")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Collection(GooglePubSubTransportCollection.Name)]
 public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 {
@@ -64,7 +66,10 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		{
 			if (_container is not null)
 			{
-				await _container.DisposeAsync().ConfigureAwait(false);
+				await TestTimeouts.WithTimeout(
+					_container.DisposeAsync().AsTask(),
+					TestTimeouts.ContainerDispose,
+					"PubSub emulator container dispose").ConfigureAwait(false);
 			}
 		}
 		catch

@@ -11,10 +11,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Dispatch.Security.Tests.Security;
 
 /// <summary>
-/// Unit tests for <see cref="DispatchBuilderSecurityExtensions"/>.
+/// Unit tests for <see cref="SecurityExcaliburBuilderExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "DI")]
 public sealed class DispatchBuilderSecurityExtensionsShould
 {
@@ -26,7 +26,7 @@ public sealed class DispatchBuilderSecurityExtensionsShould
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            DispatchBuilderSecurityExtensions.AddSecurity(null!, config));
+            SecurityExcaliburBuilderExtensions.UseSecurity(null!, config));
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class DispatchBuilderSecurityExtensionsShould
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            builder.AddSecurity(null!));
+            builder.UseSecurity(null!));
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class DispatchBuilderSecurityExtensionsShould
         var config = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
 
         // Act
-        var result = builder.AddSecurity(config);
+        var result = builder.UseSecurity(config);
 
         // Assert
         result.ShouldBe(builder);

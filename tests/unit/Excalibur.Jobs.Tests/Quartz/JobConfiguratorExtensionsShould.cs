@@ -202,7 +202,7 @@ public sealed class JobConfiguratorExtensionsShould
 	public void AddJobInstances_ThrowWhenConfiguratorIsNull()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => JobConfiguratorExtensions.AddJobInstances<TestJob>(null!, new JobConfiguration("k", "0 0 * * * ?")));
+			() => JobConfiguratorExtensions.AddJobInstances<TestJob>(null!, new QuartzJobOptions("k", "0 0 * * * ?")));
 	}
 
 	[Fact]
@@ -223,9 +223,9 @@ public sealed class JobConfiguratorExtensionsShould
 
 		var configs = new[]
 		{
-			new JobConfiguration("enabled-1", "0 0 * * * ?") { Enabled = true },
-			new JobConfiguration("disabled-1", "0 30 * * * ?") { Enabled = false },
-			new JobConfiguration("enabled-2", "0 15 * * * ?") { Enabled = true },
+			new QuartzJobOptions("enabled-1", "0 0 * * * ?") { Enabled = true },
+			new QuartzJobOptions("disabled-1", "0 30 * * * ?") { Enabled = false },
+			new QuartzJobOptions("enabled-2", "0 15 * * * ?") { Enabled = true },
 		};
 
 		// Act
@@ -257,8 +257,8 @@ public sealed class JobConfiguratorExtensionsShould
 		// Arrange
 		var configs = new[]
 		{
-			new JobConfiguration("d1", "0 0 * * * ?") { Enabled = false },
-			new JobConfiguration("d2", "0 30 * * * ?") { Enabled = false },
+			new QuartzJobOptions("d1", "0 0 * * * ?") { Enabled = false },
+			new QuartzJobOptions("d2", "0 30 * * * ?") { Enabled = false },
 		};
 
 		// Act

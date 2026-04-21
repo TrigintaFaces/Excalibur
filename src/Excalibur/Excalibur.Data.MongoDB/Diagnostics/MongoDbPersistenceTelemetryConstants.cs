@@ -6,7 +6,7 @@ namespace Excalibur.Data.MongoDB.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for MongoDB persistence instrumentation.
 /// </summary>
-public static class MongoDbPersistenceTelemetryConstants
+internal static class MongoDbPersistenceTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for MongoDB persistence metrics.

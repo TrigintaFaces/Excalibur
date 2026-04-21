@@ -10,7 +10,7 @@ Configure OpenTelemetry integration for metrics collection and distributed traci
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch.Observability
@@ -21,21 +21,26 @@ Configure OpenTelemetry integration for metrics collection and distributed traci
 
 ## Quick Start
 
-### Register All Metrics and Tracing
+### Unified Instrumentation (Recommended)
 
-The simplest approach registers all framework meters and activity sources at once:
+The simplest approach registers all framework meters and activity sources in a single call:
 
 ```csharp
 builder.Services.AddOpenTelemetry()
-    .AddAllDispatchMetrics()
-    .AddAllDispatchTracing();
+    .AddDispatchInstrumentation()   // registers ALL meters + activity sources
+    .WithTracing(t => t.AddOtlpExporter())
+    .WithMetrics(m => m.AddPrometheusExporter());
 ```
 
-These extension methods are defined in `OpenTelemetryExtensions` from the `Excalibur.Dispatch.Observability` package.
+This follows the ASP.NET Core pattern (`AddAspNetCoreInstrumentation()`). The method is defined in `OpenTelemetryExtensions` from the `Excalibur.Dispatch.Observability` package.
 
-### With Exporters
+:::tip Auto-wire
+`AddDispatchPipeline()` automatically registers `AddDispatchTelemetry()`, so metrics and traces emit whenever OpenTelemetry is configured -- no explicit opt-in required.
+:::
 
-Combine with your preferred exporter:
+### Granular Registration
+
+For more control, register metrics and tracing separately:
 
 ```csharp
 builder.Services.AddOpenTelemetry()
@@ -77,8 +82,8 @@ This registers the following meters:
 | `Excalibur.Dispatch.DeadLetterQueue` | Observability | Dead letter queue metrics |
 | `Excalibur.Dispatch.CircuitBreaker` | Observability | Circuit breaker state and operation metrics |
 | `Excalibur.Dispatch.Streaming` | Dispatch | Streaming document handler metrics |
-| `Excalibur.Dispatch.Compliance` | Compliance | Compliance monitoring metrics |
-| `Excalibur.Dispatch.Compliance.Erasure` | Compliance | GDPR erasure request metrics |
+| `Excalibur.Compliance` | Compliance | Compliance monitoring metrics |
+| `Excalibur.Compliance.Erasure` | Compliance | GDPR erasure request metrics |
 | `Excalibur.Dispatch.Encryption` | Compliance | Encryption operation metrics |
 | `Excalibur.Dispatch.BackgroundServices` | Outbox | Background service processing metrics |
 | `Excalibur.Dispatch.Sagas` | Saga | Saga orchestration metrics |
@@ -188,7 +193,7 @@ This registers the following activity sources:
 | `Excalibur.Dispatch.Pipeline` | Dispatch | Pipeline execution spans |
 | `Excalibur.Dispatch.TimePolicy` | Dispatch | Time policy operation spans |
 | `Excalibur.Dispatch.Streaming` | Dispatch | Streaming handler spans |
-| `Excalibur.Dispatch.Compliance.Erasure` | Compliance | GDPR erasure operation spans |
+| `Excalibur.Compliance.Erasure` | Compliance | GDPR erasure operation spans |
 | `Excalibur.Data.Cdc` | Data.SqlServer | CDC processing spans |
 | `Excalibur.Data.Audit` | Data.ElasticSearch | Audit recording spans |
 | `Excalibur.LeaderElection` | LeaderElection | Leader election acquisition spans |
@@ -285,7 +290,7 @@ Each package exposes its telemetry names through constants classes. Use these wh
 | `TransportTelemetryConstants` | `Excalibur.Dispatch.Transport.Diagnostics` | Transport metric/tag names |
 | `GooglePubSubTelemetryConstants` | `Excalibur.Dispatch.Transport.GooglePubSub` | Google Pub/Sub consolidated names |
 | `ContextObservabilityTelemetryConstants` | `Excalibur.Dispatch.Observability.Diagnostics` | Context flow meter/activity names |
-| `ErasureTelemetryConstants` | `Excalibur.Dispatch.Compliance.Diagnostics` | GDPR erasure meter/activity/metric names |
+| `ErasureTelemetryConstants` | `Excalibur.Compliance.Diagnostics` | GDPR erasure meter/activity/metric names |
 | `CdcTelemetryConstants` | `Excalibur.Data.SqlServer.Diagnostics` | CDC meter/activity/metric names |
 | `AuditTelemetryConstants` | `Excalibur.Data.ElasticSearch.Diagnostics` | Audit meter/activity/metric names |
 | `LeaderElectionTelemetryConstants` | `Excalibur.LeaderElection.Diagnostics` | Leader election meter/activity/metric names |

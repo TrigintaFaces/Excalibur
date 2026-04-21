@@ -21,6 +21,7 @@ using IMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
 using IMessageResult = Excalibur.Dispatch.Abstractions.IMessageResult;
 using InboxOptions = Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions;
 using MessageKinds = Excalibur.Dispatch.Abstractions.MessageKinds;
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Middleware.Inbox;
 
@@ -390,7 +391,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		var handlerType = messageType.FullName ?? messageType.Name;
 
 		// Single-read status lookup avoids an extra storage round-trip on the hot path.
-		var existingEntry = await _inboxStore.GetEntryAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
+		var existingEntry = await _inboxStore!.GetEntryAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
 
 		if (existingEntry != null)
 		{
@@ -406,11 +407,11 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 					}
 
 					LogMessageBeingProcessed(messageId);
-					return new Excalibur.Dispatch.Messaging.MessageResult(succeeded: true);
+					return MR.Success();
 
 				case InboxStatus.Processed:
 					LogMessageAlreadyProcessed(messageId);
-					return new Excalibur.Dispatch.Messaging.MessageResult(succeeded: true);
+					return MR.Success();
 
 				case InboxStatus.Failed:
 					LogMessagePreviouslyFailed(messageId);
@@ -487,13 +488,13 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		var expiry = TimeSpan.FromHours(_options.DeduplicationExpiryHours);
 
 		// Check for duplicates
-		var isDuplicate = await _deduplicator.IsDuplicateAsync(messageId, expiry, cancellationToken)
+		var isDuplicate = await _deduplicator!.IsDuplicateAsync(messageId, expiry, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (isDuplicate)
 		{
 			LogMessageIsDuplicate(_logger, messageId);
-			return new Excalibur.Dispatch.Messaging.MessageResult(succeeded: true);
+			return MR.Success();
 		}
 
 		try

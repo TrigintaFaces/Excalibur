@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Exceptions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchExceptionDepthShould
 {
 	[Fact]
@@ -34,7 +34,7 @@ public sealed class DispatchExceptionDepthShould
 		var ex = new DispatchException("outer", inner);
 
 		ex.Message.ShouldBe("outer");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -57,7 +57,7 @@ public sealed class DispatchExceptionDepthShould
 		ex.DispatchStatusCode.ShouldBe(503);
 		ex.ErrorCode.ShouldBe(ErrorCodes.NetworkConnectionFailed);
 		ex.Message.ShouldBe("network error");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Theory]

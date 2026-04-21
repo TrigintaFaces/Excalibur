@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Validation.Context;
 /// <summary>
 ///     Tests for the <see cref="FieldValidationRule" /> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class FieldValidationRuleShould
 {
@@ -22,7 +22,7 @@ public sealed class FieldValidationRuleShould
 		sut.MinLength.ShouldBeNull();
 		sut.MaxLength.ShouldBeNull();
 		sut.CustomValidator.ShouldBeNull();
-		sut.ErrorMessage.ShouldBeNull();
+		sut.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -74,7 +74,7 @@ public sealed class FieldValidationRuleShould
 	public void SetErrorMessage()
 	{
 		var sut = new FieldValidationRule { ErrorMessage = "Field is invalid" };
-		sut.ErrorMessage.ShouldBe("Field is invalid");
+		sut.ErrorMessage!.ShouldBe("Field is invalid");
 	}
 
 	[Fact]
@@ -95,6 +95,6 @@ public sealed class FieldValidationRuleShould
 		sut.MinLength.ShouldBe(1);
 		sut.MaxLength.ShouldBe(10);
 		sut.Pattern.ShouldBe(@"^\d+$");
-		sut.ErrorMessage.ShouldBe("Must be numeric");
+		sut.ErrorMessage!.ShouldBe("Must be numeric");
 	}
 }

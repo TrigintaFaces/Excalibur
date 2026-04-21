@@ -440,27 +440,27 @@ function Test-IncludeDockerOption {
 }
 
 function Test-FrameworkOption {
-    Write-Host "`n=== AC-2b: --Framework Option ===" -ForegroundColor Cyan
+    Write-Host "`n=== AC-2b: --Framework Option (net10.0 only) ===" -ForegroundColor Cyan
 
-    foreach ($framework in @("net8.0", "net9.0")) {
-        # Test with dispatch-api as representative
-        $projectName = "Test_dispatch_api_$($framework -replace '\.', '_')"
-        $outputDir = Join-Path $TestOutputDir $projectName
+    # Framework=net10.0 is the only supported target since .NET 8/9 multi-target
+    # was removed from templates. This test verifies the default behaviour.
+    $framework = "net10.0"
+    $projectName = "Test_dispatch_api_$($framework -replace '\.', '_')"
+    $outputDir = Join-Path $TestOutputDir $projectName
 
-        if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
+    if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-        $output = dotnet new dispatch-api -n $projectName -o $outputDir --Framework $framework 2>&1 | Out-String
-        $created = $output -match "was created successfully"
+    $output = dotnet new dispatch-api -n $projectName -o $outputDir --Framework $framework 2>&1 | Out-String
+    $created = $output -match "was created successfully"
 
-        Write-TestResult "Instantiate dispatch-api --Framework $framework" $created $output
+    Write-TestResult "Instantiate dispatch-api --Framework $framework" $created $output
 
-        if ($created) {
-            $csprojPath = Join-Path $outputDir "$projectName.csproj"
-            if (Test-Path $csprojPath) {
-                $content = Get-Content $csprojPath -Raw
-                $hasFramework = $content -match "<TargetFramework>$framework</TargetFramework>"
-                Write-TestResult "  .csproj has TargetFramework=$framework" $hasFramework
-            }
+    if ($created) {
+        $csprojPath = Join-Path $outputDir "$projectName.csproj"
+        if (Test-Path $csprojPath) {
+            $content = Get-Content $csprojPath -Raw
+            $hasFramework = $content -match "<TargetFramework>$framework</TargetFramework>"
+            Write-TestResult "  .csproj has TargetFramework=$framework" $hasFramework
         }
     }
 }
@@ -567,53 +567,51 @@ function Test-CqrsCombinations {
 function Test-DockerFrameworkTags {
     Write-Host "`n=== AC-Docker: Dockerfile Framework Tag Validation (bd-5kjmq) ===" -ForegroundColor Cyan
 
+    # Templates only target net10.0 since .NET 8/9 multi-target was dropped.
+    $framework = "net10.0"
+    $expectedTag = $framework -replace 'net', ''
+
     foreach ($template in $Templates) {
         if (-not $template.HasDocker) { continue }
 
         $shortName = $template.ShortName
+        $projectName = "Test_${shortName}_docker_$($framework -replace '\.', '_')" -replace '-', '_'
+        $outputDir = Join-Path $TestOutputDir $projectName
 
-        foreach ($framework in @("net8.0", "net9.0")) {
-            $expectedTag = $framework -replace 'net', ''
-            $projectName = "Test_${shortName}_docker_$($framework -replace '\.', '_')" -replace '-', '_'
-            $outputDir = Join-Path $TestOutputDir $projectName
+        if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-            if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
+        $output = dotnet new $shortName -n $projectName -o $outputDir --Framework $framework --IncludeDocker true 2>&1 | Out-String
+        $created = $output -match "was created successfully"
 
-            $output = dotnet new $shortName -n $projectName -o $outputDir --Framework $framework --IncludeDocker true 2>&1 | Out-String
-            $created = $output -match "was created successfully"
+        Write-TestResult "Instantiate $shortName --Framework $framework --IncludeDocker" $created $output
 
-            Write-TestResult "Instantiate $shortName --Framework $framework --IncludeDocker" $created $output
+        if ($created) {
+            $dockerfilePath = Join-Path $outputDir "Dockerfile"
+            $dockerExists = Test-Path $dockerfilePath
 
-            if ($created) {
-                $dockerfilePath = Join-Path $outputDir "Dockerfile"
-                $dockerExists = Test-Path $dockerfilePath
+            Write-TestResult "  $shortName/$framework has Dockerfile" $dockerExists
 
-                Write-TestResult "  $shortName/$framework has Dockerfile" $dockerExists
+            if ($dockerExists) {
+                $dockerContent = Get-Content $dockerfilePath -Raw
 
-                if ($dockerExists) {
-                    $dockerContent = Get-Content $dockerfilePath -Raw
+                # Verify SDK image tag matches framework
+                $hasSdkTag = $dockerContent -match "mcr\.microsoft\.com/dotnet/sdk:$expectedTag"
+                Write-TestResult "  $shortName/$framework Dockerfile has sdk:$expectedTag" $hasSdkTag
 
-                    # Verify SDK image tag matches framework
-                    $hasSdkTag = $dockerContent -match "mcr\.microsoft\.com/dotnet/sdk:$expectedTag"
-                    Write-TestResult "  $shortName/$framework Dockerfile has sdk:$expectedTag" $hasSdkTag
-
-                    # Verify runtime/aspnet image tag matches framework
-                    # dispatch-worker uses runtime, others use aspnet
-                    if ($shortName -eq "dispatch-worker") {
-                        $hasRuntimeTag = $dockerContent -match "mcr\.microsoft\.com/dotnet/runtime:$expectedTag"
-                        Write-TestResult "  $shortName/$framework Dockerfile has runtime:$expectedTag" $hasRuntimeTag
-                    }
-                    else {
-                        $hasAspnetTag = $dockerContent -match "mcr\.microsoft\.com/dotnet/aspnet:$expectedTag"
-                        Write-TestResult "  $shortName/$framework Dockerfile has aspnet:$expectedTag" $hasAspnetTag
-                    }
-
-                    # Verify NO hardcoded wrong framework tag
-                    if ($framework -eq "net9.0") {
-                        $hasOldTag = $dockerContent -match "dotnet/(sdk|aspnet|runtime):8\.0"
-                        Write-TestResult "  $shortName/$framework Dockerfile has NO stale 8.0 tags" (-not $hasOldTag)
-                    }
+                # Verify runtime/aspnet image tag matches framework
+                # dispatch-worker uses runtime, others use aspnet
+                if ($shortName -eq "dispatch-worker") {
+                    $hasRuntimeTag = $dockerContent -match "mcr\.microsoft\.com/dotnet/runtime:$expectedTag"
+                    Write-TestResult "  $shortName/$framework Dockerfile has runtime:$expectedTag" $hasRuntimeTag
                 }
+                else {
+                    $hasAspnetTag = $dockerContent -match "mcr\.microsoft\.com/dotnet/aspnet:$expectedTag"
+                    Write-TestResult "  $shortName/$framework Dockerfile has aspnet:$expectedTag" $hasAspnetTag
+                }
+
+                # Verify NO hardcoded stale framework tags (8.0/9.0)
+                $hasStaleTag = $dockerContent -match "dotnet/(sdk|aspnet|runtime):(8|9)\.0"
+                Write-TestResult "  $shortName/$framework Dockerfile has NO stale 8.0/9.0 tags" (-not $hasStaleTag)
             }
         }
     }

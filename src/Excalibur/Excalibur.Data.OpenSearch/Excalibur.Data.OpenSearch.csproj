@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Data.OpenSearch</PackageId>
+    <Description>OpenSearch data provider implementation for Excalibur, including projection store for event sourcing read models.</Description>
+    <PackageTags>excalibur;data;opensearch;projections;event-sourcing;search;document-database</PackageTags>
+    <!-- AOT: NOT compatible. OpenSearch.Client uses reflection for query DSL and document serialization. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <!-- PublicAPI baseline populated in Sprint 739 (A.10) -->
+    <!-- NoWarn RS0016/RS0017 removed: baseline being populated -->
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="OpenSearch.Client" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.ElasticSearch.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+  <!-- AdditionalFiles for PublicAPI.Shipped/Unshipped.txt are registered by Directory.Build.props -->
+</Project>

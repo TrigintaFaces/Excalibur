@@ -3,11 +3,12 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Configuration;
 
-namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
+
+using Excalibur.Security.EventStores;namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
 
 /// <summary>
 /// Depth tests for <see cref="ElasticsearchSecurityEventStore"/>.
@@ -15,9 +16,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
 /// Note: The constructor has a known bug (Content-Type added to DefaultRequestHeaders)
 /// which prevents testing StoreEventsAsync/QueryEventsAsync without reflection.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Stores")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Stores)]
 public sealed class ElasticsearchSecurityEventStoreDepthShould
 {
 	[Fact]

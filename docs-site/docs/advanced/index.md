@@ -10,7 +10,7 @@ This section covers advanced scenarios, deployment patterns, security hardening,
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A working Dispatch application
 - Completion of [Getting Started](../getting-started/index.md) and [Core Concepts](../core-concepts/index.md)
 
@@ -25,6 +25,7 @@ Once you've mastered the [core concepts](../core-concepts/index.md), these advan
 | [Testing](testing.md) | Testing strategies | Unit, integration, conformance testing |
 | [Source Generators](source-generators.md) | AOT-compatible code generation | Handler registry, JSON serialization, result factory |
 | [Native AOT](native-aot.md) | Native AOT compilation | Zero-reflection dispatch, trimming, AOT publish |
+| [AOT Compatibility Matrix](aot-compatibility.md) | Per-package AOT status | 139/173 packages AOT-safe, blocking dependencies |
 
 ---
 

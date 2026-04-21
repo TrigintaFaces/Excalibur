@@ -8,11 +8,11 @@ description: Use typed IDb interfaces and per-processor connection factories to 
 
 Excalibur provides **typed marker interfaces** derived from `IDb` that let you register separate database connections for different stores. This is useful when your event store, saga state, outbox messages, and read-side projections live on different databases.
 
-For data processing pipelines, Excalibur uses a different approach: **per-processor `Func<IDbConnection>` injection** with .NET 8 keyed services. See [Data Processing Multi-Database](#data-processing-multi-database) below.
+For data processing pipelines, Excalibur uses a different approach: **per-processor `Func<IDbConnection>` injection** with keyed services. See [Data Processing Multi-Database](#data-processing-multi-database) below.
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Two or more data provider packages installed
 - Familiarity with [IDb interface](../data-access/idb-interface.md) and [dependency injection](../core-concepts/dependency-injection.md)
 
@@ -183,7 +183,7 @@ The `Db` base class:
 
 ## Data Processing Multi-Database {#data-processing-multi-database}
 
-Data processing uses a different multi-database strategy than the typed `IDb` interfaces above. Instead of marker interfaces, data processing relies on **per-processor `Func<IDbConnection>` injection** using .NET 8 keyed services.
+Data processing uses a different multi-database strategy than the typed `IDb` interfaces above. Instead of marker interfaces, data processing relies on **per-processor `Func<IDbConnection>` injection** using keyed services.
 
 ### Why a Different Approach?
 
@@ -282,9 +282,9 @@ The `IConfiguration` overloads use `OptionsBuilder<T>.BindConfiguration()` with 
 }
 ```
 
-### Multi-Database with Keyed Services (.NET 8+)
+### Multi-Database with Keyed Services
 
-When processors need different databases, use .NET 8 keyed services to register named connection factories. Each processor resolves its own factory by key.
+When processors need different databases, use keyed services to register named connection factories. Each processor resolves its own factory by key.
 
 #### Step 1: Register Named Connection Factories
 
@@ -390,7 +390,7 @@ public class InventorySnapshotProcessor : DataProcessor<InventoryRecord>
 
 ### Multi-Database without Keyed Services
 
-If you are targeting .NET 8 but prefer not to use keyed services, or need to support older frameworks, you can use explicit factory registration:
+If you prefer not to use keyed services, you can use explicit factory registration:
 
 ```csharp
 var customersDb = builder.Configuration.GetConnectionString("CustomersDb");
@@ -452,7 +452,7 @@ public class CustomerMigrationProcessor : DataProcessor<CustomerRecord>
 
 | Approach | When to Use | Pros | Cons |
 |----------|-------------|------|------|
-| **Keyed services** | .NET 8+, many processors | Clean DI, no wrapper types | Requires .NET 8+, string keys |
+| **Keyed services** | Many processors | Clean DI, no wrapper types | String keys |
 | **Typed factory wrappers** | Any .NET version | Type-safe, explicit | One class per database source |
 | **Single factory** | All processors use same DB | Simplest setup | No multi-database support |
 

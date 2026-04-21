@@ -129,8 +129,8 @@ public sealed class RabbitMqContainerFixture : ContainerFixtureBase
 			.WithPortBinding(DefaultAmqpPort, true)
 			.WithPortBinding(DefaultManagementPort, true)
 			.WithWaitStrategy(Wait.ForUnixContainer()
-				.UntilPortIsAvailable(DefaultAmqpPort)
-				.UntilPortIsAvailable(DefaultManagementPort))
+				.UntilInternalTcpPortIsAvailable(DefaultAmqpPort)
+				.UntilInternalTcpPortIsAvailable(DefaultManagementPort))
 			.WithCleanUp(true)
 			.Build();
 

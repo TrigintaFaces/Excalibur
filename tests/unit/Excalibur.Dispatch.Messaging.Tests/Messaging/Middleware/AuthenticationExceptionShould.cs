@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <remarks>
 /// Tests the exception thrown when authentication fails.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class AuthenticationExceptionShould
 {
@@ -46,7 +46,7 @@ public sealed class AuthenticationExceptionShould
 		var exception = new AuthenticationException();
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	#endregion
@@ -106,7 +106,7 @@ public sealed class AuthenticationExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -116,7 +116,7 @@ public sealed class AuthenticationExceptionShould
 		var exception = new AuthenticationException("Message", null!);
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -130,8 +130,8 @@ public sealed class AuthenticationExceptionShould
 		var exception = new AuthenticationException("Authentication failed", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
-		exception.InnerException.InnerException.ShouldBe(rootCause);
+		exception.InnerException!.ShouldBe(innerException);
+		exception.InnerException.InnerException!.ShouldBe(rootCause);
 	}
 
 	#endregion

@@ -8,12 +8,13 @@ using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Excalibur.Outbox.SqlServer;
+using Excalibur.Outbox.SqlServer;
+
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for configuring SQL Server outbox store.
@@ -56,6 +57,7 @@ public static class SqlServerOutboxExtensions
 			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
 		services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 
 		return services;
 	}
@@ -103,6 +105,7 @@ public static class SqlServerOutboxExtensions
 			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
 		services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 
 		return services;
 	}
@@ -220,6 +223,7 @@ public static class SqlServerOutboxExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerDeadLetterQueueOptions>, SqlServerDeadLetterQueueOptionsValidator>());
 		services.TryAddSingleton<SqlServerDeadLetterQueue>();
 		services.TryAddSingleton<IDeadLetterQueue>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
+		services.TryAddSingleton<IDeadLetterQueueAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
 
 		return services;
 	}

@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.DeadLetter;
 /// Verifies DI registration for Kafka DLQ services (S523.7).
 /// Sprint 697: Updated for keyed service registration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KafkaDeadLetterServiceRegistrationShould
 {
 	[Fact]

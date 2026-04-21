@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Data.Abstractions")]
-[Trait("Feature", "HealthChecks")]
+[Trait(TraitNames.Feature, TestFeatures.HealthChecks)]
 public sealed class DetailedHealthCheckResultShould : UnitTestBase
 {
 	#region Constructor Tests
@@ -76,7 +76,7 @@ public sealed class DetailedHealthCheckResultShould : UnitTestBase
 			exception);
 
 		// Assert
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]
@@ -191,7 +191,7 @@ public sealed class DetailedHealthCheckResultShould : UnitTestBase
 		// Assert
 		result.Status.ShouldBe(status);
 		result.Description.ShouldBe(description);
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 		result.Data["server"].ShouldBe("db-01");
 		result.ResponseTime.ShouldBe(responseTime);
 		result.Metrics["latency"].ShouldBe(5000);
@@ -239,7 +239,7 @@ public sealed class DetailedHealthCheckResultShould : UnitTestBase
 		var standard = detailed.ToHealthCheckResult();
 
 		// Assert
-		standard.Exception.ShouldBe(exception);
+		standard.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]

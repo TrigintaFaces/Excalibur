@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// Covers ResolveAsync, Ready, edge cases, and error wrapping.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DbConnectionExtensionsDepthShould
 {
 	[Fact]
@@ -42,7 +42,7 @@ public sealed class DbConnectionExtensionsDepthShould
 		// Act & Assert
 		var ex = await Should.ThrowAsync<OperationFailedException>(
 			() => connection.ResolveAsync(dataRequest));
-		ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+		ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

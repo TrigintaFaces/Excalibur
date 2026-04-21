@@ -315,7 +315,9 @@ public sealed partial class ElasticsearchRequestLogger
 		{
 			// Use reflection to extract routing information since IRequest interface is no longer available
 			var requestType = request.GetType();
+			#pragma warning disable IL2075 // Serialization/reflection inherently not AOT-safe
 			var routeValuesProperty = requestType.GetProperty("RouteValues");
+			#pragma warning restore IL2075
 
 			if (routeValuesProperty?.GetValue(request) is IDictionary<string, object> routeValues)
 			{

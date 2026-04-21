@@ -61,7 +61,7 @@ public sealed class KafkaContainerFixture : ContainerFixtureBase
 			.WithName($"kafka-test-{Guid.NewGuid():N}")
 			.WithWaitStrategy(Wait.ForUnixContainer()
 				.UntilMessageIsLogged(".*Kafka Server started.*")
-				.UntilPortIsAvailable(9093))
+				.UntilInternalTcpPortIsAvailable(9093))
 			.WithCleanUp(true)
 			.Build();
 

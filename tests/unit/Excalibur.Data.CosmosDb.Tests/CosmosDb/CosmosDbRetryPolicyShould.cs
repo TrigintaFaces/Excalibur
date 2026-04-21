@@ -20,7 +20,7 @@ namespace Excalibur.Data.Tests.CosmosDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "CosmosDb")]
-[Trait("Feature", "Resilience")]
+[Trait(TraitNames.Feature, TestFeatures.Resilience)]
 public sealed class CosmosDbRetryPolicyShould
 {
 	private readonly Type _policyType;

@@ -17,7 +17,7 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
-[Trait("Feature", "DependencyInjection")]
+[Trait(TraitNames.Feature, TestFeatures.DependencyInjection)]
 public sealed class DynamoDbCdcExtensionsShould
 {
 	#region AddDynamoDbCdc Tests

@@ -11,12 +11,14 @@ namespace Excalibur.Data.Tests.MongoDB;
 /// </summary>
 /// <remarks>
 /// Sprint 698 T.7 (i4nq8): Verifies keyed DI registration pattern for MongoDB persistence.
+/// Updated Sprint 779: API changed from <c>Action&lt;MongoDbProviderOptions&gt;</c> to
+/// <c>Action&lt;IMongoDBDataBuilder&gt;</c>.
 /// Note: MongoDB persistence provider has external dependencies (IMongoDatabase) that cannot be
 /// resolved from a basic ServiceCollection, so we verify registrations via ServiceDescriptor
 /// instead of resolving instances.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MongoDbServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
@@ -26,7 +28,7 @@ public sealed class MongoDbServiceCollectionExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburMongoDb(o => o.ConnectionString = "mongodb://localhost");
+		services.AddExcaliburMongoDb(mongo => mongo.ConnectionString("mongodb://localhost"));
 
 		// Assert - verify registration exists (MongoDb has external deps so we check descriptors)
 		services.Any(d =>
@@ -41,7 +43,7 @@ public sealed class MongoDbServiceCollectionExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburMongoDb(o => o.ConnectionString = "mongodb://localhost");
+		services.AddExcaliburMongoDb(mongo => mongo.ConnectionString("mongodb://localhost"));
 
 		// Assert
 		services.Any(d =>
@@ -56,11 +58,9 @@ public sealed class MongoDbServiceCollectionExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburMongoDb(o =>
-		{
-			o.ConnectionString = "mongodb://custom-host:27017";
-			o.DatabaseName = "test-db";
-		});
+		services.AddExcaliburMongoDb(mongo => mongo
+			.ConnectionString("mongodb://custom-host:27017")
+			.DatabaseName("test-db"));
 		using var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -76,8 +76,8 @@ public sealed class MongoDbServiceCollectionExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburMongoDb(o => o.ConnectionString = "mongodb://localhost");
-		services.AddExcaliburMongoDb(o => o.ConnectionString = "mongodb://localhost");
+		services.AddExcaliburMongoDb(mongo => mongo.ConnectionString("mongodb://localhost"));
+		services.AddExcaliburMongoDb(mongo => mongo.ConnectionString("mongodb://localhost"));
 
 		// Assert - keyed registration count should not double
 		var keyedCount = services.Count(d =>
@@ -90,13 +90,13 @@ public sealed class MongoDbServiceCollectionExtensionsShould : UnitTestBase
 	public void ThrowOnNullServices()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((IServiceCollection)null!).AddExcaliburMongoDb(o => o.ConnectionString = "x"));
+			((IServiceCollection)null!).AddExcaliburMongoDb(mongo => mongo.ConnectionString("x")));
 	}
 
 	[Fact]
 	public void ThrowOnNullConfigure()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ServiceCollection().AddExcaliburMongoDb(null!));
+			new ServiceCollection().AddExcaliburMongoDb((Action<IMongoDBDataBuilder>)null!));
 	}
 }

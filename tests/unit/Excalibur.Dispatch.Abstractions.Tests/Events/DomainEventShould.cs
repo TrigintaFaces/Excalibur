@@ -11,7 +11,7 @@ public sealed class DomainEventShould
 	// Test implementation of abstract DomainEvent
 	private sealed record TestDomainEvent : DomainEvent
 	{
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	// Derived record with positional params and AggregateId override
@@ -80,9 +80,9 @@ public sealed class DomainEventShould
 		eventWithMetadata.Metadata.ShouldContainKey("key1");
 		eventWithMetadata.Metadata["key1"].ShouldBe("value1");
 
-		eventWithMultipleMetadata.Metadata.ShouldContainKey("key1");
-		eventWithMultipleMetadata.Metadata.ShouldContainKey("key2");
-		eventWithMultipleMetadata.Metadata["key2"].ShouldBe(42);
+		eventWithMultipleMetadata.Metadata!.ShouldContainKey("key1");
+		eventWithMultipleMetadata.Metadata!.ShouldContainKey("key2");
+		eventWithMultipleMetadata.Metadata!["key2"].ShouldBe(42);
 	}
 
 	[Fact]
@@ -95,10 +95,8 @@ public sealed class DomainEventShould
 		// Act
 		var eventWithCorrelation = domainEvent.WithCorrelationId(correlationId);
 
-		// Assert
-		_ = eventWithCorrelation.Metadata.ShouldNotBeNull();
-		eventWithCorrelation.Metadata.ShouldContainKey("CorrelationId");
-		eventWithCorrelation.Metadata["CorrelationId"].ShouldBe(correlationId.ToString());
+		// Assert -- T.21: CorrelationId is now a first-class property
+		eventWithCorrelation.CorrelationId.ShouldBe(correlationId.ToString());
 	}
 
 	[Fact]
@@ -111,10 +109,8 @@ public sealed class DomainEventShould
 		// Act
 		var eventWithCausation = domainEvent.WithCausationId(causationId);
 
-		// Assert
-		_ = eventWithCausation.Metadata.ShouldNotBeNull();
-		eventWithCausation.Metadata.ShouldContainKey("CausationId");
-		eventWithCausation.Metadata["CausationId"].ShouldBe(causationId);
+		// Assert -- T.21: CausationId is now a first-class property
+		eventWithCausation.CausationId.ShouldBe(causationId);
 	}
 
 	[Fact]
@@ -176,12 +172,12 @@ public sealed class DomainEventShould
 			.WithCausationId("cause-123")
 			.WithMetadata("extra", 99);
 
-		// Assert
-		evt.Metadata!.Count.ShouldBe(4);
+		// Assert -- T.21: CorrelationId/CausationId are first-class properties, not in Metadata
+		evt.Metadata!.Count.ShouldBe(2);
 		evt.Metadata["source"].ShouldBe("test");
-		evt.Metadata["CorrelationId"].ShouldBe(correlationId.ToString());
-		evt.Metadata["CausationId"].ShouldBe("cause-123");
 		evt.Metadata["extra"].ShouldBe(99);
+		evt.CorrelationId.ShouldBe(correlationId.ToString());
+		evt.CausationId.ShouldBe("cause-123");
 	}
 
 	[Fact]
@@ -253,7 +249,7 @@ public sealed class DomainEventShould
 		var typed = (TestOrderCreated)withMeta;
 		typed.OrderId.ShouldBe("order-1");
 		typed.Total.ShouldBe(50m);
-		typed.Metadata!["CorrelationId"].ShouldBe(correlationId.ToString());
+		typed.CorrelationId.ShouldBe(correlationId.ToString());
 	}
 
 	// ── Default values ──

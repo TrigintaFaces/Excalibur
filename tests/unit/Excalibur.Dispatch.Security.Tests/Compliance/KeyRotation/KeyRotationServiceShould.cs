@@ -5,10 +5,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Compliance.KeyRotation;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.KeyRotation;
 
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class KeyRotationServiceShould : IDisposable
 {
 	private readonly IKeyManagementProvider _keyProvider;
@@ -345,7 +346,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("not found");
+		result.ErrorMessage!.ShouldContain("not found");
 	}
 
 	[Fact]

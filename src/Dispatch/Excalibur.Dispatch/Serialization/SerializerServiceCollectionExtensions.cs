@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Options.Serialization;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -27,9 +28,11 @@ public static class SerializerServiceCollectionExtensions
 		services.TryAddSingleton<DispatchJsonSerializer>();
 		services.TryAddSingleton<DispatchJsonContext>();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MessageSerializerOptions>, MessageSerializerOptionsValidator>());
+
 		_ = services.AddOptions<MessageSerializerOptions>()
 			.Configure(static options => options.SerializerMap[0] = typeof(DispatchJsonSerializer))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton<MessageSerializerFactory>();
@@ -55,7 +58,6 @@ public static class SerializerServiceCollectionExtensions
 
 		_ = services.AddOptions<MessageSerializerOptions>()
 			.Configure(options => options.SerializerMap[version] = typeof(TSerializer))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton<MessageSerializerFactory>();

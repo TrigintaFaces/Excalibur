@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// Covers AC1-AC10 for task bd-xccu2.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataRequestBaseShould
 {
 	/// <summary>

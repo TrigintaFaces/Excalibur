@@ -10,7 +10,7 @@ description: Standardized RFC 7807 problem details responses with environment-aw
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An ASP.NET Core web application
 - Familiarity with [ASP.NET Core deployment](./aspnet-core.md) and [error handling patterns](../patterns/error-handling.md)
 
@@ -205,7 +205,8 @@ See `samples/09-advanced/WebWorkerSample/WebHost/Program.cs` for a complete exam
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddExcaliburWebServices(builder.Configuration, typeof(PingCommand).Assembly);
+builder.Services.AddExcalibur(excalibur => excalibur
+    .ScanAssemblies(typeof(PingCommand).Assembly));
 builder.Services.AddGlobalExceptionHandler();
 
 var app = builder.Build();

@@ -13,8 +13,8 @@ namespace Excalibur.Data.Tests.DynamoDb.Cdc.Builders;
 /// <see cref="IDynamoDbCdcBuilder.BindConfiguration"/> methods added in Sprint 662 (CDC Phase 2).
 /// DynamoDB does not use connection strings; only factory-based overloads are provided.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DynamoDbCdcWithStateStoreShould : UnitTestBase
 {
 	// --- WithStateStore(Func<IServiceProvider, IAmazonDynamoDB> clientFactory) ---

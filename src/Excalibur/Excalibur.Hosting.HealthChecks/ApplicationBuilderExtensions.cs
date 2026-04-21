@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Mime;
 using System.Text;
 
@@ -39,6 +40,8 @@ public static class ExcaliburHealthChecksApplicationExtensions
 	/// <param name="app"> The <see cref="IApplicationBuilder" /> instance. </param>
 	/// <returns> The <see cref="IApplicationBuilder" /> instance for chaining further configurations. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="app" /> is null. </exception>
+	[RequiresUnreferencedCode("Health check JSON serialization uses DispatchJsonSerializer which may require unreferenced code.")]
+	[RequiresDynamicCode("Health check JSON serialization uses DispatchJsonSerializer which requires dynamic code generation.")]
 	public static IApplicationBuilder UseExcaliburHealthChecks(this IApplicationBuilder app)
 	{
 		ArgumentNullException.ThrowIfNull(app);

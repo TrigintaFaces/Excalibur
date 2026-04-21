@@ -21,8 +21,8 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// Sprint 455 - S455.5: Unit tests for convenience APIs (S455.4).
 /// Tests context-less dispatch, ambient context reuse, and IMessageContextFactory integration.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class DispatcherContextExtensionsShould : IDisposable
 {

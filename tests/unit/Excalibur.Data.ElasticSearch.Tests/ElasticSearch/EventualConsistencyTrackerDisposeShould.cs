@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 /// Unit tests for <see cref="EventualConsistencyTracker"/> Dispose functionality.
 /// Verifies Sprint 389 fix: Dispose method properly releases resources.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class EventualConsistencyTrackerDisposeShould : UnitTestBase
 {
 	[Fact]
@@ -61,7 +61,9 @@ public sealed class EventualConsistencyTrackerDisposeShould : UnitTestBase
 	public void Constructor_ThrowsOnNullOptions()
 	{
 		// Arrange
-		var client = A.Fake<ElasticsearchClient>();
+		// S799: real unconnected ElasticsearchClient per ADR-142 §D7.
+		var client = new ElasticsearchClient(
+			new ElasticsearchClientSettings(new Uri("http://localhost:9200")));
 		var logger = A.Fake<ILogger<EventualConsistencyTracker>>();
 
 		// Act & Assert
@@ -73,7 +75,9 @@ public sealed class EventualConsistencyTrackerDisposeShould : UnitTestBase
 	public void Constructor_ThrowsOnNullLogger()
 	{
 		// Arrange
-		var client = A.Fake<ElasticsearchClient>();
+		// S799: real unconnected ElasticsearchClient per ADR-142 §D7.
+		var client = new ElasticsearchClient(
+			new ElasticsearchClientSettings(new Uri("http://localhost:9200")));
 		var options = Options.Create(new ProjectionOptions { IndexPrefix = "test" });
 
 		// Act & Assert
@@ -83,7 +87,9 @@ public sealed class EventualConsistencyTrackerDisposeShould : UnitTestBase
 
 	private static EventualConsistencyTracker CreateTracker()
 	{
-		var client = A.Fake<ElasticsearchClient>();
+		// S799: real unconnected ElasticsearchClient per ADR-142 §D7.
+		var client = new ElasticsearchClient(
+			new ElasticsearchClientSettings(new Uri("http://localhost:9200")));
 		var options = Options.Create(new ProjectionOptions
 		{
 			IndexPrefix = "test",

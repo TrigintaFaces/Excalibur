@@ -24,8 +24,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 /// 3. AsyncLocal context restoration across sync/async/exception paths
 /// 4. Cancellation paths
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatcherOptimizationShould
 {
 	private readonly FinalDispatchHandler _finalHandler = new(

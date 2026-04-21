@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.DeadLetter;
 /// Unit tests for <see cref="KafkaDeadLetterProducer"/> — validates B1 fix:
 /// <c>ProduceToOriginalTopicAsync</c> publishes to the exact target topic without DLQ suffix.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KafkaDeadLetterProducerShould
 {
 	private readonly IProducer<string, byte[]> _kafkaProducer;

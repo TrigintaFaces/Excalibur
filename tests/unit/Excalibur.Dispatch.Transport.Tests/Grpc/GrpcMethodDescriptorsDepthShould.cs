@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// edge cases in path extraction: single-segment paths, empty paths,
 /// deeply nested service names, and marshaller wire-up verification.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcMethodDescriptorsDepthShould
 {
 	[Fact]

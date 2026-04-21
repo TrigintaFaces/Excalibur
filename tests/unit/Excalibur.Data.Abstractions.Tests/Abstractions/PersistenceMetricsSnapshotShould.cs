@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Data.Abstractions")]
-[Trait("Feature", "Metrics")]
+[Trait(TraitNames.Feature, TestFeatures.Metrics)]
 public sealed class PersistenceMetricsSnapshotShould : UnitTestBase
 {
 	#region Constructor Tests

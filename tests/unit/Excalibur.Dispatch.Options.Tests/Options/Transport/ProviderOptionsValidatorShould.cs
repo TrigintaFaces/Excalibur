@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Options.Transport;
 /// Sprint 564 S564.55: Transport ProviderOptions IValidateOptions tests.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ProviderOptionsValidatorShould
 {
 	private readonly ProviderOptionsValidator _sut = new();

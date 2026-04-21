@@ -24,17 +24,10 @@ public sealed class PluggableSerializationOptions
 	/// Gets or sets the name of the serializer to set as current after registration.
 	/// </summary>
 	/// <remarks>
-	/// If null, MemoryPack is used as the default.
+	/// If null, no serializer is set as current. Use <c>builder.UseCurrent("System.Text.Json")</c>
+	/// or other format-specific extensions to explicitly set the current serializer.
 	/// </remarks>
 	public string? CurrentSerializerName { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether MemoryPack should be auto-registered.
-	/// </summary>
-	/// <remarks>
-	/// Defaults to true. Set to false to disable automatic MemoryPack registration.
-	/// </remarks>
-	public bool AutoRegisterMemoryPack { get; set; } = true;
 
 	/// <summary>
 	/// Gets the list of serializer registration actions to execute.

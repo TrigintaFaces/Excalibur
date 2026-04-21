@@ -10,7 +10,7 @@ using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Excalibur.Inbox.InMemory;
 
@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 ///     structured logs with correct correlation context propagation according to OpenTelemetry standards.
 /// </remarks>
 [Collection("Observability Tests")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class ObservabilityValidationTestSuite : IDisposable
 {
 	private readonly OpenTelemetryTestFixture _otelFixture;
@@ -115,17 +115,22 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 	public async Task BatchProcessor_EmitsMetricsForBatchingOperations()
 	{
 		// Arrange
-		var processedBatches = new ConcurrentQueue<IReadOnlyList<string>>();
-		var batchProcessedTcs = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var totalProcessedCount = 0;
+		var allProcessedTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var options = new MicroBatchOptions { MaxBatchSize = 3, MaxBatchDelay = TimeSpan.FromMilliseconds(100) };
+		// Use a large MaxBatchDelay so only size-based flushing triggers, but the test
+		// does NOT depend on all 3 items landing in a single batch -- the background
+		// processor may read items faster than they are queued, producing >1 batch.
+		var options = new MicroBatchOptions { MaxBatchSize = 3, MaxBatchDelay = TimeSpan.FromSeconds(30) };
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
-				var processedBatch = batch.ToArray();
-				processedBatches.Enqueue(processedBatch);
-				_ = batchProcessedTcs.TrySetResult(processedBatch);
+				if (Interlocked.Add(ref totalProcessedCount, batch.Count) >= 3)
+				{
+					_ = allProcessedTcs.TrySetResult();
+				}
+
 				return ValueTask.CompletedTask;
 			},
 			_testLogger,
@@ -143,28 +148,20 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 			await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
 			await processor.AddAsync("item3", CancellationToken.None).ConfigureAwait(false);
 
-			var processedBatch = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-				batchProcessedTcs.Task,
+			// Wait until all 3 items have been processed (possibly across multiple batches)
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				allProcessedTcs.Task,
 				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
-
-			processedBatch.Count.ShouldBe(3);
 		}
 
-		// Assert - Verify batch was processed
-		processedBatches.Count.ShouldBe(1);
-		processedBatches.TryPeek(out var recordedBatch).ShouldBeTrue();
-		recordedBatch.ShouldNotBeNull();
-		recordedBatch.Count.ShouldBe(3);
+		// Assert - All 3 items were processed (batch count is non-deterministic)
+		Volatile.Read(ref totalProcessedCount).ShouldBe(3);
 
 		// Assert - Verify activity context (activities are now stopped and recorded)
 		var activities = _otelFixture.GetRecordedActivities().Where(a => a.Source.Name == "Test.ActivitySource").ToList();
 		var batchAct = activities.FirstOrDefault(a => a.GetTagItem("test.operation")?.ToString() == "batch_processing");
 		_ = batchAct.ShouldNotBeNull();
 		batchAct.GetTagItem("batch.max_size")?.ToString().ShouldBe(options.MaxBatchSize.ToString());
-
-		// BatchProcessor only logs on errors, not on successful processing
-		// The primary observability concern is that processing completed successfully
-		// which is verified above by checking the batches were processed
 	}
 
 	[Fact]

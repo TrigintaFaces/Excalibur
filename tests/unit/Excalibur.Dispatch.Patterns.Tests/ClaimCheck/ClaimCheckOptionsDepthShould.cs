@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 /// <summary>
 /// Depth coverage tests for <see cref="ClaimCheckOptions"/> delegating properties.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ClaimCheckOptionsDepthShould
 {
 	[Fact]

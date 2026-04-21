@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
+using Excalibur.Security.EventStores;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,8 +13,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security;
 /// <summary>
 /// Unit tests for <see cref="DispatchSecurityServiceCollectionExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "DI")]
 public sealed class DispatchSecurityServiceCollectionExtensionsShould
 {
@@ -47,8 +48,7 @@ public sealed class DispatchSecurityServiceCollectionExtensionsShould
         services.AddInputValidation(config);
 
         // Assert
-        services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchMiddleware) &&
-            sd.ImplementationType == typeof(InputValidationMiddleware));
+        services.ShouldContain(sd => sd.ServiceType == typeof(InputValidationMiddleware));
         // No default validators registered -- IInputValidator is a consumer extension point
     }
 

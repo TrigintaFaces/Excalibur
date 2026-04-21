@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Buffers;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// High-performance batch serializer for Google Pub/Sub messages. Optimized for throughput with memory pooling and parallel processing.
 /// </summary>
-[RequiresDynamicCode("Uses reflection-based serialization via MakeGenericMethod")]
-[RequiresUnreferencedCode("Uses reflection-based serialization that may require unreferenced types")]
+[RequiresDynamicCode("Depends on DispatchJsonSerializer which may use dynamic code for type resolution.")]
+[RequiresUnreferencedCode("Depends on DispatchJsonSerializer which may reference types not statically analyzed by the trimmer.")]
 internal sealed class PubSubBatchSerializer : IDisposable
 {
 	private readonly DispatchJsonSerializer _serializer;

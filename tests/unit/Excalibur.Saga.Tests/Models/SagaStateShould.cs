@@ -88,7 +88,7 @@ public sealed class SagaStateShould
 		var state = new SagaState();
 
 		// Assert
-		state.ErrorMessage.ShouldBeNull();
+		state.ErrorMessage!.ShouldBeNull();
 	}
 
 	#endregion
@@ -251,7 +251,7 @@ public sealed class SagaStateShould
 		state.ErrorMessage = "Something went wrong";
 
 		// Assert
-		state.ErrorMessage.ShouldBe("Something went wrong");
+		state.ErrorMessage!.ShouldBe("Something went wrong");
 	}
 
 	#endregion

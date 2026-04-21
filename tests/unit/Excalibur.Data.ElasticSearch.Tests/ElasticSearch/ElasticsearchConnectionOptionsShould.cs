@@ -9,8 +9,8 @@ namespace Excalibur.Data.Tests.ElasticSearch;
 /// Unit tests for <see cref="ElasticsearchConnectionOptions"/>.
 /// Verifies defaults and property assignment for connection-level settings.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ElasticsearchConnectionOptionsShould : UnitTestBase
 {
 	[Fact]

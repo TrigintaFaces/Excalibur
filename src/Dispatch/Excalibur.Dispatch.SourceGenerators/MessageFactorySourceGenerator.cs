@@ -7,27 +7,36 @@ using Microsoft.CodeAnalysis;
 namespace Excalibur.Dispatch.SourceGenerators;
 
 /// <summary>
-/// Source generator that creates AOT-compatible message factories to replace Activator.CreateInstance. Generates compile-time factories
-/// for all IDispatchMessage implementations with parameterless constructors.
+/// Archived source generator that was intended to create AOT-compatible message factories
+/// to replace <see cref="System.Activator.CreateInstance(Type)"/>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Status: ARCHIVED (Sprint 759, bd-24ktsl)</b>
+/// </para>
+/// <para>
+/// The few <c>Activator.CreateInstance</c> call sites in the codebase are in JIT-only paths
+/// (Kafka transport, Avro serializer) which already carry <c>[RequiresDynamicCode]</c> annotations.
+/// AOT consumers use explicit generic DI registration patterns (e.g., <c>AddStorageQueueMessage&lt;T&gt;()</c>)
+/// that bypass <c>Activator.CreateInstance</c> entirely.
+/// </para>
+/// <para>
+/// The class is retained (with empty <see cref="Initialize"/>) to avoid breaking the Roslyn generator
+/// discovery contract. Removing a <c>[Generator]</c> class from a shipped analyzer assembly could cause
+/// diagnostic warnings in consumer projects that reference the analyzer package.
+/// </para>
+/// </remarks>
 [Generator]
 public sealed class MessageFactorySourceGenerator : IIncrementalGenerator
 {
 	/// <summary>
-	/// Initializes the message factory source generator with the given context. Currently disabled to avoid conflicts with existing
-	/// manual implementations.
+	/// No-op. This generator is archived and produces no output.
 	/// </summary>
-	/// <param name="context"> The generator initialization context providing access to syntax providers and source output registration. </param>
+	/// <param name="context">The generator initialization context.</param>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		// Temporarily disabled to avoid conflicts with existing manual implementation
-	}
-
-	private struct MessageFactoryInfo
-	{
-		public string FullName { get; set; }
-		public string Name { get; set; }
-		public string Namespace { get; set; }
-		public bool IsRecord { get; set; }
+		// ARCHIVED (Sprint 759, bd-24ktsl): Activator.CreateInstance calls are in JIT-only paths
+		// with [RequiresDynamicCode] annotations. AOT consumers use explicit generic DI patterns.
+		// See class remarks for details.
 	}
 }

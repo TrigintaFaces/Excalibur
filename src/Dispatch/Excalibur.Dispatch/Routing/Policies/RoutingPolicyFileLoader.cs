@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -63,6 +64,8 @@ internal sealed partial class RoutingPolicyFileLoader(
 	/// </summary>
 	/// <param name="cancellationToken">The cancellation token to observe.</param>
 	/// <returns>The loaded routing rules.</returns>
+	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types.")]
+	[RequiresDynamicCode("JSON deserialization may require runtime code generation.")]
 	public async Task<IReadOnlyList<RoutingRule>> LoadAsync(CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrEmpty(_options.PolicyFilePath))
@@ -143,6 +146,8 @@ internal sealed partial class RoutingPolicyFileLoader(
 	/// <summary>
 	/// Loads routing rules from a JSON file.
 	/// </summary>
+	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types.")]
+	[RequiresDynamicCode("JSON deserialization may require runtime code generation.")]
 	private async Task<IReadOnlyList<RoutingRule>> LoadRulesFromFileAsync(
 		string filePath,
 		CancellationToken cancellationToken)
@@ -211,6 +216,14 @@ internal sealed partial class RoutingPolicyFileLoader(
 	/// <summary>
 	/// Handles the policy file changed event.
 	/// </summary>
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "File watcher reload callback delegates to LoadRulesFromFileAsync which uses JSON deserialization with runtime types.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "File watcher reload callback delegates to LoadRulesFromFileAsync which uses JSON deserialization with runtime types.")]
 	private void OnPolicyFileChanged(object sender, FileSystemEventArgs e)
 	{
 		if (_disposed)
@@ -220,7 +233,8 @@ internal sealed partial class RoutingPolicyFileLoader(
 
 		LogPolicyFileChanged(e.FullPath);
 
-		// Async reload via Task.Run to avoid blocking the ThreadPool thread
+		// Async reload via Task.Run to avoid blocking the FileSystemWatcher callback thread
+#pragma warning disable RS0030 // Intentional: FileSystemWatcher callbacks are synchronous; Task.Run is the correct way to bridge to async
 		_ = Task.Run(async () =>
 		{
 			try
@@ -234,6 +248,7 @@ internal sealed partial class RoutingPolicyFileLoader(
 				// Keep existing rules on reload failure
 			}
 		});
+#pragma warning restore RS0030
 	}
 
 	/// <summary>

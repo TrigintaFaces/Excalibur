@@ -101,7 +101,7 @@ internal static class HandlerLifetimeAnalyzer
 	/// - It has no mutable instance fields (heuristic: no non-readonly fields)
 	/// </summary>
 	private static bool CanBePromotedToSingleton(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.NonPublicFields)] Type handlerType,
 		Dictionary<Type, ServiceLifetime> lifetimeMap)
 	{
 		var constructors = handlerType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
@@ -163,7 +163,8 @@ internal static class HandlerLifetimeAnalyzer
 		return true;
 	}
 
-	private static bool HasMutableInstanceFields(Type handlerType)
+	private static bool HasMutableInstanceFields(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.NonPublicFields)] Type handlerType)
 	{
 		var fields = handlerType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 		for (var i = 0; i < fields.Length; i++)

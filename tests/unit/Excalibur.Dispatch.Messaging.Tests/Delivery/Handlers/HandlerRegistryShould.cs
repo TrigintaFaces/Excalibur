@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Handlers;
 /// <summary>
 /// Unit tests for the HandlerRegistry class covering registration, resolution, and edge cases.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class HandlerRegistryShould : UnitTestBase
 {
@@ -382,4 +382,29 @@ public sealed class HandlerRegistryShould : UnitTestBase
 	}
 
 	#endregion Test Fixtures
+
+	#region Interface Extraction Tests (Sprint 739 F.3)
+
+	[Fact]
+	public void HandlerRegistryEntry_BeInternalSealed()
+	{
+		// HandlerRegistryEntry was narrowed to internal sealed in Sprint 739 F.3
+		typeof(HandlerRegistryEntry).IsPublic.ShouldBeFalse();
+		typeof(HandlerRegistryEntry).IsSealed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void IHandlerRegistryEntry_BePublic()
+	{
+		typeof(IHandlerRegistryEntry).IsPublic.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void HandlerRegistryEntry_ImplementIHandlerRegistryEntry()
+	{
+		new HandlerRegistryEntry(typeof(object), typeof(object), false)
+			.ShouldBeAssignableTo<IHandlerRegistryEntry>();
+	}
+
+	#endregion Interface Extraction Tests (Sprint 739 F.3)
 }

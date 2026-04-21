@@ -16,15 +16,6 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnlyList<StoredEvent>>
 {
-	private const string Sql = """
-		SELECT event_id AS EventId, aggregate_id AS AggregateId, aggregate_type AS AggregateType,
-		       event_type AS EventType, event_data AS EventData, metadata AS Metadata,
-		       version AS Version, timestamp AS Timestamp
-		FROM events
-		WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType AND version > @FromVersion
-		ORDER BY version ASC
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="LoadEventsRequest"/> class.
 	/// </summary>
@@ -32,21 +23,38 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="fromVersion">Load events after this version (-1 for all events).</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the event store table. Default: "public".</param>
+	/// <param name="table">The event store table name. Default: "events".</param>
 	public LoadEventsRequest(
 		string aggregateId,
 		string aggregateType,
 		long fromVersion,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "public",
+		string table = "events")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+
+		var qualifiedTable = PgTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		var sql = $"""
+			SELECT event_id AS EventId, aggregate_id AS AggregateId, aggregate_type AS AggregateType,
+			       event_type AS EventType, event_data AS EventData, metadata AS Metadata,
+			       version AS Version, timestamp AS Timestamp
+			FROM {qualifiedTable}
+			WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType AND version > @FromVersion
+			ORDER BY version ASC
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@FromVersion", fromVersion);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 		{

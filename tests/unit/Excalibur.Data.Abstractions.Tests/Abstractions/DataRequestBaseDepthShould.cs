@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// Covers CreateCommand, property initialization, metadata, correlation.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataRequestBaseDepthShould
 {
 	[Fact]

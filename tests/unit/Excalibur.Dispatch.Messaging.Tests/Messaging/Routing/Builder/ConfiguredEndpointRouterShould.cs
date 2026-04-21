@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing.Builder;
 /// <summary>
 /// Unit tests for <see cref="ConfiguredEndpointRouter"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConfiguredEndpointRouterShould
 {
 	#region Constructor tests

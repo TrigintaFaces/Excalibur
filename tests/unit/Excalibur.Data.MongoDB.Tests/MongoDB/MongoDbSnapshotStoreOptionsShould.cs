@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.MongoDB.Snapshots;
 /// <summary>
 /// Unit tests for <see cref="MongoDbSnapshotStoreOptions"/> configuration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class MongoDbSnapshotStoreOptionsShould : UnitTestBase
 {
 	[Fact]

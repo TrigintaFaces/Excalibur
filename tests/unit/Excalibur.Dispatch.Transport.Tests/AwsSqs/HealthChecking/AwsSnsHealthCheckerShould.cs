@@ -15,8 +15,8 @@ using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.HealthChecking;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AwsSnsHealthCheckerShould
 {
 	private readonly IAmazonSimpleNotificationService _snsClient;
@@ -149,6 +149,6 @@ public sealed class AwsSnsHealthCheckerShould
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("SNS unavailable");
 		result.Data.ShouldContainKey("Exception");
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 }

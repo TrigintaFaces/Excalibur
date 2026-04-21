@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -8,7 +8,7 @@
     <Description>Apache Avro serialization plugin for the Excalibur framework. Schema-based binary serialization optimized for streaming and Kafka scenarios with excellent schema evolution support.</Description>
     <PackageTags>dispatch;avro;serialization;binary;schema;kafka;streaming;pluggable;cross-language</PackageTags>
   </PropertyGroup>
-  <!-- AOT: NOT compatible — Avro uses reflection-based serialization -->
+  <!-- AOT: NOT compatible — Apache.Avro uses runtime schema compilation; AvroSerializer uses Activator.CreateInstance for ISpecificRecord deserialization -->
   <PropertyGroup>
     <IsAotCompatible>false</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
@@ -23,9 +23,5 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Interface for collecting SQS channel metrics.
 /// </summary>
-public interface ISqsChannelMetricsCollector
+internal interface ISqsChannelMetricsCollector
 {
 	void RecordMessageReceived(string queueUrl, TimeSpan processingTime);
 
@@ -16,6 +16,7 @@ public interface ISqsChannelMetricsCollector
 	void RecordError(string queueUrl, string errorType);
 
 	/// <summary>
+	/// Gets a summary of the collected metrics.
 	/// </summary>
 	/// <returns> A <see cref="Task{TResult}" /> representing the result of the asynchronous operation. </returns>
 	Task<SqsChannelMetricsSummary> GetSummaryAsync();

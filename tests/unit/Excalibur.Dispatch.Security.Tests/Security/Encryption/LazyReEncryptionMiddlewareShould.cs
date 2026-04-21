@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 using FakeItEasy;
 
@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Security.Tests.Encryption;
 /// <summary>
 /// Unit tests for <see cref="LazyReEncryptionMiddleware"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class LazyReEncryptionMiddlewareShould
 {
 	private readonly IEncryptionMigrationService _migrationService;
@@ -410,7 +410,7 @@ public sealed class LazyReEncryptionMiddlewareShould
 			middleware.InvokeAsync(message, context, next, CancellationToken.None).AsTask());
 
 		ex.ItemId.ShouldBe("old-key");
-		ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+		ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

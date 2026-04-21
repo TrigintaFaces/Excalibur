@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +29,10 @@ public static class InMemoryOutboxExtensions
 
 		_ = services.AddOptions<InMemoryOutboxOptions>()
 			.Configure(configure ?? (_ => { }))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<InMemoryOutboxOptions>, InMemoryOutboxOptionsValidator>());
 
 		services.TryAddSingleton<InMemoryOutboxStore>();
 		services.AddKeyedSingleton<IOutboxStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemoryOutboxStore>());

@@ -15,10 +15,10 @@ namespace Excalibur.Hosting.Tests.HealthChecks;
 [Trait("Component", "Platform")]
 public sealed class HealthReportJsonConverterShould : UnitTestBase
 {
-	private static readonly Type ConverterType = typeof(Excalibur.Hosting.HealthChecksBuilderExtensions).Assembly
+	private static readonly Type ConverterType = typeof(Excalibur.Hosting.MemoryHealthCheckOptions).Assembly
 		.GetType("Excalibur.Hosting.HealthChecks.HealthReportJsonConverter")!;
 
-	private static readonly Type EntryConverterType = typeof(Excalibur.Hosting.HealthChecksBuilderExtensions).Assembly
+	private static readonly Type EntryConverterType = typeof(Excalibur.Hosting.MemoryHealthCheckOptions).Assembly
 		.GetType("Excalibur.Hosting.HealthChecks.HealthReportEntryJsonConverter")!;
 
 	[Fact]

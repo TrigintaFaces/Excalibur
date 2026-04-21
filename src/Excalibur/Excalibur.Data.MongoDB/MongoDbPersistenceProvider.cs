@@ -168,13 +168,11 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 	/// <exception cref="InvalidOperationException"> Thrown when the MongoDB database is not initialized. </exception>
 	/// <exception cref="ObjectDisposedException"> Thrown when this provider has been disposed. </exception>
 	// R0.8: Remove unused parameter - parameter is part of public API
-#pragma warning disable IDE0060
 
 	public async Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
 		IDocumentDataRequest<TConnection, TResult> request,
 		ITransactionScope transactionScope,
 		CancellationToken cancellationToken)
-#pragma warning restore IDE0060 // Remove unused parameter
 	{
 		ArgumentNullException.ThrowIfNull(request);
 		ArgumentNullException.ThrowIfNull(transactionScope);

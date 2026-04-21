@@ -38,12 +38,12 @@ public sealed class AssemblyShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ExportHostingJobsServiceCollectionExtensions()
+	public void ExportJobsExcaliburBuilderExtensions()
 	{
-		// Assert - ServiceCollectionExtensions is now in Microsoft.Extensions.DependencyInjection namespace
-		_ = typeof(HostingJobsServiceCollectionExtensions).ShouldNotBeNull();
-		typeof(HostingJobsServiceCollectionExtensions).IsClass.ShouldBeTrue();
-		typeof(HostingJobsServiceCollectionExtensions).IsAbstract.ShouldBeTrue(); // static class
-		typeof(HostingJobsServiceCollectionExtensions).IsSealed.ShouldBeTrue(); // static class
+		// Assert - canonical public path is the IExcaliburBuilder bridge (S804 FORGE-C / bd-sdhocq)
+		_ = typeof(JobsExcaliburBuilderExtensions).ShouldNotBeNull();
+		typeof(JobsExcaliburBuilderExtensions).IsClass.ShouldBeTrue();
+		typeof(JobsExcaliburBuilderExtensions).IsAbstract.ShouldBeTrue(); // static class
+		typeof(JobsExcaliburBuilderExtensions).IsSealed.ShouldBeTrue(); // static class
 	}
 }

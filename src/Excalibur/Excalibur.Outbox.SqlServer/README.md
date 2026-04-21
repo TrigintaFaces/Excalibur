@@ -2,6 +2,17 @@
 
 SQL Server implementation of the transactional outbox pattern for the Excalibur framework.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.SqlServer` | Starter | + Dispatch core + Outbox + Hosting |
+| `Excalibur.SqlServer` | Complete | + Inbox + Saga + Leader Election + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.SqlServer` for a production-ready SQL Server stack with a single package reference.
+
 ## Installation
 
 ```bash
@@ -22,7 +33,7 @@ dotnet add package Excalibur.Outbox.SqlServer
 
 ```csharp
 // Register via IOutboxBuilder (recommended)
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(x => x.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(sql =>
     {
@@ -30,7 +41,7 @@ services.AddExcaliburOutbox(outbox =>
            .SchemaName("Messaging")
            .TableName("OutboxMessages");
     });
-});
+}));
 
 // Or use with IDispatchBuilder
 builder.UseSqlServerOutboxStore(options =>

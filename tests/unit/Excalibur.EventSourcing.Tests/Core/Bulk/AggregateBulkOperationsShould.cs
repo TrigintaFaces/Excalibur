@@ -119,7 +119,7 @@ public sealed class AggregateBulkOperationsShould
 		result.AllSucceeded.ShouldBeFalse();
 		result.Failures.Count.ShouldBe(1);
 		result.Failures[0].AggregateId.ShouldBe("id-2");
-		result.Failures[0].Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Failures[0].Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

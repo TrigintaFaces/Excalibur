@@ -42,14 +42,6 @@ public interface IPipelineProfile
 	MessageKinds SupportedMessageKinds { get; }
 
 	/// <summary>
-	/// Validates whether a message is compatible with this profile.
-	/// </summary>
-	/// <param name="message"> The dispatch message to validate. </param>
-	/// <returns> <see langword="true" /> if the message is compatible with this profile; otherwise, <see langword="false" />. </returns>
-	[RequiresUnreferencedCode("Uses reflection to determine message kind.")]
-	bool IsCompatible(IDispatchMessage message);
-
-	/// <summary>
 	/// Gets middleware applicable to the specified message kind.
 	/// </summary>
 	/// <param name="messageKind"> The message kind to filter for. </param>
@@ -63,4 +55,18 @@ public interface IPipelineProfile
 	/// <param name="enabledFeatures"> The set of enabled dispatch features. </param>
 	/// <returns> An ordered list of applicable middleware types. </returns>
 	IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures);
+}
+
+/// <summary>
+/// Provides message compatibility matching for pipeline profiles.
+/// </summary>
+public interface IPipelineProfileMatcher
+{
+	/// <summary>
+	/// Validates whether a message is compatible with this profile.
+	/// </summary>
+	/// <param name="message"> The dispatch message to validate. </param>
+	/// <returns> <see langword="true" /> if the message is compatible with this profile; otherwise, <see langword="false" />. </returns>
+	[RequiresUnreferencedCode("Uses reflection to determine message kind.")]
+	bool IsCompatible(IDispatchMessage message);
 }

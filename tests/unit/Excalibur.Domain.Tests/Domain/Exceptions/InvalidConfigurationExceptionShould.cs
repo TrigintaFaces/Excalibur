@@ -51,7 +51,7 @@ public sealed class InvalidConfigurationExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.Setting.ShouldBe(string.Empty);
 	}
 
@@ -113,7 +113,7 @@ public sealed class InvalidConfigurationExceptionShould
 		exception.Setting.ShouldBe(setting);
 		exception.StatusCode.ShouldBe(statusCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -143,7 +143,7 @@ public sealed class InvalidConfigurationExceptionShould
 		// Assert
 		exception.StatusCode.ShouldBe(statusCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.Setting.ShouldBe(string.Empty);
 	}
 

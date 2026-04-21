@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <summary>
 ///     Tests for the <see cref="OutboxStagingMiddleware" /> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class OutboxStagingMiddlewareShould
 {

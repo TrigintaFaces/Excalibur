@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </summary>
 /// <remarks>
 /// Transport-specific hints (ordering key, partition key, deduplication ID, scheduled time) flow via
-/// <see cref="Properties"/> with well-known keys from <see cref="Diagnostics.TransportTelemetryConstants.PropertyKeys"/>.
+/// <see cref="Properties"/> with well-known keys from <c>TransportTelemetryConstants.PropertyKeys</c>.
 /// Each transport reads these keys and maps them to native SDK concepts.
 /// </remarks>
 public sealed class TransportMessage

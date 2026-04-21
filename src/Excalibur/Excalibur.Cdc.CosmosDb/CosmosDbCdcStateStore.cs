@@ -125,7 +125,7 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 
 		try
 		{
-			var response = await _container.ReadItemAsync<CdcStateDocument>(
+			var response = await _container!.ReadItemAsync<CdcStateDocument>(
 				processorName,
 				new PartitionKey(processorName),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -168,7 +168,7 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 			UpdatedAt = DateTimeOffset.UtcNow,
 		};
 
-		_ = await _container.UpsertItemAsync(
+		_ = await _container!.UpsertItemAsync(
 			document,
 			new PartitionKey(processorName),
 			cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -188,7 +188,7 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 
 		try
 		{
-			_ = await _container.DeleteItemAsync<CdcStateDocument>(
+			_ = await _container!.DeleteItemAsync<CdcStateDocument>(
 				processorName,
 				new PartitionKey(processorName),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -233,7 +233,7 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var query = _container.GetItemQueryIterator<CdcStateDocument>();
+		var query = _container!.GetItemQueryIterator<CdcStateDocument>();
 
 		while (query.HasMoreResults)
 		{

@@ -3,19 +3,20 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Configuration;
 
-namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
+
+using Excalibur.Security.EventStores;namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
 
 /// <summary>
 /// Unit tests for <see cref="FileSecurityEventStore"/> internal class.
 /// Tests file-based audit logging including writing, querying, and validation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Stores")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Stores)]
 public sealed class FileSecurityEventStoreShould : IDisposable
 {
 	private readonly string _tempDirectory;

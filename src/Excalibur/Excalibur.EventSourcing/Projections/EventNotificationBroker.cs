@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -36,7 +39,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		IServiceProvider serviceProvider,
 		IOptions<EventNotificationOptions> options,
 		ILogger<EventNotificationBroker> logger,
-		IEnumerable<global::Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.IConfigureProjection> projectionConfigurations)
+		IEnumerable<EventNotificationServiceCollectionExtensions.IConfigureProjection> projectionConfigurations)
 	{
 		ArgumentNullException.ThrowIfNull(processor);
 		ArgumentNullException.ThrowIfNull(serviceProvider);
@@ -58,6 +61,10 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "MakeGenericType is used to resolve event notification handlers. Register handlers explicitly for AOT scenarios.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "Handler types are preserved through DI registration.")]
 	public async Task NotifyAsync(
 		IReadOnlyList<IDomainEvent> events,
 		EventNotificationContext context,
@@ -75,7 +82,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 
 		// Phase 1: Inline projections (concurrent across projection types)
 		await _processor.ProcessAsync(
-			events, context, opts.FailurePolicy, cancellationToken)
+				events, context, opts.FailurePolicy, cancellationToken)
 			.ConfigureAwait(false);
 
 		// Phase 2: Notification handlers (sequential, after ALL projections complete -- R27.8)
@@ -83,6 +90,8 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 			.ConfigureAwait(false);
 	}
 
+	[RequiresDynamicCode("Uses Type.MakeGenericType to construct IEventNotificationHandler<TEvent> at runtime.")]
+	[RequiresUnreferencedCode("Uses Type.GetMethod to dynamically invoke HandleAsync on resolved notification handlers.")]
 	private async Task InvokeNotificationHandlersAsync(
 		IReadOnlyList<IDomainEvent> events,
 		EventNotificationContext context,

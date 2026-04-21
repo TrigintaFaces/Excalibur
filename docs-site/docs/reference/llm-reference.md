@@ -10,7 +10,7 @@ description: Compact reference for LLM coding agents helping developers use Exca
 This page is optimized for LLM coding agents (Cursor, Copilot, Claude Code, etc.). It provides the essential information needed to help developers use this framework without reading all documentation pages. For the full docs, see the sidebar navigation.
 :::
 
-**Excalibur** is a .NET 8+ NuGet package framework (75+ packages) with focused package families:
+**Excalibur** is a .NET 10 NuGet package framework (75+ packages) with focused package families:
 
 - **`Excalibur.Dispatch.*`** — Messaging (MediatR alternative): dispatching, pipelines, middleware, transports
 - **`Excalibur.Domain`** — Domain modeling (DDD): aggregates, entities, value objects
@@ -38,7 +38,7 @@ This page is optimized for LLM coding agents (Cursor, Copilot, Claude Code, etc.
 | `Excalibur.Data` + `Excalibur.Data.Abstractions` | Data access: `IDb`, `IDataRequest`, `IUnitOfWork` |
 | `Excalibur.Dispatch.Observability` | OpenTelemetry metrics and tracing |
 | `Excalibur.Dispatch.Resilience.Polly` | Circuit breakers, retries (Polly v8) |
-| `Excalibur.Dispatch.Security` | Authentication, encryption, signing |
+| `Excalibur.Security` | Authentication, encryption, signing |
 | `Excalibur.Dispatch.Testing` | Test utilities and fakes |
 
 ## Dispatch Core Types
@@ -136,40 +136,37 @@ The `AddDispatch(Action<IDispatchBuilder>?)` overload creates the pipeline, disc
 ### Excalibur Event Sourcing
 
 ```csharp
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.AddRepository<OrderAggregate, Guid>(key => new OrderAggregate(key))
       .UseIntervalSnapshots(100)
       .UseEventStore<SqlServerEventStore>();
-});
+}));
 ```
 
-The `IEventSourcingBuilder` provides fluent configuration: `AddRepository`, `UseEventStore`, `UseIntervalSnapshots`, `UseTimeBasedSnapshots`, `UseNoSnapshots`, `UseEventSerializer`, `UseOutboxStore`, `AddUpcastingPipeline`, `AddSnapshotUpgrading`.
+The `IEventSourcingBuilder` provides fluent configuration: `AddRepository`, `UseEventStore`, `UseIntervalSnapshots`, `UseTimeBasedSnapshots`, `UseNoSnapshots`, `UseEventSerializer`, `UseTransactionalOutboxWriter`, `AddUpcastingPipeline`, `AddSnapshotUpgrading`.
 
 ### Excalibur Outbox
 
 ```csharp
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     // Configure outbox via IOutboxBuilder
-});
+}));
 ```
 
 ### Excalibur Saga
 
 ```csharp
-builder.Services.AddExcaliburSaga(saga =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 {
     // Configure saga via ISagaBuilder
-});
+}));
 ```
 
 ### Excalibur Data Services
 
-```csharp
-builder.Services.AddExcaliburDataServices(); // Dapper + JSON config
-builder.Services.AddExcaliburDataServicesWithPersistence(configuration); // + persistence providers
-```
+Data-access primitives (`IDataRequest`, `IDb`) are registered as part of the unified builder. Use `services.AddExcalibur(...)` with the relevant persistence providers (e.g. SQL Server via `UseSqlServer(...)` on the event sourcing builder) — the pre-unification `AddExcaliburDataServices(...)` / `AddExcaliburDataServicesWithPersistence(...)` aggregators were deleted in Sprint 804 per ADR-321/325.
 
 ## Handler Patterns
 

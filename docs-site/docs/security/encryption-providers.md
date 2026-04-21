@@ -10,10 +10,10 @@ Dispatch encryption uses `IEncryptionProvider` as its core abstraction. Key mana
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.Security
+  dotnet add package Excalibur.Security
   ```
 - Access to a key management provider (AWS KMS, Azure Key Vault, or HashiCorp Vault)
 - Familiarity with [security concepts](./index.md) and [Dispatch pipeline](../pipeline/index.md)
@@ -27,7 +27,7 @@ using Microsoft.Extensions.DependencyInjection;
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddSecurity(configuration);
+    dispatch.UseSecurity(configuration);
 });
 
 // Or standalone encryption registration
@@ -49,7 +49,7 @@ Envelope encryption with AWS Key Management Service.
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.Compliance.Aws
+dotnet add package Excalibur.Compliance.Aws
 ```
 
 ### Setup
@@ -96,7 +96,7 @@ Envelope encryption with Azure Key Vault.
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.Compliance.Azure
+dotnet add package Excalibur.Compliance.Azure
 ```
 
 ### Setup
@@ -128,7 +128,7 @@ services.AddAzureKeyVaultKeyManagement(
 // Via the Dispatch builder (recommended)
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddSecurity(configuration);
+    dispatch.UseSecurity(configuration);
 });
 
 // Or standalone Azure security setup
@@ -146,7 +146,7 @@ Envelope encryption with HashiCorp Vault Transit secrets engine.
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.Compliance.Vault
+dotnet add package Excalibur.Compliance.Vault
 ```
 
 ### Setup

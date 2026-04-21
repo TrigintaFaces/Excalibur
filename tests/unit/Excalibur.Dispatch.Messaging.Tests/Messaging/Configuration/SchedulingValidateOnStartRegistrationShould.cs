@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 /// ValidateOnStart and DataAnnotation validation for <see cref="TimeAwareSchedulerOptions"/>.
 /// Sprint 562 S562.54: Dispatch core ValidateOnStart registration tests.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class SchedulingValidateOnStartRegistrationShould
 {
 	[Fact]

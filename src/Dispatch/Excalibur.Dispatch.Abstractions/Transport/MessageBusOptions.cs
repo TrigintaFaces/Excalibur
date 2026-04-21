@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Excalibur.Dispatch.Abstractions.Transport;
 
 /// <summary>
@@ -13,7 +15,8 @@ public abstract class MessageBusOptions
 	/// Gets the name of the message bus instance.
 	/// </summary>
 	/// <value> The logical name of the bus configuration. </value>
-	public string Name { get; init; } = null!;
+	[Required]
+	public string Name { get; init; } = string.Empty;
 
 	/// <summary>
 	/// Gets a value indicating whether messages sent through this bus should be encrypted.

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -62,7 +63,7 @@ internal sealed class AzureLogicAppsScheduler(
 		T message,
 		DateTimeOffset scheduledTime,
 		CancellationToken cancellationToken) =>
-		ScheduleObjectAsync(message, typeof(T), scheduledTime, cancellationToken);
+		ScheduleObjectAsync(message!, typeof(T), scheduledTime, cancellationToken);
 
 	/// <inheritdoc />
 	public async Task<bool> CancelAsync(
@@ -125,6 +126,8 @@ internal sealed class AzureLogicAppsScheduler(
 		return ParseScheduleInfo(scheduleId, payload);
 	}
 
+	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToElement and Serialize")]
+	[RequiresDynamicCode("JSON serialization of scheduled message payloads uses reflection-based System.Text.Json")]
 	private static string BuildPayload(
 		object message,
 		Type messageType,
@@ -316,6 +319,10 @@ internal sealed class AzureLogicAppsScheduler(
 		return false;
 	}
 
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "JSON serialization of scheduled message payloads requires dynamic code — external Azure Logic Apps API")]
 	private async Task<string> ScheduleObjectAsync(
 		object message,
 		Type messageType,

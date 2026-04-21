@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Exceptions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessagingExceptionShould
 {
 	[Fact]
@@ -31,7 +31,7 @@ public sealed class MessagingExceptionShould
 		var ex = new MessagingException("Send failed", inner);
 
 		ex.Message.ShouldBe("Send failed");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -50,7 +50,7 @@ public sealed class MessagingExceptionShould
 		var ex = new MessagingException(ErrorCodes.MessageQueueUnavailable, "Queue down", inner);
 
 		ex.ErrorCode.ShouldBe(ErrorCodes.MessageQueueUnavailable);
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -129,7 +129,7 @@ public sealed class MessagingExceptionShould
 
 		ex.ShouldBeOfType<MessagingException>();
 		ex.Message.ShouldContain("localhost:5672");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 		ex.DispatchStatusCode.ShouldBe(503);
 	}
 
@@ -139,6 +139,6 @@ public sealed class MessagingExceptionShould
 		var ex = MessagingException.BrokerConnectionFailed("rabbitmq:5672");
 
 		ex.ShouldBeOfType<MessagingException>();
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 	}
 }

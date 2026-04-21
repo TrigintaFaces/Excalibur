@@ -116,10 +116,7 @@ Each release produces the current validated shipping set (see `eng/ci/validate-s
 - **Dispatch packages**: Core, Abstractions, Transports, Hosting, Serialization, Observability
 - **Excalibur packages**: Domain, EventSourcing, Saga, Hosting, Compliance, LeaderElection
 
-All packages multi-target:
-- `net8.0` (.NET 8 LTS)
-- `net9.0` (.NET 9 STS)
-- `net10.0` (.NET 10)
+All packages target `net10.0` (single-target; .NET 8 / .NET 9 multi-target was dropped — project is .NET 10-only).
 
 ---
 
@@ -154,8 +151,8 @@ $packages | Measure-Object  # Expected: current shipping count from eng/ci/valid
 # Check package metadata
 dotnet nuget inspect ./release-packages/Excalibur.Dispatch.1.0.0.nupkg
 
-# Verify multi-targeting
-# Should show lib/net8.0/ and lib/net9.0/ folders
+# Verify TFM
+# Should show lib/net10.0/ folder
 ```
 
 ### 4. Local NuGet Testing
@@ -204,7 +201,7 @@ Remove-Item -Recurse ./release-test/
 | Package count | Matches current validated shipping count |
 | Build errors | 0 |
 | Build warnings | 0 |
-| Each package contains | `lib/net8.0/`, `lib/net9.0/` |
+| Each package contains | `lib/net10.0/` |
 
 ---
 
@@ -276,7 +273,7 @@ After a successful release:
 |-------|----------|
 | Wrong package count | Check `eng/ci/shards/ShippingOnly.slnf` includes all projects |
 | Missing DLLs | Verify `<IsPackable>true</IsPackable>` |
-| Missing TFM | Check `<TargetFrameworks>net8.0;net9.0</TargetFrameworks>` |
+| Missing TFM | Check `<TargetFramework>net10.0</TargetFramework>` |
 
 ### NuGet Publish Failures
 

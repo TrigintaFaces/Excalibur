@@ -9,8 +9,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.Redis.Tests.Redis;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class RedisProviderOptionsValidatorShould
 {
 	// RedisProviderOptionsValidator is internal with no InternalsVisibleTo for this test project.

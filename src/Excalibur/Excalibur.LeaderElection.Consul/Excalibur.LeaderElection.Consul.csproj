@@ -4,6 +4,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.LeaderElection.Consul</RootNamespace>
     <!-- Not AOT compatible due to Consul client reflection usage -->
+    <!-- AOT: NOT compatible. Consul uses reflection-based HTTP client serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
@@ -13,6 +14,9 @@
     <Description>Consul-based leader election implementation for the Excalibur framework using session-based distributed locking.</Description>
     <PackageTags>excalibur;leader-election;consul;distributed-systems;high-availability</PackageTags>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.LeaderElection.Tests" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
   </ItemGroup>
@@ -35,9 +39,5 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

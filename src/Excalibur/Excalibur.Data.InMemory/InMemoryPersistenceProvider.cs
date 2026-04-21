@@ -82,10 +82,8 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 
 	/// <inheritdoc />
 	// R0.8: Remove unused parameter - public API contract requires cancellationToken even though in-memory operations are synchronous
-#pragma warning disable IDE0060
 
 	public ValueTask<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken)
-#pragma warning restore IDE0060
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		// R0.8: Dispose objects before losing scope - Connection ownership transferred to caller who is responsible for disposal
@@ -228,6 +226,8 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken)
@@ -406,7 +406,9 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 					{
 						try
 						{
+							#pragma warning disable IL2026, IL3050 // PersistToDiskAsync uses JSON serialization
 							await PersistToDiskAsync(CancellationToken.None).ConfigureAwait(false);
+							#pragma warning restore IL2026, IL3050
 						}
 						catch (Exception ex)
 						{
@@ -424,6 +426,8 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async ValueTask DisposeAsync()

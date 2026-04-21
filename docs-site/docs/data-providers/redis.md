@@ -10,7 +10,7 @@ The Redis provider offers key-value storage with TTL support, pub/sub integratio
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A Redis instance (local, Azure Cache for Redis, or ElastiCache)
 - Familiarity with [data access](../data-access/index.md) and [caching](../performance/caching.md)
 
@@ -27,39 +27,77 @@ dotnet add package Excalibur.Data.Redis
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-services.AddRedisInboxStore(options =>
+// Inbox with Redis
+services.AddExcaliburInbox(inbox =>
 {
-    options.ConnectionString = "localhost:6379";
+    inbox.UseRedis(redis =>
+    {
+        redis.ConnectionString("localhost:6379")
+             .KeyPrefix("inbox")
+             .Database(0);
+    });
 });
 ```
 
-## Registration Options
+## Registration
+
+All Redis subsystem builders support 4 canonical connection overloads: `ConnectionString()`, `Multiplexer()`, `MultiplexerFactory()`, and `BindConfiguration()`.
 
 ### Inbox Store
 
 ```csharp
-// With options callback
-services.AddRedisInboxStore(options =>
+services.AddExcaliburInbox(inbox =>
 {
-    options.ConnectionString = "localhost:6379";
-    options.Database = 0;
+    inbox.UseRedis(redis =>
+    {
+        redis.ConnectionString("localhost:6379")
+             .KeyPrefix("myapp-inbox")
+             .Database(0);
+    });
 });
-
-// With connection string
-services.AddRedisInboxStore("localhost:6379");
 ```
 
 ### Outbox Store
 
 ```csharp
-services.AddRedisOutboxStore(options =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    options.ConnectionString = "localhost:6379";
-    options.Database = 1;
-});
+    outbox.UseRedis(redis =>
+    {
+        redis.ConnectionString("localhost:6379")
+             .KeyPrefix("outbox")
+             .Database(1);
+    });
+}));
+```
 
-// With connection string
-services.AddRedisOutboxStore("localhost:6379");
+### Event Sourcing
+
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+{
+    es.UseRedis(redis =>
+    {
+        redis.ConnectionString("localhost:6379")
+             .KeyPrefix("myapp")
+             .Database(0);
+    })
+    .AddRepository<OrderAggregate, Guid>();
+}));
+```
+
+### Leader Election
+
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le =>
+{
+    le.UseRedis(redis =>
+    {
+        redis.ConnectionString("localhost:6379")
+             .LockKey("myapp:leader")
+             .Database(0);
+    });
+}));
 ```
 
 ## Use Cases

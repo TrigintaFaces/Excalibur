@@ -2,15 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace Excalibur.Data.SqlServer;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Provides extension methods to configure health checks for SQL Server connections.
 /// </summary>
-public static class HealthChecksBuilderExtensions
+public static class SqlServerHealthChecksBuilderExtensions
 {
 	/// <summary>
 	/// Adds a SQL Server health check to the health checks builder using a connection string from configuration.

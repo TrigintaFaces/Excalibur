@@ -28,7 +28,7 @@ public sealed class AppendResultShould
 		result.Success.ShouldBeTrue();
 		result.NextExpectedVersion.ShouldBe(nextExpectedVersion);
 		result.FirstEventPosition.ShouldBe(firstEventPosition);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.IsConcurrencyConflict.ShouldBeFalse();
 	}
 
@@ -46,8 +46,8 @@ public sealed class AppendResultShould
 		result.Success.ShouldBeFalse();
 		result.NextExpectedVersion.ShouldBe(actualVersion);
 		result.FirstEventPosition.ShouldBe(-1);
-		_ = result.ErrorMessage.ShouldNotBeNull();
-		result.ErrorMessage.ShouldContain("version");
+		_ = result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("version");
 		result.IsConcurrencyConflict.ShouldBeTrue();
 	}
 
@@ -64,7 +64,7 @@ public sealed class AppendResultShould
 		result.Success.ShouldBeFalse();
 		result.NextExpectedVersion.ShouldBe(-1);
 		result.FirstEventPosition.ShouldBe(-1);
-		result.ErrorMessage.ShouldBe(errorMessage);
+		result.ErrorMessage!.ShouldBe(errorMessage);
 		result.IsConcurrencyConflict.ShouldBeFalse();
 	}
 
@@ -99,8 +99,8 @@ public sealed class AppendResultShould
 		var result = AppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion);
 
 		// Assert
-		result.ErrorMessage.ShouldContain("10");
-		result.ErrorMessage.ShouldContain("15");
+		result.ErrorMessage!.ShouldContain("10");
+		result.ErrorMessage!.ShouldContain("15");
 	}
 
 	[Fact]

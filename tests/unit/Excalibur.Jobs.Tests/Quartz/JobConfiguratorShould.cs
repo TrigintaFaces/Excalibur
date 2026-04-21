@@ -281,8 +281,8 @@ public sealed class JobConfiguratorShould
 		var sut = new JobConfigurator(services);
 		var configs = new[]
 		{
-			new JobConfiguration("job-1", "0 0 * * * ?") { Enabled = true },
-			new JobConfiguration("job-2", "0 30 * * * ?") { Enabled = false },
+			new QuartzJobOptions("job-1", "0 0 * * * ?") { Enabled = true },
+			new QuartzJobOptions("job-2", "0 30 * * * ?") { Enabled = false },
 		};
 
 		// Act

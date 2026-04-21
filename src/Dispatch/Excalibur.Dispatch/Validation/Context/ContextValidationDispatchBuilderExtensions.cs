@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Options.Validation;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Validation.Context;
@@ -22,13 +23,13 @@ public static class ContextValidationDispatchBuilderExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
 	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
-	public static IDispatchBuilder AddContextValidation(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseContextValidation(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
 		_ = builder.Services.AddContextValidation();
 
-		return builder;
+		return builder.UseMiddleware<ContextValidationMiddleware>();
 	}
 
 	/// <summary>
@@ -37,7 +38,7 @@ public static class ContextValidationDispatchBuilderExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configureOptions"> Action to configure options. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder AddContextValidation(
+	public static IDispatchBuilder UseContextValidation(
 		this IDispatchBuilder builder,
 		Action<ContextValidationOptions> configureOptions)
 	{
@@ -46,7 +47,27 @@ public static class ContextValidationDispatchBuilderExtensions
 
 		_ = builder.Services.AddContextValidation(configureOptions);
 
-		return builder;
+		return builder.UseMiddleware<ContextValidationMiddleware>();
+	}
+
+	/// <summary>
+	/// Adds context validation with options bound from an <see cref="IConfiguration"/> section
+	/// to the dispatch pipeline.
+	/// </summary>
+	/// <param name="builder"> The dispatch builder. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="ContextValidationOptions"/>. </param>
+	/// <returns> The dispatch builder for chaining. </returns>
+	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
+	public static IDispatchBuilder UseContextValidation(
+		this IDispatchBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddContextValidation(configuration);
+
+		return builder.UseMiddleware<ContextValidationMiddleware>();
 	}
 
 	/// <summary>

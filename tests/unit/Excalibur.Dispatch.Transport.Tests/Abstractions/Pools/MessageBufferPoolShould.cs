@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Pools;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class MessageBufferPoolShould : IDisposable
 {
 	private readonly MessageBufferPool _sut = new();

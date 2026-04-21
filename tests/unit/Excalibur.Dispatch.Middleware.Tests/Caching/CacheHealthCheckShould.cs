@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// <summary>
 /// Unit tests for <see cref="CacheHealthCheck"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class CacheHealthCheckShould : UnitTestBase
 {
@@ -99,7 +99,7 @@ public sealed class CacheHealthCheckShould : UnitTestBase
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("failed");
-		result.Exception.ShouldBe(expectedException);
+		result.Exception!.ShouldBe(expectedException);
 	}
 
 	[Fact]

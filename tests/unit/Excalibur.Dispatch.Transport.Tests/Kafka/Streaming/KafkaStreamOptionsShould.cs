@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport.Kafka;
 
 namespace Excalibur.Dispatch.Transport.Tests.Kafka.Streaming;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class KafkaStreamOptionsShould
 {
 	[Fact]

@@ -1,232 +1,78 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Amazon.DynamoDBv2;
-
-using Excalibur.Inbox.DynamoDb;
 using Excalibur.Dispatch.Abstractions;
-
-using FakeItEasy;
+using Excalibur.Inbox.DependencyInjection;
+using Excalibur.Inbox.DynamoDb;
 
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Data.Tests.DynamoDb;
 
 /// <summary>
-/// Unit tests for <see cref="DynamoDbInboxExtensions"/>.
+/// Unit tests for <see cref="InboxBuilderDynamoDbExtensions"/>.
 /// </summary>
 /// <remarks>
 /// Sprint 514 (S514.4): DynamoDB unit tests.
-/// Tests verify inbox extension methods.
+/// Phase C rewire: Updated from AddDynamoDbInboxStore to AddExcaliburInbox(inbox =&gt; inbox.UseDynamoDb(...)).
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
-[Trait("Feature", "DependencyInjection")]
+[Trait(TraitNames.Feature, TestFeatures.DependencyInjection)]
 public sealed class DynamoDbInboxExtensionsShould
 {
-	#region AddDynamoDbInboxStore with Action Tests
+	#region UseDynamoDb Builder Tests
 
 	[Fact]
-	public void AddDynamoDbInboxStore_WithAction_ThrowsArgumentNullException_WhenServicesIsNull()
+	public void UseDynamoDb_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
-		// Arrange
-		IServiceCollection? services = null;
-
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbInboxStore(options => { }));
+			((IInboxBuilder)null!).UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 	}
 
 	[Fact]
-	public void AddDynamoDbInboxStore_WithAction_ThrowsArgumentNullException_WhenConfigureIsNull()
+	public void UseDynamoDb_ThrowsArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbInboxStore(null!));
+			services.AddExcaliburInbox(inbox =>
+				inbox.UseDynamoDb((Action<IDynamoDBInboxBuilder>)null!)));
 	}
 
 	[Fact]
-	public void AddDynamoDbInboxStore_WithAction_ReturnsServiceCollection()
+	public void UseDynamoDb_RegistersDynamoDbInboxStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddDynamoDbInboxStore(options =>
-		{
-			options.Connection.Region = "us-east-1";
-			options.TableName = "inbox";
-		});
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithAction_RegistersDynamoDbInboxStore()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddDynamoDbInboxStore(options =>
-		{
-			options.Connection.Region = "us-east-1";
-			options.TableName = "inbox";
-		});
+		services.AddExcaliburInbox(inbox =>
+			inbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(DynamoDbInboxStore));
 	}
 
 	[Fact]
-	public void AddDynamoDbInboxStore_WithAction_RegistersIInboxStore()
+	public void UseDynamoDb_ReturnsBuilderForFluentChaining()
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		IInboxBuilder? capturedBuilder = null;
 
 		// Act
-		services.AddDynamoDbInboxStore(options =>
+		services.AddExcaliburInbox(inbox =>
 		{
-			options.Connection.Region = "us-east-1";
-			options.TableName = "inbox";
+			var result = inbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000"));
+			capturedBuilder = result;
 		});
 
 		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IInboxStore));
-	}
-
-	#endregion
-
-	#region AddDynamoDbInboxStore with Region and TableName Tests
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithRegion_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbInboxStore("us-east-1", "inbox"));
-	}
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithRegion_ThrowsArgumentException_WhenRegionIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddDynamoDbInboxStore(null!, "inbox"));
-	}
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithRegion_ThrowsArgumentException_WhenRegionIsEmpty()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddDynamoDbInboxStore(string.Empty, "inbox"));
-	}
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithRegion_ThrowsArgumentException_WhenTableNameIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddDynamoDbInboxStore("us-east-1", null!));
-	}
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithRegion_ThrowsArgumentException_WhenTableNameIsEmpty()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddDynamoDbInboxStore("us-east-1", string.Empty));
-	}
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithRegion_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddDynamoDbInboxStore("us-east-1", "inbox_messages");
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	#endregion
-
-	#region AddDynamoDbInboxStore with ClientProvider Tests
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithClientProvider_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-		var client = A.Fake<IAmazonDynamoDB>();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbInboxStore(_ => client, options => { }));
-	}
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithClientProvider_ThrowsArgumentNullException_WhenClientProviderIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbInboxStore(null!, options => { }));
-	}
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithClientProvider_ThrowsArgumentNullException_WhenConfigureIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var client = A.Fake<IAmazonDynamoDB>();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbInboxStore(_ => client, null!));
-	}
-
-	[Fact]
-	public void AddDynamoDbInboxStore_WithClientProvider_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var client = A.Fake<IAmazonDynamoDB>();
-
-		// Act
-		var result = services.AddDynamoDbInboxStore(
-			_ => client,
-			options =>
-			{
-				options.TableName = "inbox";
-			});
-
-		// Assert
-		result.ShouldBe(services);
+		capturedBuilder.ShouldNotBeNull();
 	}
 
 	#endregion
@@ -237,15 +83,15 @@ public sealed class DynamoDbInboxExtensionsShould
 	public void IsStatic()
 	{
 		// Assert
-		typeof(DynamoDbInboxExtensions).IsAbstract.ShouldBeTrue();
-		typeof(DynamoDbInboxExtensions).IsSealed.ShouldBeTrue();
+		typeof(InboxBuilderDynamoDbExtensions).IsAbstract.ShouldBeTrue();
+		typeof(InboxBuilderDynamoDbExtensions).IsSealed.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void IsPublic()
 	{
 		// Assert
-		typeof(DynamoDbInboxExtensions).IsPublic.ShouldBeTrue();
+		typeof(InboxBuilderDynamoDbExtensions).IsPublic.ShouldBeTrue();
 	}
 
 	#endregion

@@ -1,14 +1,14 @@
 // Functional tests for SecurityEventLogger — queuing, background processing, batch storage, lifecycle
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Functional;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SecurityEventLoggerFunctionalShould : IDisposable
 {
     private readonly ISecurityEventStore _eventStore;

@@ -27,7 +27,6 @@
   <!-- Preserve Dispatch implementation types -->
   <assembly fullname="Excalibur.Dispatch">
     <!-- Delivery types -->
-    <type fullname="Excalibur.Dispatch.Messaging.MessageResult" preserve="all" />
     <type fullname="Excalibur.Dispatch.Messaging.MessageContext" preserve="all" />
 
     <!-- Generated registries -->

@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <summary>
 /// Unit tests for <see cref="OutboxEntry"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class OutboxEntryShould
 {
 	[Fact]

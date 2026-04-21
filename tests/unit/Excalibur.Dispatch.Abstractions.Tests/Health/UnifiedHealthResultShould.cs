@@ -52,7 +52,7 @@ public sealed class UnifiedHealthResultShould
 		var result = new UnifiedHealthResult();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -179,7 +179,7 @@ public sealed class UnifiedHealthResultShould
 		var result = UnifiedHealthResult.Healthy();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	#endregion
@@ -239,9 +239,9 @@ public sealed class UnifiedHealthResultShould
 		var result = UnifiedHealthResult.Unhealthy(exception: exception);
 
 		// Assert
-		_ = result.ErrorMessage.ShouldNotBeNull();
-		result.ErrorMessage.ShouldContain("InvalidOperationException");
-		result.ErrorMessage.ShouldContain("Test exception");
+		_ = result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("InvalidOperationException");
+		result.ErrorMessage!.ShouldContain("Test exception");
 	}
 
 	[Fact]
@@ -324,7 +324,7 @@ public sealed class UnifiedHealthResultShould
 		result.Message.ShouldBe("Custom message");
 		result.CheckedAtTicks.ShouldBe(now);
 		result.ResponseTimeMs.ShouldBe(100.5);
-		result.ErrorMessage.ShouldBe("No error");
+		result.ErrorMessage!.ShouldBe("No error");
 		result.Metadata.ShouldContainKeyAndValue("key", "value");
 	}
 

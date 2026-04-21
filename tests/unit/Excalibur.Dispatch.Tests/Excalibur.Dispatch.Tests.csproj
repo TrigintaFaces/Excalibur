@@ -25,8 +25,8 @@
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MessagePack\Excalibur.Dispatch.Serialization.MessagePack.csproj" />
-    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.AuditLogging.SqlServer\Excalibur.Dispatch.AuditLogging.SqlServer.csproj" />
-    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.AuditLogging.SqlServer\Excalibur.AuditLogging.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance\Excalibur.Compliance.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Resilience.Polly\Excalibur.Dispatch.Resilience.Polly.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Testing\Excalibur.Dispatch.Testing.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />

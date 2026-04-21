@@ -25,10 +25,13 @@ ITelemetrySanitizer (interface, 2 methods)
 
 ### Basic (Registered Automatically)
 
-`AddDispatchObservability()` registers `HashingTelemetrySanitizer` as the default `ITelemetrySanitizer`:
+`UseObservability()` registers `HashingTelemetrySanitizer` as the default `ITelemetrySanitizer`:
 
 ```csharp
-builder.Services.AddDispatchObservability();
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.UseObservability();
+});
 ```
 
 No additional configuration is needed — the default configuration hashes common PII tags and suppresses highly sensitive tags.
@@ -38,7 +41,10 @@ No additional configuration is needed — the default configuration hashes commo
 Configure which tags are hashed vs suppressed:
 
 ```csharp
-builder.Services.AddDispatchObservability();
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.UseObservability();
+});
 
 builder.Services.Configure<TelemetrySanitizerOptions>(opt =>
 {
@@ -84,7 +90,10 @@ A startup warning is emitted if `IncludeRawPii` is `true` in non-Development env
 For regulated environments, add regex-based PII detection that catches patterns even in unclassified tags:
 
 ```csharp
-builder.Services.AddDispatchObservability();
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.UseObservability();
+});
 builder.Services.AddComplianceTelemetrySanitizer(opt =>
 {
     // Add custom patterns beyond the built-in email/phone/SSN detection

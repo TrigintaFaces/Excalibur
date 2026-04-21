@@ -24,13 +24,11 @@ using Amazon.SQS;
 
 using AwsSqsSample.Messages;
 
-using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Routing;
-using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,8 +55,7 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register JSON serializer for message payloads
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+	// Configure JSON serialization
 
 	// Route OrderPlacedEvent to AWS SQS transport
 	_ = dispatch.UseRouting(routing =>
@@ -71,7 +68,7 @@ builder.Services.AddDispatch(dispatch =>
 // The outbox pattern ensures messages are persisted before sending,
 // providing at-least-once delivery guarantees.
 builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
+builder.Services.AddInMemoryInboxStore();
 builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
 

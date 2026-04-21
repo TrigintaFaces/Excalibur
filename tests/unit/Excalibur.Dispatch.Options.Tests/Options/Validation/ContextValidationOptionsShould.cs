@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Validation;
 /// Unit tests for <see cref="ContextValidationOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class ContextValidationOptionsShould
 {

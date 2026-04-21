@@ -91,7 +91,6 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 
 		_ = services.AddOptions<SqlServerHealthBasedLeaderElectionOptions>()
 			.Configure(configureHealth)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = services.Configure(configureElection);

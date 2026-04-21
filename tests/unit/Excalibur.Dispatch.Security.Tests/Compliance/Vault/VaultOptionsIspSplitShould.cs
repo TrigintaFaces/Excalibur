@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Reflection;
-using Excalibur.Dispatch.Compliance.Vault;
+using Excalibur.Compliance.Vault;
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Vault;
 
@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Vault;
 /// and confirms shim removal is complete.
 /// Sprint 564 S564.52: VaultOptions ISP split verification.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class VaultOptionsIspSplitShould
 {
 	#region Root Property Count (ISP Gate)

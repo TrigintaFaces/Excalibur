@@ -4,6 +4,8 @@
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Transport.Kafka;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -32,6 +34,7 @@ public static class DispatchBuilderKafkaExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Kafka transport uses reflection for schema registry and serialization")]
 	public static IDispatchBuilder UseKafka(
 		this IDispatchBuilder builder,
 		Action<IKafkaTransportBuilder> configure)
@@ -68,6 +71,7 @@ public static class DispatchBuilderKafkaExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Kafka transport uses reflection for schema registry and serialization")]
 	public static IDispatchBuilder UseKafka(
 		this IDispatchBuilder builder,
 		string name,

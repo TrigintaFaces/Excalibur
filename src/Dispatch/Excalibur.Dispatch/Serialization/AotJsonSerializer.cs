@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
@@ -57,7 +57,7 @@ public sealed class AotJsonSerializer : IDisposable
 	[RequiresDynamicCode("Serialization may require dynamic code generation for type-specific handling.")]
 	public byte[] Serialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T message)
 	{
-		var bufferWriter = _threadLocalBufferWriter.Value;
+		var bufferWriter = _threadLocalBufferWriter.Value!;
 		bufferWriter.Clear();
 		using var writer = new Utf8JsonWriter(bufferWriter);
 

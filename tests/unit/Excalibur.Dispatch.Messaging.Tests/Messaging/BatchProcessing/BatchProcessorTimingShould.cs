@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 ///     sequentially to avoid CPU contention causing flaky failures.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class BatchProcessorTimingShould : IAsyncDisposable
 {
 	private static readonly string[] TwoItemBatch = ["item1", "item2"];

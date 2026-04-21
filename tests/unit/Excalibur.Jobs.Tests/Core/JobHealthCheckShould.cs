@@ -21,7 +21,7 @@ public sealed class JobHealthCheckShould
 	public async Task ReturnUnhealthy_WhenNoHeartbeatRecorded()
 	{
 		// Arrange
-		var config = new TestJobConfig();
+		var config = new TestJobOptions();
 		var healthCheck = new JobHealthCheck("test-job-" + Guid.NewGuid(), config, _tracker);
 		var context = new HealthCheckContext();
 
@@ -38,7 +38,7 @@ public sealed class JobHealthCheckShould
 	{
 		// Arrange
 		var jobName = "healthy-job-" + Guid.NewGuid();
-		var config = new TestJobConfig();
+		var config = new TestJobOptions();
 		var healthCheck = new JobHealthCheck(jobName, config, _tracker);
 		var context = new HealthCheckContext();
 
@@ -59,7 +59,7 @@ public sealed class JobHealthCheckShould
 	{
 		// Arrange
 		var jobName = "degraded-job-" + Guid.NewGuid();
-		var config = new TestJobConfig
+		var config = new TestJobOptions
 		{
 			DegradedThreshold = TimeSpan.FromMilliseconds(1),
 			UnhealthyThreshold = TimeSpan.FromHours(1),
@@ -114,7 +114,7 @@ public sealed class JobHealthCheckShould
 		// Arrange
 		var jobName1 = "multi-job-1-" + Guid.NewGuid();
 		var jobName2 = "multi-job-2-" + Guid.NewGuid();
-		var config = new TestJobConfig();
+		var config = new TestJobOptions();
 
 		var healthCheck1 = new JobHealthCheck(jobName1, config, _tracker);
 		var healthCheck2 = new JobHealthCheck(jobName2, config, _tracker);
@@ -132,7 +132,7 @@ public sealed class JobHealthCheckShould
 		result2.Status.ShouldBe(HealthStatus.Unhealthy);
 	}
 
-	private sealed class TestJobConfig : JobConfig
+	private sealed class TestJobOptions : JobOptions
 	{
 	}
 }

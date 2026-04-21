@@ -6,7 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using Dapper;
 
 using Excalibur.Data.Abstractions.Validation;
-using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

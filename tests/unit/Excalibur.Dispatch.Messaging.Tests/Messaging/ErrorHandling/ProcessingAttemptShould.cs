@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 /// <summary>
 /// Unit tests for <see cref="ProcessingAttempt"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "ErrorHandling")]
 [Trait("Priority", "0")]
 public sealed class ProcessingAttemptShould
@@ -52,7 +52,7 @@ public sealed class ProcessingAttemptShould
 		var attempt = new ProcessingAttempt();
 
 		// Assert
-		attempt.ErrorMessage.ShouldBeNull();
+		attempt.ErrorMessage!.ShouldBeNull();
 		attempt.ExceptionType.ShouldBeNull();
 	}
 
@@ -123,7 +123,7 @@ public sealed class ProcessingAttemptShould
 		attempt.ErrorMessage = "Database connection failed";
 
 		// Assert
-		attempt.ErrorMessage.ShouldBe("Database connection failed");
+		attempt.ErrorMessage!.ShouldBe("Database connection failed");
 	}
 
 	[Fact]
@@ -161,7 +161,7 @@ public sealed class ProcessingAttemptShould
 		attempt.AttemptNumber.ShouldBe(2);
 		attempt.Duration.TotalSeconds.ShouldBe(1.5);
 		attempt.Succeeded.ShouldBeFalse();
-		attempt.ErrorMessage.ShouldBe("Timeout");
+		attempt.ErrorMessage!.ShouldBe("Timeout");
 		attempt.ExceptionType.ShouldBe("System.TimeoutException");
 	}
 
@@ -183,7 +183,7 @@ public sealed class ProcessingAttemptShould
 
 		// Assert
 		attempt.Succeeded.ShouldBeTrue();
-		attempt.ErrorMessage.ShouldBeNull();
+		attempt.ErrorMessage!.ShouldBeNull();
 		attempt.ExceptionType.ShouldBeNull();
 	}
 
@@ -203,7 +203,7 @@ public sealed class ProcessingAttemptShould
 
 		// Assert
 		attempt.Succeeded.ShouldBeFalse();
-		_ = attempt.ErrorMessage.ShouldNotBeNull();
+		_ = attempt.ErrorMessage!.ShouldNotBeNull();
 		attempt.ExceptionType.ShouldContain("SqlException");
 	}
 

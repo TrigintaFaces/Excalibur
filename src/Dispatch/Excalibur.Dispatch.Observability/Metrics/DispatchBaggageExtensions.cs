@@ -95,6 +95,8 @@ public static class DispatchBaggageExtensions
 	/// Gets all current baggage items.
 	/// </summary>
 	/// <returns> A dictionary of all current baggage items. </returns>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1024:UsePropertiesWhereAppropriate",
+		Justification = "Method allocates a new dictionary from iteration on each call; property semantics would be misleading.")]
 	public static IReadOnlyDictionary<string, string?> GetAllBaggage()
 	{
 		var baggage = new Dictionary<string, string?>(StringComparer.Ordinal);

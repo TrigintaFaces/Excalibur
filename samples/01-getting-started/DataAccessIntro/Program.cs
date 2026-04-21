@@ -1,11 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Data;
-
 using DataAccessIntro.Requests;
-
-using Excalibur.Data.Abstractions;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,7 +32,7 @@ var builder = Host.CreateApplicationBuilder(args);
 // ADO.NET connection pooling is automatic -- do NOT pool connections manually.
 // Each call to the factory returns a new SqlConnection that enlists in the pool.
 var connectionString = builder.Configuration["ConnectionStrings:Default"]
-	?? "Server=(localdb)\\mssqllocaldb;Database=DataAccessIntroSample;Trusted_Connection=True;";
+					   ?? "Server=(localdb)\\mssqllocaldb;Database=DataAccessIntroSample;Trusted_Connection=True;";
 
 builder.Services.AddSingleton<Func<SqlConnection>>(() => new SqlConnection(connectionString));
 

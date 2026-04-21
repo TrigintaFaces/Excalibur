@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 /// <summary>
 /// Tests for <c>AddPoisonMessageHandling&lt;TDetector&gt;()</c> convenience overload (Sprint 656 Q.5 / N.8).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PoisonMessageHandlingGenericShould
 {
 	[Fact]

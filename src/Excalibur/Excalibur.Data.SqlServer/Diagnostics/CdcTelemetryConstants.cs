@@ -11,7 +11,7 @@ namespace Excalibur.Data.SqlServer.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for CDC (Change Data Capture) instrumentation.
 /// </summary>
-public static class CdcTelemetryConstants
+internal static class CdcTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for CDC metrics.

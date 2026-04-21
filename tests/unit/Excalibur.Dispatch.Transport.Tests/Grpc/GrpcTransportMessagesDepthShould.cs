@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// internal/sealed type checks, error response fields, batch scenarios,
 /// and acknowledge action patterns.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportMessagesDepthShould
 {
 	[Fact]
@@ -100,7 +100,7 @@ public sealed class GrpcTransportMessagesDepthShould
 		response.IsSuccess.ShouldBeFalse();
 		response.MessageId.ShouldBeNull();
 		response.ErrorCode.ShouldBe("RATE_LIMITED");
-		response.ErrorMessage.ShouldBe("Too many requests");
+		response.ErrorMessage!.ShouldBe("Too many requests");
 	}
 
 	[Fact]

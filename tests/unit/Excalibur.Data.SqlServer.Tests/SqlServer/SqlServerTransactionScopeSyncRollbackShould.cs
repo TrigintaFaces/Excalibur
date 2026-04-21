@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.SqlServer;
 /// <summary>
 /// Verifies that <see cref="SqlServerTransactionScope"/> implements sync Rollback in Dispose (AD-540.2).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class SqlServerTransactionScopeSyncRollbackShould : UnitTestBase
 {
 	[Fact]

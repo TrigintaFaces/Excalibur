@@ -1,10 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Outbox.MultiTransport;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -30,8 +34,46 @@ public static class MultiTransportOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<MultiTransportOutboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MultiTransportOutboxOptions>, MultiTransportOutboxOptionsValidator>());
+
+		// Register MultiTransportOutboxStore as a decorator over the existing IOutboxStore
+		services.TryAddSingleton<Excalibur.Outbox.MultiTransport.IMultiTransportOutboxRouter>(sp =>
+		{
+			var innerStore = sp.GetRequiredKeyedService<IOutboxStore>("default");
+			var options = sp.GetRequiredService<Options.IOptions<MultiTransportOutboxOptions>>();
+			var logger = sp.GetRequiredService<Logging.ILogger<MultiTransportOutboxStore>>();
+			return new MultiTransportOutboxStore(innerStore, options, logger);
+		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds multi-transport outbox support using an <see cref="IConfiguration"/> section,
+	/// decorating the existing <see cref="IOutboxStore"/> registration with transport routing capabilities.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind options from. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
+	[RequiresUnreferencedCode("Configuration binding for MultiTransportOutboxOptions may require types not preserved during trimming.")]
+	[RequiresDynamicCode("Configuration binding for MultiTransportOutboxOptions requires dynamic code generation.")]
+	public static IServiceCollection AddMultiTransportOutbox(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<MultiTransportOutboxOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MultiTransportOutboxOptions>, MultiTransportOutboxOptionsValidator>());
 
 		// Register MultiTransportOutboxStore as a decorator over the existing IOutboxStore
 		services.TryAddSingleton<Excalibur.Outbox.MultiTransport.IMultiTransportOutboxRouter>(sp =>

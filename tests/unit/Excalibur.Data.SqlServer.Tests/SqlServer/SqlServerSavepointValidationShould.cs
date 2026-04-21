@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.SqlServer;
 /// Regression tests for S541.2 (bd-nekex): SQL injection prevention in savepoint name interpolation.
 /// Validates that the savepoint name whitelist regex rejects malicious input and accepts valid names.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class SqlServerSavepointValidationShould : UnitTestBase
 {
 	private readonly SqlServerTransactionScope _sut;

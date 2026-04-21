@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Hosting.AspNetCore;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -56,13 +57,16 @@ public static class DispatchAspNetCoreAuthorizationExtensions
 
 		builder.Services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AspNetCoreAuthorizationOptions>, AspNetCoreAuthorizationOptionsValidator>());
+
 		var optionsBuilder = builder.Services.AddOptions<AspNetCoreAuthorizationOptions>();
 		if (configure is not null)
 		{
 			_ = optionsBuilder.Configure(configure);
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = optionsBuilder.ValidateOnStart();
 
 		return builder.UseMiddleware<AspNetCoreAuthorizationMiddleware>();
 	}

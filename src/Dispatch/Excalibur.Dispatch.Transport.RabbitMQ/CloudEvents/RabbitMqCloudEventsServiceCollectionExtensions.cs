@@ -42,7 +42,6 @@ public static class RabbitMqCloudEventsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddOptions<CloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureOptions is not null)
 		{
@@ -74,7 +73,6 @@ public static class RabbitMqCloudEventsServiceCollectionExtensions
 		_ = services.UseCloudEvents(configureGeneral);
 
 		_ = services.AddOptions<RabbitMqCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureRabbitMq is not null)
 		{

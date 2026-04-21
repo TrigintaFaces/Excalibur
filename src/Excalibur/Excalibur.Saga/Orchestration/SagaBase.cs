@@ -124,8 +124,8 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 		var timeout = new SagaTimeout(
 			TimeoutId: timeoutId,
 			SagaId: Id.ToString(),
-			SagaType: GetType().AssemblyQualifiedName,
-			TimeoutType: typeof(TTimeout).AssemblyQualifiedName,
+			SagaType: GetType().AssemblyQualifiedName!,
+			TimeoutType: typeof(TTimeout).AssemblyQualifiedName!,
 			TimeoutData: timeoutData is not null ? SerializeTimeoutData(timeoutData) : null,
 			DueAt: now.Add(delay),
 			ScheduledAt: now);

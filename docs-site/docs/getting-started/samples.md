@@ -10,7 +10,7 @@ Everything under [`/samples`](https://github.com/TrigintaFaces/Excalibur/tree/ma
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Clone the repository:
 
   ```bash
@@ -101,7 +101,7 @@ All samples are certified and build in CI. The quarantine list was cleared acros
 
 | Sample | Where | Highlights |
 |--------|-------|------------|
-| **Healthcare Vertical Slice API** | `samples/12-vertical-slice-api/HealthcareApi/` | Minimal API with Dispatch hosting bridge, vertical slice + screaming folder structure. 4 feature slices (Patients, Appointments, Prescriptions, Notifications), cross-slice events, `[Authorize]` bridge, per-slice DI. |
+| **Healthcare Vertical Slice API** | `samples/11-real-world/HealthcareApi/` | Minimal API with Dispatch hosting bridge, vertical slice + screaming folder structure. 4 feature slices (Patients, Appointments, Prescriptions, Notifications), cross-slice events, `[Authorize]` bridge, per-slice DI. |
 
 See [Minimal API Hosting Bridge](../deployment/minimal-api-bridge.md) and [Vertical Slice Architecture](../architecture/vertical-slice-architecture.md) for related documentation.
 
@@ -111,7 +111,7 @@ The `samples/` folder also contains reference implementations for common pattern
 
 | Folder | Pattern |
 |--------|---------|
-| `samples/09-advanced/SqlServerEventStore/`, `samples/09-advanced/CosmosDbEventStore/`, `samples/09-advanced/SnapshotStrategies/` | Event sourcing, snapshot strategies, and schema evolution |
+| `samples/09-advanced/persistence-patterns/SqlServerEventStore/`, `samples/09-advanced/persistence-patterns/CosmosDbEventStore/`, `samples/09-advanced/persistence-patterns/SnapshotStrategies/` | Event sourcing, snapshot strategies, and schema evolution |
 | `samples/04-reliability/SagaOrchestration/` | Saga orchestration + compensation handlers |
 | `samples/02-messaging-transports/TransportBindings/` | Transport bindings and routing |
 | `samples/05-serverless/` | Azure/AWS/GCP serverless integrations (hosting packages) |

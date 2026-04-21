@@ -42,7 +42,7 @@ public sealed class RetryStrategy
 	public BackoffType BackoffType { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to add jitter to delays.
+	/// Gets or sets a value indicating whether to add jitter to delays.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether to add jitter to delays.
@@ -50,7 +50,7 @@ public sealed class RetryStrategy
 	public bool JitterEnabled { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to enable circuit breaker.
+	/// Gets or sets a value indicating whether to enable circuit breaker.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether to enable circuit breaker.

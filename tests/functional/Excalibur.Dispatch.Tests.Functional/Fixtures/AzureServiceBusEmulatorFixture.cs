@@ -24,7 +24,7 @@ public sealed class AzureServiceBusEmulatorFixture : ContainerFixtureBase
 			.WithImage("mcr.microsoft.com/azure-service-bus/emulator")
 			.WithName($"asb-emulator-{Guid.NewGuid():N}")
 			.WithPortBinding(5672, true)
-			.WithWaitStrategy(DotNet.Testcontainers.Builders.Wait.ForUnixContainer().UntilPortIsAvailable(5672))
+			.WithWaitStrategy(DotNet.Testcontainers.Builders.Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
 			.Build();
 
 		await _container.StartAsync(cancellationToken).ConfigureAwait(false);

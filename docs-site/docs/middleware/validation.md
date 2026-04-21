@@ -16,7 +16,7 @@ Dispatch includes a `ValidationMiddleware` that validates messages before they r
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -48,7 +48,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 services.AddDispatch(builder =>
 {
-    builder.AddDispatchValidation();
+    builder.UseValidation();
     builder.WithDataAnnotationsValidation();
 });
 ```
@@ -70,7 +70,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 services.AddDispatch(builder =>
 {
-    builder.AddDispatchValidation();
+    builder.UseValidation();
     builder.WithFluentValidation();
 });
 

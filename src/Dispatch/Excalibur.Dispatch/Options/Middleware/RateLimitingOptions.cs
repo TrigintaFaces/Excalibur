@@ -29,7 +29,7 @@ public sealed class RateLimitingOptions
 	/// <value>
 	/// The default rate limit configuration.
 	/// </value>
-	public RateLimitConfiguration DefaultLimit { get; set; } = new()
+	public RateLimitOptions DefaultLimit { get; set; } = new()
 	{
 		Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 		TokenLimit = 100,
@@ -43,7 +43,7 @@ public sealed class RateLimitingOptions
 	/// <value>
 	/// The global rate limit configuration.
 	/// </value>
-	public RateLimitConfiguration GlobalLimit { get; set; } = new()
+	public RateLimitOptions GlobalLimit { get; set; } = new()
 	{
 		Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 		TokenLimit = 1000,
@@ -55,7 +55,7 @@ public sealed class RateLimitingOptions
 	/// Gets message type-specific rate limits.
 	/// </summary>
 	/// <value>The current <see cref="MessageTypeLimits"/> value.</value>
-	public Dictionary<string, RateLimitConfiguration> MessageTypeLimits { get; init; } = [];
+	public Dictionary<string, RateLimitOptions> MessageTypeLimits { get; init; } = [];
 
 	/// <summary>
 	/// Gets or sets message types that bypass rate limiting.

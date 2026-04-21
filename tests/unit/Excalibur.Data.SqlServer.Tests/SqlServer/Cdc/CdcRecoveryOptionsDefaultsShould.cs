@@ -6,8 +6,8 @@ using Excalibur.Cdc.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CdcRecoveryOptionsDefaultsShould
 {
 	[Fact]
@@ -37,6 +37,6 @@ public sealed class CdcRecoveryOptionsDefaultsShould
 	[Fact]
 	public void HaveEmptyArrayAsDefaultCaptureInstances()
 	{
-		DatabaseConfigDefaults.CdcDefaultCaptureInstances.ShouldBeEmpty();
+		DatabaseOptionsDefaults.CdcDefaultCaptureInstances.ShouldBeEmpty();
 	}
 }

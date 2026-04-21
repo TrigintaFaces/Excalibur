@@ -114,7 +114,7 @@ public sealed class ContextTracingOptions
 	/// <summary>
 	/// Gets or sets patterns for sensitive fields to exclude from traces.
 	/// </summary>
-	public string[]? SensitiveFieldPatterns { get; set; } =
+	public List<string>? SensitiveFieldPatterns { get; set; } =
 	[
 		"(?i)password",
 		"(?i)secret",
@@ -185,17 +185,17 @@ public sealed class ContextFieldOptions
 	/// <summary>
 	/// Gets or sets the required context fields for integrity validation.
 	/// </summary>
-	public string[]? RequiredContextFields { get; set; }
+	public List<string>? RequiredContextFields { get; set; }
 
 	/// <summary>
 	/// Gets or sets critical fields that should never be removed.
 	/// </summary>
-	public string[]? CriticalFields { get; set; }
+	public List<string>? CriticalFields { get; set; }
 
 	/// <summary>
 	/// Gets or sets fields to track for modifications.
 	/// </summary>
-	public string[]? TrackedFields { get; set; }
+	public List<string>? TrackedFields { get; set; }
 }
 
 /// <summary>

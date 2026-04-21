@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Authorization;
 /// <summary>
 /// Unit tests for <see cref="AuthorizationResult"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class AuthorizationResultShould
 {

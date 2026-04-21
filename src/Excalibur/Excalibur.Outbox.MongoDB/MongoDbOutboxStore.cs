@@ -89,7 +89,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 
 		try
 		{
-			await _collection.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
+			await _collection!.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
 			LogMessageStaged(message.Id, message.MessageType, message.Destination);
 		}
 		catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
@@ -107,7 +107,9 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
+#pragma warning disable IL2026, IL3050 // AOT: MongoDB provider uses reflection-based JSON serialization
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
+#pragma warning restore IL2026, IL3050
 
 		var outbound = new OutboundMessage(messageType, payload, messageType)
 		{
@@ -143,7 +145,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 			.Ascending(d => d.Priority)
 			.Ascending(d => d.CreatedAt);
 
-		var documents = await _collection
+		var documents = await _collection!
 			.Find(stagedFilter)
 			.Sort(sort)
 			.Limit(batchSize)
@@ -176,7 +178,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 			.Set(d => d.SentAt, now)
 			.Set(d => d.LastError, null);
 
-		var result = await _collection.FindOneAndUpdateAsync(
+		var result = await _collection!.FindOneAndUpdateAsync(
 			atomicFilter,
 			update,
 			new FindOneAndUpdateOptions<MongoDbOutboxDocument> { ReturnDocument = ReturnDocument.Before },
@@ -186,7 +188,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 		if (result == null)
 		{
 			// Check if message exists to provide correct error message
-			var exists = await _collection.CountDocumentsAsync(
+			var exists = await _collection!.CountDocumentsAsync(
 				filter.Eq(d => d.Id, messageId),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
@@ -214,7 +216,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 		var now = DateTimeOffset.UtcNow;
 
 		// Check if exists - silent return per conformance tests
-		var exists = await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken).ConfigureAwait(false);
+		var exists = await _collection!.CountDocumentsAsync(filter, cancellationToken: cancellationToken).ConfigureAwait(false);
 		if (exists == 0)
 		{
 			return;
@@ -226,7 +228,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 			.Set(d => d.RetryCount, retryCount)
 			.Set(d => d.LastAttemptAt, now);
 
-		_ = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		LogMessageFailed(messageId, errorMessage, retryCount);
 	}
@@ -260,7 +262,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 			.Ascending(d => d.RetryCount)
 			.Ascending(d => d.LastAttemptAt);
 
-		var documents = await _collection
+		var documents = await _collection!
 			.Find(filter)
 			.Sort(sort)
 			.Limit(batchSize)
@@ -288,7 +290,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 
 		var sort = Builders<MongoDbOutboxDocument>.Sort.Ascending(d => d.ScheduledAt);
 
-		var documents = await _collection
+		var documents = await _collection!
 			.Find(filter)
 			.Sort(sort)
 			.Limit(batchSize)
@@ -311,7 +313,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 			filterBuilder.Lt(d => d.SentAt, olderThan));
 
 		// Find messages to delete
-		var toDelete = await _collection
+		var toDelete = await _collection!
 			.Find(filter)
 			.Limit(batchSize)
 			.ToListAsync(cancellationToken)
@@ -326,7 +328,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 		var ids = toDelete.Select(d => d.Id).ToList();
 		var deleteFilter = filterBuilder.In(d => d.Id, ids);
 
-		var result = await _collection.DeleteManyAsync(deleteFilter, cancellationToken).ConfigureAwait(false);
+		var result = await _collection!.DeleteManyAsync(deleteFilter, cancellationToken).ConfigureAwait(false);
 
 		LogMessagesCleanedUp((int)result.DeletedCount, olderThan);
 		return (int)result.DeletedCount;
@@ -343,23 +345,23 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 		var now = DateTimeOffset.UtcNow;
 
 		// Count by status
-		var stagedCount = (int)await _collection.CountDocumentsAsync(
+		var stagedCount = (int)await _collection!.CountDocumentsAsync(
 			filter.Eq(d => d.Status, (int)OutboxStatus.Staged),
 			cancellationToken: cancellationToken).ConfigureAwait(false);
 
-		var sendingCount = (int)await _collection.CountDocumentsAsync(
+		var sendingCount = (int)await _collection!.CountDocumentsAsync(
 			filter.Eq(d => d.Status, (int)OutboxStatus.Sending),
 			cancellationToken: cancellationToken).ConfigureAwait(false);
 
-		var sentCount = (int)await _collection.CountDocumentsAsync(
+		var sentCount = (int)await _collection!.CountDocumentsAsync(
 			filter.Eq(d => d.Status, (int)OutboxStatus.Sent),
 			cancellationToken: cancellationToken).ConfigureAwait(false);
 
-		var failedCount = (int)await _collection.CountDocumentsAsync(
+		var failedCount = (int)await _collection!.CountDocumentsAsync(
 			filter.Eq(d => d.Status, (int)OutboxStatus.Failed),
 			cancellationToken: cancellationToken).ConfigureAwait(false);
 
-		var scheduledCount = (int)await _collection.CountDocumentsAsync(
+		var scheduledCount = (int)await _collection!.CountDocumentsAsync(
 			filter.And(
 				filter.Eq(d => d.Status, (int)OutboxStatus.Staged),
 				filter.Ne(d => d.ScheduledAt, null)),
@@ -367,7 +369,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 
 		// Get oldest unsent
 		TimeSpan? oldestUnsentAge = null;
-		var oldestUnsent = await _collection
+		var oldestUnsent = await _collection!
 			.Find(filter.And(
 				filter.Eq(d => d.Status, (int)OutboxStatus.Staged),
 				filter.Or(
@@ -385,7 +387,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 
 		// Get oldest failed
 		TimeSpan? oldestFailedAge = null;
-		var oldestFailed = await _collection
+		var oldestFailed = await _collection!
 			.Find(filter.Eq(d => d.Status, (int)OutboxStatus.Failed))
 			.SortBy(d => d.CreatedAt)
 			.Limit(1)
@@ -476,10 +478,10 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 				indexBuilder.Ascending(d => d.SentAt),
 				new CreateIndexOptions { ExpireAfter = TimeSpan.FromSeconds(_options.SentMessageTtlSeconds) });
 
-			_ = await _collection.Indexes.CreateOneAsync(ttlIndex, cancellationToken: cancellationToken).ConfigureAwait(false);
+			_ = await _collection!.Indexes.CreateOneAsync(ttlIndex, cancellationToken: cancellationToken).ConfigureAwait(false);
 		}
 
-		_ = await _collection.Indexes.CreateManyAsync([unsentIndex, statusIndex, failedIndex], cancellationToken).ConfigureAwait(false);
+		_ = await _collection!.Indexes.CreateManyAsync([unsentIndex, statusIndex, failedIndex], cancellationToken).ConfigureAwait(false);
 
 		_initialized = true;
 	}

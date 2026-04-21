@@ -201,7 +201,7 @@ internal sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 			else
 			{
 				Metrics.RecordFailure(stopwatch.Elapsed);
-				LogProcessingFailed(message.MessageId, result.Error);
+				LogProcessingFailed(message.MessageId, result.Error ?? string.Empty);
 			}
 		}
 		catch (Exception ex)
@@ -269,7 +269,7 @@ internal sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 			return;
 		}
 
-		var request = new DeleteMessageBatchRequest { QueueUrl = _options.QueueUrl.ToString(), Entries = [.. entries], };
+		var request = new DeleteMessageBatchRequest { QueueUrl = _options.QueueUrl!.ToString(), Entries = [.. entries], };
 
 		try
 		{

@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// Tests for <see cref="ResourceNotFoundException"/> to verify resource not found
 /// error handling with HTTP 404 status code and specific resource identification.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ResourceNotFoundExceptionShould
 {
 	[Fact]
@@ -121,7 +121,7 @@ public sealed class ResourceNotFoundExceptionShould
 		var exception = new ResourceNotFoundException("Not found", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)

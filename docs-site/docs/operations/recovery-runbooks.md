@@ -10,7 +10,7 @@ This guide provides step-by-step procedures for recovering from common operation
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Access to your production or staging SQL Server instance
 - Familiarity with [performance tuning](./performance-tuning.md) and [health checks](../observability/health-checks.md)
 

@@ -11,9 +11,9 @@ namespace Excalibur.Data.Tests.Firestore.Cdc;
 /// <summary>
 /// Tests verifying FirestoreCdcProcessor has volatile _isRunning and _disposed fields (S543.14).
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.Firestore")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class FirestoreCdcProcessorThreadSafetyShould : UnitTestBase
 {
 	[Fact]

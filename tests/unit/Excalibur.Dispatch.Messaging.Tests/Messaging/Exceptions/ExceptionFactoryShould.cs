@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// <remarks>
 /// Tests the standardized exception factory methods.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Exceptions")]
 [Trait("Priority", "0")]
 public sealed class ExceptionFactoryShould
@@ -362,7 +362,7 @@ public sealed class ExceptionFactoryShould
 		// Assert
 		_ = ex.ShouldNotBeNull();
 		ex.Message.ShouldBe("Wrapped message");
-		ex.InnerException.ShouldBe(innerEx);
+		ex.InnerException!.ShouldBe(innerEx);
 	}
 
 	[Fact]

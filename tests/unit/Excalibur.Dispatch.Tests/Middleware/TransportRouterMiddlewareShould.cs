@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// message kind validation, and fallback behavior.
 /// Sprint 560 (S560.43).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class TransportRouterMiddlewareShould : UnitTestBase
 {
 	private readonly TransportRouterMiddleware _middleware;

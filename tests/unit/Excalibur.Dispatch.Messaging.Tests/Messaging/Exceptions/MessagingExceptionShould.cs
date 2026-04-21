@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// <summary>
 /// Unit tests for <see cref="MessagingException"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessagingExceptionShould
 {
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class MessagingExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.ErrorCode.ShouldBe(ErrorCodes.MessageSendFailed);
 	}
 
@@ -95,7 +95,7 @@ public sealed class MessagingExceptionShould
 		// Assert
 		exception.ErrorCode.ShouldBe(errorCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -246,7 +246,7 @@ public sealed class MessagingExceptionShould
 		exception.SuggestedAction.ShouldContain("network connectivity");
 		exception.DispatchStatusCode.ShouldBe(503); // Service Unavailable
 		exception.Data["ErrorCode"].ShouldBe(ErrorCodes.MessageBrokerConnectionFailed);
-		exception.InnerException.ShouldNotBeNull();
+		exception.InnerException!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -261,7 +261,7 @@ public sealed class MessagingExceptionShould
 
 		// Assert
 		exception.Message.ShouldContain(brokerAddress);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.DispatchStatusCode.ShouldBe(503);
 	}
 

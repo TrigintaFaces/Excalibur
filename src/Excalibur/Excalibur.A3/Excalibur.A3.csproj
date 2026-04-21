@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -12,6 +12,11 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Tests" />
     <InternalsVisibleTo Include="Excalibur.A3.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Benchmarks" />
+    <!-- S795 A1: IVT to Conformance.Tests — pin AddExcaliburAuditMinimalWiringConformanceTests
+         directly exercises the internal aggregator per COMPASS msg 1498 §1 condition 1
+         (legitimately testing the internal aggregator's behavior). -->
+    <InternalsVisibleTo Include="Excalibur.Testing.Conformance.Tests" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Audit\Requests\" />
@@ -20,12 +25,12 @@
     <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Excalibur.A3.Abstractions\Excalibur.A3.Abstractions.csproj" />
+    <!-- A3.Core provides A3.Abstractions + Domain + Dispatch.Abstractions transitively -->
+    <ProjectReference Include="..\Excalibur.A3.Core\Excalibur.A3.Core.csproj" />
     <ProjectReference Include="..\Excalibur.Application\Excalibur.Application.csproj" />
-    <ProjectReference Include="..\Excalibur.Data\Excalibur.Data.csproj" />
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
-    <ProjectReference Include="..\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <!-- Required: AuditMiddleware uses Excalibur.Dispatch.Delivery.OutboxMessage (defined in Excalibur.Outbox) -->
     <ProjectReference Include="..\Excalibur.Outbox\Excalibur.Outbox.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
@@ -36,9 +41,5 @@
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

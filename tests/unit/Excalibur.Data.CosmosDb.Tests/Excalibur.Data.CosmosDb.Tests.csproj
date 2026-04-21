@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.CosmosDb\Excalibur.Inbox.CosmosDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.CosmosDb\Excalibur.Outbox.CosmosDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.CosmosDb\Excalibur.Saga.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.CosmosDb\Excalibur.EventSourcing.CosmosDb.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

@@ -93,7 +93,7 @@ public interface IMessageHandler<TData, TMessage>
 	/// <remarks>
 	/// <para>
 	/// Calling <see cref="Complete"/> is equivalent to calling
-	/// <see cref="Messaging.Delivery.Orchestration.Saga{TSagaState}.MarkCompleted"/>
+	/// <c>SagaBase.MarkCompleted</c>
 	/// at the end of message processing.
 	/// </para>
 	/// <para>

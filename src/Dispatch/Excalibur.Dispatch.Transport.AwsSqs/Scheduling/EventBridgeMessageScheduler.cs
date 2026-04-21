@@ -37,6 +37,10 @@ internal class EventBridgeMessageScheduler(
 		scheduler ?? throw new ArgumentNullException(nameof(scheduler));
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
 	public Task<string> ScheduleAsync(
 		IDispatchMessage message,
 		DateTimeOffset scheduleTime,
@@ -44,11 +48,15 @@ internal class EventBridgeMessageScheduler(
 		ScheduleObjectAsync(message, message.GetType(), scheduleTime, cancellationToken);
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
 	public Task<string> ScheduleMessageAsync<T>(
 		T message,
 		DateTimeOffset scheduledTime,
 		CancellationToken cancellationToken) =>
-		ScheduleObjectAsync(message, typeof(T), scheduledTime, cancellationToken);
+		ScheduleObjectAsync(message!, typeof(T), scheduledTime, cancellationToken);
 
 	/// <inheritdoc />
 	public async Task<bool> CancelAsync(
@@ -125,6 +133,7 @@ internal class EventBridgeMessageScheduler(
 		$"at({scheduleTime.ToUniversalTime():yyyy-MM-ddTHH:mm:ss})";
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToElement(Object, Type, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToElement and Serialize which require dynamic code")]
 	private static string BuildInputPayload(
 		object message,
 		Type messageType,
@@ -207,6 +216,8 @@ internal class EventBridgeMessageScheduler(
 		return new DateTimeOffset(dateTime);
 	}
 
+	[RequiresUnreferencedCode("Calls BuildInputPayload which uses System.Text.Json.JsonSerializer")]
+	[RequiresDynamicCode("Calls BuildInputPayload which uses System.Text.Json.JsonSerializer requiring dynamic code")]
 	private async Task<string> ScheduleObjectAsync(
 		object message,
 		Type messageType,
@@ -293,7 +304,7 @@ internal class EventBridgeMessageScheduler(
 			Arn = _options.TargetArn,
 			RoleArn = _options.RoleArn,
 			Input = input,
-			RetryPolicy = new Amazon.Scheduler.Model.RetryPolicy { MaximumRetryAttempts = _options.MaxRetryAttempts, },
+			RetryPolicy = new RetryPolicy { MaximumRetryAttempts = _options.MaxRetryAttempts, },
 		};
 
 		if (!string.IsNullOrWhiteSpace(_options.DeadLetterQueueArn))
@@ -301,7 +312,7 @@ internal class EventBridgeMessageScheduler(
 			target.DeadLetterConfig = new DeadLetterConfig { Arn = _options.DeadLetterQueueArn, };
 		}
 
-		if (IsEventBridgeTarget(_options.TargetArn))
+		if (IsEventBridgeTarget(_options.TargetArn!))
 		{
 			target.EventBridgeParameters = new EventBridgeParameters { DetailType = messageType.Name, Source = "dispatch", };
 		}

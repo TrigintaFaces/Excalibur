@@ -14,13 +14,9 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </summary>
 public sealed partial class AdaptiveBatchingStrategy : IBatchingStrategy
 {
-	private readonly IOptions<BatchConfiguration> _options;
+	private readonly IOptions<BatchOptions> _options;
 	private readonly ILogger<AdaptiveBatchingStrategy> _logger;
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 
 	private readonly Queue<BatchResult> _recentResults;
 	private readonly int _windowSize = 20;
@@ -41,7 +37,7 @@ public sealed partial class AdaptiveBatchingStrategy : IBatchingStrategy
 	/// Initializes a new instance of the <see cref="AdaptiveBatchingStrategy" /> class.
 	/// </summary>
 	public AdaptiveBatchingStrategy(
-		IOptions<BatchConfiguration> options,
+		IOptions<BatchOptions> options,
 		ILogger<AdaptiveBatchingStrategy> logger)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));

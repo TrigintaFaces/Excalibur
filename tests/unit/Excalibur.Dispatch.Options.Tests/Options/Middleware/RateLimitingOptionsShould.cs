@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Options.Middleware;
 /// Unit tests for <see cref="RateLimitingOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class RateLimitingOptionsShould
 {
@@ -173,7 +173,7 @@ public sealed class RateLimitingOptionsShould
 	{
 		// Arrange
 		var options = new RateLimitingOptions();
-		var newLimit = new RateLimitConfiguration
+		var newLimit = new RateLimitOptions
 		{
 			Algorithm = MiddlewareRateLimitAlgorithm.SlidingWindow,
 			TokenLimit = 50,
@@ -191,7 +191,7 @@ public sealed class RateLimitingOptionsShould
 	{
 		// Arrange
 		var options = new RateLimitingOptions();
-		var newLimit = new RateLimitConfiguration
+		var newLimit = new RateLimitOptions
 		{
 			Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 			TokenLimit = 500,
@@ -223,7 +223,7 @@ public sealed class RateLimitingOptionsShould
 	{
 		// Arrange
 		var options = new RateLimitingOptions();
-		var config = new RateLimitConfiguration { TokenLimit = 10 };
+		var config = new RateLimitOptions { TokenLimit = 10 };
 
 		// Act
 		options.MessageTypeLimits["OrderCommand"] = config;
@@ -241,8 +241,8 @@ public sealed class RateLimitingOptionsShould
 	public void ObjectInitializer_SetsAllProperties()
 	{
 		// Arrange
-		var defaultLimit = new RateLimitConfiguration { TokenLimit = 200 };
-		var globalLimit = new RateLimitConfiguration { TokenLimit = 2000 };
+		var defaultLimit = new RateLimitOptions { TokenLimit = 200 };
+		var globalLimit = new RateLimitOptions { TokenLimit = 2000 };
 		var bypassTypes = new[] { "SystemMessage" };
 
 		// Act
@@ -273,14 +273,14 @@ public sealed class RateLimitingOptionsShould
 		// Act
 		var options = new RateLimitingOptions
 		{
-			DefaultLimit = new RateLimitConfiguration
+			DefaultLimit = new RateLimitOptions
 			{
 				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 500,
 				ReplenishmentPeriod = TimeSpan.FromSeconds(1),
 				TokensPerPeriod = 500,
 			},
-			GlobalLimit = new RateLimitConfiguration
+			GlobalLimit = new RateLimitOptions
 			{
 				TokenLimit = 5000,
 				TokensPerPeriod = 5000,
@@ -297,8 +297,8 @@ public sealed class RateLimitingOptionsShould
 	{
 		// Act
 		var options = new RateLimitingOptions();
-		options.MessageTypeLimits["OrderCommand"] = new RateLimitConfiguration { TokenLimit = 10 };
-		options.MessageTypeLimits["QueryCommand"] = new RateLimitConfiguration { TokenLimit = 100 };
+		options.MessageTypeLimits["OrderCommand"] = new RateLimitOptions { TokenLimit = 10 };
+		options.MessageTypeLimits["QueryCommand"] = new RateLimitOptions { TokenLimit = 100 };
 
 		// Assert
 		options.MessageTypeLimits.Count.ShouldBe(2);

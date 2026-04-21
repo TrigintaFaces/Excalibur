@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Serialization;
 
-using Mp = global::MessagePack.MessagePackSerializer;
-using MpOptions = global::MessagePack.MessagePackSerializerOptions;
+using Mp = MessagePack.MessagePackSerializer;
+using MpOptions = MessagePack.MessagePackSerializerOptions;
 
 namespace Excalibur.Dispatch.Serialization.MessagePack;
 
@@ -24,8 +23,10 @@ namespace Excalibur.Dispatch.Serialization.MessagePack;
 /// <b>Serializer ID:</b> <see cref="SerializerIds.MessagePack"/> (3)
 /// </para>
 /// </remarks>
-[RequiresUnreferencedCode("MessagePack serialization may require unreferenced code for type-specific handling.")]
-[RequiresDynamicCode("MessagePack serialization may require dynamic code generation for type-specific handling.")]
+[RequiresUnreferencedCode(
+	"MessagePack-CSharp uses runtime code generation for formatter resolution (MakeGenericType in StandardResolver).")]
+[RequiresDynamicCode(
+	"MessagePack-CSharp uses runtime code generation for formatter resolution. Pre-generated formatters via mpc tool do not eliminate all internal reflection.")]
 public sealed class MessagePackSerializer : ISerializer
 {
 	private readonly MpOptions _options;
@@ -71,7 +72,7 @@ public sealed class MessagePackSerializer : ISerializer
 		{
 			var array = data.ToArray();
 			return Mp.Deserialize<T>(array, _options)
-				?? throw SerializationException.NullResult<T>();
+				   ?? throw SerializationException.NullResult<T>();
 		}
 		catch (SerializationException)
 		{
@@ -108,7 +109,7 @@ public sealed class MessagePackSerializer : ISerializer
 		{
 			var array = data.ToArray();
 			return Mp.Deserialize(type, array, _options)
-				?? throw SerializationException.NullResultForType(type);
+				   ?? throw SerializationException.NullResultForType(type);
 		}
 		catch (SerializationException)
 		{
@@ -119,5 +120,4 @@ public sealed class MessagePackSerializer : ISerializer
 			throw SerializationException.WrapObject(type, "deserialize", ex);
 		}
 	}
-
 }

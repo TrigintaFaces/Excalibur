@@ -8,7 +8,7 @@ namespace Excalibur.Cdc;
 /// <summary>
 /// Internal implementation of the CDC builder.
 /// </summary>
-internal sealed class CdcBuilder : ICdcBuilder
+internal sealed class CdcBuilder : ICdcBuilder, ICdcBuilderDiscovery
 {
 	private readonly CdcOptions _options;
 

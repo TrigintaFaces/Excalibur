@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// circuit breaker state transitions, fallback execution, observer pattern,
 /// and metrics tracking.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class PollyCircuitBreakerAdapterFunctionalShould : IAsyncDisposable
 {
 	private PollyCircuitBreakerAdapter? _sut;

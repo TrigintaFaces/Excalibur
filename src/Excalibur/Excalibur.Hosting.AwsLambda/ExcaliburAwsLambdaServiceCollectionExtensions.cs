@@ -4,6 +4,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -22,7 +24,6 @@ public static class ExcaliburAwsLambdaServiceCollectionExtensions
 	/// <param name="services"> The service collection to add services to. </param>
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services is null. </exception>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	public static IServiceCollection AddExcaliburAwsLambdaServerless(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -42,7 +43,6 @@ public static class ExcaliburAwsLambdaServiceCollectionExtensions
 	/// <param name="configureOptions"> An action to configure the serverless host options. </param>
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configureOptions is null. </exception>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	public static IServiceCollection AddExcaliburAwsLambdaServerless(
 		this IServiceCollection services,
 		Action<ServerlessHostOptions> configureOptions)
@@ -52,6 +52,33 @@ public static class ExcaliburAwsLambdaServiceCollectionExtensions
 
 		_ = services.AddExcaliburAwsLambdaServerless();
 		_ = services.Configure(configureOptions);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Excalibur AWS Lambda serverless hosting services to the specified service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection to add services to. </param>
+	/// <param name="configuration"> The configuration section to bind options from. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
+	[RequiresUnreferencedCode("IConfiguration binding uses reflection. AOT consumers should use the Action<ServerlessHostOptions> overload instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "AOT-safe: IConfiguration.Bind() requires reflection -- see Action<T> overload as AOT alternative")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "AOT-safe: IConfiguration.Bind() requires dynamic code -- see Action<T> overload as AOT alternative")]
+	public static IServiceCollection AddExcaliburAwsLambdaServerless(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddExcaliburAwsLambdaServerless();
+		_ = services.AddOptions<ServerlessHostOptions>()
+			.Bind(configuration);
 
 		return services;
 	}

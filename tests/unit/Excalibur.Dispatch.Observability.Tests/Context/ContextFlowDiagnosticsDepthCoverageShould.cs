@@ -109,6 +109,278 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	}
 
 	[Fact]
+	public void VisualizeContextFlow_DetectModifiedField_WhenPrimitiveValueChanges()
+	{
+		// Arrange - same field name, different primitive value
+		var snapshot1 = new ContextSnapshot
+		{
+			MessageId = "msg-mod1",
+			Stage = "Before",
+			Timestamp = DateTimeOffset.UtcNow.AddSeconds(-5),
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-mod1",
+				["RetryCount"] = 1,
+			},
+			FieldCount = 2,
+			SizeBytes = 50,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+		var snapshot2 = new ContextSnapshot
+		{
+			MessageId = "msg-mod1",
+			Stage = "After",
+			Timestamp = DateTimeOffset.UtcNow,
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-mod1",
+				["RetryCount"] = 3,
+			},
+			FieldCount = 2,
+			SizeBytes = 50,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+
+		A.CallTo(() => _tracker.GetMessageSnapshots("msg-mod1"))
+			.Returns(new[] { snapshot1, snapshot2 });
+
+		// Act
+		var result = _sut.VisualizeContextFlow("msg-mod1");
+
+		// Assert - deep comparison detects the primitive value change
+		result.ShouldContain("Modified: RetryCount");
+	}
+
+	[Fact]
+	public void VisualizeContextFlow_DetectModifiedField_WhenComplexObjectChanges()
+	{
+		// Arrange - complex objects with same ToString() but different JSON
+		// Dictionary<string, object> has ToString() = "System.Collections.Generic.Dictionary`2[...]"
+		// regardless of content, but JSON serialization differs.
+		var dictBefore = new Dictionary<string, object>(StringComparer.Ordinal) { ["key"] = "value1" };
+		var dictAfter = new Dictionary<string, object>(StringComparer.Ordinal) { ["key"] = "value2" };
+
+		var snapshot1 = new ContextSnapshot
+		{
+			MessageId = "msg-complex",
+			Stage = "Before",
+			Timestamp = DateTimeOffset.UtcNow.AddSeconds(-5),
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-complex",
+				["Metadata"] = dictBefore,
+			},
+			FieldCount = 2,
+			SizeBytes = 100,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+		var snapshot2 = new ContextSnapshot
+		{
+			MessageId = "msg-complex",
+			Stage = "After",
+			Timestamp = DateTimeOffset.UtcNow,
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-complex",
+				["Metadata"] = dictAfter,
+			},
+			FieldCount = 2,
+			SizeBytes = 100,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+
+		A.CallTo(() => _tracker.GetMessageSnapshots("msg-complex"))
+			.Returns(new[] { snapshot1, snapshot2 });
+
+		// Act
+		var result = _sut.VisualizeContextFlow("msg-complex");
+
+		// Assert - deep JSON comparison detects the nested value change
+		// that ToString() would have missed (both return the same type name)
+		result.ShouldContain("Modified: Metadata");
+	}
+
+	[Fact]
+	public void VisualizeContextFlow_NotReportModified_WhenFieldValueIsIdentical()
+	{
+		// Arrange - same field, same value across two snapshots
+		var snapshot1 = new ContextSnapshot
+		{
+			MessageId = "msg-same",
+			Stage = "Before",
+			Timestamp = DateTimeOffset.UtcNow.AddSeconds(-5),
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-same",
+				["Status"] = "Active",
+			},
+			FieldCount = 2,
+			SizeBytes = 50,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+		var snapshot2 = new ContextSnapshot
+		{
+			MessageId = "msg-same",
+			Stage = "After",
+			Timestamp = DateTimeOffset.UtcNow,
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-same",
+				["Status"] = "Active",
+			},
+			FieldCount = 2,
+			SizeBytes = 50,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+
+		A.CallTo(() => _tracker.GetMessageSnapshots("msg-same"))
+			.Returns(new[] { snapshot1, snapshot2 });
+
+		// Act
+		var result = _sut.VisualizeContextFlow("msg-same");
+
+		// Assert - no modified fields reported
+		result.ShouldNotContain("Modified:");
+	}
+
+	[Fact]
+	public void VisualizeContextFlow_DetectModifiedField_WhenNullReplacedWithValue()
+	{
+		// Arrange - field goes from null to a value
+		var snapshot1 = new ContextSnapshot
+		{
+			MessageId = "msg-null",
+			Stage = "Before",
+			Timestamp = DateTimeOffset.UtcNow.AddSeconds(-5),
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-null",
+				["Result"] = null,
+			},
+			FieldCount = 2,
+			SizeBytes = 50,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+		var snapshot2 = new ContextSnapshot
+		{
+			MessageId = "msg-null",
+			Stage = "After",
+			Timestamp = DateTimeOffset.UtcNow,
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-null",
+				["Result"] = "Success",
+			},
+			FieldCount = 2,
+			SizeBytes = 50,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+
+		A.CallTo(() => _tracker.GetMessageSnapshots("msg-null"))
+			.Returns(new[] { snapshot1, snapshot2 });
+
+		// Act
+		var result = _sut.VisualizeContextFlow("msg-null");
+
+		// Assert - null-to-value transition detected as modification
+		result.ShouldContain("Modified: Result");
+	}
+
+	[Fact]
+	public void VisualizeContextFlow_DetectModifiedField_WhenUnknownTypeFallsBackToToString()
+	{
+		// Arrange - use a type NOT in ObservabilityJsonSerializerContext to exercise the
+		// fallback path in AreFieldValuesEqual (NotSupportedException -> ToString comparison).
+		// System.Text.RegularExpressions.Regex is not in the source-gen context.
+		var customBefore = new System.Text.RegularExpressions.Regex("pattern-A");
+		var customAfter = new System.Text.RegularExpressions.Regex("pattern-B");
+
+		var snapshot1 = new ContextSnapshot
+		{
+			MessageId = "msg-fallback",
+			Stage = "Before",
+			Timestamp = DateTimeOffset.UtcNow.AddSeconds(-5),
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-fallback",
+				["CustomField"] = customBefore,
+			},
+			FieldCount = 2,
+			SizeBytes = 100,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+		var snapshot2 = new ContextSnapshot
+		{
+			MessageId = "msg-fallback",
+			Stage = "After",
+			Timestamp = DateTimeOffset.UtcNow,
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-fallback",
+				["CustomField"] = customAfter,
+			},
+			FieldCount = 2,
+			SizeBytes = 100,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+
+		A.CallTo(() => _tracker.GetMessageSnapshots("msg-fallback"))
+			.Returns(new[] { snapshot1, snapshot2 });
+
+		// Act
+		var result = _sut.VisualizeContextFlow("msg-fallback");
+
+		// Assert - fallback to ToString() detects change (Regex.ToString() returns the pattern)
+		result.ShouldContain("Modified: CustomField");
+	}
+
+	[Fact]
+	public void VisualizeContextFlow_NotReportModified_WhenUnknownTypeToStringMatches()
+	{
+		// Arrange - same unknown type with same ToString() output
+		var customBefore = new System.Text.RegularExpressions.Regex("same-pattern");
+		var customAfter = new System.Text.RegularExpressions.Regex("same-pattern");
+
+		var snapshot1 = new ContextSnapshot
+		{
+			MessageId = "msg-fallback-eq",
+			Stage = "Before",
+			Timestamp = DateTimeOffset.UtcNow.AddSeconds(-5),
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-fallback-eq",
+				["CustomField"] = customBefore,
+			},
+			FieldCount = 2,
+			SizeBytes = 100,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+		var snapshot2 = new ContextSnapshot
+		{
+			MessageId = "msg-fallback-eq",
+			Stage = "After",
+			Timestamp = DateTimeOffset.UtcNow,
+			Fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+			{
+				["MessageId"] = "msg-fallback-eq",
+				["CustomField"] = customAfter,
+			},
+			FieldCount = 2,
+			SizeBytes = 100,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal),
+		};
+
+		A.CallTo(() => _tracker.GetMessageSnapshots("msg-fallback-eq"))
+			.Returns(new[] { snapshot1, snapshot2 });
+
+		// Act
+		var result = _sut.VisualizeContextFlow("msg-fallback-eq");
+
+		// Assert - same ToString() output means no modification detected
+		result.ShouldNotContain("Modified: CustomField");
+	}
+
+	[Fact]
 	public void AnalyzeContextHealth_DetectMissingRequiredFields()
 	{
 		// Arrange

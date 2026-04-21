@@ -172,7 +172,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 
 			var sort = Builders<MongoDbEventDocument>.Sort.Ascending(d => d.Version);
 
-			var documents = await _eventsCollection
+			var documents = await _eventsCollection!
 				.Find(filter)
 				.Sort(sort)
 				.ToListAsync(cancellationToken)
@@ -278,7 +278,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			}
 
 			// Use ordered insert - stops at first failure
-			await _eventsCollection.InsertManyAsync(
+			await _eventsCollection!.InsertManyAsync(
 				documents,
 				new InsertManyOptions { IsOrdered = true },
 				cancellationToken).ConfigureAwait(false);
@@ -407,7 +407,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 
 		var sort = Builders<MongoDbEventDocument>.Sort.Descending(d => d.Version);
 
-		var latestEvent = await _eventsCollection
+		var latestEvent = await _eventsCollection!
 			.Find(filter)
 			.Sort(sort)
 			.Limit(1)
@@ -423,7 +423,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		var update = Builders<MongoDbCounterDocument>.Update.Inc(d => d.Sequence, 1);
 		var options = new FindOneAndUpdateOptions<MongoDbCounterDocument> { ReturnDocument = ReturnDocument.After, IsUpsert = true };
 
-		var result = await _countersCollection.FindOneAndUpdateAsync(
+		var result = await _countersCollection!.FindOneAndUpdateAsync(
 			filter,
 			update,
 			options,
@@ -479,7 +479,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			indexBuilder.Ascending(d => d.EventId),
 			new CreateIndexOptions { Name = "ix_event_id" });
 
-		_ = await _eventsCollection.Indexes.CreateManyAsync(
+		_ = await _eventsCollection!.Indexes.CreateManyAsync(
 			[uniqueVersionIndex, globalSequenceIndex, eventIdIndex],
 			cancellationToken).ConfigureAwait(false);
 
@@ -493,12 +493,16 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			return _payloadSerializer.Serialize(@event);
 		}
 
+#pragma warning disable IL2026, IL3050 // AOT: MongoDB provider uses reflection-based JSON serialization
 		// Fallback to System.Text.Json for backward compatibility
 		return JsonSerializer.SerializeToUtf8Bytes(@event, @event.GetType(), _jsonOptions);
+#pragma warning restore IL2026, IL3050
 	}
 
+#pragma warning disable IL2026, IL3050 // AOT: MongoDB provider uses reflection-based JSON serialization
 	private byte[] SerializeMetadata(IDictionary<string, object> metadata) =>
 		JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions);
+#pragma warning restore IL2026, IL3050
 
 	private byte[] SerializeEventWithEnvelopeSupport(
 		IDomainEvent @event,

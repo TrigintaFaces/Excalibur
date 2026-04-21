@@ -34,6 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -49,7 +50,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -57,7 +58,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -70,30 +71,52 @@ jobs:
       - name: Build performance test shard
         run: dotnet build eng/ci/shards/PerformanceTests.slnf --configuration Release --no-restore
 
+      - name: Build benchmark project for downstream jobs
+        run: |
+          dotnet restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
       - name: Run performance test shard
         run: dotnet test eng/ci/shards/PerformanceTests.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFileName=performance-tests.trx" --logger "console;verbosity=minimal" --filter "Category=Performance"
 
+      - name: Package build output for benchmark jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests benchmarks -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests benchmarks \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf perf-build-output.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh perf-build-output.tar.gz
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-build-output-linux
+          path: perf-build-output.tar.gz
+          retention-days: 1
+          compression-level: 0
+
       - name: Upload performance test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: performance-test-results
           path: "**/performance-tests.trx"
           retention-days: 30
 
-  # Hot path benchmarks - critical performance validation
-  hot-path-benchmarks:
-    name: Hot Path Benchmarks (${{ matrix.os }})
+  # Platform-specific benchmark builds (hot-path needs pre-built artifacts per OS)
+  benchmark-build:
+    name: Benchmark Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: performance-unit-tests
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [windows-latest, macos-latest]
         include:
-          - os: ubuntu-latest
-            runtime: linux-x64
           - os: windows-latest
-            runtime: win-x64
+            artifact-name: perf-build-output-windows
+          - os: macos-latest
+            artifact-name: perf-build-output-macos
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -101,7 +124,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -109,18 +132,77 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Restore and build benchmarks
+        run: |
+          dotnet restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+      - name: Package build output
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests benchmarks -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests benchmarks \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf perf-build-output.tar.gz -T /tmp/artifact-paths.txt
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: perf-build-output.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+  # Hot path benchmarks - critical performance validation (Linux, Windows, macOS)
+  hot-path-benchmarks:
+    name: Hot Path Benchmarks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [performance-unit-tests, benchmark-build]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+            artifact: perf-build-output-linux
+          - os: windows-latest
+            runtime: win-x64
+            artifact: perf-build-output-windows
+          - os: macos-latest
+            runtime: osx-arm64
+            artifact: perf-build-output-macos
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Download pre-built benchmark artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact }}
+
+      - name: Extract build output
+        shell: bash
+        run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
+
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Run hot path benchmarks
         shell: pwsh
@@ -149,7 +231,7 @@ jobs:
           & dotnet $benchmarkArgs
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hot-path-results-${{ matrix.os }}
           path: BenchmarkDotNet.Artifacts
@@ -259,26 +341,23 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built benchmark artifacts
+        uses: actions/download-artifact@v8
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: perf-build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Extract build output
+        run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
 
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Run memory allocation benchmarks
         run: |
@@ -293,7 +372,7 @@ jobs:
                --artifacts ./BenchmarkDotNet.Artifacts
 
       - name: Upload memory benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: memory-benchmark-results
           path: BenchmarkDotNet.Artifacts
@@ -310,26 +389,23 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built benchmark artifacts
+        uses: actions/download-artifact@v8
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: perf-build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Extract build output
+        run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
 
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       # TODO: Enable when benchmarks/CloudNativePatterns.Benchmarks project exists
       # - name: Run cloud native patterns benchmarks
@@ -367,7 +443,7 @@ jobs:
                --artifacts ./ThroughputBenchmarks
 
       - name: Upload throughput results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: throughput-benchmark-results
           path: |
@@ -516,7 +592,7 @@ jobs:
           EOF
 
       - name: Upload performance analysis
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: performance-analysis
           path: |

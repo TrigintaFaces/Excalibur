@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Testing.Polling;
 namespace Excalibur.Dispatch.Testing.Tests.Polling;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Testing")]
+[Trait(TraitNames.Component, TestComponents.Testing)]
 public sealed class WaitHelpersShould
 {
 	#region WaitUntilAsync (sync condition)

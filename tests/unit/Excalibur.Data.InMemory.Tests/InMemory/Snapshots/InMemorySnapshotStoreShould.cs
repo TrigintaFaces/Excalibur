@@ -15,7 +15,7 @@ namespace Excalibur.Data.Tests.InMemory.Snapshots;
 /// <summary>
 /// Unit tests for <see cref="InMemorySnapshotStore"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.InMemory")]
 public sealed class InMemorySnapshotStoreShould : UnitTestBase
 {

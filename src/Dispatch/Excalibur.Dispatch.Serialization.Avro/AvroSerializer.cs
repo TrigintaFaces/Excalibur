@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 
@@ -29,10 +28,32 @@ namespace Excalibur.Dispatch.Serialization.Avro;
 /// enforce this since <see cref="ISerializer"/> uses unconstrained generics.
 /// </para>
 /// </remarks>
-[RequiresUnreferencedCode("Avro serialization may require unreferenced code for type-specific handling.")]
-[RequiresDynamicCode("Avro serialization may require dynamic code generation for type-specific handling.")]
+[RequiresUnreferencedCode(
+	"Apache.Avro uses runtime schema compilation. AvroSerializer uses Activator.CreateInstance for ISpecificRecord deserialization.")]
+[RequiresDynamicCode(
+	"Apache.Avro uses runtime schema compilation. AvroSerializer uses Activator.CreateInstance which requires dynamic code generation.")]
 public sealed class AvroSerializer : ISerializer
 {
+	private readonly int _bufferSize;
+
+	/// <summary>
+	/// Initializes a new instance with default options.
+	/// </summary>
+	public AvroSerializer()
+		: this(new AvroSerializationOptions())
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance with the specified options.
+	/// </summary>
+	/// <param name="options">The Avro serialization options.</param>
+	internal AvroSerializer(AvroSerializationOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+		_bufferSize = options.BufferSize;
+	}
+
 	/// <inheritdoc />
 	public string Name => "Avro";
 
@@ -57,7 +78,7 @@ public sealed class AvroSerializer : ISerializer
 
 		try
 		{
-			using var stream = new MemoryStream();
+			using var stream = new MemoryStream(_bufferSize);
 			var writer = new SpecificDatumWriter<ISpecificRecord>(record.Schema);
 			var encoder = new BinaryEncoder(stream);
 			writer.Write(record, encoder);
@@ -86,7 +107,7 @@ public sealed class AvroSerializer : ISerializer
 		try
 		{
 #pragma warning disable RS0030 // Activator.CreateInstance<T>() is required for Avro deserialization (ISpecificRecord requires instance creation)
-			var instance = (ISpecificRecord)(object)Activator.CreateInstance<T>()!;
+			var instance = (ISpecificRecord)Activator.CreateInstance<T>()!;
 #pragma warning restore RS0030
 			var reader = new SpecificDatumReader<ISpecificRecord>(instance.Schema, instance.Schema);
 			using var stream = new MemoryStream(data.ToArray());
@@ -118,7 +139,7 @@ public sealed class AvroSerializer : ISerializer
 
 		try
 		{
-			using var stream = new MemoryStream();
+			using var stream = new MemoryStream(_bufferSize);
 			var writer = new SpecificDatumWriter<ISpecificRecord>(record.Schema);
 			var encoder = new BinaryEncoder(stream);
 			writer.Write(record, encoder);
@@ -161,10 +182,13 @@ public sealed class AvroSerializer : ISerializer
 	}
 
 #pragma warning disable RS0030 // Activator.CreateInstance(Type) is required for runtime-typed Avro deserialization
+
 	private static ISpecificRecord CreateInstance(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type type)
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+		Type type)
 	{
 		return (ISpecificRecord)Activator.CreateInstance(type)!;
 	}
+
 #pragma warning restore RS0030
 }

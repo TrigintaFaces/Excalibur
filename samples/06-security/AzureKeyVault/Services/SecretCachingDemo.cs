@@ -4,7 +4,7 @@
 using System.Collections.Concurrent;
 using System.Security;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Logging;
 

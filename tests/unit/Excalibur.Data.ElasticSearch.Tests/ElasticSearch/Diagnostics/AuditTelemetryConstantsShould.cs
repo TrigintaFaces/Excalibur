@@ -5,8 +5,8 @@ using Excalibur.Data.ElasticSearch.Diagnostics;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Diagnostics;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class AuditTelemetryConstantsShould
 {
 	[Fact]

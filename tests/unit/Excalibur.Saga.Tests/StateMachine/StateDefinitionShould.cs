@@ -11,6 +11,7 @@ namespace Excalibur.Saga.Tests.StateMachine;
 /// Unit tests for <see cref="StateDefinition{TData}"/>.
 /// Verifies state definition, message handlers, and lifecycle callbacks.
 /// </summary>
+[Collection("SagaContextFactoryRegistry")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Saga")]
 public sealed class StateDefinitionShould

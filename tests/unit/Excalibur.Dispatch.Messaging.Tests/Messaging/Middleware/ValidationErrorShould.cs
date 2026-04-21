@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <remarks>
 /// Tests the validation error data class.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class ValidationErrorShould
 {
@@ -28,7 +28,7 @@ public sealed class ValidationErrorShould
 		// Assert
 		_ = error.ShouldNotBeNull();
 		error.PropertyName.ShouldBe("Email");
-		error.ErrorMessage.ShouldBe("Email is required");
+		error.ErrorMessage!.ShouldBe("Email is required");
 	}
 
 	[Fact]
@@ -48,7 +48,7 @@ public sealed class ValidationErrorShould
 		var error = new ValidationError("PropertyName", string.Empty);
 
 		// Assert
-		error.ErrorMessage.ShouldBe(string.Empty);
+		error.ErrorMessage!.ShouldBe(string.Empty);
 	}
 
 	[Fact]
@@ -124,7 +124,7 @@ public sealed class ValidationErrorShould
 		var error = new ValidationError("Field", message);
 
 		// Act & Assert
-		error.ErrorMessage.ShouldBe(message);
+		error.ErrorMessage!.ShouldBe(message);
 	}
 
 	[Fact]
@@ -134,7 +134,7 @@ public sealed class ValidationErrorShould
 		var error = new ValidationError("Name", "名前は必須です (Name is required)");
 
 		// Act & Assert
-		error.ErrorMessage.ShouldBe("名前は必須です (Name is required)");
+		error.ErrorMessage!.ShouldBe("名前は必須です (Name is required)");
 	}
 
 	[Fact]
@@ -145,7 +145,7 @@ public sealed class ValidationErrorShould
 		var error = new ValidationError("Field", longMessage);
 
 		// Act & Assert
-		error.ErrorMessage.ShouldBe(longMessage);
+		error.ErrorMessage!.ShouldBe(longMessage);
 		error.ErrorMessage.Length.ShouldBe(10000);
 	}
 
@@ -170,7 +170,7 @@ public sealed class ValidationErrorShould
 		var error = new ValidationError("Email", "Error");
 
 		// Assert - Properties should be get-only (verified by type system)
-		error.ErrorMessage.ShouldBe("Error");
+		error.ErrorMessage!.ShouldBe("Error");
 	}
 
 	#endregion

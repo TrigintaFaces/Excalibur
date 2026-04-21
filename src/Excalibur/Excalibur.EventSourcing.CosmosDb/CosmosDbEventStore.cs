@@ -99,7 +99,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 			var queryOptions = new QueryRequestOptions { PartitionKey = new Microsoft.Azure.Cosmos.PartitionKey(streamId) };
 
-			using var iterator = _container.GetItemQueryIterator<EventDocument>(query, requestOptions: queryOptions);
+			using var iterator = _container!.GetItemQueryIterator<EventDocument>(query, requestOptions: queryOptions);
 
 			while (iterator.HasMoreResults)
 			{
@@ -166,7 +166,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 			var queryOptions = new QueryRequestOptions { PartitionKey = new Microsoft.Azure.Cosmos.PartitionKey(streamId) };
 
-			using var iterator = _container.GetItemQueryIterator<EventDocument>(query, requestOptions: queryOptions);
+			using var iterator = _container!.GetItemQueryIterator<EventDocument>(query, requestOptions: queryOptions);
 
 			while (iterator.HasMoreResults)
 			{
@@ -309,7 +309,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var subscription = new CosmosDbEventStoreChangeFeedSubscription(
-			_container,
+			_container!,
 			_options.Value,
 			_logger);
 
@@ -332,7 +332,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 		var queryOptions = new QueryRequestOptions { PartitionKey = new Microsoft.Azure.Cosmos.PartitionKey(streamId) };
 
-		using var iterator = _container.GetItemQueryIterator<long?>(query, requestOptions: queryOptions);
+		using var iterator = _container!.GetItemQueryIterator<long?>(query, requestOptions: queryOptions);
 
 		if (iterator.HasMoreResults)
 		{
@@ -426,8 +426,10 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			EventType = eventTypeName,
 			Version = version,
 			Timestamp = evt.OccurredAt,
+#pragma warning disable IL2026
 			EventData = JsonSerializer.SerializeToUtf8Bytes(evt),
 			Metadata = evt.Metadata != null ? JsonSerializer.SerializeToUtf8Bytes(evt.Metadata) : null
+#pragma warning restore IL2026
 		};
 	}
 
@@ -537,7 +539,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		Microsoft.Azure.Cosmos.PartitionKey pk,
 		CancellationToken cancellationToken)
 	{
-		var batch = _container.CreateTransactionalBatch(pk);
+		var batch = _container!.CreateTransactionalBatch(pk);
 		var version = expectedVersion;
 
 		foreach (var evt in events)
@@ -579,7 +581,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			version++;
 			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, evt, version);
 
-			var response = await _container.CreateItemAsync(
+			var response = await _container!.CreateItemAsync(
 				doc,
 				pk,
 				cancellationToken: cancellationToken).ConfigureAwait(false);

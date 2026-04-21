@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Options.Performance;
 /// Unit tests for <see cref="TunedArrayPoolOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class TunedArrayPoolOptionsShould
 {

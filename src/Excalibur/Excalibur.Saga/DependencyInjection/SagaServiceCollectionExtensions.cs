@@ -1,9 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Saga;
 using Excalibur.Saga.DependencyInjection;
+using Excalibur.Saga.Orchestration;
+using Excalibur.Saga.Storage;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -15,11 +20,23 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class SagaServiceCollectionExtensions
 {
 	/// <summary>
+	/// Static accumulator for types discovered during DI composition.
+	/// Read by <see cref="SagaTypeRegistryPopulator"/> on first options resolution.
+	/// </summary>
+	internal static readonly System.Collections.Concurrent.ConcurrentBag<Type> SagaPendingTypeRegistrations = [];
+
+	/// <summary>
+	/// Static accumulator for dispatch delegate registrations discovered during DI composition.
+	/// Read by <see cref="SagaDispatchRegistryPopulator"/> on first options resolution.
+	/// </summary>
+	internal static readonly System.Collections.Concurrent.ConcurrentBag<Action<ISagaDispatchRegistry>> SagaPendingDispatchRegistrations = [];
+
+	/// <summary>
 	/// Adds the core Excalibur.Saga services with default options.
 	/// </summary>
 	/// <param name="services">The service collection to add services to.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddExcaliburSaga(this IServiceCollection services)
+	internal static IServiceCollection AddExcaliburSaga(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -30,10 +47,21 @@ public static class SagaServiceCollectionExtensions
 		// AddOptions<T> ensures IOptions<T>, IOptionsSnapshot<T>, IOptionsMonitor<T> are registered
 		// TryAddEnumerable prevents duplicate IConfigureOptions registrations
 		_ = services.AddOptions<SagaOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<SagaOptions>, DefaultSagaOptionsSetup>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SagaOptions>, SagaOptionsValidator>());
+
+		// Register CachedSagaStateStoreOptions validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CachedSagaStateStoreOptions>, CachedSagaStateStoreOptionsValidator>());
+
+		// Register AOT-safe saga registries as singletons.
+		// Populated during AddSaga<TSaga, TSagaState>() calls at DI composition time.
+		services.TryAddSingleton<ISagaTypeRegistry, SagaTypeRegistry>();
+		services.TryAddSingleton<ISagaDispatchRegistry, SagaDispatchRegistry>();
+
+		// bd-x6rg45: fail loud at host start if the consumer forgot to pick a state store.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, SagaPrerequisiteValidator>());
 
 		return services;
 	}
@@ -44,7 +72,7 @@ public static class SagaServiceCollectionExtensions
 	/// <param name="services">The service collection to add services to.</param>
 	/// <param name="configure">The action to configure saga options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddExcaliburSaga(
+	internal static IServiceCollection AddExcaliburSaga(
 		this IServiceCollection services,
 		Action<SagaOptions> configure)
 	{
@@ -55,6 +83,32 @@ public static class SagaServiceCollectionExtensions
 		_ = services.AddExcaliburSaga();
 
 		_ = services.Configure(configure);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the core Excalibur.Saga services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection to add services to.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	internal static IServiceCollection AddExcaliburSaga(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		// Ensure base services are registered (including Dispatch primitives)
+		_ = services.AddExcaliburSaga();
+
+		_ = services.AddOptions<SagaOptions>()
+			.Bind(configuration);
 
 		return services;
 	}
@@ -76,13 +130,13 @@ public static class SagaServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSaga(saga => saga
+	/// services.AddExcalibur(x => x.AddSagas(saga => saga
 	///     .WithOrchestration(opts => opts.MaxRetryAttempts = 5)
 	///     .WithTimeouts(opts => opts.PollInterval = TimeSpan.FromSeconds(30))
-	///     .WithInstrumentation());
+	///     .WithInstrumentation()));
 	/// </code>
 	/// </example>
-	public static IServiceCollection AddExcaliburSaga(
+	internal static IServiceCollection AddExcaliburSaga(
 		this IServiceCollection services,
 		Action<ISagaBuilder> configure)
 	{
@@ -115,9 +169,70 @@ public static class SagaServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Registers a saga type and its state type, populating the AOT-safe registries
+	/// for runtime type resolution and dispatch.
+	/// </summary>
+	/// <typeparam name="TSaga">The saga type (must extend <see cref="SagaBase{TSagaState}"/>).</typeparam>
+	/// <typeparam name="TSagaState">The saga state type.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSaga<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSaga,
+		TSagaState>(this IServiceCollection services)
+		where TSaga : SagaBase<TSagaState>
+		where TSagaState : Excalibur.Dispatch.Abstractions.Messaging.SagaState, new()
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// Ensure core saga services are registered
+		_ = services.AddExcaliburSaga();
+
+		// Register the saga as scoped
+		services.TryAddScoped<TSaga>();
+
+		// Accumulate saga/state types for AOT-safe registry population.
+		// SagaPendingTypeRegistrations is a static list read by SagaTypeRegistryPopulator
+		// (registered as IPostConfigureOptions) which runs on first options resolution.
+		SagaPendingTypeRegistrations.Add(typeof(TSaga));
+		SagaPendingTypeRegistrations.Add(typeof(TSagaState));
+
+		// Accumulate typed dispatch delegate for AOT-safe dispatch.
+		// At DI composition time, TSaga and TSagaState are concrete types,
+		// so the AOT compiler preserves the concrete HandleEventInternalAsync<TSaga, TSagaState> instantiation.
+		SagaPendingDispatchRegistrations.Add(CreateDispatchDelegate<TSaga, TSagaState>());
+
+		// Register the populators once (idempotent via TryAddEnumerable)
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<SagaOptions>, SagaTypeRegistryPopulator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<SagaOptions>, SagaDispatchRegistryPopulator>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Creates a typed dispatch delegate registration action for a saga type pair.
+	/// Isolated method to scope the IL2026/IL3050 suppressions precisely.
+	/// </summary>
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "Typed dispatch delegate created at DI composition time with concrete generic arguments. " +
+		"AOT compiler preserves the concrete HandleEventInternalAsync<TSaga, TSagaState> instantiation.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Typed dispatch delegate created at DI composition time with concrete generic arguments. " +
+		"No runtime code generation needed — the generic method instantiation is known at compile time.")]
+	private static Action<ISagaDispatchRegistry> CreateDispatchDelegate<TSaga, TSagaState>()
+		where TSaga : SagaBase<TSagaState>
+		where TSagaState : Excalibur.Dispatch.Abstractions.Messaging.SagaState, new()
+	{
+		return static registry => registry.Register(
+			typeof(TSaga),
+			typeof(TSagaState),
+			static (coordinator, ctx, evt, info, ct) =>
+				((SagaCoordinator)coordinator).HandleEventInternalAsync<TSaga, TSagaState>(ctx, evt, info, ct));
+	}
+
+	/// <summary>
 	/// Default options setup for SagaOptions.
 	/// </summary>
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 		Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
 	private sealed class DefaultSagaOptionsSetup : IConfigureOptions<SagaOptions>
 	{
@@ -125,6 +240,62 @@ public static class SagaServiceCollectionExtensions
 		{
 			// Defaults are already set in SagaOptions constructor
 			// This class exists to enable proper options pattern integration
+		}
+	}
+
+	/// <summary>
+	/// Populates <see cref="ISagaTypeRegistry"/> from types accumulated during DI composition.
+	/// Runs once on first <see cref="SagaOptions"/> resolution via <see cref="IPostConfigureOptions{TOptions}"/>.
+	/// </summary>
+	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+		Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
+	private sealed class SagaTypeRegistryPopulator(ISagaTypeRegistry typeRegistry) : IPostConfigureOptions<SagaOptions>
+	{
+		private volatile bool _populated;
+
+		public void PostConfigure(string? name, SagaOptions options)
+		{
+			if (_populated)
+			{
+				return;
+			}
+
+			_populated = true;
+
+			foreach (var type in SagaPendingTypeRegistrations)
+			{
+				typeRegistry.RegisterType(type);
+			}
+
+			typeRegistry.Freeze();
+		}
+	}
+
+	/// <summary>
+	/// Populates <see cref="ISagaDispatchRegistry"/> from dispatch delegate actions accumulated during DI composition.
+	/// Runs once on first <see cref="SagaOptions"/> resolution via <see cref="IPostConfigureOptions{TOptions}"/>.
+	/// </summary>
+	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+		Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
+	private sealed class SagaDispatchRegistryPopulator(ISagaDispatchRegistry dispatchRegistry) : IPostConfigureOptions<SagaOptions>
+	{
+		private volatile bool _populated;
+
+		public void PostConfigure(string? name, SagaOptions options)
+		{
+			if (_populated)
+			{
+				return;
+			}
+
+			_populated = true;
+
+			foreach (var registration in SagaPendingDispatchRegistrations)
+			{
+				registration(dispatchRegistry);
+			}
+
+			dispatchRegistry.Freeze();
 		}
 	}
 }

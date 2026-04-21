@@ -10,7 +10,7 @@ Deploy Excalibur applications to cloud, container, and on-premises environments.
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A working Dispatch application ready for deployment
 - Familiarity with [configuration](../configuration/index.md) and [observability](../observability/index.md)
 

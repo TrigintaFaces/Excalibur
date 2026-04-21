@@ -21,6 +21,8 @@ public interface IMessageEnvelopeFactory
 	/// <param name="message"> The message to envelope. </param>
 	/// <param name="context"> The message context. </param>
 	/// <returns> The serialized message envelope. </returns>
+	[RequiresUnreferencedCode("Message envelope serialization may require unreferenced types for reflection-based operations")]
+	[RequiresDynamicCode("Message envelope serialization uses reflection to dynamically access and serialize types")]
 	string CreateEnvelope(object message, IMessageContext context);
 
 	/// <summary>
@@ -40,7 +42,9 @@ public interface IMessageEnvelopeFactory
 	/// <param name="parsedMessage"> The parsed message if successful. </param>
 	/// <param name="context"> The parsed message context if successful. </param>
 	/// <returns> True if parsing succeeded; otherwise, false. </returns>
-	bool TryParseMessage<T>(QueueMessage queueMessage, out T? parsedMessage, out IMessageContext? context);
+	[RequiresUnreferencedCode("Message envelope deserialization may require unreferenced types for reflection-based operations")]
+	[RequiresDynamicCode("Message envelope deserialization uses reflection to dynamically create and populate types")]
+	bool TryParseMessage<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(QueueMessage queueMessage, out T? parsedMessage, out IMessageContext? context);
 
 	/// <summary>
 	/// Creates a message context from queue message metadata.

@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// Snapshot metadata is critical for maintaining consistency and enabling proper versioning in event sourcing implementations. The factory
 /// ensures that all required metadata fields are properly populated from source events and configuration parameters.
 /// </remarks>
-public static class SnapshotMetadataFactory
+internal static class SnapshotMetadataFactory
 {
 	/// <summary>
 	/// Creates a new snapshot metadata instance from the specified event and versioning information. This method extracts timing and

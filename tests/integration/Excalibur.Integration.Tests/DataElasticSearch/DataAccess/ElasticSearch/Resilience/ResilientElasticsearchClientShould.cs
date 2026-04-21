@@ -34,7 +34,8 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		_fixture = fixture;
 		_logger = A.Fake<ILogger<ResilientElasticsearchClient>>();
 
-		var clientSettings = new ElasticsearchClientSettings(new Uri(_fixture.ConnectionString));
+		var clientSettings = new ElasticsearchClientSettings(new Uri(_fixture.ConnectionString))
+			.ServerCertificateValidationCallback((_, _, _, _) => true);
 		_client = new ElasticsearchClient(clientSettings);
 
 		var options = CreateResilienceSettings();
@@ -81,7 +82,7 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 
 		var document = new TestDocument { Id = Guid.NewGuid().ToString(), Name = "Test Document", CreatedAt = DateTime.UtcNow };
 
-		var indexRequest = new IndexRequest<TestDocument>(indexName, document.Id) { Document = document };
+		var indexRequest = new IndexRequest<TestDocument>(document) { Index = indexName, Id = document.Id };
 
 		// Act
 		var response = await _resilientClient.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
@@ -128,10 +129,17 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 	[Fact]
 	public async Task OpenCircuitBreakerAfterConsecutiveFailures()
 	{
-		// Arrange - mock a client that always fails
-		var failingClient = A.Fake<ElasticsearchClient>();
-		_ = A.CallTo(() => failingClient.SearchAsync<TestDocument>(A<SearchRequest>._, A<CancellationToken>._))
-				.Throws(new TransportException("Simulated transport failure."));
+		// Arrange - point a real ElasticsearchClient at an unreachable endpoint
+		// so every SearchAsync fails with TransportException (connection
+		// refused). Replaces the former FakeItEasy-based simulated failure
+		// per ADR-142 §D7 / S799 SdkFake debt-drain — the circuit breaker
+		// contract is behaviorally identical (repeated transport failures
+		// trip the breaker), and using a real client exercises the actual
+		// Elastic.Transport failure-propagation path.
+		var failingClientSettings = new ElasticsearchClientSettings(new Uri("http://127.0.0.1:1"))
+			.RequestTimeout(TimeSpan.FromMilliseconds(250))
+			.MaximumRetries(0);
+		var failingClient = new ElasticsearchClient(failingClientSettings);
 
 		var settings = CreateResilienceSettings(
 			circuitBreakerFailureThreshold: 2,
@@ -218,7 +226,7 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		// First, index a document
 		var document = new TestDocument { Id = documentId, Name = "Test Document for Get", CreatedAt = DateTime.UtcNow };
 
-		_ = await _resilientClient.IndexAsync(new IndexRequest<TestDocument>(indexName, documentId) { Document = document }, CancellationToken.None)
+		_ = await _resilientClient.IndexAsync(new IndexRequest<TestDocument>(document) { Index = indexName, Id = documentId }, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Wait for indexing to complete
@@ -247,7 +255,7 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		// First, index a document
 		var document = new TestDocument { Id = documentId, Name = "Original Name", CreatedAt = DateTime.UtcNow };
 
-		_ = await _resilientClient.IndexAsync(new IndexRequest<TestDocument>(indexName, documentId) { Document = document }, CancellationToken.None)
+		_ = await _resilientClient.IndexAsync(new IndexRequest<TestDocument>(document) { Index = indexName, Id = documentId }, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Wait for indexing to complete
@@ -275,7 +283,7 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		// First, index a document
 		var document = new TestDocument { Id = documentId, Name = "Document to Delete", CreatedAt = DateTime.UtcNow };
 
-		_ = await _resilientClient.IndexAsync(new IndexRequest<TestDocument>(indexName, documentId) { Document = document }, CancellationToken.None)
+		_ = await _resilientClient.IndexAsync(new IndexRequest<TestDocument>(document) { Index = indexName, Id = documentId }, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Wait for indexing to complete

@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.Redis;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Redis")]
-[Trait("Feature", "Inbox")]
+[Trait(TraitNames.Feature, TestFeatures.Inbox)]
 public sealed class RedisInboxOptionsShould
 {
 	#region Default Value Tests

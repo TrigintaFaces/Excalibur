@@ -96,7 +96,7 @@ public sealed class CacheInfoSourceGenerator : IIncrementalGenerator
 			FullName = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 			SimpleName = typeSymbol.Name,
 			Namespace = typeSymbol.ContainingNamespace.ToDisplayString(),
-			ResultTypeName = resultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+			ResultTypeName = resultType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 			InterfaceTypeName = cacheableInterface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 			AssemblyName = typeSymbol.ContainingAssembly.Name
 		};
@@ -273,7 +273,7 @@ public sealed class CacheInfoSourceGenerator : IIncrementalGenerator
 
 		foreach (var type in types)
 		{
-			_ = sb.AppendLine($" Excalibur.Dispatch.Messaging.MessageResult<{type.ResultTypeName}> typedResult => typedResult.Result,");
+			_ = sb.AppendLine($" Excalibur.Dispatch.Abstractions.IMessageResult<{type.ResultTypeName}> typedResult => typedResult.ReturnValue,");
 		}
 
 		_ = sb.AppendLine(" _ => null");

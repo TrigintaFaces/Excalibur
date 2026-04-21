@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Globalization;
 using System.Text.Json;
@@ -472,7 +472,9 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 	private static byte[] SerializeEvent(IDomainEvent evt)
 	{
+#pragma warning disable IL2026
 		return JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType());
+#pragma warning restore IL2026
 	}
 
 	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent) =>
@@ -599,9 +601,11 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			["version"] = new AttributeValue { N = version.ToString() },
 			["timestamp"] = new AttributeValue { S = evt.OccurredAt.ToString("O") },
 			["eventData"] = new AttributeValue { S = Convert.ToBase64String(SerializeEvent(evt)) },
+#pragma warning disable IL2026
 			["metadata"] = evt.Metadata != null
 				? new AttributeValue { S = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata)) }
 				: new AttributeValue { NULL = true }
+#pragma warning restore IL2026
 		};
 	}
 

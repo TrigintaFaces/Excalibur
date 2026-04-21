@@ -6,7 +6,7 @@ namespace Excalibur.Data.SqlServer.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for SQL Server persistence instrumentation.
 /// </summary>
-public static class SqlServerPersistenceTelemetryConstants
+internal static class SqlServerPersistenceTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for SQL Server persistence metrics.

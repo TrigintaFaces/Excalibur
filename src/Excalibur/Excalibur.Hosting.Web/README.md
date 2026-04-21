@@ -2,6 +2,19 @@
 
 Web hosting for the Excalibur framework.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.SqlServer` | Starter | + Dispatch core + ES + Outbox + Hosting |
+| `Excalibur.Dispatch.Postgres` | Starter | + Dispatch core + ES + Outbox + Hosting |
+| `Excalibur.SqlServer` | Complete | Full SQL Server stack |
+| `Excalibur.Postgres` | Complete | Full PostgreSQL stack |
+
+> **Tip:** This package is automatically included when you install any persistence starter or complete metapackage.
+
 ## Installation
 
 ```bash

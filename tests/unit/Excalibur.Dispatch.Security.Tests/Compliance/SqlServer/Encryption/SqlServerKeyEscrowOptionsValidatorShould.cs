@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.SqlServer.Encryption;
 /// The validator is internal, so tests go through the DI/Options validation pipeline.
 /// Validates that SQL injection payloads in Schema/TableName/TokensTableName are rejected.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [Trait("Feature", "SqlInjection")]
 public sealed class SqlServerKeyEscrowOptionsValidatorShould
 {

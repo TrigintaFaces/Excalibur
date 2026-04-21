@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability;
 /// <summary>
 /// Integration tests for observability features including logging, metrics, and tracing.
 /// </summary>
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 public sealed class ObservabilityIntegrationShould : IntegrationTestBase
 {

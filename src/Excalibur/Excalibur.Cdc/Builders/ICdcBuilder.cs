@@ -14,6 +14,11 @@ namespace Excalibur.Cdc;
 /// <para>
 /// All methods return <c>this</c> for method chaining, enabling a fluent configuration experience.
 /// </para>
+/// <para>
+/// For table discovery via configuration binding or handler auto-discovery,
+/// see <see cref="ICdcBuilderDiscovery"/> which is implemented by the same
+/// concrete builder.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -164,81 +169,4 @@ public interface ICdcBuilder
 	/// </code>
 	/// </example>
 	ICdcBuilder EnableBackgroundProcessing(bool enable = true);
-
-	/// <summary>
-	/// Binds tracked tables from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.
-	/// </summary>
-	/// <param name="configSectionPath">
-	/// The configuration section path containing an array of table tracking entries
-	/// (e.g., <c>"Cdc:Tables"</c>).
-	/// </param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="configSectionPath"/> is null or whitespace.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Tables bound from configuration are merged additively with tables registered
-	/// via <see cref="TrackTable(string, Action{ICdcTableBuilder})"/>. Duplicate table
-	/// names (case-insensitive) are skipped — code-registered tables take precedence.
-	/// </para>
-	/// <para>
-	/// Event mappings cannot be expressed in configuration and remain code-only via
-	/// <see cref="TrackTable(string, Action{ICdcTableBuilder})"/>.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// // appsettings.json:
-	/// // {
-	/// //   "Cdc": {
-	/// //     "Tables": [
-	/// //       { "TableName": "dbo.Orders", "CaptureInstance": "dbo_Orders_v2" },
-	/// //       { "TableName": "dbo.Customers" }
-	/// //     ]
-	/// //   }
-	/// // }
-	///
-	/// services.AddCdcProcessor(cdc =&gt;
-	/// {
-	///     cdc.UseSqlServer(sql =&gt; sql.ConnectionString(connectionString))
-	///        .BindTrackedTables("Cdc:Tables")
-	///        .EnableBackgroundProcessing();
-	/// });
-	/// </code>
-	/// </example>
-	ICdcBuilder BindTrackedTables(string configSectionPath);
-
-	/// <summary>
-	/// Enables automatic discovery of tracked tables from registered
-	/// <see cref="ICdcTableProvider"/> implementations in DI.
-	/// </summary>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// At startup, all <see cref="ICdcTableProvider"/> services are resolved
-	/// from DI, and each provider's <see cref="ICdcTableProvider.TableNames"/>
-	/// are registered as tracked tables. Tables already registered by code
-	/// (via <see cref="TrackTable(string, Action{ICdcTableBuilder})"/>) or
-	/// configuration (via <see cref="BindTrackedTables"/>) take precedence —
-	/// duplicates by table name (case-insensitive) are skipped.
-	/// </para>
-	/// <para>
-	/// This bridges provider-specific handler interfaces (e.g., SQL Server's
-	/// <c>IDataChangeHandler</c>) with the cross-provider CDC tracking system.
-	/// Provider-specific handlers that implement <see cref="ICdcTableProvider"/>
-	/// are automatically discovered.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddCdcProcessor(cdc =&gt;
-	/// {
-	///     cdc.UseSqlServer(sql =&gt; sql.ConnectionString(connectionString))
-	///        .TrackTablesFromHandlers()
-	///        .EnableBackgroundProcessing();
-	/// });
-	/// </code>
-	/// </example>
-	ICdcBuilder TrackTablesFromHandlers();
 }

@@ -6,8 +6,8 @@ using ConfigOutboxOptions = Excalibur.Dispatch.Options.Configuration.OutboxConfi
 
 namespace Excalibur.Dispatch.Tests.Options.Configuration;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConfigurationOptionsShould
 {
 	[Fact]
@@ -99,7 +99,6 @@ public sealed class ConfigurationOptionsShould
 		opts.Enabled.ShouldBeTrue();
 		opts.EnableTracing.ShouldBeTrue();
 		opts.EnableMetrics.ShouldBeTrue();
-		opts.EnableContextFlow.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -110,13 +109,11 @@ public sealed class ConfigurationOptionsShould
 			Enabled = false,
 			EnableTracing = false,
 			EnableMetrics = false,
-			EnableContextFlow = false,
 		};
 
 		opts.Enabled.ShouldBeFalse();
 		opts.EnableTracing.ShouldBeFalse();
 		opts.EnableMetrics.ShouldBeFalse();
-		opts.EnableContextFlow.ShouldBeFalse();
 	}
 
 	[Fact]

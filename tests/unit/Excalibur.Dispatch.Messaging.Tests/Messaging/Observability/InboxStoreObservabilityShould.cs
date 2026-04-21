@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 ///     Observability validation tests for the <see cref="InMemoryInboxStore" /> class.
 /// </summary>
 [Collection("Observability Tests")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class InboxStoreObservabilityShould : IDisposable
 {

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -38,8 +37,7 @@ public static class Startup
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(Startup).Assembly);
 
-			// Register JSON serializer for message payloads
-			_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+			// Configure JSON serialization
 		});
 
 		// Configure AWS Lambda Serverless hosting

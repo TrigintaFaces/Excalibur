@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Compliance.HealthChecks;
+using Excalibur.Compliance.HealthChecks;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.HealthChecks;
 /// <summary>
 /// Unit tests for <see cref="ErasureHealthCheck"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "HealthCheck")]
 public sealed class ErasureHealthCheckShould
 {
@@ -75,7 +75,7 @@ public sealed class ErasureHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("Store unavailable");
-		result.Exception.ShouldNotBeNull();
+		result.Exception!.ShouldNotBeNull();
 		result.Data.ShouldContainKey("duration_ms");
 	}
 

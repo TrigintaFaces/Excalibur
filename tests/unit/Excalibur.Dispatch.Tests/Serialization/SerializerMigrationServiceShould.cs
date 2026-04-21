@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Unit tests for <see cref="SerializerMigrationService"/> validating batch processing,
 /// progress reporting, idempotency, and error handling.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class SerializerMigrationServiceShould
 {

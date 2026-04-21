@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// </para>
 /// <para>
 /// For identity-based abuse prevention (per-user, per-API-key, per-IP rate limiting),
-/// see <c>Excalibur.Dispatch.Security.RateLimitingMiddleware</c> instead.
+/// see <c>Excalibur.Security.RateLimitingMiddleware</c> instead.
 /// </para>
 /// </remarks>
 [AppliesTo(MessageKinds.Action | MessageKinds.Event)]
@@ -175,7 +175,7 @@ public sealed partial class ThrottlingMiddleware : IDispatchMiddleware, IAsyncDi
 		return new CombinedRateLimitLease(specificLease, globalLease);
 	}
 
-	private static RateLimiter CreateRateLimiter(RateLimitConfiguration config) =>
+	private static RateLimiter CreateRateLimiter(RateLimitOptions config) =>
 		config.Algorithm switch
 		{
 			MiddlewareRateLimitAlgorithm.TokenBucket => new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions

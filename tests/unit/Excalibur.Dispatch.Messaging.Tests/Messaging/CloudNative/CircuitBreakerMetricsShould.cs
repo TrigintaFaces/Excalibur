@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.CloudNative;
 /// <summary>
 /// Unit tests for <see cref="CircuitBreakerMetrics"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CircuitBreakerMetricsShould
 {
 	[Fact]

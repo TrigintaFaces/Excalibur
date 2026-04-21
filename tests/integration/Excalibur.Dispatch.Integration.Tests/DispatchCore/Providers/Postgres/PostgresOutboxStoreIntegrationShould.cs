@@ -40,10 +40,10 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 /// </remarks>
 [IntegrationTest]
 [Collection(ContainerCollections.Postgres)]
-[Trait("Component", "Outbox")]
-[Trait("Provider", "Postgres")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Outbox)]
+[Trait("Database", "Postgres")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly PostgresFixture _pgFixture;

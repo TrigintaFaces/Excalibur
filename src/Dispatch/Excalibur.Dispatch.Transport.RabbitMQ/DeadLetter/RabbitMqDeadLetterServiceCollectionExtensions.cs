@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.RabbitMQ;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -42,6 +44,17 @@ public static class RabbitMqDeadLetterServiceCollectionExtensions
 		=> AddRabbitMqDeadLetterQueue(services, "default", configure);
 
 	/// <summary>
+	/// Adds RabbitMQ dead letter queue support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RabbitMqDeadLetterOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddRabbitMqDeadLetterQueue(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		=> AddRabbitMqDeadLetterQueue(services, "default", configuration);
+
+	/// <summary>
 	/// Adds RabbitMQ dead letter queue support with the specified transport name and configuration.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
@@ -64,6 +77,35 @@ public static class RabbitMqDeadLetterServiceCollectionExtensions
 		{
 			_ = services.Configure<RabbitMqDeadLetterOptions>(_ => { });
 		}
+
+		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
+			(sp, _) => sp.GetRequiredService<RabbitMqDeadLetterQueueManager>());
+		services.TryAddSingleton<RabbitMqDeadLetterQueueManager>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds RabbitMQ dead letter queue support with the specified transport name using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="transportName">The transport name used as the keyed service key.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RabbitMqDeadLetterOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddRabbitMqDeadLetterQueue(
+		this IServiceCollection services,
+		string transportName,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RabbitMqDeadLetterOptions>().Bind(configuration);
 
 		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
 			(sp, _) => sp.GetRequiredService<RabbitMqDeadLetterQueueManager>());

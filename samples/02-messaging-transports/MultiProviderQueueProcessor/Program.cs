@@ -11,6 +11,7 @@
 #pragma warning disable CA1506 // Avoid excessive class coupling - acceptable for sample Program.cs
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.EventSourcing.SqlServer;
 
 using MultiProviderQueueProcessor.Infrastructure;
 
@@ -19,16 +20,18 @@ var builder = Host.CreateApplicationBuilder(args);
 // =============================================================================
 // 1. Configure Event Store (SQL Server)
 // =============================================================================
-builder.Services.AddSqlServerEventSourcing(options =>
-{
-	options.ConnectionString = builder.Configuration.GetConnectionString("EventStore")
-							   ?? throw new InvalidOperationException("EventStore connection string is required");
+var eventStoreConnectionString = builder.Configuration.GetConnectionString("EventStore")
+	?? throw new InvalidOperationException("EventStore connection string is required");
 
-	// Optional: customize table names (these are the defaults)
-	options.EventStoreTable = "Events";
-	options.SnapshotStoreTable = "Snapshots";
-	options.OutboxTable = "EventSourcedOutbox";
-});
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+{
+	es.UseSqlServer(sql =>
+	{
+		sql.ConnectionString(eventStoreConnectionString)
+		   .EventStoreTable("EventStoreEvents")
+		   .SnapshotStoreTable("EventStoreSnapshots");
+	});
+}));
 
 // Register aggregate repositories
 builder.Services.AddScoped<OrderRepository>();

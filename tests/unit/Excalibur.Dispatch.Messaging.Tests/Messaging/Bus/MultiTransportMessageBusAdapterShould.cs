@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Bus;
 /// Unit tests for <see cref="MultiTransportMessageBusAdapter"/>.
 /// Verifies multi-transport routing, subscription parsing, and health aggregation.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Excalibur.Dispatch.Transport")]
 [Trait("Priority", "1")]
 public sealed class MultiTransportMessageBusAdapterShould : IDisposable
@@ -228,10 +228,14 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		// Act
 		await _sut.InitializeAsync(options, CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => _rabbitMqAdapter.InitializeAsync(options, A<CancellationToken>._))
+		// Assert -- InitializeAsync moved to IMessageBusAdapterLifecycle (ISP split)
+		var rabbitLifecycle = _rabbitMqAdapter as IMessageBusAdapterLifecycle;
+		var kafkaLifecycle = _kafkaAdapter as IMessageBusAdapterLifecycle;
+		rabbitLifecycle.ShouldNotBeNull();
+		kafkaLifecycle.ShouldNotBeNull();
+		A.CallTo(() => rabbitLifecycle.InitializeAsync(options, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _kafkaAdapter.InitializeAsync(options, A<CancellationToken>._))
+		A.CallTo(() => kafkaLifecycle.InitializeAsync(options, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 

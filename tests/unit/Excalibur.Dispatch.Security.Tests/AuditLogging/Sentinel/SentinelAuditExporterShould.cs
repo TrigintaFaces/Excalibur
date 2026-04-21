@@ -4,7 +4,7 @@
 using System.Net;
 using System.Text.Json;
 
-using Excalibur.Dispatch.AuditLogging.Sentinel;
+using Excalibur.AuditLogging.Sentinel;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Sentinel;
 
@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Sentinel;
 /// Unit tests for <see cref="SentinelAuditExporter"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SentinelAuditExporterShould : IDisposable
 {
 	private readonly MockHttpMessageHandler _mockHandler;
@@ -122,7 +122,7 @@ public sealed class SentinelAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.EventId.ShouldBe(auditEvent.EventId);
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 		result.IsTransientError.ShouldBeFalse();
 	}
 
@@ -321,7 +321,7 @@ public sealed class SentinelAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Connection refused");
+		result.ErrorMessage!.ShouldContain("Connection refused");
 	}
 
 	[Fact]
@@ -356,7 +356,7 @@ public sealed class SentinelAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldContain("Connection refused");
+		result.ErrorMessage!.ShouldContain("Connection refused");
 	}
 
 	[Fact]
@@ -372,7 +372,7 @@ public sealed class SentinelAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 	}
 
 	#endregion HttpRequestException and Timeout Tests
@@ -506,8 +506,8 @@ public sealed class SentinelAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
-		result.ErrorMessage.ShouldContain("Unexpected status code");
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldContain("Unexpected status code");
 		result.Diagnostics.ShouldNotBeNull();
 	}
 

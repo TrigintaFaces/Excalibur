@@ -43,7 +43,7 @@ public sealed partial class ComplianceTelemetrySanitizer : ITelemetrySanitizer
 	/// </summary>
 	private const int MaxCacheSize = 1024;
 
-	private readonly ITelemetrySanitizer _inner;
+	private readonly HashingTelemetrySanitizer _inner;
 	private readonly bool _enabled;
 	private readonly bool _hashDetectedPii;
 	private readonly string _redactedPlaceholder;
@@ -124,24 +124,52 @@ public sealed partial class ComplianceTelemetrySanitizer : ITelemetrySanitizer
 		if (_detectEmails)
 		{
 			result = ReplacePattern(EmailPattern(), result);
+			if (IsFullyHashed(result))
+			{
+				return result;
+			}
 		}
 
 		if (_detectPhoneNumbers)
 		{
 			result = ReplacePattern(PhonePattern(), result);
+			if (IsFullyHashed(result))
+			{
+				return result;
+			}
 		}
 
 		if (_detectSsns)
 		{
 			result = ReplacePattern(SsnPattern(), result);
+			if (IsFullyHashed(result))
+			{
+				return result;
+			}
 		}
 
 		for (var i = 0; i < _customPatterns.Length; i++)
 		{
 			result = ReplacePattern(_customPatterns[i], result);
+			if (IsFullyHashed(result))
+			{
+				return result;
+			}
 		}
 
 		return result;
+	}
+
+	/// <summary>
+	/// Returns <see langword="true"/> when the value has been entirely replaced by a single hash
+	/// or redacted placeholder, so no further pattern detection is needed. This prevents
+	/// false-positive matches (e.g., SSN patterns matching digit runs inside hex hashes) and
+	/// double-hashing on regex timeout under high CPU load.
+	/// </summary>
+	private bool IsFullyHashed(string value)
+	{
+		return value.StartsWith("sha256:", StringComparison.Ordinal)
+			|| string.Equals(value, _redactedPlaceholder, StringComparison.Ordinal);
 	}
 
 	private string ReplacePattern(Regex pattern, string input)

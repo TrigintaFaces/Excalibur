@@ -7,8 +7,8 @@ using Excalibur.Dispatch.Options.Delivery;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DeliveryOptionsShould
 {
 	// --- DeduplicationOptions ---
@@ -103,19 +103,19 @@ public sealed class DeliveryOptionsShould
 
 		// Assert
 		options.DuplicateBehavior.ShouldBe(SkipBehavior.Silent);
-		options.PerRunTotal.ShouldBe(1000);
-		options.QueueCapacity.ShouldBe(1000);
-		options.ProducerBatchSize.ShouldBe(100);
-		options.ConsumerBatchSize.ShouldBe(100);
+		options.Capacity.PerRunTotal.ShouldBe(1000);
+		options.Capacity.QueueCapacity.ShouldBe(1000);
+		options.Capacity.ProducerBatchSize.ShouldBe(100);
+		options.Capacity.ConsumerBatchSize.ShouldBe(100);
 		options.MaxAttempts.ShouldBe(5);
 		options.DefaultMessageTimeToLive.ShouldBeNull();
 		options.Deduplication.ShouldNotBeNull();
-		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
-		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
-		options.BatchProcessing.MinBatchSize.ShouldBe(10);
-		options.BatchProcessing.MaxBatchSize.ShouldBe(1000);
-		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
-		options.EnableBatchDatabaseOperations.ShouldBeTrue();
+		options.Capacity.ParallelProcessingDegree.ShouldBe(1);
+		options.BatchTuning.EnableDynamicBatchSizing.ShouldBeFalse();
+		options.BatchTuning.MinBatchSize.ShouldBe(10);
+		options.BatchTuning.MaxBatchSize.ShouldBe(1000);
+		options.BatchTuning.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.BatchTuning.EnableBatchDatabaseOperations.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -142,7 +142,7 @@ public sealed class DeliveryOptionsShould
 	public void InboxOptions_Validate_DetectsZeroQueueCapacity()
 	{
 		// Arrange
-		var options = new InboxOptions { QueueCapacity = 0 };
+		var options = new InboxOptions { Capacity = { QueueCapacity = 0 } };
 
 		// Act
 		var result = InboxOptions.Validate(options);
@@ -156,7 +156,7 @@ public sealed class DeliveryOptionsShould
 	public void InboxOptions_Validate_DetectsQueueSmallerThanBatch()
 	{
 		// Arrange
-		var options = new InboxOptions { QueueCapacity = 10, ProducerBatchSize = 100 };
+		var options = new InboxOptions { Capacity = { QueueCapacity = 10, ProducerBatchSize = 100 } };
 
 		// Act
 		var result = InboxOptions.Validate(options);
@@ -172,7 +172,7 @@ public sealed class DeliveryOptionsShould
 		// Arrange
 		var options = new InboxOptions
 		{
-			BatchProcessing =
+			BatchTuning =
 			{
 				EnableDynamicBatchSizing = true,
 				MinBatchSize = 500,
@@ -192,7 +192,7 @@ public sealed class DeliveryOptionsShould
 	public void InboxOptions_Validate_DetectsZeroBatchTimeout()
 	{
 		// Arrange
-		var options = new InboxOptions { BatchProcessing = { BatchProcessingTimeout = TimeSpan.Zero } };
+		var options = new InboxOptions { BatchTuning = { BatchProcessingTimeout = TimeSpan.Zero } };
 
 		// Act
 		var result = InboxOptions.Validate(options);

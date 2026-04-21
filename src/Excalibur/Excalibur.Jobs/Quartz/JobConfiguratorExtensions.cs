@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Jobs.Abstractions;
 
 namespace Excalibur.Jobs.Quartz;
@@ -19,7 +21,8 @@ public static class JobConfiguratorExtensions
 	/// <param name="interval"> The interval between job executions. </param>
 	/// <param name="jobKey"> Optional unique key for the job. If not provided, the job type name will be used. </param>
 	/// <returns> The job configurator for chaining. </returns>
-	public static IJobConfigurator AddRecurringJob<TJob>(this IJobConfigurator configurator, TimeSpan interval, string? jobKey = null)
+	public static IJobConfigurator AddRecurringJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob>(
+		this IJobConfigurator configurator, TimeSpan interval, string? jobKey = null)
 		where TJob : class, IBackgroundJob
 	{
 		ArgumentNullException.ThrowIfNull(configurator);
@@ -55,7 +58,8 @@ public static class JobConfiguratorExtensions
 	/// <param name="configurator"> The job configurator. </param>
 	/// <param name="configurations"> Array of job configurations. </param>
 	/// <returns> The job configurator for chaining. </returns>
-	public static IJobConfigurator AddJobInstances<TJob>(this IJobConfigurator configurator, params JobConfiguration[] configurations)
+	public static IJobConfigurator AddJobInstances<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob>(
+		this IJobConfigurator configurator, params QuartzJobOptions[] configurations)
 		where TJob : class, IBackgroundJob
 	{
 		ArgumentNullException.ThrowIfNull(configurator);

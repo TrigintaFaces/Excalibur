@@ -6,9 +6,9 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Encryption;
 /// <summary>
 /// Unit tests for <see cref="MigrationStatus"/> record and <see cref="MigrationState"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
-[Trait("Feature", "Encryption")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
+[Trait(TraitNames.Feature, TestFeatures.Encryption)]
 public sealed class MigrationStatusShould : UnitTestBase
 {
 	[Fact]
@@ -126,7 +126,7 @@ public sealed class MigrationStatusShould : UnitTestBase
 
 		// Assert
 		status.State.ShouldBe(MigrationState.Failed);
-		status.ErrorMessage.ShouldBe("Connection timeout after 5 retries");
+		status.ErrorMessage!.ShouldBe("Connection timeout after 5 retries");
 	}
 
 	[Fact]

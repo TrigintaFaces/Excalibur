@@ -20,7 +20,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.ProblemDetails.ShouldBeNull();
 	}
 
@@ -101,7 +101,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Something went wrong");
+		result.ErrorMessage!.ShouldBe("Something went wrong");
 	}
 
 	[Fact]
@@ -119,7 +119,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Name is required");
+		result.ErrorMessage!.ShouldBe("Name is required");
 		result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe("validation-error");
 	}
@@ -132,7 +132,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Error occurred");
+		result.ErrorMessage!.ShouldBe("Error occurred");
 		result.ReturnValue.ShouldBe(default);
 	}
 
@@ -147,8 +147,95 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Not found");
+		result.ErrorMessage!.ShouldBe("Not found");
 		result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.ErrorCode.ShouldBe(404);
+	}
+
+	[Fact]
+	public void Failed_WithException_Should_ReturnFailedResultWithExceptionDetail()
+	{
+		// Arrange
+		var exception = new InvalidOperationException("Something broke");
+
+		// Act
+		var result = MessageResult.Failed(exception);
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("Something broke");
+		result.ErrorMessage!.ShouldContain("InvalidOperationException");
+	}
+
+	[Fact]
+	public void Failed_WithException_Should_ThrowOnNull()
+	{
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() => MessageResult.Failed((Exception)null!));
+	}
+
+	[Fact]
+	public void Failed_Generic_WithException_Should_ReturnFailedResultWithExceptionDetail()
+	{
+		// Arrange
+		var exception = new ArgumentException("Bad argument");
+
+		// Act
+		var result = MessageResult.Failed<int>(exception);
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ReturnValue.ShouldBe(default);
+		result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("Bad argument");
+		result.ErrorMessage!.ShouldContain("ArgumentException");
+	}
+
+	[Fact]
+	public void Failed_Generic_WithException_Should_ThrowOnNull()
+	{
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() => MessageResult.Failed<string>((Exception)null!));
+	}
+
+	[Fact]
+	public void Failed_WithProblemDetailsValidationAndAuth_Should_SetAllProperties()
+	{
+		// Arrange
+		var problemDetails = new MessageProblemDetails
+		{
+			Type = "auth-error",
+			Detail = "Unauthorized access",
+			ErrorCode = 403,
+		};
+		var validationResult = new object();
+		var authorizationResult = new object();
+
+		// Act
+		var result = MessageResult.Failed(problemDetails, validationResult, authorizationResult);
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ErrorMessage!.ShouldBe("Unauthorized access");
+		result.ProblemDetails.ShouldNotBeNull();
+		result.ProblemDetails.Type.ShouldBe("auth-error");
+		result.ProblemDetails.ErrorCode.ShouldBe(403);
+		result.ValidationResult.ShouldBe(validationResult);
+		result.AuthorizationResult.ShouldBe(authorizationResult);
+	}
+
+	[Fact]
+	public void Failed_WithNullProblemDetailsValidationAndAuth_Should_ReturnFailedResult()
+	{
+		// Act
+		var result = MessageResult.Failed(null, null, null);
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ErrorMessage!.ShouldBeNull();
+		result.ProblemDetails.ShouldBeNull();
+		result.ValidationResult.ShouldBeNull();
+		result.AuthorizationResult.ShouldBeNull();
 	}
 }

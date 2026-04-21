@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using MongoDB.Driver;
+
 namespace Excalibur.Cdc.MongoDB;
 
 /// <summary>
@@ -21,11 +23,39 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 	/// <summary>Gets the source BindConfiguration section path.</summary>
 	internal string? SourceBindConfigurationPath { get; private set; }
 
+	/// <summary>Gets the pre-configured client instance.</summary>
+	internal IMongoClient? ClientInstance { get; private set; }
+
+	/// <summary>Gets the client factory.</summary>
+	internal Func<IServiceProvider, IMongoClient>? ClientFactoryFunc { get; private set; }
+
 	/// <inheritdoc/>
 	public IMongoDbCdcBuilder ConnectionString(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		_options.Connection.ConnectionString = connectionString;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IMongoDbCdcBuilder Client(IMongoClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		ClientInstance = client;
+		_options.Connection.ConnectionString = null!;
+		ClientFactoryFunc = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IMongoDbCdcBuilder ClientFactory(Func<IServiceProvider, IMongoClient> clientFactory)
+	{
+		ArgumentNullException.ThrowIfNull(clientFactory);
+		ClientFactoryFunc = clientFactory;
+		_options.Connection.ConnectionString = null!;
+		ClientInstance = null;
 		return this;
 	}
 
@@ -53,7 +83,7 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the number of changes to process in a single batch.</summary>
 	public IMongoDbCdcBuilder BatchSize(int batchSize)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
@@ -61,7 +91,7 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the interval between reconnection attempts.</summary>
 	public IMongoDbCdcBuilder ReconnectInterval(TimeSpan interval)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
@@ -69,7 +99,7 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Configures a separate connection for CDC state persistence.</summary>
 	public IMongoDbCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);

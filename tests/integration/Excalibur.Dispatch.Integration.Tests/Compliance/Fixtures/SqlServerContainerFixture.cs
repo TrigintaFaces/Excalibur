@@ -7,7 +7,7 @@ using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
 
 /// <summary>
@@ -20,7 +20,10 @@ public class SqlServerContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Gets the connection string for the SQL Server container.
 	/// </summary>
-	public string ConnectionString => _container?.GetConnectionString() ?? string.Empty;
+	/// <exception cref="InvalidOperationException">Thrown when the container has not been initialized or failed to start.</exception>
+	public string ConnectionString => _container?.GetConnectionString()
+		?? throw new InvalidOperationException(
+			$"SQL Server container not initialized. DockerAvailable={DockerAvailable}, Error={InitializationError ?? "none"}");
 
 	/// <summary>
 	/// Creates a new database connection.
@@ -34,9 +37,10 @@ public class SqlServerContainerFixture : ContainerFixtureBase
 			.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
 			.WithName($"mssql-compliance-test-{Guid.NewGuid():N}")
 			.WithPassword("YourStrong(!)Password")
+			.WithCleanUp(true)
 			.Build();
 
-		await _container.StartAsync();
+		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>

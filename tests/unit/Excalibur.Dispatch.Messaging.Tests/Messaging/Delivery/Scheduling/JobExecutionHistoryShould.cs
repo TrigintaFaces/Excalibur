@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 /// <summary>
 /// Unit tests for <see cref="JobExecutionHistory"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class JobExecutionHistoryShould
 {
 	[Fact]
@@ -59,7 +59,7 @@ public sealed class JobExecutionHistoryShould
 		var history = new JobExecutionHistory();
 
 		// Assert
-		history.Error.ShouldBeNull();
+		history.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -160,7 +160,7 @@ public sealed class JobExecutionHistoryShould
 		history.Error = "Connection failed";
 
 		// Assert
-		history.Error.ShouldBe("Connection failed");
+		history.Error!.ShouldBe("Connection failed");
 	}
 
 	[Fact]
@@ -183,7 +183,7 @@ public sealed class JobExecutionHistoryShould
 		history.StartedUtc.ShouldBe(startTime);
 		history.CompletedUtc.ShouldBe(endTime);
 		history.Success.ShouldBeTrue();
-		history.Error.ShouldBeNull();
+		history.Error!.ShouldBeNull();
 		history.Duration!.Value.TotalMinutes.ShouldBe(2.5);
 	}
 
@@ -204,7 +204,7 @@ public sealed class JobExecutionHistoryShould
 
 		// Assert
 		history.Success.ShouldBeFalse();
-		history.Error.ShouldBe("SMTP server unavailable");
+		history.Error!.ShouldBe("SMTP server unavailable");
 		history.Duration!.Value.TotalSeconds.ShouldBe(5);
 	}
 

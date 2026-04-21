@@ -75,11 +75,7 @@ internal sealed class MiddlewareChainBuilder
 	/// </summary>
 	private FrozenDictionary<ChainCacheKey, ChainExecutor>? _frozenChainCache;
 
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _freezeLock = new();
-#else
-	private readonly object _freezeLock = new();
-#endif
+	private readonly Lock _freezeLock = new();
 	private volatile bool _isFrozen;
 
 	/// <summary>
@@ -284,11 +280,11 @@ internal sealed class MiddlewareChainBuilder
 	}
 
 	private static int ComputePipelineSignature(
-		IReadOnlyList<IDispatchMiddleware> middlewares,
+		IDispatchMiddleware[] middlewares,
 		IMiddlewareApplicabilityStrategy? applicabilityStrategy)
 	{
 		var hash = new HashCode();
-		hash.Add(middlewares.Count);
+		hash.Add(middlewares.Length);
 
 		foreach (var middleware in middlewares)
 		{

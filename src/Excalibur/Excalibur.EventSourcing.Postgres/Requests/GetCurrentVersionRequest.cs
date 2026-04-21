@@ -15,12 +15,6 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 public sealed class GetCurrentVersionRequest : DataRequestBase<IDbConnection, long>
 {
-	private const string Sql = """
-		SELECT COALESCE(MAX(version), -1)
-		FROM events
-		WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetCurrentVersionRequest"/> class.
 	/// </summary>
@@ -28,20 +22,34 @@ public sealed class GetCurrentVersionRequest : DataRequestBase<IDbConnection, lo
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="transaction">The transaction to participate in.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the event store table. Default: "public".</param>
+	/// <param name="table">The event store table name. Default: "events".</param>
 	public GetCurrentVersionRequest(
 		string aggregateId,
 		string aggregateType,
 		IDbTransaction? transaction,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "public",
+		string table = "events")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+
+		var qualifiedTable = PgTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		var sql = $"""
+			SELECT COALESCE(MAX(version), -1)
+			FROM {qualifiedTable}
+			WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 
-		Command = CreateCommand(Sql, parameters, transaction, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, transaction, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteScalarAsync<long>(Command).ConfigureAwait(false);

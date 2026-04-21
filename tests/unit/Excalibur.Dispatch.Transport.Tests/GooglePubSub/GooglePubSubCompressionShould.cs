@@ -16,12 +16,12 @@ using TextEncoding = System.Text.Encoding;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class GooglePubSubCompressionShould
 {
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void DecodeBody_DecompressesWhenAttributePresent()
 	{
@@ -44,7 +44,7 @@ public sealed class GooglePubSubCompressionShould
 
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void Compress_Snappy_CompressesAndDecompresses()
 	{
@@ -63,7 +63,7 @@ public sealed class GooglePubSubCompressionShould
 
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void TryDetectAlgorithm_DetectsGzip()
 	{
@@ -81,7 +81,7 @@ public sealed class GooglePubSubCompressionShould
 
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void TryDetectAlgorithm_ReturnsNone_ForUncompressedData()
 	{
@@ -98,7 +98,7 @@ public sealed class GooglePubSubCompressionShould
 
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void DecodeBody_AutoDetectsGzip_WhenEnabled()
 	{
@@ -123,7 +123,7 @@ public sealed class GooglePubSubCompressionShould
 
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void DecodeBody_DoesNotAutoDetect_WhenDisabled()
 	{
@@ -148,7 +148,7 @@ public sealed class GooglePubSubCompressionShould
 
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void PubSubCompressionOptions_ShouldCompress_RespectsThreshold()
 	{
@@ -168,7 +168,7 @@ public sealed class GooglePubSubCompressionShould
 
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void PubSubCompressionOptions_ShouldCompress_SkipsCompressedContentTypes()
 	{
@@ -190,7 +190,7 @@ public sealed class GooglePubSubCompressionShould
 
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void Compress_EmptyPayload_ReturnsEmpty()
 	{

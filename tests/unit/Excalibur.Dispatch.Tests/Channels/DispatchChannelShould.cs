@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Channels;
 /// <remarks>
 /// Sprint 693, Task T.5 (bd-wq2wo): Tests for the 682-line untested channel infrastructure.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchChannelShould : IDisposable
 {
 	private readonly CancellationTokenSource _cts = new();

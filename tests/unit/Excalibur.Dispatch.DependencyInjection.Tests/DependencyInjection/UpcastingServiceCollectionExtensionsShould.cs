@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Tests.Versioning.TestData;
 namespace Excalibur.Dispatch.Tests.DependencyInjection;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class UpcastingServiceCollectionExtensionsShould
 {
 	#region Registration Tests

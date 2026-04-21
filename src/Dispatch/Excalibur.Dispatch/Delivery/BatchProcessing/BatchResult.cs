@@ -96,7 +96,7 @@ public readonly struct BatchResult<T> : IDisposable
 				ThrowIndexOutOfRange(index);
 			}
 
-			return _array[index];
+			return _array![index];
 		}
 	}
 
@@ -145,7 +145,7 @@ public readonly struct BatchResult<T> : IDisposable
 		}
 
 		var result = new T[_count];
-		Array.Copy(_array, result, _count);
+		Array.Copy(_array!, result, _count);
 		return result;
 	}
 
@@ -175,7 +175,7 @@ public readonly struct BatchResult<T> : IDisposable
 		/// <summary>
 		/// Gets the current item in the enumeration.
 		/// </summary>
-		public readonly T Current => _batch._array[_index];
+		public readonly T Current => _batch._array![_index];
 
 		/// <summary>
 		/// Advances the enumerator to the next item.

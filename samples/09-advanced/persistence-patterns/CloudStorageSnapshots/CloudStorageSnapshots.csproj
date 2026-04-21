@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CloudStorageSnapshots</RootNamespace>
+    <NoWarn>$(NoWarn);CA1506;CA1303;CA1861;CA2213;MSB3277</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Domain\Excalibur.Domain.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.A3\Excalibur.A3.csproj" />
+    <!-- Cloud storage providers -->
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.AwsS3\Excalibur.EventSourcing.AwsS3.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.AzureBlob\Excalibur.EventSourcing.AzureBlob.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.Gcs\Excalibur.EventSourcing.Gcs.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

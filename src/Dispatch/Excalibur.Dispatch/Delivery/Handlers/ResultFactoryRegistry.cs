@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// Partial class for the result factory registry.
 /// </summary>
 /// <remarks> This partial class is completed by the source generator with the factory mappings. </remarks>
-public static partial class ResultFactoryRegistry
+internal static partial class ResultFactoryRegistry
 {
 	// Generated registry will be added by MessageResultExtractorGenerator
 }

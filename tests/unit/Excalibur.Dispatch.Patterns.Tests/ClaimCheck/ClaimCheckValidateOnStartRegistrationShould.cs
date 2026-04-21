@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 /// and that ValidateOnStart is wired up.
 /// Sprint 563 S563.55: ValidateOnStart registration tests.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "ClaimCheck")]
 public sealed class ClaimCheckValidateOnStartRegistrationShould
 {

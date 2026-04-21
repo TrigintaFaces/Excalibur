@@ -12,11 +12,7 @@ namespace Excalibur.Dispatch.Metrics;
 /// </summary>
 public sealed class ValueHistogram : IMetric
 {
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 	private readonly List<double> _values = [];
 	private long _count;
 	private double _sum;
@@ -35,7 +31,7 @@ public sealed class ValueHistogram : IMetric
 	/// </summary>
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter",
 		Justification = "Configuration parameter reserved for future histogram bucket customization and statistical algorithm options")]
-	public ValueHistogram(MetricMetadata metadata, HistogramConfiguration configuration)
+	public ValueHistogram(MetricMetadata metadata, HistogramOptions configuration)
 	{
 		Metadata = metadata;
 	}

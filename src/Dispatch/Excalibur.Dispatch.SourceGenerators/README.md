@@ -99,9 +99,10 @@ public static class GeneratedServiceCollectionExtensions
 | `HandlerInvokerSourceGenerator` | Active | Zero-reflection handler invocation |
 | `JsonSerializationSourceGenerator` | Active | AOT-compatible JSON serialization |
 | `MessageTypeSourceGenerator` | Active | Message type registration |
-| `MessageTypeRegistrySourceGenerator` | Active | Aggregate message type registry |
+| `MessageTypeRegistrySourceGenerator` | **Archived** | Superseded by `MessageTypeSourceGenerator` + manual `MessageTypeRegistry` |
 | `RoutingRuleSourceGenerator` | Active | Compile-time routing rules |
-| `MessageFactorySourceGenerator` | Active | Message instantiation |
+| `MessageFactorySourceGenerator` | **Archived** | `Activator.CreateInstance` calls are in JIT-only paths with AOT annotations |
+| `DispatchInterceptorGenerator` | **Archived** | No-op stub — superseded by `StaticPipelineGenerator` (Sprint 760) |
 | `CachePolicySourceGenerator` | Active | Caching policy generation |
 | `CacheInfoSourceGenerator` | Active | Cache key generation |
 

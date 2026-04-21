@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Transport.Grpc;
 
 namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class GrpcTransportMarshallerShould
 {
@@ -103,7 +103,7 @@ public sealed class GrpcTransportMarshallerShould
 		deserialized.Results.Count.ShouldBe(2);
 		deserialized.Results[0].IsSuccess.ShouldBeTrue();
 		deserialized.Results[1].ErrorCode.ShouldBe("ERR");
-		deserialized.Results[1].ErrorMessage.ShouldBe("fail");
+		deserialized.Results[1].ErrorMessage!.ShouldBe("fail");
 	}
 
 	[Fact]

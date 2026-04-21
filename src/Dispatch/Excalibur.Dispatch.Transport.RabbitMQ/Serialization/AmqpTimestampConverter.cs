@@ -31,7 +31,7 @@ internal sealed class AmqpTimestampConverter : JsonConverter<AmqpTimestamp>
 				return new AmqpTimestamp(unixTime);
 			}
 
-			var dateTime = DateTimeOffset.Parse(str, System.Globalization.CultureInfo.InvariantCulture);
+			var dateTime = DateTimeOffset.Parse(str!, System.Globalization.CultureInfo.InvariantCulture);
 			return new AmqpTimestamp(dateTime.ToUnixTimeSeconds());
 		}
 

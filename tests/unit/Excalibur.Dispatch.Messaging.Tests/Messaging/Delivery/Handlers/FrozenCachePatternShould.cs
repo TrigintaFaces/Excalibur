@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// Tests the three-phase pattern: warmup (ConcurrentDictionary), freeze transition, frozen (FrozenDictionary).
 /// </remarks>
 [Collection("HandlerInvokerRegistry")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class FrozenCachePatternShould : IDisposable
 {

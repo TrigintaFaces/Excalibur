@@ -17,6 +17,21 @@ README.md:sidekiq-secret:50
 tests/unit/Excalibur.Data.ElasticSearch.Tests/ElasticSearch/ElasticsearchConnectionOptionsShould.cs:generic-api-key:59
 
 # False positive: test fixture string "valid-signing-key-12345" in SecurityHealthCheck unit test
-tests/unit/Excalibur.Dispatch.Security.Tests/Diagnostics/SecurityHealthCheckShould.cs:generic-api-key:39
+tests/unit/Excalibur.Dispatch.Security.Tests/Diagnostics/SecurityHealthCheckShould.cs:generic-api-key:40
+
+# False positive: well-known CosmosDB Emulator key (published by Microsoft, not a real secret)
+# https://learn.microsoft.com/en-us/azure/cosmos-db/emulator#authentication
+samples/09-advanced/querying/CosmosDb/appsettings.json:generic-api-key:5
+
+# False positive: CosmosDB sentinel connection strings (AccountKey decodes to "builder-managed-key")
+# These are builder-pattern placeholders for options validation, not real secrets
+src/Excalibur/Excalibur.Data.CosmosDb/CosmosDbServiceCollectionExtensions.cs:generic-api-key:135
+src/Excalibur/Excalibur.Inbox.CosmosDb/InboxBuilderCosmosDbExtensions.cs:generic-api-key:129
+src/Excalibur/Excalibur.Outbox.CosmosDb/DependencyInjection/OutboxBuilderCosmosDbExtensions.cs:generic-api-key:141
+src/Excalibur/Excalibur.Saga.CosmosDb/SagaBuilderCosmosDbExtensions.cs:generic-api-key:129
+
+# False positive: test dummy base64 value "dGVzdC1zaGFyZWQta2V5" (decodes to "test-shared-key") in Sentinel builder test
+# Path updated after S811 test project rename (Excalibur.Dispatch.AuditLogging.Sentinel.Tests → Excalibur.AuditLogging.Sentinel.Tests)
+tests/unit/Excalibur.AuditLogging.Sentinel.Tests/Builders/AuditLoggingSentinelBuilderShould.cs:generic-api-key:25
 
 # End of file

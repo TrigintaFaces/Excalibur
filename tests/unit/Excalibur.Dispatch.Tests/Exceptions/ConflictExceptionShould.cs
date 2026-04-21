@@ -5,8 +5,8 @@ using Excalibur.Data.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Exceptions;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConflictExceptionShould
 {
 	[Fact]
@@ -42,7 +42,7 @@ public sealed class ConflictExceptionShould
 
 		// Assert
 		ex.Message.ShouldBe("outer");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 		ex.StatusCode.ShouldBe(409);
 	}
 

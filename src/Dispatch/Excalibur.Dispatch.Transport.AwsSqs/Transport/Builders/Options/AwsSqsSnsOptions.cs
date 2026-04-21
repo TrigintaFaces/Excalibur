@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
@@ -248,6 +250,8 @@ public sealed class AwsSqsFilterPolicyOptions
 	/// Converts the filter policy to AWS JSON format.
 	/// </summary>
 	/// <returns>The filter policy as a JSON string.</returns>
+	[RequiresUnreferencedCode("Uses untyped JsonSerializer.Serialize with Dictionary<string, object> which requires runtime type metadata for polymorphic values.")]
+	[RequiresDynamicCode("Uses untyped JsonSerializer.Serialize which may require dynamic code generation for polymorphic serialization.")]
 	public string ToJson()
 	{
 		// Use System.Text.Json for serialization

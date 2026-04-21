@@ -172,6 +172,7 @@ public static class FirestoreStalePositionDetector
 			additionalContext["DocumentId"] = documentId;
 		}
 
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		return new CdcPositionResetEventArgs
 		{
 			ProcessorId = processorId,
@@ -186,6 +187,7 @@ public static class FirestoreStalePositionDetector
 			DetectedAt = DateTimeOffset.UtcNow,
 			AdditionalContext = additionalContext.Count > 0 ? additionalContext : null
 		};
+#pragma warning restore IL2026
 	}
 
 	/// <summary>

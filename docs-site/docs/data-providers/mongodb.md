@@ -10,7 +10,7 @@ The MongoDB provider implements `IDocumentPersistenceProvider` for flexible docu
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A MongoDB instance (local or Atlas)
 - Familiarity with [data access](../data-access/index.md) and [IDb interface](../data-access/idb-interface.md)
 
@@ -27,53 +27,67 @@ dotnet add package Excalibur.Data.MongoDB
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-services.AddMongoDbSnapshotStore(options =>
+// Data persistence provider (fluent builder)
+services.AddExcaliburMongoDb(mongo =>
 {
-    options.ConnectionString = "mongodb://localhost:27017";
-    options.DatabaseName = "MyApp";
-    options.CollectionName = "snapshots";
+    mongo.ConnectionString("mongodb://localhost:27017")
+         .DatabaseName("MyApp");
 });
 ```
 
-## Registration Options
+## Builder Registration (Recommended)
 
-MongoDB registration uses specialized store methods — there is no single base `AddMongoDB()` registration. Register only the stores your application needs:
-
-### Snapshot Store
+All MongoDB subsystems use the fluent builder pattern with 4 canonical connection overloads:
 
 ```csharp
-services.AddMongoDbSnapshotStore(options =>
-{
-    options.CollectionName = "snapshots";
-});
+// 1. Connection string (creates IMongoClient singleton internally)
+mongo.ConnectionString("mongodb://localhost:27017");
+
+// 2. Pre-configured IMongoClient instance
+mongo.Client(existingMongoClient);
+
+// 3. DI-aware client factory
+mongo.ClientFactory(sp => sp.GetRequiredService<IMongoClient>());
+
+// 4. Bind from appsettings.json section
+mongo.BindConfiguration("MongoDB:Data");
 ```
 
-### Projection Store
+### Subsystem Entry Points
+
+| Subsystem | Entry Point | Builder Interface |
+|-----------|-------------|-------------------|
+| Data | `services.AddExcaliburMongoDb(mongo => ...)` | `IMongoDBDataBuilder` |
+| Event Sourcing | `es.UseMongoDB(mongo => ...)` | `IMongoDBEventSourcingBuilder` |
+| Saga | `saga.UseMongoDB(mongo => ...)` | `IMongoDBSagaBuilder` |
+| Inbox | `inbox.UseMongoDB(mongo => ...)` | `IMongoDBInboxBuilder` |
+| Outbox | `outbox.UseMongoDB(mongo => ...)` | `IMongoDBOutboxBuilder` |
+| CDC | `cdc.UseMongoDB(mongo => ...)` | `IMongoDbCdcBuilder` |
+| Leader Election | `le.UseMongoDB(resourceName, mongo => ...)` | `IMongoDBLeaderElectionBuilder` |
+
+### Legacy Registration Methods
+
+The following standalone methods are still available for snapshots and projections:
+
+| Method | What It Registers | Key Options |
+|--------|-------------------|-------------|
+| `AddMongoDbSnapshotStore(opts)` | `ISnapshotStore` | `CollectionName` |
+| `AddMongoDbProjectionStore<T>(connStr, dbName, opts?)` | `IProjectionStore<T>` | `CollectionName` |
+
+### Batch Projection Registration
+
+Register multiple projections sharing the same connection in a single call:
 
 ```csharp
-services.AddMongoDbProjectionStore<OrderProjection>(options =>
+services.AddMongoDbProjections("mongodb://localhost:27017", "MyApp", projections =>
 {
-    options.CollectionName = "order-projections";
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.CollectionName = "customers");
+    projections.Add<InventoryView>(o => o.CollectionName = "inventory");
 });
 ```
 
-### Outbox Store
-
-```csharp
-services.AddMongoDbOutboxStore(options =>
-{
-    options.CollectionName = "outbox";
-});
-```
-
-### Saga Store
-
-```csharp
-services.AddMongoDbSagaStore(options =>
-{
-    options.CollectionName = "sagas";
-});
-```
+This follows the same pattern as [`AddElasticSearchProjections()`](./elasticsearch.md).
 
 ## Aggregation Pipelines
 

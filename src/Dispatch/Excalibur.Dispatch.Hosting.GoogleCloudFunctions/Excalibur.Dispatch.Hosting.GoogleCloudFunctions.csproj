@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -22,6 +22,8 @@
     <PackageReference Include="Google.Cloud.Storage.V1" />
     <PackageReference Include="Google.Cloud.Firestore" />
     <PackageReference Include="Google.Events.Protobuf" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Hosting.Serverless.Tests" />
@@ -30,9 +32,5 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Functional" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

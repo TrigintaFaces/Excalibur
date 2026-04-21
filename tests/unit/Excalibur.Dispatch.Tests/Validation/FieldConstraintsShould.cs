@@ -6,8 +6,8 @@ using Excalibur.Dispatch.Validation;
 
 namespace Excalibur.Dispatch.Tests.Validation;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FieldConstraintsShould
 {
 	// Test message with various typed properties
@@ -89,7 +89,7 @@ public sealed class FieldConstraintsShould
 
 		// Assert
 		constraint.FieldName.ShouldBe("Name");
-		constraint.ErrorMessage.ShouldBe("Name is required");
+		constraint.ErrorMessage!.ShouldBe("Name is required");
 	}
 
 	// --- GuidFormatConstraint ---

@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Polling;
 /// <summary>
 /// Unit tests for <see cref="LongPollingStatistics"/> struct.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class LongPollingStatisticsShould
 {
 	[Fact]

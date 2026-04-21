@@ -31,9 +31,9 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Redis;
 [IntegrationTest]
 [Collection(ContainerCollections.Redis)]
 [Trait("Component", "Persistence")]
-[Trait("Provider", "Redis")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait("Database", "Redis")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RedisPersistenceProviderIntegrationShould : IntegrationTestBase
 {
 	private readonly RedisContainerFixture _redisFixture;

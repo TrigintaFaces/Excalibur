@@ -23,7 +23,7 @@ namespace Excalibur.Data.Postgres.ErrorHandling;
 /// Postgres implementation of the dead letter store.
 /// Uses IOptions pattern for configuration consistency with other Postgres stores.
 /// </summary>
-public sealed partial class PostgresDeadLetterStore : IDeadLetterStore
+public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLetterStoreAdmin
 {
 	private readonly string _connectionString;
 	private readonly ILogger<PostgresDeadLetterStore> _logger;
@@ -56,6 +56,8 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore
 		Justification = "JSON serialization used for properties storage; Dictionary<string, string> is well-defined and preserved")]
 	[RequiresDynamicCode(
 		"JSON serialization of message properties dictionary requires dynamic code generation for type-specific serialization logic.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	public async Task StoreAsync(DeadLetterMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -103,8 +105,10 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore
 
 		LogStoredDeadLetterMessage(message.MessageId, message.MessageType, message.Reason);
 	}
-
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
 	public async Task<DeadLetterMessage?> GetByIdAsync(string messageId, CancellationToken cancellationToken)
 	{
@@ -194,9 +198,12 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore
 		parameters.Add("MaxResults", filter.MaxResults);
 
 		using var connection = CreateConnection();
+
+		#pragma warning disable IL2026, IL3050 // Dapper QueryAsync and ToDeadLetterMessage use reflection
 		var results = await connection.QueryAsync<DeadLetterMessageDto>(sql, parameters).ConfigureAwait(false);
 
 		return results.Select(static dto => dto.ToDeadLetterMessage());
+		#pragma warning restore IL2026, IL3050
 	}
 
 	/// <inheritdoc />

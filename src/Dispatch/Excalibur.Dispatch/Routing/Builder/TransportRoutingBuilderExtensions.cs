@@ -52,6 +52,7 @@ public static class TransportRoutingBuilderExtensions
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("RouteAll uses reflection to invoke the generic Route<T>() method.")]
+	[RequiresDynamicCode("RouteAll uses MakeGenericMethod to invoke Route<T>() at runtime.")]
 	public static ITransportRoutingBuilder RouteAll(
 		this ITransportRoutingBuilder builder,
 		string transportName,

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
@@ -41,6 +42,10 @@ public sealed partial class LoggingMiddleware(
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "Untyped JsonSerializer.Serialize is used for diagnostic payload logging only. Serialization failure is caught and returns a fallback string.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Untyped JsonSerializer.Serialize is used for diagnostic payload logging only.")]
 	public async ValueTask<IMessageResult> InvokeAsync(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -114,6 +119,8 @@ public sealed partial class LoggingMiddleware(
 		MaxDepth = 3 // Limit depth to avoid circular references
 	};
 
+	[RequiresUnreferencedCode("Uses untyped JsonSerializer.Serialize(object) which requires runtime type metadata.")]
+	[RequiresDynamicCode("Uses untyped JsonSerializer.Serialize(object) which may require dynamic code generation.")]
 	private static string SerializePayload(IDispatchMessage message)
 	{
 		try

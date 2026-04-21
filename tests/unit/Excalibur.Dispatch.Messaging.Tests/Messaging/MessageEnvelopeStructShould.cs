@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// <summary>
 /// Unit tests for <see cref="MessageEnvelopeStruct"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Messaging")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Messaging)]
 [Trait("Priority", "0")]
 public sealed class MessageEnvelopeStructShould
 {

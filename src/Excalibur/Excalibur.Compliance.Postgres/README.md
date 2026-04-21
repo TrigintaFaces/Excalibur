@@ -2,6 +2,16 @@
 
 Postgres implementation of GDPR compliance stores for the Excalibur framework.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Postgres` | Complete | Everything for PostgreSQL: ES + Outbox + Inbox + Saga + LE + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.Postgres` for a production-ready PostgreSQL stack with a single package reference.
+
 ## Features
 
 - **Erasure Store** - Track and manage GDPR erasure requests with certificate persistence

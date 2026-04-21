@@ -10,18 +10,14 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Registry for managing transport adapters and their configurations.
 /// </summary>
-public sealed class TransportRegistry
+internal sealed class TransportRegistry : ITransportRegistry
 {
 	private static readonly IReadOnlyDictionary<string, TransportRegistration> EmptyTransports =
 		new Dictionary<string, TransportRegistration>(0, StringComparer.Ordinal);
 
 	private readonly ConcurrentDictionary<string, TransportRegistration> _transports = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, TransportFactoryRegistration> _factories = new(StringComparer.Ordinal);
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _snapshotUpdateGate = new();
-#else
-	private readonly object _snapshotUpdateGate = new();
-#endif
+	private readonly Lock _snapshotUpdateGate = new();
 	private volatile string[] _transportNamesSnapshot = [];
 	private string? _defaultTransportName;
 

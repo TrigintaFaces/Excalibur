@@ -5,14 +5,19 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
+using Excalibur.Dispatch.Resilience.Polly;
 
-using Microsoft.Extensions.DependencyInjection;
+using BackoffStrategy = Excalibur.Dispatch.Resilience.BackoffStrategy;
+using CircuitBreakerOptions = Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions;
+using ITransportCircuitBreakerRegistry = Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry;
+using RetryOptions = Excalibur.Dispatch.Resilience.Polly.RetryOptions;
+
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Polly;
 
-namespace Excalibur.Dispatch.Resilience.Polly;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for adding resilience to IDispatchBuilder.
@@ -28,7 +33,7 @@ public static class DispatchBuilderResilienceExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure resilience options models are annotated accordingly.")]
 	[RequiresDynamicCode(
 		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
-	public static IDispatchBuilder AddDispatchResilience(this IDispatchBuilder builder)
+	private static IDispatchBuilder UseResilienceCore(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
@@ -49,7 +54,7 @@ public static class DispatchBuilderResilienceExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure resilience options models are annotated accordingly.")]
 	[RequiresDynamicCode(
 		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
-	public static IDispatchBuilder AddDispatchResilience(
+	private static IDispatchBuilder UseResilienceCore(
 		this IDispatchBuilder builder,
 		Action<ResilienceOptions> configureOptions)
 	{
@@ -57,7 +62,7 @@ public static class DispatchBuilderResilienceExtensions
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
 		// Add basic resilience
-		_ = builder.AddDispatchResilience();
+		_ = builder.UseResilienceCore();
 
 		// Configure options
 		_ = builder.Services.Configure(configureOptions);
@@ -78,7 +83,7 @@ public static class DispatchBuilderResilienceExtensions
 	/// <code>
 	/// services.AddDispatch(dispatch =>
 	/// {
-	///     dispatch.AddResilience(res => res.DefaultRetryCount = 3);
+	///     dispatch.UseResilience(res => res.DefaultRetryCount = 3);
 	/// });
 	/// </code>
 	/// </example>
@@ -86,7 +91,7 @@ public static class DispatchBuilderResilienceExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure resilience options models are annotated accordingly.")]
 	[RequiresDynamicCode(
 		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
-	public static IDispatchBuilder AddResilience(
+	public static IDispatchBuilder UseResilience(
 		this IDispatchBuilder builder,
 		Action<ResilienceOptions>? configure = null)
 	{
@@ -94,10 +99,10 @@ public static class DispatchBuilderResilienceExtensions
 
 		if (configure != null)
 		{
-			return builder.AddDispatchResilience(configure);
+			return builder.UseResilienceCore(configure);
 		}
 
-		return builder.AddDispatchResilience();
+		return builder.UseResilienceCore();
 	}
 
 	/// <summary>
@@ -121,7 +126,7 @@ public static class DispatchBuilderResilienceExtensions
 	/// <param name="builder">The dispatch builder.</param>
 	/// <param name="configureOptions">Optional action to configure Polly resilience options.</param>
 	/// <returns>The dispatch builder for method chaining.</returns>
-	public static IDispatchBuilder AddPollyResilienceAdapters(
+	public static IDispatchBuilder UsePollyResilienceAdapters(
 		this IDispatchBuilder builder,
 		Action<PollyResilienceAdapterOptions>? configureOptions = null)
 	{

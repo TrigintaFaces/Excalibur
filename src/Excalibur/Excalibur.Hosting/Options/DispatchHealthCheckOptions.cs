@@ -5,7 +5,7 @@ namespace Excalibur.Hosting.Options;
 
 /// <summary>
 /// Options for controlling which Dispatch health checks are registered
-/// by <see cref="Microsoft.Extensions.DependencyInjection.DispatchHealthCheckExtensions.AddDispatchHealthChecks"/>.
+/// by <see cref="Microsoft.Extensions.DependencyInjection.DispatchHealthChecksBuilderExtensions.AddDispatchHealthChecks"/>.
 /// </summary>
 /// <remarks>
 /// All flags default to <see langword="true"/>. Set individual flags to <see langword="false"/>

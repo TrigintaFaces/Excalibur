@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Per AD-256-1, these tests verify the re-encryption result handling.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class ReEncryptionResultShould
 {
 	#region Succeeded Factory Method Tests
@@ -99,7 +99,7 @@ public sealed class ReEncryptionResultShould
 			duration: TimeSpan.FromMilliseconds(100));
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -113,7 +113,7 @@ public sealed class ReEncryptionResultShould
 			duration: TimeSpan.FromMilliseconds(100));
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	#endregion Succeeded Factory Method Tests
@@ -137,7 +137,7 @@ public sealed class ReEncryptionResultShould
 		var result = ReEncryptionResult.Failed("Provider not found");
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Provider not found");
+		result.ErrorMessage!.ShouldBe("Provider not found");
 	}
 
 	[Fact]
@@ -150,7 +150,7 @@ public sealed class ReEncryptionResultShould
 		var result = ReEncryptionResult.Failed("Operation failed", exception);
 
 		// Assert
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]
@@ -160,7 +160,7 @@ public sealed class ReEncryptionResultShould
 		var result = ReEncryptionResult.Failed("Error occurred");
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -224,8 +224,8 @@ public sealed class ReEncryptionResultShould
 			exception);
 
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Invalid key");
-		result.Exception.ShouldBe(exception);
+		result.ErrorMessage!.ShouldContain("Invalid key");
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]

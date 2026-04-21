@@ -5,13 +5,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance.Configuration;
+using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Configuration;
 
 /// <summary>
 /// Unit tests for <see cref="EncryptionServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class EncryptionServiceCollectionExtensionsShould
 {
 	#region AddEncryption Tests
@@ -69,7 +71,7 @@ public sealed class EncryptionServiceCollectionExtensionsShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddEncryption(null!));
+			services.AddEncryption((Action<EncryptionConfigurationBuilder>)null!));
 	}
 
 	#endregion AddEncryption Tests

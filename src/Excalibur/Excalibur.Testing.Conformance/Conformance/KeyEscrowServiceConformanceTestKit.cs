@@ -6,7 +6,7 @@
 
 using System.Security.Cryptography;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 namespace Excalibur.Testing.Conformance;
 

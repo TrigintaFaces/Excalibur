@@ -1,9 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.LeaderElection.Watch;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -27,8 +31,11 @@ public static class LeaderElectionWatchServiceCollectionExtensions
 
 		_ = services.AddOptions<LeaderWatchOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		// Register AOT-safe validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LeaderWatchOptions>, LeaderWatchOptionsValidator>());
 
 		services.TryAddSingleton<ILeaderElectionWatcher, DefaultLeaderElectionWatcher>();
 
@@ -43,5 +50,33 @@ public static class LeaderElectionWatchServiceCollectionExtensions
 	public static IServiceCollection AddLeaderElectionWatcher(this IServiceCollection services)
 	{
 		return services.AddLeaderElectionWatcher(_ => { });
+	}
+
+	/// <summary>
+	/// Adds leader election watcher services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	[RequiresUnreferencedCode("Configuration binding for LeaderWatchOptions may require types not preserved during trimming.")]
+	[RequiresDynamicCode("Configuration binding for LeaderWatchOptions requires dynamic code generation.")]
+	public static IServiceCollection AddLeaderElectionWatcher(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<LeaderWatchOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		// Register AOT-safe validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LeaderWatchOptions>, LeaderWatchOptionsValidator>());
+
+		services.TryAddSingleton<ILeaderElectionWatcher, DefaultLeaderElectionWatcher>();
+
+		return services;
 	}
 }

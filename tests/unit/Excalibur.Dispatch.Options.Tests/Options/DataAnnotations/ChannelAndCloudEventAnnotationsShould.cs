@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Options.DataAnnotations;
 /// Sprint 564 S564.56: Channel + CloudEvent + Core Options DataAnnotation coverage.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ChannelAndCloudEventAnnotationsShould
 {
 	private static bool TryValidate(object instance, out ICollection<ValidationResult> results)
@@ -150,26 +150,6 @@ public sealed class ChannelAndCloudEventAnnotationsShould
 		var options = new DeadLetterOptions { MaxAttempts = 0 };
 		TryValidate(options, out var results).ShouldBeFalse();
 		results.ShouldContain(r => r.MemberNames.Contains(nameof(DeadLetterOptions.MaxAttempts)));
-	}
-
-	#endregion
-
-	#region KeyDerivationOptions
-
-	[Fact]
-	public void KeyDerivation_Succeed_WithDefaults()
-	{
-		var options = new KeyDerivationOptions();
-		TryValidate(options, out var results).ShouldBeTrue();
-		results.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void KeyDerivation_Fail_WhenIterationsIsZero()
-	{
-		var options = new KeyDerivationOptions { Iterations = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(KeyDerivationOptions.Iterations)));
 	}
 
 	#endregion

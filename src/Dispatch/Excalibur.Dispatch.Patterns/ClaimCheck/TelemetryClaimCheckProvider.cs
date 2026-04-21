@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 /// Decorates an <see cref="IClaimCheckProvider"/> with OpenTelemetry metrics and distributed tracing.
 /// Records store/retrieve/delete counters, duration histograms, and payload size histograms.
 /// </summary>
-public sealed class TelemetryClaimCheckProvider : IClaimCheckProvider
+internal sealed class TelemetryClaimCheckProvider : IClaimCheckProvider
 {
 	private readonly IClaimCheckProvider _inner;
 	private readonly Counter<long> _storedCounter;

@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// <summary>
 ///     Tests for severity determination in <see cref="DispatchException" />.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class ErrorCategorySeverityMappingShould
 {

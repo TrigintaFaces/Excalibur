@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// <summary>
 /// Unit tests for <see cref="DispatchHandlerBase{TMessage, TResult}"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Handlers")]
 [Trait("Priority", "0")]
 public sealed class DispatchHandlerBaseShould

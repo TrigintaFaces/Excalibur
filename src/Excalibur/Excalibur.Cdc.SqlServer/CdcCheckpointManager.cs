@@ -19,7 +19,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// </remarks>
 internal sealed partial class CdcCheckpointManager
 {
-	private readonly IDatabaseConfig _dbConfig;
+	private readonly IDatabaseOptions _dbConfig;
 	private readonly ICdcRepository _cdcRepository;
 	private readonly ISqlServerCdcStateStore _stateStore;
 	private readonly ILogger _logger;
@@ -28,14 +28,10 @@ internal sealed partial class CdcCheckpointManager
 
 	private readonly SortedSet<(byte[] Lsn, string TableName)> _minHeap = new(new MinHeapComparer());
 
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _minHeapLock = new();
-#else
-	private readonly object _minHeapLock = new();
-#endif
+	private readonly Lock _minHeapLock = new();
 
 	internal CdcCheckpointManager(
-		IDatabaseConfig dbConfig,
+		IDatabaseOptions dbConfig,
 		ICdcRepository cdcRepository,
 		ISqlServerCdcStateStore stateStore,
 		ILogger logger)

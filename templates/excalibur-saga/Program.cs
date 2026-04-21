@@ -35,16 +35,24 @@ builder.Services.AddDispatch(dispatch =>
 #endif
 });
 
-builder.Services.AddExcaliburSaga(saga =>
-{
+builder.Services.AddExcalibur(excalibur => excalibur
+    .AddSagas(saga =>
+    {
 #if (UseSqlServer)
-    saga.UseSqlServer(builder.Configuration.GetConnectionString("SagaStore")
-        ?? throw new InvalidOperationException("ConnectionStrings:SagaStore is required."));
+        saga.UseSqlServer(sql =>
+        {
+            sql.ConnectionString = builder.Configuration.GetConnectionString("SagaStore")
+                ?? throw new InvalidOperationException("ConnectionStrings:SagaStore is required.");
+        });
 #endif
-    saga.WithOrchestration()
-        .WithCorrelation()
-        .WithInstrumentation();
-});
+        saga.WithOrchestration()
+            .WithCorrelation()
+            .WithInstrumentation();
+    }));
+
+// OpenTelemetry: one call registers all Dispatch meters + activity sources
+builder.Services.AddOpenTelemetry()
+    .AddDispatchInstrumentation();
 
 var app = builder.Build();
 

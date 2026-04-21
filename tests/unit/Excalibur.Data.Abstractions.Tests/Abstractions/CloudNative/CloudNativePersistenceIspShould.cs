@@ -13,7 +13,7 @@ namespace Excalibur.Data.Tests.Abstractions.CloudNative;
 /// interface splits (A.2).
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Component, TestComponents.Data)]
 [Trait("Feature", "CloudNative")]
 public sealed class CloudNativePersistenceIspShould : UnitTestBase
 {
@@ -198,7 +198,7 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 		result.RequestCharge.ShouldBe(3.5);
 		result.ETag.ShouldBe("etag-1");
 		result.SessionToken.ShouldBe("session-1");
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -289,7 +289,7 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 		result.RequestCharge.ShouldBe(3.0);
 		result.OperationResults.Count.ShouldBe(2);
 		result.SessionToken.ShouldBe("session-1");
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -298,7 +298,7 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 		var result = new CloudBatchResult(false, 1.0, [], errorMessage: "Batch failed");
 
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Batch failed");
+		result.ErrorMessage!.ShouldBe("Batch failed");
 	}
 
 	#endregion
@@ -410,7 +410,7 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 		result.NextExpectedVersion.ShouldBe(10);
 		result.RequestCharge.ShouldBe(3.5);
 		result.SessionToken.ShouldBe("session-1");
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.IsConcurrencyConflict.ShouldBeFalse();
 	}
 
@@ -426,8 +426,8 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 		result.IsConcurrencyConflict.ShouldBeTrue();
 		result.NextExpectedVersion.ShouldBe(7);
 		result.RequestCharge.ShouldBe(1.0);
-		result.ErrorMessage.ShouldContain("expected version 5");
-		result.ErrorMessage.ShouldContain("current version is 7");
+		result.ErrorMessage!.ShouldContain("expected version 5");
+		result.ErrorMessage!.ShouldContain("current version is 7");
 	}
 
 	[Fact]
@@ -439,7 +439,7 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 		result.IsConcurrencyConflict.ShouldBeFalse();
 		result.NextExpectedVersion.ShouldBe(-1);
 		result.RequestCharge.ShouldBe(0.5);
-		result.ErrorMessage.ShouldBe("Something went wrong");
+		result.ErrorMessage!.ShouldBe("Something went wrong");
 	}
 
 	#endregion

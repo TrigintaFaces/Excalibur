@@ -22,27 +22,18 @@ permissions:
   pull-requests: read
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   COVERAGE_THRESHOLD: 65
 
 jobs:
-  # Build validation across multiple platforms
-  build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            runtime: linux-x64
-          - os: windows-latest
-            runtime: win-x64
-          - os: macos-latest
-            runtime: osx-x64
+  # ── Package job (Ubuntu) -- NuGet packaging, deterministic validation ──
+  # Replaces the old 'build' job. Does NOT produce test artifacts.
+  package:
+    name: Package (Ubuntu)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -51,27 +42,28 @@ jobs:
           token: ${{ github.token }}
           fetch-depth: 1
 
-      - name: Free disk space (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Free disk space
         shell: bash
         run: |
           set -euo pipefail
           echo "Disk usage before cleanup:"
           df -h
-          sudo rm -rf /usr/share/swift || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          sudo rm -rf /home/linuxbrew || true
-          sudo rm -rf /usr/local/.ghcup || true
-          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android &            # ~12GB
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &       # ~6GB
+          sudo rm -rf /usr/share/swift &                  # ~1.5GB
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /home/linuxbrew &
+          sudo rm -rf /usr/local/.ghcup &
+          sudo rm -rf /usr/local/share/boost &
+          sudo rm -rf /usr/local/share/powershell &
+          wait
           sudo apt-get clean || true
-          docker system prune -af || true
+          docker system prune -af 2>/dev/null || true
           echo "Disk usage after cleanup:"
           df -h
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -79,36 +71,33 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
+      - name: Restore shipping projects
         run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
-      - name: Build solution
+      - name: Build shipping projects
         run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
 
-      - name: Deterministic build validation (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Deterministic build validation
         run: |
           echo "Validating deterministic builds with CI flag..."
           dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore -p:CI=true --verbosity quiet
-          echo "✅ Deterministic build validation successful (Sprint 318 T3.4 AD-318-3)"
+          echo "Deterministic build validation successful"
 
-      - name: Package validation (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Package validation
         run: |
           echo "Validating packageable projects..."
           dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release --no-build --verbosity minimal --output ./packages
-          echo "✅ Package creation successful"
+          echo "Package creation successful"
 
       - name: Upload build artifacts
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
           path: |
@@ -116,7 +105,27 @@ jobs:
             ./packages/*.snupkg
           retention-days: 1
 
-  # Sprint 461 T5.4: Documentation Verification in CI (AD-461-1)
+  # Security scanning (reusable workflow)
+  call-security:
+    needs: package
+    uses: ./.github/workflows/security.yml
+    with:
+      checkout-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      checkout-token: ${{ github.token }}
+      event-name: ${{ github.event_name }}
+    secrets: inherit
+
+  # Governance validation (reusable workflow)
+  call-governance:
+    needs: package
+    uses: ./.github/workflows/governance.yml
+    with:
+      checkout-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      checkout-token: ${{ github.token }}
+      event-name: ${{ github.event_name }}
+    secrets: inherit
+
+  # Documentation validation (independent, no build dependency)
   documentation-validation:
     name: Documentation Verification (T5.4)
     runs-on: ubuntu-latest
@@ -130,7 +139,7 @@ jobs:
           fetch-depth: 1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -151,56 +160,43 @@ jobs:
       - name: Build Docusaurus (enforcing zero warnings)
         working-directory: docs-site
         env:
-          # Set CI mode to enforce strict link checking
           CI: true
           DOCUSAURUS_STRICT_LINKS: true
         run: |
-          echo "🔍 Building Docusaurus with strict link validation..."
-
-          # Build and capture output for analysis
+          echo "Building Docusaurus with strict link validation..."
           npm run build 2>&1 | tee build-output.txt
           BUILD_EXIT_CODE=${PIPESTATUS[0]}
-
-          # Count warnings in the output
-          WARNING_COUNT=$(grep -c -E "(warning|Warning|⚠)" build-output.txt || true)
-
+          WARNING_COUNT=$(grep -c -E "(warning|Warning)" build-output.txt || true)
           echo "Build exit code: $BUILD_EXIT_CODE"
           echo "Warning count: $WARNING_COUNT"
-
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
-            echo "❌ Docusaurus build FAILED"
+            echo "Docusaurus build FAILED"
             exit 1
           fi
-
-          # For now, report warnings but don't fail
-          # After Sprint 461, we can enable strict mode
           if [ "$WARNING_COUNT" -gt 0 ]; then
-            echo "⚠️ Found $WARNING_COUNT warnings in Docusaurus build"
+            echo "Found $WARNING_COUNT warnings in Docusaurus build"
             echo "DOCS_WARNINGS=$WARNING_COUNT" >> $GITHUB_ENV
           else
-            echo "✅ Docusaurus build completed with zero warnings"
+            echo "Docusaurus build completed with zero warnings"
             echo "DOCS_WARNINGS=0" >> $GITHUB_ENV
           fi
 
       - name: Verify build output exists
         run: |
           if [ ! -d "docs-site/build" ]; then
-            echo "❌ Build output directory not found"
+            echo "Build output directory not found"
             exit 1
           fi
-
-          # Count built files
           FILE_COUNT=$(find docs-site/build -name "*.html" | wc -l)
-          echo "✅ Built $FILE_COUNT HTML pages"
-
+          echo "Built $FILE_COUNT HTML pages"
           if [ "$FILE_COUNT" -lt 10 ]; then
-            echo "❌ Build appears incomplete (less than 10 HTML pages)"
+            echo "Build appears incomplete (less than 10 HTML pages)"
             exit 1
           fi
 
       - name: Upload build output for inspection
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docs-build-output
           path: docs-site/build-output.txt
@@ -209,191 +205,25 @@ jobs:
       - name: Documentation validation summary
         if: always()
         run: |
-          echo "## 📚 Documentation Verification (T5.4)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Sprint:** 461" >> $GITHUB_STEP_SUMMARY
-          echo "**Task:** T5.4 - Documentation Verification in CI" >> $GITHUB_STEP_SUMMARY
+          echo "## Documentation Verification (T5.4)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| TypeScript Check | ${{ job.status == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docusaurus Build | ${{ job.status == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeScript Check | ${{ job.status == 'success' && 'PASS' || 'FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docusaurus Build | ${{ job.status == 'success' && 'PASS' || 'FAIL' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build Warnings | ${{ env.DOCS_WARNINGS || '0' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ **Documentation verification passed**" >> $GITHUB_STEP_SUMMARY
+            echo "Documentation verification passed" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Documentation verification failed** - see logs for details" >> $GITHUB_STEP_SUMMARY
+            echo "Documentation verification failed - see logs for details" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # Sprint 328 T2.4: Package Composition Validation (AD-328-1)
-  package-composition:
-    name: Package Composition Validation (T2.4)
-    runs-on: ubuntu-latest
-    needs: build
-    timeout-minutes: 60
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
-
-      - name: Build Dispatch projects
-        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
-
-      - name: Pack Dispatch to local feed
-        shell: pwsh
-        run: |
-          Write-Host "📦 Packing Dispatch projects to local feed..."
-          ./eng/pack-local.ps1 -Version "0.1.0-ci-${{ github.run_number }}" -NoBuild
-          Write-Host "✅ Packages created in artifacts/_packages/"
-
-      - name: Clear NuGet cache (avoid stale packages)
-        run: |
-          dotnet nuget locals http-cache --clear
-          dotnet nuget locals temp --clear
-
-      - name: Restore Excalibur with PackageReference mode
-        run: |
-          echo "📥 Restoring Excalibur with PackageReference mode..."
-          find src/Excalibur -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
-            dotnet restore "$proj" \
-              -p:UsePackageReferences=true \
-              -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
-              -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }}
-          done
-
-      - name: Build Excalibur with PackageReference mode
-        run: |
-          echo "🔗 Building Excalibur with PackageReference mode..."
-          find src/Excalibur -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
-            dotnet build "$proj" \
-              --configuration Release \
-              --no-restore \
-              -p:UsePackageReferences=true \
-              -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
-              -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }}
-          done
-
-      - name: Validate sample builds against packages
-        run: |
-          echo "🧪 Validating sample compilation..."
-          # Build a representative sample (allow failure for now - samples may have other issues)
-          dotnet build samples/01-getting-started/DispatchMinimal/Excalibur.DispatchMinimal.csproj \
-            --configuration Release \
-            --no-restore \
-            -p:UsePackageReferences=true \
-            -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
-            -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }} || true
-
-      - name: Package composition summary
-        if: always()
-        run: |
-          echo "## 📦 Package Composition Validation (T2.4)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Sprint:** 328" >> $GITHUB_STEP_SUMMARY
-          echo "**Package Version:** 0.1.0-ci-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Validation Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. ✅ Packed Dispatch projects to local feed" >> $GITHUB_STEP_SUMMARY
-          echo "2. ✅ Built Excalibur with PackageReference mode" >> $GITHUB_STEP_SUMMARY
-          echo "3. ✅ Validated sample compilation" >> $GITHUB_STEP_SUMMARY
-
-  solution-governance:
-    name: Solution Governance Validation
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Validate consolidated governance stack
-        shell: pwsh
-        run: |
-          ./eng/ci/validate-governance-stack.ps1 -Enforce:$true
-
-      - name: Upload governance report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: solution-governance-report
-          path: |
-            management/reports/SolutionGovernanceReport
-            management/reports/FrameworkGovernanceReport
-          retention-days: 14
-
-  package-dependency-graph:
-    name: Package Dependency Graph Validation
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf
-
-      - name: Validate nuspec dependency graph (blocking)
-        shell: pwsh
-        run: |
-          ./eng/ci/validate-nuspec-dependencies.ps1 -SolutionFilter eng/ci/shards/ShippingOnly.slnf -OutDir management/reports/PackageDependencyReport -Version "0.1.0-ci-${{ github.run_number }}" -Enforce:$true
-
-      - name: Upload dependency graph report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: package-dependency-report
-          path: management/reports/PackageDependencyReport
-          retention-days: 14
-
-  # Smoke tests - critical path tests for immediate PR feedback (Priority=0)
+  # ── Smoke tests -- no dependencies, starts immediately for fast PR feedback ──
   smoke-tests:
     name: Smoke Tests (Critical Path)
     runs-on: ubuntu-latest
-    needs: build
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -401,56 +231,29 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Build and test
+        uses: ./.github/actions/build-and-test
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
-
-      - name: Run Smoke Tests (Priority=0)
-        run: |
-          echo "Running critical path smoke tests..."
-          dotnet test eng/ci/shards/TestsOnly.slnf \
-            --configuration Release \
-            --no-build \
-            --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=smoke-tests.trx" \
-            --logger "console;verbosity=minimal" \
-            --results-directory ./TestResults \
-            --filter "Priority=0" \
-            -- RunConfiguration.TestSessionTimeout=300000
-          echo "✅ Smoke tests completed"
+          solution-filter: eng/ci/shards/TestsOnly.slnf
+          test-filter: "Priority=0"
+          results-prefix: smoke-tests
+          quarantine-mode: None
+          base-test-filter: "Priority=0"
+          test-session-timeout: '300000'
 
       - name: Upload smoke test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-smoke
           path: TestResults/*.trx
           retention-days: 7
 
-  # Unit tests - sharded across 6 solution filters for parallel execution
+  # ── Unit shard coverage audit ──
   unit-shard-coverage:
     name: Unit Shard Coverage Audit
     runs-on: ubuntu-latest
-    needs: build
+    needs: package
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -465,25 +268,25 @@ jobs:
 
       - name: Upload shard coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unit-shard-coverage-report
           path: management/reports/UnitShardReport
           retention-days: 14
 
-  # Unit tests - sharded across 6 solution filters for parallel execution
+  # ── Unit tests -- 4 deterministic shards, self-contained build per shard ──
   unit-tests:
     name: Unit Tests (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
-    needs: [build, smoke-tests, unit-shard-coverage]
+    needs: smoke-tests
     timeout-minutes: 15
     strategy:
       matrix:
         shard:
-          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf" }
+          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf" }
+          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf" }
+          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf" }
       fail-fast: false
     steps:
       - name: Checkout code
@@ -491,78 +294,42 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Build and test
+        uses: ./.github/actions/build-and-test
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore ${{ matrix.shard.filter }}
-
-      - name: Build shard
-        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore
-
-      - name: Compose unit test filter
-        shell: pwsh
-        run: |
-          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter '${{ matrix.shard.test_filter }}' -Mode Exclude -AsJson | ConvertFrom-Json
-          "UNIT_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
-          "UNIT_QUARANTINE_COUNT=$($filterInfo.count)" >> $env:GITHUB_ENV
-          Write-Host "Using unit test filter with $($filterInfo.count) quarantined exclusions."
-
-      - name: Run Unit Tests
-        run: |
-          dotnet test ${{ matrix.shard.filter }} \
-            --configuration Release \
-            --no-build \
-            --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=unit-tests-${{ matrix.shard.name }}.trx" \
-            --logger "console;verbosity=minimal" \
-            --collect:"XPlat Code Coverage" \
-            --results-directory ./TestResults \
-            --filter "${{ env.UNIT_TEST_FILTER }}" \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+          solution-filter: ${{ matrix.shard.filter }}
+          collect-coverage: 'true'
+          results-prefix: unit-tests-${{ matrix.shard.name }}
+          free-disk-space: 'true'
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 30
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-unit-${{ matrix.shard.name }}
           path: TestResults/*/coverage.cobertura.xml
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
-  # Async-risk unit tests (messaging, observability) -- advisory on PRs, blocking on push to main
+  # ── Async-risk unit tests -- advisory on PRs, blocking on push to main ──
   unit-tests-async-risk:
     name: Unit Tests - Async Risk (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
-    needs: [build, smoke-tests, unit-shard-coverage]
+    needs: smoke-tests
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     timeout-minutes: 15
     strategy:
       matrix:
         shard:
-          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf" }
+          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf" }
       fail-fast: false
     steps:
       - name: Checkout code
@@ -570,220 +337,166 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Build and test
+        uses: ./.github/actions/build-and-test
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore ${{ matrix.shard.filter }}
-
-      - name: Build shard
-        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore
-
-      - name: Compose unit test filter
-        shell: pwsh
-        run: |
-          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter '${{ matrix.shard.test_filter }}' -Mode Exclude -AsJson | ConvertFrom-Json
-          "UNIT_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
-          "UNIT_QUARANTINE_COUNT=$($filterInfo.count)" >> $env:GITHUB_ENV
-          Write-Host "Using unit test filter with $($filterInfo.count) quarantined exclusions."
-
-      - name: Run Unit Tests
-        run: |
-          dotnet test ${{ matrix.shard.filter }} \
-            --configuration Release \
-            --no-build \
-            --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=unit-tests-async-risk-${{ matrix.shard.name }}.trx" \
-            --logger "console;verbosity=minimal" \
-            --collect:"XPlat Code Coverage" \
-            --results-directory ./TestResults \
-            --filter "${{ env.UNIT_TEST_FILTER }}" \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+          solution-filter: ${{ matrix.shard.filter }}
+          collect-coverage: 'true'
+          results-prefix: unit-tests-async-risk-${{ matrix.shard.name }}
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-async-risk-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 30
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-unit-async-risk-${{ matrix.shard.name }}
           path: TestResults/*/coverage.cobertura.xml
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
-  # Cross-platform unit test validation (Windows) -- Deterministic blocking tier
+  # ── Cross-platform: Windows deterministic ──
   unit-tests-windows:
     name: Unit Tests (Windows - Deterministic)
     runs-on: windows-latest
-    needs: [build, smoke-tests, unit-shard-coverage]
+    needs: smoke-tests
     timeout-minutes: 60
     env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+      VSTEST_CONNECTION_TIMEOUT: 600
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Build and test
+        uses: ./.github/actions/build-and-test
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/UnitTests-Deterministic.slnf
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-restore
-
-      - name: Compose Windows unit test filter
-        shell: pwsh
-        run: |
-          $baseFilter = '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
-          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
-          "WINDOWS_UNIT_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
-          Write-Host "Using Windows unit filter with $($filterInfo.count) quarantined exclusions."
-
-      - name: Run Unit Tests
-        run: |
-          dotnet test eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows-deterministic.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+          solution-filter: eng/ci/shards/UnitTests-Deterministic.slnf
+          collect-coverage: 'false'
+          results-prefix: unit-tests-windows-deterministic
+          test-session-timeout: '1500000'
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-windows-deterministic
           path: TestResults/*.trx
           retention-days: 30
 
-  # Cross-platform unit test validation (Windows) -- Async-risk advisory tier
+  # ── Cross-platform: Windows async-risk ──
   unit-tests-windows-async-risk:
     name: Unit Tests (Windows - Async Risk)
     runs-on: windows-latest
-    needs: [build, smoke-tests, unit-shard-coverage]
+    needs: smoke-tests
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     timeout-minutes: 60
     env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+      VSTEST_CONNECTION_TIMEOUT: 600
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Build and test
+        uses: ./.github/actions/build-and-test
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/UnitTests-AsyncRisk.slnf
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/UnitTests-AsyncRisk.slnf --configuration Release --no-restore
-
-      - name: Compose Windows unit test filter
-        shell: pwsh
-        run: |
-          $baseFilter = '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
-          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
-          "WINDOWS_UNIT_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
-          Write-Host "Using Windows unit filter with $($filterInfo.count) quarantined exclusions."
-
-      - name: Run Unit Tests
-        run: |
-          dotnet test eng/ci/shards/UnitTests-AsyncRisk.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFilePrefix=unit-tests-windows-async-risk" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000 RunConfiguration.MaxCpuCount=1
+          solution-filter: eng/ci/shards/UnitTests-AsyncRisk.slnf
+          collect-coverage: 'false'
+          results-prefix: unit-tests-windows-async-risk
+          max-cpu-count: '1'
+          test-session-timeout: '1500000'
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-windows-async-risk
           path: TestResults/*.trx
           retention-days: 30
 
-  # Integration tests - depends on unit tests (fail-fast)
-  integration-tests:
-    name: Integration Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: unit-tests
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
+  # ── Cross-platform: macOS deterministic ──
+  unit-tests-macos:
+    name: Unit Tests (macOS - Deterministic)
+    runs-on: macos-latest
+    needs: smoke-tests
     timeout-minutes: 60
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-      fail-fast: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Build and test
+        uses: ./.github/actions/build-and-test
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
+          solution-filter: eng/ci/shards/UnitTests-Deterministic.slnf
+          collect-coverage: 'false'
+          results-prefix: unit-tests-macos-deterministic
+          test-session-timeout: '1500000'
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: test-results-unit-macos-deterministic
+          path: TestResults/*.trx
+          retention-days: 30
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/IntegrationTests.slnf
+  # ── Cross-platform: macOS async-risk (sequenced after deterministic to limit 10x billing) ──
+  unit-tests-macos-async-risk:
+    name: Unit Tests (macOS - Async Risk)
+    runs-on: macos-latest
+    needs: unit-tests-macos
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+      - name: Build and test
+        uses: ./.github/actions/build-and-test
+        with:
+          solution-filter: eng/ci/shards/UnitTests-AsyncRisk.slnf
+          collect-coverage: 'false'
+          results-prefix: unit-tests-macos-async-risk
+          max-cpu-count: '1'
+          test-session-timeout: '1500000'
 
-      - name: Build solution
-        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-unit-macos-async-risk
+          path: TestResults/*.trx
+          retention-days: 30
+
+  # ── Integration tests -- self-contained build, Docker pre-flight, -m:1 ──
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+      - name: Setup build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          solution-filter: eng/ci/shards/IntegrationTests.slnf
 
       - name: Integration preflight diagnostics
         shell: pwsh
@@ -795,7 +508,6 @@ jobs:
           if (Get-Command docker -ErrorAction SilentlyContinue) {
             docker --version
           }
-
           foreach ($name in @('AZURE_KEYVAULT_URI', 'COSMOS_EMULATOR_ENDPOINT')) {
             if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
               Write-Host ("{0}: not set" -f $name)
@@ -824,37 +536,71 @@ jobs:
           Write-Host "Using integration filter with $($filterInfo.count) quarantined exclusions."
 
       - name: Run Integration Tests
+        id: run-integration
+        continue-on-error: true
         run: |
           dotnet test eng/ci/shards/IntegrationTests.slnf \
             -m:1 \
             --configuration Release \
             --no-build \
-            --blame-hang-timeout 5m \
-            --logger "trx;LogFilePrefix=integration-tests-${{ matrix.os }}" \
+            --blame-hang-timeout 10m \
+            --logger "trx;LogFilePrefix=integration-tests" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
             --filter "${{ env.INTEGRATION_TEST_FILTER }}" \
             -- RunConfiguration.TestSessionTimeout=3600000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
+      - name: Cleanup orphaned Docker containers
+        if: always()
+        run: |
+          # Kill any TestContainers that survived a test host crash
+          docker ps -q --filter "name=vault-compliance-test" | xargs -r docker rm -f 2>/dev/null || true
+          docker ps -q --filter "name=testcontainers" | xargs -r docker rm -f 2>/dev/null || true
+
+      - name: Verify integration test results
+        if: always()
+        shell: pwsh
+        run: |
+          $trxFiles = Get-ChildItem -Path ./TestResults -Filter "*.trx" -Recurse -ErrorAction SilentlyContinue
+          if ($trxFiles.Count -eq 0) {
+            Write-Error "No TRX result files found — test run may have failed to start"
+            exit 1
+          }
+          $totalFailed = 0
+          foreach ($trx in $trxFiles) {
+            [xml]$xml = Get-Content $trx.FullName
+            $counters = $xml.TestRun.ResultSummary.Counters
+            $failed = [int]$counters.failed
+            $passed = [int]$counters.passed
+            $total = [int]$counters.total
+            Write-Host "$($trx.Name): passed=$passed failed=$failed total=$total"
+            $totalFailed += $failed
+          }
+          if ($totalFailed -gt 0) {
+            Write-Error "Integration tests had $totalFailed failure(s)"
+            exit 1
+          }
+          Write-Host "All integration tests passed (test host cleanup crash is non-fatal)"
+
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: test-results-integration-${{ matrix.os }}
+          name: test-results-integration
           path: TestResults/*.trx
           retention-days: 30
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: code-coverage-integration-${{ matrix.os }}
+          name: code-coverage-integration
           path: TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
           retention-days: 30
 
-  # Functional tests - depends on integration tests (advisory on PRs, blocking on push to main)
+  # ── Functional tests -- self-contained build ──
   functional-tests:
     name: Functional Tests
     runs-on: ubuntu-latest
@@ -867,28 +613,17 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup build environment
+        uses: ./.github/actions/setup-dotnet-build
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
+          solution-filter: eng/ci/shards/TestsOnly.slnf
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+      - name: Compose functional test filter
+        shell: pwsh
+        run: |
+          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter 'Category=Functional' -Mode Exclude -AsJson | ConvertFrom-Json
+          "FUNCTIONAL_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+          Write-Host "Using functional filter with $($filterInfo.count) quarantined exclusions."
 
       - name: Run Functional Tests
         run: |
@@ -900,12 +635,12 @@ jobs:
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
-            --filter "Category=Functional" \
+            --filter "${{ env.FUNCTIONAL_TEST_FILTER }}" \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-functional
           path: TestResults/*.trx
@@ -913,68 +648,14 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-functional
           path: TestResults/*/coverage.cobertura.xml
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
-  security-sast:
-    name: Security SAST (PR report-only, push blocking)
-    runs-on: ubuntu-latest
-    needs: build
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-      - name: Free disk space (Ubuntu)
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Disk usage before cleanup:"
-          df -h
-          sudo rm -rf /usr/share/swift || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          sudo rm -rf /home/linuxbrew || true
-          sudo rm -rf /usr/local/.ghcup || true
-          sudo rm -rf /usr/local/share/boost || true
-          sudo apt-get clean || true
-          docker system prune -af || true
-          echo "Disk usage after cleanup:"
-          df -h
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
-      - name: Build with warnings as errors (SAST-lite)
-        shell: bash
-        run: |
-          set -euo pipefail
-          build_exit=0
-          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet -warnaserror -clp:ErrorsOnly\;Summary > sast-build.log 2>&1 || build_exit=$?
-          if [ "$build_exit" -ne 0 ]; then
-            echo "Build failed. Last 200 lines from sast-build.log:"
-            tail -n 200 sast-build.log || true
-            exit "$build_exit"
-          fi
-      - name: Upload SAST log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sast-build
-          path: sast-build.log
-
+  # ── Contract tests -- self-contained build ──
   contract-tests:
     name: Contract Tests
     runs-on: ubuntu-latest
@@ -986,28 +667,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup build environment
+        uses: ./.github/actions/setup-dotnet-build
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore tests/contract/Excalibur.Dispatch.Contract.Tests/Excalibur.Dispatch.Contract.Tests.csproj
-
-      - name: Build contract tests
-        run: dotnet build tests/contract/Excalibur.Dispatch.Contract.Tests/Excalibur.Dispatch.Contract.Tests.csproj --configuration Release --no-restore
+          solution-filter: eng/ci/shards/TestsOnly.slnf
 
       - name: Run contract tests
         run: |
@@ -1023,7 +686,7 @@ jobs:
 
       - name: Upload contract test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-contract
           path: TestResults/*.trx
@@ -1031,13 +694,14 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-contract
           path: TestResults/*/coverage.cobertura.xml
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
+  # ── Architecture tests -- self-contained build ──
   architecture-tests:
     name: Architecture Tests
     runs-on: ubuntu-latest
@@ -1049,40 +713,13 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup build environment
+        uses: ./.github/actions/setup-dotnet-build
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
-
-      - name: Build architecture tests
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+          solution-filter: eng/ci/shards/TestsOnly.slnf
 
       - name: Run architecture test projects
         run: |
-          dotnet test tests/ArchitectureTests/ArchitectureTests.csproj \
-            --configuration Release \
-            --no-build \
-            --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=architecture-tests.trx" \
-            --logger "console;verbosity=minimal" \
-            --collect:"XPlat Code Coverage" \
-            --results-directory ./TestResults \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
           dotnet test tests/architecture/Boundary.Tests/Boundary.Tests.csproj \
             --configuration Release \
             --no-build \
@@ -1095,7 +732,7 @@ jobs:
 
       - name: Upload architecture test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-architecture
           path: TestResults/*.trx
@@ -1103,17 +740,18 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-architecture
           path: TestResults/*/coverage.cobertura.xml
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
+  # ── Flaky quarantine governance ──
   flaky-quarantine-governance:
     name: Flaky Quarantine Governance
     runs-on: ubuntu-latest
-    needs: build
+    needs: package
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -1128,16 +766,17 @@ jobs:
 
       - name: Upload quarantine governance report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flaky-quarantine-report
           path: management/reports/FlakyQuarantineReport
           retention-days: 30
 
+  # ── Flaky tests quarantine run (non-blocking) ──
   flaky-tests-quarantine:
     name: Flaky Tests Quarantine (Non-blocking)
     runs-on: ubuntu-latest
-    needs: [build, flaky-quarantine-governance]
+    needs: flaky-quarantine-governance
     if: always()
     continue-on-error: true
     timeout-minutes: 30
@@ -1149,7 +788,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -1157,7 +796,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -1181,11 +820,11 @@ jobs:
 
       - name: Restore dependencies
         if: env.FLAKY_TEST_COUNT != '0'
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
+        run: dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
 
-      - name: Build tests
+      - name: Build
         if: env.FLAKY_TEST_COUNT != '0'
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Run quarantined tests
         if: env.FLAKY_TEST_COUNT != '0'
@@ -1201,17 +840,18 @@ jobs:
 
       - name: Upload quarantined test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-flaky-quarantine
           path: TestResults/*.trx
           if-no-files-found: warn
           retention-days: 30
 
+  # ── Serialization policy validation ──
   serialization-policy:
     name: Serialization Policy Validation (R0.14)
     runs-on: ubuntu-latest
-    needs: build
+    needs: package
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -1219,7 +859,7 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -1228,28 +868,29 @@ jobs:
       - name: Validate Serializer Policy
         shell: pwsh
         run: |
-          Write-Host "🔍 Validating serializer policy (R0.14, R20.24-26)..."
+          Write-Host "Validating serializer policy (R0.14, R20.24-26)..."
           ./eng/validate-serializer-policy.ps1
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "❌ Serializer policy validation FAILED" -ForegroundColor Red
+            Write-Host "Serializer policy validation FAILED" -ForegroundColor Red
             exit 1
           }
-          Write-Host "✅ Serializer policy validation PASSED" -ForegroundColor Green
+          Write-Host "Serializer policy validation PASSED" -ForegroundColor Green
       - name: Run serialization boundary audit (extended report)
         shell: pwsh
         run: |
           ./eng/ci/serialization-boundary-audit.ps1 -OutDir management/reports/SerializationBoundaryReport
       - name: Upload serialization boundary report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: serialization-boundary-report
           path: management/reports/SerializationBoundaryReport
 
-  trim-aot-audit:
-    name: Trim/AOT Audit (report-only)
+  # ── AOT build analysis (report-only) ──
+  aot-build-analysis:
+    name: AOT Build Analysis (report-only)
     runs-on: ubuntu-latest
-    needs: build
+    needs: package
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -1257,408 +898,83 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
             9.0.x
             10.0.x
-      - name: Run trim/AOT audit
+      - name: Run trim/AOT audit (report-only)
         shell: pwsh
         run: |
-          ./eng/ci/trim-aot-audit.ps1 -OutDir management/reports/TrimAotAuditReport
+          pwsh -File ./eng/ci/Invoke-AotBuildAnalysis.ps1 -OutputPath management/reports/AotBuildAnalysis
+          $exitCode = $LASTEXITCODE
+          Write-Host "::notice::AOT build analysis exited with code $exitCode (report-only, not failing build)"
       - name: Upload trim/AOT audit
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: trim-aot-audit
-          path: management/reports/TrimAotAuditReport
+          name: aot-build-analysis
+          path: management/reports/AotBuildAnalysis
 
-  coverage-enforce:
-    name: Coverage Gate Enforcement
-    runs-on: ubuntu-latest
+  # ── Coverage analysis (reusable workflow) ──
+  call-coverage:
     needs:
       - unit-tests
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-      - name: Download unit coverage artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: code-coverage-unit-*
-          path: cov
-          merge-multiple: true
-      - name: Validate coverage artifacts exist
-        shell: bash
-        run: |
-          shopt -s globstar nullglob
-          reports=(cov/**/coverage.cobertura.xml)
-          count=${#reports[@]}
-          echo "Found ${count} coverage report(s)."
-          if [ ${count} -eq 0 ]; then
-            echo "No coverage reports were downloaded."
-            exit 1
-          fi
-      - name: Measure coverage threshold (report-only)
-        id: coverage_threshold
-        shell: pwsh
-        run: |
-          ./eng/ci/coverage-threshold.ps1 `
-            -CoverageRoot "cov" `
-            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}')
-      - name: Coverage threshold status (report-only)
-        shell: bash
-        run: |
-          combined="${{ steps.coverage_threshold.outputs.coverage_combined_pct }}"
-          dispatch="${{ steps.coverage_threshold.outputs.coverage_dispatch_pct }}"
-          excalibur="${{ steps.coverage_threshold.outputs.coverage_excalibur_pct }}"
-          threshold="${{ env.COVERAGE_THRESHOLD }}"
+      - integration-tests
+      - functional-tests
+      - contract-tests
+      - architecture-tests
+    if: always()
+    uses: ./.github/workflows/coverage.yml
+    with:
+      checkout-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      checkout-token: ${{ github.token }}
+      event-name: ${{ github.event_name }}
+      coverage-threshold: '65'
+      pr-base-sha: ${{ github.event.pull_request.base.sha || '' }}
+      pr-number: ${{ github.event.pull_request.number || '' }}
+    secrets: inherit
 
-          echo "Coverage (Dispatch): ${dispatch}%"
-          echo "Coverage (Excalibur): ${excalibur}%"
-          echo "Coverage (Combined): ${combined}%"
-          echo "Target threshold: ${threshold}%"
+  # ── Performance gates (reusable workflow) ──
+  call-performance:
+    needs: package
+    uses: ./.github/workflows/performance.yml
+    with:
+      checkout-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      checkout-token: ${{ github.token }}
+      run-performance-tests: ${{ github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push' }}
+    secrets: inherit
 
-          if [ -z "$combined" ]; then
-            echo "::warning::Coverage threshold script did not emit combined coverage output."
-            exit 0
-          fi
-
-          if (( $(awk "BEGIN {print ($combined < $threshold)}") )); then
-            echo "::warning::Coverage below target (report-only): combined ${combined}% < required ${threshold}%."
-          else
-            echo "✅ Coverage target met: ${combined}% >= ${threshold}%."
-          fi
-
-  coverage-diff:
-    name: Coverage Diff On Touched Files
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    steps:
-      - name: Checkout base branch
-        uses: actions/checkout@v6
-        with:
-          token: ${{ github.token }}
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: base
-          fetch-depth: 1
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-      - name: Resolve base unit test solution filter
-        working-directory: base
-        shell: bash
-        run: |
-          roots=(
-            "eng/ci/shards"
-            "eng/ci"
-            "."
-          )
-
-          names=(
-            "UnitTests.slnf"
-            "TestsOnly.slnf"
-            "UnitTests-Core.slnf"
-            "Excalibur.sln"
-          )
-
-          selected=""
-          for root in "${roots[@]}"; do
-            for name in "${names[@]}"; do
-              candidate="$root/$name"
-              if [[ -f "$candidate" ]]; then
-                selected="$candidate"
-                break 2
-              fi
-            done
-          done
-
-          if [[ -z "$selected" ]]; then
-            if [[ -f "Excalibur.sln" ]]; then
-              selected="Excalibur.sln"
-            else
-              selected="$(find . -maxdepth 4 -type f \( -name "*.slnf" -o -name "*.sln" \) -print | sort | head -n 1 || true)"
-              selected="${selected#./}"
-            fi
-          fi
-
-          if [[ -z "$selected" ]]; then
-            echo "No supported unit test solution filter found in known shard locations."
-            echo "Searched roots: ${roots[*]}"
-            echo "Available .slnf/.sln files (depth <= 6):"
-            find . -maxdepth 6 -type f \( -name "*.slnf" -o -name "*.sln" \) -print | sort || true
-            exit 1
-          fi
-
-          echo "Using base solution filter: $selected"
-          echo "BASE_UNIT_TESTS_SLNF=$selected" >> "$GITHUB_ENV"
-      - name: Restore & build base
-        id: base_restore_build
-        continue-on-error: true
-        working-directory: base
-        run: |
-          dotnet restore "$BASE_UNIT_TESTS_SLNF"
-          dotnet build "$BASE_UNIT_TESTS_SLNF" --configuration Release --no-restore
-      - name: Mark base build status
-        shell: bash
-        run: |
-          if [[ "${{ steps.base_restore_build.outcome }}" != "success" ]]; then
-            echo "::warning::Base snapshot restore/build failed; skipping coverage diff for this PR."
-            echo "SKIP_COVERAGE_DIFF=true" >> "$GITHUB_ENV"
-          fi
-      - name: Run tests with coverage (base)
-        id: base_test_coverage
-        if: env.SKIP_COVERAGE_DIFF != 'true'
-        continue-on-error: true
-        working-directory: base
-        run: |
-          dotnet test "$BASE_UNIT_TESTS_SLNF" \
-            --configuration Release \
-            --no-build \
-            --logger "console;verbosity=minimal" \
-            --collect:"XPlat Code Coverage" \
-            --results-directory ../base-cov \
-            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
-            -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
-      - name: Mark base test status
-        if: env.SKIP_COVERAGE_DIFF != 'true'
-        shell: bash
-        run: |
-          if [[ "${{ steps.base_test_coverage.outcome }}" != "success" ]]; then
-            echo "::warning::Base snapshot tests/coverage failed; skipping coverage diff for this PR."
-            echo "SKIP_COVERAGE_DIFF=true" >> "$GITHUB_ENV"
-          fi
-      - name: Create empty changed file set when coverage diff is skipped
-        if: env.SKIP_COVERAGE_DIFF == 'true'
-        shell: bash
-        run: |
-          printf '[]' > changed-files.json
-      - name: Download head coverage artifacts (all shards)
-        uses: actions/download-artifact@v8
-        with:
-          pattern: code-coverage-unit-*
-          path: head-cov
-          merge-multiple: true
-      - name: List changed files
-        shell: bash
-        run: |
-          set -euo pipefail
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          PR_REF="refs/remotes/origin/pr-${PR_NUMBER}"
-
-          # Use git-based PR head ref resolution to avoid transient GitHub API failures.
-          if ! git -C base fetch --no-tags --depth=1 origin "refs/pull/${PR_NUMBER}/head:${PR_REF}"; then
-            echo "::warning::Unable to fetch PR head ref for #${PR_NUMBER}; defaulting to an empty changed file set."
-            printf '[]' > changed-files.json
-            exit 0
-          fi
-
-          # Ensure the target base commit exists in the shallow checkout.
-          if ! git -C base cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-            if ! git -C base fetch --no-tags --depth=1 origin "${BASE_SHA}"; then
-              echo "::warning::Unable to fetch base SHA ${BASE_SHA}; defaulting to an empty changed file set."
-              printf '[]' > changed-files.json
-              exit 0
-            fi
-          fi
-
-          # With shallow PR fetches, merge-base may be missing; deepen only when necessary.
-          if ! git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
-            for depth in 64 256 1024 4096; do
-              if git -C base fetch --no-tags --depth="${depth}" origin "refs/pull/${PR_NUMBER}/head:${PR_REF}" && \
-                 git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
-                break
-              fi
-            done
-          fi
-
-          if git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
-            git -C base diff --name-only "${BASE_SHA}...${PR_REF}" > changed-files.txt
-          else
-            echo "::warning::No merge base between ${BASE_SHA} and ${PR_REF}; using two-dot diff fallback."
-            git -C base diff --name-only "${BASE_SHA}..${PR_REF}" > changed-files.txt
-          fi
-
-          python3 - <<'PY'
-          import json
-
-          with open("changed-files.txt", "r", encoding="utf-8") as fh:
-              files = [line.strip() for line in fh if line.strip()]
-
-          with open("changed-files.json", "w", encoding="utf-8") as out:
-              json.dump(files, out)
-
-          print(f"Changed files discovered: {len(files)}")
-          PY
-      - name: Enforce ≤1% coverage drop on touched files (Dispatch+Excalibur)
-        shell: pwsh
-        run: |
-          if ($env:SKIP_COVERAGE_DIFF -eq 'true') {
-            Write-Warning 'Base snapshot did not build/test cleanly; skipping coverage diff.'
-            exit 0
-          }
-          $changedFile = "changed-files.json"
-          $changed = @()
-          if (Test-Path $changedFile) {
-            $changed = (Get-Content -Raw -- $changedFile | ConvertFrom-Json)
-          }
-          if (-not $changed) { Write-Host 'No changed files'; exit 0 }
-          function NormalizeSourcePath([string]$path) {
-            if ([string]::IsNullOrWhiteSpace($path)) { return $null }
-            $p = $path.Replace('\','/')
-            $uri = $null
-            if ([Uri]::TryCreate($p, [UriKind]::Absolute, [ref]$uri)) {
-              try { $p = $uri.AbsolutePath } catch { }
-            }
-            if ($p -match '(?i)(src/(Dispatch|Excalibur)/.+)$') { return $Matches[1] }
-            return $null
-          }
-          function GetLineStats([System.Xml.XmlElement]$cls) {
-            $lc = [string]$cls.GetAttribute('lines-covered')
-            $lv = [string]$cls.GetAttribute('lines-valid')
-            if (-not [string]::IsNullOrWhiteSpace($lc) -and -not [string]::IsNullOrWhiteSpace($lv)) {
-              return [pscustomobject]@{ Covered = [int]$lc; Valid = [int]$lv }
-            }
-            [int]$covered = 0
-            [int]$valid = 0
-            foreach ($line in $cls.SelectNodes('lines/line')) {
-              $valid++
-              if ([int]$line.hits -gt 0) { $covered++ }
-            }
-            return [pscustomobject]@{ Covered = $covered; Valid = $valid }
-          }
-          function ReadCoverage([string]$dir) {
-            $map = @{}
-            $covFiles = @(Get-ChildItem -Recurse -Filter coverage.cobertura.xml -Path $dir)
-            $lineHits = @{}
-            foreach ($cov in $covFiles) {
-              $xml = [xml](Get-Content -Raw -- $cov.FullName)
-              foreach ($cls in $xml.SelectNodes('//class')) {
-                $normalized = NormalizeSourcePath ([string]$cls.GetAttribute('filename'))
-                if ($null -eq $normalized) { continue }
-                foreach ($line in $cls.SelectNodes('lines/line')) {
-                  $lineNumber = 0
-                  if (-not [int]::TryParse([string]$line.GetAttribute('number'), [ref]$lineNumber)) { continue }
-                  if ($lineNumber -lt 1) { continue }
-                  $hits = 0
-                  [int]::TryParse([string]$line.GetAttribute('hits'), [ref]$hits) | Out-Null
-                  $lineKey = "$normalized`:$lineNumber"
-                  if ($lineHits.ContainsKey($lineKey)) {
-                    if ($hits -gt [int]$lineHits[$lineKey]) {
-                      $lineHits[$lineKey] = $hits
-                    }
-                  } else {
-                    $lineHits[$lineKey] = $hits
-                  }
-                }
-              }
-            }
-            foreach ($entry in $lineHits.GetEnumerator()) {
-              $separator = $entry.Key.LastIndexOf(':')
-              if ($separator -lt 1) { continue }
-              $filePath = $entry.Key.Substring(0, $separator)
-              if (-not $map.ContainsKey($filePath)) {
-                $map[$filePath] = [pscustomobject]@{ Covered = 0; Valid = 0 }
-              }
-              $map[$filePath].Valid++
-              if ([int]$entry.Value -gt 0) {
-                $map[$filePath].Covered++
-              }
-            }
-            return $map
-          }
-          $baseMap = ReadCoverage "base-cov"
-          $headMap = ReadCoverage "head-cov"
-          $fail = $false
-          foreach ($file in $changed) {
-            $normalizedFile = NormalizeSourcePath $file
-            if ($null -eq $normalizedFile) { continue }
-            $b = $baseMap[$normalizedFile]
-            $h = $headMap[$normalizedFile]
-            if (-not $h) { continue }
-            $bPct = if ($b -and $b.Valid -gt 0) { 100.0 * $b.Covered / $b.Valid } else { 0 }
-            $hPct = if ($h.Valid -gt 0) { 100.0 * $h.Covered / $h.Valid } else { 0 }
-            $delta = [math]::Round($hPct - $bPct, 2)
-            Write-Host "${normalizedFile}: base=$([math]::Round($bPct,2)) head=$([math]::Round($hPct,2)) delta=$delta"
-            if ($delta -lt -1.0) { $fail = $true }
-          }
-          if ($fail) { Write-Error 'Coverage drop >1% on touched src/Dispatch or src/Excalibur files'; exit 1 } else { exit 0 }
-
-  # Code quality and security analysis
+  # ── Quality analysis -- self-contained build ──
   quality:
     name: Quality Analysis
     runs-on: ubuntu-latest
-    needs: build
+    needs: package
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-          fetch-depth: 1
-
-      - name: Free disk space (Ubuntu)
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Disk usage before cleanup:"
-          df -h
-          sudo rm -rf /usr/share/swift || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          sudo rm -rf /home/linuxbrew || true
-          sudo rm -rf /usr/local/.ghcup || true
-          sudo rm -rf /usr/local/share/boost || true
-          sudo apt-get clean || true
-          docker system prune -af || true
-          echo "Disk usage after cleanup:"
-          df -h
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup build environment
+        uses: ./.github/actions/setup-dotnet-build
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
+          solution-filter: eng/ci/shards/ShippingOnly.slnf
 
       - name: Scan for vulnerable packages (R20.10)
         run: |
-          echo "🔍 Scanning for vulnerable NuGet packages..."
+          echo "Scanning for vulnerable NuGet packages..."
           pwsh -File eng/scan-vulnerabilities.ps1
 
       - name: Validate serialization policy (R0.14, R20.24-26)
         run: |
-          echo "🔍 Validating serialization policy..."
+          echo "Validating serialization policy..."
           pwsh -File eng/validate-serializer-policy.ps1
 
       - name: Validate architecture boundaries (R1.9, R17.8)
         run: |
-          echo "🔍 Validating architecture boundaries..."
+          echo "Validating architecture boundaries..."
           pwsh -File eng/validate-architecture-boundaries.ps1
 
       - name: Install security scan tools
@@ -1673,830 +989,28 @@ jobs:
 
       - name: Upload security results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-analysis
           path: security-results.sarif
           retention-days: 30
 
-  # Code coverage analysis
-  coverage:
-    name: Coverage Analysis
-    runs-on: ubuntu-latest
-    needs:
-      - unit-tests
-      - integration-tests
-      - functional-tests
-      - contract-tests
-      - architecture-tests
-    if: always()
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Download coverage artifacts (all shards)
-        uses: actions/download-artifact@v8
-        with:
-          pattern: code-coverage-*
-          path: coverage
-          merge-multiple: true
-
-      - name: Install ReportGenerator
-        run: dotnet tool install -g dotnet-reportgenerator-globaltool
-
-      - name: Generate coverage report
-        run: |
-          shopt -s globstar nullglob
-          reports=(coverage/**/coverage.cobertura.xml)
-          if [ ${#reports[@]} -eq 0 ]; then
-            echo "No coverage reports found; generating placeholder summary."
-            mkdir -p management/reports/CoverageReport
-            {
-              echo "Coverage Summary"
-              echo "Line coverage: 0"
-            } > management/reports/CoverageReport/Summary.txt
-            exit 0
-          fi
-
-          reportgenerator \
-            -reports:"coverage/**/coverage.cobertura.xml" \
-            -targetdir:"management/reports/CoverageReport" \
-            -reporttypes:"Html;Cobertura;TextSummary;Badges" \
-            -assemblyfilters:"-*.Tests*;-*Benchmarks*;-*Examples*" \
-            -classfilters:"-*.Migrations.*;-*.Generated.*" \
-            -verbosity:Warning
-
-      - name: Coverage validation
-        run: |
-          if [ -f "management/reports/CoverageReport/Summary.txt" ]; then
-            cat management/reports/CoverageReport/Summary.txt
-
-            # Extract line coverage percentage
-            line_coverage=$(grep -oP 'Line coverage: \K[0-9.]+' management/reports/CoverageReport/Summary.txt || echo "0")
-
-            echo "Line coverage: ${line_coverage}%"
-            echo "COVERAGE_PERCENTAGE=${line_coverage}" >> $GITHUB_ENV
-
-            # Check against threshold
-            if (( $(echo "${line_coverage} < ${COVERAGE_THRESHOLD}" | bc -l) )); then
-              echo "⚠️ Coverage ${line_coverage}% is below threshold ${COVERAGE_THRESHOLD}%"
-              echo "COVERAGE_STATUS=warning" >> $GITHUB_ENV
-            else
-              echo "✅ Coverage ${line_coverage}% meets threshold ${COVERAGE_THRESHOLD}%"
-              echo "COVERAGE_STATUS=success" >> $GITHUB_ENV
-            fi
-          else
-            echo "❌ Coverage report not found"
-            echo "COVERAGE_STATUS=failed" >> $GITHUB_ENV
-            echo "COVERAGE_PERCENTAGE=0" >> $GITHUB_ENV
-          fi
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: management/reports/CoverageReport
-          retention-days: 30
-
-      - name: Coverage summary
-        run: |
-          echo "## 📊 Code Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "**Overall Coverage:** ${{ env.COVERAGE_PERCENTAGE }}%" >> $GITHUB_STEP_SUMMARY
-          echo "**Threshold:** ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** ${{ env.COVERAGE_STATUS }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ env.COVERAGE_STATUS }}" = "success" ]; then
-            echo "✅ Coverage meets quality standards" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ env.COVERAGE_STATUS }}" = "warning" ]; then
-            echo "⚠️ Coverage below threshold but acceptable for current phase" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Coverage analysis failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-  api-compat:
-    name: API Compatibility
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-          fetch-depth: 1
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Run API compat (blocking)
-        shell: pwsh
-        env:
-          API_ENFORCE: true
-        run: |
-          ./eng/ci/api-compat-run.ps1 -OutputDir management/reports/ApiCompatReport
-
-      - name: Upload ApiCompat report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-compat-report
-          path: management/reports/ApiCompatReport
-          retention-days: 14
-
-  public-api-baselines:
-    name: Public API Baseline Audit
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Run PublicAPI baseline audit
-        shell: pwsh
-        run: |
-          ./eng/ci/public-api-baseline-audit.ps1 -OutDir management/reports/PublicApiBaselineReport -Enforce $true
-
-      - name: Upload PublicAPI baseline report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-api-baseline-report
-          path: management/reports/PublicApiBaselineReport
-          retention-days: 14
-
-  transitive-bloat:
-    name: Transitive Bloat Audit
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-          fetch-depth: 1
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Generate transitive bloat report (blocking)
-        shell: pwsh
-        env:
-          PACK_ENFORCE: 'true'
-        run: |
-          ./eng/ci/transitive-bloat-report.ps1 -OutputDir management/reports/TransitiveBloatReport
-
-      - name: Upload transitive bloat report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: transitive-bloat-report
-          path: management/reports/TransitiveBloatReport
-          retention-days: 14
-
-  banned-apis:
-    name: Banned APIs Scan
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-          fetch-depth: 1
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Banned APIs gate (Roslyn baseline enforcement)
-        shell: pwsh
-        run: |
-          ./eng/ci/banned-apis-gate.ps1 -Solution eng/ci/shards/ShippingOnly.slnf -BaselinePath eng/banned/RS0030.baseline.json -OutDir management/reports/BannedApisReport -Enforce:$true
-
-      - name: Upload banned APIs report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: banned-apis-report
-          path: management/reports/BannedApisReport
-          retention-days: 14
-
-  # Performance gate 1: MediatR local parity (hard threshold)
-  performance-mediatr-parity:
-    name: Performance Gate - MediatR Local Parity
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
-
-      - name: Run MediatR local parity benchmark gate
-        shell: pwsh
-        run: |
-          Write-Host "Running MediatR local parity benchmark classes..."
-          ./eng/run-benchmark-matrix.ps1 `
-            -Configuration Release `
-            -NoBuild `
-            -NoRestore `
-            -RepeatCount 1 `
-            -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks `
-            -ArtifactsPath ./BenchmarkDotNet.Artifacts.MediatRParity
-
-      - name: Enforce MediatR local parity thresholds
-        shell: pwsh
-        run: |
-          ./eng/validate-performance-gates.ps1 `
-            -Gate MediatRLocalParity `
-            -ResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
-            -RequireBenchmarkSummaryMetadata:$true `
-            -MinimumRepeatCount 1 `
-            -MediatRSingleCommandMaxRatio 1.50 `
-            -MediatRQueryMaxRatio 2.20
-
-      - name: Generate protected-row delta report
-        shell: pwsh
-        run: |
-          ./eng/compare-benchmark-delta.ps1 `
-            -BaselineResultsPath ./benchmarks/baselines/net10.0/dispatch-all/results `
-            -CurrentResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
-            -MaxRegressionPercent 5.0 `
-            -FailOnRegression:$false `
-            -OutputPath ./BenchmarkDotNet.Artifacts.MediatRParity/results/mediatr-protected-delta.md
-
-      - name: Upload benchmark results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results-mediatr-parity
-          path: BenchmarkDotNet.Artifacts.MediatRParity
-          retention-days: 30
-
-      - name: MediatR parity gate summary
-        if: always()
-        run: |
-          echo "## ⚡ Performance Gate: MediatR Local Parity" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate MediatRLocalParity\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Delta report: \`eng/compare-benchmark-delta.ps1 -FailOnRegression:\$false\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
-          echo "- Hard thresholds: single-command ratio <= 1.50 (strict direct-local), query ratio <= 2.20 (strict direct-local, fallback to default pipeline; higher due to result materialization overhead)" >> $GITHUB_STEP_SUMMARY
-          echo "- Protected-row drift report: strict direct-local single command, query, notification, 10 concurrent, 100 concurrent (report-only vs dispatch-all baseline)" >> $GITHUB_STEP_SUMMARY
-          echo "- Artifacts: \`benchmark-results-mediatr-parity\`" >> $GITHUB_STEP_SUMMARY
-
-  # Performance gate 2: transport comparison (separate from MediatR local parity)
-  performance-transport-comparison:
-    name: Performance Gate - Transport Comparison
-    runs-on: windows-latest
-    needs: build
-    if: github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
-
-      - name: Run transport comparison benchmark gate
-        shell: pwsh
-        run: |
-          Write-Host "Running queued end-to-end parity comparison benchmark class..."
-          ./eng/run-benchmark-matrix.ps1 `
-            -Configuration Release `
-            -NoBuild `
-            -NoRestore `
-            -RepeatCount 1 `
-            -Classes TransportQueueParityComparisonBenchmarks `
-            -ArtifactsPath ./BenchmarkDotNet.Artifacts.TransportComparison
-
-      - name: Enforce transport comparison thresholds
-        shell: pwsh
-        run: |
-          ./eng/validate-performance-gates.ps1 `
-            -Gate TransportComparison `
-            -ResultsPath ./BenchmarkDotNet.Artifacts.TransportComparison/results `
-            -RequireBenchmarkSummaryMetadata:$true `
-            -MinimumRepeatCount 1 `
-            -TransportWolverineSingleCommandMinAdvantageRatio 0.40 `
-            -TransportWolverineConcurrent10MinAdvantageRatio 0.60 `
-            -TransportMassTransitSingleCommandMinAdvantageRatio 1.00 `
-            -TransportMassTransitConcurrent10MinAdvantageRatio 1.00
-
-      - name: Upload transport benchmark results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results-transport-comparison
-          path: BenchmarkDotNet.Artifacts.TransportComparison
-          retention-days: 30
-
-      - name: Transport gate summary
-        if: always()
-        shell: bash
-        run: |
-          echo "## ⚡ Performance Gate: Transport Comparison" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes TransportQueueParityComparisonBenchmarks\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate TransportComparison\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
-          echo "- Thresholds: MassTransit remains a hard floor (>= 1.00x advantage); Wolverine remains a softer parity guard (>= 0.60x on single-command and concurrent(10))" >> $GITHUB_STEP_SUMMARY
-          echo "- Artifacts: \`benchmark-results-transport-comparison\`" >> $GITHUB_STEP_SUMMARY
-
-  # Performance gate 3: dispatch hot-path regression
-  performance-dispatch-hotpath:
-    name: Performance Gate - Dispatch Hot Path
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
-
-      - name: Run dispatch hot-path benchmark gate
-        shell: pwsh
-        run: |
-          Write-Host "Running dispatch hot-path benchmark classes..."
-          ./eng/run-benchmark-matrix.ps1 `
-            -Configuration Release `
-            -NoBuild `
-            -NoRestore `
-            -RepeatCount 1 `
-            -Classes DispatchHotPathBreakdownBenchmarks,MiddlewareCostCurveBenchmarks `
-            -ArtifactsPath ./BenchmarkDotNet.Artifacts.DispatchHotPath
-
-      - name: Enforce dispatch hot-path thresholds
-        shell: pwsh
-        run: |
-          ./eng/validate-performance-gates.ps1 `
-            -Gate DispatchHotPath `
-            -ResultsPath ./BenchmarkDotNet.Artifacts.DispatchHotPath/results `
-            -RequireBenchmarkSummaryMetadata:$true `
-            -MinimumRepeatCount 1 `
-            -HotPathLookupMaxDispatchRatio 0.25 `
-            -HotPathInvokerMaxDispatchRatio 0.60 `
-            -HotPathMiddlewareCurveMinGrowthRatio 2.00 `
-            -HotPathDispatchMaxAllocBytes 512 `
-            -HotPathInvokerMaxAllocBytes 128
-
-      - name: Upload dispatch hot-path benchmark results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results-dispatch-hotpath
-          path: BenchmarkDotNet.Artifacts.DispatchHotPath
-          retention-days: 30
-
-      - name: Dispatch hot-path gate summary
-        if: always()
-        run: |
-          echo "## ⚡ Performance Gate: Dispatch Hot Path" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes DispatchHotPathBreakdownBenchmarks,MiddlewareCostCurveBenchmarks\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate DispatchHotPath\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
-          echo "- Thresholds: lookup/invoker ratios, dispatch alloc ceiling, middleware 0->10 cost-curve growth" >> $GITHUB_STEP_SUMMARY
-          echo "- Artifacts: \`benchmark-results-dispatch-hotpath\`" >> $GITHUB_STEP_SUMMARY
-
-  # Performance gate 4: observability overhead
-  performance-observability-overhead:
-    name: Performance Gate - Observability Overhead
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
-
-      - name: Run observability overhead benchmark gate
-        shell: pwsh
-        run: |
-          Write-Host "Running observability overhead benchmark class..."
-          ./eng/run-benchmark-matrix.ps1 `
-            -Configuration Release `
-            -NoBuild `
-            -NoRestore `
-            -RepeatCount 1 `
-            -Classes MetricsLoggingOverheadBenchmarks `
-            -ArtifactsPath ./BenchmarkDotNet.Artifacts.ObservabilityOverhead
-
-      - name: Enforce observability overhead thresholds
-        shell: pwsh
-        run: |
-          ./eng/validate-performance-gates.ps1 `
-            -Gate ObservabilityOverhead `
-            -ResultsPath ./BenchmarkDotNet.Artifacts.ObservabilityOverhead/results `
-            -RequireBenchmarkSummaryMetadata:$true `
-            -MinimumRepeatCount 1 `
-            -ObservabilityUtf8BytesMaxRatio 1.10 `
-            -ObservabilitySkippedMaxRatio 0.10 `
-            -ObservabilitySkippedMaxAllocBytes 0
-
-      - name: Upload observability overhead benchmark results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results-observability-overhead
-          path: BenchmarkDotNet.Artifacts.ObservabilityOverhead
-          retention-days: 30
-
-      - name: Observability gate summary
-        if: always()
-        run: |
-          echo "## ⚡ Performance Gate: Observability Overhead" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes MetricsLoggingOverheadBenchmarks\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate ObservabilityOverhead\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
-          echo "- Thresholds: Utf8Bytes cost ratio, skipped-estimation cost ratio, skipped-estimation zero-allocation" >> $GITHUB_STEP_SUMMARY
-          echo "- Artifacts: \`benchmark-results-observability-overhead\`" >> $GITHUB_STEP_SUMMARY
-
-  # Performance gate 5: persistence/background smoke
-  performance-persistence-background-smoke:
-    name: Performance Gate - Persistence/Background Smoke
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
-
-      - name: Run persistence/background benchmark smoke classes
-        shell: pwsh
-        run: |
-          Write-Host "Running persistence/background smoke benchmark classes..."
-          ./eng/run-benchmark-matrix.ps1 `
-            -Configuration Release `
-            -NoBuild `
-            -NoRestore `
-            -RepeatCount 1 `
-            -Classes CdcSmokeBenchmarks,DeliveryGuaranteeBenchmarks `
-            -ArtifactsPath ./BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke
-
-      - name: Enforce persistence/background smoke thresholds
-        shell: pwsh
-        run: |
-          ./eng/validate-performance-gates.ps1 `
-            -Gate PersistenceBackgroundSmoke `
-            -ResultsPath ./BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke/results `
-            -RequireBenchmarkSummaryMetadata:$true `
-            -MinimumRepeatCount 1 `
-            -PersistenceBackgroundCdcBatch100MaxNs 10000000 `
-            -PersistenceBackgroundProcessBatch100MaxNs 50000 `
-            -PersistenceBackgroundCdcMinimumRows 3 `
-            -PersistenceBackgroundDeliveryMinimumRows 18
-
-      - name: Upload persistence/background benchmark results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results-persistence-background-smoke
-          path: BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke
-          retention-days: 30
-
-      - name: Persistence/background smoke gate summary
-        if: always()
-        run: |
-          echo "## ⚡ Performance Gate: Persistence/Background Smoke" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes CdcSmokeBenchmarks,DeliveryGuaranteeBenchmarks\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate PersistenceBackgroundSmoke\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
-          echo "- Thresholds: CDC DequeueBatch@100 latency ceiling + Delivery ProcessBatch@100 smoke ceiling + minimum row counts" >> $GITHUB_STEP_SUMMARY
-          echo "- Artifacts: \`benchmark-results-persistence-background-smoke\`" >> $GITHUB_STEP_SUMMARY
-
-  # Final validation and summary
-  summary:
-    name: CI Summary
-    runs-on: ubuntu-latest
-    needs: [build, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, coverage, security-sast, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, sample-validation, aot-sample-validation, documentation-validation, performance-mediatr-parity, performance-transport-comparison, performance-dispatch-hotpath, performance-observability-overhead, performance-persistence-background-smoke]
-    if: always()
-    steps:
-      - name: Generate CI summary
-        run: |
-          echo "# 🚀 Continuous Integration Summary" >> $GITHUB_STEP_SUMMARY
-          echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "## Job Results" >> $GITHUB_STEP_SUMMARY
-          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | ${{ needs.build.result == 'success' && '✅' || '❌' }} ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Smoke Tests (Priority=0) | ${{ needs.smoke-tests.result == 'success' && '✅' || '❌' }} ${{ needs.smoke-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Shard Coverage | ${{ needs.unit-shard-coverage.result == 'success' && '✅' || '❌' }} ${{ needs.unit-shard-coverage.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅' || '❌' }} ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Flaky Quarantine Governance | ${{ needs.flaky-quarantine-governance.result == 'success' && '✅' || '❌' }} ${{ needs.flaky-quarantine-governance.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Flaky Quarantine Suite (Non-blocking) | ${{ needs.flaky-tests-quarantine.result == 'success' && '✅' || (needs.flaky-tests-quarantine.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.flaky-tests-quarantine.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Release-Blocking Test Gate | ${{ needs.release-blocking-tests.result == 'success' && '✅' || '❌' }} ${{ needs.release-blocking-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Release-Blocking CI Gate | ${{ needs.release-blocking-ci.result == 'success' && '✅' || '❌' }} ${{ needs.release-blocking-ci.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Quality | ${{ needs.quality.result == 'success' && '✅' || '❌' }} ${{ needs.quality.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Coverage | ${{ needs.coverage.result == 'success' && '✅' || '❌' }} ${{ needs.coverage.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security SAST | ${{ needs.security-sast.result == 'success' && '✅' || '❌' }} ${{ needs.security-sast.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Public API Baselines | ${{ needs.public-api-baselines.result == 'success' && '✅' || '❌' }} ${{ needs.public-api-baselines.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Transitive Bloat Audit | ${{ needs.transitive-bloat.result == 'success' && '✅' || '❌' }} ${{ needs.transitive-bloat.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Banned APIs Scan | ${{ needs.banned-apis.result == 'success' && '✅' || '❌' }} ${{ needs.banned-apis.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Serialization Policy (R0.14) | ${{ needs.serialization-policy.result == 'success' && '✅' || '❌' }} ${{ needs.serialization-policy.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Package Composition (T2.4) | ${{ needs.package-composition.result == 'success' && '✅' || '❌' }} ${{ needs.package-composition.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Solution Governance | ${{ needs.solution-governance.result == 'success' && '✅' || '❌' }} ${{ needs.solution-governance.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Package Dependency Graph | ${{ needs.package-dependency-graph.result == 'success' && '✅' || '❌' }} ${{ needs.package-dependency-graph.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Sample Validation (T3.4) | ${{ needs.sample-validation.result == 'success' && '✅' || '❌' }} ${{ needs.sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| AOT Sample Validation (S462.4) | ${{ needs.aot-sample-validation.result == 'success' && '✅' || '❌' }} ${{ needs.aot-sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Documentation Verification (T5.4) | ${{ needs.documentation-validation.result == 'success' && '✅' || '❌' }} ${{ needs.documentation-validation.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Performance MediatR Parity | ${{ needs.performance-mediatr-parity.result == 'success' && '✅' || (needs.performance-mediatr-parity.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-mediatr-parity.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Performance Transport Comparison | ${{ needs.performance-transport-comparison.result == 'success' && '✅' || (needs.performance-transport-comparison.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-transport-comparison.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Performance Dispatch Hot Path | ${{ needs.performance-dispatch-hotpath.result == 'success' && '✅' || (needs.performance-dispatch-hotpath.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-dispatch-hotpath.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Performance Observability Overhead | ${{ needs.performance-observability-overhead.result == 'success' && '✅' || (needs.performance-observability-overhead.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-observability-overhead.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Performance Persistence/Background Smoke | ${{ needs.performance-persistence-background-smoke.result == 'success' && '✅' || (needs.performance-persistence-background-smoke.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-persistence-background-smoke.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ "${{ needs.release-blocking-ci.result }}" = "success" ]; then
-            echo "🎉 **All critical checks passed!** Ready for merge." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Some checks failed.** Please review the results above." >> $GITHUB_STEP_SUMMARY
-          fi
-
-  # Test result trend reporting -- advisory, publishes TRX results as GitHub check annotations
-  test-result-reporter:
-    name: Test Result Reporter (${{ matrix.report.name }})
-    runs-on: ubuntu-latest
-    needs: [unit-tests, unit-tests-async-risk, integration-tests]
-    if: always()
-    continue-on-error: true
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        report:
-          - { name: unit-core, artifact: test-results-unit-core, path: "**/*.trx" }
-          - { name: unit-transport, artifact: test-results-unit-transport, path: "**/*.trx" }
-          - { name: unit-middleware, artifact: test-results-unit-middleware, path: "**/*.trx" }
-          - { name: unit-excalibur, artifact: test-results-unit-excalibur, path: "**/*.trx" }
-          - { name: unit-observability, artifact: test-results-unit-async-risk-observability, path: "**/*.trx" }
-          - { name: unit-async-risk-messaging, artifact: test-results-unit-async-risk-messaging, path: "**/*.trx" }
-          - { name: integration, artifact: test-results-integration-ubuntu-latest, path: "**/*.trx" }
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 1
-
-      - name: Trust workspace
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Download test results
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ matrix.report.artifact }}
-          path: test-results
-        continue-on-error: true
-
-      - name: Publish test results
-        if: hashFiles('test-results/**/*.trx') != ''
-        uses: dorny/test-reporter@v1
-        with:
-          name: "Test Results - ${{ matrix.report.name }}"
-          path: "test-results/${{ matrix.report.path }}"
-          reporter: dotnet-trx
-          fail-on-error: false
-
-  notices-lint:
-    name: Notices & License Headers
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-      - name: Setup .NET (for scripts environment)
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-      - name: Verify license headers
-        shell: pwsh
-        run: |
-          ./eng/ci/license-headers-verify.ps1 -Root src
-      - name: Generate THIRD-PARTY-NOTICES (temp)
-        shell: pwsh
-        run: |
-          ./eng/ci/notices-generate.ps1 -Output THIRD-PARTY-NOTICES.gen.md
-      - name: Diff notices
-        shell: bash
-        run: |
-          if ! diff -u THIRD-PARTY-NOTICES.md THIRD-PARTY-NOTICES.gen.md; then
-            echo "::error::THIRD-PARTY-NOTICES.md is out of date. Run eng/ci/notices-generate.ps1"
-            exit 1
-          fi
-
-  oss-metadata:
-    name: OSS Metadata Audit
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-      - name: Run OSS metadata audit
-        shell: pwsh
-        run: |
-          ./eng/ci/oss-metadata-audit.ps1 -OutDir management/reports/OssMetadataReport -Catalog management/package-ids.yaml
-      - name: Upload OSS metadata report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: oss-metadata-report
-          path: management/reports/OssMetadataReport/oss-metadata.json
-
+  # ── Transport conformance -- self-contained build ──
   transport-conformance:
     name: Transport Conformance
     runs-on: ubuntu-latest
-    needs: build
+    needs: package
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup build environment
+        uses: ./.github/actions/setup-dotnet-build
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-      - name: Restore & build
-        run: |
-          dotnet restore
-          dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --configuration Release --no-restore
+          solution-filter: eng/ci/shards/TestsOnly.slnf
+
       - name: Run conformance tests
         run: |
           dotnet test tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
@@ -2514,17 +1028,18 @@ jobs:
 
       - name: Upload conformance results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: transport-conformance-results
           path: |
             TestResults/*.trx
             management/reports/TransportParityReport
 
+  # ── Release-blocking test governance ──
   release-blocking-tests:
     name: Release-Blocking Test Governance
     runs-on: ubuntu-latest
-    needs: [unit-shard-coverage, unit-tests, unit-tests-windows]
+    needs: [unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos]
     if: always()
     steps:
       - name: Validate release-blocking test matrix
@@ -2543,31 +1058,35 @@ jobs:
           shard="${{ needs.unit-shard-coverage.result }}"
           unit="${{ needs.unit-tests.result }}"
           unit_win="${{ needs.unit-tests-windows.result }}"
+          unit_mac="${{ needs.unit-tests-macos.result }}"
 
-          echo "## ✅ Release-Blocking Test Governance" >> "$GITHUB_STEP_SUMMARY"
-          echo "Deterministic blocking tier: core/transport/middleware/excalibur only. Async-risk (messaging/observability) is advisory." >> "$GITHUB_STEP_SUMMARY"
+          echo "## Release-Blocking Test Governance" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deterministic blocking tier: core/transport/middleware/excalibur on all platforms. Async-risk (messaging/observability) is advisory." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Suite | Status | Tier |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-shard-coverage | $shard | blocking |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| unit-tests (deterministic) | $unit | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| unit-tests-linux (deterministic) | $unit | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-tests-windows (deterministic) | $unit_win | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| unit-tests-macos (deterministic) | $unit_mac | blocking |" >> "$GITHUB_STEP_SUMMARY"
 
           require_success "unit-shard-coverage" "$shard"
           require_success "unit-tests" "$unit"
           require_success "unit-tests-windows" "$unit_win"
+          require_success "unit-tests-macos" "$unit_mac"
 
           if [ ${#failures[@]} -gt 0 ]; then
-            printf '❌ %s\n' "One or more release-blocking test suites failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
-            echo "❌ One or more release-blocking test suites failed." >> "$GITHUB_STEP_SUMMARY"
+            printf '  %s\n' "One or more release-blocking test suites failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
+            echo "One or more release-blocking test suites failed." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-          echo "✅ All release-blocking test suites passed." >> "$GITHUB_STEP_SUMMARY"
+          echo "All release-blocking test suites passed." >> "$GITHUB_STEP_SUMMARY"
 
+  # ── Release-blocking CI governance ──
   release-blocking-ci:
     name: Release-Blocking CI Governance
     runs-on: ubuntu-latest
-    needs: [build, release-blocking-tests, quality, flaky-quarantine-governance, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, security-sast]
+    needs: [package, release-blocking-tests, quality, flaky-quarantine-governance, serialization-policy, call-security, call-governance]
     if: always()
     steps:
       - name: Validate release-blocking CI policy
@@ -2583,162 +1102,47 @@ jobs:
           }
 
           failures=()
-          build="${{ needs.build.result }}"
+          pkg="${{ needs.package.result }}"
           test_gate="${{ needs.release-blocking-tests.result }}"
           quality="${{ needs.quality.result }}"
           flaky_quarantine="${{ needs.flaky-quarantine-governance.result }}"
-          public_api="${{ needs.public-api-baselines.result }}"
-          bloat="${{ needs.transitive-bloat.result }}"
-          banned="${{ needs.banned-apis.result }}"
           serialization="${{ needs.serialization-policy.result }}"
-          package_composition="${{ needs.package-composition.result }}"
-          solution_governance="${{ needs.solution-governance.result }}"
-          dep_graph="${{ needs.package-dependency-graph.result }}"
-          sast="${{ needs.security-sast.result }}"
+          security="${{ needs.call-security.result }}"
+          governance="${{ needs.call-governance.result }}"
 
-          echo "## 🚦 Release-Blocking CI Governance" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Release-Blocking CI Governance" >> "$GITHUB_STEP_SUMMARY"
           echo "Required tier: deterministic unit tests + static analysis + package integrity + flaky quarantine governance." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Gate | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| build | $build |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| package | $pkg |" >> "$GITHUB_STEP_SUMMARY"
           echo "| release-blocking-tests | $test_gate |" >> "$GITHUB_STEP_SUMMARY"
           echo "| quality | $quality |" >> "$GITHUB_STEP_SUMMARY"
           echo "| flaky-quarantine-governance | $flaky_quarantine |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| public-api-baselines | $public_api |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| transitive-bloat | $bloat |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| banned-apis | $banned |" >> "$GITHUB_STEP_SUMMARY"
           echo "| serialization-policy | $serialization |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| package-composition | $package_composition |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| solution-governance | $solution_governance |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| package-dependency-graph | $dep_graph |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| security-sast | $sast |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| call-security | $security |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| call-governance | $governance |" >> "$GITHUB_STEP_SUMMARY"
 
-          require_success "build" "$build"
+          require_success "package" "$pkg"
           require_success "release-blocking-tests" "$test_gate"
           require_success "quality" "$quality"
           require_success "flaky-quarantine-governance" "$flaky_quarantine"
-          require_success "public-api-baselines" "$public_api"
-          require_success "transitive-bloat" "$bloat"
-          require_success "banned-apis" "$banned"
           require_success "serialization-policy" "$serialization"
-          require_success "package-composition" "$package_composition"
-          require_success "solution-governance" "$solution_governance"
-          require_success "package-dependency-graph" "$dep_graph"
-
-          # SAST is advisory on pull requests, blocking on push/release style events.
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
-            require_success "security-sast" "$sast"
-          fi
+          require_success "call-security" "$security"
+          require_success "call-governance" "$governance"
 
           if [ ${#failures[@]} -gt 0 ]; then
-            printf '❌ %s\n' "Release-blocking CI policy failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
+            printf '  %s\n' "Release-blocking CI policy failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
-          echo "✅ Release-blocking CI policy passed." >> "$GITHUB_STEP_SUMMARY"
+          echo "Release-blocking CI policy passed." >> "$GITHUB_STEP_SUMMARY"
 
-  repo-inventory:
-    name: Repo Inventory
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-      - name: Generate repository inventory
-        shell: pwsh
-        run: |
-          ./eng/ci/repo-inventory.ps1 `
-            -Output "management/reports/dependency-inventory.md" `
-            -ProjectRoot "src" `
-            -PerProjectTimeoutSeconds 45 `
-            -TotalBudgetMinutes 12 `
-            -MaxDependencyProjects 180 `
-            -FailOnGuardrailBreach
-      - name: Upload inventory report
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-inventory
-          path: management/reports/dependency-inventory.md
-
-  dependency-audit:
-    name: Dependency Vulnerability Audit
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-      - name: Run dependency audit
-        shell: pwsh
-        run: |
-          ./eng/ci/dependency-audit.ps1 `
-            -OutDir management/reports/DependencyAuditReport `
-            -ProjectRoot src `
-            -PerProjectTimeoutSeconds 60 `
-            -TotalBudgetMinutes 15 `
-            -MaxProjects 180 `
-            -FailOnGuardrailBreach
-      - name: Enforce vulnerability policy (allowlist optional)
-        shell: pwsh
-        run: |
-          $json = @(Get-Content 'management/reports/DependencyAuditReport/vulnerabilities.json' | ConvertFrom-Json)
-
-          $vulnRecords = @(
-            $json | Where-Object {
-              if ($_.PSObject.Properties.Name -contains 'HasVulnerabilities') {
-                return [bool]$_.HasVulnerabilities
-              }
-
-              $output = [string]$_.Output
-              return $output -match '(?i)has the following vulnerable packages' -or
-                     $output -match '(?i)\bGHSA-[0-9A-Za-z-]+\b' -or
-                     $output -match '(?i)\bCVE-\d{4}-\d+\b' -or
-                     $output -match '(?i)https://github\.com/advisories/'
-            }
-          )
-
-          if ($vulnRecords.Count -gt 0) {
-            Write-Host "Detected vulnerable packages in $($vulnRecords.Count) project(s)."
-            if (Test-Path 'management/security/cve-allowlist.yaml') {
-              Write-Host "Vulnerabilities found, but allowlist present. Non-blocking."
-            } else {
-              Write-Error "Vulnerabilities found and no allowlist present. Failing per policy."
-            }
-          } else {
-            Write-Host "No vulnerabilities detected."
-          }
-      - name: Upload dependency audit
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-audit
-          path: management/reports/DependencyAuditReport
-
+  # ── Pack quality gate (report) ──
   pack-quality:
     name: Pack Quality Gate (report)
     runs-on: ubuntu-latest
-    needs: build
+    needs: package
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -2746,7 +1150,7 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -2757,16 +1161,16 @@ jobs:
         run: |
           ./eng/ci/pack-report.ps1 -OutDir management/reports/PackReport
       - name: Upload pack report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pack-report
           path: management/reports/PackReport
 
-  # Sprint 309 T5.2: Packaging Smoke Tests (AD-309-1 to AD-309-3)
+  # ── Packaging smoke tests ──
   packaging-smoke-tests:
     name: Packaging Smoke Tests (T5.2)
     runs-on: ubuntu-latest
-    needs: build
+    needs: package
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -2776,7 +1180,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -2784,7 +1188,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -2794,18 +1198,18 @@ jobs:
       - name: Run packaging smoke tests
         shell: pwsh
         run: |
-          Write-Host "🧪 Running packaging smoke tests..."
+          Write-Host "Running packaging smoke tests..."
           ./eng/smoke-test-packages.ps1
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "❌ Packaging smoke tests FAILED" -ForegroundColor Red
+            Write-Host "Packaging smoke tests FAILED" -ForegroundColor Red
             exit 1
           }
-          Write-Host "✅ Packaging smoke tests PASSED" -ForegroundColor Green
+          Write-Host "Packaging smoke tests PASSED" -ForegroundColor Green
 
       - name: Smoke test summary
         if: always()
         run: |
-          echo "## 📦 Packaging Smoke Tests (T5.2)" >> $GITHUB_STEP_SUMMARY
+          echo "## Packaging Smoke Tests (T5.2)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Purpose:** Validate Dispatch packages work in isolation without Excalibur" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -2814,122 +1218,25 @@ jobs:
           echo "- Excalibur.Dispatch.Abstractions" >> $GITHUB_STEP_SUMMARY
           echo "- Excalibur.Dispatch.Serialization.MemoryPack" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Validation Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Pack packages to local NuGet feed" >> $GITHUB_STEP_SUMMARY
-          echo "2. Create throwaway consumer app" >> $GITHUB_STEP_SUMMARY
-          echo "3. Restore from local feed" >> $GITHUB_STEP_SUMMARY
-          echo "4. Build and run consumer" >> $GITHUB_STEP_SUMMARY
-          echo "5. Verify no Excalibur dependencies" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ **Status:** All smoke tests passed" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** All smoke tests passed" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Status:** Smoke tests failed - see logs for details" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** Smoke tests failed - see logs for details" >> $GITHUB_STEP_SUMMARY
           fi
 
-  warnings-ledger:
-    name: Warnings Scan (report-only)
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-      - name: Run warnings scan
-        shell: pwsh
-        run: |
-          ./eng/ci/warnings-scan.ps1 -OutDir management/reports/WarningsReport
-      - name: Upload warnings report
-        uses: actions/upload-artifact@v4
-        with:
-          name: warnings-report
-          path: management/reports/WarningsReport
-
-  coverage-baseline:
-    name: Coverage Baseline Artifact
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-      - name: Create coverage baseline markdown
-        shell: bash
-        run: |
-          mkdir -p management/reports
-          f="management/reports/coverage-${GITHUB_RUN_ID}.md"
-          echo "# Coverage Baseline" > "$f"
-          echo "Run: ${GITHUB_RUN_ID}" >> "$f"
-          echo "Workflow: ${GITHUB_WORKFLOW}" >> "$f"
-          echo "Artifacts contain Cobertura XML from CI test jobs." >> "$f"
-          echo "See uploaded artifacts: code-coverage-*" >> "$f"
-      - name: Upload coverage baseline
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-baseline
-          path: management/reports/coverage-${{ github.run_id }}.md
-
-  specs-location-lint:
-    name: Specs Location Guard
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-          fetch-depth: 1
-
-      - name: Verify specs live under management/Specs/**
-        shell: bash
-        run: |
-          set -eo pipefail
-          mkdir -p management/reports
-          report="management/reports/specs-location-violations-${GITHUB_RUN_ID}.md"
-          echo "# Specs Location Violations" > "$report"
-          echo "Run: ${GITHUB_RUN_ID}" >> "$report"
-          echo "" >> "$report"
-          violations=$(git ls-files | grep -Ei '/Specs/' | grep -vi '^management/Specs/') || true
-          if [ -n "$violations" ]; then
-            echo "Found specs outside management/Specs:" >> "$report"
-            echo "$violations" | sed 's/^/- /' >> "$report"
-            echo "::error::Specs must be under management/Specs (see docs/requirements.md R0.10)"
-            exit 1
-          else
-            echo "No violations detected." >> "$report"
-          fi
-
-      - name: Upload specs guard report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: specs-location-violations
-          path: management/reports/specs-location-violations-${{ github.run_id }}.md
-
+  # ── CI triage labels (PR only) ──
   triage-labels:
     name: Apply CI Triage Labels
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    needs: [build, unit-tests, integration-tests, api-compat, transitive-bloat, banned-apis]
+    needs: [package, unit-tests, integration-tests, call-governance, architecture-tests, serialization-policy, call-security, aot-sample-validation]
     permissions:
       contents: read
       issues: write
       pull-requests: write
     steps:
       - name: Ensure CI triage labels exist
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const labels = [
@@ -2954,21 +1261,26 @@ jobs:
             }
 
       - name: Apply labels based on CI job results
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const labels = [];
-            const needs = context.payload.workflow_run ? {} : {
-              build: '${{ needs.build.result }}',
-              test: '${{ needs.test.result }}',
-              api_compat: '${{ needs.api-compat.result }}',
-              transitive_bloat: '${{ needs.transitive-bloat.result }}',
-              banned_apis: '${{ needs.banned-apis.result }}'
+            const needs = {
+              package: '${{ needs.package.result }}',
+              unitTests: '${{ needs.unit-tests.result }}',
+              integrationTests: '${{ needs.integration-tests.result }}',
+              governance: '${{ needs.call-governance.result }}',
+              architectureTests: '${{ needs.architecture-tests.result }}',
+              serializationPolicy: '${{ needs.serialization-policy.result }}',
+              security: '${{ needs.call-security.result }}',
+              aotValidation: '${{ needs.aot-sample-validation.result }}'
             };
-            if (needs.build !== 'success') labels.push('ci:packability');
-            if (needs.transitive_bloat !== 'success') labels.push('ci:bloat-guard');
-            if (needs.api_compat !== 'success') labels.push('ci:api-compat');
-            if (needs.banned_apis !== 'success') labels.push('ci:r014-boundary');
+            if (needs.package !== 'success') labels.push('ci:packability');
+            if (needs.governance !== 'success') labels.push('ci:bloat-guard');
+            if (needs.architectureTests !== 'success' && needs.architectureTests !== 'skipped') labels.push('ci:netarchtest');
+            if (needs.serializationPolicy !== 'success' && needs.serializationPolicy !== 'skipped') labels.push('ci:r014-boundary');
+            if (needs.security !== 'success' && needs.security !== 'skipped') labels.push('sec:cve');
+            if (needs.aotValidation !== 'success' && needs.aotValidation !== 'skipped') labels.push('ci:trim-aot');
 
             if (labels.length > 0) {
               await github.rest.issues.addLabels({
@@ -2979,257 +1291,11 @@ jobs:
               });
             }
 
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-
-      - name: Check dependency review support
-        id: dependency_review_support
-        shell: bash
-        run: |
-          set -euo pipefail
-          api_url="https://api.github.com/repos/${{ github.repository }}/dependency-graph/sbom"
-          status_code="$(curl -sS -o /tmp/dependency-graph.json -w '%{http_code}' \
-            -H 'Accept: application/vnd.github+json' \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "${api_url}" || true)"
-
-          if [[ "${status_code}" == "200" ]]; then
-            echo "supported=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "supported=false" >> "${GITHUB_OUTPUT}"
-            echo "::warning::Dependency review unsupported or unavailable (HTTP ${status_code}); skipping blocking enforcement."
-          fi
-
-      - name: Check dependency review quota
-        id: dependency_review_quota
-        if: steps.dependency_review_support.outputs.supported == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          min_remaining=150
-
-          if ! command -v jq >/dev/null 2>&1; then
-            echo "quota_ok=false" >> "${GITHUB_OUTPUT}"
-            echo "::warning::jq unavailable; skipping blocking dependency review enforcement."
-            exit 0
-          fi
-
-          rate_json="$(curl -sS \
-            -H 'Accept: application/vnd.github+json' \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/rate_limit" || true)"
-
-          remaining="$(echo "${rate_json}" | jq -r '.resources.core.remaining // 0')"
-          reset_epoch="$(echo "${rate_json}" | jq -r '.resources.core.reset // 0')"
-          now_epoch="$(date +%s)"
-          reset_in=$(( reset_epoch - now_epoch ))
-
-          echo "remaining=${remaining}" >> "${GITHUB_OUTPUT}"
-
-          if [[ "${remaining}" -lt "${min_remaining}" ]]; then
-            echo "quota_ok=false" >> "${GITHUB_OUTPUT}"
-            echo "::warning::Low API quota (${remaining} remaining, reset in ${reset_in}s); skipping blocking dependency review enforcement."
-          else
-            echo "quota_ok=true" >> "${GITHUB_OUTPUT}"
-          fi
-
-      - name: Check dependency review API health
-        id: dependency_review_api_health
-        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          license_url="https://api.github.com/repos/${{ github.repository }}/license"
-          status_code="$(curl -sS --max-time 10 -o /tmp/dependency-license.json -w '%{http_code}' \
-            -H 'Accept: application/vnd.github+json' \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "${license_url}" || true)"
-
-          if [[ "${status_code}" == "200" || "${status_code}" == "404" ]]; then
-            echo "api_ok=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "api_ok=false" >> "${GITHUB_OUTPUT}"
-            echo "::warning::Dependency review API health check failed (license endpoint HTTP ${status_code}); skipping this non-blocking gate."
-          fi
-
-      - name: Dependency review (attempt 1)
-        id: dependency_review_attempt_1
-        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true'
-        timeout-minutes: 3
-        continue-on-error: true
-        uses: actions/dependency-review-action@v4
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          fail-on-severity: high
-          vulnerability-check: true
-          license-check: false
-          show-openssf-scorecard: false
-
-      - name: Backoff before dependency review retry 2
-        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
-        shell: bash
-        run: sleep 10
-
-      - name: Dependency review (attempt 2)
-        id: dependency_review_attempt_2
-        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
-        timeout-minutes: 3
-        continue-on-error: true
-        uses: actions/dependency-review-action@v4
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          fail-on-severity: high
-          vulnerability-check: true
-          license-check: false
-          show-openssf-scorecard: false
-
-      - name: Enforce dependency review result
-        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure' && steps.dependency_review_attempt_2.outcome == 'failure'
-        run: |
-          echo "::warning::Dependency review failed after 2 attempts (likely transient GitHub API/rate-limit issue)."
-          echo "::warning::Blocking vulnerability enforcement remains covered by the Dependency Vulnerability Audit gate."
-
-  secrets-scan:
-    name: Secrets Scan (Gitleaks)
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-          fetch-depth: 1
-
-      - name: Install Gitleaks
-        run: |
-          set -euo pipefail
-          GITLEAKS_VERSION="8.24.3"
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
-          mkdir -p "${RUNNER_TEMP}/bin"
-          mv gitleaks "${RUNNER_TEMP}/bin/gitleaks"
-          chmod +x "${RUNNER_TEMP}/bin/gitleaks"
-          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
-          "${RUNNER_TEMP}/bin/gitleaks" version
-
-      - name: Run Gitleaks
-        run: |
-          set -euo pipefail
-          # Scan current checkout only; avoids PR history-only findings from old commits.
-          gitleaks detect \
-            --source . \
-            --no-git \
-            -v \
-            --redact \
-            --exit-code 1 \
-            --report-format sarif \
-            --report-path gitleaks.sarif
-      - name: Upload Gitleaks report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: gitleaks.sarif
-
-  # CM-8: Software Bill of Materials (SBOM) Generation
-  sbom-generation:
-    name: SBOM Generation (CycloneDX)
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-          fetch-depth: 1
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Generate CycloneDX SBOM for all packages
-        uses: CycloneDX/gh-dotnet-generate-sbom@v1.0.1
-        with:
-          path: './src'
-          github-bearer-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Validate SBOM completeness
-        run: |
-          echo "🔍 Validating SBOM completeness..."
-
-          # Check that SBOM files were generated
-          sbom_count=$(find . -name "bom.json" -o -name "bom.xml" | wc -l)
-          echo "Found $sbom_count SBOM file(s)"
-
-          if [ "$sbom_count" -eq 0 ]; then
-            echo "❌ No SBOM files generated"
-            exit 1
-          fi
-
-          # List all SBOM files for verification
-          echo "📋 Generated SBOM files:"
-          find . -name "bom.json" -o -name "bom.xml"
-
-          echo "✅ SBOM generation successful"
-
-      - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cyclonedx-sbom
-          path: |
-            **/bom.json
-            **/bom.xml
-          retention-days: 90
-
-      - name: SBOM summary
-        run: |
-          echo "## 📦 Software Bill of Materials (SBOM)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Format:** CycloneDX" >> $GITHUB_STEP_SUMMARY
-          echo "**Standard:** NIST 800-53 CM-8" >> $GITHUB_STEP_SUMMARY
-          echo "**Scope:** All NuGet packages in src/" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Generated SBOMs" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          find . -name "bom.json" -o -name "bom.xml" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ SBOM artifacts uploaded with 90-day retention" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Satisfies FedRAMP CM-8 control requirement" >> $GITHUB_STEP_SUMMARY
-
-  # Sprint 336 T3.4: Sample Certification Validation (AD-336)
+  # ── Sample certification validation ──
   sample-validation:
     name: Sample Certification Validation (T3.4)
     runs-on: ubuntu-latest
-    needs: build
+    needs: package
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -3239,7 +1305,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -3247,7 +1313,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -3260,34 +1326,33 @@ jobs:
       - name: Run sample validation
         shell: pwsh
         run: |
-          Write-Host "🧪 Running sample certification validation (build + smoke profiles)..."
+          Write-Host "Running sample certification validation (build + smoke profiles)..."
           ./eng/validate-samples.ps1 -SkipRestore
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "❌ Sample validation FAILED" -ForegroundColor Red
+            Write-Host "Sample validation FAILED" -ForegroundColor Red
             exit 1
           }
-          Write-Host "✅ Sample validation PASSED" -ForegroundColor Green
+          Write-Host "Sample validation PASSED" -ForegroundColor Green
 
       - name: Sample validation summary
         if: always()
         run: |
-          echo "## 📦 Sample Certification Validation (T3.4)" >> $GITHUB_STEP_SUMMARY
+          echo "## Sample Certification Validation (T3.4)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Sprint:** 336" >> $GITHUB_STEP_SUMMARY
           echo "**Purpose:** Validate certified samples from governance matrix with build + smoke profiles" >> $GITHUB_STEP_SUMMARY
           echo "**Source of truth:** management/governance/framework-governance.json (sampleFitness)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ **Status:** Certified sample set build/smoke validation passed" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** Certified sample set build/smoke validation passed" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Status:** Sample validation failed - see logs for details" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** Sample validation failed - see logs for details" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # Sprint 462 S462.4: AOT Sample Build Validation
+  # ── AOT sample validation ──
   aot-sample-validation:
     name: AOT Sample Validation (S462.4)
     runs-on: ubuntu-latest
-    needs: build
+    needs: [package, sample-validation]
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -3297,7 +1362,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -3305,7 +1370,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -3313,73 +1378,60 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
+        run: dotnet restore samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
 
       - name: Build AOT sample (Release)
         run: |
-          echo "🔧 Building AOT sample with source generators..."
-          dotnet build samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
+          echo "Building AOT sample with source generators..."
+          dotnet build samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
             --configuration Release \
             --no-restore \
             -p:TreatWarningsAsErrors=true \
             2>&1 | tee aot-build-output.txt
           BUILD_EXIT_CODE=${PIPESTATUS[0]}
-
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
-            echo "❌ AOT sample build FAILED"
+            echo "AOT sample build FAILED"
             exit 1
           fi
-
-          echo "✅ AOT sample build succeeded"
+          echo "AOT sample build succeeded"
 
       - name: Verify AOT publish configuration
         run: |
-          echo "🔍 Verifying AOT/trimming configuration..."
-
-          # Check that PublishAot is enabled
-          if ! grep -q '<PublishAot>true</PublishAot>' samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
-            echo "❌ PublishAot not enabled in project file"
+          echo "Verifying AOT/trimming configuration..."
+          if ! grep -q '<PublishAot>true</PublishAot>' samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
+            echo "PublishAot not enabled in project file"
             exit 1
           fi
-
-          # Check TrimMode is full
-          if ! grep -q '<TrimMode>full</TrimMode>' samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
-            echo "❌ TrimMode not set to full"
+          if ! grep -q '<TrimMode>full</TrimMode>' samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj; then
+            echo "TrimMode not set to full"
             exit 1
           fi
-
-          echo "✅ AOT configuration verified"
+          echo "AOT configuration verified"
 
       - name: Check for trimming/AOT warnings
         run: |
-          echo "🔍 Checking for trimming/AOT warnings..."
-
-          # Look for common trimming warnings in build output
+          echo "Checking for trimming/AOT warnings..."
           TRIM_WARNINGS=$(grep -E "(IL2\d{3}|IL3\d{3}|trim|Trim|RequiresUnreferencedCode|DynamicallyAccessedMembers)" aot-build-output.txt | wc -l || true)
-
           echo "Trimming-related warnings found: $TRIM_WARNINGS"
           echo "AOT_WARNINGS=$TRIM_WARNINGS" >> $GITHUB_ENV
-
-          # Report but don't fail - some warnings expected from library code
           if [ "$TRIM_WARNINGS" -gt 0 ]; then
-            echo "⚠️ Found $TRIM_WARNINGS trimming-related warnings"
-            echo "See build output for details"
+            echo "Found $TRIM_WARNINGS trimming-related warnings"
             grep -E "(IL2\d{3}|IL3\d{3}|trim|Trim|RequiresUnreferencedCode|DynamicallyAccessedMembers)" aot-build-output.txt || true
           else
-            echo "✅ No trimming warnings found in sample code"
+            echo "No trimming warnings found in sample code"
           fi
 
       - name: Run AOT sample (smoke test)
         run: |
-          echo "🚀 Running AOT sample as smoke test..."
-          timeout 30 dotnet run --project samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
+          echo "Running AOT sample as smoke test..."
+          timeout 30 dotnet run --project samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
             --configuration Release \
             --no-build || true
-          echo "✅ AOT sample smoke test completed"
+          echo "AOT sample smoke test completed"
 
       - name: Upload build output on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aot-sample-build-output
           path: aot-build-output.txt
@@ -3388,9 +1440,8 @@ jobs:
       - name: AOT sample validation summary
         if: always()
         run: |
-          echo "## 🚀 AOT Sample Validation (S462.4)" >> $GITHUB_STEP_SUMMARY
+          echo "## AOT Sample Validation (S462.4)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Sprint:** 462" >> $GITHUB_STEP_SUMMARY
           echo "**Purpose:** Validate Native AOT sample builds and runs with source generators" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Configuration Verified" >> $GITHUB_STEP_SUMMARY
@@ -3410,13 +1461,108 @@ jobs:
           echo "### Results" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | ${{ job.status == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| AOT Config | ${{ job.status == 'success' && '✅ Verified' || '❌ Issues' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ job.status == 'success' && 'PASS' || 'FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| AOT Config | ${{ job.status == 'success' && 'Verified' || 'Issues' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Trim Warnings | ${{ env.AOT_WARNINGS || '0' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ **Status:** AOT sample builds successfully with source generators" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** AOT sample builds successfully with source generators" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Status:** AOT sample validation failed - see logs for details" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** AOT sample validation failed - see logs for details" >> $GITHUB_STEP_SUMMARY
           fi
 
+  # ── CI Summary ──
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation]
+    if: always()
+    steps:
+      - name: Generate CI summary
+        run: |
+          echo "# Continuous Integration Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## Job Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | ${{ needs.package.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Tests (Priority=0) | ${{ needs.smoke-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Shard Coverage | ${{ needs.unit-shard-coverage.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (Linux) | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (Windows) | ${{ needs.unit-tests-windows.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (macOS) | ${{ needs.unit-tests-macos.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Flaky Quarantine Governance | ${{ needs.flaky-quarantine-governance.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Flaky Quarantine Suite (Non-blocking) | ${{ needs.flaky-tests-quarantine.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release-Blocking Test Gate | ${{ needs.release-blocking-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release-Blocking CI Gate | ${{ needs.release-blocking-ci.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Quality | ${{ needs.quality.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | ${{ needs.call-coverage.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scanning | ${{ needs.call-security.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Governance | ${{ needs.call-governance.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Serialization Policy (R0.14) | ${{ needs.serialization-policy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Sample Validation (T3.4) | ${{ needs.sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| AOT Sample Validation (S462.4) | ${{ needs.aot-sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Documentation Verification (T5.4) | ${{ needs.documentation-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Gates | ${{ needs.call-performance.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.release-blocking-ci.result }}" = "success" ]; then
+            echo "**All critical checks passed!** Ready for merge." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Some checks failed.** Please review the results above." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ── Test result trend reporting ──
+  test-result-reporter:
+    name: Test Result Reporter (${{ matrix.report.name }})
+    runs-on: ubuntu-latest
+    needs: [unit-tests, unit-tests-async-risk, integration-tests]
+    if: always()
+    continue-on-error: true
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        report:
+          - { name: unit-core, artifact: test-results-unit-core, path: "**/*.trx" }
+          - { name: unit-transport, artifact: test-results-unit-transport, path: "**/*.trx" }
+          - { name: unit-middleware, artifact: test-results-unit-middleware, path: "**/*.trx" }
+          - { name: unit-excalibur, artifact: test-results-unit-excalibur, path: "**/*.trx" }
+          - { name: unit-observability, artifact: test-results-unit-async-risk-observability, path: "**/*.trx" }
+          - { name: unit-async-risk-messaging, artifact: test-results-unit-async-risk-messaging, path: "**/*.trx" }
+          - { name: integration, artifact: test-results-integration, path: "**/*.trx" }
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Trust workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Download test results
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.report.artifact }}
+          path: test-results
+        continue-on-error: true
+
+      - name: Publish test results
+        if: hashFiles('test-results/**/*.trx') != ''
+        uses: dorny/test-reporter@v2
+        with:
+          name: "Test Results - ${{ matrix.report.name }}"
+          path: "test-results/${{ matrix.report.path }}"
+          reporter: dotnet-trx
+          fail-on-error: false

@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <summary>
 /// Default implementation of a pipeline profile that defines middleware composition for specific processing scenarios.
 /// </summary>
-public sealed class PipelineProfile : IPipelineProfile
+public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 {
 	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindsCache = new();
@@ -222,7 +222,7 @@ public sealed class PipelineProfile : IPipelineProfile
 		return FilterApplicableMiddleware(messageKind, NoEnabledFeatures);
 	}
 
-	private IReadOnlyList<Type> FilterApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
+	private List<Type> FilterApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
 	{
 		if (_middlewareRules.Length == 0)
 		{
@@ -247,7 +247,8 @@ public sealed class PipelineProfile : IPipelineProfile
 	/// Uses manual loop to avoid LINQ iterator allocation.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool ImplementsGenericActionInterface(Type type)
+	private static bool ImplementsGenericActionInterface(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
 	{
 		var interfaces = type.GetInterfaces();
 		foreach (var iface in interfaces)

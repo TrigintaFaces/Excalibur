@@ -12,7 +12,7 @@ This guide explains the complete failure lifecycle in Excalibur.Dispatch: from t
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -72,7 +72,7 @@ The first line of defense. When a handler throws, the retry policy determines wh
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddDispatchResilience(options =>
+    dispatch.UseResilience(options =>
     {
         options.EnableRetry = true;
         options.EnableCircuitBreaker = true;
@@ -221,7 +221,7 @@ The DLQ preserves the full context of the failure: the original message, the exc
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddPoisonMessageHandling(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.MaxRetryAttempts = 3;
         options.DeadLetterRetentionPeriod = TimeSpan.FromDays(30);
@@ -263,13 +263,16 @@ var entries = await dlq.GetEntriesAsync(
 // Replay a single entry after fixing the issue
 await dlq.ReplayAsync(entryId, cancellationToken);
 
+// Batch replay and purge require IDeadLetterQueueAdmin
+var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();
+
 // Batch replay all validation failures after updating validation logic
-var replayedCount = await dlq.ReplayBatchAsync(
+var replayedCount = await dlqAdmin.ReplayBatchAsync(
     DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed),
     cancellationToken);
 
 // Purge old entries
-await dlq.PurgeOlderThanAsync(TimeSpan.FromDays(30), cancellationToken);
+await dlqAdmin.PurgeOlderThanAsync(TimeSpan.FromDays(30), cancellationToken);
 ```
 
 Providers for persistent storage:
@@ -395,8 +398,9 @@ When messages land in the DLQ, the recovery approach depends on the failure cate
 These usually resolve on their own. Wait for the underlying issue to clear, then replay:
 
 ```csharp
-// After the database/service recovers, replay all transient failures
-var count = await dlq.ReplayBatchAsync(
+// After the database/service recovers, replay all transient failures (admin operation)
+var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();
+var count = await dlqAdmin.ReplayBatchAsync(
     DeadLetterQueryFilter.ByReason(DeadLetterReason.MaxRetriesExceeded),
     cancellationToken);
 
@@ -422,8 +426,9 @@ foreach (var entry in failures)
         entry.ExceptionMessage);
 }
 
-// After updating validation rules, replay the batch
-await dlq.ReplayBatchAsync(
+// After updating validation rules, replay the batch (admin operation)
+var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();
+await dlqAdmin.ReplayBatchAsync(
     DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed), ct);
 ```
 
@@ -436,8 +441,9 @@ var deserializationFailures = await dlq.GetEntriesAsync(
     DeadLetterQueryFilter.ByReason(DeadLetterReason.DeserializationFailed),
     cancellationToken: ct);
 
-// These rarely succeed on replay -- purge after investigation
-await dlq.PurgeOlderThanAsync(TimeSpan.FromDays(7), ct);
+// These rarely succeed on replay -- purge after investigation (admin operation)
+var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();
+await dlqAdmin.PurgeOlderThanAsync(TimeSpan.FromDays(7), ct);
 ```
 
 ### Transport-Level Recovery (Reprocessing)
@@ -489,7 +495,7 @@ Is the message from an external system (broker redelivery possible)?
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddDispatchResilience(options =>
+    dispatch.UseResilience(options =>
     {
         options.EnableRetry = true;
     });
@@ -501,13 +507,13 @@ services.AddDispatch(dispatch =>
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddDispatchResilience(options =>
+    dispatch.UseResilience(options =>
     {
         options.EnableRetry = true;
         options.EnableCircuitBreaker = true;
     });
 
-    dispatch.AddPoisonMessageHandling(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.MaxRetryAttempts = 3;
         options.DeadLetterRetentionPeriod = TimeSpan.FromDays(30);
@@ -524,7 +530,7 @@ services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
     // Resilience: retry + circuit breaker
-    dispatch.AddDispatchResilience(options =>
+    dispatch.UseResilience(options =>
     {
         options.EnableRetry = true;
         options.EnableCircuitBreaker = true;
@@ -539,7 +545,7 @@ services.AddDispatch(dispatch =>
     });
 
     // Dead letter queue with alerting
-    dispatch.AddPoisonMessageHandling(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.DeadLetterRetentionPeriod = TimeSpan.FromDays(90);
         options.EnableAlerting = true;

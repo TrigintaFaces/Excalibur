@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Per AD-255-3, these tests verify the export format enum values for bulk decryption.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class DecryptionExportFormatShould
 {
 	#region Enum Value Tests

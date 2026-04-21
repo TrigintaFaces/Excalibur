@@ -1,7 +1,7 @@
 ---
 sidebar_position: 4
 title: Audit Logging
-description: Tamper-evident audit logging with hash chain integrity
+description: Tamper-evident audit logging with hash chain integrity, annotations, and conditional assertions
 ---
 
 # Audit Logging
@@ -10,10 +10,10 @@ Dispatch provides tamper-evident audit logging with cryptographic hash chaining 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.Security
+  dotnet add package Excalibur.Security
   ```
 - Familiarity with [security overview](../security/index.md) and [audit logging providers](../observability/audit-logging-providers.md)
 
@@ -45,11 +45,18 @@ Each audit event includes a hash of the previous event, creating an immutable ch
 ### Configuration
 
 ```csharp
-// Development/testing — in-memory store (no persistence)
+// One-call minimal wiring (Sprint 790 `bd-20ft0e` FIX 5)
+// Registers audit store + annotation store + audit context + AuditMiddleware
+// with the default in-memory providers in a single call. Override any piece
+// by registering the concrete service before or after the call — standard
+// TryAdd semantics apply.
+services.AddExcalibur(excalibur => excalibur.AddAudit());
+
+// Development/testing — in-memory store (no persistence), manual composition
 services.AddAuditLogging();
 
 // Production — SQL Server with inline options configuration
-// Package: Excalibur.Dispatch.AuditLogging.SqlServer
+// Package: Excalibur.AuditLogging.SqlServer
 services.AddSqlServerAuditStore(options =>
 {
     options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
@@ -60,6 +67,15 @@ services.AddSqlServerAuditStore(options =>
 
 // Custom store — implement IAuditStore and register the type
 services.AddAuditLogging<MyCustomAuditStore>();
+
+// Annotations — enrich stored events with tags, bookmarks, notes
+services.AddSqlServerAuditAnnotationStore(options =>
+{
+    options.ConnectionString = configuration.GetConnectionString("Compliance");
+});
+
+// Assertions — scoped audit context for handlers
+services.AddAuditContext();
 ```
 
 ### Log an Event
@@ -123,6 +139,7 @@ public sealed record AuditEvent
 
     // Context
     public string? TenantId { get; init; }
+    public string? ApplicationName { get; init; }
     public string? CorrelationId { get; init; }
     public string? Reason { get; init; }
 
@@ -194,6 +211,25 @@ var query = new AuditQuery
 var userActivity = await _auditStore.QueryAsync(query, ct);
 ```
 
+### Filter by Application
+
+In shared audit backends, filter events by the producing application:
+
+```csharp
+var query = new AuditQuery
+{
+    ApplicationName = "OrderService",
+    StartDate = DateTimeOffset.UtcNow.AddDays(-7),
+    EndDate = DateTimeOffset.UtcNow
+};
+
+var appEvents = await _auditStore.QueryAsync(query, ct);
+```
+
+:::tip
+`ApplicationName` is set automatically from `ApplicationContext.ApplicationName` when not provided explicitly on the `AuditEvent`. Configure it once via hosting and all audit events will carry the application identity.
+:::
+
 ### Filter by Resource
 
 ```csharp
@@ -246,6 +282,7 @@ Audit queries are optimized for indexed fields:
 | StartDate/EndDate | Yes | Always include time range |
 | ActorId | Yes | User activity reports |
 | TenantId | Yes | Multi-tenant isolation |
+| ApplicationName | Yes | Multi-app shared backends |
 | ResourceId | Yes | Resource history |
 | CorrelationId | Yes | Request tracing |
 | EventType | Yes | Filter by category |
@@ -363,6 +400,7 @@ CREATE TABLE [audit].[AuditEvents] (
 
     -- Context and correlation
     [TenantId] NVARCHAR(64) NULL,
+    [ApplicationName] NVARCHAR(256) NULL,
     [CorrelationId] NVARCHAR(64) NULL,
     [SessionId] NVARCHAR(64) NULL,
 
@@ -394,6 +432,10 @@ INCLUDE ([EventType], [Action], [ResourceId]);
 CREATE INDEX [IX_AuditEvents_TenantId_Timestamp]
 ON [audit].[AuditEvents] ([TenantId], [Timestamp] DESC)
 WHERE [TenantId] IS NOT NULL;
+
+CREATE INDEX [IX_AuditEvents_ApplicationName_Timestamp]
+ON [audit].[AuditEvents] ([ApplicationName], [Timestamp] DESC)
+WHERE [ApplicationName] IS NOT NULL;
 
 CREATE INDEX [IX_AuditEvents_ResourceId_Timestamp]
 ON [audit].[AuditEvents] ([ResourceId], [Timestamp] DESC)
@@ -555,6 +597,298 @@ public async Task Should_Detect_Tampering()
 | HIPAA | Access logs for PHI | ActorId, ResourceId, Classification |
 | GDPR | Processing records | Timestamp, Action, Outcome |
 | PCI-DSS | Cardholder data access logs | ResourceType filtering |
+
+## Provider Compliance Boundary
+
+:::warning ADR-290: Not All Backends Are Compliance-Grade
+Elasticsearch and OpenSearch are **audit sinks** -- write-only, search-optimized projections. They do **not** implement `IAuditStore` and cannot provide tamper-evident hash chain verification.
+:::
+
+Only backends that can guarantee monotonic sequencing, document immutability, and transactional atomicity qualify as `IAuditStore` implementations:
+
+| Backend | Role | Hash Chain | Tamper-Evident | Compliance-Grade |
+|---------|------|-----------|----------------|------------------|
+| **SQL Server** | `IAuditStore` | Yes | Yes (IDENTITY + DENY) | Yes |
+| **Elasticsearch** | Audit Sink | No | No (mutable documents) | No |
+| **OpenSearch** | Audit Sink | No | No (mutable documents) | No |
+
+### Why Elasticsearch/OpenSearch Cannot Be Compliance Stores
+
+1. **No monotonic sequencing** -- wall-clock timestamps, not database IDENTITY columns
+2. **Documents are mutable** -- anyone with cluster access can PUT/DELETE
+3. **Eventually consistent reads** -- NRT refresh delay means stale hash chain reads
+4. **No transactional atomicity** -- HTTP calls, not database transactions
+5. **ILM/ISM can delete indexes** -- silently destroying audit records
+
+### Recommended Architecture
+
+```mermaid
+flowchart LR
+    AE[Audit Events] --> SQL["SqlServerAuditStore<br/>(compliance, hash-chained)"]
+    AE --> ES["ElasticsearchAuditSink<br/>(search, dashboards)"]
+    AE --> OS["OpenSearchAuditSink<br/>(search, dashboards)"]
+
+    SQL --> V[Verify Chain Integrity]
+    ES --> K[Kibana / Dashboards]
+    OS --> OSD[OpenSearch Dashboards]
+```
+
+Consumers who need both compliance **and** search should register SQL as their `IAuditStore` and ES/OS as an audit sink. The sink receives copies for fast full-text search, dashboards, and alerting. SQL is the source of truth for chain verification and regulatory compliance.
+
+For full details, see ADR-290 in `management/architecture/adr-290-elasticsearch-audit-sink-not-store.md`.
+
+## Audit Event Annotations
+
+Annotations let auditors enrich stored events with tags, bookmarks, and notes without modifying the original event or its hash chain. Each annotation is a separate record linked by event ID.
+
+### Packages
+
+| Package | Purpose |
+|---------|---------|
+| `Excalibur.AuditLogging` | In-memory store + RBAC decorator |
+| `Excalibur.AuditLogging.SqlServer` | SQL Server persistence |
+
+### Configuration
+
+```csharp
+// In-memory (development/testing)
+services.AddAuditAnnotations();
+
+// SQL Server (production)
+// Package: Excalibur.AuditLogging.SqlServer
+services.AddSqlServerAuditAnnotationStore(options =>
+{
+    options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
+    options.SchemaName = "audit";        // default
+    options.TableName = "AuditAnnotations"; // default
+    options.CommandTimeoutSeconds = 30;  // default
+});
+
+// With RBAC enforcement (requires IAuditRoleProvider registration)
+services.AddRbacAuditAnnotationStore();
+```
+
+### Tagging Events
+
+Tags are shared labels applied to audit events. Duplicate tags are idempotent.
+
+```csharp
+public class ComplianceReviewService
+{
+    private readonly IAuditAnnotationStore _annotations;
+
+    public async Task ReviewEventAsync(
+        string eventId,
+        CancellationToken ct)
+    {
+        // Tag an event for compliance review
+        await _annotations.TagAsync(
+            eventId,
+            ["reviewed", "sox-relevant"],
+            ct);
+    }
+}
+```
+
+### Bookmarking Events
+
+Bookmarks are personal markers with an optional label. Each actor has at most one bookmark per event (replace semantics).
+
+```csharp
+// Bookmark an event
+await _annotations.BookmarkAsync(eventId, "Follow up Monday", ct);
+
+// Remove a bookmark
+await _annotations.RemoveBookmarkAsync(eventId, ct);
+```
+
+### Adding Notes
+
+Notes are free-text annotations with actor identity and timestamp.
+
+```csharp
+var annotationId = await _annotations.AnnotateAsync(
+    eventId,
+    "Verified with finance team -- legitimate transaction",
+    ct);
+```
+
+### Querying by Annotation
+
+Find events matching annotation criteria using `AuditAnnotationQuery`:
+
+```csharp
+// Find all tagged events
+var taggedEvents = await _annotations.QueryByAnnotationAsync(
+    new AuditAnnotationQuery
+    {
+        Tags = ["sox-relevant"],
+        MaxResults = 50
+    },
+    ct);
+
+// Find bookmarked events by a specific actor
+var myBookmarks = await _annotations.QueryByAnnotationAsync(
+    new AuditAnnotationQuery
+    {
+        IsBookmarked = true,
+        ActorId = "auditor-jane",
+        Since = DateTimeOffset.UtcNow.AddDays(-7)
+    },
+    ct);
+
+// Find events with notes, paginated
+var annotated = await _annotations.QueryByAnnotationAsync(
+    new AuditAnnotationQuery
+    {
+        HasNotes = true,
+        Skip = 100,
+        MaxResults = 50
+    },
+    ct);
+```
+
+### Retrieving Annotations
+
+Get all annotations for a single event, grouped by type:
+
+```csharp
+AuditAnnotations result = await _annotations.GetAnnotationsAsync(eventId, ct);
+
+// result.Tags      — IReadOnlyList<string>
+// result.Bookmarks — IReadOnlyList<AuditAnnotation>
+// result.Notes     — IReadOnlyList<AuditAnnotation>
+```
+
+### RBAC Enforcement
+
+When `AddRbacAuditAnnotationStore()` is registered, annotation access is controlled by `AuditLogRole`:
+
+| Role | Tag | Bookmark | Annotate | View Others' Annotations |
+|------|-----|----------|----------|--------------------------|
+| Developer | No | No | No | No |
+| SecurityAnalyst | Yes | Yes | Yes | Shared only |
+| ComplianceOfficer | Yes | Yes | Yes | All |
+| Administrator | Yes | Yes | Yes | All |
+
+Annotation creation automatically emits a meta-audit event (`AuditEventType.Administrative`) for traceability.
+
+### Annotations Database Schema
+
+```sql
+CREATE TABLE [audit].[AuditAnnotations] (
+    [Id] NVARCHAR(32) NOT NULL,
+    [EventId] NVARCHAR(64) NOT NULL,
+    [AnnotationType] INT NOT NULL,        -- 0=Tag, 1=Bookmark, 2=Note
+    [Content] NVARCHAR(MAX) NOT NULL,
+    [ActorId] NVARCHAR(256) NOT NULL,
+    [CreatedAt] DATETIMEOFFSET(7) NOT NULL,
+    [Visibility] INT NOT NULL,            -- 0=Personal, 1=Shared
+    CONSTRAINT [PK_AuditAnnotations] PRIMARY KEY ([Id])
+);
+
+CREATE INDEX [IX_AuditAnnotations_EventId]
+ON [audit].[AuditAnnotations] ([EventId]);
+
+CREATE INDEX [IX_AuditAnnotations_ActorId]
+ON [audit].[AuditAnnotations] ([ActorId]);
+```
+
+:::tip
+Annotations never modify the original `AuditEvent` or its hash chain. They are stored in a separate table and linked by `EventId`.
+:::
+
+## Conditional Audit Assertions
+
+`IAuditContext` provides a scoped, handler-injected service for emitting domain-aware audit events. It inherits pipeline context (correlation ID, actor, tenant) automatically -- handlers only supply the condition and message.
+
+### Configuration
+
+```csharp
+// Register audit context with defaults
+services.AddAuditContext();
+
+// Or configure options
+services.AddAuditContext(options =>
+{
+    options.DefaultEventType = AuditEventType.Compliance;
+    options.IncludeMessageTypeName = true;   // default
+    options.MaxAssertionsPerScope = 25;      // default
+});
+```
+
+:::note
+`AddAuditContext()` registers `AuditContextMiddleware` which populates scope context before handler execution. Requires an `IAuditActorProvider` implementation and an `IAuditStore` registration.
+:::
+
+### Assertions
+
+`AssertAsync` records an audit event only when the condition is `true`. When `false`, it returns `null` with zero I/O overhead.
+
+```csharp
+public class ProcessOrderHandler : IMessageHandler<ProcessOrder>
+{
+    private readonly IAuditContext _audit;
+
+    public async Task HandleAsync(
+        ProcessOrder message,
+        IMessageContext context,
+        CancellationToken ct)
+    {
+        // Only records if the threshold is actually exceeded
+        await _audit.AssertAsync(
+            message.Amount > 10_000m,
+            $"High-value order: {message.Amount:C}",
+            AuditEventType.Compliance,
+            ct);
+
+        // Process the order...
+    }
+}
+```
+
+### Observations
+
+`ObserveAsync` unconditionally records an audit event. Use for events that do not depend on a boolean condition.
+
+```csharp
+await _audit.ObserveAsync(
+    "Order exported to external system",
+    AuditEventType.Integration,
+    AuditOutcome.Success,
+    ct);
+```
+
+### Resource Association and Metadata
+
+Use fluent methods to attach resource identity and metadata before assertions:
+
+```csharp
+await _audit
+    .ForResource(order.Id.ToString(), "Order")
+    .WithMetadata("region", order.Region)
+    .WithMetadata("currency", order.Currency)
+    .AssertAsync(
+        order.RequiresEscalation,
+        "Order requires manager approval",
+        AuditEventType.Authorization,
+        ct);
+```
+
+### How It Works
+
+1. Pipeline begins processing a message
+2. `AuditContextMiddleware` populates the scope: CorrelationId, ActorId (from `IAuditActorProvider`), TenantId, Timestamp (from `TimeProvider`)
+3. Handler receives pre-configured `IAuditContext` via constructor injection
+4. Assertions and observations inherit all scope data automatically
+5. Events are stored via `IAuditLogger` with hash-chain integrity
+
+### Safety Guards
+
+- **False assertions are free**: `AssertAsync(false, ...)` returns `null` immediately with no allocation and no I/O
+- **Max assertions per scope**: Excess assertions beyond `MaxAssertionsPerScope` (default: 25) are logged as warnings and dropped -- never thrown
+- **Actor fallback**: If `IAuditActorProvider` is not registered or throws, the actor defaults to `"system"`
+- **No aggregate dependency**: Works in any handler -- command, query, or integration event
 
 ## Next Steps
 

@@ -8,29 +8,18 @@ namespace ExcaliburCqrs.Domain.Events;
 /// <summary>
 /// Event raised when a new order is created.
 /// </summary>
-public sealed record OrderCreated(Guid OrderId, string ProductId, int Quantity) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderCreated(Guid OrderId, string ProductId, int Quantity) : DomainEvent;
 
 /// <summary>
 /// Event raised when an item is added to an existing order.
 /// </summary>
-public sealed record OrderItemAdded(Guid OrderId, string ProductId, int Quantity) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderItemAdded(Guid OrderId, string ProductId, int Quantity) : DomainEvent;
 
 /// <summary>
 /// Event raised when an order is confirmed.
 /// </summary>
 public sealed record OrderConfirmed(Guid OrderId) : DomainEvent
 {
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-
 	/// <summary>Gets when the order was confirmed.</summary>
 	public DateTime ConfirmedAt { get; init; } = DateTime.UtcNow;
 }
@@ -40,9 +29,6 @@ public sealed record OrderConfirmed(Guid OrderId) : DomainEvent
 /// </summary>
 public sealed record OrderShipped(Guid OrderId, string TrackingNumber) : DomainEvent
 {
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-
 	/// <summary>Gets when the order was shipped.</summary>
 	public DateTime ShippedAt { get; init; } = DateTime.UtcNow;
 }

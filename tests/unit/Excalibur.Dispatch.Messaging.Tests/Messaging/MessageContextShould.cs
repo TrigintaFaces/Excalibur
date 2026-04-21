@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// Target: Increase MessageContext coverage from 37.8% to 70%.
 /// Updated for IMessageContext decomposition: properties moved to feature interfaces and Items-based extension methods.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class MessageContextShould
 {

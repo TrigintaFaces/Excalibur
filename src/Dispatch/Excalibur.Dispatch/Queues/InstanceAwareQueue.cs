@@ -53,7 +53,7 @@ internal sealed class InstanceAwareQueue(string instanceId, IDistributedOrderedS
 	/// </summary>
 	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
 	/// <returns> A task that returns a tuple containing success status and the value without instance prefix. </returns>
-	// MA0038: Cannot make method static - requires access to queue instance parameter from primary constructor
+	// MA0038: Method accesses primary constructor parameter 'queue' — must remain instance.
 #pragma warning disable MA0038
 
 	public async Task<(bool Success, string? Value)> TryPopAsync(CancellationToken cancellationToken)

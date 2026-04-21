@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <remarks>
 /// Tests the exception thrown when message processing times out.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class MessageTimeoutExceptionShould
 {
@@ -113,7 +113,7 @@ public sealed class MessageTimeoutExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -123,7 +123,7 @@ public sealed class MessageTimeoutExceptionShould
 		var exception = new MessageTimeoutException("Message", null!);
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	#endregion

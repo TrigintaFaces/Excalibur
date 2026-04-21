@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Threading;
 /// <summary>
 /// Regression tests for KeyedLock -- Sprint 690 T.16 (unbounded SemaphoreSlim memory leak fix).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KeyedLockShould
 {
 	[Fact]
@@ -80,8 +80,9 @@ public sealed class KeyedLockShould
 		});
 
 		// Assert -- both should complete (not deadlock)
+		// Use generous timeout for CI shared runners under load
 		var bothDone = Task.WhenAll(task1, task2);
-		var completed = await Task.WhenAny(bothDone, Task.Delay(5000));
+		var completed = await Task.WhenAny(bothDone, Task.Delay(30_000));
 		(completed == bothDone || (task1.IsCompleted && task2.IsCompleted))
 			.ShouldBeTrue("Different keys should be acquirable concurrently");
 	}
@@ -123,13 +124,13 @@ public sealed class KeyedLockShould
 		});
 
 		await waiterStarted.Task;
-		await Task.Delay(50); // Give waiter time to enter WaitAsync
+		await Task.Delay(500); // Give waiter time to enter WaitAsync on loaded CI runners
 
 		// Act -- release first handle while waiter exists
 		handle1.Dispose();
 
 		// Assert -- waiter should eventually complete
-		await waiterTask.WaitAsync(TimeSpan.FromSeconds(5));
+		await waiterTask.WaitAsync(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]

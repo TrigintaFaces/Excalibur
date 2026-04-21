@@ -130,7 +130,7 @@ public sealed class CronScheduleShould
 
 		// Act & Assert
 		var ex = Should.Throw<TargetInvocationException>(() => constructor.Invoke([null]));
-		ex.InnerException.ShouldBeAssignableTo<ArgumentException>();
+		ex.InnerException!.ShouldBeAssignableTo<ArgumentException>();
 	}
 
 	[Fact]
@@ -141,7 +141,7 @@ public sealed class CronScheduleShould
 
 		// Act & Assert
 		var ex = Should.Throw<TargetInvocationException>(() => constructor.Invoke([""]));
-		ex.InnerException.ShouldBeOfType<ArgumentException>();
+		ex.InnerException!.ShouldBeOfType<ArgumentException>();
 	}
 
 	[Fact]
@@ -152,7 +152,7 @@ public sealed class CronScheduleShould
 
 		// Act & Assert
 		var ex = Should.Throw<TargetInvocationException>(() => constructor.Invoke(["not valid"]));
-		ex.InnerException.ShouldBeOfType<ArgumentException>();
+		ex.InnerException!.ShouldBeOfType<ArgumentException>();
 	}
 
 	[Fact]

@@ -25,16 +25,16 @@ namespace Microsoft.Extensions.DependencyInjection;
 ///
 /// // With specific features
 /// services.AddDispatch()
-///     .AddContextEnrichment()
-///     .AddDispatchValidation();
+///     .UseContextEnrichment()
+///     .UseValidation();
 ///
 /// // Full-featured mode
 /// services.AddDispatch()
-///     .AddAllFeatures();
+///     .UseAllFeatures();
 /// </code>
 /// <para>
 /// Note: Inbox/Outbox require explicit store configuration and are not included
-/// in <see cref="AddAllFeatures"/>. Use <c>WithInbox&lt;TStore&gt;()</c> and
+/// in <see cref="UseAllFeatures"/>. Use <c>WithInbox&lt;TStore&gt;()</c> and
 /// <c>WithOutbox&lt;TStore&gt;()</c> separately.
 /// </para>
 /// </remarks>
@@ -53,14 +53,14 @@ public static class ProgressiveEnhancementExtensions
 	///   <item>AsyncLocal context flow via <see cref="IMessageContextAccessor"/></item>
 	/// </list>
 	/// <para>
-	/// This is distinct from <c>AddContextObservability()</c> which focuses on telemetry
+	/// This is distinct from <c>UseContextObservability()</c> which focuses on telemetry
 	/// (OpenTelemetry spans, metrics, and logging). Use both for complete context support.
 	/// </para>
 	/// </remarks>
 	/// <param name="builder">The dispatch builder.</param>
 	/// <returns>The dispatch builder for method chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> is null.</exception>
-	public static IDispatchBuilder AddContextEnrichment(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseContextEnrichment(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
@@ -85,15 +85,15 @@ public static class ProgressiveEnhancementExtensions
 	/// This is a convenience method that combines the following core extensions:
 	/// </para>
 	/// <list type="bullet">
-	///   <item><see cref="AddContextEnrichment"/> - Full context with correlation IDs</item>
-	///   <item><c>AddDispatchValidation()</c> - Message validation middleware</item>
+	///   <item><see cref="UseContextEnrichment"/> - Full context with correlation IDs</item>
+	///   <item><c>UseValidation()</c> - Message validation middleware</item>
 	/// </list>
 	/// <para>
 	/// <strong>Note:</strong> The following require separate packages and should be added explicitly:
 	/// </para>
 	/// <list type="bullet">
-	///   <item><c>AddContextObservability()</c> - Requires Excalibur.Dispatch.Observability package</item>
-	///   <item><c>AddDispatchResilience()</c> - Requires Excalibur.Dispatch.Resilience.Polly package</item>
+	///   <item><c>UseContextObservability()</c> - Requires Excalibur.Dispatch.Observability package</item>
+	///   <item><c>UseResilience()</c> - Requires Excalibur.Dispatch.Resilience.Polly package</item>
 	///   <item><c>WithInbox&lt;TStore&gt;()</c> / <c>WithOutbox&lt;TStore&gt;()</c> - Require store provider choice</item>
 	/// </list>
 	/// <para>
@@ -101,9 +101,9 @@ public static class ProgressiveEnhancementExtensions
 	/// </para>
 	/// <code>
 	/// services.AddDispatch()
-	///     .AddAllFeatures()
-	///     .AddContextObservability()                // From Excalibur.Dispatch.Observability
-	///     .AddDispatchResilience()                  // From Excalibur.Dispatch.Resilience.Polly
+	///     .UseAllFeatures()
+	///     .UseContextObservability()                // From Excalibur.Dispatch.Observability
+	///     .UseResilience()                          // From Excalibur.Dispatch.Resilience.Polly
 	///     .WithInbox&lt;InMemoryInboxStore&gt;()
 	///     .WithOutbox&lt;SqlServerOutboxStore&gt;();
 	/// </code>
@@ -111,12 +111,12 @@ public static class ProgressiveEnhancementExtensions
 	/// <param name="builder">The dispatch builder.</param>
 	/// <returns>The dispatch builder for method chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> is null.</exception>
-	public static IDispatchBuilder AddAllFeatures(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseAllFeatures(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
 		return builder
-			.AddContextEnrichment()       // Context flow with correlation IDs
-			.AddDispatchValidation();     // Message validation
+			.UseContextEnrichment()       // Context flow with correlation IDs
+			.UseValidation();             // Message validation
 	}
 }

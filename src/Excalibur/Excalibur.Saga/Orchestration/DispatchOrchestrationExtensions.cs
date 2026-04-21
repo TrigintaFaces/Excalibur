@@ -3,11 +3,11 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Saga.Orchestration;
 
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace Excalibur.Saga.Orchestration;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for registering dispatch orchestration services with dependency injection. Configures saga management, workflow

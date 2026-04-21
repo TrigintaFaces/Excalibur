@@ -7,8 +7,8 @@ using PubSubRetryPolicyOptions = Excalibur.Dispatch.Transport.Google.PubSubRetry
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RetryPolicyOptionsShould
 {
 	[Fact]

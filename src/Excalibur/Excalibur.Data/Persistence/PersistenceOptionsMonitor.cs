@@ -22,15 +22,14 @@ internal sealed class PersistenceOptionsMonitor<[DynamicallyAccessedMembers(Dyna
 	IOptionsMonitor<TOptions> optionsMonitor) : IPersistenceOptionsMonitor<TOptions>, IDisposable
 	where TOptions : class, IPersistenceOptions
 {
+	// Retain configuration for future use (e.g., provider-aware option resolution).
+	private readonly IPersistenceConfiguration _configuration = configuration;
+
 	private readonly IOptionsMonitor<TOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
 	private readonly List<IDisposable> _changeSubscriptions = [];
 	private readonly Dictionary<string, List<Action<TOptions, string>>> _providerListeners = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, DateTimeOffset> _lastChangeTime = new(StringComparer.Ordinal);
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 
 	/// <inheritdoc />
 	public TOptions CurrentValue => _optionsMonitor.CurrentValue;

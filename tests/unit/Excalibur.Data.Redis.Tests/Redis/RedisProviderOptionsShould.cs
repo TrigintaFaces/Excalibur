@@ -8,8 +8,8 @@ namespace Excalibur.Data.Tests.Redis;
 /// <summary>
 /// Unit tests for RedisProviderOptions configuration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class RedisProviderOptionsShould : UnitTestBase
 {
 	#region Default Values

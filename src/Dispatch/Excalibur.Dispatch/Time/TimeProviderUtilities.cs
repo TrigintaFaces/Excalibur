@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Time;
 /// <summary>
 /// Utility class for common TimeProvider operations.
 /// </summary>
-public static class TimeProviderUtilities
+internal static class TimeProviderUtilities
 {
 	/// <summary>
 	/// Gets the current UTC time as DateTime for compatibility with legacy code.

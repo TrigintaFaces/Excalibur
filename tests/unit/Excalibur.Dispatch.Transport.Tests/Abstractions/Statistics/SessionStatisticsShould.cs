@@ -6,8 +6,8 @@ using Shouldly;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Statistics;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class SessionStatisticsShould
 {
     [Fact]

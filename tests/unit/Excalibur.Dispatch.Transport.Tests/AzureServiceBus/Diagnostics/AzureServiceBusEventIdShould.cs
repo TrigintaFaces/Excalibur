@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport.AzureServiceBus")]
+[Trait(TraitNames.Component, TestComponents.AzureServiceBus)]
 [Trait("Priority", "0")]
 public sealed class AzureServiceBusEventIdShould : UnitTestBase
 {

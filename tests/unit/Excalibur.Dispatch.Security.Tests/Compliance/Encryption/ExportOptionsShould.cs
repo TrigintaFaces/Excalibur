@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Per AD-255-3, these tests verify the export options configuration for bulk decryption.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class ExportOptionsShould
 {
 	#region Default Value Tests

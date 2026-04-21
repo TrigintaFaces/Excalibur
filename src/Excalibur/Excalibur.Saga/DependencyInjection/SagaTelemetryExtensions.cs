@@ -51,7 +51,6 @@ public static class SagaTelemetryExtensions
 
 		// Register instrumentation options so consumers can configure metrics/tracing toggles
 		_ = services.AddOptions<SagaInstrumentationOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Ensure the static meter and activity source are initialized.

@@ -38,7 +38,7 @@ internal sealed class MessageContextPool : IMessageContextPool
 		var count = s_threadLocalCacheCount;
 		if (cache is { } cachedArray && count > 0)
 		{
-			var context = cachedArray[--count];
+			var context = cachedArray[--count]!;
 			cachedArray[count] = null;
 			s_threadLocalCacheCount = count;
 

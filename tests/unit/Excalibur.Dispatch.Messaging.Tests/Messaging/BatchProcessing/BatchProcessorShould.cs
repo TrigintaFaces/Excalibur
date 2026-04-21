@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 ///     Functional tests for the <see cref="BatchProcessor{T}" /> class.
 ///     Tests verify correctness of batching behavior without timing-dependent assertions.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class BatchProcessorShould : IAsyncDisposable
 {
 	private static readonly string[] ThreeItemBatch = ["item1", "item2", "item3"];

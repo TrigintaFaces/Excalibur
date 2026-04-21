@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessageHeaderShould
 {
 	[Fact]

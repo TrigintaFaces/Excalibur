@@ -11,7 +11,7 @@ namespace Excalibur.Data.Tests.Core;
 /// Covers change tracking, provider listeners, validation, and force reload.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PersistenceOptionsMonitorDepthShould : IDisposable
 {
 	private readonly IPersistenceConfiguration _fakeConfig;

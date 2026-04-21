@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.Diagnostics;
 /// Tag names use dot notation consistent with the core framework.
 /// </para>
 /// </remarks>
-public static class TransportTelemetryConstants
+internal static class TransportTelemetryConstants
 {
 	/// <summary>
 	/// Gets the Meter name for a specific transport.

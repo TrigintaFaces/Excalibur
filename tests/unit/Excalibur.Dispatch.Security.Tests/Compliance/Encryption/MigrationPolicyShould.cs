@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Per AD-257-1, these tests verify the migration policy configuration for encryption migrations.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class MigrationPolicyShould
 {
 	#region Default Value Tests

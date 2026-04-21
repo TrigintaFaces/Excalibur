@@ -8,7 +8,7 @@ Comprehensive monitoring and APM (Application Performance Monitoring) for Excali
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A Datadog account with APM enabled
 - Familiarity with [production observability](./production-observability.md) and [metrics reference](./metrics-reference.md)
 

@@ -27,7 +27,7 @@ internal sealed class PostgresCdcBuilder : IPostgresCdcBuilder
 	/// <summary>
 	/// Gets the state store configure callback, if provided.
 	/// </summary>
-	internal Action<ICdcStateStoreBuilder>? StateStoreConfigure { get; private set; }
+	internal Action<ICdcRelationalStateStoreBuilder>? StateStoreConfigure { get; private set; }
 
 	/// <summary>
 	/// Gets the source BindConfiguration section path, if set.
@@ -141,7 +141,7 @@ internal sealed class PostgresCdcBuilder : IPostgresCdcBuilder
 	}
 
 	/// <inheritdoc/>
-	public IPostgresCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure)
+	public IPostgresCdcBuilder WithStateStore(Action<ICdcRelationalStateStoreBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 
@@ -149,7 +149,11 @@ internal sealed class PostgresCdcBuilder : IPostgresCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Sets a factory function that creates Postgres connections for the CDC state store.
+	/// </summary>
+	/// <param name="stateConnectionFactory">A factory function that creates state store Postgres connections.</param>
+	/// <returns>The builder for fluent chaining.</returns>
 	public IPostgresCdcBuilder StateConnectionFactory(Func<IServiceProvider, Func<NpgsqlConnection>> stateConnectionFactory)
 	{
 		ArgumentNullException.ThrowIfNull(stateConnectionFactory);
@@ -172,6 +176,12 @@ internal sealed class PostgresCdcBuilder : IPostgresCdcBuilder
 
 	/// <summary>Gets the source connection factory, if configured via <see cref="ConnectionFactory"/>.</summary>
 	internal Func<IServiceProvider, Func<NpgsqlConnection>>? SourceConnectionFactory { get; private set; }
+
+	/// <summary>Gets the pre-configured DataSource instance, if set via <see cref="DataSource"/>.</summary>
+	internal NpgsqlDataSource? DataSourceInstance { get; private set; }
+
+	/// <summary>Gets the DataSource factory, if set via <see cref="DataSourceFactory"/>.</summary>
+	internal Func<IServiceProvider, NpgsqlDataSource>? DataSourceFactoryFunc { get; private set; }
 
 	/// <inheritdoc/>
 	public IPostgresCdcBuilder ConnectionString(string connectionString)
@@ -197,6 +207,26 @@ internal sealed class PostgresCdcBuilder : IPostgresCdcBuilder
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
 		SourceConnectionStringName = name;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IPostgresCdcBuilder DataSource(NpgsqlDataSource dataSource)
+	{
+		ArgumentNullException.ThrowIfNull(dataSource);
+
+		DataSourceInstance = dataSource;
+		DataSourceFactoryFunc = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IPostgresCdcBuilder DataSourceFactory(Func<IServiceProvider, NpgsqlDataSource> dataSourceFactory)
+	{
+		ArgumentNullException.ThrowIfNull(dataSourceFactory);
+
+		DataSourceFactoryFunc = dataSourceFactory;
+		DataSourceInstance = null;
 		return this;
 	}
 }

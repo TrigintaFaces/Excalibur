@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Globalization;
 
@@ -32,7 +32,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	private readonly IMultiTransportOutboxStoreAdmin? _multiTransportStoreAdmin;
 	private readonly IPayloadSerializer _serializer;
 	private readonly IMessageBusAdapter? _messageBus;
-	private readonly TransportRegistry? _transportRegistry;
+	private readonly ITransportRegistry? _transportRegistry;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<MessageBusOutboxPublisher> _logger;
 
@@ -78,7 +78,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	public MessageBusOutboxPublisher(
 		IOutboxStore outboxStore,
 		IPayloadSerializer serializer,
-		TransportRegistry transportRegistry,
+		ITransportRegistry transportRegistry,
 		IServiceProvider serviceProvider,
 		ILogger<MessageBusOutboxPublisher> logger)
 	{
@@ -344,51 +344,54 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			_operationStopwatch.Elapsed);
 	}
 
-	[LoggerMessage(LogLevel.Debug,
-		"Staged message {MessageId} of type {MessageType} to destination {Destination}")]
+	[LoggerMessage(EventId = 2400, Level = LogLevel.Debug,
+		Message = "Staged message {MessageId} of type {MessageType} to destination {Destination}")]
 	private partial void LogStagedMessage(string messageId, string messageType, string destination);
 
-	[LoggerMessage(LogLevel.Debug,
-		"Staged multi-transport message {MessageId} of type {MessageType} to {TransportCount} transports: {Transports}")]
+	[LoggerMessage(EventId = 2401, Level = LogLevel.Debug,
+		Message = "Staged multi-transport message {MessageId} of type {MessageType} to {TransportCount} transports: {Transports}")]
 	private partial void LogStagedMultiTransportMessage(
 		string messageId,
 		string messageType,
 		int transportCount,
 		string transports);
 
-	[LoggerMessage(LogLevel.Information,
-		"Published {SuccessCount} messages to transport {TransportName}, {FailureCount} failed in {Duration}ms")]
+	[LoggerMessage(EventId = 2402, Level = LogLevel.Information,
+		Message = "Published {SuccessCount} messages to transport {TransportName}, {FailureCount} failed in {Duration}ms")]
 	private partial void LogTransportPublishSummary(
 		int successCount,
 		string transportName,
 		int failureCount,
 		long duration);
 
-	[LoggerMessage(LogLevel.Debug,
-		"Published message {MessageId} to transport {TransportName} at {Destination}")]
+	[LoggerMessage(EventId = 2403, Level = LogLevel.Debug,
+		Message = "Published message {MessageId} to transport {TransportName} at {Destination}")]
 	private partial void LogPublishedMessageToTransport(
 		string messageId,
 		string transportName,
 		string destination);
 
-	[LoggerMessage(LogLevel.Warning, "Failed to publish message {MessageId} to transport {TransportName}")]
+	[LoggerMessage(EventId = 2404, Level = LogLevel.Warning,
+		Message = "Failed to publish message {MessageId} to transport {TransportName}")]
 	private partial void LogFailedToPublishToTransport(
 		string messageId,
 		string transportName,
 		Exception ex);
 
-	[LoggerMessage(LogLevel.Warning,
-		"Message {MessageId} partially delivered: {SuccessCount} succeeded, {FailureCount} failed")]
+	[LoggerMessage(EventId = 2405, Level = LogLevel.Warning,
+		Message = "Message {MessageId} partially delivered: {SuccessCount} succeeded, {FailureCount} failed")]
 	private partial void LogMessagePartiallyDelivered(string messageId, int successCount, int failureCount);
 
-	[LoggerMessage(LogLevel.Debug, "Published message {MessageId} to {Destination}")]
+	[LoggerMessage(EventId = 2406, Level = LogLevel.Debug,
+		Message = "Published message {MessageId} to {Destination}")]
 	private partial void LogPublishedMessageToDestination(string messageId, string destination);
 
-	[LoggerMessage(LogLevel.Warning, "Failed to publish message {MessageId} to {Destination}")]
+	[LoggerMessage(EventId = 2407, Level = LogLevel.Warning,
+		Message = "Failed to publish message {MessageId} to {Destination}")]
 	private partial void LogFailedToPublishToDestination(string messageId, string destination, Exception ex);
 
-	[LoggerMessage(LogLevel.Warning,
-		"No transport deliveries found for multi-transport message {MessageId}")]
+	[LoggerMessage(EventId = 2408, Level = LogLevel.Warning,
+		Message = "No transport deliveries found for multi-transport message {MessageId}")]
 	private partial void LogNoTransportDeliveries(string messageId);
 
 	private async Task<TransportPublishResult> PublishToTransportAsync(

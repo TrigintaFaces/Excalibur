@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.TransportQueueParityComparisonBenchmarks-20260420-180215</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8117/25H2/2025Update/HudsonValley2)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.202
+  [Host] : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=comparative-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+InvocationCount=1  IterationCount=10  UnrollFactor=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                                   </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch (remote): queued command end-to-end&#39;</td><td>77.09 &mu;s</td><td>43.674 &mu;s</td><td>25.990 &mu;s</td><td>1.08</td><td>0.45</td><td>11.52 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Wolverine: queued command end-to-end (SendAsync)&#39;</td><td>112.66 &mu;s</td><td>12.543 &mu;s</td><td>8.296 &mu;s</td><td>1.58</td><td>0.42</td><td>14.98 KB</td><td>1.30</td>
+</tr><tr><td>&#39;MassTransit: queued command end-to-end (Publish)&#39;</td><td>273.87 &mu;s</td><td>83.937 &mu;s</td><td>55.519 &mu;s</td><td>3.85</td><td>1.25</td><td>26.46 KB</td><td>2.30</td>
+</tr><tr><td>&#39;Dispatch (remote): queued event fan-out end-to-end&#39;</td><td>98.39 &mu;s</td><td>49.839 &mu;s</td><td>32.965 &mu;s</td><td>1.38</td><td>0.58</td><td>11.56 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Wolverine: queued event fan-out end-to-end (PublishAsync)&#39;</td><td>105.09 &mu;s</td><td>15.216 &mu;s</td><td>10.064 &mu;s</td><td>1.48</td><td>0.40</td><td>14.98 KB</td><td>1.30</td>
+</tr><tr><td>&#39;MassTransit: queued event fan-out end-to-end (Publish)&#39;</td><td>299.10 &mu;s</td><td>91.498 &mu;s</td><td>60.520 &mu;s</td><td>4.21</td><td>1.36</td><td>49.57 KB</td><td>4.30</td>
+</tr><tr><td>&#39;Dispatch (remote): queued commands end-to-end (10 concurrent)&#39;</td><td>71.76 &mu;s</td><td>5.661 &mu;s</td><td>2.961 &mu;s</td><td>1.01</td><td>0.26</td><td>13.41 KB</td><td>1.16</td>
+</tr><tr><td>&#39;Wolverine: queued commands end-to-end (10 concurrent)&#39;</td><td>198.79 &mu;s</td><td>27.529 &mu;s</td><td>18.209 &mu;s</td><td>2.80</td><td>0.76</td><td>53.85 KB</td><td>4.67</td>
+</tr><tr><td>&#39;MassTransit: queued commands end-to-end (10 concurrent)&#39;</td><td>598.98 &mu;s</td><td>93.711 &mu;s</td><td>55.766 &mu;s</td><td>8.43</td><td>2.28</td><td>227.82 KB</td><td>19.77</td>
+</tr></tbody></table>
+</body>
+</html>

@@ -9,8 +9,8 @@ using PubSubFailedMessage = Excalibur.Dispatch.Transport.Google.FailedMessage;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.BatchReceiving;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class BatchModelsShould
 {
 	[Fact]
@@ -86,7 +86,7 @@ public sealed class BatchModelsShould
 		// Assert
 		message.MessageId.ShouldBe("msg-1");
 		message.AckId.ShouldBe("ack-1");
-		message.Error.ShouldBeSameAs(error);
+		message.Error!.ShouldBeSameAs(error);
 		message.ShouldRetry.ShouldBeFalse();
 		message.RetryDelay.ShouldBe(TimeSpan.FromSeconds(5));
 	}

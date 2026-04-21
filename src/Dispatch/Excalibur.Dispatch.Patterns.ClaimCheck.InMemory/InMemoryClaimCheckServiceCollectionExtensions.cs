@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 
@@ -83,7 +84,7 @@ public static class InMemoryClaimCheckServiceCollectionExtensions
 		// Always configure options (uses defaults if configureOptions is null)
 		var optionsBuilder = services.AddOptions<ClaimCheckOptions>()
 			.Configure(configureOptions ?? (_ => { }));
-		optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		optionsBuilder.ValidateOnStart();
 
 		// Register the provider as both its concrete type and the interface
 		// Use TryAdd to allow overriding in tests
@@ -93,6 +94,65 @@ public static class InMemoryClaimCheckServiceCollectionExtensions
 
 		// Register background cleanup service if enabled
 		if (enableCleanup)
+		{
+			_ = services.AddHostedService<InMemoryClaimCheckCleanupService>();
+		}
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the in-memory claim check provider to the service collection using a fluent builder.
+	/// </summary>
+	/// <param name="services">The service collection to add services to.</param>
+	/// <param name="configure">An action to configure the in-memory claim check provider using the fluent builder.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This overload provides a fluent builder API for configuring the in-memory claim check provider.
+	/// Cleanup behavior is controlled via <see cref="IInMemoryClaimCheckBuilder.EnableCleanup"/>.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddInMemoryClaimCheck(inmemory =>
+	/// {
+	///     inmemory.PayloadThreshold(128 * 1024)
+	///             .EnableCompression(true)
+	///             .DefaultTtl(TimeSpan.FromDays(3))
+	///             .EnableCleanup(false);
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddInMemoryClaimCheck(
+		this IServiceCollection services,
+		Action<IInMemoryClaimCheckBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var claimCheckOptions = new ClaimCheckOptions();
+		var builder = new InMemoryClaimCheckBuilder(claimCheckOptions);
+		configure(builder);
+
+		var optionsBuilder = services.AddOptions<ClaimCheckOptions>()
+			.Configure(opt =>
+			{
+				opt.PayloadThreshold = claimCheckOptions.PayloadThreshold;
+				opt.ValidateChecksum = claimCheckOptions.ValidateChecksum;
+				opt.EnableCompression = claimCheckOptions.EnableCompression;
+				opt.EnableCleanup = claimCheckOptions.EnableCleanup;
+				opt.DefaultTtl = claimCheckOptions.DefaultTtl;
+			});
+		optionsBuilder.ValidateOnStart();
+
+		// Register the provider
+		services.TryAddSingleton<InMemoryClaimCheckProvider>();
+		services.TryAddSingleton<IClaimCheckProvider>(static sp =>
+			sp.GetRequiredService<InMemoryClaimCheckProvider>());
+
+		// Register background cleanup service if enabled
+		if (builder.CleanupEnabled)
 		{
 			_ = services.AddHostedService<InMemoryClaimCheckCleanupService>();
 		}
@@ -133,6 +193,10 @@ public static class InMemoryClaimCheckServiceCollectionExtensions
 	/// services.AddInMemoryClaimCheck(configuration.GetSection("ClaimCheck"));
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddInMemoryClaimCheck(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -144,7 +208,6 @@ public static class InMemoryClaimCheckServiceCollectionExtensions
 		// Bind configuration to options
 		services.AddOptions<ClaimCheckOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register provider and cleanup service

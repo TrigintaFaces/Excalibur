@@ -17,7 +17,7 @@ namespace Excalibur.Outbox;
 /// </remarks>
 /// <example>
 /// <code>
-/// services.AddExcaliburOutbox(outbox =>
+/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 /// {
 ///     outbox.UseSqlServer(sql =>
 ///     {
@@ -40,7 +40,7 @@ namespace Excalibur.Outbox;
 ///                .RetentionPeriod(TimeSpan.FromDays(14));
 ///     })
 ///     .EnableBackgroundProcessing();
-/// });
+/// }));
 /// </code>
 /// </example>
 public interface IOutboxBuilder
@@ -117,7 +117,7 @@ public interface IOutboxBuilder
 	/// </para>
 	/// <para>
 	/// For serverless scenarios where background services are not suitable,
-	/// omit this call and use <see cref="Outbox.IOutboxProcessor"/> directly.
+	/// omit this call and use <see cref="Excalibur.Dispatch.Abstractions.IOutboxProcessor"/> directly.
 	/// </para>
 	/// </remarks>
 	/// <example>

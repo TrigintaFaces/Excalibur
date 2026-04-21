@@ -5,8 +5,8 @@ using Excalibur.Data.ElasticSearch.Projections;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class StepResultShould
 {
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class StepResultShould
 			Duration = TimeSpan.FromSeconds(1),
 		};
 
-		sut.ErrorMessage.ShouldBeNull();
+		sut.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -53,6 +53,6 @@ public sealed class StepResultShould
 			ErrorMessage = "15 documents failed validation",
 		};
 
-		sut.ErrorMessage.ShouldBe("15 documents failed validation");
+		sut.ErrorMessage!.ShouldBe("15 documents failed validation");
 	}
 }

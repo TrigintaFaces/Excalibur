@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Saga;
+
+using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -79,6 +82,35 @@ public static class SagasDispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
 		_ = builder.Services.AddDispatchAdvancedSagas(configureOptions);
+
+		// Add middleware to the pipeline
+		_ = builder.UseMiddleware<AdvancedSagaMiddleware>();
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Adds advanced saga orchestration using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The Dispatch builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="AdvancedSagaOptions"/>.</param>
+	/// <returns>The Dispatch builder for fluent configuration.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IDispatchBuilder WithAdvancedSagas(
+		this IDispatchBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<AdvancedSagaOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		_ = builder.Services.AddDispatchAdvancedSagas();
 
 		// Add middleware to the pipeline
 		_ = builder.UseMiddleware<AdvancedSagaMiddleware>();

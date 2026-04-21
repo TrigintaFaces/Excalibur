@@ -4,7 +4,7 @@
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 namespace Excalibur.Testing.Conformance;
 

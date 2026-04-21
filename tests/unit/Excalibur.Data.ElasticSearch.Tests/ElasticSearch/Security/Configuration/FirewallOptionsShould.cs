@@ -5,8 +5,8 @@ using Excalibur.Data.ElasticSearch.Security;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Security.Configuration;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class FirewallOptionsShould
 {
 	[Fact]

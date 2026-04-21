@@ -35,10 +35,10 @@ internal sealed class MiddlewareAdapter(IDispatchMiddleware middleware) : IZeroA
 		// Get or create cached delegate to avoid allocation
 		var nextDelegate = GetOrCreateDelegate(context);
 
-		// Execute the middleware
+		// Execute the middleware -- Context is guaranteed non-null in the pipeline
 		var result = await _middleware.InvokeAsync(
 			envelope.Message,
-			envelope.Context,
+			envelope.Context!,
 			nextDelegate,
 			cancellationToken).ConfigureAwait(false);
 

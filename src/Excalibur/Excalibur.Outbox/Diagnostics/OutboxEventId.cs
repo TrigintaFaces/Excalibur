@@ -314,6 +314,15 @@ public static class OutboxEventId
 	/// <summary>Error marking individual outbox message status during batch completion.</summary>
 	public const int OutboxErrorMarkingMessage = 131223;
 
+	/// <summary>Dead letter queue not configured -- failed messages will be discarded.</summary>
+	public const int OutboxDeadLetterQueueNotConfigured = 131224;
+
+	/// <summary>Circuit breaker registry not configured -- transports have no failure protection.</summary>
+	public const int OutboxCircuitBreakerNotConfigured = 131225;
+
+	/// <summary>Message discarded because no dead letter queue is configured.</summary>
+	public const int OutboxMessageDiscardedNoDlq = 131226;
+
 	// ========================================
 	// 132200-132399: InboxProcessor
 	// ========================================
@@ -377,6 +386,15 @@ public static class OutboxEventId
 
 	/// <summary>Inbox retry with backoff.</summary>
 	public const int InboxRetryWithBackoff = 132219;
+
+	/// <summary>Inbox dead letter queue not configured -- failed messages will be discarded.</summary>
+	public const int InboxDeadLetterQueueNotConfigured = 132220;
+
+	/// <summary>Inbox circuit breaker registry not configured -- transports have no failure protection.</summary>
+	public const int InboxCircuitBreakerNotConfigured = 132221;
+
+	/// <summary>Inbox message discarded because no dead letter queue is configured.</summary>
+	public const int InboxMessageDiscardedNoDlq = 132222;
 
 	// ========================================
 	// 133200-133299: Cosmos DB Cloud Outbox

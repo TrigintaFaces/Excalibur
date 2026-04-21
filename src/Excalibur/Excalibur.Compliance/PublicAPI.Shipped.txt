@@ -1,0 +1,936 @@
+#nullable enable
+Excalibur.Compliance.Encryption.AesGcmEncryptionOptions
+Excalibur.Compliance.Encryption.AesGcmEncryptionOptions.AesGcmEncryptionOptions() -> void
+Excalibur.Compliance.Encryption.AesGcmEncryptionOptions.DefaultPurpose.get -> string?
+Excalibur.Compliance.Encryption.AesGcmEncryptionOptions.DefaultPurpose.set -> void
+Excalibur.Compliance.Encryption.AesGcmEncryptionOptions.RequireFipsComplianceByDefault.get -> bool
+Excalibur.Compliance.Encryption.AesGcmEncryptionOptions.RequireFipsComplianceByDefault.set -> void
+Excalibur.Compliance.Encryption.AesGcmEncryptionProvider
+Excalibur.Compliance.Encryption.AesGcmEncryptionProvider.AesGcmEncryptionProvider(Excalibur.Compliance.IKeyManagementProvider! keyManagement, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Encryption.AesGcmEncryptionProvider!>! logger, Excalibur.Compliance.Encryption.AesGcmEncryptionOptions? options = null) -> void
+Excalibur.Compliance.Encryption.AesGcmEncryptionProvider.DecryptAsync(Excalibur.Compliance.EncryptedData! encryptedData, Excalibur.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Compliance.Encryption.AesGcmEncryptionProvider.Dispose() -> void
+Excalibur.Compliance.Encryption.AesGcmEncryptionProvider.EncryptAsync(byte[]! plaintext, Excalibur.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.EncryptedData!>!
+Excalibur.Compliance.Encryption.AesGcmEncryptionProvider.ValidateFipsComplianceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Encryption.AlgorithmComplianceInfo
+Excalibur.Compliance.Encryption.AlgorithmComplianceInfo.Algorithm.get -> Excalibur.Compliance.EncryptionAlgorithm
+Excalibur.Compliance.Encryption.AlgorithmComplianceInfo.Algorithm.init -> void
+Excalibur.Compliance.Encryption.AlgorithmComplianceInfo.IsApproved.get -> bool
+Excalibur.Compliance.Encryption.AlgorithmComplianceInfo.IsApproved.init -> void
+Excalibur.Compliance.Encryption.AlgorithmComplianceInfo.Notes.get -> string?
+Excalibur.Compliance.Encryption.AlgorithmComplianceInfo.Notes.init -> void
+Excalibur.Compliance.Encryption.AlgorithmComplianceInfo.Standard.get -> string!
+Excalibur.Compliance.Encryption.AlgorithmComplianceInfo.Standard.init -> void
+Excalibur.Compliance.Configuration.ApiEncryptionOptions
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.ApiEncryptionOptions() -> void
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.ApiPaths.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.ApiPaths.set -> void
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.Enabled.get -> bool
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.Enabled.set -> void
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.EncryptionIndicatorHeader.get -> string!
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.EncryptionIndicatorHeader.set -> void
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.EncryptionRequiredEndpoints.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.EncryptionRequiredEndpoints.set -> void
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.KeyIdHeader.get -> string!
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.KeyIdHeader.set -> void
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.ProviderHeader.get -> string!
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.ProviderHeader.set -> void
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.RequireEncryptedPayloads.get -> bool
+Excalibur.Compliance.Configuration.ApiEncryptionOptions.RequireEncryptedPayloads.set -> void
+Excalibur.Compliance.Soc2.Validators.AuditLogControlValidator
+Excalibur.Compliance.Soc2.Validators.AuditLogControlValidator.AuditLogControlValidator(Excalibur.Compliance.IAuditLogger? auditLogger = null, Excalibur.Compliance.IAuditStore? auditStore = null) -> void
+Excalibur.Compliance.Audit.AuditLogEncryptionService
+Excalibur.Compliance.Audit.AuditLogEncryptionService.AuditLogEncryptionService(Excalibur.Compliance.IEncryptionProvider! encryptionProvider, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.AuditLogEncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Audit.AuditLogEncryptionService!>! logger) -> void
+Excalibur.Compliance.Audit.AuditLogEncryptionService.DecryptAsync(Excalibur.Compliance.EncryptedAuditEntry! encryptedEntry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent!>!
+Excalibur.Compliance.Audit.AuditLogEncryptionService.EncryptAsync(Excalibur.Compliance.AuditEvent! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.EncryptedAuditEntry!>!
+Excalibur.Compliance.Soc2.Validators.AvailabilityControlValidator
+Excalibur.Compliance.Soc2.Validators.AvailabilityControlValidator.AvailabilityControlValidator(Excalibur.Compliance.IComplianceMetrics? complianceMetrics = null, Excalibur.Compliance.IBackupConfigurationProvider? backupConfigProvider = null) -> void
+Excalibur.Compliance.Soc2.Validators.BaseControlValidator
+Excalibur.Compliance.Soc2.Validators.BaseControlValidator.BaseControlValidator() -> void
+Excalibur.Compliance.Breach.BreachNotificationService
+Excalibur.Compliance.Breach.BreachNotificationService.BreachNotificationService(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.BreachNotificationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Breach.BreachNotificationService!>! logger) -> void
+Excalibur.Compliance.Breach.BreachNotificationService.GetBreachStatusAsync(string! breachId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.BreachNotificationResult?>!
+Excalibur.Compliance.Breach.BreachNotificationService.NotifyAffectedSubjectsAsync(string! breachId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.BreachNotificationResult!>!
+Excalibur.Compliance.Breach.BreachNotificationService.ReportBreachAsync(Excalibur.Compliance.BreachReport! report, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.BreachNotificationResult!>!
+Excalibur.Compliance.Erasure.CascadeErasureService
+Excalibur.Compliance.Erasure.CascadeErasureService.CascadeErasureService(Excalibur.Compliance.IErasureService! erasureService, Excalibur.Compliance.ICascadeRelationshipResolver! relationshipResolver, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Erasure.CascadeErasureService!>! logger) -> void
+Excalibur.Compliance.Erasure.CascadeErasureService.EraseWithCascadeAsync(string! subjectId, Excalibur.Compliance.CascadeErasureOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.CascadeErasureResult!>!
+Excalibur.Compliance.Monitoring.ComplianceMetrics
+Excalibur.Compliance.Monitoring.ComplianceMetrics.ComplianceMetrics() -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.ComplianceMetrics(System.Diagnostics.Metrics.IMeterFactory? meterFactory) -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.Dispose() -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.Meter.get -> System.Diagnostics.Metrics.Meter!
+Excalibur.Compliance.Monitoring.ComplianceMetrics.RecordAuditEventLogged(string! eventType, string! outcome, string? tenantId) -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.RecordAuditIntegrityCheck(long eventsVerified, int violationsFound, double durationMs) -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.RecordEncryptionLatency(double durationMs, string! operation, string! provider, bool success) -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.RecordEncryptionOperation(string! operation, string! provider, long sizeBytes) -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.RecordKeyRotation(string! keyId, string! provider) -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.RecordKeyRotationFailure(string! keyId, string! provider, string! errorType) -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.RecordKeyUsage(string! keyId, string! provider, string! operation) -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.UpdateAuditBacklogSize(int count) -> void
+Excalibur.Compliance.Monitoring.ComplianceMetrics.UpdateKeysNearingExpiration(int count, string! provider) -> void
+Excalibur.Compliance.Soc2.Validators.ConfidentialityControlValidator
+Excalibur.Compliance.Soc2.Validators.ConfidentialityControlValidator.ConfidentialityControlValidator(Excalibur.Compliance.IEncryptionProvider? encryptionProvider = null, Excalibur.Compliance.IErasureService? erasureService = null) -> void
+Excalibur.Compliance.Consent.ConsentService
+Excalibur.Compliance.Consent.ConsentService.ConsentService(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.ConsentOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Consent.ConsentService!>! logger) -> void
+Excalibur.Compliance.Consent.ConsentService.GetConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ConsentRecord?>!
+Excalibur.Compliance.Consent.ConsentService.RecordConsentAsync(Excalibur.Compliance.ConsentRecord! record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Consent.ConsentService.WithdrawConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Erasure.DataInventoryService
+Excalibur.Compliance.Erasure.DataInventoryService.DataInventoryService(Excalibur.Compliance.IDataInventoryStore! store, Excalibur.Compliance.IKeyManagementProvider! keyProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Erasure.DataInventoryService!>! logger) -> void
+Excalibur.Compliance.Erasure.DataInventoryService.DiscoverAsync(string! dataSubjectId, Excalibur.Compliance.DataSubjectIdType idType, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.DataInventory!>!
+Excalibur.Compliance.Erasure.DataInventoryService.GetDataMapAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.DataMap!>!
+Excalibur.Compliance.Erasure.DataInventoryService.RegisterDataLocationAsync(Excalibur.Compliance.DataLocationRegistration! registration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Erasure.DataInventoryService.UnregisterDataLocationAsync(string! tableName, string! fieldName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Portability.DataPortabilityService
+Excalibur.Compliance.Portability.DataPortabilityService.DataPortabilityService(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.DataPortabilityOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Portability.DataPortabilityService!>! logger, Excalibur.Compliance.IDataInventoryService? dataInventoryService = null) -> void
+Excalibur.Compliance.Portability.DataPortabilityService.ExportAsync(string! subjectId, Excalibur.Compliance.ExportFormat format, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.DataExportResult!>!
+Excalibur.Compliance.Portability.DataPortabilityService.GetExportStatusAsync(string! exportId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.DataExportResult?>!
+Excalibur.Compliance.Erasure.DataSubjectHasher
+Excalibur.Compliance.Encryption.DefaultFipsDetector
+Excalibur.Compliance.Encryption.DefaultFipsDetector.DefaultFipsDetector(Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Encryption.DefaultFipsDetector!>! logger) -> void
+Excalibur.Compliance.Encryption.DefaultFipsDetector.GetStatus() -> Excalibur.Compliance.FipsDetectionResult!
+Excalibur.Compliance.Encryption.DefaultFipsDetector.IsFipsEnabled.get -> bool
+Excalibur.Compliance.Diagnostics.ComplianceEventId
+Excalibur.Compliance.Encryption.HkdfKeyDerivationOptions
+Excalibur.Compliance.Encryption.HkdfKeyDerivationOptions.DefaultOutputLength.get -> int
+Excalibur.Compliance.Encryption.HkdfKeyDerivationOptions.DefaultOutputLength.set -> void
+Excalibur.Compliance.Encryption.HkdfKeyDerivationOptions.HashAlgorithm.get -> System.Security.Cryptography.HashAlgorithmName
+Excalibur.Compliance.Encryption.HkdfKeyDerivationOptions.HashAlgorithm.set -> void
+Excalibur.Compliance.Encryption.HkdfKeyDerivationOptions.HkdfKeyDerivationOptions() -> void
+Excalibur.Compliance.Encryption.HkdfKeyDeriver
+Excalibur.Compliance.Encryption.HkdfKeyDeriver.DeriveKey(byte[]! masterKey, string! purpose) -> byte[]!
+Excalibur.Compliance.Encryption.HkdfKeyDeriver.DeriveKey(byte[]! masterKey, string! purpose, System.ReadOnlySpan<byte> context) -> byte[]!
+Excalibur.Compliance.Encryption.HkdfKeyDeriver.HkdfKeyDeriver(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Encryption.HkdfKeyDerivationOptions!>! options) -> void
+Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder
+Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder.AddLegacy(string! providerId) -> Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder!
+Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder.ConfigureOptions(System.Action<Excalibur.Compliance.Configuration.EncryptionOptions!>! configure) -> Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder!
+Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder.SetAsPrimary(string! providerId) -> Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder!
+Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder.UseInMemoryKeyManagement(string? providerId = null, System.Action<Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions!>? configureKeyManagement = null) -> Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder!
+Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder.UseKeyManagement<TProvider>(string? providerId = null) -> Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder!
+Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder.UseProvider(string! providerId, Excalibur.Compliance.IEncryptionProvider! provider) -> Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder!
+Excalibur.Compliance.Soc2.Validators.EncryptionControlValidator
+Excalibur.Compliance.Soc2.Validators.EncryptionControlValidator.EncryptionControlValidator(Excalibur.Compliance.IEncryptionProvider? encryptionProvider = null, Excalibur.Compliance.IKeyManagementProvider? keyManagementProvider = null) -> void
+Excalibur.Compliance.Encryption.EncryptionDecryptionService
+Excalibur.Compliance.Encryption.EncryptionDecryptionService.DecryptAllAsync<T>(System.Collections.Generic.IAsyncEnumerable<T!>! source, Excalibur.Compliance.DecryptionOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<T!>!
+Excalibur.Compliance.Encryption.EncryptionDecryptionService.DecryptEntityAsync<T>(T! entity, Excalibur.Compliance.DecryptionOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T!>!
+Excalibur.Compliance.Encryption.EncryptionDecryptionService.EncryptionDecryptionService(Excalibur.Compliance.IEncryptionProviderRegistry! registry, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Configuration.EncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Encryption.EncryptionDecryptionService!>! logger) -> void
+Excalibur.Compliance.Encryption.EncryptionDecryptionService.ExportDecryptedAsync<T>(System.Collections.Generic.IAsyncEnumerable<T!>! source, Excalibur.Compliance.BulkDecryptionExportOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.HealthChecks.EncryptionHealthCheckOptions
+Excalibur.Compliance.HealthChecks.EncryptionHealthCheckOptions.DegradedThreshold.get -> System.TimeSpan
+Excalibur.Compliance.HealthChecks.EncryptionHealthCheckOptions.DegradedThreshold.init -> void
+Excalibur.Compliance.HealthChecks.EncryptionHealthCheckOptions.VerifyKeyManagement.get -> bool
+Excalibur.Compliance.HealthChecks.EncryptionHealthCheckOptions.VerifyKeyManagement.init -> void
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.BatchSize.get -> int
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.BatchSize.set -> void
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.ContinueOnError.get -> bool
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.ContinueOnError.set -> void
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.DelayBetweenBatches.get -> System.TimeSpan
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.DelayBetweenBatches.set -> void
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.EncryptionMigrationOptions() -> void
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.MaxDegreeOfParallelism.get -> int
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.MaxDegreeOfParallelism.set -> void
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.OperationTimeout.get -> System.TimeSpan
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.OperationTimeout.set -> void
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.SourceProviderId.get -> string?
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.SourceProviderId.set -> void
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.TargetProviderId.get -> string?
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.TargetProviderId.set -> void
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.VerifyBeforeReEncrypt.get -> bool
+Excalibur.Compliance.Configuration.EncryptionMigrationOptions.VerifyBeforeReEncrypt.set -> void
+Excalibur.Compliance.Configuration.EncryptionOptions
+Excalibur.Compliance.Configuration.EncryptionOptions.DefaultPurpose.get -> string!
+Excalibur.Compliance.Configuration.EncryptionOptions.DefaultPurpose.set -> void
+Excalibur.Compliance.Configuration.EncryptionOptions.DefaultTenantId.get -> string?
+Excalibur.Compliance.Configuration.EncryptionOptions.DefaultTenantId.set -> void
+Excalibur.Compliance.Configuration.EncryptionOptions.EncryptionAgeWarningThreshold.get -> System.TimeSpan?
+Excalibur.Compliance.Configuration.EncryptionOptions.EncryptionAgeWarningThreshold.set -> void
+Excalibur.Compliance.Configuration.EncryptionOptions.EncryptionOptions() -> void
+Excalibur.Compliance.Configuration.EncryptionOptions.IncludeTimingMetadata.get -> bool
+Excalibur.Compliance.Configuration.EncryptionOptions.IncludeTimingMetadata.set -> void
+Excalibur.Compliance.Configuration.EncryptionOptions.LazyMigrationEnabled.get -> bool
+Excalibur.Compliance.Configuration.EncryptionOptions.LazyMigrationEnabled.set -> void
+Excalibur.Compliance.Configuration.EncryptionOptions.LazyMigrationMode.get -> Excalibur.Compliance.LazyMigrationMode
+Excalibur.Compliance.Configuration.EncryptionOptions.LazyMigrationMode.set -> void
+Excalibur.Compliance.Configuration.EncryptionOptions.Mode.get -> Excalibur.Compliance.EncryptionMode
+Excalibur.Compliance.Configuration.EncryptionOptions.Mode.set -> void
+Excalibur.Compliance.Configuration.EncryptionOptions.RequireFipsCompliance.get -> bool
+Excalibur.Compliance.Configuration.EncryptionOptions.RequireFipsCompliance.set -> void
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions.EncryptionProviderRegistryOptions() -> void
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions.LegacyProviderIds.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions.LegacyProviderIds.set -> void
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions.PrimaryProviderId.get -> string?
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions.PrimaryProviderId.set -> void
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions.ThrowOnDecryptionProviderNotFound.get -> bool
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions.ThrowOnDecryptionProviderNotFound.set -> void
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions.ValidateOnStartup.get -> bool
+Excalibur.Compliance.Configuration.EncryptionProviderRegistryOptions.ValidateOnStartup.set -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry
+Excalibur.Compliance.Observability.EncryptionTelemetry.Dispose() -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.EncryptionTelemetry() -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.EncryptionTelemetry(System.Diagnostics.Metrics.IMeterFactory? meterFactory) -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.GetService(System.Type! serviceType) -> object?
+Excalibur.Compliance.Observability.EncryptionTelemetry.Meter.get -> System.Diagnostics.Metrics.Meter!
+Excalibur.Compliance.Observability.EncryptionTelemetry.RecordBytesProcessed(long bytes, string! operation, string! provider) -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.RecordCacheAccess(bool hit, string! provider) -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.RecordFieldsMigrated(long count, string! fromProvider, string! toProvider, string! store) -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.RecordKeyRotation(string! provider, string! rotationType) -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.RecordOperation(string! operation, string! algorithm, string! status, string! provider) -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.RecordOperationDuration(double durationMs, string! operation, string! provider) -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.UpdateActiveKeyCount(int count, string! provider) -> void
+Excalibur.Compliance.Observability.EncryptionTelemetry.UpdateProviderHealth(string! provider, string! status, int score) -> void
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.BatchSize.get -> int
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.BatchSize.set -> void
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.CertificateCleanupInterval.get -> System.TimeSpan
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.CertificateCleanupInterval.set -> void
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.Enabled.get -> bool
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.Enabled.set -> void
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.ErasureSchedulerOptions() -> void
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.MaxRetryAttempts.get -> int
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.MaxRetryAttempts.set -> void
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.PollingInterval.set -> void
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.RetryDelayBase.get -> System.TimeSpan
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.RetryDelayBase.set -> void
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.UseExponentialBackoff.get -> bool
+Excalibur.Compliance.Erasure.ErasureSchedulerOptions.UseExponentialBackoff.set -> void
+Excalibur.Compliance.Erasure.ErasureService
+Excalibur.Compliance.Erasure.ErasureService.CancelErasureAsync(System.Guid requestId, string! reason, string! cancelledBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Erasure.ErasureService.ErasureService(Excalibur.Compliance.IErasureStore! store, Excalibur.Compliance.IKeyManagementAdmin! keyAdmin, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.ErasureOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Erasure.ErasureService!>! logger, Excalibur.Compliance.ILegalHoldService? legalHoldService, Excalibur.Compliance.IDataInventoryService? dataInventoryService, System.Collections.Generic.IEnumerable<Excalibur.Compliance.IErasureContributor!>? contributors = null) -> void
+Excalibur.Compliance.Erasure.ErasureService.ExecuteAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureExecutionResult!>!
+Excalibur.Compliance.Erasure.ErasureService.GenerateCertificateAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureCertificate!>!
+Excalibur.Compliance.Erasure.ErasureService.GetStatusAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureStatus?>!
+Excalibur.Compliance.Erasure.ErasureService.RequestErasureAsync(Excalibur.Compliance.ErasureRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureResult!>!
+Excalibur.Compliance.Erasure.ErasureVerificationService
+Excalibur.Compliance.Erasure.ErasureVerificationService.ErasureVerificationService(Excalibur.Compliance.IErasureStore! erasureStore, Excalibur.Compliance.IKeyManagementProvider! keyProvider, Excalibur.Compliance.IDataInventoryService! inventoryService, Excalibur.Compliance.IAuditStore! auditStore, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.ErasureOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Erasure.ErasureVerificationService!>! logger) -> void
+Excalibur.Compliance.Erasure.ErasureVerificationService.GenerateReportAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.VerificationReport!>!
+Excalibur.Compliance.Erasure.ErasureVerificationService.VerifyErasureAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.VerificationResult!>!
+Excalibur.Compliance.Erasure.ErasureVerificationService.VerifyKeyDeletionAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Encryption.FipsComplianceReport
+Excalibur.Compliance.Encryption.FipsComplianceReport.ApprovedAlgorithms.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.Encryption.AlgorithmComplianceInfo!>!
+Excalibur.Compliance.Encryption.FipsComplianceReport.ApprovedAlgorithms.init -> void
+Excalibur.Compliance.Encryption.FipsComplianceReport.CheckedAt.get -> System.DateTimeOffset
+Excalibur.Compliance.Encryption.FipsComplianceReport.CheckedAt.init -> void
+Excalibur.Compliance.Encryption.FipsComplianceReport.IsCompliant.get -> bool
+Excalibur.Compliance.Encryption.FipsComplianceReport.IsCompliant.init -> void
+Excalibur.Compliance.Encryption.FipsComplianceReport.Platform.get -> string!
+Excalibur.Compliance.Encryption.FipsComplianceReport.Platform.init -> void
+Excalibur.Compliance.Encryption.FipsComplianceReport.ValidationDetails.get -> string!
+Excalibur.Compliance.Encryption.FipsComplianceReport.ValidationDetails.init -> void
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions.AuthenticatedEncryption.get -> bool
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions.AuthenticatedEncryption.set -> void
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions.Enabled.get -> bool
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions.Enabled.set -> void
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions.EncryptedCookies.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions.EncryptedCookies.set -> void
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions.ExcludedCookies.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions.ExcludedCookies.set -> void
+Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions.HttpCookieEncryptionOptions() -> void
+Excalibur.Compliance.Configuration.HttpEncryptionOptions
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Cookies.get -> Excalibur.Compliance.Configuration.HttpCookieEncryptionOptions!
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Cookies.set -> void
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.EnableLogging.get -> bool
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.EnableLogging.set -> void
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Enabled.get -> bool
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Enabled.set -> void
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.ExcludedPaths.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.ExcludedPaths.set -> void
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Headers.get -> Excalibur.Compliance.Configuration.HttpHeaderEncryptionOptions!
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Headers.set -> void
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.HttpEncryptionOptions() -> void
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.ProviderId.get -> string?
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.ProviderId.set -> void
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Request.get -> Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions!
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Request.set -> void
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Response.get -> Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions!
+Excalibur.Compliance.Configuration.HttpEncryptionOptions.Response.set -> void
+Excalibur.Compliance.Configuration.HttpHeaderEncryptionOptions
+Excalibur.Compliance.Configuration.HttpHeaderEncryptionOptions.Enabled.get -> bool
+Excalibur.Compliance.Configuration.HttpHeaderEncryptionOptions.Enabled.set -> void
+Excalibur.Compliance.Configuration.HttpHeaderEncryptionOptions.EncryptedHeaders.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.HttpHeaderEncryptionOptions.EncryptedHeaders.set -> void
+Excalibur.Compliance.Configuration.HttpHeaderEncryptionOptions.EncryptedValuePrefix.get -> string!
+Excalibur.Compliance.Configuration.HttpHeaderEncryptionOptions.EncryptedValuePrefix.set -> void
+Excalibur.Compliance.Configuration.HttpHeaderEncryptionOptions.HttpHeaderEncryptionOptions() -> void
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions.EnableDecryption.get -> bool
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions.EnableDecryption.set -> void
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions.HttpRequestEncryptionOptions() -> void
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions.MaxDataAge.get -> System.TimeSpan?
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions.MaxDataAge.set -> void
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions.SupportedContentTypes.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions.SupportedContentTypes.set -> void
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions.ValidateIntegrity.get -> bool
+Excalibur.Compliance.Configuration.HttpRequestEncryptionOptions.ValidateIntegrity.set -> void
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions.EnableEncryption.get -> bool
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions.EnableEncryption.set -> void
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions.EncryptedFields.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions.EncryptedFields.set -> void
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions.HttpResponseEncryptionOptions() -> void
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions.IncludeMetadata.get -> bool
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions.IncludeMetadata.set -> void
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions.SupportedContentTypes.get -> System.Collections.Generic.List<string!>!
+Excalibur.Compliance.Configuration.HttpResponseEncryptionOptions.SupportedContentTypes.set -> void
+Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions
+Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions.AutoGenerateDefaultKey.get -> bool
+Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions.AutoGenerateDefaultKey.set -> void
+Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions.DefaultKeyId.get -> string!
+Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions.DefaultKeyId.set -> void
+Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions.InMemoryKeyManagementOptions() -> void
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.DestroyKeyImmediately(string! keyId) -> bool
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.Dispose() -> void
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.GetActiveKeyAsync(string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.GetKeyVersionAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.InMemoryKeyManagementProvider(Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider!>! logger, Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions? options = null) -> void
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.ListKeysAsync(Excalibur.Compliance.KeyStatus? status, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!
+Excalibur.Compliance.Encryption.InMemoryKeyManagementProvider.SuspendKeyAsync(string! keyId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService
+Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService.ExportMasterKeyAsync(string! keyId, Excalibur.Compliance.MasterKeyExportOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.MasterKeyBackup!>!
+Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService.GenerateRecoverySplitAsync(string! keyId, int totalShares, int threshold, Excalibur.Compliance.BackupShareOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.BackupShare![]!>!
+Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService.GetBackupStatusAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.MasterKeyBackupStatus?>!
+Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService.ImportMasterKeyAsync(Excalibur.Compliance.MasterKeyBackup! backup, Excalibur.Compliance.MasterKeyImportOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.MasterKeyImportResult!>!
+Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService.InMemoryMasterKeyBackupService(Excalibur.Compliance.IKeyManagementProvider! keyManagementProvider, Excalibur.Compliance.IEncryptionProvider! encryptionProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService!>! logger) -> void
+Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService.ReconstructFromSharesAsync(Excalibur.Compliance.BackupShare![]! shares, Excalibur.Compliance.MasterKeyImportOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.MasterKeyImportResult!>!
+Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService.RegisterKeyMaterial(string! keyId, byte[]! keyMaterial) -> void
+Excalibur.Compliance.Encryption.InMemoryMasterKeyBackupService.VerifyBackupAsync(Excalibur.Compliance.MasterKeyBackup! backup, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.BackupVerificationResult!>!
+Excalibur.Compliance.Encryption.KeyCache
+Excalibur.Compliance.Encryption.KeyCache.Clear() -> void
+Excalibur.Compliance.Encryption.KeyCache.Count.get -> int
+Excalibur.Compliance.Encryption.KeyCache.Dispose() -> void
+Excalibur.Compliance.Encryption.KeyCache.GetOrAddAsync(string! keyId, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!>! factory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.KeyCache.GetOrAddAsync(string! keyId, System.TimeSpan ttl, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!>! factory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.KeyCache.Invalidate(string! keyId) -> void
+Excalibur.Compliance.Encryption.KeyCache.KeyCache() -> void
+Excalibur.Compliance.Encryption.KeyCache.KeyCache(Excalibur.Compliance.KeyCacheOptions! options, Excalibur.Compliance.IEncryptionTelemetry? telemetry = null) -> void
+Excalibur.Compliance.Encryption.KeyCache.KeyCache(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.KeyCacheOptions!>! options, Excalibur.Compliance.IEncryptionTelemetry? telemetry = null) -> void
+Excalibur.Compliance.Encryption.KeyCache.Remove(string! keyId) -> void
+Excalibur.Compliance.Encryption.KeyCache.Set(Excalibur.Compliance.KeyMetadata! keyMetadata) -> void
+Excalibur.Compliance.Encryption.KeyCache.Set(Excalibur.Compliance.KeyMetadata! keyMetadata, System.TimeSpan ttl) -> void
+Excalibur.Compliance.Encryption.KeyCache.TryGet(string! keyId) -> Excalibur.Compliance.KeyMetadata?
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions.EscrowProvider.get -> string!
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions.EscrowProvider.set -> void
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions.KeyEscrowBackupOptions() -> void
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions.SplitThreshold.get -> int
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions.SplitThreshold.set -> void
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions.TotalShares.get -> int
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions.TotalShares.set -> void
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupService
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupService.BackupKeyAsync(string! keyId, System.ReadOnlyMemory<byte> keyMaterial, Excalibur.Compliance.EscrowOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.EscrowReceipt!>!
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupService.GenerateRecoveryTokensAsync(string! keyId, int custodianCount, int threshold, System.TimeSpan? expiresIn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RecoveryToken![]!>!
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupService.GetEscrowStatusAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.EscrowStatus?>!
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupService.KeyEscrowBackupService(Excalibur.Compliance.IEncryptionProvider! encryptionProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.KeyManagement.KeyEscrowBackupService!>! logger) -> void
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupService.RecoverKeyAsync(string! keyId, Excalibur.Compliance.RecoveryToken! token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.ReadOnlyMemory<byte>>!
+Excalibur.Compliance.KeyManagement.KeyEscrowBackupService.RevokeEscrowAsync(string! keyId, string? reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Monitoring.KeyRotationAlertOptions
+Excalibur.Compliance.Monitoring.KeyRotationAlertOptions.AlertAfterFailures.get -> int
+Excalibur.Compliance.Monitoring.KeyRotationAlertOptions.AlertAfterFailures.set -> void
+Excalibur.Compliance.Monitoring.KeyRotationAlertOptions.ExpirationWarningDays.get -> int
+Excalibur.Compliance.Monitoring.KeyRotationAlertOptions.ExpirationWarningDays.set -> void
+Excalibur.Compliance.Monitoring.KeyRotationAlertOptions.KeyRotationAlertOptions() -> void
+Excalibur.Compliance.Monitoring.KeyRotationAlertOptions.NotifyOnSuccess.get -> bool
+Excalibur.Compliance.Monitoring.KeyRotationAlertOptions.NotifyOnSuccess.set -> void
+Excalibur.Compliance.Monitoring.KeyRotationAlertService
+Excalibur.Compliance.Monitoring.KeyRotationAlertService.GetFailureCount(string! keyId, string! provider) -> int
+Excalibur.Compliance.Monitoring.KeyRotationAlertService.KeyRotationAlertService(System.Collections.Generic.IEnumerable<Excalibur.Compliance.IKeyRotationAlertHandler!>! handlers, Excalibur.Compliance.IComplianceMetrics? metrics, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Monitoring.KeyRotationAlertService!>! logger, Excalibur.Compliance.Monitoring.KeyRotationAlertOptions? options = null) -> void
+Excalibur.Compliance.Monitoring.KeyRotationAlertService.ReportExpirationWarningAsync(string! keyId, string! provider, System.DateTimeOffset expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Monitoring.KeyRotationAlertService.ReportRotationFailureAsync(string! keyId, string! provider, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Monitoring.KeyRotationAlertService.ReportRotationSuccessAsync(string! keyId, string! provider, string? oldKeyVersion, string? newKeyVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Monitoring.KeyRotationAlertService.ResetFailureCount(string! keyId, string! provider) -> void
+Excalibur.Compliance.KeyRotation.KeyRotationLockOptions
+Excalibur.Compliance.KeyRotation.KeyRotationLockOptions.KeyRotationLockOptions() -> void
+Excalibur.Compliance.KeyRotation.KeyRotationLockOptions.LockDuration.get -> System.TimeSpan
+Excalibur.Compliance.KeyRotation.KeyRotationLockOptions.LockDuration.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationLockOptions.RotationTimeout.get -> System.TimeSpan
+Excalibur.Compliance.KeyRotation.KeyRotationLockOptions.RotationTimeout.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationLockOptions.SkipLockedKeys.get -> bool
+Excalibur.Compliance.KeyRotation.KeyRotationLockOptions.SkipLockedKeys.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationOptions
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.AddArchivalPolicy(string! purpose) -> Excalibur.Compliance.KeyRotation.KeyRotationOptions!
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.AddHighSecurityPolicy(string! purpose) -> Excalibur.Compliance.KeyRotation.KeyRotationOptions!
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.AddPolicy(string! purpose, Excalibur.Compliance.KeyRotationPolicy! policy) -> Excalibur.Compliance.KeyRotation.KeyRotationOptions!
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.CheckInterval.get -> System.TimeSpan
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.CheckInterval.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.ContinueOnError.get -> bool
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.ContinueOnError.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.DefaultPolicy.get -> Excalibur.Compliance.KeyRotationPolicy!
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.DefaultPolicy.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.EnableMetrics.get -> bool
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.EnableMetrics.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.Enabled.get -> bool
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.Enabled.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.GetPolicyForPurpose(string? purpose) -> Excalibur.Compliance.KeyRotationPolicy!
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.KeyRotationOptions() -> void
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.Lock.get -> Excalibur.Compliance.KeyRotation.KeyRotationLockOptions!
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.Lock.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.MaxConcurrentRotations.get -> int
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.MaxConcurrentRotations.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.PoliciesByPurpose.get -> System.Collections.Generic.Dictionary<string!, Excalibur.Compliance.KeyRotationPolicy!>!
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.Retry.get -> Excalibur.Compliance.KeyRotation.KeyRotationRetryOptions!
+Excalibur.Compliance.KeyRotation.KeyRotationOptions.Retry.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationRetryOptions
+Excalibur.Compliance.KeyRotation.KeyRotationRetryOptions.KeyRotationRetryOptions() -> void
+Excalibur.Compliance.KeyRotation.KeyRotationRetryOptions.MaxRetryAttempts.get -> int
+Excalibur.Compliance.KeyRotation.KeyRotationRetryOptions.MaxRetryAttempts.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationRetryOptions.RetryDelay.get -> System.TimeSpan
+Excalibur.Compliance.KeyRotation.KeyRotationRetryOptions.RetryDelay.set -> void
+Excalibur.Compliance.KeyRotation.KeyRotationRetryOptions.RetryFailedRotations.get -> bool
+Excalibur.Compliance.KeyRotation.KeyRotationRetryOptions.RetryFailedRotations.set -> void
+Excalibur.Compliance.Erasure.LegalHoldExpirationOptions
+Excalibur.Compliance.Erasure.LegalHoldExpirationOptions.Enabled.get -> bool
+Excalibur.Compliance.Erasure.LegalHoldExpirationOptions.Enabled.set -> void
+Excalibur.Compliance.Erasure.LegalHoldExpirationOptions.LegalHoldExpirationOptions() -> void
+Excalibur.Compliance.Erasure.LegalHoldExpirationOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Compliance.Erasure.LegalHoldExpirationOptions.PollingInterval.set -> void
+Excalibur.Compliance.Erasure.LegalHoldService
+Excalibur.Compliance.Erasure.LegalHoldService.CheckHoldsAsync(string! dataSubjectId, Excalibur.Compliance.DataSubjectIdType idType, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.LegalHoldCheckResult!>!
+Excalibur.Compliance.Erasure.LegalHoldService.CreateHoldAsync(Excalibur.Compliance.LegalHoldRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.LegalHold!>!
+Excalibur.Compliance.Erasure.LegalHoldService.GetHoldAsync(System.Guid holdId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.LegalHold?>!
+Excalibur.Compliance.Erasure.LegalHoldService.LegalHoldService(Excalibur.Compliance.ILegalHoldStore! store, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Erasure.LegalHoldService!>! logger) -> void
+Excalibur.Compliance.Erasure.LegalHoldService.ListActiveHoldsAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.LegalHold!>!>!
+Excalibur.Compliance.Erasure.LegalHoldService.ReleaseHoldAsync(System.Guid holdId, string! reason, string! releasedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Monitoring.LoggingAlertHandler
+Excalibur.Compliance.Monitoring.LoggingAlertHandler.HandleExpirationWarningAsync(Excalibur.Compliance.KeyExpirationAlert! alert, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Monitoring.LoggingAlertHandler.HandleRotationFailureAsync(Excalibur.Compliance.KeyRotationFailureAlert! alert, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Monitoring.LoggingAlertHandler.HandleRotationSuccessAsync(Excalibur.Compliance.KeyRotationSuccessNotification! notification, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Monitoring.LoggingAlertHandler.LoggingAlertHandler(Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Monitoring.LoggingAlertHandler!>! logger) -> void
+Excalibur.Compliance.Soc2.LoggingComplianceAlertHandler
+Excalibur.Compliance.Soc2.LoggingComplianceAlertHandler.HandleComplianceGapAsync(Excalibur.Compliance.ComplianceGapAlert! alert, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Soc2.LoggingComplianceAlertHandler.HandleStatusChangeAsync(Excalibur.Compliance.ComplianceStatusChangeNotification! notification, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Soc2.LoggingComplianceAlertHandler.HandleValidationFailureAsync(Excalibur.Compliance.ControlValidationFailureAlert! alert, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Soc2.LoggingComplianceAlertHandler.LoggingComplianceAlertHandler(Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Soc2.LoggingComplianceAlertHandler!>! logger) -> void
+Excalibur.Compliance.Migration.MigrationException
+Excalibur.Compliance.Migration.MigrationException.MigrationException(string! message) -> void
+Excalibur.Compliance.Migration.MigrationException.MigrationException(string! message, System.Exception! innerException) -> void
+Excalibur.Compliance.Migration.MigrationOptions
+Excalibur.Compliance.Migration.MigrationOptions.BatchSize.get -> int
+Excalibur.Compliance.Migration.MigrationOptions.BatchSize.set -> void
+Excalibur.Compliance.Migration.MigrationOptions.EnableLazyReEncryption.get -> bool
+Excalibur.Compliance.Migration.MigrationOptions.EnableLazyReEncryption.set -> void
+Excalibur.Compliance.Migration.MigrationOptions.FailFast.get -> bool
+Excalibur.Compliance.Migration.MigrationOptions.FailFast.set -> void
+Excalibur.Compliance.Migration.MigrationOptions.MaxConcurrentMigrations.get -> int
+Excalibur.Compliance.Migration.MigrationOptions.MaxConcurrentMigrations.set -> void
+Excalibur.Compliance.Migration.MigrationOptions.MigrationOptions() -> void
+Excalibur.Compliance.Migration.MigrationOptions.MigrationTimeout.get -> System.TimeSpan
+Excalibur.Compliance.Migration.MigrationOptions.MigrationTimeout.set -> void
+Excalibur.Compliance.Migration.MigrationOptions.TargetVersion.get -> Excalibur.Compliance.EncryptionVersion
+Excalibur.Compliance.Migration.MigrationOptions.TargetVersion.set -> void
+Excalibur.Compliance.Migration.MigrationOptions.TrackProgress.get -> bool
+Excalibur.Compliance.Migration.MigrationOptions.TrackProgress.set -> void
+Excalibur.Compliance.Migration.MigrationService
+Excalibur.Compliance.Migration.MigrationService.CurrentVersion.get -> Excalibur.Compliance.EncryptionVersion
+Excalibur.Compliance.Migration.MigrationService.DetectVersion(System.ReadOnlySpan<byte> ciphertext) -> Excalibur.Compliance.EncryptionVersion
+Excalibur.Compliance.Migration.MigrationService.GetProgress() -> Excalibur.Compliance.VersionMigrationProgress!
+Excalibur.Compliance.Migration.MigrationService.MigrateAsync(byte[]! ciphertext, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.VersionMigrationResult!>!
+Excalibur.Compliance.Migration.MigrationService.MigrateBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Compliance.MigrationItem!>! items, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.VersionBatchMigrationResult!>!
+Excalibur.Compliance.Migration.MigrationService.MigrationService(Excalibur.Compliance.IEncryptionProvider! encryptionProvider, Excalibur.Compliance.IComplianceMetrics? metrics, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Migration.MigrationService!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Migration.MigrationOptions!>! options) -> void
+Excalibur.Compliance.Migration.MigrationService.RequiresMigration(System.ReadOnlySpan<byte> ciphertext) -> bool
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.CollectionPrefix.get -> string!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.CollectionPrefix.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ConnectTimeoutSeconds.get -> int
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ConnectTimeoutSeconds.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ConnectionString.get -> string?
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ConnectionString.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.DatabaseName.get -> string!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.DatabaseName.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.MongoDbComplianceOptions() -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ServerSelectionTimeoutSeconds.get -> int
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ServerSelectionTimeoutSeconds.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.GetConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ConsentRecord?>!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.MongoDbComplianceStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore!>! logger) -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.MongoDbComplianceStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore!>! logger) -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.StoreConsentAsync(Excalibur.Compliance.ConsentRecord! record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.StoreErasureLogAsync(string! subjectId, string! details, System.DateTimeOffset erasedAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.StoreSubjectAccessRequestAsync(Excalibur.Compliance.SubjectAccessResult! result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.ActiveRegionId.get -> string!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.Dispose() -> void
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.FailbackToPrimaryAsync(string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.ForceFailoverAsync(string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.GetActiveKeyAsync(string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.GetKeyVersionAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.GetPrimaryHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RegionHealth!>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.GetReplicationStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ReplicationStatus!>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.GetSecondaryHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RegionHealth!>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.IsInFailoverMode.get -> bool
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.ListKeysAsync(Excalibur.Compliance.KeyStatus? status, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.MultiRegionKeyProvider(Excalibur.Compliance.IKeyManagementProvider! primaryProvider, Excalibur.Compliance.IKeyManagementProvider! secondaryProvider, Excalibur.Compliance.MultiRegionOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Encryption.MultiRegionKeyProvider!>! logger) -> void
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.ReplicateKeysAsync(string? keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.SuspendKeyAsync(string! keyId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Observability.NullEncryptionTelemetry
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.GetService(System.Type! serviceType) -> object?
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.Meter.get -> System.Diagnostics.Metrics.Meter!
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.RecordBytesProcessed(long bytes, string! operation, string! provider) -> void
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.RecordCacheAccess(bool hit, string! provider) -> void
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.RecordFieldsMigrated(long count, string! fromProvider, string! toProvider, string! store) -> void
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.RecordKeyRotation(string! provider, string! rotationType) -> void
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.RecordOperation(string! operation, string! algorithm, string! status, string! provider) -> void
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.RecordOperationDuration(double durationMs, string! operation, string! provider) -> void
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.UpdateActiveKeyCount(int count, string! provider) -> void
+Excalibur.Compliance.Observability.NullEncryptionTelemetry.UpdateProviderHealth(string! provider, string! status, int score) -> void
+Excalibur.Compliance.Encryption.NullKeyCache
+Excalibur.Compliance.Encryption.NullKeyCache.Clear() -> void
+Excalibur.Compliance.Encryption.NullKeyCache.Count.get -> int
+Excalibur.Compliance.Encryption.NullKeyCache.GetOrAddAsync(string! keyId, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!>! factory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.NullKeyCache.GetOrAddAsync(string! keyId, System.TimeSpan ttl, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!>! factory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Encryption.NullKeyCache.Invalidate(string! keyId) -> void
+Excalibur.Compliance.Encryption.NullKeyCache.Remove(string! keyId) -> void
+Excalibur.Compliance.Encryption.NullKeyCache.Set(Excalibur.Compliance.KeyMetadata! keyMetadata) -> void
+Excalibur.Compliance.Encryption.NullKeyCache.Set(Excalibur.Compliance.KeyMetadata! keyMetadata, System.TimeSpan ttl) -> void
+Excalibur.Compliance.Encryption.NullKeyCache.TryGet(string! keyId) -> Excalibur.Compliance.KeyMetadata?
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.ConnectionString.get -> string?
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.ConnectionString.set -> void
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.PostgresComplianceOptions() -> void
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.SchemaName.get -> string!
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.SchemaName.set -> void
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.TablePrefix.get -> string!
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.TablePrefix.set -> void
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.GetConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ConsentRecord?>!
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.PostgresComplianceStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore!>! logger) -> void
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.PostgresComplianceStore(System.Func<Npgsql.NpgsqlConnection!>! connectionFactory, Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions? options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore!>! logger) -> void
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.StoreConsentAsync(Excalibur.Compliance.ConsentRecord! record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.StoreErasureLogAsync(string! subjectId, string! details, System.DateTimeOffset erasedAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.StoreSubjectAccessRequestAsync(Excalibur.Compliance.SubjectAccessResult! result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidator
+Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidator.ProcessingIntegrityControlValidator() -> void
+Excalibur.Compliance.Encryption.ReEncryptionService
+Excalibur.Compliance.Encryption.ReEncryptionService.EstimateAsync(Excalibur.Compliance.ReEncryptionOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ReEncryptionEstimate!>!
+Excalibur.Compliance.Encryption.ReEncryptionService.EstimateForTypeAsync<T>(long itemCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ReEncryptionEstimate!>!
+Excalibur.Compliance.Encryption.ReEncryptionService.ReEncryptAsync<T>(T! entity, Excalibur.Compliance.ReEncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ReEncryptionResult!>!
+Excalibur.Compliance.Encryption.ReEncryptionService.ReEncryptBatchAsync<T>(System.Collections.Generic.IAsyncEnumerable<T!>! entities, Excalibur.Compliance.ReEncryptionOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Compliance.ReEncryptionResult<T!>!>!
+Excalibur.Compliance.Encryption.ReEncryptionService.ReEncryptionService(Excalibur.Compliance.IEncryptionProviderRegistry! registry, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Encryption.ReEncryptionService!>! logger) -> void
+Excalibur.Compliance.Rectification.IRectificationService
+Excalibur.Compliance.Rectification.IRectificationService.GetRectificationHistoryAsync(string! subjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.Rectification.RectificationRecord!>!>!
+Excalibur.Compliance.Rectification.IRectificationService.RectifyAsync(Excalibur.Compliance.Rectification.RectificationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Rectification.RectificationOptions
+Excalibur.Compliance.Rectification.RectificationOptions.AuditAllChanges.get -> bool
+Excalibur.Compliance.Rectification.RectificationOptions.AuditAllChanges.set -> void
+Excalibur.Compliance.Rectification.RectificationOptions.RectificationOptions() -> void
+Excalibur.Compliance.Rectification.RectificationOptions.RequireApproval.get -> bool
+Excalibur.Compliance.Rectification.RectificationOptions.RequireApproval.set -> void
+Excalibur.Compliance.Rectification.RectificationRecord
+Excalibur.Compliance.Rectification.RectificationRecord.FieldName.get -> string!
+Excalibur.Compliance.Rectification.RectificationRecord.FieldName.init -> void
+Excalibur.Compliance.Rectification.RectificationRecord.NewValue.get -> string!
+Excalibur.Compliance.Rectification.RectificationRecord.NewValue.init -> void
+Excalibur.Compliance.Rectification.RectificationRecord.OldValue.get -> string!
+Excalibur.Compliance.Rectification.RectificationRecord.OldValue.init -> void
+Excalibur.Compliance.Rectification.RectificationRecord.Reason.get -> string!
+Excalibur.Compliance.Rectification.RectificationRecord.Reason.init -> void
+Excalibur.Compliance.Rectification.RectificationRecord.RectificationRecord(string! SubjectId, string! FieldName, string! OldValue, string! NewValue, string! Reason, System.DateTimeOffset RectifiedAt) -> void
+Excalibur.Compliance.Rectification.RectificationRecord.RectifiedAt.get -> System.DateTimeOffset
+Excalibur.Compliance.Rectification.RectificationRecord.RectifiedAt.init -> void
+Excalibur.Compliance.Rectification.RectificationRecord.SubjectId.get -> string!
+Excalibur.Compliance.Rectification.RectificationRecord.SubjectId.init -> void
+Excalibur.Compliance.Rectification.RectificationRequest
+Excalibur.Compliance.Rectification.RectificationRequest.FieldName.get -> string!
+Excalibur.Compliance.Rectification.RectificationRequest.FieldName.init -> void
+Excalibur.Compliance.Rectification.RectificationRequest.NewValue.get -> string!
+Excalibur.Compliance.Rectification.RectificationRequest.NewValue.init -> void
+Excalibur.Compliance.Rectification.RectificationRequest.OldValue.get -> string!
+Excalibur.Compliance.Rectification.RectificationRequest.OldValue.init -> void
+Excalibur.Compliance.Rectification.RectificationRequest.Reason.get -> string!
+Excalibur.Compliance.Rectification.RectificationRequest.Reason.init -> void
+Excalibur.Compliance.Rectification.RectificationRequest.RectificationRequest(string! SubjectId, string! FieldName, string! OldValue, string! NewValue, string! Reason) -> void
+Excalibur.Compliance.Rectification.RectificationRequest.SubjectId.get -> string!
+Excalibur.Compliance.Rectification.RectificationRequest.SubjectId.init -> void
+Excalibur.Compliance.Rectification.RectificationService
+Excalibur.Compliance.Rectification.RectificationService.Clear() -> void
+Excalibur.Compliance.Rectification.RectificationService.GetRectificationHistoryAsync(string! subjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.Rectification.RectificationRecord!>!>!
+Excalibur.Compliance.Rectification.RectificationService.RectificationService(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Rectification.RectificationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Rectification.RectificationService!>! logger) -> void
+Excalibur.Compliance.Rectification.RectificationService.RectifyAsync(Excalibur.Compliance.Rectification.RectificationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Rectification.RectificationService.SubjectCount.get -> int
+Excalibur.Compliance.Masking.RegexDataMasker
+Excalibur.Compliance.Masking.RegexDataMasker.Mask(string! input, Excalibur.Compliance.MaskingRules! rules) -> string!
+Excalibur.Compliance.Masking.RegexDataMasker.MaskAll(string! input) -> string!
+Excalibur.Compliance.Masking.RegexDataMasker.MaskObject<T>(T! obj) -> T!
+Excalibur.Compliance.Masking.RegexDataMasker.RegexDataMasker() -> void
+Excalibur.Compliance.Masking.RegexDataMasker.RegexDataMasker(Excalibur.Compliance.MaskingRules! defaultRules) -> void
+Excalibur.Compliance.Restriction.IProcessingRestrictionService
+Excalibur.Compliance.Restriction.IProcessingRestrictionService.IsRestrictedAsync(string! subjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Restriction.IProcessingRestrictionService.RestrictAsync(string! subjectId, Excalibur.Compliance.Restriction.RestrictionReason reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Restriction.IProcessingRestrictionService.UnrestrictAsync(string! subjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Restriction.ProcessingRestrictionOptions
+Excalibur.Compliance.Restriction.ProcessingRestrictionOptions.DefaultRestrictionDuration.get -> System.TimeSpan
+Excalibur.Compliance.Restriction.ProcessingRestrictionOptions.DefaultRestrictionDuration.set -> void
+Excalibur.Compliance.Restriction.ProcessingRestrictionOptions.NotifyOnRestriction.get -> bool
+Excalibur.Compliance.Restriction.ProcessingRestrictionOptions.NotifyOnRestriction.set -> void
+Excalibur.Compliance.Restriction.ProcessingRestrictionOptions.ProcessingRestrictionOptions() -> void
+Excalibur.Compliance.Restriction.ProcessingRestrictionService
+Excalibur.Compliance.Restriction.ProcessingRestrictionService.Clear() -> void
+Excalibur.Compliance.Restriction.ProcessingRestrictionService.Count.get -> int
+Excalibur.Compliance.Restriction.ProcessingRestrictionService.IsRestrictedAsync(string! subjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Restriction.ProcessingRestrictionService.ProcessingRestrictionService(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Restriction.ProcessingRestrictionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Restriction.ProcessingRestrictionService!>! logger) -> void
+Excalibur.Compliance.Restriction.ProcessingRestrictionService.RestrictAsync(string! subjectId, Excalibur.Compliance.Restriction.RestrictionReason reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Restriction.ProcessingRestrictionService.UnrestrictAsync(string! subjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Restriction.RestrictionReason
+Excalibur.Compliance.Restriction.RestrictionReason.AccuracyContested = 0 -> Excalibur.Compliance.Restriction.RestrictionReason
+Excalibur.Compliance.Restriction.RestrictionReason.ErasureObjected = 2 -> Excalibur.Compliance.Restriction.RestrictionReason
+Excalibur.Compliance.Restriction.RestrictionReason.LegalClaim = 3 -> Excalibur.Compliance.Restriction.RestrictionReason
+Excalibur.Compliance.Restriction.RestrictionReason.UnlawfulProcessing = 1 -> Excalibur.Compliance.Restriction.RestrictionReason
+Excalibur.Compliance.Retention.RetentionEnforcementService
+Excalibur.Compliance.Retention.RetentionEnforcementService.EnforceRetentionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RetentionEnforcementResult!>!
+Excalibur.Compliance.Retention.RetentionEnforcementService.GetRetentionPoliciesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.RetentionPolicy!>!>!
+Excalibur.Compliance.Retention.RetentionEnforcementService.RetentionEnforcementService(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.RetentionEnforcementOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Retention.RetentionEnforcementService!>! logger) -> void
+Excalibur.Compliance.Encryption.RotatingEncryptionOptions
+Excalibur.Compliance.Encryption.RotatingEncryptionOptions.AutoRotateBeforeEncryption.get -> bool
+Excalibur.Compliance.Encryption.RotatingEncryptionOptions.AutoRotateBeforeEncryption.set -> void
+Excalibur.Compliance.Encryption.RotatingEncryptionOptions.MaxKeyAge.get -> System.TimeSpan
+Excalibur.Compliance.Encryption.RotatingEncryptionOptions.MaxKeyAge.set -> void
+Excalibur.Compliance.Encryption.RotatingEncryptionOptions.ReEncryptOnRead.get -> bool
+Excalibur.Compliance.Encryption.RotatingEncryptionOptions.ReEncryptOnRead.set -> void
+Excalibur.Compliance.Encryption.RotatingEncryptionOptions.RotatingEncryptionOptions() -> void
+Excalibur.Compliance.Encryption.RotatingEncryptionProvider
+Excalibur.Compliance.Encryption.RotatingEncryptionProvider.DecryptAsync(Excalibur.Compliance.EncryptedData! encryptedData, Excalibur.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Compliance.Encryption.RotatingEncryptionProvider.Dispose() -> void
+Excalibur.Compliance.Encryption.RotatingEncryptionProvider.EncryptAsync(byte[]! plaintext, Excalibur.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.EncryptedData!>!
+Excalibur.Compliance.Encryption.RotatingEncryptionProvider.ReEncryptAsync(Excalibur.Compliance.EncryptedData! encryptedData, Excalibur.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.EncryptedData!>!
+Excalibur.Compliance.Encryption.RotatingEncryptionProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!
+Excalibur.Compliance.Encryption.RotatingEncryptionProvider.RotatingEncryptionProvider(Excalibur.Compliance.IEncryptionProvider! inner, Excalibur.Compliance.IKeyManagementProvider! keyManagement, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Encryption.RotatingEncryptionProvider!>! logger, Excalibur.Compliance.Encryption.RotatingEncryptionOptions? options = null) -> void
+Excalibur.Compliance.Encryption.RotatingEncryptionProvider.ValidateFipsComplianceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Encryption.ShamirSecretSharing
+Excalibur.Compliance.Soc2.Soc2ReportExporter
+Excalibur.Compliance.Soc2.Soc2ReportExporter.ExportAsync(Excalibur.Compliance.Soc2Report! report, Excalibur.Compliance.ExportFormat format, Excalibur.Compliance.Soc2ReportExportOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ExportResult!>!
+Excalibur.Compliance.Soc2.Soc2ReportExporter.ExportWithEvidenceAsync(Excalibur.Compliance.Soc2Report! report, System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvidence!>! evidence, Excalibur.Compliance.EvidencePackageOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ExportResult!>!
+Excalibur.Compliance.Soc2.Soc2ReportExporter.GetSupportedFormats() -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ExportFormat>!
+Excalibur.Compliance.Soc2.Soc2ReportExporter.Soc2ReportExporter(Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Soc2.Soc2ReportExporter!>! logger, System.TimeProvider! timeProvider) -> void
+Excalibur.Compliance.Soc2.Soc2ReportExporter.ValidateForExport(Excalibur.Compliance.Soc2Report! report, Excalibur.Compliance.ExportFormat format) -> Excalibur.Compliance.ExportValidationResult!
+Excalibur.Compliance.Soc2.Soc2ReportGenerator
+Excalibur.Compliance.Soc2.Soc2ReportGenerator.GenerateAndStoreReportAsync(Excalibur.Compliance.ReportGenerationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.Soc2Report!>!
+Excalibur.Compliance.Soc2.Soc2ReportGenerator.GenerateTypeIIReportAsync(System.DateTimeOffset periodStart, System.DateTimeOffset periodEnd, Excalibur.Compliance.ReportOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.Soc2Report!>!
+Excalibur.Compliance.Soc2.Soc2ReportGenerator.GenerateTypeIReportAsync(System.DateTimeOffset asOfDate, Excalibur.Compliance.ReportOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.Soc2Report!>!
+Excalibur.Compliance.Soc2.Soc2ReportGenerator.GetControlDescriptionsAsync(Excalibur.Compliance.TrustServicesCriterion criterion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ControlDescription!>!>!
+Excalibur.Compliance.Soc2.Soc2ReportGenerator.GetTestResultsAsync(Excalibur.Compliance.TrustServicesCriterion criterion, System.DateTimeOffset periodStart, System.DateTimeOffset periodEnd, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.TestResult!>!>!
+Excalibur.Compliance.Soc2.Soc2ReportGenerator.Soc2ReportGenerator(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Soc2Options!>! options, Excalibur.Compliance.IControlValidationService! controlValidation, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Soc2.Soc2ReportGenerator!>! logger, Excalibur.Compliance.ISoc2ReportStore? reportStore = null) -> void
+Excalibur.Compliance.SubjectAccess.SubjectAccessService
+Excalibur.Compliance.SubjectAccess.SubjectAccessService.CreateRequestAsync(Excalibur.Compliance.SubjectAccessRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.SubjectAccessResult!>!
+Excalibur.Compliance.SubjectAccess.SubjectAccessService.FulfillRequestAsync(string! requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.SubjectAccessResult!>!
+Excalibur.Compliance.SubjectAccess.SubjectAccessService.GetRequestStatusAsync(string! requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.SubjectAccessResult?>!
+Excalibur.Compliance.SubjectAccess.SubjectAccessService.SubjectAccessService(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.SubjectAccessOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.SubjectAccess.SubjectAccessService!>! logger) -> void
+Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.MaskingServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.MonitoringServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions
+abstract Excalibur.Compliance.Soc2.Validators.BaseControlValidator.GetControlDescription(string! controlId) -> Excalibur.Compliance.ControlDescription?
+abstract Excalibur.Compliance.Soc2.Validators.BaseControlValidator.SupportedControls.get -> System.Collections.Generic.IReadOnlyList<string!>!
+abstract Excalibur.Compliance.Soc2.Validators.BaseControlValidator.SupportedCriteria.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.TrustServicesCriterion>!
+abstract Excalibur.Compliance.Soc2.Validators.BaseControlValidator.ValidateAsync(string! controlId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlValidationResult!>!
+const Excalibur.Compliance.Monitoring.ComplianceMetrics.MeterName = "Excalibur.Compliance" -> string!
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.AuditLogDecryptionCompleted = 92931 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.AuditLogEncryptionCompleted = 92930 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.AuditLogEncryptionFailed = 92932 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.AuditTrailExported = 92402 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.AwsComplianceCheckCompleted = 92601 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.AzureComplianceCheckCompleted = 92602 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.BatchReEncryptionCompleted = 92211 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.BreachNotificationFailed = 92952 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.BreachNotificationReported = 92950 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.BreachNotificationSent = 92951 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.BulkDecryptionCompleted = 92205 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.CascadeErasureCompleted = 92901 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.CascadeErasureFailed = 92902 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.CascadeErasureRelatedSubjectDiscovered = 92903 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.CascadeErasureStarted = 92900 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.CloudComplianceAdapterCreated = 92600 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.CloudKmsConfigured = 92604 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceCertificateGenerated = 92403 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceCheckFailed = 92302 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceCheckPassed = 92301 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceGapAlertCritical = 92800 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceGapAlertHigh = 92801 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceGapAlertLow = 92803 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceGapAlertMedium = 92802 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceGapRemediationGuidance = 92804 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceLost = 92821 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceRestored = 92820 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceRuleEvaluated = 92305 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ComplianceValidationExecuting = 92300 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ConsentOperationFailed = 92972 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ConsentRecorded = 92970 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ConsentWithdrawn = 92971 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ControlValidationFailureCritical = 92810 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ControlValidationFailureHigh = 92811 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ControlValidationFailureLow = 92813 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ControlValidationFailureMedium = 92812 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.CrossBorderTransferBlocked = 92103 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataInventoryDiscoveryCompleted = 92772 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataInventoryDiscoveryStarted = 92770 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataInventoryKeyInfoFailed = 92771 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataInventoryRegistrationAdded = 92773 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataInventoryRegistrationNotFound = 92775 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataInventoryRegistrationRemoved = 92774 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataPortabilityExportCompleted = 92911 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataPortabilityExportFailed = 92912 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataPortabilityExportStarted = 92910 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataPurgeCompleted = 92004 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataPurgeScheduled = 92003 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataResidencyValidated = 92101 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataResidencyViolation = 92102 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DataSovereigntyValidatorCreated = 92100 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DecryptionErrorForField = 92206 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.DevEncryptionWarning = 92510 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionAlreadyActiveKey = 92221 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionHealthCheckDegraded = 92215 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionHealthCheckFailed = 92214 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionHealthCheckKeyManagementFailed = 92218 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionHealthCheckPassed = 92216 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionHealthCheckRoundTripFailed = 92217 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionKeyAgeExceedsMax = 92223 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionKeyCreated = 92501 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionKeyRevoked = 92503 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionKeyRotated = 92502 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionMigrationBatchCompleted = 92219 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionMigrationFailed = 92213 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionMigrationSucceeded = 92212 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionReencrypted = 92222 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.EncryptionReencryptionHint = 92220 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureBlockedByLegalHold = 92701 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureBlockedNoHoldDetails = 92728 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureCancellationNotAllowed = 92705 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureCancellationNotFound = 92704 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureCancelled = 92706 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureCertificateGenerated = 92707 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureContributorCompleted = 92725 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureContributorException = 92727 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureContributorFailed = 92726 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureExecutionFailed = 92710 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureGracePeriodBelowMinimum = 92711 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureGracePeriodExceedsMaximum = 92712 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureHealthCheckDegraded = 92831 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureHealthCheckFailed = 92832 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureHealthCheckPassed = 92830 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureKeyDeletionConfirmedException = 92721 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureKeyDeletionConfirmedNotFound = 92718 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureKeyDeletionConfirmedStatus = 92719 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureKeyDeletionError = 92722 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureKeyDeletionExpectedError = 92723 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureKeyDeletionFailed = 92708 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureKeyDeletionNotDeleted = 92720 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureKeyDeletionVerificationStarted = 92717 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureKeysDiscovered = 92724 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasurePartiallyCompleted = 92729 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureRequestCompleted = 92709 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureRequestFailed = 92703 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureRequestProcessing = 92700 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureScheduled = 92702 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerCertificateCleanupFailed = 92762 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerCertificatesCleaned = 92761 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerDisabled = 92750 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerExecutingRequest = 92756 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerExecutionError = 92759 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerMarkedFailed = 92760 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerNoScheduledRequests = 92754 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerProcessingBatch = 92755 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerProcessingError = 92752 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerRequestCompleted = 92757 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerRequestFailed = 92758 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerRetrying = 92763 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerStarting = 92751 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureSchedulerStopped = 92753 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureVerificationError = 92716 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureVerificationFailed = 92714 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureVerificationPassed = 92715 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ErasureVerificationStarted = 92713 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ExportCompleted = 92207 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.FieldDecrypted = 92202 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.FieldEncrypted = 92201 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.FieldEncryptionFailed = 92203 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.FieldEncryptionKeyRotated = 92204 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.FieldEncryptionServiceCreated = 92200 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyAccessLogged = 92504 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyEscrowBackupCompleted = 92940 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyEscrowOperationFailed = 92942 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyEscrowRecoveryCompleted = 92941 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyExpirationWarningAlertCriticalLogged = 92534 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyExpirationWarningAlertHighLogged = 92535 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyExpirationWarningAlertLowLogged = 92537 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyExpirationWarningAlertMediumLogged = 92536 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyExpirationWarningReported = 92522 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyManagementServiceCreated = 92500 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationAlertNotifyFailed = 92523 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationAlreadyInProgress = 92556 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationApproaching = 92546 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationCheckCompleted = 92542 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationCheckError = 92544 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationCheckNoKeys = 92543 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationException = 92551 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationFailed = 92550 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationFailureAlertCriticalLogged = 92530 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationFailureAlertHighLogged = 92531 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationFailureAlertLowLogged = 92533 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationFailureAlertMediumLogged = 92532 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationFailureReported = 92520 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationForceFailed = 92555 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationForceMissingKey = 92552 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationForceStarted = 92553 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationForceSucceeded = 92554 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationRetryDelayed = 92547 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationServiceDisabled = 92540 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationServiceStarted = 92541 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationServiceStopped = 92545 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationStarted = 92548 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationSucceeded = 92549 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationSuccessAlertLogged = 92538 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.KeyRotationSuccessReported = 92521 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldAutoReleaseCompleted = 92794 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldAutoReleaseFailed = 92793 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldAutoReleasePartialFailure = 92795 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldCheckCompleted = 92792 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldCreated = 92790 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationAutoReleased = 92786 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationDisabled = 92780 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationNoExpiredHolds = 92784 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationProcessingBatch = 92785 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationProcessingError = 92783 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationReleaseFailed = 92787 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationStarting = 92781 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationStopped = 92782 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldReleased = 92791 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.PiiDetected = 92303 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.PiiMasked = 92304 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ReEncryptionFailed = 92209 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ReEncryptionFailedForItem = 92210 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.ReEncryptionSucceeded = 92208 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RegionRoutingApplied = 92104 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RegulatoryReportGenerated = 92401 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RegulatoryReportGeneratorCreated = 92400 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RegulatorySubmissionCompleted = 92404 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionEnforcementCompleted = 92961 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionEnforcementDisabled = 92963 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionEnforcementFailed = 92962 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionEnforcementProcessingError = 92966 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionEnforcementServiceStarting = 92964 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionEnforcementServiceStopped = 92965 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionEnforcementStarted = 92960 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionExceptionApplied = 92005 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionPeriodExpired = 92002 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionPolicyEvaluated = 92001 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.RetentionPolicyServiceCreated = 92000 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.SubjectAccessRequestCreated = 92920 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.SubjectAccessRequestFailed = 92922 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.SubjectAccessRequestFulfilled = 92921 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.VaultIntegrationConfigured = 92603 -> int
+const Excalibur.Compliance.Observability.EncryptionTelemetry.MeterName = "Excalibur.Dispatch.Encryption" -> string!
+const Excalibur.Compliance.Observability.EncryptionTelemetry.MeterVersion = "1.0.0" -> string!
+override Excalibur.Compliance.Soc2.Validators.AuditLogControlValidator.GetControlDescription(string! controlId) -> Excalibur.Compliance.ControlDescription?
+override Excalibur.Compliance.Soc2.Validators.AuditLogControlValidator.SupportedControls.get -> System.Collections.Generic.IReadOnlyList<string!>!
+override Excalibur.Compliance.Soc2.Validators.AuditLogControlValidator.SupportedCriteria.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.TrustServicesCriterion>!
+override Excalibur.Compliance.Soc2.Validators.AuditLogControlValidator.ValidateAsync(string! controlId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlValidationResult!>!
+override Excalibur.Compliance.Soc2.Validators.AvailabilityControlValidator.GetControlDescription(string! controlId) -> Excalibur.Compliance.ControlDescription?
+override Excalibur.Compliance.Soc2.Validators.AvailabilityControlValidator.SupportedControls.get -> System.Collections.Generic.IReadOnlyList<string!>!
+override Excalibur.Compliance.Soc2.Validators.AvailabilityControlValidator.SupportedCriteria.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.TrustServicesCriterion>!
+override Excalibur.Compliance.Soc2.Validators.AvailabilityControlValidator.ValidateAsync(string! controlId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlValidationResult!>!
+override Excalibur.Compliance.Soc2.Validators.ConfidentialityControlValidator.GetControlDescription(string! controlId) -> Excalibur.Compliance.ControlDescription?
+override Excalibur.Compliance.Soc2.Validators.ConfidentialityControlValidator.SupportedControls.get -> System.Collections.Generic.IReadOnlyList<string!>!
+override Excalibur.Compliance.Soc2.Validators.ConfidentialityControlValidator.SupportedCriteria.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.TrustServicesCriterion>!
+override Excalibur.Compliance.Soc2.Validators.ConfidentialityControlValidator.ValidateAsync(string! controlId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlValidationResult!>!
+override Excalibur.Compliance.Soc2.Validators.EncryptionControlValidator.GetControlDescription(string! controlId) -> Excalibur.Compliance.ControlDescription?
+override Excalibur.Compliance.Soc2.Validators.EncryptionControlValidator.SupportedControls.get -> System.Collections.Generic.IReadOnlyList<string!>!
+override Excalibur.Compliance.Soc2.Validators.EncryptionControlValidator.SupportedCriteria.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.TrustServicesCriterion>!
+override Excalibur.Compliance.Soc2.Validators.EncryptionControlValidator.ValidateAsync(string! controlId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlValidationResult!>!
+override Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidator.GetControlDescription(string! controlId) -> Excalibur.Compliance.ControlDescription?
+override Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidator.SupportedControls.get -> System.Collections.Generic.IReadOnlyList<string!>!
+override Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidator.SupportedCriteria.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.TrustServicesCriterion>!
+override Excalibur.Compliance.Soc2.Validators.ProcessingIntegrityControlValidator.ValidateAsync(string! controlId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlValidationResult!>!
+static Excalibur.Compliance.Soc2.Validators.BaseControlValidator.CreateEvidence(Excalibur.Compliance.EvidenceType type, string! description, string! source, string? dataReference = null) -> Excalibur.Compliance.EvidenceItem!
+static Excalibur.Compliance.Soc2.Validators.BaseControlValidator.CreateFailureResult(string! controlId, System.Collections.Generic.IReadOnlyList<string!>! issues, int effectivenessScore = 0, System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.EvidenceItem!>? evidence = null) -> Excalibur.Compliance.ControlValidationResult!
+static Excalibur.Compliance.Soc2.Validators.BaseControlValidator.CreateSuccessResult(string! controlId, System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.EvidenceItem!>? evidence = null) -> Excalibur.Compliance.ControlValidationResult!
+static Excalibur.Compliance.Erasure.DataSubjectHasher.HashDataSubjectId(string! dataSubjectId) -> string!
+static Excalibur.Compliance.HealthChecks.EncryptionHealthCheckOptions.Default.get -> Excalibur.Compliance.HealthChecks.EncryptionHealthCheckOptions!
+static Excalibur.Compliance.Observability.NullEncryptionTelemetry.Instance.get -> Excalibur.Compliance.Observability.NullEncryptionTelemetry!
+static Excalibur.Compliance.Encryption.NullKeyCache.Instance.get -> Excalibur.Compliance.Encryption.NullKeyCache!
+static Excalibur.Compliance.Encryption.ShamirSecretSharing.Reconstruct(System.ReadOnlySpan<byte[]!> shares) -> byte[]!
+static Excalibur.Compliance.Encryption.ShamirSecretSharing.Split(System.ReadOnlySpan<byte> secret, int totalShares, int threshold) -> byte[]![]!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddComplianceEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions!>? configureKeyManagement = null, System.Action<Excalibur.Compliance.Encryption.AesGcmEncryptionOptions!>? configureEncryption = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddComplianceEncryption<TKeyManagement>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Encryption.AesGcmEncryptionOptions!>? configureEncryption = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddComplianceEncryptionWithRotation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Encryption.InMemoryKeyManagementOptions!>? configureKeyManagement = null, System.Action<Excalibur.Compliance.Encryption.AesGcmEncryptionOptions!>? configureEncryption = null, System.Action<Excalibur.Compliance.Encryption.RotatingEncryptionOptions!>? configureRotation = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddFipsValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddFipsValidation<TFipsDetector>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddKeyRotation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddKeyRotation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.KeyRotation.KeyRotationOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddKeyRotation<TScheduler>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddKeyRotation<TScheduler>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.KeyRotation.KeyRotationOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddMultiRegionKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.MultiRegionOptions!>! configureOptions, System.Func<System.IServiceProvider!, Excalibur.Compliance.RegionConfiguration!, Excalibur.Compliance.IKeyManagementProvider!>! primaryProviderFactory, System.Func<System.IServiceProvider!, Excalibur.Compliance.RegionConfiguration!, Excalibur.Compliance.IKeyManagementProvider!>! secondaryProviderFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ComplianceServiceCollectionExtensions.AddMultiRegionKeyManagement<TPrimaryProvider, TSecondaryProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.MultiRegionOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExtensions.AddDevEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExtensions.AddEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Configuration.EncryptionConfigurationBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExtensions.AddHkdfKeyDerivation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.EncryptionServiceCollectionExtensions.AddHkdfKeyDerivation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Encryption.HkdfKeyDerivationOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddDataInventoryService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddErasureScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddErasureScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Erasure.ErasureSchedulerOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddErasureVerificationService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddGdprErasure(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddGdprErasure(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.ErasureOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddGdprErasureFromConfiguration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.ErasureOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddInMemoryDataInventoryStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddInMemoryErasureStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddInMemoryLegalHoldStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddLegalHoldExpiration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddLegalHoldExpiration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Erasure.LegalHoldExpirationOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ErasureServiceCollectionExtensions.AddLegalHoldService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddAuditLogEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddAuditLogEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.AuditLogEncryptionOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddBreachNotification(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddBreachNotification(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.BreachNotificationOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddCascadeErasure(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddConsentManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddConsentManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.ConsentOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddDataPortability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddDataPortability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.DataPortabilityOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddKeyEscrow(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddKeyEscrow(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.KeyManagement.KeyEscrowBackupOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddMongoDbComplianceStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddMongoDbComplianceStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddPostgresComplianceStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddPostgresComplianceStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddRetentionEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddRetentionEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.RetentionEnforcementOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddSubjectAccessRequests(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GdprServiceCollectionExtensions.AddSubjectAccessRequests(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.SubjectAccessOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MaskingServiceCollectionExtensions.AddDataMasking(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Compliance.MaskingRules? defaultRules = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MaskingServiceCollectionExtensions.AddHipaaDataMasking(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MaskingServiceCollectionExtensions.AddPciDssDataMasking(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MaskingServiceCollectionExtensions.AddStrictDataMasking(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEncryptionMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEncryptionMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Migration.MigrationOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MonitoringServiceCollectionExtensions.AddComplianceMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MonitoringServiceCollectionExtensions.AddComplianceMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! alertConfiguration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MonitoringServiceCollectionExtensions.AddComplianceMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Monitoring.KeyRotationAlertOptions!>? configureAlertOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MonitoringServiceCollectionExtensions.AddKeyRotationAlertHandler<THandler>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MonitoringServiceCollectionExtensions.AddKeyRotationAlerts(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MonitoringServiceCollectionExtensions.AddKeyRotationAlerts(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Monitoring.KeyRotationAlertOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddComplianceAlertHandler<THandler>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddControlValidator<TValidator>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddInMemorySoc2ReportStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2Compliance(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2Compliance(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Soc2Options!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ComplianceWithBuiltInValidators(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ComplianceWithBuiltInValidators(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Soc2Options!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ComplianceWithMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ComplianceWithMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Soc2Options!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ContinuousMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ReportStore<TStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+virtual Excalibur.Compliance.Soc2.Validators.BaseControlValidator.RunTestAsync(string! controlId, Excalibur.Compliance.ControlTestParameters! parameters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlTestResult!>!

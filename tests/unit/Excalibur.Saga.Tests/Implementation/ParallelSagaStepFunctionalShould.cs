@@ -82,7 +82,7 @@ public sealed class ParallelSagaStepFunctionalShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Parallel execution failed");
+		result.ErrorMessage!.ShouldContain("Parallel execution failed");
 	}
 
 	[Fact]
@@ -211,7 +211,7 @@ public sealed class ParallelSagaStepFunctionalShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("failed");
+		result.ErrorMessage!.ShouldContain("failed");
 	}
 
 	[Fact]

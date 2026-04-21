@@ -74,7 +74,7 @@ public interface IInMemoryCdcBuilder
 	/// <remarks>
 	/// <para>
 	/// Default is false. Enable this to access processed changes via
-	/// <see cref="IInMemoryCdcStore.GetHistory"/>.
+	/// <see cref="IInMemoryCdcStoreHistory.GetHistory"/>.
 	/// </para>
 	/// </remarks>
 	IInMemoryCdcBuilder PreserveHistory(bool preserveHistory = true);

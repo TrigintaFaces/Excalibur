@@ -18,7 +18,7 @@ All three can co-exist in the same pipeline — they check different attributes 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the package for your authorization approach:
   ```bash
   # For A3 activity-based authorization

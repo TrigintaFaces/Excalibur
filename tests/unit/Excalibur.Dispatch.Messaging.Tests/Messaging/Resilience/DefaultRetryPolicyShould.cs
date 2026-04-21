@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Task: Excalibur.Dispatch-qu9v
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DefaultRetryPolicyShould
 {

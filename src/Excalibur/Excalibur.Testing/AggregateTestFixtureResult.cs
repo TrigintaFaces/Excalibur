@@ -184,7 +184,7 @@ public sealed class AggregateTestFixtureResult<TAggregate>
 	{
 		ShouldThrow<TException>();
 
-		if (!_exception.Message.Contains(messageContains, StringComparison.OrdinalIgnoreCase))
+		if (!_exception!.Message.Contains(messageContains, StringComparison.OrdinalIgnoreCase))
 		{
 			throw new TestFixtureAssertionException(
 				$"Expected exception message to contain '{messageContains}', but was: '{_exception.Message}'");

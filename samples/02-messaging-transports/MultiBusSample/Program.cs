@@ -15,7 +15,6 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
@@ -52,8 +51,7 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register JSON serializer for message payloads
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+	// Configure JSON serialization
 
 	// Route each event type to its dedicated transport
 	_ = dispatch.UseRouting(routing =>
@@ -67,7 +65,7 @@ builder.Services.AddDispatch(dispatch =>
 // Configure outbox/inbox for reliable messaging
 // ============================================================
 builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
+builder.Services.AddInMemoryInboxStore();
 builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
 

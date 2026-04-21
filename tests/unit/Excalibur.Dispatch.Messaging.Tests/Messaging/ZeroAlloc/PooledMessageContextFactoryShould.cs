@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ZeroAlloc;
 /// Unit tests for <see cref="PooledMessageContextFactory"/>.
 /// Sprint 449 - S449.5: Unit tests for performance optimizations.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Performance")]
 public sealed class PooledMessageContextFactoryShould : IDisposable
 {

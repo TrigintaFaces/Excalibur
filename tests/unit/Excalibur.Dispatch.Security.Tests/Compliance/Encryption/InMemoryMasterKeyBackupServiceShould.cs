@@ -3,13 +3,14 @@
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
 /// <summary>
 /// Unit tests for <see cref="InMemoryMasterKeyBackupService"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class InMemoryMasterKeyBackupServiceShould
 {
 	private readonly InMemoryMasterKeyBackupService _sut;
@@ -392,7 +393,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 		const string keyId = "test-key-1";
 		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
 		RegisterKey(keyId, keyMaterial);
-		var custodians = new[] { "Alice", "Bob", "Charlie", "Dave", "Eve" };
+		var custodians = new List<string> { "Alice", "Bob", "Charlie", "Dave", "Eve" };
 		var options = new BackupShareOptions { CustodianIds = custodians };
 
 		// Act

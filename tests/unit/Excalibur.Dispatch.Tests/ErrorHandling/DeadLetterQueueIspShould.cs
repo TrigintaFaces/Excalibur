@@ -8,13 +8,12 @@ using Excalibur.Dispatch.ErrorHandling;
 namespace Excalibur.Dispatch.Tests.ErrorHandling;
 
 /// <summary>
-/// ISP compliance tests for IDeadLetterQueue interface.
+/// ISP compliance tests for IDeadLetterQueue and IDeadLetterQueueAdmin interfaces.
 /// Verifies interface shape, method semantics, and ISP gate compliance.
-/// IDeadLetterQueue currently has 8 methods -- the <=5 method gate requires splitting
-/// into core (Enqueue, GetEntries, GetEntry, GetCount) + admin (Replay, ReplayBatch, Purge, PurgeOlderThan).
+/// IDeadLetterQueue has 5 core methods; IDeadLetterQueueAdmin has 3 admin methods (ReplayBatch, Purge, PurgeOlderThan).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DeadLetterQueueIspShould
 {
 	private static readonly BindingFlags DeclaredPublicInstance =
@@ -23,14 +22,13 @@ public sealed class DeadLetterQueueIspShould
 	#region Interface Shape
 
 	[Fact]
-	public void HaveEightMethodsCurrently()
+	public void HaveFiveMethodsAfterIspSplit()
 	{
-		// IDeadLetterQueue currently has 8 methods (violates <=5 gate)
-		// This test documents the current state and will be updated after ISP split
+		// IDeadLetterQueue has 5 core methods after ISP split (meets <=5 gate)
 		var methods = typeof(IDeadLetterQueue).GetMethods(DeclaredPublicInstance);
 
-		methods.Length.ShouldBe(8,
-			"IDeadLetterQueue should have exactly 8 methods (pre-ISP split)");
+		methods.Length.ShouldBe(5,
+			"IDeadLetterQueue should have exactly 5 methods after ISP split");
 	}
 
 	[Fact]
@@ -80,29 +78,29 @@ public sealed class DeadLetterQueueIspShould
 	}
 
 	[Fact]
-	public void HaveReplayBatchAsyncMethod()
+	public void AdminHaveReplayBatchAsyncMethod()
 	{
-		var method = typeof(IDeadLetterQueue).GetMethod("ReplayBatchAsync", DeclaredPublicInstance);
+		var method = typeof(IDeadLetterQueueAdmin).GetMethod("ReplayBatchAsync", DeclaredPublicInstance);
 
-		method.ShouldNotBeNull("IDeadLetterQueue must have ReplayBatchAsync");
+		method.ShouldNotBeNull("IDeadLetterQueueAdmin must have ReplayBatchAsync");
 		method.ReturnType.ShouldBe(typeof(Task<int>));
 	}
 
 	[Fact]
-	public void HavePurgeAsyncMethod()
+	public void AdminHavePurgeAsyncMethod()
 	{
-		var method = typeof(IDeadLetterQueue).GetMethod("PurgeAsync", DeclaredPublicInstance);
+		var method = typeof(IDeadLetterQueueAdmin).GetMethod("PurgeAsync", DeclaredPublicInstance);
 
-		method.ShouldNotBeNull("IDeadLetterQueue must have PurgeAsync");
+		method.ShouldNotBeNull("IDeadLetterQueueAdmin must have PurgeAsync");
 		method.ReturnType.ShouldBe(typeof(Task<bool>));
 	}
 
 	[Fact]
-	public void HavePurgeOlderThanAsyncMethod()
+	public void AdminHavePurgeOlderThanAsyncMethod()
 	{
-		var method = typeof(IDeadLetterQueue).GetMethod("PurgeOlderThanAsync", DeclaredPublicInstance);
+		var method = typeof(IDeadLetterQueueAdmin).GetMethod("PurgeOlderThanAsync", DeclaredPublicInstance);
 
-		method.ShouldNotBeNull("IDeadLetterQueue must have PurgeOlderThanAsync");
+		method.ShouldNotBeNull("IDeadLetterQueueAdmin must have PurgeOlderThanAsync");
 		method.ReturnType.ShouldBe(typeof(Task<int>));
 	}
 
@@ -111,29 +109,29 @@ public sealed class DeadLetterQueueIspShould
 	#region ISP Split Categorization
 
 	[Fact]
-	public void HaveFourCoreMethods()
+	public void HaveFiveCoreMethods()
 	{
-		// Core operations: Enqueue, GetEntries, GetEntry, GetCount
-		var coreMethodNames = new[] { "EnqueueAsync", "GetEntriesAsync", "GetEntryAsync", "GetCountAsync" };
+		// Core operations: Enqueue, GetEntries, GetEntry, GetCount, Replay
+		var coreMethodNames = new[] { "EnqueueAsync", "GetEntriesAsync", "GetEntryAsync", "GetCountAsync", "ReplayAsync" };
 
 		var methods = typeof(IDeadLetterQueue).GetMethods(DeclaredPublicInstance);
 		var coreFound = methods.Where(m => coreMethodNames.Contains(m.Name)).ToList();
 
-		coreFound.Count.ShouldBe(4,
-			"IDeadLetterQueue should have exactly 4 core methods (Enqueue, GetEntries, GetEntry, GetCount)");
+		coreFound.Count.ShouldBe(5,
+			"IDeadLetterQueue should have exactly 5 core methods (Enqueue, GetEntries, GetEntry, GetCount, Replay)");
 	}
 
 	[Fact]
-	public void HaveFourAdminMethods()
+	public void HaveThreeAdminMethods()
 	{
-		// Admin operations: Replay, ReplayBatch, Purge, PurgeOlderThan
-		var adminMethodNames = new[] { "ReplayAsync", "ReplayBatchAsync", "PurgeAsync", "PurgeOlderThanAsync" };
+		// Admin operations moved to IDeadLetterQueueAdmin: ReplayBatch, Purge, PurgeOlderThan
+		var adminMethodNames = new[] { "ReplayBatchAsync", "PurgeAsync", "PurgeOlderThanAsync" };
 
-		var methods = typeof(IDeadLetterQueue).GetMethods(DeclaredPublicInstance);
+		var methods = typeof(IDeadLetterQueueAdmin).GetMethods(DeclaredPublicInstance);
 		var adminFound = methods.Where(m => adminMethodNames.Contains(m.Name)).ToList();
 
-		adminFound.Count.ShouldBe(4,
-			"IDeadLetterQueue should have exactly 4 admin methods (Replay, ReplayBatch, Purge, PurgeOlderThan)");
+		adminFound.Count.ShouldBe(3,
+			"IDeadLetterQueueAdmin should have exactly 3 admin methods (ReplayBatch, Purge, PurgeOlderThan)");
 	}
 
 	#endregion
@@ -218,8 +216,8 @@ public sealed class DeadLetterQueueIspShould
 	[Fact]
 	public async Task AcceptPurgeById()
 	{
-		// Arrange
-		var dlq = A.Fake<IDeadLetterQueue>();
+		// Arrange -- PurgeAsync moved to IDeadLetterQueueAdmin ISP sub-interface
+		var dlq = A.Fake<IDeadLetterQueueAdmin>();
 		A.CallTo(() => dlq.PurgeAsync(A<Guid>.Ignored, A<CancellationToken>.Ignored))
 			.Returns(true);
 
@@ -233,8 +231,8 @@ public sealed class DeadLetterQueueIspShould
 	[Fact]
 	public async Task AcceptPurgeOlderThan()
 	{
-		// Arrange
-		var dlq = A.Fake<IDeadLetterQueue>();
+		// Arrange -- PurgeOlderThanAsync moved to IDeadLetterQueueAdmin ISP sub-interface
+		var dlq = A.Fake<IDeadLetterQueueAdmin>();
 		A.CallTo(() => dlq.PurgeOlderThanAsync(A<TimeSpan>.Ignored, A<CancellationToken>.Ignored))
 			.Returns(5);
 

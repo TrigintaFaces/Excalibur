@@ -117,8 +117,8 @@ public sealed class InMemoryEventSourcedSagaStoreShould
 		state.ShouldNotBeNull();
 		state.StepHistory.Count.ShouldBe(1);
 		state.StepHistory[0].IsSuccess.ShouldBeFalse();
-		state.StepHistory[0].ErrorMessage.ShouldBe("Something broke");
-		state.ErrorMessage.ShouldBe("Something broke");
+		state.StepHistory[0].ErrorMessage!.ShouldBe("Something broke");
+		state.ErrorMessage!.ShouldBe("Something broke");
 	}
 
 	[Fact]
@@ -135,7 +135,7 @@ public sealed class InMemoryEventSourcedSagaStoreShould
 
 		// Assert
 		state.ShouldNotBeNull();
-		state.ErrorMessage.ShouldBe("deadline exceeded");
+		state.ErrorMessage!.ShouldBe("deadline exceeded");
 		state.Status.ShouldBe(SagaStatus.Failed);
 	}
 

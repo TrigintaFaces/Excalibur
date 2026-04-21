@@ -35,19 +35,24 @@ builder.Services.AddDispatch(dispatch =>
 #endif
 });
 
-builder.Services.AddExcaliburOutbox(outbox =>
-{
-#if (UseSqlServer)
-    outbox.UseSqlServer(builder.Configuration.GetConnectionString("OutboxStore")
-        ?? throw new InvalidOperationException("ConnectionStrings:OutboxStore is required."));
-#endif
-    outbox.WithProcessing(processing =>
+builder.Services.AddExcalibur(excalibur => excalibur
+    .AddOutbox(outbox =>
     {
-        processing.BatchSize(100)
-                  .PollingInterval(TimeSpan.FromSeconds(5));
-    })
-    .EnableBackgroundProcessing();
-});
+#if (UseSqlServer)
+        outbox.UseSqlServer(builder.Configuration.GetConnectionString("OutboxStore")
+            ?? throw new InvalidOperationException("ConnectionStrings:OutboxStore is required."));
+#endif
+        outbox.WithProcessing(processing =>
+        {
+            processing.BatchSize(100)
+                      .PollingInterval(TimeSpan.FromSeconds(5));
+        })
+        .EnableBackgroundProcessing();
+    }));
+
+// OpenTelemetry: one call registers all Dispatch meters + activity sources
+builder.Services.AddOpenTelemetry()
+    .AddDispatchInstrumentation();
 
 var app = builder.Build();
 

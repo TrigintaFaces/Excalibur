@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Context;
 /// <summary>
 /// Unit tests for <see cref="ContextObservabilityOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Observability")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Observability)]
 public sealed class ContextObservabilityOptionsShould : UnitTestBase
 {
 	#region Default Value Tests
@@ -139,7 +139,7 @@ public sealed class ContextObservabilityOptionsShould : UnitTestBase
 		var fields = new[] { "MessageId", "CorrelationId" };
 
 		// Act
-		options.Fields.RequiredContextFields = fields;
+		options.Fields.RequiredContextFields = new List<string>(fields);
 
 		// Assert
 		options.Fields.RequiredContextFields.ShouldBe(fields);
@@ -153,7 +153,7 @@ public sealed class ContextObservabilityOptionsShould : UnitTestBase
 		var fields = new[] { "TenantId", "UserId" };
 
 		// Act
-		options.Fields.CriticalFields = fields;
+		options.Fields.CriticalFields = new List<string>(fields);
 
 		// Assert
 		options.Fields.CriticalFields.ShouldBe(fields);

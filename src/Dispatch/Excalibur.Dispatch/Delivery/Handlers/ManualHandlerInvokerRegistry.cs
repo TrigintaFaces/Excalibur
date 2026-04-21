@@ -71,7 +71,7 @@ public static partial class HandlerInvokerRegistry
 				"Register all handlers before calling FreezeCache().");
 		}
 
-		_warmupCache[typeof(THandler)] = async (handler, message, ct) =>
+		_warmupCache![typeof(THandler)] = async (handler, message, ct) =>
 		{
 			await invoker((THandler)handler, (TMessage)message, ct).ConfigureAwait(false);
 			return null;
@@ -94,7 +94,7 @@ public static partial class HandlerInvokerRegistry
 				"Register all handlers before calling FreezeCache().");
 		}
 
-		_warmupCache[typeof(THandler)] = async (handler, message, ct) =>
+		_warmupCache![typeof(THandler)] = async (handler, message, ct) =>
 		{
 			var result = await invoker((THandler)handler, (TMessage)message, ct).ConfigureAwait(false);
 			return result;
@@ -104,14 +104,17 @@ public static partial class HandlerInvokerRegistry
 	/// <summary>
 	/// Gets the invoker for the specified handler type.
 	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Handler invoker creation uses reflection as fallback. In AOT scenarios, source-generated invokers are used instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Handler invoker creation uses reflection as fallback. In AOT scenarios, source-generated invokers are used instead.")]
 	internal static Func<object, IDispatchMessage, CancellationToken, Task<object?>>? GetInvoker(Type handlerType)
 	{
 		// PERF-13/PERF-14: Three-phase lazy freeze pattern
 		// Phase 3 (frozen): Fast path with zero synchronization overhead
 		if (_isFrozen)
 		{
-			if (_frozenCache.TryGetValue(handlerType, out var frozenInvoker))
+			if (_frozenCache!.TryGetValue(handlerType, out var frozenInvoker))
 			{
 				return frozenInvoker;
 			}
@@ -121,7 +124,7 @@ public static partial class HandlerInvokerRegistry
 		}
 
 		// Phase 1 (warmup): Thread-safe population using ConcurrentDictionary
-		return _warmupCache.GetOrAdd(handlerType, CreateInvoker);
+		return _warmupCache!.GetOrAdd(handlerType, CreateInvoker);
 	}
 
 	[RequiresUnreferencedCode("Uses reflection to create handler invokers")]

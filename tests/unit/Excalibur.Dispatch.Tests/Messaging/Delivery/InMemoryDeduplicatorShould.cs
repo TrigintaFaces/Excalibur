@@ -1,13 +1,15 @@
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Options.Delivery;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemoryDeduplicatorShould : IDisposable
 {
 	private static readonly TimeSpan ShortExpiry = TimeSpan.FromMilliseconds(100);
@@ -16,9 +18,14 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 
 	public InMemoryDeduplicatorShould()
 	{
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+		{
+			EnableAutomaticCleanup = false, // Disable timer to avoid interference in tests
+			CleanupInterval = TimeSpan.FromHours(1),
+		});
 		_deduplicator = new InMemoryDeduplicator(
-			NullLogger<InMemoryDeduplicator>.Instance,
-			cleanupInterval: TimeSpan.FromHours(1)); // Long interval to avoid timer interference
+			options,
+			NullLogger<InMemoryDeduplicator>.Instance);
 	}
 
 	[Fact]
@@ -152,7 +159,9 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	[Fact]
 	public void Dispose_DoesNotThrow()
 	{
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions());
 		var dedup = new InMemoryDeduplicator(
+			options,
 			NullLogger<InMemoryDeduplicator>.Instance);
 
 		Should.NotThrow(() => dedup.Dispose());

@@ -19,7 +19,7 @@ GoogleCloudFunctions/
 │   ├── PubSubFunction.cs        # Pub/Sub-triggered function
 │   └── ScheduledFunction.cs     # Cloud Scheduler-triggered function
 ├── Handlers/
-│   ├── OrderCreatedEventHandler.cs   # Order event handler
+│   ├── OrderCreatedHandler.cs   # Order event handler
 │   └── ScheduledTaskHandler.cs       # Scheduled task handler
 ├── Messages/
 │   └── OrderMessages.cs         # Event definitions
@@ -198,7 +198,7 @@ public class Startup : FunctionsStartup
         services.AddDispatch(dispatch =>
         {
             dispatch.AddHandlersFromAssembly(typeof(Startup).Assembly);
-            _ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+            // JSON is the default -- no serialization config needed
         });
 
         // Configure serverless hosting

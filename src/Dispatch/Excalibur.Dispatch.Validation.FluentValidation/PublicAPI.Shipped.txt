@@ -5,6 +5,8 @@ Excalibur.Dispatch.Validation.FluentValidation.AotFluentValidatorResolver.TryVal
 Excalibur.Dispatch.Validation.FluentValidation.FluentValidatorResolver
 Excalibur.Dispatch.Validation.FluentValidation.FluentValidatorResolver.FluentValidatorResolver(System.IServiceProvider! provider) -> void
 Excalibur.Dispatch.Validation.FluentValidation.FluentValidatorResolver.TryValidate(Excalibur.Dispatch.Abstractions.IDispatchMessage! message) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult?
+Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher
+Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher.TryValidate(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.IServiceProvider! provider) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult?
 Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions
 Microsoft.Extensions.DependencyInjection.FluentValidationServiceCollectionExtensions
 static Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions.ToDispatchResult(this FluentValidation.Results.ValidationResult! fluentResult) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult!

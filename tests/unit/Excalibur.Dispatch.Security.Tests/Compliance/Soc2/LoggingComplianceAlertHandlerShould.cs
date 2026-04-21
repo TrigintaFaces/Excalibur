@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance.Soc2;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 
 /// <summary>
@@ -11,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// Tests alert handling behavior per ADR-055.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class LoggingComplianceAlertHandlerShould
 {
 	private readonly ILogger<LoggingComplianceAlertHandler> _logger;

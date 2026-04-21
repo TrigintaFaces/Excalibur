@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Common;
 /// Unit tests verifying Transport packages can resolve the canonical <see cref="CompressionAlgorithm"/> enum.
 /// The enum was consolidated from 3 divergent copies into a single definition in Excalibur.Dispatch.Abstractions (Sprint 543).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class CompressionAlgorithmShould
 {
 	[Fact]

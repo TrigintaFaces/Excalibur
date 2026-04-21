@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Cdc.Processing;
+using Excalibur.Data.SqlServer;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -38,10 +40,10 @@ public static class CdcBuilderSqlServerExtensions
 	/// This is the primary method for configuring SQL Server as the CDC provider.
 	/// It registers the <see cref="CdcProcessor"/>, <see cref="CdcStateStore"/>,
 	/// and related services. Connection can be provided via the builder using
-	/// <see cref="ISqlServerCdcBuilder.ConnectionString"/>,
-	/// <see cref="ISqlServerCdcBuilder.ConnectionStringName"/>,
-	/// <see cref="ISqlServerCdcBuilder.ConnectionFactory"/>, or
-	/// <see cref="ISqlServerCdcBuilder.BindConfiguration"/>.
+	/// <see cref="ISqlServerCdcConnectionBuilder.ConnectionString(string)"/>,
+	/// <see cref="ISqlServerCdcConnectionBuilder.ConnectionStringName(string)"/>,
+	/// <see cref="ISqlServerCdcConnectionBuilder.ConnectionFactory(Func{IServiceProvider, Func{SqlConnection}})"/>, or
+	/// <see cref="ISqlServerCdcConnectionBuilder.BindConfiguration(string)"/>.
 	/// </para>
 	/// </remarks>
 	/// <example>
@@ -240,6 +242,10 @@ public static class CdcBuilderSqlServerExtensions
 	/// <summary>
 	/// Registers options, services, and auto-mapping callbacks.
 	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	private static void RegisterOptionsAndServices(
 		ICdcBuilder builder,
 		SqlServerCdcBuilder sqlBuilder,
@@ -278,7 +284,6 @@ public static class CdcBuilderSqlServerExtensions
 		{
 			builder.Services.AddOptions<SqlServerCdcOptions>()
 				.BindConfiguration(sqlBuilder.SourceBindConfigurationPath)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 
 			// When ConnectionString() was explicitly called alongside BindConfiguration,
@@ -305,7 +310,6 @@ public static class CdcBuilderSqlServerExtensions
 		{
 			builder.Services.AddOptions<SqlServerCdcStateStoreOptions>()
 				.BindConfiguration(stateStoreBindConfigPath)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
 
@@ -357,11 +361,17 @@ public static class CdcBuilderSqlServerExtensions
 		// Register default CdcRecoveryOptions if not already registered
 		builder.Services.TryAddSingleton(Options.Create(new CdcRecoveryOptions()));
 
-		// Auto-register IDatabaseConfig when configured via the builder.
+		// TryAdd the SQL Server IDataAccessPolicyFactory. The CdcProcessor and
+		// DataChangeEventProcessor both require it for Polly-wrapped SQL calls.
+		// Consumers who register their own policy factory retain precedence via
+		// TryAdd semantics. [bd-20ft0e FIX 1]
+		builder.Services.TryAddSingleton<IDataAccessPolicyFactory, SqlDataAccessPolicyFactory>();
+
+		// Auto-register IDatabaseOptions when configured via the builder.
 		// TryAdd ensures manual registration still takes precedence.
 		if (sqlOptions.HasDatabaseConfig)
 		{
-			builder.Services.TryAddSingleton<IDatabaseConfig>(new DatabaseConfig
+			builder.Services.TryAddSingleton<IDatabaseOptions>(new DatabaseOptions
 			{
 				DatabaseName = sqlOptions.DatabaseName!,
 				DatabaseConnectionIdentifier = sqlOptions.DatabaseConnectionIdentifier
@@ -408,9 +418,9 @@ public static class CdcBuilderSqlServerExtensions
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
 			var logger = sp.GetRequiredService<ILogger<CdcProcessor>>();
 
-			var databaseConfig = sp.GetService<IDatabaseConfig>()
+			var databaseConfig = sp.GetService<IDatabaseOptions>()
 								 ?? throw new InvalidOperationException(
-									 "IDatabaseConfig is required for CdcProcessor. Register an implementation or use the " +
+									 "IDatabaseOptions is required for CdcProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
 			var cdcConnection = sourceFactory();
@@ -438,9 +448,9 @@ public static class CdcBuilderSqlServerExtensions
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
 			var logger = sp.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 
-			var databaseConfig = sp.GetService<IDatabaseConfig>()
+			var databaseConfig = sp.GetService<IDatabaseOptions>()
 								 ?? throw new InvalidOperationException(
-									 "IDatabaseConfig is required for DataChangeEventProcessor. Register an implementation or use the " +
+									 "IDatabaseOptions is required for DataChangeEventProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
 			var cdcConnection = sourceFactory();

@@ -6,8 +6,8 @@ using Excalibur.Cdc.Postgres;
 
 namespace Excalibur.Data.Tests.Postgres.Cdc;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PostgresStalePositionExceptionShould
 {
 	[Fact]
@@ -16,7 +16,7 @@ public sealed class PostgresStalePositionExceptionShould
 		var ex = new PostgresStalePositionException();
 
 		ex.Message.ShouldContain("stale WAL position");
-		ex.InnerException.ShouldBeNull();
+		ex.InnerException!.ShouldBeNull();
 		ex.EventArgs.ShouldBeNull();
 	}
 
@@ -35,7 +35,7 @@ public sealed class PostgresStalePositionExceptionShould
 		var ex = new PostgresStalePositionException("test", inner);
 
 		ex.Message.ShouldBe("test");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]

@@ -202,7 +202,7 @@ public sealed class CdcDataChangeExtensionsShould : UnitTestBase
 		// Assert
 		ex.ShouldNotBeNull();
 		ex.Message.ShouldNotBeNullOrEmpty();
-		ex.InnerException.ShouldBeNull();
+		ex.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -216,7 +216,7 @@ public sealed class CdcDataChangeExtensionsShould : UnitTestBase
 
 		// Assert
 		ex.Message.ShouldBe(message);
-		ex.InnerException.ShouldBeNull();
+		ex.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -231,8 +231,8 @@ public sealed class CdcDataChangeExtensionsShould : UnitTestBase
 
 		// Assert
 		ex.Message.ShouldBe(message);
-		ex.InnerException.ShouldBe(inner);
-		ex.InnerException.ShouldBeOfType<InvalidCastException>();
+		ex.InnerException!.ShouldBe(inner);
+		ex.InnerException!.ShouldBeOfType<InvalidCastException>();
 	}
 
 	[Fact]

@@ -6,13 +6,14 @@ using System.Text;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
 /// <summary>
 /// Unit tests for <see cref="AesGcmEncryptionProvider"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class AesGcmEncryptionProviderShould : IDisposable
 {
 	private readonly InMemoryKeyManagementProvider _keyManagement;

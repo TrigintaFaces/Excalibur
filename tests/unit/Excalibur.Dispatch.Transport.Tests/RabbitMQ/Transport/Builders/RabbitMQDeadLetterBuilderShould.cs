@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Transport.Builders;
 /// Part of S473.4 - Unit tests for RabbitMQ builder (Sprint 473).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class RabbitMQDeadLetterBuilderShould : UnitTestBase
 {

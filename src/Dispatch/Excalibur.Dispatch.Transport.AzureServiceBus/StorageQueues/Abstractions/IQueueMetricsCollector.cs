@@ -48,16 +48,22 @@ public interface IQueueMetricsCollector
 	void RecordVisibilityTimeoutUpdate(bool success, double updateTimeMs);
 
 	/// <summary>
+	/// Gets the current metrics snapshot.
+	/// </summary>
+	/// <returns> A snapshot of current metrics. </returns>
+	QueueMetricsSnapshot GetMetricsSnapshot();
+}
+
+/// <summary>
+/// Provides administrative operations for queue metrics collection.
+/// </summary>
+public interface IQueueMetricsCollectorAdmin
+{
+	/// <summary>
 	/// Records queue health status information.
 	/// </summary>
 	/// <param name="queueName"> The name of the queue. </param>
 	/// <param name="approximateMessageCount"> The approximate number of messages in the queue. </param>
 	/// <param name="isHealthy"> Whether the queue is considered healthy. </param>
 	void RecordQueueHealth(string queueName, long approximateMessageCount, bool isHealthy);
-
-	/// <summary>
-	/// Gets the current metrics snapshot.
-	/// </summary>
-	/// <returns> A snapshot of current metrics. </returns>
-	QueueMetricsSnapshot GetMetricsSnapshot();
 }

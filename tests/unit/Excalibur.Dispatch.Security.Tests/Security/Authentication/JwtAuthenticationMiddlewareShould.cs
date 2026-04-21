@@ -7,7 +7,7 @@ using System.Text;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Telemetry;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using FakeItEasy;
 
@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Authentication;
 /// <summary>
 /// Unit tests for <see cref="JwtAuthenticationMiddleware"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "Authentication")]
 public sealed class JwtAuthenticationMiddlewareShould
 {

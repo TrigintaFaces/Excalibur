@@ -6,8 +6,8 @@ using Excalibur.Dispatch.ZeroAlloc;
 
 namespace Excalibur.Dispatch.Tests.Messaging.ZeroAlloc;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StructMessageResultShould
 {
 	// --- StructMessageResult (non-generic) ---
@@ -22,7 +22,7 @@ public sealed class StructMessageResultShould
 		result.Succeeded.ShouldBeTrue();
 		result.CacheHit.ShouldBeFalse();
 		result.ProblemDetails.ShouldBeNull();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class StructMessageResultShould
 		// Assert
 		result.Succeeded.ShouldBeFalse();
 		result.ProblemDetails.ShouldBe(problemDetails);
-		result.ErrorMessage.ShouldBe("Something went wrong");
+		result.ErrorMessage!.ShouldBe("Something went wrong");
 	}
 
 	[Fact]
@@ -163,7 +163,7 @@ public sealed class StructMessageResultShould
 		result.ReturnValue.ShouldBe(42);
 		result.CacheHit.ShouldBeFalse();
 		result.ProblemDetails.ShouldBeNull();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -180,7 +180,7 @@ public sealed class StructMessageResultShould
 		result.Succeeded.ShouldBeFalse();
 		result.ReturnValue.ShouldBeNull();
 		result.ProblemDetails.ShouldBe(problemDetails);
-		result.ErrorMessage.ShouldBe("Error occurred");
+		result.ErrorMessage!.ShouldBe("Error occurred");
 	}
 
 	[Fact]

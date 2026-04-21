@@ -10,7 +10,7 @@ Domain events represent facts that have happened in your domain. They are immuta
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch.Abstractions
@@ -177,19 +177,19 @@ public record OrderCreatedIntegrationEvent(
 
 ### Event Transformation
 
-Transform domain events to integration events using `IMessagePublisher`. Use `IMessageContextAccessor` to access the current context and `CreateChildContext()` to propagate correlation metadata:
+Transform domain events to integration events using `IDispatcher`. Use `IMessageContextAccessor` to access the current context and `CreateChildContext()` to propagate correlation metadata:
 
 ```csharp
 public class OrderCreatedPublisher : IEventHandler<OrderCreated>
 {
-    private readonly IMessagePublisher _publisher;
+    private readonly IDispatcher _dispatcher;
     private readonly IMessageContextAccessor _contextAccessor;
 
     public OrderCreatedPublisher(
-        IMessagePublisher publisher,
+        IDispatcher dispatcher,
         IMessageContextAccessor contextAccessor)
     {
-        _publisher = publisher;
+        _dispatcher = dispatcher;
         _contextAccessor = contextAccessor;
     }
 
@@ -208,7 +208,7 @@ public class OrderCreatedPublisher : IEventHandler<OrderCreated>
         // - TraceParent (OpenTelemetry)
         var childContext = _contextAccessor.MessageContext?.CreateChildContext();
 
-        await _publisher.PublishAsync(integrationEvent, childContext!, ct);
+        await _dispatcher.DispatchAsync(integrationEvent, childContext!, ct);
     }
 }
 ```
@@ -277,21 +277,25 @@ var @event = new OrderCreated
 
 ### Default Serialization
 
-Events are serialized using the configured serializer. Register serialization via DI:
+Events are serialized using the configured serializer. JSON (System.Text.Json) is the default and works with any POCO event type -- no attributes needed.
 
 ```csharp
 // Register event sourcing
-services.AddExcaliburEventSourcing();
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing());
 
-// Default: MemoryPack for internal serialization
-services.AddMemoryPackInternalSerialization();
+// Default: JSON (System.Text.Json) -- works with any POCO event type.
+// For binary serialization, install the provider package and call a single method:
+
+// MemoryPack for maximum .NET performance
+services.AddMemoryPackSerializer();
 
 // Or MessagePack for cross-language support
-services.AddMessagePackSerialization();
-
-// Or System.Text.Json for patterns/hosting
-services.AddJsonSerialization();
+services.AddMessagePackSerializer();
 ```
+
+:::info No serializer-specific attributes needed
+Consumer event types do **not** need `[MemoryPackable]`, `[MessagePackObject]`, or any other serializer-specific attributes. Only the internal envelope wrapper uses these attributes. Your domain events remain plain POCOs regardless of which serializer you choose.
+:::
 
 ### Custom Type Names
 

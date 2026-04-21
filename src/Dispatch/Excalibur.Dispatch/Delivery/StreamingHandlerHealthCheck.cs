@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions.Delivery;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -23,19 +26,11 @@ namespace Excalibur.Dispatch.Delivery;
 /// </remarks>
 internal sealed class StreamingHandlerHealthCheck : IHealthCheck
 {
-	private readonly IServiceProvider _serviceProvider;
 	private volatile IReadOnlyList<Type>? _cachedHandlerTypes;
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="StreamingHandlerHealthCheck"/> class.
-	/// </summary>
-	/// <param name="serviceProvider">The service provider for resolving streaming handlers.</param>
-	public StreamingHandlerHealthCheck(IServiceProvider serviceProvider)
-	{
-		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-	}
-
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "Assembly scanning for handler discovery is cached and only runs once. AOT consumers should register handlers explicitly.")]
 	public Task<HealthCheckResult> CheckHealthAsync(
 		HealthCheckContext context,
 		CancellationToken cancellationToken)
@@ -76,7 +71,8 @@ internal sealed class StreamingHandlerHealthCheck : IHealthCheck
 	/// Discovers streaming handler types via assembly scanning. Result is cached to avoid
 	/// repeated reflection on every health check invocation.
 	/// </summary>
-	private static IReadOnlyList<Type> DiscoverHandlerTypes()
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Type.GetInterfaces() to discover IStreamingDocumentHandler implementations at runtime.")]
+	private static ReadOnlyCollection<Type> DiscoverHandlerTypes()
 	{
 		return AppDomain.CurrentDomain.GetAssemblies()
 			.SelectMany(a =>

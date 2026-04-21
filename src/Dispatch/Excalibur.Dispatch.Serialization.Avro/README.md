@@ -12,22 +12,19 @@ Apache Avro serialization plugin for the Excalibur framework.
 
 ## Usage
 
+One call does everything -- DI registration, serializer registry entry, and setting Avro as the current serializer:
+
 ```csharp
-// Register as a pluggable serializer (alongside default MemoryPack)
-services.AddAvroPluggableSerialization();
+services.AddAvroSerializer();
+```
 
-// Or set as the current serializer for new payloads
-services.AddAvroPluggableSerialization(setAsCurrent: true);
+With custom options:
 
-// Via the builder pattern
-services.AddDispatch()
-    .ConfigureSerialization(config =>
-    {
-        config.Register(
-            AvroSerializationExtensions.GetPluggableSerializer(),
-            SerializerIds.Avro);
-        config.UseAvro();
-    });
+```csharp
+services.AddAvroSerializer(opts =>
+{
+    opts.BufferSize = 8192; // default: 4096
+});
 ```
 
 ## Requirements

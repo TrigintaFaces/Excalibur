@@ -1,3 +1,4 @@
+using Excalibur.Compliance.Erasure;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -8,7 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// and grace period logic.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class ErasureServiceExecutionShould
 {
 	private readonly IErasureStore _store;
@@ -16,10 +17,8 @@ public sealed class ErasureServiceExecutionShould
 	private readonly IErasureQueryStore _queryStore;
 	private readonly ILegalHoldService _legalHoldService;
 	private readonly IDataInventoryService _dataInventoryService;
-	private readonly IKeyManagementProvider _keyProvider;
 	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly ErasureOptions _erasureOptions;
-	private readonly IOptions<ErasureSigningOptions> _signingOptions;
 	private readonly ErasureService _sut;
 
 	public ErasureServiceExecutionShould()
@@ -29,7 +28,6 @@ public sealed class ErasureServiceExecutionShould
 		_queryStore = A.Fake<IErasureQueryStore>();
 		_legalHoldService = A.Fake<ILegalHoldService>();
 		_dataInventoryService = A.Fake<IDataInventoryService>();
-		_keyProvider = A.Fake<IKeyManagementProvider>();
 		_keyAdmin = A.Fake<IKeyManagementAdmin>();
 		_erasureOptions = new ErasureOptions
 		{
@@ -38,11 +36,11 @@ public sealed class ErasureServiceExecutionShould
 			MaximumGracePeriod = TimeSpan.FromDays(30),
 			EnableAutoDiscovery = true,
 			Retention = new ErasureRetentionOptions
-		{
-			CertificateRetentionPeriod = TimeSpan.FromDays(365),
-		}
+			{
+				CertificateRetentionPeriod = TimeSpan.FromDays(365),
+				SigningKey = new byte[32],
+			},
 		};
-		_signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions { SigningKey = new byte[32] });
 
 		// Wire up GetService to return sub-stores
 		_ = A.CallTo(() => _store.GetService(typeof(IErasureCertificateStore)))
@@ -52,10 +50,8 @@ public sealed class ErasureServiceExecutionShould
 
 		_sut = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			Microsoft.Extensions.Options.Options.Create(_erasureOptions),
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			_legalHoldService,
 			_dataInventoryService);
@@ -76,7 +72,7 @@ public sealed class ErasureServiceExecutionShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("not found");
+		result.ErrorMessage!.ShouldContain("not found");
 	}
 
 	[Fact]
@@ -93,7 +89,7 @@ public sealed class ErasureServiceExecutionShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Invalid status");
+		result.ErrorMessage!.ShouldContain("Invalid status");
 	}
 
 	[Fact]
@@ -519,10 +515,8 @@ public sealed class ErasureServiceExecutionShould
 		// Arrange - no legal hold service or data inventory service
 		var sut = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			Microsoft.Extensions.Options.Options.Create(_erasureOptions),
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null);

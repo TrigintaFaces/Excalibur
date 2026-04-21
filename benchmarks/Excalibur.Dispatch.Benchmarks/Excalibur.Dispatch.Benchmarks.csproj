@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -12,17 +12,24 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Suppress analyzer warnings irrelevant for benchmark code -->
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <NoWarn>$(NoWarn);CA1001;CA1052;CA1707;MA0048;MA0053;MA0016;MA0061;MA0036;MA0025;IDE0060;SA1623;SA1202;SA1402</NoWarn>
+    <NoWarn>$(NoWarn);CA1001;CA1052;CA1707;MA0048;MA0053;MA0016;MA0061;MA0036;MA0025;IDE0060;SA1623;SA1202;SA1402;CS1591;SA1600;SA1201;SA1305;MA0038;MA0042;MA0051;MA0076;CA1711;CA1812;CA1852;CA1859</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Condition="'$(OS)' == 'Windows_NT'" />
     <PackageReference Include="MassTransit" />
     <PackageReference Include="MediatR" />
+    <PackageReference Include="NServiceBus" />
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="MemoryPack" />
+    <!-- WolverineFx 5.31.1 transitively requires CodeAnalysis 5.0.0 via JasperFx.RuntimeCompiler.
+         Central pin is 4.14.0 (HOLD per S810 COMPASS msg 2233). Override scoped to benchmarks only. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" VersionOverride="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" VersionOverride="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" VersionOverride="5.0.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
@@ -33,8 +40,8 @@
     <ProjectReference Include="..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
-    <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
-    <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Compliance\Excalibur.Compliance.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\..\src\Excalibur\Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
     <ProjectReference Include="..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />

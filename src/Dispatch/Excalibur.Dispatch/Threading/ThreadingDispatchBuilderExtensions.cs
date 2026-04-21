@@ -48,7 +48,7 @@ public static class ThreadingDispatchBuilderExtensions
 	/// </para>
 	/// <para> Should be called early in the configuration pipeline before other features that depend on concurrent processing capabilities. </para>
 	/// </remarks>
-	public static IDispatchBuilder AddDispatchThreading(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseThreading(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 

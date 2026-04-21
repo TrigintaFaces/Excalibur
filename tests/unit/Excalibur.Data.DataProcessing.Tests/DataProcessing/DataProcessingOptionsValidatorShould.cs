@@ -14,8 +14,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// validator (DataProcessingOptionsValidator) added in Sprint 662.
 /// Tests ProducerBatchSize/ConsumerBatchSize vs QueueSize and DispatcherTimeout range constraints.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 {
 	private readonly IValidateOptions<DataProcessingOptions> _validator;

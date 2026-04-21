@@ -78,7 +78,7 @@ public sealed class EventSourcingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburEventSourcing(null!));
+		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburEventSourcing((Action<IEventSourcingBuilder>)null!));
 	}
 
 	[Fact]
@@ -174,25 +174,22 @@ public sealed class EventSourcingServiceCollectionExtensionsShould
 	#region Snapshot Strategy Tests
 
 	[Fact]
-	public void AddExcaliburEventSourcing_DefaultBehavior_UsesNoSnapshotStrategy()
+	public void AddExcaliburEventSourcing_BuilderOverridesDefaultSnapshotStrategy()
 	{
-		// Note: Due to TryAddSingleton semantics, the base AddExcaliburEventSourcing()
-		// registers NoSnapshotStrategy first, and subsequent strategy registrations via
-		// the builder don't override it. This is by design - TryAdd means "first wins".
-		//
-		// To use a different strategy, register it BEFORE calling AddExcaliburEventSourcing,
-		// or use the builder directly without calling the parameterless overload first.
+		// The base AddExcaliburEventSourcing() registers NoSnapshotStrategy as default,
+		// but the builder's Use* methods use Replace semantics (last wins), so
+		// UseIntervalSnapshots correctly overrides the default.
 
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act - This registers NoSnapshotStrategy as default, builder strategies use TryAdd
+		// Act - Builder strategy replaces the default NoSnapshotStrategy
 		_ = services.AddExcaliburEventSourcing(builder => builder.UseIntervalSnapshots(50));
 		var provider = services.BuildServiceProvider();
 
-		// Assert - Default is registered first due to implementation
+		// Assert - Builder's strategy wins over the default
 		var snapshotStrategy = provider.GetRequiredService<ISnapshotStrategy>();
-		snapshotStrategy.ShouldBeSameAs(NoSnapshotStrategy.Instance);
+		_ = snapshotStrategy.ShouldBeOfType<IntervalSnapshotStrategy>();
 	}
 
 	[Fact]

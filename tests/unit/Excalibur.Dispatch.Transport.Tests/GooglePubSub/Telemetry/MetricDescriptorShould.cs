@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport.Google;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.Telemetry;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class MetricDescriptorShould
 {
 	[Fact]
@@ -52,25 +52,25 @@ public sealed class MetricDescriptorShould
 	}
 
 	[Theory]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.MetricKind.Unspecified, 0)]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.MetricKind.Gauge, 1)]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.MetricKind.Delta, 2)]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.MetricKind.Cumulative, 3)]
-	public void HaveCorrectMetricKindValues(MetricDescriptor.MetricDescriptorTypes.MetricKind kind, int expected)
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.MetricKind.Unspecified, 0)]
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.MetricKind.Gauge, 1)]
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.MetricKind.Delta, 2)]
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.MetricKind.Cumulative, 3)]
+	public void HaveCorrectMetricKindValues(int kindValue, int expected)
 	{
-		((int)kind).ShouldBe(expected);
+		kindValue.ShouldBe(expected);
 	}
 
 	[Theory]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.ValueType.Unspecified, 0)]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.ValueType.Bool, 1)]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.ValueType.Int64, 2)]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.ValueType.Double, 3)]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.ValueType.String, 4)]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.ValueType.Distribution, 5)]
-	[InlineData(MetricDescriptor.MetricDescriptorTypes.ValueType.Money, 6)]
-	public void HaveCorrectValueTypeValues(MetricDescriptor.MetricDescriptorTypes.ValueType valueType, int expected)
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.ValueType.Unspecified, 0)]
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.ValueType.Bool, 1)]
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.ValueType.Int64, 2)]
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.ValueType.Double, 3)]
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.ValueType.String, 4)]
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.ValueType.Distribution, 5)]
+	[InlineData((int)MetricDescriptor.MetricDescriptorTypes.ValueType.Money, 6)]
+	public void HaveCorrectValueTypeValues(int valueType, int expected)
 	{
-		((int)valueType).ShouldBe(expected);
+		valueType.ShouldBe(expected);
 	}
 }

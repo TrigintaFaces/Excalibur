@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// ASP.NET Core health checks and the <c>MultiTransportHealthCheck</c>.
 /// </para>
 /// </remarks>
-internal sealed partial class AwsSqsTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class AwsSqsTransportAdapter : ITransportAdapter, ITransportAdapterLifecycle, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for AWS SQS adapters.

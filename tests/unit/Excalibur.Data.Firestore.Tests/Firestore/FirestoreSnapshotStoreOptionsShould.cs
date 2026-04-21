@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.Firestore.Snapshots;
 /// <summary>
 /// Unit tests for <see cref="FirestoreSnapshotStoreOptions"/> configuration and validation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class FirestoreSnapshotStoreOptionsShould : UnitTestBase
 {
 	#region Default Values Tests

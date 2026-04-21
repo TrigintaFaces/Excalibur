@@ -6,7 +6,7 @@ namespace Excalibur.Data.Postgres.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for PostgreSQL persistence instrumentation.
 /// </summary>
-public static class PostgresPersistenceTelemetryConstants
+internal static class PostgresPersistenceTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for PostgreSQL persistence metrics.

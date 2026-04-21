@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Options.Delivery;
 /// Unit tests for <see cref="OutboxDeliveryOptions"/> in the Delivery namespace.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class DeliveryOutboxDeliveryOptionsShould
 {

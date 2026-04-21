@@ -31,6 +31,14 @@ public sealed class ByteArrayEqualityComparer : IEqualityComparer<byte[]>, Syste
 			return obj.Aggregate(17, static (current, b) => (current * 31) + b.GetHashCode());
 		}
 	}
+
+	/// <summary>
+	/// Determines whether the specified objects, which must be byte arrays, are equal.
+	/// </summary>
+	/// <param name="x">The first object to compare. Must be a byte array.</param>
+	/// <param name="y">The second object to compare. Must be a byte array.</param>
+	/// <returns><see langword="true"/> if the byte arrays are equal; otherwise, <see langword="false"/>.</returns>
+	/// <exception cref="ArgumentException">Thrown when either argument is not a byte array.</exception>
 	public new bool Equals(object? x, object? y)
 	{
 		if (x == y)
@@ -51,6 +59,13 @@ public sealed class ByteArrayEqualityComparer : IEqualityComparer<byte[]>, Syste
 
 		throw new ArgumentException("Expected byte[] argument for CDC LSN comparison.", nameof(x));
 	}
+
+	/// <summary>
+	/// Returns a hash code for the specified object, which must be a byte array.
+	/// </summary>
+	/// <param name="obj">The object for which to get a hash code.</param>
+	/// <returns>A hash code for the byte array.</returns>
+	/// <exception cref="ArgumentException">Thrown when the argument is not a byte array.</exception>
 	public int GetHashCode(object obj)
 	{
 		if (obj == null)

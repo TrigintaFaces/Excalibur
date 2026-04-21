@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Security.Azure;
+using Excalibur.Security.Azure;
+using Excalibur.Security.Azure.Internal;
 
 using Azure;
 using Azure.Security.KeyVault.Secrets;
@@ -9,7 +10,6 @@ using Azure.Security.KeyVault.Secrets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security;
 
@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Security.Tests.Azure;
 /// Unit tests for <see cref="AzureKeyVaultCredentialStore"/>.
 /// Verifies Sprint 390 implementation: Azure credential store moved to dedicated package.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 {
 	[Fact]
@@ -206,14 +206,13 @@ public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 	public async Task GetCredentialAsync_ReturnsSecureString_WhenSecretExists()
 	{
 		// Arrange
-		var store = CreateCredentialStore();
-		var secretClient = A.Fake<SecretClient>();
+		var secretClient = A.Fake<ISecretClient>();
 		var secret = new KeyVaultSecret("dispatch-test-key", "super-secret");
 
-		A.CallTo(() => secretClient.GetSecretAsync(A<string>._, A<string>._, A<CancellationToken>._))
+		A.CallTo(() => secretClient.GetSecretAsync(A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(Response.FromValue(secret, A.Fake<Response>())));
 
-		SetSecretClient(store, secretClient);
+		var store = CreateCredentialStore(secretClient);
 
 		// Act
 		var result = await store.GetCredentialAsync("test key", CancellationToken.None);
@@ -228,11 +227,10 @@ public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 	public async Task GetCredentialAsync_ReturnsNull_WhenSecretClientReturns404()
 	{
 		// Arrange
-		var store = CreateCredentialStore();
-		var secretClient = A.Fake<SecretClient>();
-		A.CallTo(() => secretClient.GetSecretAsync(A<string>._, A<string>._, A<CancellationToken>._))
+		var secretClient = A.Fake<ISecretClient>();
+		A.CallTo(() => secretClient.GetSecretAsync(A<string>._, A<CancellationToken>._))
 			.Throws(new RequestFailedException(404, "not found"));
-		SetSecretClient(store, secretClient);
+		var store = CreateCredentialStore(secretClient);
 
 		// Act
 		var result = await store.GetCredentialAsync("missing-key", CancellationToken.None);
@@ -245,11 +243,10 @@ public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 	public async Task GetCredentialAsync_Rethrows_WhenSecretClientThrowsNon404()
 	{
 		// Arrange
-		var store = CreateCredentialStore();
-		var secretClient = A.Fake<SecretClient>();
-		A.CallTo(() => secretClient.GetSecretAsync(A<string>._, A<string>._, A<CancellationToken>._))
+		var secretClient = A.Fake<ISecretClient>();
+		A.CallTo(() => secretClient.GetSecretAsync(A<string>._, A<CancellationToken>._))
 			.Throws(new RequestFailedException(500, "boom"));
-		SetSecretClient(store, secretClient);
+		var store = CreateCredentialStore(secretClient);
 
 		// Act / Assert
 		_ = await Should.ThrowAsync<RequestFailedException>(() => store.GetCredentialAsync("failing-key", CancellationToken.None));
@@ -267,15 +264,14 @@ public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 				["AzureKeyVault:KeyPrefix"] = "custom-prefix-",
 			})
 			.Build();
-		var store = new AzureKeyVaultCredentialStore(configuration, logger);
 
-		var secretClient = A.Fake<SecretClient>();
+		var secretClient = A.Fake<ISecretClient>();
 		KeyVaultSecret? captured = null;
 		A.CallTo(() => secretClient.SetSecretAsync(A<KeyVaultSecret>._, A<CancellationToken>._))
 			.Invokes((KeyVaultSecret secret, CancellationToken _) => captured = secret)
 			.ReturnsLazily((KeyVaultSecret secret, CancellationToken _) =>
 				Task.FromResult(Response.FromValue(secret, A.Fake<Response>())));
-		SetSecretClient(store, secretClient);
+		var store = new AzureKeyVaultCredentialStore(configuration, logger, secretClient);
 
 		// Act
 		await store.StoreCredentialAsync("abc_123/DEF", CreateSecureString("very-secret"), CancellationToken.None);
@@ -293,14 +289,13 @@ public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 	public async Task StoreCredentialAsync_TruncatesOverlongSecretName()
 	{
 		// Arrange
-		var store = CreateCredentialStore();
-		var secretClient = A.Fake<SecretClient>();
+		var secretClient = A.Fake<ISecretClient>();
 		KeyVaultSecret? captured = null;
 		A.CallTo(() => secretClient.SetSecretAsync(A<KeyVaultSecret>._, A<CancellationToken>._))
 			.Invokes((KeyVaultSecret secret, CancellationToken _) => captured = secret)
 			.ReturnsLazily((KeyVaultSecret secret, CancellationToken _) =>
 				Task.FromResult(Response.FromValue(secret, A.Fake<Response>())));
-		SetSecretClient(store, secretClient);
+		var store = CreateCredentialStore(secretClient);
 
 		var veryLongKey = new string('x', 300);
 
@@ -316,11 +311,10 @@ public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 	public async Task StoreCredentialAsync_Rethrows_WhenSecretClientThrows()
 	{
 		// Arrange
-		var store = CreateCredentialStore();
-		var secretClient = A.Fake<SecretClient>();
+		var secretClient = A.Fake<ISecretClient>();
 		A.CallTo(() => secretClient.SetSecretAsync(A<KeyVaultSecret>._, A<CancellationToken>._))
 			.Throws(new RequestFailedException(500, "write failed"));
-		SetSecretClient(store, secretClient);
+		var store = CreateCredentialStore(secretClient);
 
 		// Act / Assert
 		_ = await Should.ThrowAsync<RequestFailedException>(() =>
@@ -342,6 +336,13 @@ public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 		var logger = A.Fake<ILogger<AzureKeyVaultCredentialStore>>();
 		var configuration = CreateConfigurationWithVaultUri();
 		return new AzureKeyVaultCredentialStore(configuration, logger);
+	}
+
+	private static AzureKeyVaultCredentialStore CreateCredentialStore(ISecretClient secretClient)
+	{
+		var logger = A.Fake<ILogger<AzureKeyVaultCredentialStore>>();
+		var configuration = CreateConfigurationWithVaultUri();
+		return new AzureKeyVaultCredentialStore(configuration, logger, secretClient);
 	}
 
 	private static SecureString CreateSecureString(string value)
@@ -372,10 +373,4 @@ public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 		}
 	}
 
-	private static void SetSecretClient(AzureKeyVaultCredentialStore store, SecretClient secretClient)
-	{
-		var field = typeof(AzureKeyVaultCredentialStore).GetField("_secretClient", BindingFlags.Instance | BindingFlags.NonPublic);
-		field.ShouldNotBeNull();
-		field!.SetValue(store, secretClient);
-	}
 }

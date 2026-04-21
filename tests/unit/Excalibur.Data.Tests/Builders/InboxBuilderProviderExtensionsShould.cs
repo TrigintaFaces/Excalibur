@@ -12,6 +12,8 @@ using Excalibur.Inbox.Postgres;
 using Excalibur.Inbox.Redis;
 using Excalibur.Inbox.SqlServer;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Excalibur.Data.Tests.Builders;
 
 /// <summary>
@@ -20,7 +22,7 @@ namespace Excalibur.Data.Tests.Builders;
 /// InMemory, MongoDB, Postgres, Redis, SqlServer).
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 {
 	private sealed class TestInboxBuilder : IInboxBuilder
@@ -34,7 +36,7 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseCosmosDb()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((IInboxBuilder)null!).UseCosmosDb(_ => { }));
+			((IInboxBuilder)null!).UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA==")));
 	}
 
 	[Fact]
@@ -42,14 +44,14 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestInboxBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseCosmosDb((Action<CosmosDbInboxOptions>)null!));
+			builder.UseCosmosDb((Action<ICosmosDbInboxBuilder>)null!));
 	}
 
 	[Fact]
 	public void ReturnSameBuilder_ForFluentChaining_UseCosmosDb()
 	{
 		var builder = new TestInboxBuilder();
-		var result = builder.UseCosmosDb(_ => { });
+		var result = builder.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA=="));
 		result.ShouldBeSameAs(builder);
 	}
 
@@ -61,7 +63,7 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseDynamoDb()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((IInboxBuilder)null!).UseDynamoDb(_ => { }));
+			((IInboxBuilder)null!).UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 	}
 
 	[Fact]
@@ -69,14 +71,14 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestInboxBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseDynamoDb((Action<DynamoDbInboxOptions>)null!));
+			builder.UseDynamoDb((Action<IDynamoDBInboxBuilder>)null!));
 	}
 
 	[Fact]
 	public void ReturnSameBuilder_ForFluentChaining_UseDynamoDb()
 	{
 		var builder = new TestInboxBuilder();
-		var result = builder.UseDynamoDb(_ => { });
+		var result = builder.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000"));
 		result.ShouldBeSameAs(builder);
 	}
 
@@ -96,14 +98,14 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestInboxBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseElasticSearch((Action<ElasticsearchInboxOptions>)null!));
+			builder.UseElasticSearch((Action<IElasticSearchInboxBuilder>)null!));
 	}
 
 	[Fact]
 	public void ReturnSameBuilder_ForFluentChaining_UseElasticSearch()
 	{
 		var builder = new TestInboxBuilder();
-		var result = builder.UseElasticSearch(_ => { });
+		var result = builder.UseElasticSearch(es => es.NodeUri(new Uri("http://localhost:9200")));
 		result.ShouldBeSameAs(builder);
 	}
 
@@ -115,7 +117,7 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseFirestore()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((IInboxBuilder)null!).UseFirestore(_ => { }));
+			((IInboxBuilder)null!).UseFirestore(fs => fs.ProjectId("test-project")));
 	}
 
 	[Fact]
@@ -123,14 +125,14 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestInboxBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseFirestore((Action<FirestoreInboxOptions>)null!));
+			builder.UseFirestore((Action<IFirestoreInboxBuilder>)null!));
 	}
 
 	[Fact]
 	public void ReturnSameBuilder_ForFluentChaining_UseFirestore()
 	{
 		var builder = new TestInboxBuilder();
-		var result = builder.UseFirestore(_ => { });
+		var result = builder.UseFirestore(fs => fs.ProjectId("test-project"));
 		result.ShouldBeSameAs(builder);
 	}
 
@@ -161,7 +163,7 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseMongoDB()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((IInboxBuilder)null!).UseMongoDB(_ => { }));
+			((IInboxBuilder)null!).UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017")));
 	}
 
 	[Fact]
@@ -169,14 +171,14 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestInboxBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseMongoDB((Action<MongoDbInboxOptions>)null!));
+			builder.UseMongoDB((Action<IMongoDBInboxBuilder>)null!));
 	}
 
 	[Fact]
 	public void ReturnSameBuilder_ForFluentChaining_UseMongoDB()
 	{
 		var builder = new TestInboxBuilder();
-		var result = builder.UseMongoDB(_ => { });
+		var result = builder.UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017"));
 		result.ShouldBeSameAs(builder);
 	}
 
@@ -196,7 +198,7 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestInboxBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgres((Action<PostgresInboxOptions>)null!));
+			builder.UsePostgres((Action<IPostgresInboxBuilder>)null!));
 	}
 
 	[Fact]
@@ -215,7 +217,7 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseRedis()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((IInboxBuilder)null!).UseRedis(_ => { }));
+			((IInboxBuilder)null!).UseRedis(redis => redis.ConnectionString("localhost:6379")));
 	}
 
 	[Fact]
@@ -223,14 +225,14 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestInboxBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseRedis((Action<RedisInboxOptions>)null!));
+			builder.UseRedis((Action<IRedisInboxBuilder>)null!));
 	}
 
 	[Fact]
 	public void ReturnSameBuilder_ForFluentChaining_UseRedis()
 	{
 		var builder = new TestInboxBuilder();
-		var result = builder.UseRedis(_ => { });
+		var result = builder.UseRedis(redis => redis.ConnectionString("localhost:6379"));
 		result.ShouldBeSameAs(builder);
 	}
 
@@ -242,7 +244,7 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseSqlServer()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((IInboxBuilder)null!).UseSqlServer(_ => { }));
+			((IInboxBuilder)null!).UseSqlServer((Action<ISqlServerInboxBuilder>)(_ => { })));
 	}
 
 	[Fact]
@@ -250,14 +252,14 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestInboxBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseSqlServer((Action<SqlServerInboxOptions>)null!));
+			builder.UseSqlServer((Action<ISqlServerInboxBuilder>)null!));
 	}
 
 	[Fact]
 	public void ReturnSameBuilder_ForFluentChaining_UseSqlServer()
 	{
 		var builder = new TestInboxBuilder();
-		var result = builder.UseSqlServer(_ => { });
+		var result = builder.UseSqlServer(sql => sql.ConnectionString("Server=localhost;Database=Test;"));
 		result.ShouldBeSameAs(builder);
 	}
 

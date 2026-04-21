@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MessagePack\Excalibur.Dispatch.Serialization.MessagePack.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.Protobuf\Excalibur.Dispatch.Serialization.Protobuf.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.Avro\Excalibur.Dispatch.Serialization.Avro.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

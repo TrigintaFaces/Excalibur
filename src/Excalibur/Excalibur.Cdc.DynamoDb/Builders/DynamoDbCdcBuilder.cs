@@ -50,7 +50,7 @@ internal sealed class DynamoDbCdcBuilder : IDynamoDbCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the maximum number of records per batch.</summary>
 	public IDynamoDbCdcBuilder MaxBatchSize(int maxBatchSize)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBatchSize);
@@ -58,7 +58,7 @@ internal sealed class DynamoDbCdcBuilder : IDynamoDbCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the interval between stream polls.</summary>
 	public IDynamoDbCdcBuilder PollInterval(TimeSpan interval)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
@@ -66,7 +66,7 @@ internal sealed class DynamoDbCdcBuilder : IDynamoDbCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Configures a separate DynamoDB client factory for state persistence.</summary>
 	public IDynamoDbCdcBuilder WithStateStore(Func<IServiceProvider, IAmazonDynamoDB> clientFactory)
 	{
 		ArgumentNullException.ThrowIfNull(clientFactory);

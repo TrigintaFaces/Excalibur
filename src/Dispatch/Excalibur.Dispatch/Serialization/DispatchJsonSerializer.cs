@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Serialization;
 public sealed class DispatchJsonSerializer : IDisposable
 {
 	private readonly JsonSerializerOptions _options;
-	private readonly DispatchJsonContext? _jsonContext;
+	private readonly JsonSerializerContext? _jsonContext;
 	private readonly IUtf8JsonWriterPool _writerPool;
 	private readonly IPooledBufferService _bufferManager;
 	private readonly ThreadLocal<ArrayBufferWriter<byte>> _threadLocalBufferWriter;
@@ -44,39 +44,44 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <param name="jsonContext"> Optional JSON context for AOT serialization. </param>
 	/// <param name="writerPool"> Optional UTF-8 JSON writer pool for performance optimization. </param>
 	/// <param name="bufferManager"> Optional buffer manager for memory pooling. </param>
-	[RequiresDynamicCode(
-		"JSON serialization with JsonSerializerOptions and converters requires dynamic code generation for type inspection and serialization logic.")]
 	public DispatchJsonSerializer(
 		Action<JsonSerializerOptions>? configure = null,
-		DispatchJsonContext? jsonContext = null,
+		JsonSerializerContext? jsonContext = null,
 		IUtf8JsonWriterPool? writerPool = null,
 		IPooledBufferService? bufferManager = null)
 	{
+		_jsonContext = jsonContext ?? DispatchJsonContext.Default;
+
 		_options = new JsonSerializerOptions
 		{
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
 			PropertyNameCaseInsensitive = true,
 			WriteIndented = false,
 			DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-			Converters = { new JsonStringEnumConverter() },
 
 			// Optimize for speed
 			DefaultBufferSize = 16384,
 			MaxDepth = 64,
 		};
 
-		// Use the provided context or use the default instance
-		_jsonContext = jsonContext ?? DispatchJsonContext.Default;
-
-		// Chain the source-generated context with a reflection-based fallback resolver.
-		// This constructor is already marked [RequiresDynamicCode], so reflection is available.
-		// The source-gen context handles known types efficiently; DefaultJsonTypeInfoResolver
-		// provides fallback for types not registered in the source-gen context (e.g., consumer
-		// domain types). This follows the Microsoft-recommended hybrid pattern for
-		// JsonTypeInfoResolver composition.
-		_options.TypeInfoResolver = JsonTypeInfoResolver.Combine(
-			_jsonContext,
-			new DefaultJsonTypeInfoResolver());
+		if (RuntimeFeature.IsDynamicCodeSupported)
+		{
+			// Non-AOT path: add reflection-based converters and fallback resolver.
+			// JsonStringEnumConverter uses reflection for enum serialization.
+			// DefaultJsonTypeInfoResolver provides runtime type resolution for consumer types
+			// not registered in the source-generated context.
+#pragma warning disable IL2026 // Guarded by RuntimeFeature.IsDynamicCodeSupported check; AOT path uses source-gen context only
+#pragma warning disable IL3050
+			AddReflectionBasedConfiguration(_options, _jsonContext);
+#pragma warning restore IL3050
+#pragma warning restore IL2026
+		}
+		else
+		{
+			// AOT path: use only the source-generated context. No reflection fallback.
+			// Consumer types must be registered in a JsonSerializerContext passed via jsonContext.
+			_options.TypeInfoResolver = _jsonContext;
+		}
 
 		// Apply user configuration AFTER defaults (including TypeInfoResolver) so callers
 		// can override any option, e.g. set TypeInfoResolver = null for reflection mode.
@@ -96,6 +101,24 @@ public sealed class DispatchJsonSerializer : IDisposable
 			trackAllValues: true);
 
 		Telemetry = new SerializerTelemetry();
+	}
+
+	[RequiresDynamicCode(
+		"Adds JsonStringEnumConverter and DefaultJsonTypeInfoResolver which require dynamic code generation.")]
+	[RequiresUnreferencedCode(
+		"DefaultJsonTypeInfoResolver uses reflection to discover type metadata at runtime.")]
+	private static void AddReflectionBasedConfiguration(JsonSerializerOptions options, JsonSerializerContext context)
+	{
+		options.Converters.Add(new JsonStringEnumConverter());
+
+		// Chain the source-generated context with a reflection-based fallback resolver.
+		// The source-gen context handles known types efficiently; DefaultJsonTypeInfoResolver
+		// provides fallback for types not registered in the source-gen context (e.g., consumer
+		// domain types). This follows the Microsoft-recommended hybrid pattern for
+		// JsonTypeInfoResolver composition.
+		options.TypeInfoResolver = JsonTypeInfoResolver.Combine(
+			context,
+			new DefaultJsonTypeInfoResolver());
 	}
 
 	/// <summary>
@@ -136,7 +159,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 			return new PooledSerializationResult((PooledBuffer)nullBuffer, 4);
 		}
 
-		var bufferWriter = _threadLocalBufferWriter.Value;
+		var bufferWriter = _threadLocalBufferWriter.Value!;
 		bufferWriter.Clear();
 
 		using (var pooledWriter = _writerPool.RentWriter(bufferWriter))
@@ -180,7 +203,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 
 		ArgumentNullException.ThrowIfNull(type);
 
-		var bufferWriter = _threadLocalBufferWriter.Value;
+		var bufferWriter = _threadLocalBufferWriter.Value!;
 		bufferWriter.Clear();
 
 		using (var pooledWriter = _writerPool.RentWriter(bufferWriter))

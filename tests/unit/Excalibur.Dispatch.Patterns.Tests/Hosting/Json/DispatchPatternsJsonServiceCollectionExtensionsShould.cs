@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Hosting.Json;
 /// <summary>
 /// Unit tests for <see cref="DispatchPatternsJsonServiceCollectionExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Patterns")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Patterns)]
 public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
@@ -63,7 +63,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : Unit
 	public void AddJsonSerialization_WithNullConfigure_DoesNotThrow()
 	{
 		// Act & Assert — null configure delegate should be fine
-		_ = Services.AddJsonSerialization(null);
+		_ = Services.AddJsonSerialization((Action<Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions>?)null);
 		BuildServiceProvider();
 		var serializer = GetService<DispatchJsonSerializer>();
 		serializer.ShouldNotBeNull();

@@ -50,9 +50,11 @@ public sealed class InsertOutboxMessageRequest : DataRequestBase<IDbConnection, 
 		parameters.Add("@Id", message.Id);
 		parameters.Add("@MessageType", message.MessageType);
 		parameters.Add("@Payload", message.Payload);
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 		parameters.Add("@Headers", message.Headers.Count > 0
 			? JsonSerializer.Serialize(message.Headers, JsonOptions)
 			: null);
+#pragma warning restore IL2026, IL3050
 		parameters.Add("@Destination", message.Destination);
 		parameters.Add("@CreatedAt", message.CreatedAt);
 		parameters.Add("@ScheduledAt", message.ScheduledAt);

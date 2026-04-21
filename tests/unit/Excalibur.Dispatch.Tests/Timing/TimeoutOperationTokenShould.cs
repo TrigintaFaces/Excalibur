@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Tests.Timing;
 /// Covers construction, completion, disposal, elapsed tracking,
 /// and edge cases (double-dispose, complete after dispose).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class TimeoutOperationTokenShould
 {
 	[Fact]

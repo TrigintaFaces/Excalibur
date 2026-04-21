@@ -122,7 +122,7 @@ public sealed class InlineProjectionIntegrationShould
 		var handler = new OrderingTestHandler(executionOrder);
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(projectionStore)
-			.AddSingleton(typeof(IEventNotificationHandler<TestOrderPlaced>), handler)
+			.AddSingleton<IEventNotificationHandler<TestOrderPlaced>>(handler)
 			.BuildServiceProvider();
 
 		var processor = CreateProcessor(registry, services);
@@ -136,7 +136,7 @@ public sealed class InlineProjectionIntegrationShould
 			CancellationToken.None);
 
 		// Assert -- strict ordering: projections first, then handlers
-		executionOrder.ShouldBe(new[] { "inline-projection", "notification-handler" });
+		executionOrder.ShouldBe(["inline-projection", "notification-handler"]);
 	}
 
 	/// <summary>

@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Transport;
 /// Part of S469.5 - Unit Tests for Transport Infrastructure (Sprint 469).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsTransportAdapterOptionsShould : UnitTestBase
 {

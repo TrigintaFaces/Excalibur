@@ -8,7 +8,7 @@
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A deployed or staging Excalibur application
 - Familiarity with [encryption providers](../security/encryption-providers.md) and [authorization](../security/authorization.md)
 
@@ -310,7 +310,7 @@ builder.Services.AddDataProtection()
 ### Encryption at Rest (Excalibur.Dispatch)
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 // Configure encryption with Azure Key Vault
 builder.Services.AddAzureKeyVaultKeyManagement(options =>
@@ -688,7 +688,7 @@ public class AuthenticationEventsHandler
 
 ```dockerfile
 # Use minimal base image
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 
 # Run as non-root user
 RUN addgroup -g 1000 appuser && \

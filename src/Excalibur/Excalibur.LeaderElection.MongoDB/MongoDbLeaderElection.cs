@@ -33,11 +33,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	private readonly LeaderElectionOptions _electionOptions;
 	private readonly ILogger<MongoDbLeaderElection> _logger;
 
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 
 	private CancellationTokenSource? _renewalCts;
 	private Task? _renewalTask;

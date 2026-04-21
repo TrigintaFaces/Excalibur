@@ -5,8 +5,8 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ;
 /// <summary>
 /// Unit tests for RabbitMqOptions configuration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RabbitMqOptionsShould : UnitTestBase
 {
 	[Fact]

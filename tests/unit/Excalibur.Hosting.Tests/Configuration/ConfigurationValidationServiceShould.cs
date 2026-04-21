@@ -226,7 +226,8 @@ public sealed class ConfigurationValidationServiceShould : UnitTestBase
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => new ConfigurationValidationService(
-			null!, [], _appLifetime, NullLogger<ConfigurationValidationService>.Instance));
+			null!, [], _appLifetime, NullLogger<ConfigurationValidationService>.Instance,
+			Microsoft.Extensions.Options.Options.Create(new ConfigurationValidationOptions())));
 	}
 
 	[Fact]
@@ -234,7 +235,8 @@ public sealed class ConfigurationValidationServiceShould : UnitTestBase
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => new ConfigurationValidationService(
-			_configuration, null!, _appLifetime, NullLogger<ConfigurationValidationService>.Instance));
+			_configuration, null!, _appLifetime, NullLogger<ConfigurationValidationService>.Instance,
+			Microsoft.Extensions.Options.Options.Create(new ConfigurationValidationOptions())));
 	}
 
 	[Fact]
@@ -242,7 +244,8 @@ public sealed class ConfigurationValidationServiceShould : UnitTestBase
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => new ConfigurationValidationService(
-			_configuration, [], null!, NullLogger<ConfigurationValidationService>.Instance));
+			_configuration, [], null!, NullLogger<ConfigurationValidationService>.Instance,
+			Microsoft.Extensions.Options.Options.Create(new ConfigurationValidationOptions())));
 	}
 
 	[Fact]
@@ -250,20 +253,18 @@ public sealed class ConfigurationValidationServiceShould : UnitTestBase
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => new ConfigurationValidationService(
-			_configuration, [], _appLifetime, null!));
+			_configuration, [], _appLifetime, null!,
+			Microsoft.Extensions.Options.Options.Create(new ConfigurationValidationOptions())));
 	}
 
 	[Fact]
-	public void UseDefaultOptionsWhenNullProvided()
+	public void ThrowWhenOptionsIsNull()
 	{
-		// Act
-		var service = new ConfigurationValidationService(
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() => new ConfigurationValidationService(
 			_configuration, [], _appLifetime,
 			NullLogger<ConfigurationValidationService>.Instance,
-			options: null);
-
-		// Assert - should not throw, uses defaults
-		service.ShouldNotBeNull();
+			null!));
 	}
 
 	[Fact]
@@ -285,7 +286,7 @@ public sealed class ConfigurationValidationServiceShould : UnitTestBase
 			validators,
 			_appLifetime,
 			NullLogger<ConfigurationValidationService>.Instance,
-			options);
+			Microsoft.Extensions.Options.Options.Create(options ?? new ConfigurationValidationOptions()));
 	}
 
 	private static IConfigurationValidator CreatePassingValidator(string name, int priority = 0)

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -270,7 +271,7 @@ internal sealed partial class SqsTransportSender : ITransportSender
 		if (message.CorrelationId is not null)
 		{
 			request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal);
-			request.MessageAttributes["correlation-id"] = new MessageAttributeValue
+			request.MessageAttributes[OutboxHeaderNames.CorrelationId] = new MessageAttributeValue
 			{
 				DataType = "String",
 				StringValue = message.CorrelationId,
@@ -280,7 +281,7 @@ internal sealed partial class SqsTransportSender : ITransportSender
 		if (message.CausationId is not null)
 		{
 			request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal);
-			request.MessageAttributes["causation-id"] = new MessageAttributeValue
+			request.MessageAttributes[OutboxHeaderNames.CausationId] = new MessageAttributeValue
 			{
 				DataType = "String",
 				StringValue = message.CausationId,

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Sprint 44: Unit tests for IRetryPolicy implementations.
 /// Task: Excalibur.Dispatch-qu9v
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class NoOpRetryPolicyShould
 {

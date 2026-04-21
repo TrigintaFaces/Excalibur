@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 /// Unit tests for <see cref="ClaimCheckHealthCheck"/>.
 /// Sprint 569 -- Task S569.21: Tests for S569.6 (TelemetryClaimCheckProvider + health check).
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "ClaimCheck")]
 public sealed class ClaimCheckHealthCheckShould
 {
@@ -76,8 +76,8 @@ public sealed class ClaimCheckHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Exception.ShouldNotBeNull();
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldNotBeNull();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]
@@ -100,7 +100,7 @@ public sealed class ClaimCheckHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Exception.ShouldNotBeNull();
+		result.Exception!.ShouldNotBeNull();
 	}
 
 	[Fact]

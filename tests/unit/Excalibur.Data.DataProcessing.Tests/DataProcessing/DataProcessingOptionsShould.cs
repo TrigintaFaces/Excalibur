@@ -4,8 +4,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// <summary>
 /// Unit tests for DataProcessingOptions.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class DataProcessingOptionsShould : UnitTestBase
 {
 	[Fact]

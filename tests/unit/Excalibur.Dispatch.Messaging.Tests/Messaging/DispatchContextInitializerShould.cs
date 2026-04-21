@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// <remarks>
 /// Tests the helper methods for creating MessageContext instances.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Messaging")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Messaging)]
 [Trait("Priority", "0")]
 public sealed class DispatchContextInitializerShould
 {

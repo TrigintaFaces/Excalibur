@@ -4,10 +4,11 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 
+using Excalibur.Compliance.HealthChecks;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.HealthChecks;
 
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class EncryptionHealthCheckShould
 {
 	private readonly IEncryptionProvider _encryptionProvider;

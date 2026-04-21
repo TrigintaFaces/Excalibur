@@ -11,19 +11,37 @@ using Microsoft.CodeAnalysis;
 namespace Excalibur.Dispatch.SourceGenerators;
 
 /// <summary>
-/// Enhanced source generator that creates a compile-time message type registry with full AOT support.
-/// Generates MessageTypeRegistry, JsonTypeInfoRegistry, and module initializer for automatic registration.
+/// Archived source generator that was intended to create a compile-time aggregate message type registry.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Status: ARCHIVED (Sprint 759, bd-24ktsl)</b>
+/// </para>
+/// <para>
+/// This generator is superseded by two working alternatives:
+/// <list type="bullet">
+///   <item><see cref="MessageTypeSourceGenerator"/> — Active source generator that creates per-assembly
+///   message type registrations at compile time (AOT-compatible).</item>
+///   <item><c>Excalibur.Dispatch.Delivery.Registry.MessageTypeRegistry</c> — Manual implementation that
+///   aggregates types at runtime via explicit <c>Register&lt;T&gt;()</c> calls.</item>
+/// </list>
+/// </para>
+/// <para>
+/// The class is retained (with empty <see cref="Initialize"/>) to avoid breaking the Roslyn generator
+/// discovery contract. Removing a <c>[Generator]</c> class from a shipped analyzer assembly could cause
+/// diagnostic warnings in consumer projects that reference the analyzer package.
+/// </para>
+/// </remarks>
 [Generator]
 public sealed class MessageTypeRegistrySourceGenerator : IIncrementalGenerator
 {
 	/// <summary>
-	/// Initializes the message type registry source generator with the given context.
-	/// Currently disabled to avoid conflicts with existing manual implementation.
+	/// No-op. This generator is archived and produces no output.
 	/// </summary>
-	/// <param name="context">The generator initialization context providing access to syntax providers and source output registration.</param>
+	/// <param name="context">The generator initialization context.</param>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		// Temporarily disabled to avoid conflicts with existing manual implementation
+		// ARCHIVED (Sprint 759, bd-24ktsl): Superseded by MessageTypeSourceGenerator (active)
+		// and manual MessageTypeRegistry. See class remarks for details.
 	}
 }

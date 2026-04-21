@@ -10,7 +10,7 @@ This guide gets you up and running with Excalibur.Dispatch in under 5 minutes. B
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An IDE (Visual Studio, VS Code, or Rider)
 - Install the required packages:
   ```bash
@@ -89,12 +89,8 @@ Configure Excalibur.Dispatch in your `Program.cs`:
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Register Dispatch with fluent configuration (recommended)
-builder.Services.AddDispatch(dispatch =>
-{
-    // Automatically discover and register handlers from your assembly
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Register Dispatch — auto-discovers handlers from the entry assembly
+builder.Services.AddDispatch();
 
 // Register your dependencies
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
@@ -163,10 +159,7 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+builder.Services.AddDispatch();
 
 var app = builder.Build();
 
@@ -321,12 +314,11 @@ builder.Services.AddExcalibur(excalibur =>
 Need custom messaging configuration (transports, pipelines, middleware)? Call `AddDispatch` with a builder action:
 
 ```csharp
-// Configure Dispatch with transports and middleware
+// Configure Dispatch with transports and middleware (handlers auto-discovered)
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
     dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
-    dispatch.AddObservability();
+    dispatch.UseObservability();
 });
 
 // Configure Excalibur subsystems
@@ -412,8 +404,18 @@ Looking for a focused reference? See [Dispatch Only](./dispatch-only.md) for Dis
 - [Handlers](../handlers.md) - Learn about action and event handlers
 - [Pipeline](../pipeline/index.md) - Understand middleware and behaviors
 
+## Coming from Another Framework?
+
+If you're migrating from an existing messaging framework, start here:
+
+- [Migrating from MediatR](../migration/from-mediatr.md) -- Direct replacement with enhanced pipeline
+- [Migrating from MassTransit](../migration/from-masstransit.md) -- Transport-aware migration path
+- [Migrating from NServiceBus](../migration/from-nservicebus.md) -- Enterprise messaging migration
+- [Version Upgrades](../migration/version-upgrades.md) -- Upgrading between Excalibur versions
+
 ## See Also
 
-- [Project Templates](./project-templates.md) — Scaffold new Excalibur projects with dotnet new templates
-- [Actions and Handlers](../core-concepts/actions-and-handlers.md) — Deep dive into action types, handler patterns, and result handling
-- [Dependency Injection](../core-concepts/dependency-injection.md) — Configure Dispatch services and handler registration in the DI container
+- [Program.cs Templates](./program-cs-templates.md) -- Copy-paste-ready starting points for common scenarios
+- [Project Templates](./project-templates.md) -- Scaffold new Excalibur projects with dotnet new templates
+- [Actions and Handlers](../core-concepts/actions-and-handlers.md) -- Deep dive into action types, handler patterns, and result handling
+- [Dependency Injection](../core-concepts/dependency-injection.md) -- Configure Dispatch services and handler registration in the DI container

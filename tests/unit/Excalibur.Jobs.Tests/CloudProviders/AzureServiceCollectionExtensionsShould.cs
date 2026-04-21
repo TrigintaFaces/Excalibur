@@ -27,7 +27,7 @@ public sealed class AzureServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAzureLogicApps(null!));
+			services.AddAzureLogicApps((Action<Excalibur.Jobs.Azure.AzureLogicAppsOptions>)null!));
 	}
 
 	[Fact]

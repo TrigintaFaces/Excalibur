@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Transport.Builders.Options
 /// Validates the S554.14 ISP split: root (7 props), Connection (8 props), Topology (7 props).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport.RabbitMQ")]
+[Trait(TraitNames.Component, TestComponents.RabbitMQ)]
 public sealed class RabbitMQTransportOptionsShould : UnitTestBase
 {
 	#region Default Values

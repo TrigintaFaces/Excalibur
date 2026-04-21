@@ -4,8 +4,8 @@
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Compliance;
-using Excalibur.Dispatch.Security;
+using Excalibur.Compliance;
+using Excalibur.Security;
 
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Encryption;
 /// metadata header, compression, multi-tenant purpose strings, cache behavior,
 /// key rotation details, CryptographicException, and validation failure paths.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class DataProtectionEncryptionDepthShould : IDisposable
 {
 	private readonly IDataProtectionProvider _provider;

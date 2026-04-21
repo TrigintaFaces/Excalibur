@@ -76,7 +76,7 @@ public sealed class ResourceExceptionShould
 		var ex = new ResourceException("Outer", inner);
 
 		// Assert
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -156,7 +156,7 @@ public sealed class ResourceExceptionShould
 		var ex = new ResourceException(resource: "Users", innerException: inner);
 
 		// Assert
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -193,7 +193,7 @@ public sealed class ResourceExceptionShould
 		ex.Resource.ShouldBe("Orders");
 		ex.StatusCode.ShouldBe(404);
 		ex.Message.ShouldBe("Order not found");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	#endregion

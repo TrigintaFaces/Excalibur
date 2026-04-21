@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -46,7 +47,51 @@ public static class ClaimCheckServiceCollectionExtensions
 			optionsBuilder.Configure(configureOptions);
 		}
 
-		optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		optionsBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ClaimCheckOptions>, ClaimCheckOptionsValidator>());
+
+		services.TryAddSingleton<IClaimCheckProvider, TProvider>();
+		services.TryAddSingleton<IClaimCheckNamingStrategy, DefaultClaimCheckNamingStrategy>();
+
+		// Add background service for cleanup if enabled
+		if (enableCleanup)
+		{
+			_ = services.AddHostedService<ClaimCheckCleanupService>();
+		}
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Claim Check pattern services to the service collection with a custom provider
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TProvider"> The type of claim check provider. </typeparam>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind claim check options from. </param>
+	/// <param name="enableCleanup"> Whether to enable automatic cleanup background service. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// Use this method to register a custom IClaimCheckProvider implementation with configuration-based options.
+	/// For built-in providers (Azure, AWS, GCP), use the provider-specific packages.
+	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddClaimCheck<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(
+		this IServiceCollection services,
+		IConfiguration configuration,
+		bool enableCleanup = false)
+		where TProvider : class, IClaimCheckProvider
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<ClaimCheckOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ClaimCheckOptions>, ClaimCheckOptionsValidator>());

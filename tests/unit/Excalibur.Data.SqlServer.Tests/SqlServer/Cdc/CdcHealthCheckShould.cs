@@ -10,8 +10,8 @@ using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CdcHealthCheckShould
 {
 	private readonly CdcHealthState _state;

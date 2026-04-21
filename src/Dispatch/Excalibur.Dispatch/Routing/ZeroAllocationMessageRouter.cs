@@ -27,15 +27,9 @@ public sealed partial class ZeroAllocationMessageRouter<TMessage>(ILogger<ZeroAl
 		ArrayPool<IMessageRoute<TMessage>>.Create(maxArrayLength: 128, maxArraysPerBucket: 10);
 
 	private readonly ILogger<ZeroAllocationMessageRouter<TMessage>> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-#if NET9_0_OR_GREATER
 
 	private readonly Lock routeLock = new();
 
-#else
-
-	private readonly object routeLock = new();
-
-#endif
 
 	/// <summary>
 	/// Adds a route to the router.

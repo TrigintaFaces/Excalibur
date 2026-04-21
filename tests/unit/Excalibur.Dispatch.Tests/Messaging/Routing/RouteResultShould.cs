@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Routing;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Routing;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RouteResultShould
 {
 	[Fact]

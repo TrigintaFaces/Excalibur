@@ -23,14 +23,14 @@ public sealed class CdcJobShould
 {
 	private readonly IDataChangeEventProcessorFactory _fakeFactory;
 	private readonly Func<string, SqlConnection> _fakeConnectionFactory;
-	private readonly IOptions<CdcJobConfig> _fakeCdcConfigOptions;
+	private readonly IOptions<CdcJobOptions> _fakeCdcConfigOptions;
 	private readonly JobHeartbeatTracker _heartbeatTracker;
 
 	public CdcJobShould()
 	{
 		_fakeFactory = A.Fake<IDataChangeEventProcessorFactory>();
 		_fakeConnectionFactory = A.Fake<Func<string, SqlConnection>>();
-		_fakeCdcConfigOptions = Microsoft.Extensions.Options.Options.Create(new CdcJobConfig { DatabaseConfigs = [] });
+		_fakeCdcConfigOptions = Microsoft.Extensions.Options.Options.Create(new CdcJobOptions { DatabaseConfigs = [] });
 		_heartbeatTracker = new JobHeartbeatTracker();
 	}
 

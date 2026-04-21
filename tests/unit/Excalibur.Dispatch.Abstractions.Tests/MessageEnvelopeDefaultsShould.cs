@@ -104,7 +104,7 @@ public sealed class MessageEnvelopeDefaultsShould : UnitTestBase
 		using var envelope = new MessageEnvelope();
 
 		// Assert
-		envelope.RoutingDecision.IsSuccess.ShouldBeTrue();
+		envelope.RoutingDecision!.IsSuccess.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -114,7 +114,7 @@ public sealed class MessageEnvelopeDefaultsShould : UnitTestBase
 		using var envelope = new MessageEnvelope();
 
 		// Assert
-		envelope.RoutingDecision.FailureReason.ShouldBeNull();
+		envelope.RoutingDecision!.FailureReason.ShouldBeNull();
 	}
 
 	[Fact]
@@ -290,9 +290,9 @@ public sealed class MessageEnvelopeDefaultsShould : UnitTestBase
 		envelope.Reset();
 
 		// Assert
-		envelope.RoutingDecision.IsSuccess.ShouldBeTrue();
-		envelope.RoutingDecision.Transport.ShouldBe("local");
-		envelope.RoutingDecision.Endpoints.ShouldBeEmpty();
+		envelope.RoutingDecision!.IsSuccess.ShouldBeTrue();
+		envelope.RoutingDecision!.Transport.ShouldBe("local");
+		envelope.RoutingDecision!.Endpoints.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -377,11 +377,11 @@ public sealed class MessageEnvelopeDefaultsShould : UnitTestBase
 		using var clone = envelope.Clone();
 
 		// Assert
-		clone.RoutingDecision.IsSuccess.ShouldBeTrue();
-		clone.RoutingDecision.Transport.ShouldBe("local");
-		clone.RoutingDecision.Endpoints.ShouldBeEmpty();
-		clone.RoutingDecision.MatchedRules.ShouldBeEmpty();
-		clone.RoutingDecision.FailureReason.ShouldBeNull();
+		clone.RoutingDecision!.IsSuccess.ShouldBeTrue();
+		clone.RoutingDecision!.Transport.ShouldBe("local");
+		clone.RoutingDecision!.Endpoints.ShouldBeEmpty();
+		clone.RoutingDecision!.MatchedRules.ShouldBeEmpty();
+		clone.RoutingDecision!.FailureReason.ShouldBeNull();
 	}
 
 	[Fact]

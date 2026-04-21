@@ -6,9 +6,9 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Encryption;
 /// <summary>
 /// Unit tests for <see cref="KeyRotationResult"/> record.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
-[Trait("Feature", "Encryption")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
+[Trait(TraitNames.Feature, TestFeatures.Encryption)]
 public sealed class KeyRotationResultShould : UnitTestBase
 {
 	[Fact]
@@ -39,7 +39,7 @@ public sealed class KeyRotationResultShould : UnitTestBase
 		result.Success.ShouldBeTrue();
 		result.NewKey.ShouldBe(newKey);
 		result.PreviousKey.ShouldBe(previousKey);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class KeyRotationResultShould : UnitTestBase
 		result.Success.ShouldBeTrue();
 		result.NewKey.ShouldBe(newKey);
 		result.PreviousKey.ShouldBeNull();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -76,7 +76,7 @@ public sealed class KeyRotationResultShould : UnitTestBase
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe(errorMessage);
+		result.ErrorMessage!.ShouldBe(errorMessage);
 		result.NewKey.ShouldBeNull();
 		result.PreviousKey.ShouldBeNull();
 	}

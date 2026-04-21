@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DependencyInjection;
 /// <remarks>
 /// Sprint 501 S501.6: Tests for Phase 3 (bd-6yjcj, bd-rznmq) and Phase 4 (bd-79if7).
 /// </remarks>
-[Trait("Category", "Integration")]
-[Trait("Component", "DependencyInjection")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.DependencyInjection)]
 public sealed class ExcaliburBuilderIntegrationShould : IDisposable
 {
 	private ServiceProvider? _serviceProvider;
@@ -183,7 +183,7 @@ public sealed class ExcaliburBuilderIntegrationShould : IDisposable
 		// Act
 		_ = services.AddExcalibur(excalibur =>
 		{
-			_ = excalibur.AddLeaderElection();
+			_ = excalibur.AddLeaderElection(_ => { });
 		});
 
 		// Assert
@@ -210,7 +210,7 @@ public sealed class ExcaliburBuilderIntegrationShould : IDisposable
 				.AddOutbox(_ => { })
 				.AddCdc(_ => { })
 				.AddSagas()
-				.AddLeaderElection();
+				.AddLeaderElection(_ => { });
 		});
 
 		// Assert — should not throw; verify services were added
@@ -266,7 +266,7 @@ public sealed class ExcaliburBuilderIntegrationShould : IDisposable
 		// Act
 		_ = services.AddExcalibur(excalibur =>
 		{
-			_ = excalibur.AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromSeconds(30));
+			_ = excalibur.AddLeaderElection(_ => { });
 		});
 
 		// Assert

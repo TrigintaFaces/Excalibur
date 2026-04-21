@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+#pragma warning disable IL2026, IL3050 // AOT: Configuration binding uses reflection
 
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Jobs.Abstractions;
@@ -24,17 +25,17 @@ namespace Excalibur.Jobs.Cdc;
 /// Represents a CDC (Change Data Capture) job that processes changes in configured databases.
 /// </summary>
 [DisallowConcurrentExecution]
-public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
+public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 {
 	/// <summary>
-	/// The configuration section name used to bind <see cref="CdcJobConfig"/> from application configuration.
+	/// The configuration section name used to bind <see cref="CdcJobOptions"/> from application configuration.
 	/// </summary>
 	/// <value>The string <c>"Jobs:CdcJob"</c>.</value>
 	public const string JobConfigSectionName = "Jobs:CdcJob";
 
 	private readonly IDataChangeEventProcessorFactory _factory;
 	private readonly Func<string, SqlConnection> _connectionFactory;
-	private readonly IOptions<CdcJobConfig> _cdcConfigOptions;
+	private readonly IOptions<CdcJobOptions> _cdcConfigOptions;
 	private readonly JobHeartbeatTracker _heartbeatTracker;
 	private readonly ILogger<CdcJob> _logger;
 
@@ -54,7 +55,7 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 	public CdcJob(
 		IDataChangeEventProcessorFactory factory,
 		Func<string, SqlConnection> connectionFactory,
-		IOptions<CdcJobConfig> cdcConfigOptions,
+		IOptions<CdcJobOptions> cdcConfigOptions,
 		JobHeartbeatTracker heartbeatTracker,
 		ILogger<CdcJob> logger)
 	{
@@ -89,7 +90,7 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 	public CdcJob(
 		IDataChangeEventProcessorFactory factory,
 		IConfiguration configuration,
-		IOptions<CdcJobConfig> cdcConfigOptions,
+		IOptions<CdcJobOptions> cdcConfigOptions,
 		JobHeartbeatTracker heartbeatTracker,
 		ILogger<CdcJob> logger)
 		: this(
@@ -130,7 +131,7 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<CdcJobConfig>(JobConfigSectionName);
+		var jobConfig = configuration.GetJobConfiguration<CdcJobOptions>(JobConfigSectionName);
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
 		_ = configurator.AddJob<CdcJob>(jobKey, job => job.WithIdentity(jobKey).WithDescription("CDC processing job"));
@@ -150,7 +151,7 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<CdcJobConfig>(JobConfigSectionName);
+		var jobConfig = configuration.GetJobConfiguration<CdcJobOptions>(JobConfigSectionName);
 
 		_ = healthChecks.Add(new HealthCheckRegistration(
 			$"{jobConfig.JobName}HealthCheck",
@@ -208,7 +209,7 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 		}
 	}
 
-	private async Task<int> ProcessCdcChangesAsync(DatabaseConfig dbConfig, CancellationToken cancellationToken)
+	private async Task<int> ProcessCdcChangesAsync(DatabaseOptions dbConfig, CancellationToken cancellationToken)
 	{
 		var cdcConnection = _connectionFactory(dbConfig.DatabaseConnectionIdentifier);
 		var storeConnection = _connectionFactory(dbConfig.StateConnectionIdentifier);

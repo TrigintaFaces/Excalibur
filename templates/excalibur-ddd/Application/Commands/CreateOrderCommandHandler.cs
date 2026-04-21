@@ -1,5 +1,6 @@
 ﻿using Company.ExcaliburDdd.Domain.Aggregates;
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.EventSourcing.Abstractions;
 
 namespace Company.ExcaliburDdd.Application.Commands;
@@ -8,7 +9,7 @@ namespace Company.ExcaliburDdd.Application.Commands;
 /// Handles <see cref="CreateOrderCommand"/> by creating a new Order aggregate
 /// and persisting it to the event store.
 /// </summary>
-public sealed class CreateOrderCommandHandler : IMessageHandler<CreateOrderCommand>
+public sealed class CreateOrderCommandHandler : IActionHandler<CreateOrderCommand>
 {
     private readonly IEventSourcedRepository<Order, Guid> _orderRepository;
     private readonly ILogger<CreateOrderCommandHandler> _logger;
@@ -22,17 +23,15 @@ public sealed class CreateOrderCommandHandler : IMessageHandler<CreateOrderComma
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CreateOrderCommand message, IMessageContext context, CancellationToken cancellationToken)
+    public async Task HandleAsync(CreateOrderCommand action, CancellationToken cancellationToken)
     {
         var orderId = Guid.NewGuid();
-        var order = Order.Create(orderId, message.ProductId, message.Quantity);
+        var order = Order.Create(orderId, action.ProductId, action.Quantity);
 
         _logger.LogInformation("Persisting order {OrderId} with {ItemCount} items", orderId, order.Items.Count);
 
         await _orderRepository.SaveAsync(order, cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation("Order {OrderId} persisted at version {Version}", orderId, order.Version);
-
-        context.SetResult(orderId);
     }
 }

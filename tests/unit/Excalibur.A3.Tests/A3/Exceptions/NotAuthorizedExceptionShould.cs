@@ -52,7 +52,7 @@ public sealed class NotAuthorizedExceptionShould : UnitTestBase
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -69,7 +69,7 @@ public sealed class NotAuthorizedExceptionShould : UnitTestBase
 		// Assert
 		exception.StatusCode.ShouldBe(statusCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -133,7 +133,7 @@ public sealed class NotAuthorizedExceptionShould : UnitTestBase
 		var exception = NotAuthorizedException.BecauseNotAuthenticated(inner);
 
 		// Assert
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	#endregion
@@ -230,7 +230,7 @@ public sealed class NotAuthorizedExceptionShould : UnitTestBase
 		var exception = NotAuthorizedException.BecauseForbidden(user, "Activity", null, inner);
 
 		// Assert
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	#endregion
@@ -275,7 +275,7 @@ public sealed class NotAuthorizedExceptionShould : UnitTestBase
 		var exception = NotAuthorizedException.Because(user, "Reason", inner);
 
 		// Assert
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	#endregion

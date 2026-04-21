@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 /// <summary>
 /// Unit tests for <see cref="SpinWaitStrategy"/> public class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 [Trait("Feature", "Channels")]
 public sealed class SpinWaitStrategyShould

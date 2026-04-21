@@ -34,6 +34,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="System.IO.Hashing" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
@@ -51,10 +53,19 @@
   <!-- Enable testing of internal types -->
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Outbox.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.SqlServer" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+    <!-- S795 A4: IVT granted to test assemblies that retain direct aggregator
+         access per COMPASS msg 1498 §1. -->
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
+    <InternalsVisibleTo Include="Excalibur.Data.DynamoDb.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.InMemory.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.MongoDB.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.Redis.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Hosting.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Tests" />
   </ItemGroup>
 </Project>

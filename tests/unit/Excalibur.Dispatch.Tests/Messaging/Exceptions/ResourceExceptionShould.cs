@@ -2,8 +2,8 @@ using Excalibur.Data.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ResourceExceptionShould
 {
 	[Fact]
@@ -31,7 +31,7 @@ public sealed class ResourceExceptionShould
 		var ex = new ResourceException("msg", inner);
 
 		ex.Message.ShouldBe("msg");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 		ex.StatusCode.ShouldBe(404);
 	}
 

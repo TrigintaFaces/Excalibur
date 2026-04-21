@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 
 /// <summary>
@@ -55,6 +57,7 @@ public sealed class RabbitMqConsumerOptions
 	/// Higher values improve throughput but use more memory.
 	/// </remarks>
 	/// <value>The prefetch count. Default is 100.</value>
+	[Range(1, ushort.MaxValue)]
 	public ushort PrefetchCount { get; set; } = 100;
 
 	/// <summary>

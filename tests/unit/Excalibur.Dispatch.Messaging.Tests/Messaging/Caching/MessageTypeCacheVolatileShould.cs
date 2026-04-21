@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// MessageTypeCache._initialized must be volatile to prevent init race on multi-core CPUs.
 /// </summary>
 [Collection("MessageTypeCacheTests")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessageTypeCacheVolatileShould : IDisposable
 {
 	public MessageTypeCacheVolatileShould()

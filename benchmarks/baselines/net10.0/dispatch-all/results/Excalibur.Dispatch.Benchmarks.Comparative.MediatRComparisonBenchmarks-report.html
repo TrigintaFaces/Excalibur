@@ -2,7 +2,7 @@
 <html lang='en'>
 <head>
 <meta charset='utf-8' />
-<title>Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-20260316-194715</title>
+<title>Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-20260413-071845</title>
 
 <style type="text/css">
 	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
@@ -13,34 +13,36 @@
 </head>
 <body>
 <pre><code>
-BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.8117)
 Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
-.NET SDK 10.0.103
-  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
 </code></pre>
 <pre><code>Job=comparative-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
-InvocationCount=1  IterationCount=3  UnrollFactor=1  
+InvocationCount=1  IterationCount=5  LaunchCount=1  
+UnrollFactor=1  WarmupCount=2  
 </code></pre>
 
 <table>
 <thead><tr><th>Method                                   </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
 </tr>
-</thead><tbody><tr><td>&#39;Dispatch: Single command handler&#39;</td><td>3.833 &mu;s</td><td>1.053 &mu;s</td><td>0.0577 &mu;s</td><td>1.00</td><td>0.02</td><td>168 B</td><td>1.00</td>
-</tr><tr><td>&#39;Dispatch: Single command strict direct-local&#39;</td><td>4.167 &mu;s</td><td>11.586 &mu;s</td><td>0.6351 &mu;s</td><td>1.09</td><td>0.14</td><td>4872 B</td><td>29.00</td>
-</tr><tr><td>&#39;Dispatch: Single command ultra-local API&#39;</td><td>2.667 &mu;s</td><td>2.787 &mu;s</td><td>0.1528 &mu;s</td><td>0.70</td><td>0.04</td><td>72 B</td><td>0.43</td>
-</tr><tr><td>&#39;MediatR: Single command handler&#39;</td><td>4.300 &mu;s</td><td>4.827 &mu;s</td><td>0.2646 &mu;s</td><td>1.12</td><td>0.06</td><td>4872 B</td><td>29.00</td>
-</tr><tr><td>&#39;Dispatch: Notification to 3 handlers&#39;</td><td>6.433 &mu;s</td><td>9.182 &mu;s</td><td>0.5033 &mu;s</td><td>1.68</td><td>0.12</td><td>4896 B</td><td>29.14</td>
-</tr><tr><td>&#39;MediatR: Notification to 3 handlers&#39;</td><td>5.233 &mu;s</td><td>4.591 &mu;s</td><td>0.2517 &mu;s</td><td>1.37</td><td>0.06</td><td>5272 B</td><td>31.38</td>
-</tr><tr><td>&#39;Dispatch: Query with return value&#39;</td><td>4.167 &mu;s</td><td>5.267 &mu;s</td><td>0.2887 &mu;s</td><td>1.09</td><td>0.07</td><td>648 B</td><td>3.86</td>
-</tr><tr><td>&#39;Dispatch: Query with return value (typed API)&#39;</td><td>4.450 &mu;s</td><td>6.578 &mu;s</td><td>0.3606 &mu;s</td><td>1.16</td><td>0.08</td><td>4008 B</td><td>23.86</td>
-</tr><tr><td>&#39;Dispatch: Query ultra-local API&#39;</td><td>2.967 &mu;s</td><td>6.407 &mu;s</td><td>0.3512 &mu;s</td><td>0.77</td><td>0.08</td><td>4848 B</td><td>28.86</td>
-</tr><tr><td>&#39;MediatR: Query with return value&#39;</td><td>9.833 &mu;s</td><td>48.623 &mu;s</td><td>2.6652 &mu;s</td><td>2.57</td><td>0.60</td><td>360 B</td><td>2.14</td>
-</tr><tr><td>&#39;Dispatch: Ultra-local singleton-promoted&#39;</td><td>2.567 &mu;s</td><td>1.053 &mu;s</td><td>0.0577 &mu;s</td><td>0.67</td><td>0.02</td><td>360 B</td><td>2.14</td>
-</tr><tr><td>&#39;Dispatch: Query singleton-promoted&#39;</td><td>3.233 &mu;s</td><td>4.591 &mu;s</td><td>0.2517 &mu;s</td><td>0.84</td><td>0.06</td><td>480 B</td><td>2.86</td>
-</tr><tr><td>&#39;Dispatch: 10 concurrent commands&#39;</td><td>7.767 &mu;s</td><td>1.053 &mu;s</td><td>0.0577 &mu;s</td><td>2.03</td><td>0.03</td><td>6016 B</td><td>35.81</td>
-</tr><tr><td>&#39;MediatR: 10 concurrent commands&#39;</td><td>8.400 &mu;s</td><td>23.717 &mu;s</td><td>1.3000 &mu;s</td><td>2.19</td><td>0.30</td><td>2496 B</td><td>14.86</td>
-</tr><tr><td>&#39;Dispatch: 100 concurrent commands&#39;</td><td>27.267 &mu;s</td><td>3.798 &mu;s</td><td>0.2082 &mu;s</td><td>7.11</td><td>0.10</td><td>13456 B</td><td>80.10</td>
-</tr><tr><td>&#39;MediatR: 100 concurrent commands&#39;</td><td>24.433 &mu;s</td><td>15.516 &mu;s</td><td>0.8505 &mu;s</td><td>6.37</td><td>0.21</td><td>28504 B</td><td>169.67</td>
+</thead><tbody><tr><td>&#39;Dispatch: Single command handler&#39;</td><td>8.330 &mu;s</td><td>4.8965 &mu;s</td><td>1.2716 &mu;s</td><td>1.02</td><td>0.21</td><td>168 B</td><td>1.00</td>
+</tr><tr><td>&#39;Dispatch: Single command strict direct-local&#39;</td><td>4.375 &mu;s</td><td>1.9296 &mu;s</td><td>0.2986 &mu;s</td><td>0.54</td><td>0.09</td><td>1848 B</td><td>11.00</td>
+</tr><tr><td>&#39;Dispatch: Single command ultra-local API&#39;</td><td>4.720 &mu;s</td><td>3.1683 &mu;s</td><td>0.8228 &mu;s</td><td>0.58</td><td>0.13</td><td>1320 B</td><td>7.86</td>
+</tr><tr><td>&#39;MediatR: Single command handler&#39;</td><td>7.100 &mu;s</td><td>4.8172 &mu;s</td><td>1.2510 &mu;s</td><td>0.87</td><td>0.20</td><td>216 B</td><td>1.29</td>
+</tr><tr><td>&#39;Dispatch: Notification to 3 handlers&#39;</td><td>7.780 &mu;s</td><td>3.9682 &mu;s</td><td>1.0305 &mu;s</td><td>0.95</td><td>0.19</td><td>2928 B</td><td>17.43</td>
+</tr><tr><td>&#39;MediatR: Notification to 3 handlers&#39;</td><td>8.600 &mu;s</td><td>5.8990 &mu;s</td><td>0.9129 &mu;s</td><td>1.05</td><td>0.19</td><td>5032 B</td><td>29.95</td>
+</tr><tr><td>&#39;Dispatch: Query with return value&#39;</td><td>7.250 &mu;s</td><td>4.1377 &mu;s</td><td>0.6403 &mu;s</td><td>0.89</td><td>0.15</td><td>1896 B</td><td>11.29</td>
+</tr><tr><td>&#39;Dispatch: Query strict direct-local&#39;</td><td>8.950 &mu;s</td><td>4.6148 &mu;s</td><td>0.7141 &mu;s</td><td>1.10</td><td>0.19</td><td>3912 B</td><td>23.29</td>
+</tr><tr><td>&#39;Dispatch: Query with return value (typed API)&#39;</td><td>6.675 &mu;s</td><td>0.9693 &mu;s</td><td>0.1500 &mu;s</td><td>0.82</td><td>0.13</td><td>5016 B</td><td>29.86</td>
+</tr><tr><td>&#39;Dispatch: Query ultra-local API&#39;</td><td>5.400 &mu;s</td><td>2.2998 &mu;s</td><td>0.3559 &mu;s</td><td>0.66</td><td>0.11</td><td>3168 B</td><td>18.86</td>
+</tr><tr><td>&#39;MediatR: Query with return value&#39;</td><td>8.140 &mu;s</td><td>2.6483 &mu;s</td><td>0.6877 &mu;s</td><td>1.00</td><td>0.17</td><td>4296 B</td><td>25.57</td>
+</tr><tr><td>&#39;Dispatch: Ultra-local singleton-promoted&#39;</td><td>10.225 &mu;s</td><td>19.8638 &mu;s</td><td>3.0739 &mu;s</td><td>1.25</td><td>0.39</td><td>3672 B</td><td>21.86</td>
+</tr><tr><td>&#39;Dispatch: Query singleton-promoted&#39;</td><td>10.440 &mu;s</td><td>6.8968 &mu;s</td><td>1.7911 &mu;s</td><td>1.28</td><td>0.28</td><td>4848 B</td><td>28.86</td>
+</tr><tr><td>&#39;Dispatch: 10 concurrent commands&#39;</td><td>13.950 &mu;s</td><td>5.7918 &mu;s</td><td>0.8963 &mu;s</td><td>1.71</td><td>0.28</td><td>5344 B</td><td>31.81</td>
+</tr><tr><td>&#39;MediatR: 10 concurrent commands&#39;</td><td>13.740 &mu;s</td><td>6.2006 &mu;s</td><td>1.6103 &mu;s</td><td>1.68</td><td>0.32</td><td>5808 B</td><td>34.57</td>
+</tr><tr><td>&#39;Dispatch: 100 concurrent commands&#39;</td><td>46.400 &mu;s</td><td>19.5860 &mu;s</td><td>3.0310 &mu;s</td><td>5.69</td><td>0.94</td><td>14848 B</td><td>88.38</td>
+</tr><tr><td>&#39;MediatR: 100 concurrent commands&#39;</td><td>41.700 &mu;s</td><td>15.1135 &mu;s</td><td>3.9249 &mu;s</td><td>5.11</td><td>0.90</td><td>27832 B</td><td>165.67</td>
 </tr></tbody></table>
 </body>
 </html>

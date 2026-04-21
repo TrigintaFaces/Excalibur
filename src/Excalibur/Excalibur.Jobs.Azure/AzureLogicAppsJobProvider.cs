@@ -38,9 +38,9 @@ public sealed partial class AzureLogicAppsJobProvider(
 	/// <param name="cronExpressionUnused"> Cron expression (unused - Logic Apps uses recurrence triggers). </param>
 	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns> A task that represents the asynchronous operation. </returns>
-#pragma warning disable IDE0060 // Intentional: Parameter required by interface but Logic Apps doesn't use cron
+	[RequiresUnreferencedCode("Creates workflow definition using JSON serialization which requires unreferenced code")]
+	[RequiresDynamicCode("Creates workflow definition using JSON serialization which requires dynamic code generation")]
 	public async Task ScheduleJobAsync<TJob>(string jobName, string cronExpressionUnused, CancellationToken cancellationToken)
-#pragma warning restore IDE0060
 		where TJob : class, IBackgroundJob
 	{
 		try

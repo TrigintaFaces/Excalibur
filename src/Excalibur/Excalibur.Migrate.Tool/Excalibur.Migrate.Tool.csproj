@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>excalibur-migrate</ToolCommandName>
     <PackageId>Excalibur.Migrate.Tool</PackageId>
@@ -43,9 +43,5 @@
     <PackageReference Include="Excalibur.EventSourcing.Abstractions" VersionOverride="$(ExcaliburPackageVersion)" />
     <PackageReference Include="Excalibur.EventSourcing.SqlServer" VersionOverride="$(ExcaliburPackageVersion)" />
     <PackageReference Include="Excalibur.EventSourcing.Postgres" VersionOverride="$(ExcaliburPackageVersion)" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Abstractions.Features;
@@ -33,6 +34,10 @@ public static class DispatcherContextExtensions
 	/// context. For top-level dispatches, a new context is created. Use <see cref="DispatchChildAsync{TMessage}" />
 	/// when dispatching from within a handler to properly propagate causation and correlation identifiers.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult> DispatchAsync<TMessage>(
 		this IDispatcher dispatcher,
@@ -70,6 +75,10 @@ public static class DispatcherContextExtensions
 	/// <see cref="DispatchChildAsync{TMessage,TResponse}" /> when dispatching from within a handler to properly
 	/// propagate causation and correlation identifiers.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
 		this IDispatcher dispatcher,
@@ -119,6 +128,10 @@ public static class DispatcherContextExtensions
 	/// Use this method when dispatching messages from within a handler to maintain proper message lineage and
 	/// distributed tracing.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult> DispatchChildAsync<TMessage>(
 		this IDispatcher dispatcher,
@@ -164,6 +177,10 @@ public static class DispatcherContextExtensions
 	/// Use this method when dispatching actions from within a handler to maintain proper message lineage and
 	/// distributed tracing.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult<TResponse>> DispatchChildAsync<TMessage, TResponse>(
 		this IDispatcher dispatcher,
@@ -196,6 +213,8 @@ public static class DispatcherContextExtensions
 		return factory?.CreateContext() ?? new MessageContext();
 	}
 
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based handler resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses runtime code generation for handler invocation.")]
 	private static async Task<IMessageResult> DispatchUltraLocalAsync(
 		IDirectLocalDispatcher directLocalDispatcher,
 		IDispatchAction action,
@@ -212,6 +231,8 @@ public static class DispatcherContextExtensions
 		}
 	}
 
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based handler resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses runtime code generation for handler invocation.")]
 	private static async Task<IMessageResult<TResponse>> DispatchUltraLocalWithResponseAsync<TMessage, TResponse>(
 		IDirectLocalDispatcher directLocalDispatcher,
 		TMessage message,
@@ -244,7 +265,7 @@ public static class DispatcherContextExtensions
 		return MessageResult.Failed(problem);
 	}
 
-	private static IMessageResult<TResponse> CreateLocalFailureResult<TResponse>(Exception exception, string title)
+	private static SimpleMessageResultOfT<TResponse> CreateLocalFailureResult<TResponse>(Exception exception, string title)
 	{
 		var problem = new MessageProblemDetails
 		{

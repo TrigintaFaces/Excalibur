@@ -143,12 +143,15 @@ public sealed class InboxProcessorShould : UnitTestBase
 		// Arrange - Custom options with invalid config (QueueCapacity < ProducerBatchSize)
 		var customOptions = Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 10,
-			ProducerBatchSize = 100, // Larger than queue capacity - invalid
-			ConsumerBatchSize = 100,
-			PerRunTotal = 100,
+			Capacity =
+			{
+				QueueCapacity = 10,
+				ProducerBatchSize = 100, // Larger than queue capacity - invalid
+				ConsumerBatchSize = 100,
+				PerRunTotal = 100,
+				ParallelProcessingDegree = 1,
+			},
 			MaxAttempts = 3,
-			BatchProcessing = { ParallelProcessingDegree = 1 }
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
@@ -205,7 +208,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			serializer,
 			logger,
 
-			internalSerializer: null,
+			envelopeDeserializer: null,
 			deadLetterQueue: null,
 			circuitBreakerRegistry: null,
 			backoffCalculator: null,
@@ -410,7 +413,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 
 		// Assert - Verify the envelope path was taken (internal serializer was invoked)
 		var internalSerializer = scenario.InternalSerializer ?? throw new InvalidOperationException("Internal serializer was not configured.");
-		internalSerializer.SpanDeserializeCalls.ShouldBe(1);
+		internalSerializer.DeserializeCalls.ShouldBe(1);
 
 		// The envelope path also base64-encodes the payload into MessageBody, so the real
 		// DispatchJsonSerializer cannot parse it as JSON. With maxAttempts=3 and retryCount=0,
@@ -623,18 +626,21 @@ public sealed class InboxProcessorShould : UnitTestBase
 		// Arrange - Use HighThroughput preset which may have dynamic batch sizing enabled
 		var options = Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 2000,
-			ProducerBatchSize = 500,
-			ConsumerBatchSize = 200,
-			PerRunTotal = 5000,
-			MaxAttempts = 3,
-			BatchProcessing =
+			Capacity =
 			{
+				QueueCapacity = 2000,
+				ProducerBatchSize = 500,
+				ConsumerBatchSize = 200,
+				PerRunTotal = 5000,
 				ParallelProcessingDegree = 8,
+			},
+			MaxAttempts = 3,
+			BatchTuning =
+			{
 				EnableDynamicBatchSizing = true,
 				MinBatchSize = 10,
-				MaxBatchSize = 1000
-			}
+				MaxBatchSize = 1000,
+			},
 		});
 
 		// Act
@@ -652,12 +658,15 @@ public sealed class InboxProcessorShould : UnitTestBase
 	{
 		return Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 500,
-			ProducerBatchSize = 100,
-			ConsumerBatchSize = 50,
-			PerRunTotal = 1000,
+			Capacity =
+			{
+				QueueCapacity = 500,
+				ProducerBatchSize = 100,
+				ConsumerBatchSize = 50,
+				PerRunTotal = 1000,
+				ParallelProcessingDegree = 4,
+			},
 			MaxAttempts = 5,
-			BatchProcessing = { ParallelProcessingDegree = 4 }
 		});
 	}
 
@@ -670,7 +679,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		IDeadLetterQueue? deadLetterQueue = null,
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
-		ISerializer? internalSerializer = null)
+		IBinaryEnvelopeDeserializer? envelopeDeserializer = null)
 	{
 		return new InboxProcessor(
 			options ?? CreateValidOptions(),
@@ -679,7 +688,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			serializer ?? new DispatchJsonSerializer(),
 			logger ?? NullLogger<InboxProcessor>.Instance,
 
-			internalSerializer: internalSerializer,
+			envelopeDeserializer: envelopeDeserializer,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
 			backoffCalculator: backoffCalculator);
@@ -689,13 +698,19 @@ public sealed class InboxProcessorShould : UnitTestBase
 	{
 		return Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 1,
-			ProducerBatchSize = 1,
-			ConsumerBatchSize = 1,
-			PerRunTotal = 1,
+			Capacity =
+			{
+				QueueCapacity = 1,
+				ProducerBatchSize = 1,
+				ConsumerBatchSize = 1,
+				PerRunTotal = 1,
+				ParallelProcessingDegree = 2,
+			},
 			MaxAttempts = maxAttempts,
-			BatchProcessing = { ParallelProcessingDegree = 2 },
-			EnableBatchDatabaseOperations = false
+			BatchTuning =
+			{
+				EnableBatchDatabaseOperations = false,
+			},
 		});
 	}
 
@@ -749,12 +764,12 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var deadLetterQueue = CreateDeadLetterQueue();
 		var internalSerializer = new StubInternalSerializer
 		{
-			InboxEnvelopeFactory = _ => new InboxEnvelope
+			InboxEnvelopeFactory = _ => new EnvelopeData
 			{
 				MessageId = envelopeMessageId,
 				MessageType = typeof(TestInboxDispatchMessage).Name,
 				Payload = [7, 8, 9],
-				ReceivedAt = DateTimeOffset.UtcNow,
+				Timestamp = DateTimeOffset.UtcNow,
 				Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
 				{
 					["CorrelationId"] = "corr-envelope"
@@ -769,7 +784,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			serializer: serializer,
 			serviceProvider: serviceProvider,
 			deadLetterQueue: deadLetterQueue,
-			internalSerializer: internalSerializer);
+			envelopeDeserializer: internalSerializer);
 		processor.Init("dispatcher-1");
 
 		return Task.FromResult(new DispatchScenario(
@@ -993,36 +1008,23 @@ public sealed class InboxProcessorShould : UnitTestBase
 
 	private sealed record TestInboxDispatchMessage(string Id) : IDispatchEvent;
 
-	private sealed class StubInternalSerializer : ISerializer
+	private sealed class StubInternalSerializer : IBinaryEnvelopeDeserializer
 	{
-		public string Name => "stub";
-		public string Version => "1.0";
-		public string ContentType => "application/octet-stream";
+		public int DeserializeCalls { get; private set; }
 
-		public int SpanDeserializeCalls { get; private set; }
+		public Func<ReadOnlySpan<byte>, EnvelopeData>? InboxEnvelopeFactory { get; init; }
 
-		public Func<ReadOnlySpan<byte>, InboxEnvelope>? InboxEnvelopeFactory { get; init; }
-
-		public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
+		public EnvelopeData? DeserializeInboxEnvelope(ReadOnlySpan<byte> data)
 		{
-			ArgumentNullException.ThrowIfNull(bufferWriter);
+			DeserializeCalls++;
+			return InboxEnvelopeFactory?.Invoke(data);
 		}
 
-		public T Deserialize<T>(ReadOnlySpan<byte> buffer)
+		public EnvelopeData? DeserializeOutboxEnvelope(ReadOnlySpan<byte> data)
 		{
-			SpanDeserializeCalls++;
-			if (typeof(T) == typeof(InboxEnvelope) && InboxEnvelopeFactory is not null)
-			{
-				var envelope = InboxEnvelopeFactory(buffer);
-				return (T)(object)envelope;
-			}
-
-			return default!;
+			DeserializeCalls++;
+			return null;
 		}
-
-		public byte[] SerializeObject(object value, Type type) => [];
-
-		public object DeserializeObject(ReadOnlySpan<byte> data, Type type) => default!;
 	}
 
 	#endregion

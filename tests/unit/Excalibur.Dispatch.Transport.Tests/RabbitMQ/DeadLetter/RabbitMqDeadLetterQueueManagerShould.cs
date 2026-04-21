@@ -21,8 +21,8 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.DeadLetter;
 /// Unit tests for <see cref="RabbitMqDeadLetterQueueManager"/>.
 /// Validates Move (DLX publish), Get (peek via BasicGet+Nack), Reprocess, Statistics, Purge, and error handling.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RabbitMqDeadLetterQueueManagerShould : IDisposable
 {
 	private readonly IChannel _fakeChannel;

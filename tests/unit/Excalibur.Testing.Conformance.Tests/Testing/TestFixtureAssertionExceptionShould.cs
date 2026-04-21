@@ -51,8 +51,8 @@ public sealed class TestFixtureAssertionExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
-		exception.InnerException.ShouldBeOfType<InvalidOperationException>();
+		exception.InnerException!.ShouldBe(inner);
+		exception.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]
@@ -67,8 +67,8 @@ public sealed class TestFixtureAssertionExceptionShould
 		var exception = new TestFixtureAssertionException(outerMessage, inner);
 
 		// Assert
-		exception.InnerException.ShouldNotBeNull();
-		exception.InnerException.Message.ShouldBe(innerMessage);
+		exception.InnerException!.ShouldNotBeNull();
+		exception.InnerException!.Message.ShouldBe(innerMessage);
 	}
 
 	[Fact]
@@ -150,7 +150,7 @@ public sealed class TestFixtureAssertionExceptionShould
 		var exception = new TestFixtureAssertionException("test");
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -162,9 +162,9 @@ public sealed class TestFixtureAssertionExceptionShould
 		var level1 = new TestFixtureAssertionException("Level 1", level2);
 
 		// Act & Assert
-		level1.InnerException.ShouldNotBeNull();
-		level1.InnerException.InnerException.ShouldNotBeNull();
-		level1.InnerException.InnerException.Message.ShouldBe("Level 3");
+		level1.InnerException!.ShouldNotBeNull();
+		level1.InnerException.InnerException!.ShouldNotBeNull();
+		level1.InnerException.InnerException!.Message.ShouldBe("Level 3");
 	}
 
 	[Fact]

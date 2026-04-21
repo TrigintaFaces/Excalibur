@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Observability.Sampling;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -33,11 +34,11 @@ public static class DispatchBuilderObservabilityExtensions
 	/// <code>
 	/// services.AddDispatch(dispatch =>
 	/// {
-	///     dispatch.AddObservability(obs => obs.Enabled = true);
+	///     dispatch.UseObservability(obs => obs.Enabled = true);
 	/// });
 	/// </code>
 	/// </example>
-	public static IDispatchBuilder AddObservability(
+	public static IDispatchBuilder UseObservability(
 		this IDispatchBuilder builder,
 		Action<ContextObservabilityOptions>? configure = null)
 	{
@@ -60,13 +61,13 @@ public static class DispatchBuilderObservabilityExtensions
 	/// <code>
 	/// services.AddDispatch(dispatch =>
 	/// {
-	///     dispatch.AddObservability(configuration);
+	///     dispatch.UseObservability(configuration);
 	/// });
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types")]
 	[RequiresDynamicCode("Configuration binding may require dynamic code generation")]
-	public static IDispatchBuilder AddObservability(
+	public static IDispatchBuilder UseObservability(
 		this IDispatchBuilder builder,
 		IConfiguration configuration)
 	{
@@ -223,8 +224,10 @@ public static class DispatchBuilderObservabilityExtensions
 		}
 
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TraceSamplerOptions>, TraceSamplerOptionsValidator>());
 
 		builder.Services.TryAddSingleton<ITraceSampler, TraceSampler>();
 		builder.Services.TryAddSingleton<TraceSamplerMiddleware>();

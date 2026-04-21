@@ -65,5 +65,5 @@ namespace Excalibur.Dispatch.Abstractions.Transport;
 /// }
 /// </code>
 /// </example>
-/// <seealso cref="CronTimerTriggerMessage{TTimer}"/>
+/// <seealso cref="ICronTimerMarker"/>
 public interface ICronTimerMarker;

@@ -1,0 +1,72 @@
+#nullable enable
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExporterHealthResult!>!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter.ElasticsearchAuditExporter(System.Net.Http.HttpClient! httpClient, Microsoft.Extensions.Options.IOptions<Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter!>! logger) -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter.ExportAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportResult!>!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter.ExportBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>! auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportBatchResult!>!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditExporter.Name.get -> string!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.ApiKey.get -> string?
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.ApiKey.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.ApplicationName.get -> string?
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.ApplicationName.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.ElasticsearchAuditSinkOptions() -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.ElasticsearchUrl.get -> string?
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.ElasticsearchUrl.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.IndexPrefix.get -> string!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.IndexPrefix.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.MaxRetryAttempts.get -> int
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.MaxRetryAttempts.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.NodeUrls.get -> System.Collections.Generic.List<string!>?
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.NodeUrls.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.RefreshPolicy.get -> string!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.RefreshPolicy.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.RetryBaseDelay.get -> System.TimeSpan
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.RetryBaseDelay.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.Timeout.get -> System.TimeSpan
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditSinkOptions.Timeout.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.ApiKey.get -> string?
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.ApiKey.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.ApplicationName.get -> string?
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.ApplicationName.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.BulkBatchSize.get -> int
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.BulkBatchSize.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.ElasticsearchExporterOptions() -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.ElasticsearchUrl.get -> string!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.ElasticsearchUrl.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.IndexPrefix.get -> string!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.IndexPrefix.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.MaxRetryAttempts.get -> int
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.MaxRetryAttempts.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.NodeUrls.get -> System.Collections.Generic.List<string!>?
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.NodeUrls.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.RefreshPolicy.get -> string!
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.RefreshPolicy.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.RetryBaseDelay.get -> System.TimeSpan
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.RetryBaseDelay.set -> void
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.Timeout.get -> System.TimeSpan
+Excalibur.AuditLogging.Elasticsearch.ElasticsearchExporterOptions.Timeout.set -> void
+Microsoft.Extensions.DependencyInjection.ElasticsearchServiceCollectionExtensions
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.BatchForwarded = 93461 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.EventForwarded = 93460 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.ForwardFailedBatchChunk = 93470 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.ForwardFailedHttpError = 93468 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.ForwardFailedStatus = 93465 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.ForwardFailedTimeout = 93469 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.ForwardRetried = 93466 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.HealthCheckFailed = 93467 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.SinkEventWritten = 93471 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.SinkHttpError = 93473 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.SinkRetried = 93475 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.SinkTimeout = 93474 -> int
+const Excalibur.AuditLogging.Elasticsearch.ElasticsearchAuditLoggingEventId.SinkWriteFailed = 93472 -> int
+Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder
+Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder!
+Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder.CloudId(string! cloudId) -> Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder!
+Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder.IndexName(string! indexPrefix) -> Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder!
+Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder.NodeUri(System.Uri! nodeUri) -> Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder!
+Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder.NodeUris(System.Collections.Generic.IEnumerable<System.Uri!>! nodeUris) -> Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder!
+static Microsoft.Extensions.DependencyInjection.ElasticsearchServiceCollectionExtensions.AddElasticsearchAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticsearchServiceCollectionExtensions.AddElasticsearchAuditSink(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Elasticsearch.IAuditLoggingElasticsearchBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

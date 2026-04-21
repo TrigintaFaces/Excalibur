@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 /// Unit tests for <see cref="ClaimCheckOptionsValidator"/>.
 /// Sprint 563 S563.55: IValidateOptions validator tests.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "ClaimCheck")]
 public sealed class ClaimCheckOptionsValidatorShould
 {

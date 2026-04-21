@@ -31,13 +31,6 @@ public interface ICircuitBreakerMetrics
 	void RecordRejection(string circuitName);
 
 	/// <summary>
-	/// Updates the current state gauge for a circuit breaker.
-	/// </summary>
-	/// <param name="circuitName">The name of the circuit breaker.</param>
-	/// <param name="state">The current state value (0=Closed, 1=Open, 2=HalfOpen).</param>
-	void UpdateState(string circuitName, int state);
-
-	/// <summary>
 	/// Records a failure that contributed to the circuit breaker state.
 	/// </summary>
 	/// <param name="circuitName">The name of the circuit breaker.</param>
@@ -49,4 +42,17 @@ public interface ICircuitBreakerMetrics
 	/// </summary>
 	/// <param name="circuitName">The name of the circuit breaker.</param>
 	void RecordSuccess(string circuitName);
+}
+
+/// <summary>
+/// Provides administrative operations for circuit breaker metrics.
+/// </summary>
+public interface ICircuitBreakerMetricsAdmin
+{
+	/// <summary>
+	/// Updates the current state gauge for a circuit breaker.
+	/// </summary>
+	/// <param name="circuitName">The name of the circuit breaker.</param>
+	/// <param name="state">The current state value (0=Closed, 1=Open, 2=HalfOpen).</param>
+	void UpdateState(string circuitName, int state);
 }

@@ -4,7 +4,6 @@
 using System.Data;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.SqlServer.Requests;
 
 namespace Excalibur.EventSourcing.Tests.SqlServer.Requests;
@@ -31,7 +30,7 @@ public sealed class SqlServerRequestsShould
 			new byte[] { 1, 2, 3 }, null, 1, DateTimeOffset.UtcNow, null, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO EventStoreEvents");
+		request.Command.CommandText.ShouldContain("INSERT INTO [dbo].[EventStoreEvents]");
 		request.Command.CommandText.ShouldContain("OUTPUT INSERTED.Position");
 	}
 
@@ -190,7 +189,7 @@ public sealed class SqlServerRequestsShould
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("SELECT");
-		request.Command.CommandText.ShouldContain("FROM EventStoreEvents");
+		request.Command.CommandText.ShouldContain("FROM [dbo].[EventStoreEvents]");
 	}
 
 	[Fact]
@@ -309,7 +308,7 @@ public sealed class SqlServerRequestsShould
 	{
 		var request = new GetCurrentVersionRequest("agg-1", "OrderAggregate", null, Ct);
 
-		request.Command.CommandText.ShouldContain("FROM EventStoreEvents");
+		request.Command.CommandText.ShouldContain("FROM [dbo].[EventStoreEvents]");
 	}
 
 	[Fact]
@@ -386,7 +385,7 @@ public sealed class SqlServerRequestsShould
 		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("EventStoreSnapshots");
+		request.Command.CommandText.ShouldContain("[dbo].[EventStoreSnapshots]");
 	}
 
 	[Fact]
@@ -458,7 +457,7 @@ public sealed class SqlServerRequestsShould
 		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("DELETE FROM EventStoreSnapshots");
+		request.Command.CommandText.ShouldContain("DELETE FROM [dbo].[EventStoreSnapshots]");
 	}
 
 	[Fact]
@@ -534,7 +533,7 @@ public sealed class SqlServerRequestsShould
 	{
 		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, Ct);
 
-		request.Command.CommandText.ShouldContain("DELETE FROM EventStoreSnapshots");
+		request.Command.CommandText.ShouldContain("DELETE FROM [dbo].[EventStoreSnapshots]");
 	}
 
 	[Fact]
@@ -614,7 +613,7 @@ public sealed class SqlServerRequestsShould
 		var request = new SaveSnapshotRequest(snapshot, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("MERGE INTO EventStoreSnapshots WITH (ROWLOCK, UPDLOCK)");
+		request.Command.CommandText.ShouldContain("MERGE INTO [dbo].[EventStoreSnapshots] WITH (HOLDLOCK, ROWLOCK, UPDLOCK)");
 	}
 
 	[Fact]
@@ -675,381 +674,9 @@ public sealed class SqlServerRequestsShould
 
 	#endregion
 
-	#region AddOutboxMessageRequest
-
-	[Fact]
-	public void AddOutboxMessageRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var message = CreateOutboxMessage();
-		var transaction = A.Fake<IDbTransaction>();
-
-		var request = new AddOutboxMessageRequest(message, transaction, Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO EventSourcedOutbox");
-	}
-
-	[Fact]
-	public void AddOutboxMessageRequest_ContainAllColumns()
-	{
-		var message = CreateOutboxMessage();
-		var transaction = A.Fake<IDbTransaction>();
-
-		var request = new AddOutboxMessageRequest(message, transaction, Ct);
-
-		request.Command.CommandText.ShouldContain("Id");
-		request.Command.CommandText.ShouldContain("AggregateId");
-		request.Command.CommandText.ShouldContain("AggregateType");
-		request.Command.CommandText.ShouldContain("EventType");
-		request.Command.CommandText.ShouldContain("EventData");
-		request.Command.CommandText.ShouldContain("CreatedAt");
-		request.Command.CommandText.ShouldContain("PublishedAt");
-		request.Command.CommandText.ShouldContain("RetryCount");
-		request.Command.CommandText.ShouldContain("MessageType");
-		request.Command.CommandText.ShouldContain("Metadata");
-	}
-
-	[Fact]
-	public void AddOutboxMessageRequest_SetParameterNames()
-	{
-		var message = CreateOutboxMessage();
-		var transaction = A.Fake<IDbTransaction>();
-
-		var request = new AddOutboxMessageRequest(message, transaction, Ct);
-
-		var paramNames = request.Parameters.ParameterNames.ToList();
-		paramNames.ShouldContain("Id");
-		paramNames.ShouldContain("AggregateId");
-		paramNames.ShouldContain("AggregateType");
-		paramNames.ShouldContain("EventType");
-		paramNames.ShouldContain("EventData");
-		paramNames.ShouldContain("CreatedAt");
-		paramNames.ShouldContain("RetryCount");
-		paramNames.ShouldContain("MessageType");
-	}
-
-	[Fact]
-	public void AddOutboxMessageRequest_PropagateTransaction()
-	{
-		var message = CreateOutboxMessage();
-		var transaction = A.Fake<IDbTransaction>();
-
-		var request = new AddOutboxMessageRequest(message, transaction, Ct);
-
-		request.Command.Transaction.ShouldBeSameAs(transaction);
-	}
-
-	[Fact]
-	public void AddOutboxMessageRequest_HaveCorrectRequestType()
-	{
-		var message = CreateOutboxMessage();
-		var transaction = A.Fake<IDbTransaction>();
-
-		var request = new AddOutboxMessageRequest(message, transaction, Ct);
-
-		request.RequestType.ShouldBe("AddOutboxMessageRequest");
-	}
-
-	[Fact]
-	public void AddOutboxMessageRequest_HaveResolveAsync()
-	{
-		var message = CreateOutboxMessage();
-		var transaction = A.Fake<IDbTransaction>();
-
-		var request = new AddOutboxMessageRequest(message, transaction, Ct);
-
-		request.ResolveAsync.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AddOutboxMessageRequest_ThrowOnNullMessage()
-	{
-		var transaction = A.Fake<IDbTransaction>();
-
-		Should.Throw<ArgumentNullException>(() =>
-			new AddOutboxMessageRequest(null!, transaction, Ct));
-	}
-
-	[Fact]
-	public void AddOutboxMessageRequest_ThrowOnNullTransaction()
-	{
-		var message = CreateOutboxMessage();
-
-		Should.Throw<ArgumentNullException>(() =>
-			new AddOutboxMessageRequest(message, null!, Ct));
-	}
-
-	#endregion
-
-	#region GetPendingOutboxMessagesRequest
-
-	[Fact]
-	public void GetPendingOutboxMessagesRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new GetPendingOutboxMessagesRequest(100, Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("PublishedAt IS NULL");
-		request.Command.CommandText.ShouldContain("TOP (@BatchSize)");
-	}
-
-	[Fact]
-	public void GetPendingOutboxMessagesRequest_TargetEventSourcedOutboxTable()
-	{
-		var request = new GetPendingOutboxMessagesRequest(100, Ct);
-
-		request.Command.CommandText.ShouldContain("FROM EventSourcedOutbox");
-	}
-
-	[Fact]
-	public void GetPendingOutboxMessagesRequest_OrderByCreatedAtAsc()
-	{
-		var request = new GetPendingOutboxMessagesRequest(100, Ct);
-
-		request.Command.CommandText.ShouldContain("ORDER BY CreatedAt ASC");
-	}
-
-	[Fact]
-	public void GetPendingOutboxMessagesRequest_SetParameterNames()
-	{
-		var request = new GetPendingOutboxMessagesRequest(100, Ct);
-
-		var paramNames = request.Parameters.ParameterNames.ToList();
-		paramNames.ShouldContain("BatchSize");
-	}
-
-	[Fact]
-	public void GetPendingOutboxMessagesRequest_HaveCorrectRequestType()
-	{
-		var request = new GetPendingOutboxMessagesRequest(100, Ct);
-
-		request.RequestType.ShouldBe("GetPendingOutboxMessagesRequest");
-	}
-
-	[Fact]
-	public void GetPendingOutboxMessagesRequest_HaveResolveAsync()
-	{
-		var request = new GetPendingOutboxMessagesRequest(100, Ct);
-
-		request.ResolveAsync.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void GetPendingOutboxMessagesRequest_AcceptBatchSizeOfOne()
-	{
-		var request = new GetPendingOutboxMessagesRequest(1, Ct);
-
-		request.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void GetPendingOutboxMessagesRequest_AcceptLargeBatchSize()
-	{
-		var request = new GetPendingOutboxMessagesRequest(10000, Ct);
-
-		request.ShouldNotBeNull();
-	}
-
-	#endregion
-
-	#region DeletePublishedOutboxMessagesRequest
-
-	[Fact]
-	public void DeletePublishedOutboxMessagesRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.FromDays(7), Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("DELETE FROM EventSourcedOutbox");
-		request.Command.CommandText.ShouldContain("PublishedAt < @CutoffDate");
-	}
-
-	[Fact]
-	public void DeletePublishedOutboxMessagesRequest_FilterByPublishedNotNull()
-	{
-		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.FromDays(7), Ct);
-
-		request.Command.CommandText.ShouldContain("PublishedAt IS NOT NULL");
-	}
-
-	[Fact]
-	public void DeletePublishedOutboxMessagesRequest_SetParameterNames()
-	{
-		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.FromDays(7), Ct);
-
-		var paramNames = request.Parameters.ParameterNames.ToList();
-		paramNames.ShouldContain("CutoffDate");
-	}
-
-	[Fact]
-	public void DeletePublishedOutboxMessagesRequest_HaveCorrectRequestType()
-	{
-		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.FromDays(7), Ct);
-
-		request.RequestType.ShouldBe("DeletePublishedOutboxMessagesRequest");
-	}
-
-	[Fact]
-	public void DeletePublishedOutboxMessagesRequest_HaveResolveAsync()
-	{
-		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.FromDays(7), Ct);
-
-		request.ResolveAsync.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void DeletePublishedOutboxMessagesRequest_AcceptZeroRetentionPeriod()
-	{
-		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.Zero, Ct);
-
-		request.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void DeletePublishedOutboxMessagesRequest_AcceptSmallRetentionPeriod()
-	{
-		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.FromMinutes(1), Ct);
-
-		request.ShouldNotBeNull();
-	}
-
-	#endregion
-
-	#region IncrementOutboxRetryCountRequest
-
-	[Fact]
-	public void IncrementOutboxRetryCountRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new IncrementOutboxRetryCountRequest(Guid.NewGuid(), Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("RetryCount = RetryCount + 1");
-	}
-
-	[Fact]
-	public void IncrementOutboxRetryCountRequest_TargetEventSourcedOutboxTable()
-	{
-		var request = new IncrementOutboxRetryCountRequest(Guid.NewGuid(), Ct);
-
-		request.Command.CommandText.ShouldContain("UPDATE EventSourcedOutbox");
-	}
-
-	[Fact]
-	public void IncrementOutboxRetryCountRequest_FilterById()
-	{
-		var request = new IncrementOutboxRetryCountRequest(Guid.NewGuid(), Ct);
-
-		request.Command.CommandText.ShouldContain("Id = @Id");
-	}
-
-	[Fact]
-	public void IncrementOutboxRetryCountRequest_SetParameterNames()
-	{
-		var request = new IncrementOutboxRetryCountRequest(Guid.NewGuid(), Ct);
-
-		var paramNames = request.Parameters.ParameterNames.ToList();
-		paramNames.ShouldContain("Id");
-	}
-
-	[Fact]
-	public void IncrementOutboxRetryCountRequest_HaveCorrectRequestType()
-	{
-		var request = new IncrementOutboxRetryCountRequest(Guid.NewGuid(), Ct);
-
-		request.RequestType.ShouldBe("IncrementOutboxRetryCountRequest");
-	}
-
-	[Fact]
-	public void IncrementOutboxRetryCountRequest_HaveResolveAsync()
-	{
-		var request = new IncrementOutboxRetryCountRequest(Guid.NewGuid(), Ct);
-
-		request.ResolveAsync.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void IncrementOutboxRetryCountRequest_AcceptEmptyGuid()
-	{
-		var request = new IncrementOutboxRetryCountRequest(Guid.Empty, Ct);
-
-		request.ShouldNotBeNull();
-	}
-
-	#endregion
-
-	#region MarkOutboxMessagePublishedRequest
-
-	[Fact]
-	public void MarkOutboxMessagePublishedRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), null, Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("PublishedAt = @PublishedAt");
-	}
-
-	[Fact]
-	public void MarkOutboxMessagePublishedRequest_TargetEventSourcedOutboxTable()
-	{
-		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), null, Ct);
-
-		request.Command.CommandText.ShouldContain("UPDATE EventSourcedOutbox");
-	}
-
-	[Fact]
-	public void MarkOutboxMessagePublishedRequest_FilterByIdAndNotPublished()
-	{
-		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), null, Ct);
-
-		request.Command.CommandText.ShouldContain("Id = @Id");
-		request.Command.CommandText.ShouldContain("PublishedAt IS NULL");
-	}
-
-	[Fact]
-	public void MarkOutboxMessagePublishedRequest_SetParameterNames()
-	{
-		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), null, Ct);
-
-		var paramNames = request.Parameters.ParameterNames.ToList();
-		paramNames.ShouldContain("Id");
-		paramNames.ShouldContain("PublishedAt");
-	}
-
-	[Fact]
-	public void MarkOutboxMessagePublishedRequest_PropagateTransaction()
-	{
-		var transaction = A.Fake<IDbTransaction>();
-
-		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), transaction, Ct);
-
-		request.Command.Transaction.ShouldBeSameAs(transaction);
-	}
-
-	[Fact]
-	public void MarkOutboxMessagePublishedRequest_AcceptNullTransaction()
-	{
-		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), null, Ct);
-
-		request.Command.Transaction.ShouldBeNull();
-	}
-
-	[Fact]
-	public void MarkOutboxMessagePublishedRequest_HaveCorrectRequestType()
-	{
-		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), null, Ct);
-
-		request.RequestType.ShouldBe("MarkOutboxMessagePublishedRequest");
-	}
-
-	[Fact]
-	public void MarkOutboxMessagePublishedRequest_HaveResolveAsync()
-	{
-		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), null, Ct);
-
-		request.ResolveAsync.ShouldNotBeNull();
-	}
-
-	#endregion
+	// Outbox request regions removed -- types consolidated to Excalibur.Outbox packages
+	// (AddOutboxMessageRequest, GetPendingOutboxMessagesRequest, DeletePublishedOutboxMessagesRequest,
+	//  IncrementOutboxRetryCountRequest, MarkOutboxMessagePublishedRequest)
 
 	#region DataRequestBase Properties
 
@@ -1152,19 +779,6 @@ public sealed class SqlServerRequestsShould
 		A.CallTo(() => snapshot.CreatedAt).Returns(DateTimeOffset.UtcNow);
 		return snapshot;
 	}
-
-	private static OutboxMessage CreateOutboxMessage() =>
-		new()
-		{
-			Id = Guid.NewGuid(),
-			AggregateId = "agg-1",
-			AggregateType = "OrderAggregate",
-			EventType = "OrderCreated",
-			EventData = "{}",
-			CreatedAt = DateTimeOffset.UtcNow,
-			RetryCount = 0,
-			MessageType = "DomainEvent"
-		};
 
 	#endregion
 }

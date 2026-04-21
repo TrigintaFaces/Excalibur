@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Testing.Diagnostics;
 namespace Excalibur.Dispatch.Testing.Tests.Diagnostics;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Testing")]
+[Trait(TraitNames.Component, TestComponents.Testing)]
 public sealed class TestMeterFactoryShould
 {
 	[Fact]

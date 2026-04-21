@@ -11,7 +11,7 @@ namespace Excalibur.Data.Tests.Postgres.Requests.Saga;
 /// Unit tests for <see cref="SaveSagaRequest{TSagaState}"/>.
 /// Covers constructor validation, SQL structure, and parameter setup.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Postgres")]
 public sealed class SaveSagaRequestShould : IDisposable
 {

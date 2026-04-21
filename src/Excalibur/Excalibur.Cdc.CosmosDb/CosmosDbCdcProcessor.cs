@@ -285,7 +285,7 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 
 		var mode = ChangeFeedMode.Incremental;
 
-		return _container.GetChangeFeedIterator<JsonDocument>(startFrom, mode, requestOptions);
+		return _container!.GetChangeFeedIterator<JsonDocument>(startFrom, mode, requestOptions);
 	}
 
 	private CosmosDbDataChangeEvent CreateChangeEvent(JsonDocument document, CosmosDbCdcPosition position)

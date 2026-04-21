@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Inbox;
 /// <summary>
 /// Unit tests for <see cref="InboxEntry"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class InboxEntryShould
 {

@@ -46,11 +46,11 @@ services.AddDispatch(dispatch =>
 services.AddSingleton<IEventSerializer, JsonEventSerializer>();
 
 // Add Excalibur event sourcing with in-memory event store
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
 	// Register the OrderAggregate repository with factory
 	_ = builder.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
-});
+}));
 
 // Add in-memory event store (for development/testing)
 services.AddInMemoryEventStore();

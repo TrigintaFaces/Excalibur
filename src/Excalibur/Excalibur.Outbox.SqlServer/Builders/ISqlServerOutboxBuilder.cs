@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Data.SqlClient;
+
 namespace Excalibur.Outbox.SqlServer;
 
 /// <summary>
@@ -8,9 +10,14 @@ namespace Excalibur.Outbox.SqlServer;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This builder configures SQL Server-specific options such as table names, schema,
-/// command timeouts, and row locking behavior.
-/// All methods return <c>this</c> for method chaining.
+/// Provides the canonical 4 connection overloads plus subsystem-specific configuration
+/// for outbox table names, schema, and operational settings. Follows the builder pattern
+/// established by <see cref="Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder"/>.
+/// </para>
+/// <para>
+/// <b>Connection overloads are mutually exclusive (last-wins):</b> If multiple connection
+/// methods are called, the last one takes effect. Each call overwrites any previously
+/// configured connection.
 /// </para>
 /// </remarks>
 /// <example>
@@ -19,131 +26,106 @@ namespace Excalibur.Outbox.SqlServer;
 /// {
 ///     sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;")
 ///        .SchemaName("Messaging")
-///        .TableName("OutboxMessages")
-///        .CommandTimeout(TimeSpan.FromSeconds(60))
-///        .UseRowLocking(true);
+///        .TableName("OutboxMessages");
 /// });
 /// </code>
 /// </example>
 public interface ISqlServerOutboxBuilder
 {
+	// --- Connection overloads (canonical 4) ---
+
 	/// <summary>
 	/// Sets the SQL Server connection string.
 	/// </summary>
 	/// <param name="connectionString">The SQL Server connection string.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="connectionString"/> is null, empty, or whitespace.
+	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
 	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// This is the primary way to configure the connection string for the outbox store.
-	/// Alternatively, configure <see cref="SqlServerOutboxOptions.ConnectionString"/> directly
-	/// via the options pattern.
-	/// </para>
-	/// </remarks>
 	ISqlServerOutboxBuilder ConnectionString(string connectionString);
 
 	/// <summary>
-	/// Sets the schema name for the outbox tables.
+	/// Sets a factory function that creates SQL connections.
+	/// Use for Azure Managed Identity, Key Vault, or custom connection pooling.
+	/// </summary>
+	/// <param name="connectionFactory">
+	/// A factory receiving <see cref="IServiceProvider"/> and returning a
+	/// <c>Func&lt;SqlConnection&gt;</c> that creates connections on demand.
+	/// </param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="connectionFactory"/> is null.
+	/// </exception>
+	ISqlServerOutboxBuilder ConnectionFactory(
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactory);
+
+	/// <summary>
+	/// Resolves the connection string from <c>IConfiguration.GetConnectionString(name)</c>
+	/// at service resolution time.
+	/// </summary>
+	/// <param name="name">The connection string name in the <c>ConnectionStrings</c> section.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="name"/> is null or whitespace.
+	/// </exception>
+	ISqlServerOutboxBuilder ConnectionStringName(string name);
+
+	/// <summary>
+	/// Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.
+	/// </summary>
+	/// <param name="sectionPath">The configuration section path (e.g., "Outbox:SqlServer").</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="sectionPath"/> is null or whitespace.
+	/// </exception>
+	ISqlServerOutboxBuilder BindConfiguration(string sectionPath);
+
+	// --- Feature-specific configuration ---
+
+	/// <summary>
+	/// Sets the schema name for the outbox tables. Default: "dbo".
 	/// </summary>
 	/// <param name="schema">The schema name (e.g., "dbo", "Messaging").</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="schema"/> is null, empty, or whitespace.
+	/// Thrown when <paramref name="schema"/> is null or whitespace.
 	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is "dbo". Use this to organize outbox tables in a specific schema.
-	/// </para>
-	/// </remarks>
 	ISqlServerOutboxBuilder SchemaName(string schema);
 
 	/// <summary>
-	/// Sets the table name for storing outbox messages.
+	/// Sets the table name for storing outbox messages. Default: "OutboxMessages".
 	/// </summary>
 	/// <param name="tableName">The table name.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="tableName"/> is null, empty, or whitespace.
+	/// Thrown when <paramref name="tableName"/> is null or whitespace.
 	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is "OutboxMessages".
-	/// </para>
-	/// </remarks>
 	ISqlServerOutboxBuilder TableName(string tableName);
 
 	/// <summary>
-	/// Sets the table name for storing transport delivery records.
+	/// Sets the table name for storing transport delivery records. Default: "OutboxMessageTransports".
 	/// </summary>
 	/// <param name="tableName">The table name for transport records.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="tableName"/> is null, empty, or whitespace.
+	/// Thrown when <paramref name="tableName"/> is null or whitespace.
 	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is "OutboxMessageTransports".
-	/// </para>
-	/// </remarks>
 	ISqlServerOutboxBuilder TransportsTableName(string tableName);
 
 	/// <summary>
-	/// Sets the table name for storing dead letter messages.
+	/// Sets the table name for storing dead letter messages. Default: "OutboxDeadLetters".
 	/// </summary>
 	/// <param name="tableName">The table name for dead letters.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="tableName"/> is null, empty, or whitespace.
+	/// Thrown when <paramref name="tableName"/> is null or whitespace.
 	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is "OutboxDeadLetters".
-	/// </para>
-	/// </remarks>
 	ISqlServerOutboxBuilder DeadLetterTableName(string tableName);
 
 	/// <summary>
-	/// Sets the command timeout for SQL operations.
+	/// Enables SQL Server health checks for the outbox store.
 	/// </summary>
-	/// <param name="timeout">The command timeout. Must be positive.</param>
+	/// <param name="name">Optional health check name. Default: "sqlserver-outbox".</param>
 	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="timeout"/> is not positive.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 30 seconds. Increase for high-volume scenarios or slow networks.
-	/// </para>
-	/// </remarks>
-	ISqlServerOutboxBuilder CommandTimeout(TimeSpan timeout);
-
-	/// <summary>
-	/// Enables or disables row-level locking for concurrent access.
-	/// </summary>
-	/// <param name="enable">True to enable row-level locking.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Default is true. Row locking prevents multiple processors from picking up
-	/// the same messages, which is essential in distributed deployments.
-	/// </para>
-	/// </remarks>
-	ISqlServerOutboxBuilder UseRowLocking(bool enable = true);
-
-	/// <summary>
-	/// Sets the default batch size for retrieving messages.
-	/// </summary>
-	/// <param name="size">The batch size. Must be greater than 0.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="size"/> is less than or equal to 0.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 100. This is the SQL Server-specific batch size for queries.
-	/// </para>
-	/// </remarks>
-	ISqlServerOutboxBuilder DefaultBatchSize(int size);
+	ISqlServerOutboxBuilder EnableHealthChecks(string? name = null);
 }

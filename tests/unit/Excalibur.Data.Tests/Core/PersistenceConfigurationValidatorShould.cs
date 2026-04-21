@@ -10,14 +10,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Data.Tests.Core;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PersistenceConfigurationValidatorShould
 {
 	[Fact]
 	public async Task StartAsync_ValidatesConfiguration()
 	{
 		var config = new PersistenceConfiguration();
-		config.Providers["test"] = new ProviderConfiguration
+		config.Providers["test"] = new PersistenceProviderOptions
 		{
 			Name = "test",
 			Type = PersistenceProviderType.InMemory,

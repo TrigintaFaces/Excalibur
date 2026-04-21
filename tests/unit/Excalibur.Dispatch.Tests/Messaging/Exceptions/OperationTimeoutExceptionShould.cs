@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Exceptions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class OperationTimeoutExceptionShould
 {
 	[Fact]
@@ -31,7 +31,7 @@ public sealed class OperationTimeoutExceptionShould
 		var ex = new OperationTimeoutException("msg", inner);
 
 		ex.Message.ShouldBe("msg");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -66,7 +66,7 @@ public sealed class OperationTimeoutExceptionShould
 
 		ex.Operation.ShouldBe("MyOp");
 		ex.Duration.ShouldBe(TimeSpan.FromMilliseconds(500));
-		ex.InnerException.ShouldBe(oce);
+		ex.InnerException!.ShouldBe(oce);
 		ex.Message.ShouldContain("500ms");
 	}
 
@@ -101,7 +101,7 @@ public sealed class OperationTimeoutExceptionShould
 		var ex = OperationTimeoutException.FromCancellation("MyOp", TimeSpan.FromSeconds(10), oce);
 
 		ex.Operation.ShouldBe("MyOp");
-		ex.InnerException.ShouldBe(oce);
+		ex.InnerException!.ShouldBe(oce);
 	}
 
 	[Fact]

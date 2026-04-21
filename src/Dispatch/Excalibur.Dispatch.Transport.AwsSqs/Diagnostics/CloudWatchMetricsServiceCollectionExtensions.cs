@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Transport.AwsSqs;
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -45,8 +50,40 @@ public static class CloudWatchMetricsServiceCollectionExtensions
 
 		_ = services.AddOptions<CloudWatchMetricsOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CloudWatchMetricsOptions>, CloudWatchMetricsOptionsValidator>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds AWS CloudWatch metrics export support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="CloudWatchMetricsOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddAwsCloudWatchMetricsExporter(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<CloudWatchMetricsOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CloudWatchMetricsOptions>, CloudWatchMetricsOptionsValidator>());
 
 		return services;
 	}
@@ -63,7 +100,7 @@ public static class CloudWatchMetricsServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
 	/// </exception>
-	public static IServiceCollection AddAwsCloudWatchMetricsExporter<TImplementation>(
+	public static IServiceCollection AddAwsCloudWatchMetricsExporter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		Action<CloudWatchMetricsOptions> configure)
 		where TImplementation : class, ICloudWatchMetricsExporter
@@ -73,8 +110,46 @@ public static class CloudWatchMetricsServiceCollectionExtensions
 
 		_ = services.AddOptions<CloudWatchMetricsOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CloudWatchMetricsOptions>, CloudWatchMetricsOptionsValidator>());
+
+		services.AddSingleton<ICloudWatchMetricsExporter, TImplementation>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds a concrete AWS CloudWatch metrics exporter using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TImplementation">
+	/// The concrete type implementing <see cref="ICloudWatchMetricsExporter"/>.
+	/// </typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="CloudWatchMetricsOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddAwsCloudWatchMetricsExporter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		where TImplementation : class, ICloudWatchMetricsExporter
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<CloudWatchMetricsOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CloudWatchMetricsOptions>, CloudWatchMetricsOptionsValidator>());
 
 		services.AddSingleton<ICloudWatchMetricsExporter, TImplementation>();
 

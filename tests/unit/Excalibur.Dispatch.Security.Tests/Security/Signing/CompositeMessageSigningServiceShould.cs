@@ -5,14 +5,14 @@
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Security.Tests.Signing;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class CompositeMessageSigningServiceShould : IDisposable
 {
 	private readonly IKeyProvider _keyProvider = A.Fake<IKeyProvider>();

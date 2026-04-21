@@ -16,7 +16,7 @@ namespace Excalibur.Data.Abstractions.Persistence;
 /// persistence provider decorators and implementations.
 /// </para>
 /// </remarks>
-public static class PersistenceTelemetryConstants
+internal static class PersistenceTelemetryConstants
 {
 	/// <summary>
 	/// The name used for the <see cref="ActivitySource"/> and <see cref="Meter"/>.

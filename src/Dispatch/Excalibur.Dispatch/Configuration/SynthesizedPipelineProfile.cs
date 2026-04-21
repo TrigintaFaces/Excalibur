@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Configuration;
 /// <summary>
 /// A pipeline profile that was synthesized automatically.
 /// </summary>
-internal sealed class SynthesizedPipelineProfile : IPipelineProfile
+internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 {
 	private static readonly IReadOnlySet<DispatchFeatures> NoEnabledFeatures = new HashSet<DispatchFeatures>();
 
@@ -94,14 +94,16 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile
 			return cached;
 		}
 
+#pragma warning disable IL2067 // messageType from GetType() is preserved through DI handler registration
 		var isCompatible = IsCompatibleForType(messageType);
+#pragma warning restore IL2067
 		_compatibilityCache.TryAdd(messageType, isCompatible);
 		return isCompatible;
 	}
 
 	[UnconditionalSuppressMessage("Trimming", "IL2075:'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicInterfaces'",
 			Justification = "Message types are preserved through handler registration and DI container")]
-	private bool IsCompatibleForType(Type messageType)
+	private bool IsCompatibleForType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
 	{
 		// Check if the message kind is supported
 
@@ -149,7 +151,7 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile
 		return FilterApplicableMiddleware(messageKind, NoEnabledFeatures);
 	}
 
-	private IReadOnlyList<Type> FilterApplicableMiddleware(
+	private List<Type> FilterApplicableMiddleware(
 		MessageKinds messageKind,
 		IReadOnlySet<DispatchFeatures> enabledFeatures)
 	{
@@ -171,15 +173,15 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile
 		return applicable.Count == 0 ? [] : applicable;
 	}
 
-	private static MiddlewareRule[] BuildMiddlewareRules(IReadOnlyList<Type> middlewareTypes)
+	private static MiddlewareRule[] BuildMiddlewareRules(Type[] middlewareTypes)
 	{
-		if (middlewareTypes.Count == 0)
+		if (middlewareTypes.Length == 0)
 		{
 			return [];
 		}
 
-		var rules = new MiddlewareRule[middlewareTypes.Count];
-		for (var i = 0; i < middlewareTypes.Count; i++)
+		var rules = new MiddlewareRule[middlewareTypes.Length];
+		for (var i = 0; i < middlewareTypes.Length; i++)
 		{
 			rules[i] = MiddlewareRule.Create(middlewareTypes[i]);
 		}
@@ -187,7 +189,8 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile
 		return rules;
 	}
 
-	private static bool ImplementsGenericActionInterface(Type messageType)
+	private static bool ImplementsGenericActionInterface(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
 	{
 		var interfaces = messageType.GetInterfaces();
 		for (var i = 0; i < interfaces.Length; i++)

@@ -227,6 +227,6 @@ public sealed class MessageEnvelopeShould : UnitTestBase
 		using var envelope = new MessageEnvelope();
 
 		// Assert
-		envelope.RoutingDecision.IsSuccess.ShouldBeTrue();
+		envelope.RoutingDecision!.IsSuccess.ShouldBeTrue();
 	}
 }

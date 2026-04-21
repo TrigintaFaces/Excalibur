@@ -17,12 +17,12 @@ namespace Excalibur.Jobs;
 	PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
 	DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
 	GenerationMode = JsonSourceGenerationMode.Metadata)]
-[JsonSerializable(typeof(JobConfig))]
+[JsonSerializable(typeof(JobOptions))]
 [JsonSerializable(typeof(JobInstanceInfo))]
 [JsonSerializable(typeof(JobInstanceCapabilities))]
 [JsonSerializable(typeof(JobInstanceStatus))]
 [JsonSerializable(typeof(HashSet<string>))]
 [JsonSerializable(typeof(IReadOnlySet<string>))]
-public sealed partial class JobsJsonSerializerContext : JsonSerializerContext
+internal sealed partial class JobsJsonSerializerContext : JsonSerializerContext
 {
 }

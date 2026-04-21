@@ -13,9 +13,9 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// <summary>
 /// Query-path behavior tests for <see cref="CdcRepository"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 {
 	[Fact]

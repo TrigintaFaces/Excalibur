@@ -5,12 +5,15 @@
 namespace Excalibur.Dispatch.Transport;
 
 // Note: MessagePump is now directly in Excalibur.Dispatch.Transport.Common located at /Common/MessagePump.cs
+
+/// <summary>Defines a channel receiver for consuming messages.</summary>
 public interface IChannelReceiver
 {
 	/// <summary>
+	/// Receives a message asynchronously from the channel.
 	/// </summary>
-	/// <typeparam name="T"> </typeparam>
-	/// <param name="cancellationToken"> </param>
+	/// <typeparam name="T">The type of message to receive.</typeparam>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
 	/// <returns> A <see cref="Task{TResult}" /> representing the result of the asynchronous operation. </returns>
 	Task<T?> ReceiveAsync<T>(CancellationToken cancellationToken);
 }

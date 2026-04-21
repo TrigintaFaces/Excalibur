@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.Firestore.Cdc;
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Firestore")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class IFirestoreCdcProcessorShould
 {
 	private readonly Type _interfaceType = typeof(IFirestoreCdcProcessor);

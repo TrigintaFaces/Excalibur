@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.MongoDB\Excalibur.Inbox.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.MongoDB\Excalibur.Outbox.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.MongoDB\Excalibur.Saga.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.MongoDB\Excalibur.LeaderElection.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>

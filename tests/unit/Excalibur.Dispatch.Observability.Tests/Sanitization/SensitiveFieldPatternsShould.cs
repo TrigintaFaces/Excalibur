@@ -50,7 +50,7 @@ public sealed class SensitiveFieldPatternsShould
 		var options = new ContextTracingOptions();
 
 		// Assert
-		options.SensitiveFieldPatterns.Length.ShouldBe(6);
+		options.SensitiveFieldPatterns.Count.ShouldBe(6);
 	}
 
 	[Theory]
@@ -110,7 +110,7 @@ public sealed class SensitiveFieldPatternsShould
 		};
 
 		// Assert
-		options.SensitiveFieldPatterns.Length.ShouldBe(2);
+		options.SensitiveFieldPatterns.Count.ShouldBe(2);
 		options.SensitiveFieldPatterns.ShouldContain("(?i)custom_pii");
 		options.SensitiveFieldPatterns.ShouldContain("(?i)internal_id");
 	}

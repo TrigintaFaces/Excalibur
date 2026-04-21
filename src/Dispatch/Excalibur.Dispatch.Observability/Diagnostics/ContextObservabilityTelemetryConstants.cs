@@ -6,7 +6,7 @@ namespace Excalibur.Dispatch.Observability.Diagnostics;
 /// <summary>
 /// Telemetry constants for context observability components.
 /// </summary>
-public static class ContextObservabilityTelemetryConstants
+internal static class ContextObservabilityTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for context flow metrics.

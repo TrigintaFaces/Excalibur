@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DispatchOptionsValidatorShould
 {
@@ -27,7 +27,7 @@ public sealed class DispatchOptionsValidatorShould
 		var result = _sut.Validate(null, options);
 
 		result.Succeeded.ShouldBeFalse();
-		result.FailureMessage.ShouldContain("DefaultTimeout");
+		result.FailureMessage!.ShouldContain("DefaultTimeout");
 	}
 
 	[Fact]
@@ -37,7 +37,7 @@ public sealed class DispatchOptionsValidatorShould
 		var result = _sut.Validate(null, options);
 
 		result.Succeeded.ShouldBeFalse();
-		result.FailureMessage.ShouldContain("DefaultTimeout");
+		result.FailureMessage!.ShouldContain("DefaultTimeout");
 	}
 
 	[Fact]
@@ -47,7 +47,7 @@ public sealed class DispatchOptionsValidatorShould
 		var result = _sut.Validate(null, options);
 
 		result.Succeeded.ShouldBeFalse();
-		result.FailureMessage.ShouldContain("MaxConcurrency");
+		result.FailureMessage!.ShouldContain("MaxConcurrency");
 	}
 
 	[Fact]
@@ -57,7 +57,7 @@ public sealed class DispatchOptionsValidatorShould
 		var result = _sut.Validate(null, options);
 
 		result.Succeeded.ShouldBeFalse();
-		result.FailureMessage.ShouldContain("MaxConcurrency");
+		result.FailureMessage!.ShouldContain("MaxConcurrency");
 	}
 
 	[Fact]
@@ -67,7 +67,7 @@ public sealed class DispatchOptionsValidatorShould
 		var result = _sut.Validate(null, options);
 
 		result.Succeeded.ShouldBeFalse();
-		result.FailureMessage.ShouldContain("MessageBufferSize");
+		result.FailureMessage!.ShouldContain("MessageBufferSize");
 	}
 
 	[Fact]
@@ -82,9 +82,9 @@ public sealed class DispatchOptionsValidatorShould
 		var result = _sut.Validate(null, options);
 
 		result.Succeeded.ShouldBeFalse();
-		result.FailureMessage.ShouldContain("DefaultTimeout");
-		result.FailureMessage.ShouldContain("MaxConcurrency");
-		result.FailureMessage.ShouldContain("MessageBufferSize");
+		result.FailureMessage!.ShouldContain("DefaultTimeout");
+		result.FailureMessage!.ShouldContain("MaxConcurrency");
+		result.FailureMessage!.ShouldContain("MessageBufferSize");
 	}
 
 	[Fact]

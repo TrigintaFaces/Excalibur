@@ -5,8 +5,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
-using ComplianceEncryptionOptions = Excalibur.Dispatch.Compliance.EncryptionOptions;
+using ComplianceEncryptionOptions = Excalibur.Compliance.Configuration.EncryptionOptions;
 
+using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
 /// <summary>
@@ -14,7 +15,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Tests bulk decryption and export per AD-255-3.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class EncryptionDecryptionServiceShould
 {
 	private readonly IEncryptionProviderRegistry _registry;

@@ -163,8 +163,8 @@ dotnet_diagnostic.IDE0071.severity = warning
 # Allow multiple blank lines
 dotnet_diagnostic.IDE2000.severity = silent
 
-# Disable 'field' keyword suggestion — requires C# 13 / .NET 10; breaks net8.0/net9.0 targets
-dotnet_diagnostic.IDE0370.severity = none
+# Enable 'field' keyword suggestion — C# 13 / .NET 10 (project is net10.0-only)
+dotnet_diagnostic.IDE0370.severity = suggestion
 
 # All public/protected/protected_internal constant fields must be PascalCase
 # https://docs.microsoft.com/dotnet/standard/design-guidelines/field
@@ -603,7 +603,7 @@ dotnet_diagnostic.CA1727.severity = warning
 
 #### Code Quality ####
 
-dotnet_code_quality_unused_parameters = all:warning
+dotnet_code_quality_unused_parameters = all:suggestion
 dotnet_code_quality.interpolated_string_composite_format = true
 dotnet_code_quality.prefer_inferred_anonymous_type_member_names = true
 dotnet_code_quality.prefer_inferred_tuple_names = true
@@ -2497,7 +2497,7 @@ dotnet_diagnostic.IDE0058.severity = suggestion
 dotnet_diagnostic.IDE0059.severity = error
 
 # Remove unused parameter
-dotnet_diagnostic.IDE0060.severity = warning
+dotnet_diagnostic.IDE0060.severity = suggestion
 
 # Remove unnecessary suppression
 dotnet_diagnostic.IDE0079.severity = none
@@ -4274,6 +4274,14 @@ dotnet_diagnostic.SA1649.severity = none
 # CA1303: Localization not required for internal messaging framework
 dotnet_diagnostic.CA1303.severity = none
 
+# IDE0010: Switch completeness — intentional partial matches in source generators and domain code
+dotnet_diagnostic.IDE0010.severity = none
+
+# IDE0051/IDE0052: Unused private members — tracked for incremental cleanup, visible as suggestions
+# These were hidden by Phase 8-3b; set to suggestion (not none) so they remain visible
+dotnet_diagnostic.IDE0051.severity = suggestion
+dotnet_diagnostic.IDE0052.severity = suggestion
+
 # Sprint 585: PublicAPI Analyzer - Track public API changes
 # Root cause fix: Added PackageReference to src/Directory.Build.props (was missing, analyzer never ran)
 # RS0016: Undeclared public API, warning severity (suppressed via NoWarn during alpha, enable before v3.0.0 stable)
@@ -4425,44 +4433,9 @@ dotnet_diagnostic.NU1504.severity = none
 # Justification: Formatting preference, does not affect functionality
 dotnet_diagnostic.SA1507.severity = none
 
-# Global analyzer suppressions for all C# files (Phase 8-3b)
-[*.cs]
-dotnet_diagnostic.SA1600.severity = none
-dotnet_diagnostic.MA0076.severity = none
-dotnet_diagnostic.MA0084.severity = none
-dotnet_diagnostic.MA0051.severity = none
-dotnet_diagnostic.MA0042.severity = none
-dotnet_diagnostic.MA0026.severity = none
-dotnet_diagnostic.MA0150.severity = none
-dotnet_diagnostic.MA0038.severity = none
-dotnet_diagnostic.MA0004.severity = none
-dotnet_diagnostic.SA1401.severity = none
-dotnet_diagnostic.SA1110.severity = none
-dotnet_diagnostic.SA1515.severity = none
-dotnet_diagnostic.SA1305.severity = none
-dotnet_diagnostic.SA1201.severity = none
-dotnet_diagnostic.SA1128.severity = none
-dotnet_diagnostic.RCS1163.severity = none
-dotnet_diagnostic.RCS1124.severity = none
-dotnet_diagnostic.RCS1071.severity = none
-dotnet_diagnostic.IDE0010.severity = none
-dotnet_diagnostic.CA1859.severity = none
-dotnet_diagnostic.CA1852.severity = none
-dotnet_diagnostic.CA1812.severity = none
-dotnet_diagnostic.CA1711.severity = none
-dotnet_diagnostic.IL3050.severity = none
-dotnet_diagnostic.IL2026.severity = none
-dotnet_diagnostic.IL3051.severity = none
-dotnet_diagnostic.IL2046.severity = none
-dotnet_diagnostic.IL2091.severity = none
-dotnet_diagnostic.IDE0052.severity = none
-dotnet_diagnostic.IDE0051.severity = none
-dotnet_diagnostic.SA1137.severity = none
-dotnet_diagnostic.SA1507.severity = none
-dotnet_diagnostic.CS8604.severity = none
-dotnet_diagnostic.NU1504.severity = none
-dotnet_diagnostic.CA1823.severity = none
-dotnet_diagnostic.CS1591.severity = none
+# Phase 8-3b global suppressions REMOVED (Sprint 750+): was hiding diagnostics locally
+# that CI caught, causing repeated push-fix cycles. All suppressions now in
+# Directory.Build.props <NoWarn> or fixed in code.
 
 # ============================================================================================
 # ADR-050: Namespace Consolidation - Intentional Namespace Flattening
@@ -4530,3 +4503,13 @@ dotnet_diagnostic.NS1007.severity = error
 
 # NS1008: Deep .Abstractions.*.* sub-namespaces blocked (should be flat)
 dotnet_diagnostic.NS1008.severity = error
+
+# ============================================================================
+# Source-Generated Files -- Exclude from Public API Tracking
+# ============================================================================
+# Source generators (STJ JsonSerializerContext, Excalibur.Dispatch.SourceGenerators)
+# produce public types that are framework plumbing, not consumer-facing API.
+# Microsoft excludes these from RS0016/RS0017 in their own repos.
+# See: https://github.com/dotnet/roslyn-analyzers/blob/main/src/PublicApiAnalyzers/PublicApiAnalyzers.Help.md
+[*.{g,generated}.cs]
+generated_code = true

@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Diagnostics;
 /// Covers all overloads: default, with Action, with IConfiguration,
 /// production, development, throughput profiles, and null guards.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchTelemetryServiceCollectionExtensionsShould
 {
 	[Fact]

@@ -4,10 +4,11 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance.Migration;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Migration;
 
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class MigrationServiceShould
 {
 	private readonly IEncryptionProvider _encryptionProvider;
@@ -195,7 +196,7 @@ public sealed class MigrationServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Unable to detect");
+		result.ErrorMessage!.ShouldContain("Unable to detect");
 	}
 
 	[Fact]
@@ -274,7 +275,7 @@ public sealed class MigrationServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Decryption failed");
+		result.ErrorMessage!.ShouldContain("Decryption failed");
 	}
 
 	[Fact]

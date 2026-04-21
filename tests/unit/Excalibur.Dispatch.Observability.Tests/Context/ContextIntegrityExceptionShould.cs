@@ -24,7 +24,7 @@ public sealed class ContextIntegrityExceptionShould
 		// Assert
 		exception.ShouldNotBeNull();
 		exception.Message.ShouldNotBeEmpty();
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class ContextIntegrityExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -53,7 +53,7 @@ public sealed class ContextIntegrityExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	#endregion
@@ -154,7 +154,7 @@ public sealed class ContextIntegrityExceptionShould
 
 		// Assert
 		caughtException.ShouldNotBeNull();
-		caughtException.InnerException.ShouldBeOfType<KeyNotFoundException>();
+		caughtException.InnerException!.ShouldBeOfType<KeyNotFoundException>();
 	}
 
 	[Fact]

@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Options.Middleware;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -22,8 +22,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Sprint 554 - Task S554.40: TenantIdentityMiddleware tests.
 /// Tests tenant ID extraction, missing tenant handling, tenant propagation, and validation.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class TenantIdentityMiddlewareShould
 {
 	private readonly ILogger<TenantIdentityMiddleware> _logger;

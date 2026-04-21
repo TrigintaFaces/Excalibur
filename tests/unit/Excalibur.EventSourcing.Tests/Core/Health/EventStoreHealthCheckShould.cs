@@ -61,7 +61,7 @@ public sealed class EventStoreHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("unreachable");
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

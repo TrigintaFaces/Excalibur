@@ -21,11 +21,11 @@ public sealed class AsyncFactoryHostedServiceShould
 	public async Task StartAsync_CreatesAndStartsInnerService()
 	{
 		// Arrange
-		var innerService = A.Fake<IJobConfigHostedWatcherService>();
-		var factory = A.Fake<IJobConfigHostedWatcherServiceFactory>();
+		var innerService = A.Fake<IJobOptionsHostedWatcherService>();
+		var factory = A.Fake<IJobOptionsHostedWatcherServiceFactory>();
 
 #pragma warning disable CA2012
-		A.CallTo(() => factory.CreateAsync<AsyncFactoryTestConfigJob, AsyncFactoryTestJobConfig>())
+		A.CallTo(() => factory.CreateAsync<AsyncFactoryTestConfigJob, AsyncFactoryTestJobOptions>())
 			.Returns(Task.FromResult(innerService));
 #pragma warning restore CA2012
 
@@ -34,9 +34,9 @@ public sealed class AsyncFactoryHostedServiceShould
 		var sp = services.BuildServiceProvider();
 
 		// We need to use reflection since the class is internal
-		var type = typeof(JobConfigHostedWatcherServiceFactory).Assembly
+		var type = typeof(JobOptionsHostedWatcherServiceFactory).Assembly
 			.GetType("Excalibur.Jobs.Quartz.AsyncFactoryHostedService`2")!
-			.MakeGenericType(typeof(AsyncFactoryTestConfigJob), typeof(AsyncFactoryTestJobConfig));
+			.MakeGenericType(typeof(AsyncFactoryTestConfigJob), typeof(AsyncFactoryTestJobOptions));
 
 		var service = (Microsoft.Extensions.Hosting.IHostedService)Activator.CreateInstance(type, sp)!;
 
@@ -52,12 +52,12 @@ public sealed class AsyncFactoryHostedServiceShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<IJobConfigHostedWatcherServiceFactory>());
+		services.AddSingleton(A.Fake<IJobOptionsHostedWatcherServiceFactory>());
 		var sp = services.BuildServiceProvider();
 
-		var type = typeof(JobConfigHostedWatcherServiceFactory).Assembly
+		var type = typeof(JobOptionsHostedWatcherServiceFactory).Assembly
 			.GetType("Excalibur.Jobs.Quartz.AsyncFactoryHostedService`2")!
-			.MakeGenericType(typeof(AsyncFactoryTestConfigJob), typeof(AsyncFactoryTestJobConfig));
+			.MakeGenericType(typeof(AsyncFactoryTestConfigJob), typeof(AsyncFactoryTestJobOptions));
 
 		var service = (Microsoft.Extensions.Hosting.IHostedService)Activator.CreateInstance(type, sp)!;
 
@@ -69,11 +69,11 @@ public sealed class AsyncFactoryHostedServiceShould
 	public async Task StopAsync_StopsInnerService_WhenStarted()
 	{
 		// Arrange
-		var innerService = A.Fake<IJobConfigHostedWatcherService>();
-		var factory = A.Fake<IJobConfigHostedWatcherServiceFactory>();
+		var innerService = A.Fake<IJobOptionsHostedWatcherService>();
+		var factory = A.Fake<IJobOptionsHostedWatcherServiceFactory>();
 
 #pragma warning disable CA2012
-		A.CallTo(() => factory.CreateAsync<AsyncFactoryTestConfigJob, AsyncFactoryTestJobConfig>())
+		A.CallTo(() => factory.CreateAsync<AsyncFactoryTestConfigJob, AsyncFactoryTestJobOptions>())
 			.Returns(Task.FromResult(innerService));
 #pragma warning restore CA2012
 
@@ -81,9 +81,9 @@ public sealed class AsyncFactoryHostedServiceShould
 		services.AddSingleton(factory);
 		var sp = services.BuildServiceProvider();
 
-		var type = typeof(JobConfigHostedWatcherServiceFactory).Assembly
+		var type = typeof(JobOptionsHostedWatcherServiceFactory).Assembly
 			.GetType("Excalibur.Jobs.Quartz.AsyncFactoryHostedService`2")!
-			.MakeGenericType(typeof(AsyncFactoryTestConfigJob), typeof(AsyncFactoryTestJobConfig));
+			.MakeGenericType(typeof(AsyncFactoryTestConfigJob), typeof(AsyncFactoryTestJobOptions));
 
 		var service = (Microsoft.Extensions.Hosting.IHostedService)Activator.CreateInstance(type, sp)!;
 
@@ -97,11 +97,11 @@ public sealed class AsyncFactoryHostedServiceShould
 	}
 }
 
-internal sealed class AsyncFactoryTestJobConfig : JobConfig
+internal sealed class AsyncFactoryTestJobOptions : JobOptions
 {
 }
 
-internal sealed class AsyncFactoryTestConfigJob : IConfigurableJob<AsyncFactoryTestJobConfig>
+internal sealed class AsyncFactoryTestConfigJob : IConfigurableJob<AsyncFactoryTestJobOptions>
 {
 	public Task ExecuteAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

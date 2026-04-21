@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.Configuration;
 /// Sprint 564 S564.60: ElasticSearch file rename verification.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ElasticSearchFileRenameVerificationShould
 {
 	private static readonly Assembly ElasticSearchAssembly = typeof(ProjectionOptions).Assembly;

@@ -1,14 +1,14 @@
 // Functional tests for RateLimitingMiddleware — algorithm behavior, tenant limits, disabled bypass, key extraction
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 #pragma warning disable CA2012
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Functional;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
 {
     private readonly IDispatchMessage _message;

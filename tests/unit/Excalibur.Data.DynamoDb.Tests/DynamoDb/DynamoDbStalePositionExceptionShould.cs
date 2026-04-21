@@ -15,7 +15,7 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class DynamoDbStalePositionExceptionShould
 {
 	#region Constructor Tests
@@ -28,7 +28,7 @@ public sealed class DynamoDbStalePositionExceptionShould
 
 		// Assert
 		exception.Message.ShouldContain("stale");
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 		exception.EventArgs.ShouldBeNull();
 	}
 
@@ -43,7 +43,7 @@ public sealed class DynamoDbStalePositionExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -58,7 +58,7 @@ public sealed class DynamoDbStalePositionExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]

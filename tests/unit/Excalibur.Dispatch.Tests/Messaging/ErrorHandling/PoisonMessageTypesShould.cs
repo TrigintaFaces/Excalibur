@@ -5,8 +5,8 @@ using Excalibur.Dispatch.ErrorHandling;
 
 namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PoisonMessageTypesShould
 {
 	// --- PoisonDetectionResult ---
@@ -148,7 +148,7 @@ public sealed class PoisonMessageTypesShould
 		attempt.AttemptTime.ShouldBe(default);
 		attempt.Duration.ShouldBe(TimeSpan.Zero);
 		attempt.Succeeded.ShouldBeFalse();
-		attempt.ErrorMessage.ShouldBeNull();
+		attempt.ErrorMessage!.ShouldBeNull();
 		attempt.ExceptionType.ShouldBeNull();
 	}
 
@@ -174,7 +174,7 @@ public sealed class PoisonMessageTypesShould
 		attempt.AttemptTime.ShouldBe(now);
 		attempt.Duration.ShouldBe(TimeSpan.FromMilliseconds(150));
 		attempt.Succeeded.ShouldBeFalse();
-		attempt.ErrorMessage.ShouldBe("Connection timed out");
+		attempt.ErrorMessage!.ShouldBe("Connection timed out");
 		attempt.ExceptionType.ShouldBe("System.TimeoutException");
 	}
 
@@ -191,7 +191,7 @@ public sealed class PoisonMessageTypesShould
 
 		// Assert
 		attempt.Succeeded.ShouldBeTrue();
-		attempt.ErrorMessage.ShouldBeNull();
+		attempt.ErrorMessage!.ShouldBeNull();
 		attempt.ExceptionType.ShouldBeNull();
 	}
 

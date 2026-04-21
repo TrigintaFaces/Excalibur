@@ -59,21 +59,6 @@ public interface ICloudNativeOutboxStore
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Adds multiple messages to the outbox in a transactional batch.
-	/// </summary>
-	/// <param name="messages">The outbox messages to add.</param>
-	/// <param name="partitionKey">The partition key for all messages.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The batch result with cost information.</returns>
-	/// <remarks>
-	/// All messages must belong to the same partition for transactional guarantees.
-	/// </remarks>
-	Task<CloudBatchResult> AddBatchAsync(
-		IEnumerable<CloudOutboxMessage> messages,
-		IPartitionKey partitionKey,
-		CancellationToken cancellationToken);
-
-	/// <summary>
 	/// Gets pending (unpublished) messages from a partition in FIFO order.
 	/// </summary>
 	/// <param name="partitionKey">The partition key to query.</param>
@@ -98,54 +83,13 @@ public interface ICloudNativeOutboxStore
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Marks multiple messages as published in a batch.
-	/// </summary>
-	/// <param name="messageIds">The message identifiers.</param>
-	/// <param name="partitionKey">The partition key for all messages.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The batch result with cost information.</returns>
-	Task<CloudBatchResult> MarkBatchAsPublishedAsync(
-		IEnumerable<string> messageIds,
-		IPartitionKey partitionKey,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Deletes published messages older than the specified retention period.
-	/// </summary>
-	/// <param name="partitionKey">The partition key to clean.</param>
-	/// <param name="retentionPeriod">The retention period for published messages.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The number of messages deleted and cost information.</returns>
-	Task<CloudCleanupResult> CleanupOldMessagesAsync(
-		IPartitionKey partitionKey,
-		TimeSpan retentionPeriod,
-		CancellationToken cancellationToken);
-
-	/// <summary>
 	/// Creates a change feed subscription for outbox processing.
 	/// </summary>
 	/// <param name="options">Change feed options.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A subscription that streams new outbox messages.</returns>
-	/// <remarks>
-	/// Use this for push-based outbox processing instead of polling.
-	/// </remarks>
 	Task<IChangeFeedSubscription<CloudOutboxMessage>> SubscribeToNewMessagesAsync(
 		IChangeFeedOptions? options,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Increments the retry count for a message that failed to publish.
-	/// </summary>
-	/// <param name="messageId">The message identifier.</param>
-	/// <param name="partitionKey">The partition key for the message.</param>
-	/// <param name="errorMessage">Optional error message to record.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The operation result with cost information.</returns>
-	Task<CloudOperationResult> IncrementRetryCountAsync(
-		string messageId,
-		IPartitionKey partitionKey,
-		string? errorMessage,
 		CancellationToken cancellationToken);
 }
 

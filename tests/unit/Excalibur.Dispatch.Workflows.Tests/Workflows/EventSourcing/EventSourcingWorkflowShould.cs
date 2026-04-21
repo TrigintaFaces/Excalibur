@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Tests.Workflows.EventSourcing;
 /// </remarks>
 [Trait("Epic", "FunctionalTesting")]
 [Trait("Sprint", "181")]
-[Trait("Component", "EventSourcing")]
+[Trait(TraitNames.Component, TestComponents.EventSourcing)]
 [Trait("Category", "Unit")]
 public sealed class EventSourcingWorkflowShould
 {
@@ -143,7 +143,7 @@ public sealed class EventSourcingWorkflowShould
 		// Act - Load aggregate from snapshot + any new events
 		var loadedSnapshot = await snapshotStore.GetAsync<CounterSnapshot>(aggregateId);
 		var restoredAggregate = new CounterAggregate(aggregateId);
-		restoredAggregate.RestoreFromSnapshot(loadedSnapshot);
+		restoredAggregate.RestoreFromSnapshot(loadedSnapshot!);
 
 		// Assert - Restored aggregate has correct state
 		restoredAggregate.Count.ShouldBe(105);

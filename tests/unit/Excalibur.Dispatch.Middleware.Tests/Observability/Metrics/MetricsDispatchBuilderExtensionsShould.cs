@@ -12,25 +12,25 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Metrics;
 /// <summary>
 /// Unit tests for <see cref="MetricsDispatchBuilderExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Observability")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Observability)]
 public sealed class MetricsDispatchBuilderExtensionsShould : UnitTestBase
 {
-	#region AddDispatchMetricsInstrumentation Tests
+	#region UseMetricsInstrumentation Tests
 
 	[Fact]
-	public void AddDispatchMetricsInstrumentation_ThrowOnNullBuilder()
+	public void UseMetricsInstrumentation_ThrowOnNullBuilder()
 	{
 		// Arrange
 		IDispatchBuilder builder = null!;
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			builder.AddDispatchMetricsInstrumentation());
+			builder.UseMetricsInstrumentation());
 	}
 
 	[Fact]
-	public void AddDispatchMetricsInstrumentation_ReturnBuilder()
+	public void UseMetricsInstrumentation_ReturnBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -38,14 +38,14 @@ public sealed class MetricsDispatchBuilderExtensionsShould : UnitTestBase
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		var result = builder.AddDispatchMetricsInstrumentation();
+		var result = builder.UseMetricsInstrumentation();
 
 		// Assert
 		result.ShouldBe(builder);
 	}
 
 	[Fact]
-	public void AddDispatchMetricsInstrumentation_RegisterDispatchMetrics()
+	public void UseMetricsInstrumentation_RegisterDispatchMetrics()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -53,7 +53,7 @@ public sealed class MetricsDispatchBuilderExtensionsShould : UnitTestBase
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		_ = builder.AddDispatchMetricsInstrumentation();
+		_ = builder.UseMetricsInstrumentation();
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(DispatchMetrics));

@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// Unit tests for <see cref="GrpcTransportOptionsValidator"/>.
 /// Sprint 697 T.33: gRPC transport test coverage.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportOptionsValidatorShould
 {
 	private readonly GrpcTransportOptionsValidator _sut = new();

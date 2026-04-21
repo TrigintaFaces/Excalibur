@@ -13,7 +13,7 @@ namespace Excalibur.Cdc.Postgres;
 /// In-memory implementation of <see cref="IPostgresCdcStateStore"/> for testing
 /// or single-instance deployments.
 /// </summary>
-public sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
+internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 {
 	private readonly ConcurrentDictionary<string, PostgresCdcStateEntry> _states = new();
 

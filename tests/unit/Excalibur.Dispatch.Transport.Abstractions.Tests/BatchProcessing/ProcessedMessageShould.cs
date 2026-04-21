@@ -38,7 +38,7 @@ public sealed class ProcessedMessageShould
     {
         var msg = new ProcessedMessage();
 
-        msg.ErrorMessage.ShouldBeNull();
+        msg.ErrorMessage!.ShouldBeNull();
     }
 
     [Fact]

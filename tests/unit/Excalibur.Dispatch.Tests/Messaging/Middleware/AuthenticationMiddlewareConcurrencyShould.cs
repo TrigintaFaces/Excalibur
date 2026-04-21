@@ -28,8 +28,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Before fix: Dictionary&lt;string, ...&gt; caused InvalidOperationException under concurrent reads/writes.
 /// After fix: ConcurrentDictionary with TryRemove ensures thread-safe cache operations.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class AuthenticationMiddlewareConcurrencyShould
 {
 	private readonly IAuthenticationService _authService = A.Fake<IAuthenticationService>();

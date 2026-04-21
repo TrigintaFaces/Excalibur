@@ -46,8 +46,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// <see cref="AuditLoggingPipelineExtensions"/>,
 /// <see cref="ZeroAllocPipelineExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PipelineExtensionsShould : IDisposable
 {
 	private readonly ServiceCollection _services = new();

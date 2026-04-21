@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Versioning;
 using Excalibur.Dispatch.Options.Middleware;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
@@ -23,8 +23,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Tests version compatibility check, rejection of incompatible versions,
 /// deprecated version warnings, and configuration options.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class ContractVersionCheckMiddlewareShould
 {
 	private readonly ILogger<ContractVersionCheckMiddleware> _logger;

@@ -72,7 +72,17 @@ public interface IElasticRepositoryBase<TDocument>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{TResult}" /> containing the document if found, or <c> null </c> if not found. </returns>
 	Task<TDocument?> GetByIdAsync(string documentId, CancellationToken cancellationToken);
+}
 
+/// <summary>
+/// Provides query capabilities for Elasticsearch repositories. This is an ISP sub-interface
+/// of <see cref="IElasticRepositoryBase{TDocument}"/> for consumers that need search functionality
+/// beyond basic CRUD operations.
+/// </summary>
+/// <typeparam name="TDocument"> The type of the document to search in Elasticsearch. </typeparam>
+public interface IElasticRepositoryBaseQuery<TDocument>
+	where TDocument : class
+{
 	/// <summary>
 	/// Executes a search query against the Elasticsearch index.
 	/// </summary>

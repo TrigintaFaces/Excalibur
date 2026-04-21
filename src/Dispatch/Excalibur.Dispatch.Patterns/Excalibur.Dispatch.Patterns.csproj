@@ -41,8 +41,4 @@
     <!-- Note: Caching packages removed - Excalibur.Dispatch.Caching provides these (Week 5 Task 006) -->
     <!-- Note: DistributedLocks packages removed - feature deleted as AOT-incompatible (Week 5 Task 008) -->
   </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
-  </ItemGroup>
 </Project>

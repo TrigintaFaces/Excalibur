@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Compliance.Erasure;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
 /// <summary>
@@ -11,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Tests GDPR Article 17 erasure request processing per ADR-054.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class ErasureServiceShould
 {
 	private readonly IErasureStore _store;
@@ -19,10 +20,8 @@ public sealed class ErasureServiceShould
 	private readonly IErasureQueryStore _queryStore;
 	private readonly ILegalHoldService _legalHoldService;
 	private readonly IDataInventoryService _dataInventoryService;
-	private readonly IKeyManagementProvider _keyProvider;
 	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly IOptions<ErasureOptions> _options;
-	private readonly IOptions<ErasureSigningOptions> _signingOptions;
 	private readonly ErasureService _sut;
 
 	public ErasureServiceShould()
@@ -32,10 +31,11 @@ public sealed class ErasureServiceShould
 		_queryStore = A.Fake<IErasureQueryStore>();
 		_legalHoldService = A.Fake<ILegalHoldService>();
 		_dataInventoryService = A.Fake<IDataInventoryService>();
-		_keyProvider = A.Fake<IKeyManagementProvider>();
 		_keyAdmin = A.Fake<IKeyManagementAdmin>();
-		_options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions());
-		_signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions { SigningKey = new byte[32] });
+		_options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+		{
+			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+		});
 
 		// Wire up GetService to return sub-stores
 		_ = A.CallTo(() => _store.GetService(typeof(IErasureCertificateStore)))
@@ -45,10 +45,8 @@ public sealed class ErasureServiceShould
 
 		_sut = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			_legalHoldService,
 			_dataInventoryService);
@@ -62,29 +60,13 @@ public sealed class ErasureServiceShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new ErasureService(
 			null!,
-			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null));
 	}
 
-	[Fact]
-	public void Constructor_ThrowsArgumentNullException_WhenKeyProviderIsNull()
-	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => new ErasureService(
-			_store,
-			null!,
-			_keyAdmin,
-			_options,
-			_signingOptions,
-			NullLogger<ErasureService>.Instance,
-			null,
-			null));
-	}
 
 	[Fact]
 	public void Constructor_ThrowsArgumentNullException_WhenOptionsIsNull()
@@ -92,10 +74,8 @@ public sealed class ErasureServiceShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			null!,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null));
@@ -107,10 +87,8 @@ public sealed class ErasureServiceShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			null!,
 			null,
 			null));
@@ -122,10 +100,8 @@ public sealed class ErasureServiceShould
 		// Act & Assert - should not throw
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			legalHoldService: null,
 			dataInventoryService: null);
@@ -139,10 +115,8 @@ public sealed class ErasureServiceShould
 		// Act & Assert - should not throw
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			legalHoldService: null,
 			dataInventoryService: null);
@@ -347,10 +321,8 @@ public sealed class ErasureServiceShould
 		// Arrange
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			legalHoldService: null,
 			dataInventoryService: null);
@@ -421,10 +393,8 @@ public sealed class ErasureServiceShould
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions { DefaultGracePeriod = TimeSpan.FromHours(48) });
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null);
@@ -474,10 +444,8 @@ public sealed class ErasureServiceShould
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions { MinimumGracePeriod = TimeSpan.FromHours(2) });
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null);
@@ -507,10 +475,8 @@ public sealed class ErasureServiceShould
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions { MaximumGracePeriod = TimeSpan.FromDays(7) });
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null);
@@ -983,7 +949,7 @@ public sealed class ErasureServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("not found");
+		result.ErrorMessage!.ShouldContain("not found");
 	}
 
 	[Fact]
@@ -1012,7 +978,7 @@ public sealed class ErasureServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Invalid status");
+		result.ErrorMessage!.ShouldContain("Invalid status");
 	}
 
 	[Fact]

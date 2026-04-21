@@ -11,8 +11,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Transport.Tests.Kafka;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KafkaMessageBusTransactionsShould : UnitTestBase
 {
 	[Fact]

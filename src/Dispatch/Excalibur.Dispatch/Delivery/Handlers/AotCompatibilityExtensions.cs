@@ -19,23 +19,28 @@ public static class AotCompatibilityExtensions
 	/// Configures the handler invoker to use AOT-compatible implementations when publishing for AOT.
 	/// </summary>
 	/// <remarks>
-	/// When USE_SOURCE_GENERATION is defined (during AOT publish), this will use the HandlerInvokerAot. Otherwise, it will use the
-	/// HandlerInvoker for better development experience.
+	/// Uses <see cref="System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported"/> to select
+	/// the appropriate invoker at runtime: <see cref="HandlerInvokerAot"/> for AOT environments,
+	/// <see cref="HandlerInvoker"/> for JIT environments.
 	/// </remarks>
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 		Justification =
-			"HandlerInvoker is only used when not compiling for AOT. USE_SOURCE_GENERATION or PUBLISH_AOT flags control this.")]
+			"HandlerInvoker is only registered when RuntimeFeature.IsDynamicCodeSupported is true (JIT environments).")]
 	public static IServiceCollection ConfigureHandlerInvoker(this IServiceCollection services)
 	{
-#if USE_SOURCE_GENERATION || PUBLISH_AOT
-		// Use AOT-compatible invoker when publishing for AOT
-		services.TryAddSingleton<IHandlerInvoker, HandlerInvokerAot>();
-#else
-		// Use compiled invoker for development (supports dynamic handler discovery)
-		services.TryAddSingleton<IHandlerInvoker, HandlerInvoker>();
-#endif
+		if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+		{
+			// AOT path: Use source-generated invoker (no reflection/expression compilation)
+			services.TryAddSingleton<IHandlerInvoker, HandlerInvokerAot>();
+		}
+		else
+		{
+			// JIT path: Use compiled invoker for dynamic handler discovery
+			services.TryAddSingleton<IHandlerInvoker, HandlerInvoker>();
+		}
+
 		return services;
 	}
 
@@ -69,12 +74,5 @@ public static class AotCompatibilityExtensions
 	/// Checks if the application is running in AOT mode.
 	/// </summary>
 	public static bool IsRunningAot()
-	{
-#if USE_SOURCE_GENERATION || PUBLISH_AOT
-		return true;
-#else
-		// Runtime check for AOT
-		return !System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported;
-#endif
-	}
+		=> !System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported;
 }

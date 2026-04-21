@@ -4,12 +4,12 @@
 
 using System.Text;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Signing;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class Ed25519SignatureAlgorithmProviderShould
 {
 	private readonly Ed25519SignatureAlgorithmProvider _sut = new();

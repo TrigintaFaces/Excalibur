@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Transport.Aws;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Channels;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class ProcessingResultShould
 {
@@ -17,7 +17,7 @@ public sealed class ProcessingResultShould
 
 		// Assert
 		result.Success.ShouldBeTrue();
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -28,7 +28,7 @@ public sealed class ProcessingResultShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.Error.ShouldBe("timeout");
+		result.Error!.ShouldBe("timeout");
 	}
 
 	[Fact]

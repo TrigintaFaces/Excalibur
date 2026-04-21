@@ -6,6 +6,7 @@ using Excalibur.Outbox;
 using Excalibur.Outbox.InMemory;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -46,21 +47,21 @@ public static class OutboxBuilderInMemoryExtensions
 	/// <example>
 	/// <code>
 	/// // Simple test configuration
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseInMemory()
 	///           .WithProcessing(p => p.BatchSize(10));
-	/// });
+	/// }));
 	///
 	/// // With custom limits
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseInMemory(inmemory =>
 	///     {
 	///         inmemory.MaxMessages(100)
 	///                 .RetentionPeriod(TimeSpan.FromMinutes(5));
 	///     });
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IOutboxBuilder UseInMemory(
@@ -85,8 +86,10 @@ public static class OutboxBuilderInMemoryExtensions
 				opt.MaxMessages = inmemoryOptions.MaxMessages;
 				opt.DefaultRetentionPeriod = inmemoryOptions.DefaultRetentionPeriod;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<InMemoryOutboxOptions>, InMemoryOutboxOptionsValidator>());
 
 		// Register in-memory outbox store
 		builder.Services.TryAddSingleton<InMemoryOutboxStore>();

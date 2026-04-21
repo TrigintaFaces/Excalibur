@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.PipelineWarmPathComparisonBenchmarks-20260420-113150</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8117/25H2/2025Update/HudsonValley2)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.202
+  [Host] : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=warmpath-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                             </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch: 3 middleware behaviors&#39;</td><td>71.85 ns</td><td>0.635 ns</td><td>0.530 ns</td><td>1.00</td><td>0.01</td><td>0.0126</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>&#39;MediatR: 3 pipeline behaviors&#39;</td><td>161.08 ns</td><td>2.541 ns</td><td>2.377 ns</td><td>2.24</td><td>0.04</td><td>0.0393</td><td>744 B</td><td>3.10</td>
+</tr><tr><td>&#39;Wolverine: 3 middleware&#39;</td><td>237.87 ns</td><td>4.092 ns</td><td>3.827 ns</td><td>3.31</td><td>0.06</td><td>0.0405</td><td>768 B</td><td>3.20</td>
+</tr><tr><td>&#39;MassTransit: 3 consume filters&#39;</td><td>2,193.96 ns</td><td>43.243 ns</td><td>73.430 ns</td><td>30.54</td><td>1.03</td><td>0.2403</td><td>4568 B</td><td>19.03</td>
+</tr><tr><td>&#39;Dispatch: 10 concurrent + 3 behaviors&#39;</td><td>873.18 ns</td><td>3.510 ns</td><td>3.112 ns</td><td>12.15</td><td>0.10</td><td>0.1116</td><td>2112 B</td><td>8.80</td>
+</tr><tr><td>&#39;MediatR: 10 concurrent + 3 behaviors&#39;</td><td>1,703.62 ns</td><td>23.191 ns</td><td>21.693 ns</td><td>23.71</td><td>0.34</td><td>0.4139</td><td>7808 B</td><td>32.53</td>
+</tr><tr><td>&#39;Wolverine: 10 concurrent + 3 middleware&#39;</td><td>2,493.65 ns</td><td>27.516 ns</td><td>24.392 ns</td><td>34.71</td><td>0.41</td><td>0.4158</td><td>7888 B</td><td>32.87</td>
+</tr><tr><td>&#39;MassTransit: 10 concurrent + 3 filters&#39;</td><td>22,216.05 ns</td><td>419.000 ns</td><td>600.918 ns</td><td>309.20</td><td>8.52</td><td>2.4109</td><td>45888 B</td><td>191.20</td>
+</tr></tbody></table>
+</body>
+</html>

@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Saga.Tests.DependencyInjection;
 
 /// <summary>
-/// Unit tests for <see cref="SagaHealthCheckExtensions"/>.
+/// Unit tests for <see cref="SagaHealthChecksBuilderExtensions"/>.
 /// Verifies health check registration behavior.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -25,7 +25,7 @@ public sealed class SagaHealthCheckExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			SagaHealthCheckExtensions.AddSagaHealthCheck(null!));
+			SagaHealthChecksBuilderExtensions.AddSagaHealthCheck(null!));
 	}
 
 	[Fact]
@@ -149,7 +149,7 @@ public sealed class SagaHealthCheckExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			SagaHealthCheckExtensions.AddSagaHealthCheck(null!, options));
+			SagaHealthChecksBuilderExtensions.AddSagaHealthCheck(null!, options));
 	}
 
 	[Fact]

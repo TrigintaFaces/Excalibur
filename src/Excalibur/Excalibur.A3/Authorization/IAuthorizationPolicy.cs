@@ -25,9 +25,9 @@ public interface IAuthorizationPolicy : IPolicy
 	/// Determines if the user is authorized to perform an activity on an optional resource.
 	/// </summary>
 	/// <param name="activityName"> The name of the activity to authorize. </param>
-	/// <param name="resourceId"> The identifier of the resource (optional). </param>
+	/// <param name="resourceId"> The identifier of the resource, or <see langword="null"/> if not applicable. </param>
 	/// <returns> <c> true </c> if the user is authorized; otherwise, <c> false </c>. </returns>
-	bool IsAuthorized(string activityName, string? resourceId = null);
+	bool IsAuthorized(string activityName, string? resourceId);
 
 	/// <summary>
 	/// Determines if the user has a grant for the specified activity.
@@ -58,4 +58,19 @@ public interface IAuthorizationPolicy : IPolicy
 	/// <param name="resourceId"> The identifier of the resource. </param>
 	/// <returns> <c> true </c> if the user has a grant; otherwise, <c> false </c>. </returns>
 	bool HasGrant<TResourceType>(string resourceId);
+}
+
+/// <summary>
+/// Extension methods for <see cref="IAuthorizationPolicy"/> providing convenience overloads.
+/// </summary>
+public static class AuthorizationPolicyExtensions
+{
+	/// <summary>
+	/// Determines if the user is authorized to perform an activity without a specific resource.
+	/// </summary>
+	/// <param name="policy">The authorization policy.</param>
+	/// <param name="activityName"> The name of the activity to authorize. </param>
+	/// <returns> <c> true </c> if the user is authorized; otherwise, <c> false </c>. </returns>
+	public static bool IsAuthorized(this IAuthorizationPolicy policy, string activityName)
+		=> policy.IsAuthorized(activityName, null);
 }

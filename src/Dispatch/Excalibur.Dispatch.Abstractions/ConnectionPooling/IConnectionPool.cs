@@ -53,24 +53,4 @@ public interface IConnectionPool<TConnection> : IAsyncDisposable
 	/// <returns> A task representing the asynchronous return operation. </returns>
 	ValueTask ReturnConnectionAsync(TConnection connection, bool forceDispose, CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Gets current pool statistics synchronously.
-	/// </summary>
-	/// <returns> Current connection pool statistics. </returns>
-	ConnectionPoolStatistics GetStatistics();
-
-	/// <summary>
-	/// Gets current pool statistics asynchronously.
-	/// </summary>
-	/// <param name="cancellationToken"> Token to cancel the operation. </param>
-	/// <returns> Current connection pool statistics. </returns>
-	Task<ConnectionPoolStatistics> GetStatisticsAsync(CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Warms up the connection pool with the specified number of connections.
-	/// </summary>
-	/// <param name="minConnections"> The minimum number of connections to create. </param>
-	/// <param name="cancellationToken"> Token to cancel the warmup operation. </param>
-	/// <returns> A task representing the asynchronous operation. </returns>
-	Task WarmupAsync(int minConnections, CancellationToken cancellationToken);
 }

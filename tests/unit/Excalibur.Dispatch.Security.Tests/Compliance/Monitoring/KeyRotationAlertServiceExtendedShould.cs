@@ -1,3 +1,4 @@
+using Excalibur.Compliance.Monitoring;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -8,7 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Monitoring;
 /// Tests error type extraction, threshold behavior, and edge cases.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class KeyRotationAlertServiceExtendedShould
 {
 	private readonly IKeyRotationAlertHandler _handler;

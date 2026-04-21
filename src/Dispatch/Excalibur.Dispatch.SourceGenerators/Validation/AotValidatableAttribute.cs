@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.SourceGenerators.Validation;
 /// Marks an Options class for AOT-compatible validation source generation.
 /// When applied to a class, the <see cref="AotValidationGenerator"/> will generate
 /// a compile-time <c>IValidateOptions&lt;T&gt;</c> implementation that validates
-/// <see cref="System.ComponentModel.DataAnnotations"/> attributes and cross-property
+/// <c>System.ComponentModel.DataAnnotations</c> attributes and cross-property
 /// constraints without runtime reflection.
 /// </summary>
 /// <remarks>

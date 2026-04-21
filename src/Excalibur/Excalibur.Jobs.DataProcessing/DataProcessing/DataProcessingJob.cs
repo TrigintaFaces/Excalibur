@@ -20,10 +20,10 @@ namespace Excalibur.Jobs.DataProcessing;
 /// Represents a Quartz job for processing data tasks orchestrated by a <see cref="IDataOrchestrationManager" />.
 /// </summary>
 [DisallowConcurrentExecution]
-public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProcessingJobConfig>
+public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProcessingJobOptions>
 {
 	/// <summary>
-	/// The configuration section name used to bind <see cref="DataProcessingJobConfig"/> from application configuration.
+	/// The configuration section name used to bind <see cref="DataProcessingJobOptions"/> from application configuration.
 	/// </summary>
 	/// <value>The string <c>"Jobs:DataProcessingJob"</c>.</value>
 	public const string JobConfigSectionName = $"Jobs:{nameof(DataProcessingJob)}";
@@ -62,7 +62,9 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobConfig>(JobConfigSectionName);
+		#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
+		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobOptions>(JobConfigSectionName);
+#pragma warning restore IL2026, IL3050
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
 		_ = configurator.AddJob<DataProcessingJob>(jobKey, job => job
@@ -87,7 +89,9 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobConfig>(JobConfigSectionName);
+		#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
+		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobOptions>(JobConfigSectionName);
+#pragma warning restore IL2026, IL3050
 
 		_ = healthChecks.Add(new HealthCheckRegistration(
 			$"{jobConfig.JobName}HealthCheck",

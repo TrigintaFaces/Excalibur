@@ -10,11 +10,11 @@ This guide covers the audit logging system in Excalibur.Dispatch, including conf
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.AuditLogging
-  dotnet add package Excalibur.Dispatch.AuditLogging.SqlServer  # or your provider
+  dotnet add package Excalibur.AuditLogging
+  dotnet add package Excalibur.AuditLogging.SqlServer  # or your provider
   ```
 - Familiarity with [security concepts](./index.md) and compliance requirements
 
@@ -35,15 +35,15 @@ The audit logging system provides a hash-chained, tamper-evident audit trail for
 
 ```bash
 # Core package
-dotnet add package Excalibur.Dispatch.AuditLogging
+dotnet add package Excalibur.AuditLogging
 
 # Storage providers
-dotnet add package Excalibur.Dispatch.AuditLogging.SqlServer
+dotnet add package Excalibur.AuditLogging.SqlServer
 
 # SIEM exporters
-dotnet add package Excalibur.Dispatch.AuditLogging.Splunk
-dotnet add package Excalibur.Dispatch.AuditLogging.Sentinel
-dotnet add package Excalibur.Dispatch.AuditLogging.Datadog
+dotnet add package Excalibur.AuditLogging.Splunk
+dotnet add package Excalibur.AuditLogging.Sentinel
+dotnet add package Excalibur.AuditLogging.Datadog
 ```
 
 ---
@@ -53,7 +53,7 @@ dotnet add package Excalibur.Dispatch.AuditLogging.Datadog
 ### Basic Configuration
 
 ```csharp
-using Excalibur.Dispatch.AuditLogging.SqlServer;
+using Excalibur.AuditLogging.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -158,6 +158,7 @@ public enum AuditOutcome
 | `ResourceId` | string | No | Target resource identifier |
 | `ResourceType` | string | No | Type of resource |
 | `TenantId` | string | No | Tenant identifier |
+| `ApplicationName` | string | No | Application that produced the event |
 | `CorrelationId` | string | No | Distributed tracing ID |
 | `PreviousEventHash` | string | Auto | Hash of previous event |
 | `EventHash` | string | Auto | Hash of this event |
@@ -191,12 +192,13 @@ var result = await auditLogger.VerifyIntegrityAsync(
 
 if (result.IsValid)
 {
-    Console.WriteLine($"Verified {result.TotalEventsValidated} events - integrity OK");
+    Console.WriteLine($"Verified {result.EventsVerified} events - integrity OK");
 }
 else
 {
-    Console.WriteLine($"INTEGRITY VIOLATION: {result.CorruptedEvents} corrupted events found");
-    Console.WriteLine($"Details: {result.Message}");
+    Console.WriteLine($"INTEGRITY VIOLATION: {result.ViolationCount} violations found");
+    Console.WriteLine($"First violation: {result.FirstViolationEventId}");
+    Console.WriteLine($"Details: {result.ViolationDescription}");
 }
 ```
 
@@ -205,10 +207,13 @@ else
 | Property | Type | Description |
 |----------|------|-------------|
 | `IsValid` | bool | Whether hash chain is intact |
-| `TotalEventsValidated` | long | Number of events checked |
-| `CorruptedEvents` | long | Number of corrupted events found |
-| `CorruptedEventIds` | IReadOnlyList\<string\> | IDs of corrupted events |
-| `Message` | string? | Detailed validation message |
+| `EventsVerified` | long | Number of events checked |
+| `ViolationCount` | int | Number of violations found |
+| `FirstViolationEventId` | string? | ID of the first corrupted event |
+| `ViolationDescription` | string? | Detailed validation message |
+| `StartDate` | DateTimeOffset | Start of the verification range |
+| `EndDate` | DateTimeOffset | End of the verification range |
+| `VerifiedAt` | DateTimeOffset | When verification was performed |
 
 ---
 
@@ -251,7 +256,7 @@ else
 ### Splunk (HTTP Event Collector)
 
 ```csharp
-using Excalibur.Dispatch.AuditLogging.Splunk;
+using Excalibur.AuditLogging.Splunk;
 
 builder.Services.AddHttpClient<SplunkAuditExporter>();
 builder.Services.AddSingleton<IAuditLogExporter, SplunkAuditExporter>();
@@ -271,7 +276,7 @@ builder.Services.Configure<SplunkExporterOptions>(options =>
 ### Azure Sentinel (Log Analytics)
 
 ```csharp
-using Excalibur.Dispatch.AuditLogging.Sentinel;
+using Excalibur.AuditLogging.Sentinel;
 
 builder.Services.AddHttpClient<SentinelAuditExporter>();
 builder.Services.AddSingleton<IAuditLogExporter, SentinelAuditExporter>();
@@ -289,7 +294,7 @@ builder.Services.Configure<SentinelExporterOptions>(options =>
 ### Datadog (Logs API)
 
 ```csharp
-using Excalibur.Dispatch.AuditLogging.Datadog;
+using Excalibur.AuditLogging.Datadog;
 
 builder.Services.AddHttpClient<DatadogAuditExporter>();
 builder.Services.AddSingleton<IAuditLogExporter, DatadogAuditExporter>();
@@ -409,8 +414,9 @@ var query = new AuditQuery
     ActorId = "user-123",
     ResourceType = "Order",
 
-    // Multi-tenant
+    // Multi-tenant / multi-app
     TenantId = "tenant-abc",
+    ApplicationName = "OrderService",
 
     // Pagination
     MaxResults = 50,

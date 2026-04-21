@@ -27,8 +27,8 @@ cd OrderSystem
 dotnet add package Excalibur.Application
 dotnet add package Excalibur.A3
 dotnet add package Excalibur.A3.Abstractions
-dotnet add package Excalibur.Dispatch.AuditLogging
-dotnet add package Excalibur.Dispatch.Compliance.Abstractions
+dotnet add package Excalibur.AuditLogging
+dotnet add package Excalibur.Compliance.Abstractions
 ```
 
 ## Step 2: Upgrade to Structured Commands
@@ -36,12 +36,11 @@ dotnet add package Excalibur.Dispatch.Compliance.Abstractions
 Replace the simple `IDispatchAction` records with `CommandBase` and `QueryBase`. These add correlation tracking, tenant isolation, and transaction configuration.
 
 ```csharp title="Messages/OrderCommands.cs"
-using Excalibur.A3.Authorization;
-using Excalibur.A3.Authorization.Requests;
-using Excalibur.Application.Requests;
-using OrderSystem.Domain;
-using OrderSystem.ReadModels;
-using OrderSystem.Security;
+using Excalibur.A3.Authorization;           // RequirePermissionAttribute
+using Excalibur.A3.Authorization.Requests;  // AuthorizeCommandBase<T>
+using Excalibur.Application.Requests;       // IAmAuditable
+using OrderSystem.Domain;                   // OrderLineData (defined in event-sourcing tutorial Step 2)
+using OrderSystem.Security;                 // OrderGrants (defined in Step 3 below)
 
 namespace OrderSystem.Messages;
 
@@ -86,8 +85,8 @@ public sealed class CancelOrderCommand : AuthorizeCommandBase<bool>, IAmAuditabl
 ```
 
 ```csharp title="Messages/OrderQueries.cs"
-using Excalibur.Application.Requests.Queries;
-using OrderSystem.ReadModels;
+using Excalibur.Application.Requests.Queries; // QueryBase<T>
+using OrderSystem.ReadModels;                 // OrderSummary (defined in event-sourcing tutorial Step 4)
 
 namespace OrderSystem.Messages;
 
@@ -218,10 +217,14 @@ public class CancelOrderHandler(
 
 Inject `IAuditLogger` to log security-sensitive operations explicitly. Commands marked with `IAmAuditable` are also logged automatically by the A3 audit middleware.
 
+:::tip Skip this on first read
+The grant management endpoints below are **admin-only plumbing**. If you just want to see the security flow end-to-end, skip ahead to [Step 6: Wire It Up](#step-6-wire-it-up) and come back here when you need to manage grants programmatically.
+:::
+
 ```csharp title="Handlers/GrantManagementEndpoints.cs"
-using Excalibur.A3.Authorization.Grants;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.A3.Authorization.Grants;  // AddGrantCommand, RevokeGrantCommand (from Excalibur.A3 package)
+using Excalibur.Dispatch.Abstractions;    // IDispatcher
+using Excalibur.Compliance;      // IAuditLogger, AuditEvent, AuditEventType, AuditOutcome
 
 namespace OrderSystem.Handlers;
 
@@ -328,19 +331,18 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("OrderDb")
     ?? "Server=(localdb)\\MSSQLLocalDB;Database=OrderSystem;Trusted_Connection=true;";
 
-// 1. Dispatch (messaging + handler discovery)
+// 1. Dispatch (handlers auto-discovered + authorization middleware)
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddDispatchAuthorization(); // Authorization middleware
+    dispatch.UseAuthorization();
 });
 
 // 2. Event Sourcing (aggregates + event store)
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
+    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
-});
-builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
+}));
 builder.Services.AddSqlServerProjectionStore<OrderSummary>(opts => opts.ConnectionString = connectionString);
 
 // 3. A3 Grant-Based Authorization
@@ -467,7 +469,7 @@ Response returned to caller
 | Layer | Package | What It Does |
 |-------|---------|-------------|
 | **Authorization** | `Excalibur.A3` | Checks grants before handler executes — unauthorized commands are rejected |
-| **Audit logging** | `Excalibur.Dispatch.AuditLogging` | Records who did what, when, and whether it succeeded |
+| **Audit logging** | `Excalibur.AuditLogging` | Records who did what, when, and whether it succeeded |
 | **Structured commands** | `Excalibur.Application` | Correlation IDs, tenant isolation, and transaction control on every command |
 
 ## Key Concepts
@@ -539,7 +541,7 @@ Before going to production, swap out the demo defaults:
 |-----------|----------|
 | Resource-level authorization | Use `ResourceCommandBase<TResourceType, TResponse>` for per-resource grants |
 | RBAC on audit data itself | `AddRbacAuditStore()` to restrict who can read audit logs |
-| Datadog audit export | `Excalibur.Dispatch.AuditLogging.Datadog` package |
+| Datadog audit export | `Excalibur.AuditLogging.Datadog` package |
 | Time-expiring grants | Set `ExpiresOn` on grants — expired grants are automatically inactive |
 | Custom grant stores | Implement `IGrantStore` and register via `UseGrantStore<T>()` |
 

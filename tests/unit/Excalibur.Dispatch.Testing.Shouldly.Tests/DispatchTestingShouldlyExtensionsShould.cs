@@ -9,8 +9,8 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Testing.Shouldly.Tests;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Testing")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Testing)]
 public sealed class DispatchTestingShouldlyExtensionsShould
 {
 	// --- ShouldHaveDispatched<T> (pass) ---

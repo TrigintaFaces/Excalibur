@@ -39,14 +39,12 @@ var services = new ServiceCollection();
 // Add logging (required by Dispatch pipeline)
 services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
 
-// Add Dispatch with handlers from this assembly
+// Add Dispatch with handlers from this assembly and custom middleware
 services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+	_ = dispatch.UseMiddleware<LoggingMiddleware>();
 });
-
-// Add custom middleware
-services.AddSingleton<IDispatchMiddleware, LoggingMiddleware>();
 
 // Build the service provider
 var provider = services.BuildServiceProvider();

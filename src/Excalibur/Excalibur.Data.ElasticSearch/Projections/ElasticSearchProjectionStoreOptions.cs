@@ -89,7 +89,7 @@ public sealed class ElasticSearchProjectionStoreOptions
 	/// connection pool. The pool type is determined by <see cref="ConnectionPoolType"/>.
 	/// </remarks>
 	/// <value>Defaults to <see langword="null"/> (single-node via <see cref="NodeUri"/>).</value>
-	public IReadOnlyList<Uri>? NodeUris { get; set; }
+	public List<Uri>? NodeUris { get; set; }
 
 	/// <summary>
 	/// Gets or sets the connection pool type for multi-node clusters.

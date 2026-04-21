@@ -13,37 +13,48 @@ namespace Excalibur.Dispatch.Abstractions;
 /// Provides a low-boilerplate base for defining domain events as records:
 /// </para>
 /// <code>
-/// public record OrderCreated(string OrderId, decimal Total) : DomainEvent
-/// {
-///     public override string AggregateId => OrderId;
-/// }
+/// public record OrderCreated(string OrderId, decimal Total) : DomainEvent;
 ///
 /// // With metadata
 /// var evt = new OrderCreated("ord-1", 99.99m)
 ///     .WithCorrelationId(correlationId);
 /// </code>
 /// <para>
+/// <c>AggregateId</c> and <c>Version</c> are set automatically by the framework
+/// in <c>AggregateRoot.RaiseEvent</c>. Consumers should not set these values.
+/// </para>
+/// <para>
 /// Default behavior:
 /// <list type="bullet">
 /// <item><description><see cref="EventId"/>: Auto-generated UUID v7 string for time-ordered uniqueness</description></item>
-/// <item><description><see cref="AggregateId"/>: Empty string (override in derived records)</description></item>
-/// <item><description><see cref="Version"/>: 0 (set by infrastructure during event sourcing)</description></item>
+/// <item><description><see cref="AggregateId"/>: Empty string (set automatically by <c>AggregateRoot.RaiseEvent</c>)</description></item>
+/// <item><description><see cref="Version"/>: 0 (set automatically by <c>AggregateRoot.RaiseEvent</c>)</description></item>
 /// <item><description><see cref="OccurredAt"/>: UTC timestamp at construction time</description></item>
 /// <item><description><see cref="EventType"/>: Derived type name</description></item>
 /// <item><description><see cref="Metadata"/>: Null (attach via fluent API or infrastructure)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
-public abstract record DomainEvent : IDomainEvent
+public abstract record DomainEvent : IDomainEvent, IEventMetadataWriter
 {
 	/// <inheritdoc/>
 	public virtual string EventId { get; init; } = Uuid7Extensions.GenerateGuid().ToString();
 
-	/// <inheritdoc/>
-	public virtual string AggregateId { get; init; } = string.Empty;
+	private string _aggregateId = string.Empty;
+	private long _version;
 
 	/// <inheritdoc/>
-	public virtual long Version { get; init; }
+	public virtual string AggregateId { get => _aggregateId; init => _aggregateId = value; }
+
+	/// <inheritdoc/>
+	public virtual long Version { get => _version; init => _version = value; }
+
+	/// <inheritdoc/>
+	void IEventMetadataWriter.SetAggregateMetadata(string aggregateId, long version)
+	{
+		_aggregateId = aggregateId;
+		_version = version;
+	}
 
 	/// <inheritdoc/>
 	public virtual DateTimeOffset OccurredAt { get; init; } = TimeProvider.System.GetUtcNow();
@@ -53,6 +64,12 @@ public abstract record DomainEvent : IDomainEvent
 
 	/// <inheritdoc/>
 	public virtual IDictionary<string, object>? Metadata { get; init; }
+
+	/// <inheritdoc/>
+	public virtual string? CorrelationId { get; init; }
+
+	/// <inheritdoc/>
+	public virtual string? CausationId { get; init; }
 
 	/// <summary>
 	/// Adds metadata to this event.
@@ -84,32 +101,38 @@ public abstract record DomainEvent : IDomainEvent
 	}
 
 	/// <summary>
-	/// Adds a correlation ID to this event's metadata.
+	/// Sets the correlation ID for tracking across services.
 	/// </summary>
-	/// <param name="correlationId">The correlation ID for tracking across services.</param>
-	/// <returns>This event instance for method chaining.</returns>
+	/// <param name="correlationId">The correlation ID.</param>
+	/// <returns>A new event instance with the correlation ID set.</returns>
 	public DomainEvent WithCorrelationId(Guid correlationId)
 	{
-		if (correlationId != Guid.Empty)
-		{
-			return WithMetadata("CorrelationId", correlationId.ToString());
-		}
-
-		return this;
+		return correlationId != Guid.Empty
+			? this with { CorrelationId = correlationId.ToString() }
+			: this;
 	}
 
 	/// <summary>
-	/// Adds a causation ID to this event's metadata.
+	/// Sets the correlation ID for tracking across services.
+	/// </summary>
+	/// <param name="correlationId">The correlation ID string.</param>
+	/// <returns>A new event instance with the correlation ID set.</returns>
+	public DomainEvent WithCorrelationId(string? correlationId)
+	{
+		return !string.IsNullOrEmpty(correlationId)
+			? this with { CorrelationId = correlationId }
+			: this;
+	}
+
+	/// <summary>
+	/// Sets the causation ID identifying the command or event that caused this event.
 	/// </summary>
 	/// <param name="causationId">The ID of the event that caused this event.</param>
-	/// <returns>This event instance for method chaining.</returns>
-	public DomainEvent WithCausationId(string causationId)
+	/// <returns>A new event instance with the causation ID set.</returns>
+	public DomainEvent WithCausationId(string? causationId)
 	{
-		if (!string.IsNullOrEmpty(causationId))
-		{
-			return WithMetadata("CausationId", causationId);
-		}
-
-		return this;
+		return !string.IsNullOrEmpty(causationId)
+			? this with { CausationId = causationId }
+			: this;
 	}
 }

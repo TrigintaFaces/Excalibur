@@ -4,14 +4,14 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 
-using Excalibur.Dispatch.AuditLogging;
+using Excalibur.AuditLogging;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 
 /// <summary>
-/// Final coverage push tests to reach 95%+ for Excalibur.Dispatch.AuditLogging.
+/// Final coverage push tests to reach 95%+ for Excalibur.AuditLogging.
 /// Targets remaining uncovered lines in:
 /// - Resources.Designer.cs (constructor, Culture setter, resource property accessors)
 /// - InMemoryAuditStore.cs (duplicate EventId throw, Count property)
@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 /// - AuditLoggingServiceCollectionExtensions.cs (InnerAuditStoreResolutionFailed)
 /// - AuditHasher.cs (null EventHash in VerifyHash, metadata null value)
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [UnitTest]
 public sealed class AuditLoggingFinalCoveragePushShould
 {

@@ -33,7 +33,7 @@ internal interface ITransactionalEventStore : IEventStore
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>
 	/// A database transaction that can be passed to both <c>AppendAsync</c> and
-	/// <see cref="Outbox.IEventSourcedOutboxStore.AddAsync"/> for atomic coordination,
+	/// <see cref="Excalibur.Dispatch.Abstractions.ITransactionalOutboxWriter.StageMessageAsync"/> for atomic coordination,
 	/// or <see langword="null"/> if the provider does not support explicit transactions.
 	/// </returns>
 	Task<IDbTransaction?> BeginTransactionAsync(CancellationToken cancellationToken);

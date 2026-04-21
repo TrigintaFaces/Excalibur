@@ -180,8 +180,8 @@ public sealed class PersistenceLayerShould
 		var customer = await store.GetLatestSnapshotAsync("agg", "Customer", CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		order.Version.ShouldBe(10);
-		customer.Version.ShouldBe(20);
+		order!.Version.ShouldBe(10);
+		customer!.Version.ShouldBe(20);
 	}
 
 	#endregion ISnapshotStore Interface Tests

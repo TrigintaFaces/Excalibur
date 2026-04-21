@@ -197,7 +197,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serviceProvider,
 			logger,
 
-			internalSerializer: null,
+			envelopeDeserializer: null,
 			deadLetterQueue: null,
 			circuitBreakerRegistry: null,
 			backoffCalculator: null,
@@ -582,7 +582,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 		// Assert
 		processed.ShouldBe(1);
-		setup.InternalSerializer.SpanDeserializeCalls.ShouldBeGreaterThan(0);
+		setup.EnvelopeDeserializer.DeserializeCalls.ShouldBeGreaterThan(0);
 		A.CallTo(() => scenario.OutboxStore.MarkSentAsync(setup.EnvelopeMessageId, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -772,7 +772,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
 		IOptions<DeliveryGuaranteeOptions>? deliveryGuaranteeOptions = null,
-		ISerializer? internalSerializer = null)
+		IBinaryEnvelopeDeserializer? envelopeDeserializer = null)
 	{
 		return new OutboxProcessor(
 			options ?? CreateValidOptions(),
@@ -781,7 +781,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			logger ?? NullLogger<OutboxProcessor>.Instance,
 
-			internalSerializer: internalSerializer,
+			envelopeDeserializer: envelopeDeserializer,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
 			backoffCalculator: backoffCalculator,
@@ -905,7 +905,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			messageType,
 			new TestOutboxIntegrationEvent("from-envelope"));
 
-		var internalSerializer = CreateEnvelopeInternalSerializer(
+		var envelopeDeserializer = CreateEnvelopeDeserializer(
 			Guid.Parse(envelopeMessageId),
 			messageType,
 			envelopePayload);
@@ -920,13 +920,13 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer: serializer,
 			serviceProvider: serviceProvider,
 			deadLetterQueue: deadLetterQueue,
-			internalSerializer: internalSerializer);
+			envelopeDeserializer: envelopeDeserializer);
 		processor.Init("dispatcher-envelope");
 
 		await Task.CompletedTask;
 		return new EnvelopeDispatchScenario(
 			new DispatchScenario(processor, outboxStore, deadLetterQueue, serviceProvider, dispatcher),
-			internalSerializer,
+			envelopeDeserializer,
 			envelopeMessageId);
 	}
 
@@ -1140,20 +1140,20 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		return System.Text.Encoding.UTF8.GetBytes(deliveryRecordJson);
 	}
 
-	private static StubInternalSerializer CreateEnvelopeInternalSerializer(
+	private static StubEnvelopeDeserializer CreateEnvelopeDeserializer(
 		Guid envelopeMessageId,
 		string messageType,
 		byte[] payload)
 	{
-		return new StubInternalSerializer
+		return new StubEnvelopeDeserializer
 		{
-			OutboxEnvelopeFactory = _ => new OutboxEnvelope
+			OutboxEnvelopeFactory = _ => new EnvelopeData
 			{
 				MessageId = envelopeMessageId,
 				MessageType = messageType,
 				Payload = payload,
-				CreatedAt = DateTimeOffset.UtcNow,
-				Headers = new Dictionary<string, string>(StringComparer.Ordinal)
+				Timestamp = DateTimeOffset.UtcNow,
+				Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
 				{
 					["CorrelationId"] = "correlation-envelope"
 				}
@@ -1310,7 +1310,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 	private sealed record EnvelopeDispatchScenario(
 		DispatchScenario Scenario,
-		StubInternalSerializer InternalSerializer,
+		StubEnvelopeDeserializer EnvelopeDeserializer,
 		string EnvelopeMessageId);
 
 	private sealed record TestOutboxIntegrationEvent(string Value) : IIntegrationEvent;
@@ -1321,45 +1321,22 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 	private sealed record TestParallelFailureIntegrationEvent(string Value) : IIntegrationEvent;
 
-	private sealed class StubInternalSerializer : ISerializer
+	private sealed class StubEnvelopeDeserializer : IBinaryEnvelopeDeserializer
 	{
-		public string Name => "StubInternal";
+		public int DeserializeCalls { get; private set; }
 
-		public string Version => "1.0.0";
+		public Func<ReadOnlySpan<byte>, EnvelopeData>? OutboxEnvelopeFactory { get; init; }
 
-		public string ContentType => "application/octet-stream";
-
-		public int SpanDeserializeCalls { get; private set; }
-
-		public Func<ReadOnlySpan<byte>, OutboxEnvelope>? OutboxEnvelopeFactory { get; init; }
-
-		public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
+		public EnvelopeData? DeserializeInboxEnvelope(ReadOnlySpan<byte> data)
 		{
-			ArgumentNullException.ThrowIfNull(bufferWriter);
+			DeserializeCalls++;
+			return null;
 		}
 
-		public byte[] SerializeObject(object value, Type type) => [];
-
-		public object DeserializeObject(ReadOnlySpan<byte> data, Type type) => default!;
-
-		public byte[] Serialize<T>(T value) => [];
-
-		public T Deserialize<T>(ReadOnlySequence<byte> buffer)
+		public EnvelopeData? DeserializeOutboxEnvelope(ReadOnlySpan<byte> data)
 		{
-			var bytes = buffer.ToArray();
-			return Deserialize<T>(bytes);
-		}
-
-		public T Deserialize<T>(ReadOnlySpan<byte> buffer)
-		{
-			SpanDeserializeCalls++;
-			if (typeof(T) == typeof(OutboxEnvelope) && OutboxEnvelopeFactory is not null)
-			{
-				var envelope = OutboxEnvelopeFactory(buffer);
-				return (T)(object)envelope;
-			}
-
-			return default!;
+			DeserializeCalls++;
+			return OutboxEnvelopeFactory?.Invoke(data);
 		}
 	}
 

@@ -9,7 +9,7 @@ namespace Excalibur.Data.Tests.Postgres.Requests.Snapshots;
 /// Unit tests for <see cref="DeleteSnapshotsOlderThanRequest"/>.
 /// Covers constructor validation, SQL structure, and parameter setup.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Postgres")]
 public sealed class DeleteSnapshotsOlderThanRequestShould
 {

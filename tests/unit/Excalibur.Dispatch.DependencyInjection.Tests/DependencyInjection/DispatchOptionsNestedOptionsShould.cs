@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.DependencyInjection;
 /// in Sprint 501 (bd-79if7).
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "DependencyInjection")]
+[Trait(TraitNames.Component, TestComponents.DependencyInjection)]
 public sealed class DispatchOptionsNestedOptionsShould
 {
 	#region SecurityOptions Defaults (AC-1)
@@ -66,13 +66,6 @@ public sealed class DispatchOptionsNestedOptionsShould
 	{
 		var options = new ObservabilityOptions();
 		options.EnableMetrics.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void ObservabilityOptions_DefaultEnableContextFlow_IsTrue()
-	{
-		var options = new ObservabilityOptions();
-		options.EnableContextFlow.ShouldBeTrue();
 	}
 
 	#endregion
@@ -202,13 +195,11 @@ public sealed class DispatchOptionsNestedOptionsShould
 			Enabled = false,
 			EnableTracing = false,
 			EnableMetrics = false,
-			EnableContextFlow = false,
 		};
 
 		options.Enabled.ShouldBeFalse();
 		options.EnableTracing.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeFalse();
-		options.EnableContextFlow.ShouldBeFalse();
 	}
 
 	[Fact]

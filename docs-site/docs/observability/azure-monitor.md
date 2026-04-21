@@ -8,7 +8,7 @@ Comprehensive monitoring for Excalibur applications on Azure using Application I
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An Azure subscription with Application Insights resource
 - Familiarity with [production observability](./production-observability.md) and [metrics reference](./metrics-reference.md)
 

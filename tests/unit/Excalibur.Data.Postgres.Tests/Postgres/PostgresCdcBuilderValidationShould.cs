@@ -9,8 +9,8 @@ namespace Excalibur.Data.Tests.Postgres.Cdc.Builders;
 /// <summary>
 /// Unit tests for <see cref="IPostgresCdcBuilder"/> argument validation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Database", "Postgres")]
 public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 {

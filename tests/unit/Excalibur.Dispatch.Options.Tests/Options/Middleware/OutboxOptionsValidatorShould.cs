@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Middleware;
 /// Sprint 563 S563.57: IValidateOptions validator tests.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Outbox")]
+[Trait(TraitNames.Component, TestComponents.Outbox)]
 public sealed class OutboxMiddlewareOptionsValidatorShould
 {
 	private readonly OutboxMiddlewareOptionsValidator _validator = new();

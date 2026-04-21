@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.SchemaRegistry;
 /// Unit tests for <see cref="SchemaRegistrySslOptions"/>.
 /// Verifies defaults and property assignment for SSL-level settings.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class SchemaRegistrySslOptionsShould : UnitTestBase
 {
 	[Fact]

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using MongoDB.Driver;
+
 namespace Excalibur.Cdc.MongoDB;
 
 /// <summary>
@@ -23,6 +25,20 @@ public interface IMongoDbCdcBuilder
 	IMongoDbCdcBuilder ConnectionString(string connectionString);
 
 	/// <summary>
+	/// Sets a pre-configured <see cref="IMongoClient"/> instance for the CDC source.
+	/// </summary>
+	/// <param name="client">The MongoDB client.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IMongoDbCdcBuilder Client(IMongoClient client);
+
+	/// <summary>
+	/// Sets a factory that resolves an <see cref="IMongoClient"/> from DI.
+	/// </summary>
+	/// <param name="clientFactory">A factory returning an <see cref="IMongoClient"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IMongoDbCdcBuilder ClientFactory(Func<IServiceProvider, IMongoClient> clientFactory);
+
+	/// <summary>
 	/// Sets the database name for CDC processing.
 	/// </summary>
 	/// <param name="databaseName">The database name.</param>
@@ -42,35 +58,6 @@ public interface IMongoDbCdcBuilder
 	/// <param name="processorId">The processor identifier.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	IMongoDbCdcBuilder ProcessorId(string processorId);
-
-	/// <summary>
-	/// Sets the number of changes to process in a single batch.
-	/// </summary>
-	/// <param name="batchSize">The batch size.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IMongoDbCdcBuilder BatchSize(int batchSize);
-
-	/// <summary>
-	/// Sets the interval between reconnection attempts after a failure.
-	/// </summary>
-	/// <param name="interval">The reconnect interval.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IMongoDbCdcBuilder ReconnectInterval(TimeSpan interval);
-
-	/// <summary>
-	/// Configures a separate connection for CDC state persistence.
-	/// </summary>
-	/// <param name="configure">An action to configure state store settings including connection, database, and collection.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// When omitted, the source connection is used for state persistence (backward compatible).
-	/// </para>
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="configure"/> is null.
-	/// </exception>
-	IMongoDbCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure);
 
 	/// <summary>
 	/// Binds MongoDB CDC source options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.

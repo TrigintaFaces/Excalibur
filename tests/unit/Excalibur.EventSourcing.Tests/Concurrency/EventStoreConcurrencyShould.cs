@@ -474,7 +474,7 @@ public sealed class EventStoreConcurrencyShould
 		result.IsConcurrencyConflict.ShouldBeTrue();
 		result.NextExpectedVersion.ShouldBe(2,
 			"NextExpectedVersion should report the actual current version");
-		result.ErrorMessage.ShouldNotBeNullOrEmpty(
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty(
 			"Concurrency conflict should include an error message");
 	}
 

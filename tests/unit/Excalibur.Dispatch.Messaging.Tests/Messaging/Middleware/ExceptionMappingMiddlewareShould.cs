@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.ErrorHandling;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <summary>
 /// Unit tests for the <see cref="ExceptionMappingMiddleware"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ExceptionMappingMiddlewareShould
 {
 	private readonly IExceptionMapper _mapper;

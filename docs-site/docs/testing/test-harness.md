@@ -8,7 +8,7 @@ description: Testing dispatch pipelines, handlers, and message flows with Dispat
 
 ## Before You Start
 
-- .NET 8.0 or later
+- .NET 10.0
 - Install the testing package:
 
   ```bash

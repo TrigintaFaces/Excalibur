@@ -3,7 +3,6 @@
 
 
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Dispatch.Abstractions;
 
@@ -22,9 +21,6 @@ public sealed class TimePolicyOptions
 	/// Default: 30 seconds.
 	/// </summary>
 	/// <value> The default operation timeout. </value>
-	[Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "TimeSpan validation is required for configuration and the type converter is stable")]
 	public TimeSpan DefaultTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>
@@ -32,9 +28,6 @@ public sealed class TimePolicyOptions
 	/// Default: 5 minutes.
 	/// </summary>
 	/// <value> The maximum allowed operation timeout. </value>
-	[Range(typeof(TimeSpan), "00:00:30", "01:00:00")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "TimeSpan validation is required for configuration and the type converter is stable")]
 	public TimeSpan MaxTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
 	/// <summary>
@@ -166,9 +159,6 @@ public sealed class TimePolicyOperationTimeoutOptions
 	/// Default: 2 minutes.
 	/// </summary>
 	/// <value> The default handler execution timeout. </value>
-	[Range(typeof(TimeSpan), "00:00:05", "00:30:00")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "TimeSpan validation is required for configuration and the type converter is stable")]
 	public TimeSpan HandlerTimeout { get; set; } = TimeSpan.FromMinutes(2);
 
 	/// <summary>
@@ -176,9 +166,6 @@ public sealed class TimePolicyOperationTimeoutOptions
 	/// Default: 10 seconds.
 	/// </summary>
 	/// <value> The serialization timeout. </value>
-	[Range(typeof(TimeSpan), "00:00:01", "00:05:00")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "TimeSpan validation is required for configuration and the type converter is stable")]
 	public TimeSpan SerializationTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
 	/// <summary>
@@ -186,9 +173,6 @@ public sealed class TimePolicyOperationTimeoutOptions
 	/// Default: 1 minute.
 	/// </summary>
 	/// <value> The transport operation timeout. </value>
-	[Range(typeof(TimeSpan), "00:00:05", "00:10:00")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "TimeSpan validation is required for configuration and the type converter is stable")]
 	public TimeSpan TransportTimeout { get; set; } = TimeSpan.FromMinutes(1);
 
 	/// <summary>
@@ -196,9 +180,6 @@ public sealed class TimePolicyOperationTimeoutOptions
 	/// Default: 5 seconds.
 	/// </summary>
 	/// <value> The validation operation timeout. </value>
-	[Range(typeof(TimeSpan), "00:00:01", "00:01:00")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "TimeSpan validation is required for configuration and the type converter is stable")]
 	public TimeSpan ValidationTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
 	/// <summary>

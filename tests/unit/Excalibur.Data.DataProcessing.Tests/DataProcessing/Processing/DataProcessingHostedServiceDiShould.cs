@@ -15,8 +15,8 @@ namespace Excalibur.Data.Tests.DataProcessing.Processing;
 /// scoped <see cref="IDataOrchestrationManager"/> correctly through the real DI container.
 /// This catches captive dependency issues that unit tests with mocks cannot detect.
 /// </summary>
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataProcessingHostedServiceDiShould : UnitTestBase
 {
 	[Fact]

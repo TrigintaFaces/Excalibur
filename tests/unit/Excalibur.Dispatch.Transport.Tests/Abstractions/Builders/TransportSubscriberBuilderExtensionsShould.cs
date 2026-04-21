@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Builders;
 /// Tests for <see cref="TransportSubscriberBuilderExtensions"/>.
 /// Verifies UseTelemetry() and UseDeadLetterQueue() extension methods.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class TransportSubscriberBuilderExtensionsShould : IDisposable
 {
 	private readonly ITransportSubscriber _innerSubscriber = A.Fake<ITransportSubscriber>();

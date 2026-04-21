@@ -4,19 +4,19 @@
 using System.Globalization;
 using System.Reflection;
 
-using Excalibur.Dispatch.AuditLogging;
+using Excalibur.AuditLogging;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 
 /// <summary>
-/// Additional coverage tests to push Excalibur.Dispatch.AuditLogging from 93.9% to 95%+.
+/// Additional coverage tests to push Excalibur.AuditLogging from 93.9% to 95%+.
 /// Targets specific uncovered branches:
 /// - Resources.Designer.cs (Culture setter, constructor, ResourceManager initialization)
 /// - RbacAuditStore.CanAccessEvent fallback return false (when role is below SecurityAnalyst)
 /// - InMemoryAuditStore edge cases
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [UnitTest]
 public sealed class AuditLoggingAdditionalCoverageShould
 {
@@ -27,7 +27,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	{
 		// Arrange - get the Resources type via reflection (internal class)
 		var resourcesType = typeof(DefaultAuditLogger).Assembly
-			.GetType("Excalibur.Dispatch.AuditLogging.Resources", throwOnError: true);
+			.GetType("Excalibur.AuditLogging.Resources", throwOnError: true);
 
 		// Get the Culture property
 		var cultureProperty = resourcesType.GetProperty(
@@ -65,7 +65,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	{
 		// Arrange - get the Resources type via reflection
 		var resourcesType = typeof(DefaultAuditLogger).Assembly
-			.GetType("Excalibur.Dispatch.AuditLogging.Resources", throwOnError: true);
+			.GetType("Excalibur.AuditLogging.Resources", throwOnError: true);
 
 		// Act - invoke the internal constructor
 		var constructor = resourcesType.GetConstructor(
@@ -84,7 +84,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	{
 		// Arrange - get the Resources type via reflection
 		var resourcesType = typeof(DefaultAuditLogger).Assembly
-			.GetType("Excalibur.Dispatch.AuditLogging.Resources", throwOnError: true);
+			.GetType("Excalibur.AuditLogging.Resources", throwOnError: true);
 
 		// Get the ResourceManager property
 		var resourceManagerProperty = resourcesType.GetProperty(
@@ -105,7 +105,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	{
 		// Arrange - get the Resources type via reflection
 		var resourcesType = typeof(DefaultAuditLogger).Assembly
-			.GetType("Excalibur.Dispatch.AuditLogging.Resources", throwOnError: true);
+			.GetType("Excalibur.AuditLogging.Resources", throwOnError: true);
 
 		// Get all string properties
 		var stringProperties = resourcesType.GetProperties(BindingFlags.Static | BindingFlags.NonPublic)

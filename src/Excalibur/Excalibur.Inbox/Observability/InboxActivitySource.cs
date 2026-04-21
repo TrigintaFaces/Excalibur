@@ -110,10 +110,29 @@ public static class InboxActivitySource
 /// </summary>
 public static class InboxActivities
 {
+	/// <summary>
+	/// Activity name for the create entry operation.
+	/// </summary>
 	public const string CreateEntry = "inbox.create_entry";
+
+	/// <summary>
+	/// Activity name for the exists check operation.
+	/// </summary>
 	public const string Exists = "inbox.exists";
+
+	/// <summary>
+	/// Activity name for the mark processed operation.
+	/// </summary>
 	public const string MarkProcessed = "inbox.mark_processed";
+
+	/// <summary>
+	/// Activity name for the mark failed operation.
+	/// </summary>
 	public const string MarkFailed = "inbox.mark_failed";
+
+	/// <summary>
+	/// Activity name for the cleanup operation.
+	/// </summary>
 	public const string Cleanup = "inbox.cleanup";
 }
 
@@ -122,8 +141,23 @@ public static class InboxActivities
 /// </summary>
 public static class InboxTags
 {
+	/// <summary>
+	/// Tag name for the inbox message identifier.
+	/// </summary>
 	public const string MessageId = "excalibur.inbox.message_id";
+
+	/// <summary>
+	/// Tag name for the handler type processing the message.
+	/// </summary>
 	public const string HandlerType = "excalibur.inbox.handler_type";
+
+	/// <summary>
+	/// Tag name for the type of message being processed.
+	/// </summary>
 	public const string MessageType = "excalibur.inbox.message_type";
+
+	/// <summary>
+	/// Tag name for the inbox provider implementation.
+	/// </summary>
 	public const string Provider = "excalibur.inbox.provider";
 }

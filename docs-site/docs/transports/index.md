@@ -10,7 +10,7 @@ Dispatch supports multiple message transports for distributed messaging. You can
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the core package plus your transport:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -279,7 +279,7 @@ All transports emit OpenTelemetry traces and metrics via the `TelemetryTransport
 services.AddOpenTelemetry()
     .WithTracing(builder =>
     {
-        builder.AddSource("Excalibur.Dispatch.Observability");
+        builder.AddSource("Excalibur.Dispatch");
         // Transport-specific traces: Excalibur.Dispatch.Transport.{Name}
         builder.AddSource("Excalibur.Dispatch.Transport.Kafka");
         builder.AddSource("Excalibur.Dispatch.Transport.RabbitMQ");
@@ -305,20 +305,20 @@ Standard transport metric names follow `dispatch.transport.*` convention:
 
 ## Message Serialization
 
-By default, messages are serialized using MemoryPack. You can configure different serializers:
+By default, messages are serialized using JSON (System.Text.Json). You can configure different serializers:
 
 ```csharp
-// Use System.Text.Json for cross-language compatibility
-services.AddJsonSerialization();
+// Use MemoryPack for .NET-only maximum performance
+services.AddMemoryPackSerializer();
 
 // Or MessagePack for compact binary format
-services.AddMessagePackSerialization();
+services.AddMessagePackSerializer();
 ```
 
 | Serializer | Package | Best For |
 |------------|---------|----------|
-| MemoryPack (default) | Built-in | .NET-only, maximum performance |
-| System.Text.Json | Built-in | Cross-language, debugging |
+| System.Text.Json (default) | Built-in | General purpose, cross-language, debugging |
+| MemoryPack | `Excalibur.Dispatch.Serialization.MemoryPack` | .NET-only, maximum performance |
 | MessagePack | `Excalibur.Dispatch.Serialization.MessagePack` | Cross-language, compact |
 | Protobuf | `Excalibur.Dispatch.Serialization.Protobuf` | Schema-based, cross-language |
 
@@ -426,7 +426,7 @@ For more details, see [Dead Letter Handling](../patterns/dead-letter.md).
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddPoisonMessageHandling(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.MaxRetryAttempts = 5;
         options.EnableAlerting = true;

@@ -23,7 +23,7 @@ public sealed class ConfigurationValidationExceptionShould : UnitTestBase
 		exception.Message.ShouldBe(string.Empty);
 		_ = exception.Errors.ShouldNotBeNull();
 		exception.Errors.ShouldBeEmpty();
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -35,7 +35,7 @@ public sealed class ConfigurationValidationExceptionShould : UnitTestBase
 		// Assert
 		exception.Message.ShouldBe("Configuration failed");
 		exception.Errors.ShouldBeEmpty();
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -81,7 +81,7 @@ public sealed class ConfigurationValidationExceptionShould : UnitTestBase
 		// Assert
 		exception.Message.ShouldBe("Validation failed");
 		exception.Errors.Count.ShouldBe(1);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]

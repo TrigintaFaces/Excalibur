@@ -10,7 +10,7 @@ This guide covers testing patterns for Excalibur applications, from unit testing
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch.Testing
@@ -320,7 +320,10 @@ public class SqlServerIntegrationTests : IAsyncLifetime
         {
             dispatch.AddHandlersFromAssembly(typeof(SqlServerIntegrationTests).Assembly);
         });
-        services.AddSqlServerEventSourcing(_sqlContainer.GetConnectionString());
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+        {
+            es.UseSqlServer(opts => opts.ConnectionString = _sqlContainer.GetConnectionString());
+        }));
 
         _services = services.BuildServiceProvider();
 

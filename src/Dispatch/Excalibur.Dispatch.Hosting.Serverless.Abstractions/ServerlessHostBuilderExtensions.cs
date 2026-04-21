@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Hosting.Serverless;
+
+using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -17,8 +20,6 @@ public static class ServerlessHostBuilderExtensions
 	/// <param name="hostBuilder"> The host builder. </param>
 	/// <param name="configureOptions"> Optional configuration action for serverless host options. </param>
 	/// <returns> The host builder for chaining. </returns>
-	// R0.8: Unused parameter - context required by delegate signature
-#pragma warning disable RCS1163
 	public static IHostBuilder UseServerlessHosting(
 		this IHostBuilder hostBuilder,
 		Action<ServerlessHostOptions>? configureOptions = null)
@@ -31,16 +32,16 @@ public static class ServerlessHostBuilderExtensions
 		configureOptions?.Invoke(eagerOptions);
 
 		// Apply host-level configuration immediately while hostBuilder is still valid
-		return hostBuilder.ConfigureServices((context, services) =>
+		return hostBuilder.ConfigureServices((_, services) =>
 		{
 			// Add serverless hosting services
-			_ = services.AddServerlessHosting(configureOptions);
+			services.AddServerlessHosting(configureOptions);
 
 			// Capture the extracted options, not the hostBuilder
 			var capturedOptions = eagerOptions;
 
 			// Configure the appropriate provider based on detected platform
-			_ = services.AddSingleton<IHostedService>(sp =>
+			services.AddSingleton<IHostedService>(sp =>
 			{
 				var factory = sp.GetRequiredService<IServerlessHostProviderFactory>();
 				var logger = sp.GetRequiredService<ILogger<ServerlessHostingService>>();
@@ -51,7 +52,49 @@ public static class ServerlessHostBuilderExtensions
 			});
 		});
 	}
-#pragma warning restore RCS1163
+
+	/// <summary>
+	/// Configures the host builder for serverless execution
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="hostBuilder"> The host builder. </param>
+	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
+	/// <returns> The host builder for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IHostBuilder UseServerlessHosting(
+		this IHostBuilder hostBuilder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(hostBuilder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		// Bind options eagerly to determine preferred platform
+		var eagerOptions = new ServerlessHostOptions();
+		configuration.Bind(eagerOptions);
+
+		return hostBuilder.ConfigureServices((_, services) =>
+		{
+			// Add serverless hosting services with IConfiguration binding
+			services.AddServerlessHosting(configuration);
+
+			// Capture the extracted options, not the hostBuilder
+			var capturedOptions = eagerOptions;
+
+			// Configure the appropriate provider based on detected platform
+			services.AddSingleton<IHostedService>(sp =>
+			{
+				var factory = sp.GetRequiredService<IServerlessHostProviderFactory>();
+				var logger = sp.GetRequiredService<ILogger<ServerlessHostingService>>();
+
+				var provider = factory.CreateProvider(capturedOptions.PreferredPlatform);
+
+				return new ServerlessHostingService(provider, logger);
+			});
+		});
+	}
 
 	/// <summary>
 	/// Configures the host builder specifically for AWS Lambda.

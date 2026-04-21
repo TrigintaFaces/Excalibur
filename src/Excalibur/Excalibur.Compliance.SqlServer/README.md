@@ -2,6 +2,16 @@
 
 SQL Server implementation of IKeyEscrowService for the Excalibur framework. Provides key escrow storage with Shamir's Secret Sharing for split-knowledge key recovery using Dapper.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.SqlServer` | Complete | Everything for SQL Server: ES + Outbox + Inbox + Saga + LE + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.SqlServer` for a production-ready SQL Server stack with a single package reference.
+
 ## Installation
 
 ```bash

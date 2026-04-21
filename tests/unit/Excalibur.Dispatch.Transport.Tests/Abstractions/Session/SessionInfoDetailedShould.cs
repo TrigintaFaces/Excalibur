@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Session;
 /// <summary>
 /// Detailed unit tests for <see cref="SessionInfo"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class SessionInfoDetailedShould
 {
 	[Fact]

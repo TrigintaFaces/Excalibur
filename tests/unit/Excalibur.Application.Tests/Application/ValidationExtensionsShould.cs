@@ -105,7 +105,7 @@ public sealed class ValidationExtensionsShould : UnitTestBase
 		// Assert
 		result.IsValid.ShouldBeFalse();
 		result.Errors.ShouldContain(e => e.PropertyName == "CorrelationId");
-		result.Errors.ShouldContain(e => e.ErrorMessage.Contains("empty guid"));
+		result.Errors.ShouldContain(e => e.ErrorMessage!.Contains("empty guid"));
 	}
 
 	#endregion

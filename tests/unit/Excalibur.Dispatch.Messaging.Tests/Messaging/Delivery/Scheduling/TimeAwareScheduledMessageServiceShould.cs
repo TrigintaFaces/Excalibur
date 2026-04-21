@@ -17,9 +17,14 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 
+/// <summary>
+/// Tests that <see cref="ScheduledMessageService"/> correctly integrates optional
+/// <see cref="ITimePolicy"/> for timeout-aware scheduling. The unified service
+/// replaced the former TimeAwareScheduledMessageService.
+/// </summary>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", TestComponents.Messaging)]
-public sealed class TimeAwareScheduledMessageServiceShould
+public sealed class ScheduledMessageServiceTimeAwareShould
 {
 	private static readonly TimeSpan ScheduleProcessingTimeout = TimeSpan.FromSeconds(30);
 
@@ -41,12 +46,9 @@ public sealed class TimeAwareScheduledMessageServiceShould
 			})
 			.Returns(MessageResult.Success());
 
-		var timeoutMonitor = new RecordingTimeoutMonitor();
-		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
+		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var completed = await timeoutMonitor.WaitForCompletionAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
-		completed.ShouldBeTrue();
 		var processed = await store.WaitForStoreCallAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
 		processed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -64,10 +66,6 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		capturedContext.GetTraceParent().ShouldBe(schedule.TraceParent);
 		capturedContext.GetTenantId().ShouldBe(schedule.TenantId);
 		capturedContext.GetUserId().ShouldBe(schedule.UserId);
-
-		timeoutMonitor.CompletedOperations.ShouldNotBeEmpty();
-		timeoutMonitor.CompletedOperations[0].Success.ShouldBeTrue();
-		timeoutMonitor.CompletedOperations[0].TimedOut.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -81,12 +79,9 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		_ = A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(MessageResult.Success());
 
-		var timeoutMonitor = new RecordingTimeoutMonitor();
-		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
+		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var completed = await timeoutMonitor.WaitForCompletionAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
-		completed.ShouldBeTrue();
 		var processed = await store.WaitForStoreCallAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
 		processed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -101,50 +96,42 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	public async Task SkipDispatchAndPersistenceWhenDeserializationFails()
 	{
 		// Use malformed JSON that will cause JsonSerializer.Deserialize to throw JsonException.
-		// Valid (non-whitespace) string but not valid JSON, so deserialization genuinely fails.
 		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(1));
 		schedule.MessageBody = "<<invalid-json>>";
 		var store = new SequenceScheduleStore([schedule], []);
 		var serializer = new DispatchJsonSerializer();
 
 		var dispatcher = A.Fake<IDispatcher>();
-		var timeoutMonitor = new RecordingTimeoutMonitor();
-		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
+		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var observed = await timeoutMonitor.WaitForCompletionAsync(
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
-			CancellationToken.None).ConfigureAwait(false);
-		observed.ShouldBeTrue();
+		// Wait for the batch to be consumed (processing loop picks up the schedule)
+		var consumed = await store.WaitForBatchConsumedAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
+		consumed.ShouldBeTrue();
+		// Allow one more poll cycle so error handling completes
+		await Task.Delay(100, CancellationToken.None).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		store.StoreCalls.ShouldBe(0);
-		timeoutMonitor.CompletedOperations[0].Success.ShouldBeFalse();
-		timeoutMonitor.CompletedOperations[0].TimedOut.ShouldBeFalse();
 	}
 
 	[Fact]
-	public async Task HandleUnknownMessageTypeWithoutNullTimeoutTokens()
+	public async Task HandleUnknownMessageTypeGracefully()
 	{
 		var schedule = CreateDueSchedule("NonExistent.Message.Type, MissingAssembly", interval: TimeSpan.FromMinutes(1));
 		var store = new SequenceScheduleStore([schedule], []);
 		var serializer = new DispatchJsonSerializer();
 		var dispatcher = A.Fake<IDispatcher>();
-		var timeoutMonitor = new RecordingTimeoutMonitor();
-		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
+		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var observed = await timeoutMonitor.WaitForCompletionAsync(
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
-			CancellationToken.None).ConfigureAwait(false);
-		observed.ShouldBeTrue();
+		var consumed = await store.WaitForBatchConsumedAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
+		consumed.ShouldBeTrue();
+		await Task.Delay(100, CancellationToken.None).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-		timeoutMonitor.StartedOperationCount.ShouldBeGreaterThanOrEqualTo(1);
-		timeoutMonitor.CompletedOperations.ShouldNotBeEmpty();
-		timeoutMonitor.CompletedOperations.All(static completion => completion.TokenWasNull == false).ShouldBeTrue();
 		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._)).MustNotHaveHappened();
 		store.StoreCalls.ShouldBe(0);
 	}
@@ -155,7 +142,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		var store = new SequenceScheduleStore([]);
 		var serializer = new DispatchJsonSerializer();
 		var dispatcher = A.Fake<IDispatcher>();
-		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), new RecordingTimeoutMonitor());
+		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -163,23 +150,23 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		store.AsyncDisposed.ShouldBeTrue();
 	}
 
-	private static TimeAwareScheduledMessageService CreateService(
+	private static ScheduledMessageService CreateService(
 		SequenceScheduleStore store,
 		IDispatcher dispatcher,
 		DispatchJsonSerializer serializer,
-		ITimePolicy timePolicy,
-		ITimeoutMonitor timeoutMonitor) =>
+		ITimePolicy timePolicy) =>
 		new(
 			store,
 			dispatcher,
 			serializer,
-			timePolicy,
-			timeoutMonitor,
+			A.Fake<ICronScheduler>(),
 			Microsoft.Extensions.Options.Options.Create(new SchedulerOptions
 			{
 				PollInterval = TimeSpan.FromMilliseconds(20),
 			}),
-			NullLogger<TimeAwareScheduledMessageService>.Instance);
+			Microsoft.Extensions.Options.Options.Create(new CronScheduleOptions()),
+			NullLogger<ScheduledMessageService>.Instance,
+			timePolicy);
 
 	private static ScheduledMessage CreateDueSchedule(Type messageType, TimeSpan? interval)
 	{
@@ -209,6 +196,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	{
 		private readonly ConcurrentQueue<IEnumerable<IScheduledMessage>> _batches = new(batches);
 		private readonly TaskCompletionSource<bool> _storeCallObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		private readonly TaskCompletionSource<bool> _batchConsumed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private int _storeCalls;
 		private int _isDisposed;
 
@@ -234,12 +222,34 @@ public sealed class TimeAwareScheduledMessageServiceShould
 			}
 		}
 
+		public async Task<bool> WaitForBatchConsumedAsync(TimeSpan timeout, CancellationToken cancellationToken)
+		{
+			using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			timeoutCts.CancelAfter(timeout);
+
+			try
+			{
+				_ = await _batchConsumed.Task.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+				return true;
+			}
+			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+			{
+				return false;
+			}
+		}
+
 		public Task<IEnumerable<IScheduledMessage>> GetAllAsync(CancellationToken cancellationToken)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			if (_batches.TryDequeue(out var next))
 			{
-				return Task.FromResult(next);
+				var items = next.ToList();
+				if (items.Count > 0)
+				{
+					_ = _batchConsumed.TrySetResult(true);
+				}
+
+				return Task.FromResult<IEnumerable<IScheduledMessage>>(items);
 			}
 
 			return Task.FromResult<IEnumerable<IScheduledMessage>>([]);
@@ -309,91 +319,6 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		public bool ShouldApplyTimeout(TimeoutOperationType operationType, TimeoutContext? context = null) => false;
 
 		public CancellationToken CreateTimeoutToken(TimeoutOperationType operationType, CancellationToken parentToken) => parentToken;
-	}
-
-	private sealed class RecordingTimeoutMonitor : ITimeoutMonitor
-	{
-		private readonly ConcurrentQueue<CompletionRecord> _completed = [];
-		private readonly TaskCompletionSource<bool> _completionObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		private int _startedOperationCount;
-
-		public int StartedOperationCount => Volatile.Read(ref _startedOperationCount);
-
-		public IReadOnlyList<CompletionRecord> CompletedOperations => [.. _completed];
-
-		public ITimeoutOperationToken StartOperation(TimeoutOperationType operationType, TimeoutContext? context = null)
-		{
-			_ = Interlocked.Increment(ref _startedOperationCount);
-			return new TestTimeoutOperationToken(operationType, context);
-		}
-
-		public void CompleteOperation(ITimeoutOperationToken token, bool success, bool timedOut) =>
-			CompleteOperationInternal(token, success, timedOut);
-
-		public TimeoutStatistics GetStatistics(TimeoutOperationType operationType) =>
-			new()
-			{
-				OperationType = operationType,
-				TotalOperations = _completed.Count,
-			};
-
-		public TimeSpan GetRecommendedTimeout(TimeoutOperationType operationType, int percentile = 95, TimeoutContext? context = null) =>
-			TimeSpan.FromSeconds(1);
-
-		public void ClearStatistics(TimeoutOperationType? operationType = null)
-		{
-		}
-
-		public int GetSampleCount(TimeoutOperationType operationType) => _completed.Count;
-
-		public bool HasSufficientSamples(TimeoutOperationType operationType, int minimumSamples = 100) =>
-			_completed.Count >= minimumSamples;
-
-		public async Task<bool> WaitForCompletionAsync(TimeSpan timeout, CancellationToken cancellationToken)
-		{
-			using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-			timeoutCts.CancelAfter(timeout);
-
-			try
-			{
-				_ = await _completionObserved.Task.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
-				return true;
-			}
-			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-			{
-				return false;
-			}
-		}
-
-		private void CompleteOperationInternal(ITimeoutOperationToken token, bool success, bool timedOut)
-		{
-			_completed.Enqueue(new CompletionRecord(token is null, success, timedOut));
-			_ = _completionObserved.TrySetResult(true);
-		}
-	}
-
-	private readonly record struct CompletionRecord(bool TokenWasNull, bool Success, bool TimedOut);
-
-	private sealed class TestTimeoutOperationToken(TimeoutOperationType operationType, TimeoutContext? context)
-		: ITimeoutOperationToken
-	{
-		public Guid OperationId { get; } = Guid.NewGuid();
-
-		public TimeoutOperationType OperationType { get; } = operationType;
-
-		public TimeoutContext? Context { get; } = context;
-
-		public DateTimeOffset StartTime { get; } = DateTimeOffset.UtcNow;
-
-		public TimeSpan Elapsed => DateTimeOffset.UtcNow - StartTime;
-
-		public bool IsCompleted { get; private set; }
-
-		public bool? IsSuccessful { get; private set; }
-
-		public bool? HasTimedOut { get; private set; }
-
-		public void Dispose() => IsCompleted = true;
 	}
 
 	private sealed class TestActionMessage : IDispatchAction;

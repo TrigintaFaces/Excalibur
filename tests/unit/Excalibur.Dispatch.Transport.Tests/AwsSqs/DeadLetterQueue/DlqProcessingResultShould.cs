@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport.Aws;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.DeadLetterQueue;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class DlqProcessingResultShould
 {
 	[Fact]
@@ -19,7 +19,7 @@ public sealed class DlqProcessingResultShould
 		result.Success.ShouldBeFalse();
 		result.MessageId.ShouldBe("msg-1");
 		result.Action.ShouldBe(DlqAction.None);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.ProcessedAt.ShouldBeGreaterThan(DateTimeOffset.MinValue);
 		result.RetryAttempts.ShouldBe(0);
 		result.Metadata.ShouldNotBeNull();
@@ -48,7 +48,7 @@ public sealed class DlqProcessingResultShould
 		result.Success.ShouldBeTrue();
 		result.MessageId.ShouldBe("msg-42");
 		result.Action.ShouldBe(DlqAction.Redriven);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.ProcessedAt.ShouldBe(processedAt);
 		result.RetryAttempts.ShouldBe(3);
 		result.Metadata["queue"].ShouldBe("source-queue");
@@ -70,6 +70,6 @@ public sealed class DlqProcessingResultShould
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.Action.ShouldBe(DlqAction.RetryFailed);
-		result.ErrorMessage.ShouldBe("Connection timeout");
+		result.ErrorMessage!.ShouldBe("Connection timeout");
 	}
 }

@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests;
 /// <summary>
 /// Unit tests for <see cref="DeduplicationStrategy"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class DeduplicationStrategyShould
 {

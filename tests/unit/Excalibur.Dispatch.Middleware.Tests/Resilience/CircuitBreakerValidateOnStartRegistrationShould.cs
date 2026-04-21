@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// and that ValidateOnStart is wired up.
 /// Sprint 561 S561.51: ValidateOnStart registration tests.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class CircuitBreakerValidateOnStartRegistrationShould
 {
 	[Fact]

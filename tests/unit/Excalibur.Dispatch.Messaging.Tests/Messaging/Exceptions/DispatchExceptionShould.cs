@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// Tests for <see cref="DispatchException"/> to verify inheritance from ApiException,
 /// error categorization, and rich problem details support.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchExceptionShould
 {
 	[Fact]
@@ -220,7 +220,7 @@ public sealed class DispatchExceptionShould
 		var exception = new DispatchException("Outer error", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)

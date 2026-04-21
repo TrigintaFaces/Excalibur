@@ -10,7 +10,7 @@ using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 ///     tracing across the framework.
 /// </summary>
 [Collection("Observability Tests")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class ObservabilityValidationShould : IDisposable
 {
@@ -318,8 +318,8 @@ public sealed class ObservabilityValidationShould : IDisposable
 		errorLogs.ShouldNotBeEmpty("Error should be logged for observability");
 
 		var errorLog = errorLogs.First();
-		_ = errorLog.Exception.ShouldNotBeNull("Exception details should be captured");
-		_ = errorLog.Exception.ShouldBeOfType<InvalidOperationException>();
+		_ = errorLog.Exception!.ShouldNotBeNull("Exception details should be captured");
+		_ = errorLog.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

@@ -8,7 +8,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// Covers generic ResolveAsync overloads for both IDataRequest and IDocumentDataRequest.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataRequestExtensionsDepthShould
 {
 	[Fact]

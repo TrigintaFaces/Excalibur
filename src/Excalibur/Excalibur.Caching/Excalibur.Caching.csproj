@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -6,13 +6,17 @@
     <PackageId>Excalibur.Caching</PackageId>
     <Description>Advanced caching patterns and adaptive TTL strategies for the Excalibur framework.</Description>
     <PackageTags>excalibur;caching;adaptive-ttl;performance</PackageTags>
+    <!-- AOT: NOT compatible. Adaptive TTL strategies use Expression.Compile for dynamic cache policy evaluation. -->
     <IsAotCompatible>false</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
-  <!-- Added Excalibur.Dispatch.Caching reference for ICacheInvalidationService -->
+  <!-- Added Excalibur.Dispatch.Caching reference for ICacheInvalidationService.
+       Added Excalibur.EventSourcing reference (S804 bd-sdhocq A15) to host the
+       IEventSourcingBuilder.AddProjectionCaching(...) bridge. -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Caching\Excalibur.Dispatch.Caching.csproj" />
+    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
@@ -23,14 +27,13 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Caching.Tests" />
     <InternalsVisibleTo Include="Excalibur.Tests" />
+    <!-- S804 bd-sdhocq A15: smoke test exercises the internal package aggregator directly -->
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch.Caching" VersionOverride="$(DispatchPackageVersion)" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
   </ItemGroup>
 </Project>

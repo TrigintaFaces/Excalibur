@@ -102,11 +102,7 @@ public static class TransportMeter
 	/// </summary>
 	private static readonly Dictionary<string, TransportMetricsState> TransportStates = [];
 
-#if NET9_0_OR_GREATER
 	private static readonly Lock StateLock = new();
-#else
-	private static readonly object StateLock = new();
-#endif
 
 	static TransportMeter()
 	{

@@ -10,7 +10,7 @@ This guide covers performance optimization patterns for `IMessageContext` usage 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Familiarity with [message context](../core-concepts/message-context.md) and [actions and handlers](../core-concepts/actions-and-handlers.md)
 
 ## Core Properties vs Features vs Items

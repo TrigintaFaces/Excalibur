@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Resilience;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Options.Resilience;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Tests for the <see cref="RetryMiddleware" /> class.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class RetryMiddlewareShould
 {

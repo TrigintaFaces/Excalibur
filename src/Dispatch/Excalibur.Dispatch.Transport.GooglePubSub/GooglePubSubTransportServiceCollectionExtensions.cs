@@ -216,7 +216,6 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 				options.Subscriber.DeadLetterTopicId = transportOptions.DeadLetterTopicId;
 				options.Telemetry.EnableOpenTelemetry = transportOptions.EnableOpenTelemetry;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(

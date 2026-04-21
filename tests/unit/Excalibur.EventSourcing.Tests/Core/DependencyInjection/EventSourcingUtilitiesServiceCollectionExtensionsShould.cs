@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Queries;
+using Excalibur.EventSourcing.Snapshots.Compression;
 using Excalibur.EventSourcing.Snapshots.Upgrading;
 using Excalibur.EventSourcing.Snapshots.Versioning;
 
@@ -154,6 +155,6 @@ public sealed class EventSourcingUtilitiesServiceCollectionExtensionsShould
 	public void ThrowWhenConfigureActionIsNullForSnapshotCompression()
 	{
 		var services = new ServiceCollection();
-		Should.Throw<ArgumentNullException>(() => services.AddSnapshotCompression(null!));
+		Should.Throw<ArgumentNullException>(() => services.AddSnapshotCompression((Action<SnapshotCompressionOptions>)null!));
 	}
 }

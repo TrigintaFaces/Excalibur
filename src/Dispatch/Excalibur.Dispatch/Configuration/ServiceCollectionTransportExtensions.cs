@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Configuration.Transport;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 using IBindingConfigBuilder = Excalibur.Dispatch.Abstractions.Configuration.ITransportBindingBuilder;
 using Transport = Excalibur.Dispatch.Configuration.Transport;
@@ -36,39 +38,50 @@ public static class ServiceCollectionTransportExtensions
 		var bindingRegistry = GetOrCreateBindingRegistry(services);
 #pragma warning restore CA2000
 
-		// Create and configure binding builder
+		// Create and configure binding builder. FromTransport() now accepts pending
+		// factories as well as materialized adapters; the binding registry records
+		// any truly-unknown references and the BindingRegistrationValidator reports
+		// them at host start via ValidateOnStart. [bd-20ft0e FIX 4]
 		var bindingBuilder = new Transport.BindingConfigurationBuilder(transportRegistry, bindingRegistry);
 		configure(bindingBuilder);
+
+		// Wire a ValidateOnStart hook so missing-transport references fail fast at
+		// host start with a clear, named error rather than at first dispatch.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<BindingRegistrationValidationOptions>, BindingRegistrationValidator>());
+		_ = services.AddOptions<BindingRegistrationValidationOptions>().ValidateOnStart();
 
 		return services;
 	}
 
 	/// <summary>
-	/// Gets the existing <see cref="TransportRegistry"/> from DI or creates and registers a new one.
+	/// Gets the existing <see cref="ITransportRegistry"/> from DI or creates and registers a new one.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <returns> The singleton <see cref="TransportRegistry"/> instance. </returns>
+	/// <returns> The singleton <see cref="ITransportRegistry"/> instance. </returns>
 	/// <remarks>
 	/// <para>
 	/// This method is public to allow transport-specific packages to register their adapters
-	/// with the shared <see cref="TransportRegistry"/>. Using this method ensures that all
+	/// with the shared <see cref="ITransportRegistry"/>. Using this method ensures that all
 	/// transport adapters are managed by the same registry instance, enabling unified lifecycle
 	/// management via <see cref="TransportAdapterHostedService"/>.
 	/// </para>
 	/// </remarks>
-	public static TransportRegistry GetOrCreateTransportRegistry(IServiceCollection services)
+	public static ITransportRegistry GetOrCreateTransportRegistry(IServiceCollection services)
 	{
 		// Check if already registered
 		var existingDescriptor =
-			services.FirstOrDefault(d => d.ServiceType == typeof(TransportRegistry) && d.ImplementationInstance is not null);
+			services.FirstOrDefault(d => d.ServiceType == typeof(ITransportRegistry) && d.ImplementationInstance is not null);
 
 		if (existingDescriptor?.ImplementationInstance is TransportRegistry existing)
 		{
 			return existing;
 		}
 
-		// Create new instance and register
+		// Create new instance and register as both ITransportRegistry (public contract)
+		// and TransportRegistry (internal, for lifecycle/admin operations within this assembly)
 		var registry = new TransportRegistry();
+		services.TryAddSingleton<ITransportRegistry>(registry);
 		services.TryAddSingleton(registry);
 		return registry;
 	}
@@ -161,7 +174,7 @@ public static class ServiceCollectionTransportExtensions
 	/// <returns> The service collection for fluent configuration. </returns>
 	/// <remarks>
 	/// <para>
-	/// This health check monitors all transports registered in the <see cref="TransportRegistry"/>.
+	/// This health check monitors all transports registered in the <see cref="ITransportRegistry"/>.
 	/// It reports the aggregate health status of all transports and provides detailed status
 	/// for each individual transport in the health check data.
 	/// </para>
@@ -198,7 +211,7 @@ public static class ServiceCollectionTransportExtensions
 			name,
 			sp =>
 			{
-				var registry = sp.GetRequiredService<TransportRegistry>();
+				var registry = sp.GetRequiredService<ITransportRegistry>();
 				var healthCheckOptions = sp.GetService<MultiTransportHealthCheckOptions>()
 										 ?? new MultiTransportHealthCheckOptions();
 				return new MultiTransportHealthCheck(registry, healthCheckOptions);

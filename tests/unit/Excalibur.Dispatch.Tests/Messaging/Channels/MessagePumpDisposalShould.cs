@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 /// T.9 Regression: MessagePump must implement IAsyncDisposable and await processing task.
 /// Validates the fix for sync Cancel+Dispose without await that caused UnobservedTaskException.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessagePumpDisposalShould
 {
 	[Fact]

@@ -6,8 +6,8 @@ using Excalibur.Dispatch.Validation.Context;
 
 namespace Excalibur.Dispatch.Tests.Validation;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ValidationEnumsShould
 {
 	// --- ValidationMode ---
@@ -48,7 +48,7 @@ public sealed class ValidationEnumsShould
 		// Assert
 		ValidationSeverity.Info.ShouldBe((ValidationSeverity)0);
 		ValidationSeverity.Warning.ShouldBe((ValidationSeverity)1);
-		ValidationSeverity.Error.ShouldBe((ValidationSeverity)2);
+		ValidationSeverity.Error!.ShouldBe((ValidationSeverity)2);
 		ValidationSeverity.Critical.ShouldBe((ValidationSeverity)3);
 	}
 

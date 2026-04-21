@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// Tests for <see cref="ApiException"/> to verify RFC 7807 problem details support
 /// and the enhanced virtual methods added in Sprint 438.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ApiExceptionShould
 {
 	[Fact]
@@ -150,7 +150,7 @@ public sealed class ApiExceptionShould
 		var exception = new ApiException("Outer error", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.Message.ShouldBe("Outer error");
 	}
 

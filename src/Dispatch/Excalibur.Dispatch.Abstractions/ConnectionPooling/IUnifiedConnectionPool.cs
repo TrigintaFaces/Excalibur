@@ -36,14 +36,6 @@ public interface IUnifiedConnectionPool<TConnection> : IAsyncDisposable, IDispos
 	ValueTask<ConnectionPoolStatistics> GetStatisticsAsync(CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Warms up the connection pool with the specified number of connections.
-	/// </summary>
-	/// <param name="minConnections"> The minimum number of connections to create. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> A task representing the asynchronous operation. </returns>
-	ValueTask WarmupAsync(int minConnections, CancellationToken cancellationToken);
-
-	/// <summary>
 	/// Gets the current health status of the connection pool.
 	/// </summary>
 	/// <param name="cancellationToken"> The cancellation token. </param>
@@ -56,4 +48,14 @@ public interface IUnifiedConnectionPool<TConnection> : IAsyncDisposable, IDispos
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
 	ValueTask ClearAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Provides warmup operations for a unified connection pool.
+/// </summary>
+/// <typeparam name="TConnection">The connection type.</typeparam>
+public interface IUnifiedConnectionPoolWarmup<TConnection> where TConnection : class
+{
+	/// <summary>Warms up the connection pool with the specified number of connections.</summary>
+	ValueTask WarmupAsync(int minConnections, CancellationToken cancellationToken);
 }

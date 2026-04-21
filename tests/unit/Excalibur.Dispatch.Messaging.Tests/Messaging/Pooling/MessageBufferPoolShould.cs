@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Pooling;
 /// <summary>
 /// Unit tests for <see cref="MessageBufferPool"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Pooling")]
 [Trait("Priority", "0")]
 public sealed class MessageBufferPoolShould

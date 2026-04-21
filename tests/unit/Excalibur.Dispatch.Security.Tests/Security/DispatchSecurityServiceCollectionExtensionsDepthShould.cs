@@ -5,29 +5,30 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
+using Excalibur.Security.EventStores;
 
 using Microsoft.Extensions.Configuration;
 
 namespace Excalibur.Dispatch.Security.Tests.Security;
 
 /// <summary>
-/// Depth tests for <see cref="DispatchSecurityServiceCollectionExtensions"/>.
+/// Depth tests for <see cref="SecurityServiceCollectionExtensions"/>.
 /// Covers the composite AddDispatchSecurity overload, null argument guards,
 /// HashiCorp Vault conditional registration, auditing store type selection,
 /// and UseSecurityMiddleware builder extension.
 /// </summary>
 /// <remarks>
-/// Both <see cref="DispatchSecurityServiceCollectionExtensions"/> and
+/// Both <see cref="SecurityServiceCollectionExtensions"/> and
 /// <see cref="SecurityMiddlewareExtensions"/> define an AddDispatchSecurity
 /// overload taking IConfiguration. Because the test namespace imports
-/// <c>Excalibur.Dispatch.Security</c>, the extension method from
+/// <c>Excalibur.Security</c>, the extension method from
 /// <see cref="SecurityMiddlewareExtensions"/> would win via normal extension
-/// resolution. Tests that target the <c>DispatchSecurityServiceCollectionExtensions</c>
+/// resolution. Tests that target the <c>SecurityServiceCollectionExtensions</c>
 /// overload therefore use a fully-qualified static call.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "DI")]
 public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 {
@@ -37,7 +38,7 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 		var config = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
 
 		Should.Throw<ArgumentNullException>(() =>
-			DispatchSecurityServiceCollectionExtensions.AddDispatchSecurity(null!, config));
+			SecurityServiceCollectionExtensions.AddDispatchSecurity(null!, config));
 	}
 
 	[Fact]
@@ -46,7 +47,7 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			DispatchSecurityServiceCollectionExtensions.AddDispatchSecurity(services, (IConfiguration)null!));
+			SecurityServiceCollectionExtensions.AddDispatchSecurity(services, (IConfiguration)null!));
 	}
 
 	[Fact]
@@ -59,16 +60,15 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 			.AddInMemoryCollection([])
 			.Build();
 
-		// Act — use fully-qualified call to target DispatchSecurityServiceCollectionExtensions
-		DispatchSecurityServiceCollectionExtensions.AddDispatchSecurity(services, config);
+		// Act — use fully-qualified call to target SecurityServiceCollectionExtensions
+		SecurityServiceCollectionExtensions.AddDispatchSecurity(services, config);
 
 		// Assert — credential management, input validation middleware, auditing
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecureCredentialProvider));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecurityEventLogger));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecurityEventStore));
 		// IInputValidator is a consumer extension point -- no defaults registered
-		services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(InputValidationMiddleware));
+		services.ShouldContain(sd => sd.ServiceType == typeof(InputValidationMiddleware));
 	}
 
 	[Fact]
@@ -158,8 +158,7 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(InputValidationMiddleware));
+			sd.ServiceType == typeof(InputValidationMiddleware));
 	}
 
 	[Fact]
@@ -266,7 +265,7 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 	public void UseSecurityMiddleware_ThrowsWhenBuilderIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			DispatchSecurityServiceCollectionExtensions.UseSecurityMiddleware(null!));
+			SecurityServiceCollectionExtensions.UseSecurityMiddleware(null!));
 	}
 
 	[Fact]

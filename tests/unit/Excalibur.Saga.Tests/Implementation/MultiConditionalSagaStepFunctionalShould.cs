@@ -235,7 +235,7 @@ public sealed class MultiConditionalSagaStepFunctionalShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("failed");
+		result.ErrorMessage!.ShouldContain("failed");
 	}
 
 	[Fact]

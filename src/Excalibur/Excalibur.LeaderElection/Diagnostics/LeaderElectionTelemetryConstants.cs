@@ -9,7 +9,7 @@ namespace Excalibur.LeaderElection.Diagnostics;
 /// Constants for leader election OpenTelemetry telemetry names and semantic conventions.
 /// Follows the <c>Excalibur.LeaderElection</c> naming pattern matching the package namespace.
 /// </summary>
-public static class LeaderElectionTelemetryConstants
+internal static class LeaderElectionTelemetryConstants
 {
 	/// <summary>
 	/// The Meter name for leader election instrumentation.

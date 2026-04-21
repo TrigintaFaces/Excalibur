@@ -14,7 +14,7 @@ The inbox pattern ensures messages are processed exactly once, preventing duplic
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch.Patterns
@@ -119,12 +119,14 @@ services.AddSqlServerInboxStore(options =>
 ### Redis
 
 ```csharp
-services.AddRedisInboxStore(options =>
+services.AddExcaliburInbox(inbox =>
 {
-    options.ConnectionString = "localhost:6379";
-    options.KeyPrefix = "inbox";
-    options.DefaultTtlSeconds = 604800; // 7 days
-    options.DatabaseId = 0;
+    inbox.UseRedis(redis =>
+    {
+        redis.ConnectionString("localhost:6379")
+             .KeyPrefix("inbox")
+             .Database(0);
+    });
 });
 ```
 
@@ -530,7 +532,7 @@ public class PaymentHandler : IEventHandler<PaymentEvent> { }
 - **Mark only handlers that need it**: Not all handlers require idempotency. Logging handlers or read-only handlers can safely receive duplicates.
 - **Use appropriate retention**: Match retention to your message redelivery window (typically 1-7 days).
 - **Choose storage wisely**: Use `UseInMemory = true` for single-instance, high-throughput handlers; use persistent storage for multi-instance or critical handlers.
-- **Register an inbox store**: For persistent deduplication, register a store via `AddSqlServerInboxStore()`, `AddRedisInboxStore()`, or `AddInMemoryInboxStore()`.
+- **Register an inbox store**: For persistent deduplication, register a store via `AddExcaliburInbox(inbox => inbox.UseSqlServer(...))`, `inbox.UseRedis(...)`, or `AddInMemoryInboxStore()`.
 
 ## Processing Modes
 

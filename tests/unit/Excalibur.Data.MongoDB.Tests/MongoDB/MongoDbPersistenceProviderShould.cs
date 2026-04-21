@@ -16,8 +16,8 @@ namespace Excalibur.Data.Tests.MongoDB.Persistence;
 ///     Unit tests for MongoDbPersistenceProvider operations using the DocumentDataRequest pattern. Tests document operations, aggregation
 ///     pipelines, and MongoDB-specific features.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class MongoDbPersistenceProviderShould : IDisposable
 {
 	private readonly ILogger<MongoDbPersistenceProvider> _logger;

@@ -201,6 +201,7 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventMapper<PublishRequest
 	/// </summary>
 	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public async Task<PublishRequest> ToSnsMessageAsync(
 		CloudEvent cloudEvent,
 		string topicArn,
@@ -377,7 +378,7 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventMapper<PublishRequest
 				continue;
 			}
 
-			attributes[attributeName] = CreateStringAttribute(value.ToString());
+			attributes[attributeName] = CreateStringAttribute(value.ToString()!);
 		}
 	}
 
@@ -407,7 +408,7 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventMapper<PublishRequest
 			return;
 		}
 
-		attributes[DispatchPrefix + attributeName] = CreateStringAttribute(value.ToString());
+		attributes[DispatchPrefix + attributeName] = CreateStringAttribute(value.ToString()!);
 	}
 
 	private void ApplyProviderOptions(PublishRequest request, CloudEvent cloudEvent)

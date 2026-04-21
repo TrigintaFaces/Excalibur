@@ -17,8 +17,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.CloudEvents;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AwsSqsCloudEventAdapterShould
 {
 	private readonly AwsSqsCloudEventAdapter _adapter;

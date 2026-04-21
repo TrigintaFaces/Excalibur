@@ -151,7 +151,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		EnsureInitialized();
 
 		var collectionPath = GetCollectionPath(partitionKey);
-		var docRef = _db.Collection(collectionPath).Document(id);
+		var docRef = _db!.Collection(collectionPath).Document(id);
 
 		try
 		{
@@ -164,7 +164,9 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 				return null;
 			}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 			return DeserializeDocument<TDocument>(snapshot);
+#pragma warning restore IL2026
 		}
 		catch (Exception ex)
 		{
@@ -174,6 +176,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2095:DynamicallyAccessedMembers on method type parameter do not match overridden type parameter", Justification = "Type constraint is propagated from the interface; callers provide concrete types.")]
 	public async Task<CloudOperationResult<TDocument>> CreateAsync<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TDocument>(
 		TDocument document,
@@ -185,11 +188,13 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 		var documentId = GetDocumentId(document);
 		var collectionPath = GetCollectionPath(partitionKey);
-		var docRef = _db.Collection(collectionPath).Document(documentId);
+		var docRef = _db!.Collection(collectionPath).Document(documentId);
 
 		try
 		{
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 			var data = SerializeDocument(document);
+#pragma warning restore IL2026
 			_ = await docRef.CreateAsync(data, cancellationToken).ConfigureAwait(false);
 
 			LogOperationCompleted("Create");
@@ -220,6 +225,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2095:DynamicallyAccessedMembers on method type parameter do not match overridden type parameter", Justification = "Type constraint is propagated from the interface; callers provide concrete types.")]
 	public async Task<CloudOperationResult<TDocument>> UpdateAsync<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TDocument>(
 		TDocument document,
@@ -232,11 +238,13 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 		var documentId = GetDocumentId(document);
 		var collectionPath = GetCollectionPath(partitionKey);
-		var docRef = _db.Collection(collectionPath).Document(documentId);
+		var docRef = _db!.Collection(collectionPath).Document(documentId);
 
 		try
 		{
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 			var data = SerializeDocument(document);
+#pragma warning restore IL2026
 
 			if (!string.IsNullOrEmpty(etag))
 			{
@@ -244,7 +252,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 				var notFound = false;
 				var versionMismatch = false;
 
-				await _db.RunTransactionAsync(async transaction =>
+				await _db!.RunTransactionAsync(async transaction =>
 				{
 					var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken)
 						.ConfigureAwait(false);
@@ -316,7 +324,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		EnsureInitialized();
 
 		var collectionPath = GetCollectionPath(partitionKey);
-		var docRef = _db.Collection(collectionPath).Document(id);
+		var docRef = _db!.Collection(collectionPath).Document(id);
 
 		try
 		{
@@ -325,7 +333,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 				var notFound = false;
 				var versionMismatch = false;
 
-				await _db.RunTransactionAsync(async transaction =>
+				await _db!.RunTransactionAsync(async transaction =>
 				{
 					var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken)
 						.ConfigureAwait(false);
@@ -398,7 +406,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		EnsureInitialized();
 
 		var collectionPath = GetCollectionPath(partitionKey);
-		var collectionRef = _db.Collection(collectionPath);
+		var collectionRef = _db!.Collection(collectionPath);
 		var documents = new List<TDocument>();
 
 		try
@@ -409,7 +417,9 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 			foreach (var doc in snapshot.Documents)
 			{
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 				var document = DeserializeDocument<TDocument>(doc);
+#pragma warning restore IL2026
 				if (document != null)
 				{
 					documents.Add(document);
@@ -445,19 +455,21 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 		try
 		{
-			var batch = _db.StartBatch();
+			var batch = _db!.StartBatch();
 
 			foreach (var operation in operationsList)
 			{
 				var collectionPath = GetCollectionPath(partitionKey);
-				var docRef = _db.Collection(collectionPath).Document(operation.DocumentId);
+				var docRef = _db!.Collection(collectionPath).Document(operation.DocumentId);
 
 				switch (operation.OperationType)
 				{
 					case CloudBatchOperationType.Create:
 						if (operation is IFirestoreBatchCreateOperation createOp)
 						{
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 							var data = SerializeDocument(createOp.Document);
+#pragma warning restore IL2026
 							_ = batch.Create(docRef, data);
 						}
 
@@ -467,7 +479,9 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 					case CloudBatchOperationType.Upsert:
 						if (operation is IFirestoreBatchReplaceOperation replaceOp)
 						{
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 							var data = SerializeDocument(replaceOp.Document);
+#pragma warning restore IL2026
 							_ = batch.Set(docRef, data);
 						}
 
@@ -514,6 +528,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2095:DynamicallyAccessedMembers on method type parameter do not match overridden type parameter", Justification = "Type constraint is propagated from the interface; callers provide concrete types.")]
 	public async Task<IChangeFeedSubscription<TDocument>> CreateChangeFeedSubscriptionAsync<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TDocument>(
 		string containerName,
@@ -524,7 +539,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		EnsureInitialized();
 
 		var subscription = new FirestoreListenerSubscription<TDocument>(
-			_db,
+			_db!,
 			containerName,
 			options ?? ChangeFeedOptions.Default,
 			_logger);
@@ -591,10 +606,8 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 	}
 
 	/// <inheritdoc/>
-#pragma warning disable IDE0060 // Parameter required by interface contract
 	public Task<IDictionary<string, object>> GetDocumentStoreStatisticsAsync(
 		CancellationToken cancellationToken)
-#pragma warning restore IDE0060
 	{
 		EnsureInitialized();
 
@@ -624,7 +637,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 		try
 		{
-			var collectionRef = _db.Collection(collectionName);
+			var collectionRef = _db!.Collection(collectionName);
 			var snapshot = await collectionRef.Limit(1).GetSnapshotAsync(cancellationToken)
 				.ConfigureAwait(false);
 
@@ -689,7 +702,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 			await InitializeAsync(cancellationToken).ConfigureAwait(false);
 
 			// Try to list collections to verify connectivity
-			var collections = _db.ListRootCollectionsAsync();
+			var collections = _db!.ListRootCollectionsAsync();
 			await foreach (var _ in collections.ConfigureAwait(false))
 			{
 				break;
@@ -910,6 +923,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 		FirestoreDbBuilder builder;
 
+#pragma warning disable CS0618 // CredentialsPath/JsonCredentials are obsolete but replacements require significant refactoring
 		if (!string.IsNullOrWhiteSpace(_options.CredentialsJson))
 		{
 			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, JsonCredentials = _options.CredentialsJson };
@@ -922,6 +936,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		{
 			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId };
 		}
+#pragma warning restore CS0618
 
 		return await builder.BuildAsync().ConfigureAwait(false);
 	}

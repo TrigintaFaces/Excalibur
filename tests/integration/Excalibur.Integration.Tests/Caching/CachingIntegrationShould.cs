@@ -243,8 +243,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience();
-			_ = dispatch.AddDispatchCaching()
+			_ = dispatch.UseResilience();
+			_ = dispatch.UseCaching()
 				.WithCachingOptions(opt =>
 				{
 					opt.Enabled = true;
@@ -304,8 +304,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(o =>
 				{
 					o.UseDistributedCache = false;
@@ -358,8 +358,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(static o =>
 				{
 					o.Enabled = true;
@@ -411,23 +411,26 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddTransient<IActionHandler<CachingTestQuery, CachingTestResult>, CachingTestQueryHandler>();
 		_ = services.AddTransient<IActionHandler<InvalidateCacheCommand>, InvalidateCacheCommandHandler>();
 
+		// Register as singleton so we can retrieve the instance for assertions
+		_ = services.AddSingleton<TestTrackingMiddleware>();
+
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseMiddleware<TestTrackingMiddleware>()
+				.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(o =>
 				{
 					o.Enabled = true;
 					o.UseDistributedCache = false;
 				});
 		});
-		_ = services.AddSingleton<IDispatchMiddleware, TestTrackingMiddleware>();
 		var provider = services.BuildServiceProvider();
 		// Ensure the local bus is registered
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
-		var trackingMiddleware = (TestTrackingMiddleware)provider.GetServices<IDispatchMiddleware>().First(m => m is TestTrackingMiddleware);
+		var trackingMiddleware = provider.GetRequiredService<TestTrackingMiddleware>();
 
 		var query = new CachingTestQuery { Value = 789 };
 
@@ -461,8 +464,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(o =>
 				{
 					o.Enabled = true;
@@ -518,8 +521,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(static o =>
 				{
 					o.Enabled = true;
@@ -565,8 +568,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(static o =>
 				{
 					o.Enabled = true;
@@ -607,8 +610,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(o =>
 				{
 					o.Enabled = true;
@@ -664,8 +667,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(o =>
 				{
 					o.Enabled = true;
@@ -677,13 +680,14 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
 		var query = new CachingTestQuery { Value = 808 };
+		var context = new MessageContext(new TestDispatchAction(), provider);
 
 		// Act - first call caches the result
 		CachingTestQueryHandler.CallCount = 0;
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None);
+			query, context, CancellationToken.None);
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None);
+			query, context, CancellationToken.None);
 
 		// Assert cached
 		result1.Succeeded.ShouldBeTrue();
@@ -693,12 +697,13 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Invalidate
 		var invalidate = new InvalidateCacheCommand { TagsToInvalidate = ["test-tag"] };
 		_ = await dispatcher
-			.DispatchAsync(invalidate, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default)
+			.DispatchAsync(invalidate, context, cancellationToken: default)
 			;
 
 		// Act - after invalidation handler should run again
-		var result3 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
+		// Use polling helper because HybridCache tag invalidation may be eventually consistent
+		var result3 = await DispatchUntilHandlerRunsAgainAsync(
+			dispatcher, query, provider, baselineCallCount: 1, timeout: TimeSpan.FromSeconds(10));
 
 		// Assert - handler should be called twice: first call + third call after invalidation
 		CachingTestQueryHandler.CallCount.ShouldBe(2);

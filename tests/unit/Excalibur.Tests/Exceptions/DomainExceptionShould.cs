@@ -23,7 +23,7 @@ public sealed class DomainExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe("Exception within application logic.");
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -37,7 +37,7 @@ public sealed class DomainExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -52,7 +52,7 @@ public sealed class DomainExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -102,7 +102,7 @@ public sealed class DomainExceptionShould
 		// Act & Assert
 		var exception = Should.Throw<DomainException>(static () => DomainException.ThrowIf(true, message));
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -125,7 +125,7 @@ public sealed class DomainExceptionShould
 		// Act & Assert
 		var exception = Should.Throw<DomainException>(() => DomainException.ThrowIf(true, message, innerException));
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]

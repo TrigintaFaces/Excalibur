@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.Dispatch.Transport.Tests.Kafka;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class CorrelationIdShould
 {
 	private static readonly Guid TestGuid = Guid.Parse("01234567-89ab-cdef-0123-456789abcdef");

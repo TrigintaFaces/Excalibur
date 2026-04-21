@@ -2,6 +2,16 @@
 
 Azure messaging transport implementation for the Excalibur framework, providing integration with Azure Service Bus, Event Hubs, and Storage Queues.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.Azure` | Starter | + Resilience (Polly) + Observability |
+
+> **Tip:** If you are getting started, install `Excalibur.Dispatch.Azure` instead of this package directly. It includes production-ready defaults.
+
 ## Overview
 
 This package provides Azure messaging integration for Excalibur.Dispatch, enabling:

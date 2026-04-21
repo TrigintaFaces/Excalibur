@@ -3,15 +3,15 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Authentication;
 
 /// <summary>
 /// Unit tests for <see cref="AuthenticationFailedResult"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class AuthenticationFailedResultShould
 {
 	[Fact]
@@ -71,7 +71,7 @@ public sealed class AuthenticationFailedResultShould
 		var result = new AuthenticationFailedResult();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -171,7 +171,7 @@ public sealed class AuthenticationFailedResultShould
 		result.ErrorMessage = "Token validation failed";
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Token validation failed");
+		result.ErrorMessage!.ShouldBe("Token validation failed");
 	}
 
 	[Fact]
@@ -231,7 +231,7 @@ public sealed class AuthenticationFailedResultShould
 		result.RoutingDecision.ShouldBe(routingDecision);
 		result.ValidationResult.ShouldBe("valid");
 		result.AuthorizationResult.ShouldBe("denied");
-		result.ErrorMessage.ShouldBe("Invalid token signature");
+		result.ErrorMessage!.ShouldBe("Invalid token signature");
 		result.CacheHit.ShouldBeFalse();
 		result.Reason.ShouldBe(AuthenticationFailureReason.InvalidToken);
 	}

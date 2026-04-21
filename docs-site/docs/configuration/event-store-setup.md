@@ -10,7 +10,7 @@ This guide covers configuring event stores and registering aggregate repositorie
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -22,12 +22,12 @@ This guide covers configuring event stores and registering aggregate repositorie
 
 ```csharp
 // Configure event sourcing with provider and repositories in one builder
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseSqlServer(options => options.ConnectionString = connectionString)
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString))
       .AddRepository<OrderAggregate, Guid>(id => new OrderAggregate())
       .UseIntervalSnapshots(100);
-});
+}));
 ```
 
 ## Event Store Providers
@@ -40,49 +40,87 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 
 ```csharp
 // Recommended: Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseSqlServer(options =>
+    es.UseSqlServer(sql =>
     {
-        options.ConnectionString = connectionString;
-        options.HealthChecks.RegisterHealthChecks = true;
+        sql.ConnectionString(connectionString)
+           .EventStoreSchema("dbo")
+           .SnapshotStoreSchema("dbo");
     })
     .AddRepository<OrderAggregate, Guid>();
-});
+}));
 
 // This registers:
 // - IEventStore (SqlServerEventStore)
 // - ISnapshotStore (SqlServerSnapshotStore)
-// - IEventSourcedOutboxStore (SqlServerEventSourcedOutboxStore)
+// - ValidateOnStart (catches missing connection at startup)
+// Outbox is registered separately via services.AddExcalibur(x => x.AddOutbox(...))
 ```
 
-:::tip Alternative: Direct registration
-You can also register providers directly on `IServiceCollection` if you prefer separating provider setup from builder configuration:
+:::tip Connection overloads
+The SQL Server builder supports 4 connection methods (last-wins if multiple are called):
 
 ```csharp
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
-// or with connection factory
-services.AddSqlServerEventStore(() => new SqlConnection(connectionString));
+// 1. Direct connection string
+sql.ConnectionString(connectionString);
+
+// 2. Named connection string (resolved from IConfiguration)
+sql.ConnectionStringName("EventStore");
+
+// 3. Connection factory (Azure Managed Identity, Key Vault)
+sql.ConnectionFactory(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var connStr = config.GetConnectionString("EventStore")!;
+    return () => new SqlConnection(connStr);
+});
+
+// 4. Bind from appsettings.json section
+sql.BindConfiguration("EventSourcing:SqlServer");
 ```
 :::
 
 ### Postgres
 
 ```bash
-dotnet add package Excalibur.Data.Postgres
+dotnet add package Excalibur.EventSourcing.Postgres
 ```
 
 ```csharp
-// Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+// Fluent builder registration
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UsePostgres(options =>
+    es.UsePostgres(pg =>
     {
-        options.ConnectionString = connectionString;
-        options.HealthChecks.RegisterHealthChecks = true;
+        pg.ConnectionString(connectionString)
+          .EventStoreSchema("public")
+          .EventStoreTable("events");
     })
-      .AddRepository<OrderAggregate, Guid>();
-});
+    .AddRepository<OrderAggregate, Guid>();
+}));
+```
+
+:::tip Postgres connection overloads
+The Postgres builder supports 5 connection methods (last-wins if multiple are called):
+
+```csharp
+// 1. Direct connection string
+pg.ConnectionString(connectionString);
+
+// 2. Named connection string (resolved from IConfiguration)
+pg.ConnectionStringName("EventStore");
+
+// 3. Bind from appsettings.json section
+pg.BindConfiguration("EventSourcing:Postgres");
+
+// 4. Pre-configured NpgsqlDataSource (Azure, JSONB, custom pooling)
+pg.DataSource(preBuiltDataSource);
+
+// 5. DataSource factory (DI-aware creation)
+pg.DataSourceFactory(sp => NpgsqlDataSource.Create(connStr));
+```
+:::
 ```
 
 ### In-Memory (Testing)
@@ -93,11 +131,11 @@ dotnet add package Excalibur.EventSourcing.InMemory
 
 ```csharp
 // Builder-integrated registration
-services.AddExcaliburEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.UseInMemory()
       .AddRepository<OrderAggregate, Guid>();
-});
+}));
 ```
 
 ## Repository Registration
@@ -107,12 +145,12 @@ services.AddExcaliburEventSourcing(es =>
 Register repositories for your aggregates:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddRepository<OrderAggregate, Guid>();
     builder.AddRepository<CustomerAggregate, Guid>();
     builder.AddRepository<InventoryAggregate, string>();
-});
+}));
 ```
 
 ### Custom Factory
@@ -120,23 +158,49 @@ services.AddExcaliburEventSourcing(builder =>
 When your aggregate requires custom construction:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddRepository<OrderAggregate, Guid>(
         key => new OrderAggregate(key, tenantId));
-});
+}));
 ```
+
+### Per-Aggregate Repository Options
+
+Configure repository behavior per aggregate type using `EventSourcedRepositoryOptions`:
+
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
+{
+    builder.AddRepository<OrderAggregate, Guid>(
+        key => new OrderAggregate(key),
+        opts =>
+        {
+            opts.OutboxStagingStrategy = OutboxStagingStrategy.Transactional;
+            opts.EnableAutoUpcast = true;
+            opts.EnableAutoSnapshotUpgrade = true;
+            opts.TargetSnapshotVersion = 2;
+        });
+}));
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `OutboxStagingStrategy` | `Auto` | How integration events are staged to the outbox during save (`Auto`, `Transactional`, `EventuallyConsistent`, `Deferred`) |
+| `EnableAutoUpcast` | `false` | Apply upcasting pipeline during event replay |
+| `EnableAutoSnapshotUpgrade` | `false` | Upgrade snapshots on load via `SnapshotVersionManager` |
+| `TargetSnapshotVersion` | `1` | Target version for automatic snapshot upgrades |
 
 ### String-Keyed Aggregates
 
 For aggregates using string identifiers:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddRepository<LegacyOrderAggregate>(
         key => new LegacyOrderAggregate(key));
-});
+}));
 ```
 
 ## Event Serialization
@@ -159,10 +223,11 @@ services.AddJsonSerialization(options =>
 ### Custom Serializer
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
-    builder.UseEventSerializer<MessagePackEventSerializer>();
-});
+    // Register your custom IEventSerializer implementation
+    builder.UseEventSerializer<MyCustomEventSerializer>();
+}));
 ```
 
 ## Upcasting (Event Versioning)
@@ -170,7 +235,7 @@ services.AddExcaliburEventSourcing(builder =>
 Handle breaking changes in event schemas using message upcasters:
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddUpcastingPipeline(upcasting =>
     {
@@ -184,7 +249,7 @@ services.AddExcaliburEventSourcing(builder =>
         // Enable auto-upcasting during replay
         upcasting.EnableAutoUpcastOnReplay();
     });
-});
+}));
 
 // Define upcaster
 public class OrderCreatedV1ToV2Upcaster : IMessageUpcaster<OrderCreatedV1, OrderCreated>
@@ -233,16 +298,48 @@ CREATE TABLE [EventSourcing].[Snapshots] (
 
 ## Configuration Options
 
+### SqlServerEventSourcingOptions (All-in-One)
+
 | Option | Default | Description |
 |--------|---------|-------------|
 | `ConnectionString` | `null` | SQL Server connection string (required unless using factory) |
-| `EventStoreSchema` | `dbo` | Database schema for the events table |
-| `EventStoreTable` | `Events` | Name of events table |
-| `SnapshotStoreSchema` | `dbo` | Database schema for the snapshots table |
-| `SnapshotStoreTable` | `Snapshots` | Name of snapshots table |
-| `OutboxSchema` | `dbo` | Database schema for the outbox table |
-| `OutboxTable` | `EventSourcedOutbox` | Name of outbox table |
-| `RegisterHealthChecks` | `true` | Whether to register health checks |
+| `EventStoreSchema` | `"dbo"` | Database schema for the events table |
+| `EventStoreTable` | `"EventStoreEvents"` | Name of events table |
+| `SnapshotStoreSchema` | `"dbo"` | Database schema for the snapshots table |
+| `SnapshotStoreTable` | `"EventStoreSnapshots"` | Name of snapshots table |
+| `OutboxSchema` | `"dbo"` | Database schema for the partitioned outbox table |
+| `OutboxTable` | `"EventSourcedOutbox"` | Name of partitioned outbox table (unified outbox uses `services.AddExcalibur(x => x.AddOutbox(...))`) |
+| `HealthChecks.RegisterHealthChecks` | `true` | Whether to register health checks |
+
+All schema and table names are validated against SQL injection using `SqlIdentifierValidator` (alphanumeric + underscore whitelist, bracket-escaped in queries).
+
+### Per-Store Options
+
+When registering individual stores, use their lightweight options classes:
+
+| Options Class | Key Property | Used By |
+|---------------|-------------|---------|
+| `SqlServerEventStoreOptions` | `ConnectionString` | `AddSqlServerEventStore(Action<>)` |
+| `SqlServerSnapshotStoreOptions` | `ConnectionString` | `AddSqlServerSnapshotStore(Action<>)` |
+| `PostgresEventSourcingOptions` | `ConnectionString` | `es.UsePostgres(pg => pg.ConnectionString(...))` |
+
+### Custom Schema and Table Names
+
+To use custom table names (e.g., for multi-tenant isolation or naming conventions):
+
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+{
+    es.UseSqlServer(opts =>
+    {
+        opts.ConnectionString = connectionString;
+        opts.EventStoreSchema = "ordering";
+        opts.EventStoreTable = "DomainEvents";
+        opts.SnapshotStoreSchema = "ordering";
+        opts.SnapshotStoreTable = "AggregateSnapshots";
+    });
+}));
+```
 
 ## Multiple Event Stores
 

@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Unit tests for <see cref="SerializationHealthCheck"/> validating health check behavior
 /// for various serialization configurations.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class SerializationHealthCheckShould
 {
@@ -64,7 +64,7 @@ public sealed class SerializationHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Description.ShouldContain("No current serializer configured");
+		result.Description!.ShouldContain("No current serializer configured");
 	}
 
 	#endregion Unhealthy Tests
@@ -147,7 +147,7 @@ public sealed class SerializationHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Degraded);
-		result.Description.ShouldContain("failed");
+		result.Description!.ShouldContain("failed");
 		result.Data["failed_count"].ShouldBe(1);
 	}
 
@@ -168,7 +168,7 @@ public sealed class SerializationHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Degraded);
-		result.Description.ShouldContain("failed");
+		result.Description!.ShouldContain("failed");
 	}
 
 	/// <summary>

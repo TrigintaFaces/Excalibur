@@ -52,3 +52,49 @@ internal sealed class CachedMessageResult<T> : IMessageResult<T>
 	/// <inheritdoc />
 	object? IMessageResult.AuthorizationResult => null;
 }
+
+/// <summary>
+/// Non-generic cached message result for AOT scenarios where <see cref="Type.MakeGenericType"/>
+/// is unavailable. Wraps the cached value as <see cref="object"/>.
+/// </summary>
+[SuppressMessage(
+		"Performance",
+		"CA1812:Avoid uninstantiated internal classes",
+		Justification = "Instantiated in AOT path when RuntimeFeature.IsDynamicCodeSupported is false.")]
+internal sealed class CachedObjectMessageResult : IMessageResult
+{
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CachedObjectMessageResult"/> class.
+	/// </summary>
+	/// <param name="value">The cached return value.</param>
+	public CachedObjectMessageResult(object? value)
+	{
+		Succeeded = true;
+		ReturnValue = value;
+		CacheHit = true;
+		ProblemDetails = null;
+	}
+
+	/// <inheritdoc />
+	public bool Succeeded { get; }
+
+	/// <summary>
+	/// Gets the cached return value.
+	/// </summary>
+	public object? ReturnValue { get; }
+
+	/// <inheritdoc />
+	public bool CacheHit { get; }
+
+	/// <inheritdoc />
+	public IMessageProblemDetails? ProblemDetails { get; }
+
+	/// <inheritdoc />
+	public string? ErrorMessage => null;
+
+	/// <inheritdoc />
+	object? IMessageResult.ValidationResult => null;
+
+	/// <inheritdoc />
+	object? IMessageResult.AuthorizationResult => null;
+}

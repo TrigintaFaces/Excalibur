@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.BatchProcessing;
 /// <remarks>
 /// Tests the batch result struct for ArrayPool-backed batch processing.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "BatchProcessing")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.BatchProcessing)]
 [Trait("Priority", "0")]
 public sealed class BatchResultShould
 {

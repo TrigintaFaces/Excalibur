@@ -3,7 +3,7 @@ using Excalibur.Dispatch.Resilience;
 namespace Excalibur.Data.Tests.Abstractions;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CircuitBreakerOpenExceptionShould
 {
     [Fact]
@@ -14,7 +14,7 @@ public sealed class CircuitBreakerOpenExceptionShould
 
         // Assert
         exception.Message.ShouldContain("circuit breaker");
-        exception.InnerException.ShouldBeNull();
+        exception.InnerException!.ShouldBeNull();
         exception.RetryAfter.ShouldBeNull();
     }
 
@@ -30,7 +30,7 @@ public sealed class CircuitBreakerOpenExceptionShould
         // Assert
         exception.Message.ShouldContain(circuitName);
         exception.CircuitName.ShouldBe(circuitName);
-        exception.InnerException.ShouldBeNull();
+        exception.InnerException!.ShouldBeNull();
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class CircuitBreakerOpenExceptionShould
 
         // Assert
         exception.Message.ShouldBe(message);
-        exception.InnerException.ShouldBeSameAs(inner);
+        exception.InnerException!.ShouldBeSameAs(inner);
     }
 
     [Fact]

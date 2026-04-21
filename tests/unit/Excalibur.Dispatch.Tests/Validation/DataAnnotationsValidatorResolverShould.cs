@@ -10,7 +10,7 @@ using Excalibur.Dispatch.Validation.DataAnnotations;
 
 namespace Excalibur.Dispatch.Tests.Validation;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DataAnnotationsValidatorResolverShould
 {
@@ -555,7 +555,7 @@ public sealed class DataAnnotationsValidatorResolverShould
 		Assert.NotNull(result);
 		var serializableResult = result.ShouldBeOfType<SerializableValidationResult>();
 		var error = GetFirstError(serializableResult);
-		error.PropertyName.ShouldContain("Name");
+		error.PropertyName!.ShouldContain("Name");
 	}
 
 	[Fact]

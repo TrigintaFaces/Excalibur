@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -88,6 +87,8 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<Servi
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public Task<ServiceBusMessage> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -265,8 +266,10 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<Servi
 		applicationProperties[DispatchPrefix + attributeName] = value.ToString()!;
 	}
 
-	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureServiceBusCloudEventAdapter.ConvertToBinaryData(Object)")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureServiceBusCloudEventAdapter.ConvertToBinaryData(Object)")]
+	[RequiresUnreferencedCode(
+		"Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureServiceBusCloudEventAdapter.ConvertToBinaryData(Object)")]
+	[RequiresDynamicCode(
+		"Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureServiceBusCloudEventAdapter.ConvertToBinaryData(Object)")]
 	private static ServiceBusMessage CreateBinaryMessage(CloudEvent cloudEvent)
 	{
 		var message = new ServiceBusMessage(ConvertToBinaryData(cloudEvent.Data))

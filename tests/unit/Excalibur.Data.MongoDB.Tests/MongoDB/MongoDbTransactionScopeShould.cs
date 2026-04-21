@@ -14,8 +14,8 @@ namespace Excalibur.Data.Tests.MongoDB.Transactions;
 /// Unit tests for <see cref="MongoDbTransactionScope"/>.
 /// Validates Sprint 392 implementation: MongoDB Transaction Support.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class MongoDbTransactionScopeShould : IDisposable
 {
 	private readonly ILogger<MongoDbPersistenceProvider> _logger;

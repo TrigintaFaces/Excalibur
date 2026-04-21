@@ -1,10 +1,12 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
+using Excalibur.Compliance.Observability;
+using Excalibur.Compliance.Encryption;
 
 namespace Excalibur.Dispatch.Benchmarks.Serialization;
 

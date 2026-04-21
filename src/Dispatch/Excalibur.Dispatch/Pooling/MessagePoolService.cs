@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Pooling;
 /// <remarks> Initializes a new instance of the <see cref="MessagePoolService" /> class. </remarks>
 /// <param name="maxPoolSize"> Maximum size for each type-specific pool. </param>
 /// <param name="trackMetrics"> Whether to track detailed metrics. </param>
-public sealed class MessagePoolService(int maxPoolSize = 0, bool trackMetrics = false)
+internal sealed class MessagePoolService(int maxPoolSize = 0, bool trackMetrics = false)
 {
 	private readonly ConcurrentDictionary<Type, object> _pools = new();
 	private readonly int _maxPoolSize = maxPoolSize > 0 ? maxPoolSize : Environment.ProcessorCount * 4;

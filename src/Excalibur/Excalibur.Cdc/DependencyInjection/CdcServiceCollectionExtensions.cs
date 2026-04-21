@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Cdc;
 using Excalibur.Cdc.Processing;
 
@@ -91,6 +92,10 @@ public static class CdcServiceCollectionExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddCdcProcessor(
 		this IServiceCollection services,
 		Action<ICdcBuilder> configure)
@@ -159,7 +164,6 @@ public static class CdcServiceCollectionExtensions
 					opt.TrackedTables.Add(table);
 				}
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register the hosted service when background processing is enabled.
@@ -168,7 +172,6 @@ public static class CdcServiceCollectionExtensions
 		if (options.EnableBackgroundProcessing)
 		{
 			_ = services.AddOptions<CdcProcessingOptions>()
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 			services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<IValidateOptions<CdcProcessingOptions>, CdcProcessingOptionsValidator>());
@@ -229,9 +232,9 @@ public static class CdcServiceCollectionExtensions
 	private static void RegisterCoreServices(IServiceCollection services)
 	{
 		_ = services.AddOptions<CdcOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<CdcOptions>, DefaultCdcOptionsSetup>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CdcOptions>, CdcOptionsValidator>());
 	}
 
 	/// <summary>

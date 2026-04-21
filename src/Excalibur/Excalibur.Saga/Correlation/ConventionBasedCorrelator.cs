@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace Excalibur.Saga.Correlation;
@@ -55,6 +56,10 @@ public sealed class ConventionBasedCorrelator
 	/// <see langword="true"/> if a correlation ID was successfully extracted;
 	/// otherwise, <see langword="false"/>.
 	/// </returns>
+	[UnconditionalSuppressMessage("Trimming", "IL2067:Lambda parameter does not satisfy DAM on ResolveAccessor parameter",
+		Justification = "Message types are registered at composition time and their properties are preserved via source generation or explicit registration.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2072:GetType() return does not satisfy DAM on ResolveAccessor parameter",
+		Justification = "Message types are registered at composition time and their properties are preserved via source generation or explicit registration.")]
 	public bool TryGetCorrelationId(object message, out string? correlationId)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -73,7 +78,8 @@ public sealed class ConventionBasedCorrelator
 		return false;
 	}
 
-	private static Func<object, string?>? ResolveAccessor(Type messageType)
+	private static Func<object, string?>? ResolveAccessor(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type messageType)
 	{
 		// Phase 1: Attribute-based resolution
 		var attributeProperty = FindAttributeDecoratedProperty(messageType);
@@ -92,7 +98,8 @@ public sealed class ConventionBasedCorrelator
 		return null;
 	}
 
-	private static PropertyInfo? FindAttributeDecoratedProperty(Type type)
+	private static PropertyInfo? FindAttributeDecoratedProperty(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
 	{
 		return type
 			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -101,7 +108,8 @@ public sealed class ConventionBasedCorrelator
 				p.PropertyType == typeof(string));
 	}
 
-	private static PropertyInfo? FindConventionProperty(Type type)
+	private static PropertyInfo? FindConventionProperty(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
 	{
 		var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 

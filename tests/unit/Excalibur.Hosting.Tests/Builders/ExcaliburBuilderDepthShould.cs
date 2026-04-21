@@ -238,7 +238,7 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 		// Act
 		services.AddExcalibur(builder =>
 		{
-			result = builder.AddSagas(null);
+			result = builder.AddSagas((Action<SagaOptions>?)null);
 		});
 
 		// Assert
@@ -274,10 +274,10 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 		var services = new ServiceCollection();
 		IExcaliburBuilder? result = null;
 
-		// Act
+		// Act — AddLeaderElection now takes Action<ILeaderElectionBuilder> (S764 API unification)
 		services.AddExcalibur(builder =>
 		{
-			result = builder.AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromSeconds(60));
+			result = builder.AddLeaderElection(_ => { });
 		});
 
 		// Assert
@@ -285,55 +285,37 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ReturnSameBuilderFromAddLeaderElectionWithoutConfigure()
+	public void ThrowOnNullConfigureForAddLeaderElection()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		IExcaliburBuilder? result = null;
 
-		// Act
-		services.AddExcalibur(builder =>
-		{
-			result = builder.AddLeaderElection();
-		});
-
-		// Assert
-		result.ShouldNotBeNull();
+		// Act & Assert — configure is now required (no parameterless overload)
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddExcalibur(builder =>
+			{
+				builder.AddLeaderElection((Action<Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder>)null!);
+			}));
 	}
 
 	[Fact]
-	public void ReturnSameBuilderFromAddLeaderElectionWithNullConfigure()
+	public void RegisterLeaderElectionServicesViaBuilder()
 	{
 		// Arrange
-		var services = new ServiceCollection();
-		IExcaliburBuilder? result = null;
+		var servicesBefore = new ServiceCollection();
+		var servicesAfter = new ServiceCollection();
 
-		// Act
-		services.AddExcalibur(builder =>
+		// Act — AddLeaderElection registers leader election options via the builder
+		servicesBefore.AddExcalibur(_ => { });
+		var countBefore = servicesBefore.Count;
+
+		servicesAfter.AddExcalibur(builder =>
 		{
-			result = builder.AddLeaderElection(null);
+			builder.AddLeaderElection(_ => { });
 		});
 
-		// Assert
-		result.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void RegisterConfigureActionForAddLeaderElection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act — AddLeaderElection delegates to services.Configure<LeaderElectionOptions>(), which is deferred
-		services.AddExcalibur(builder =>
-		{
-			builder.AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromMinutes(5));
-		});
-
-		// Assert — resolve options from provider to verify configure was registered
-		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions>>().Value;
-		options.LeaseDuration.ShouldBe(TimeSpan.FromMinutes(5));
+		// Assert — AddLeaderElection should register additional services
+		servicesAfter.Count.ShouldBeGreaterThan(countBefore);
 	}
 
 	#endregion
@@ -355,7 +337,7 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 				.AddOutbox(_ => { })
 				.AddCdc(_ => { })
 				.AddSagas()
-				.AddLeaderElection();
+				.AddLeaderElection(_ => { });
 		});
 
 		// Assert — if chaining broke, finalResult would be null

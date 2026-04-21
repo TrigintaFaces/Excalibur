@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 
@@ -10,7 +11,6 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
@@ -21,6 +21,8 @@ using Excalibur.Dispatch.Routing.Builder;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Delivery;
 
@@ -67,7 +69,7 @@ internal sealed class Dispatcher(
 	internal const string LocalBusName = "local";
 
 	private static readonly Task<IMessageResult> CancelledResultTask =
-		Task.FromResult<IMessageResult>(Messaging.MessageResult.Cancelled());
+		Task.FromResult<IMessageResult>(MR.Cancelled());
 
 	private static readonly Task<IMessageResult> DirectLocalSuccessResultTask =
 		Task.FromResult(SimpleMessageResult.SuccessResult);
@@ -78,8 +80,6 @@ internal sealed class Dispatcher(
 	[ThreadStatic] private static Type? s_cachedDispatchInfoType;
 	[ThreadStatic] private static MessageDispatchInfo s_cachedDispatchInfo;
 	[ThreadStatic] private static bool s_cachedDispatchInfoInitialized;
-
-	private readonly ConcurrentDictionary<Type, bool> _middlewareBypassCache = new();
 
 	// PERF-T5: Per-type routing decision cache for deterministic routers.
 	// When the router is DefaultDispatchRouter (static rules), routing decisions are identical
@@ -101,8 +101,12 @@ internal sealed class Dispatcher(
 	// Combines 3 invariant checks into 1, reducing branch evaluations on every dispatch.
 	private readonly bool _directLocalNoRouterFastPath =
 		IsDirectLocalActionPathEnabled(middlewareInvoker, busOptionsMap) && localMessageBus is not null && dispatchRouter is null;
-	private readonly bool _correlationEnabled = dispatchOptions?.Value.Features.EnableCorrelation ?? true;
-	private readonly bool _ambientContextFlowEnabled = dispatchOptions?.Value.CrossCutting.Observability.EnableContextFlow ?? true;
+	// PERF: When UseLightMode is true, correlation is disabled to eliminate
+	// 2 volatile writes (MarkForLazyCorrelation/MarkForLazyCausation) per dispatch.
+	// Ambient context flow (AsyncLocal push/pop) is always enabled — it's required
+	// for DispatchChildAsync, correlation-aware logging, and middleware that reads
+	// MessageContextHolder.Current.
+	private readonly bool _correlationEnabled = ResolveCorrelationEnabled(dispatchOptions);
 
 	private readonly DirectLocalContextInitializationProfile _directLocalContextInitializationProfile =
 		dispatchOptions?.Value.CrossCutting.Performance.DirectLocalContextInitialization ??
@@ -130,6 +134,12 @@ internal sealed class Dispatcher(
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the dispatch result. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
 	public Task<IMessageResult> DispatchAsync<TMessage>(
 		TMessage message,
 		IMessageContext context,
@@ -138,6 +148,13 @@ internal sealed class Dispatcher(
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
+
+		// PERF: Delegate to concrete MessageContext overload for JIT devirtualization.
+		// >99% of dispatches use MessageContext, so this fast path is almost always taken.
+		if (context is MessageContext mc)
+		{
+			return DispatchAsync(message, mc, cancellationToken);
+		}
 
 		if (middlewareInvoker == null || finalHandler == null)
 		{
@@ -267,6 +284,173 @@ internal sealed class Dispatcher(
 	}
 
 	/// <summary>
+	/// Internal fast-path overload accepting concrete <see cref="MessageContext"/> to enable
+	/// JIT devirtualization of all property accesses during dispatch.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// When the JIT sees <c>MessageContext</c> instead of <c>IMessageContext</c>, it can
+	/// devirtualize property reads (MessageId, CorrelationId, CausationId, etc.) and
+	/// inline the property getters. This removes ~5-10ns per virtual call site in the hot path.
+	/// </para>
+	/// <para>
+	/// The public <see cref="DispatchAsync{TMessage}(TMessage, IMessageContext, CancellationToken)"/>
+	/// checks <c>context is MessageContext mc</c> and delegates here. Since &gt;99% of dispatches
+	/// use the concrete type, this fast path is almost always taken.
+	/// </para>
+	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+	internal Task<IMessageResult> DispatchAsync<TMessage>(
+		TMessage message,
+		MessageContext context,
+		CancellationToken cancellationToken)
+		where TMessage : IDispatchMessage
+	{
+		// Same logic as public DispatchAsync but with concrete MessageContext type,
+		// enabling JIT devirtualization of all context property accesses.
+		ArgumentNullException.ThrowIfNull(message);
+
+		// PERF: Check the fast path FIRST, before null checks and cancellation.
+		// _directLocalNoRouterFastPath is a pre-computed invariant that implies middlewareInvoker
+		// and finalHandler are non-null (requires DispatchMiddlewareInvoker + localMessageBus + no router).
+		// This eliminates 2 branch evaluations (null check + cancellation) on the hot path.
+		if (_directLocalNoRouterFastPath)
+		{
+			var messageType = typeof(TMessage).IsSealed || typeof(TMessage).IsValueType
+				? typeof(TMessage)
+				: message.GetType();
+
+			var dispatchInfo = GetMessageDispatchInfo(messageType);
+
+			if (dispatchInfo.CanBypassMiddleware &&
+			    RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
+			{
+				if (dispatchInfo.IsAction)
+				{
+					var action = (IDispatchAction)message;
+					if (dispatchInfo.DirectLocalNoResponseEligible &&
+					    TryDispatchUltraLocalNoResponseFast(
+						    message,
+						    action,
+						    context,
+						    dispatchInfo.DirectLocalNoResponseInvoker!,
+						    out var promotedTask,
+						    cancellationToken))
+					{
+						return promotedTask;
+					}
+
+					if (dispatchInfo.DirectLocalTypedEligible &&
+					    TryDispatchUltraLocalUntypedResponseFast(
+						    message,
+						    action,
+						    context,
+						    dispatchInfo.DirectLocalWithResponseInvoker!,
+						    out promotedTask,
+						    cancellationToken))
+					{
+						return promotedTask;
+					}
+
+					if (dispatchInfo.ExpectsResponse)
+					{
+						return DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken);
+					}
+
+					return DispatchDirectLocalActionAsync(message, action, context, cancellationToken);
+				}
+
+				if (dispatchInfo.IsEvent)
+				{
+					return DispatchDirectLocalEventAsync(message, (IDispatchEvent)message, context, cancellationToken);
+				}
+			}
+		}
+
+		if (middlewareInvoker == null || finalHandler == null)
+		{
+			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
+		}
+
+		if (cancellationToken.IsCancellationRequested && ShouldReturnCancelledResult(context))
+		{
+			return CancelledResultTask;
+		}
+
+		var routingMessageType = typeof(TMessage).IsSealed || typeof(TMessage).IsValueType
+			? typeof(TMessage)
+			: message.GetType();
+
+		var routingDispatchInfo = GetMessageDispatchInfo(routingMessageType);
+
+		var routingTask = EnsureRoutingDecisionAsync(message, context, cancellationToken);
+		if (!routingTask.IsCompletedSuccessfully)
+		{
+			return DispatchWithPreRoutingAsync(message, context, routingTask, routingDispatchInfo, cancellationToken);
+		}
+
+		var routingDecision = routingTask.Result;
+		if (routingDecision is { IsSuccess: false } failedDecision)
+		{
+			return Task.FromResult(CreateRoutingFailureResult(context, failedDecision));
+		}
+
+		if (_directLocalActionPathEnabled &&
+		    localMessageBus is not null &&
+		    routingDispatchInfo.CanBypassMiddleware &&
+		    IsLocalRoute(context))
+		{
+			if (routingDispatchInfo.IsAction)
+			{
+				var action = (IDispatchAction)message;
+				if (routingDispatchInfo.DirectLocalNoResponseEligible &&
+				    TryDispatchUltraLocalNoResponseFast(
+					    message,
+					    action,
+					    context,
+					    routingDispatchInfo.DirectLocalNoResponseInvoker!,
+					    out var promotedTask,
+					    cancellationToken))
+				{
+					return promotedTask;
+				}
+
+				if (routingDispatchInfo.DirectLocalTypedEligible &&
+				    TryDispatchUltraLocalUntypedResponseFast(
+					    message,
+					    action,
+					    context,
+					    routingDispatchInfo.DirectLocalWithResponseInvoker!,
+					    out promotedTask,
+					    cancellationToken))
+				{
+					return promotedTask;
+				}
+
+				if (routingDispatchInfo.ExpectsResponse)
+				{
+					return DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken);
+				}
+
+				return DispatchDirectLocalActionAsync(message, action, context, cancellationToken);
+			}
+
+			if (routingDispatchInfo.IsEvent)
+			{
+				return DispatchDirectLocalEventAsync(message, (IDispatchEvent)message, context, cancellationToken);
+			}
+		}
+
+		return DispatchOptimizedAsync(message, context, routingDispatchInfo.CanBypassMiddleware, cancellationToken);
+	}
+
+	/// <summary>
 	/// Dispatches an action through the pipeline and returns the response with high-performance optimizations.
 	/// </summary>
 	/// <typeparam name="TMessage"> The type of action to dispatch. </typeparam>
@@ -276,6 +460,12 @@ internal sealed class Dispatcher(
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the dispatch result with response. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
 	public Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
@@ -295,7 +485,9 @@ internal sealed class Dispatcher(
 			return CancelledResultTaskCache<TResponse>.Task;
 		}
 
-		var messageType = message.GetType();
+		var messageType = typeof(TMessage).IsSealed || typeof(TMessage).IsValueType
+			? typeof(TMessage)
+			: message.GetType();
 		var dispatchInfo = GetMessageDispatchInfo(messageType);
 		var canBypass = dispatchInfo.CanBypassMiddleware;
 
@@ -355,6 +547,12 @@ internal sealed class Dispatcher(
 
 	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
 	public ValueTask DispatchLocalAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
 		where TMessage : IDispatchAction
 	{
@@ -370,7 +568,7 @@ internal sealed class Dispatcher(
 			return new ValueTask(DispatchLocalFallbackAsync(message, cancellationToken));
 		}
 
-		if (localMessageBus.TryInvokeUltraLocalNoResponse(
+		if (localMessageBus!.TryInvokeUltraLocalNoResponse(
 			    message,
 			    cancellationToken,
 			    out var ultraLocalInvocation,
@@ -407,6 +605,12 @@ internal sealed class Dispatcher(
 
 	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
 	public ValueTask<TResponse?> DispatchLocalAsync<TMessage, TResponse>(
 		TMessage message,
 		CancellationToken cancellationToken)
@@ -424,7 +628,7 @@ internal sealed class Dispatcher(
 			return new ValueTask<TResponse?>(DispatchLocalFallbackWithResponseAsync<TMessage, TResponse>(message, cancellationToken));
 		}
 
-		if (localMessageBus.TryInvokeUltraLocal(
+		if (localMessageBus!.TryInvokeUltraLocal(
 			    message,
 			    cancellationToken,
 			    out var ultraLocalInvocation,
@@ -468,6 +672,8 @@ internal sealed class Dispatcher(
 		return ValueTask.FromException<TResponse?>(CreateMissingLocalHandlerException(messageType));
 	}
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private async Task<IMessageResult> DispatchWithPreRoutingAsync<TMessage>(
 		TMessage message,
 		IMessageContext context,
@@ -538,6 +744,8 @@ internal sealed class Dispatcher(
 		return await DispatchOptimizedAsync(message, context, canBypass, cancellationToken).ConfigureAwait(false);
 	}
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private async Task<IMessageResult<TResponse>> DispatchWithPreRoutingAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
@@ -641,6 +849,8 @@ internal sealed class Dispatcher(
 			$"Direct local dispatch returned {value.GetType().FullName}, expected {typeof(TResponse).FullName}.");
 	}
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private async Task DispatchLocalFallbackAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
 		where TMessage : IDispatchAction
 	{
@@ -656,6 +866,8 @@ internal sealed class Dispatcher(
 		}
 	}
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private async Task<TResponse?> DispatchLocalFallbackWithResponseAsync<TMessage, TResponse>(
 		TMessage message,
 		CancellationToken cancellationToken)
@@ -682,6 +894,8 @@ internal sealed class Dispatcher(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Direct invocation uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct invocation uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private bool TryInvokeDirectWithLazyContext<TMessage>(
 		TMessage message,
 		CancellationToken cancellationToken,
@@ -707,6 +921,8 @@ internal sealed class Dispatcher(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Direct invocation uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct invocation uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private bool TryInvokeDirectNoResponseWithLazyContext<TMessage>(
 		TMessage message,
 		CancellationToken cancellationToken,
@@ -766,17 +982,16 @@ internal sealed class Dispatcher(
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchMessage
 	{
-		if (cancellationToken.IsCancellationRequested)
-		{
-			if (ShouldReturnCancelledResult(context))
-			{
-				task = CancelledResultTask;
-				return true;
-			}
+		// PERF: Cancellation check removed — caller (DispatchAsync) already checks
+		// cancellationToken.IsCancellationRequested before calling this method.
+		// If the token becomes cancelled between the caller's check and handler invocation,
+		// the handler will throw OperationCanceledException which is caught below.
 
-			cancellationToken.ThrowIfCancellationRequested();
-		}
-
+		// PERF: Use ThreadStatic push/pop instead of AsyncLocal to avoid ~72B of
+		// ExecutionContext copies on the synchronous completion path (the common case).
+		// The handler can still read MessageContextHolder.Current during sync execution
+		// via the ThreadStatic fast path in the getter. If the handler goes async,
+		// we promote to AsyncLocal on the slow path.
 		var previous = PushAmbientContext(context);
 
 		try
@@ -792,8 +1007,8 @@ internal sealed class Dispatcher(
 				return true;
 			}
 
-			// Handler went async — ambient context already set by PushAmbientContext.
-			// Pop here (same EC where Push happened) before entering async continuation.
+			// Handler went async — promote ThreadStatic context to AsyncLocal for
+			// async continuation flow, then await the invocation.
 			PopAmbientContext(previous);
 			task = AwaitDirectLocalNoResponseAsync(invocation, context);
 
@@ -805,11 +1020,10 @@ internal sealed class Dispatcher(
 			task = CancelledResultTask;
 			return true;
 		}
-		catch (Exception ex)
+		catch (Exception)
 		{
 			PopAmbientContext(previous);
-			task = Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
-			return true;
+			throw;
 		}
 	}
 
@@ -823,17 +1037,10 @@ internal sealed class Dispatcher(
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchMessage
 	{
-		if (cancellationToken.IsCancellationRequested)
-		{
-			if (ShouldReturnCancelledResult(context))
-			{
-				task = CancelledResultTask;
-				return true;
-			}
+		// PERF: Cancellation check removed — caller (DispatchAsync) already checks
+		// cancellationToken.IsCancellationRequested before calling this method.
 
-			cancellationToken.ThrowIfCancellationRequested();
-		}
-
+		// PERF: ThreadStatic push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
 		var previous = PushAmbientContext(context);
 
 		try
@@ -850,8 +1057,7 @@ internal sealed class Dispatcher(
 				return true;
 			}
 
-			// Handler went async — ambient context already set by PushAmbientContext.
-			// Pop here (same EC where Push happened) before entering async continuation.
+			// Handler went async — promote to AsyncLocal for continuation flow.
 			PopAmbientContext(previous);
 			task = AwaitDirectLocalUntypedWithResponseAsync(invocation, context);
 
@@ -863,11 +1069,10 @@ internal sealed class Dispatcher(
 			task = CancelledResultTask;
 			return true;
 		}
-		catch (Exception ex)
+		catch (Exception)
 		{
 			PopAmbientContext(previous);
-			task = Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
-			return true;
+			throw;
 		}
 	}
 
@@ -880,17 +1085,11 @@ internal sealed class Dispatcher(
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchAction<TResponse>
 	{
-		if (cancellationToken.IsCancellationRequested)
-		{
-			if (ShouldReturnCancelledResult(context))
-			{
-				task = CancelledResultTaskCache<TResponse>.Task;
-				return true;
-			}
+		// PERF: Cancellation check removed — caller (DispatchAsync<TMessage, TResponse>) already
+		// checks cancellationToken.IsCancellationRequested before calling this method.
+		// Saves one branch + ShouldReturnCancelledResult per dispatch.
 
-			cancellationToken.ThrowIfCancellationRequested();
-		}
-
+		// PERF: ThreadStatic push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
 		var previous = PushAmbientContext(context);
 
 		try
@@ -906,8 +1105,7 @@ internal sealed class Dispatcher(
 				return true;
 			}
 
-			// Handler went async — ambient context already set by PushAmbientContext.
-			// Pop here (same EC where Push happened) before entering async continuation.
+			// Handler went async — promote to AsyncLocal for continuation flow.
 			PopAmbientContext(previous);
 			task = AwaitDirectLocalWithResponseAsync<TResponse>(invocation, context);
 
@@ -919,11 +1117,10 @@ internal sealed class Dispatcher(
 			task = CancelledResultTaskCache<TResponse>.Task;
 			return true;
 		}
-		catch (Exception ex)
+		catch (Exception)
 		{
 			PopAmbientContext(previous);
-			task = Task.FromResult(CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed"));
-			return true;
+			throw;
 		}
 	}
 
@@ -1020,7 +1217,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
+			return MR.Cancelled();
 		}
 	}
 
@@ -1105,7 +1302,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return MessageResultOfT<TResponse>.Cancelled();
+			return MR.Cancelled<TResponse>();
 		}
 	}
 
@@ -1159,6 +1356,15 @@ internal sealed class Dispatcher(
 		where TMessage : IDispatchMessage
 	{
 		context.Message = message;
+
+		// PERF: In Lean profile, skip correlation/causation volatile writes entirely.
+		// The ultra-local fast path never reads CorrelationId/CausationId, and the context
+		// is recycled immediately after dispatch. Saves 4 volatile writes (~8-12ns).
+		if (_directLocalContextInitializationProfile == DirectLocalContextInitializationProfile.Lean)
+		{
+			return;
+		}
+
 		if (_correlationEnabled)
 		{
 			if (context is MessageContext messageContext)
@@ -1174,11 +1380,6 @@ internal sealed class Dispatcher(
 					context.CausationId = context.CorrelationId;
 				}
 			}
-		}
-
-		if (_directLocalContextInitializationProfile == DirectLocalContextInitializationProfile.Lean)
-		{
-			return;
 		}
 
 		if (context.GetMessageType() is null)
@@ -1277,11 +1478,7 @@ internal sealed class Dispatcher(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return Messaging.MessageResult.Failure(
-			problem,
-			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(problem);
 	}
 
 	private static IMessageResult<TResponse> CreateRoutingFailureResult<TResponse>(
@@ -1297,13 +1494,11 @@ internal sealed class Dispatcher(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return MessageResultOfT<TResponse>.Failure(
-			problem,
-			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed<TResponse>(problem?.Detail, problem);
 	}
 
+	[RequiresUnreferencedCode("Direct local action dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local action dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private Task<IMessageResult> DispatchDirectLocalActionAsync<TMessage>(
 		TMessage message,
 		IDispatchAction action,
@@ -1381,10 +1576,6 @@ internal sealed class Dispatcher(
 			{
 				return CancelledResultTask;
 			}
-			catch (Exception ex)
-			{
-				return Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
-			}
 		}
 		finally
 		{
@@ -1392,6 +1583,8 @@ internal sealed class Dispatcher(
 		}
 	}
 
+	[RequiresUnreferencedCode("Direct local action dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local action dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private Task<IMessageResult<TResponse>> DispatchDirectLocalActionWithResponseAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
@@ -1415,7 +1608,7 @@ internal sealed class Dispatcher(
 		{
 			try
 			{
-				var hasTypedUltraLocal = localMessageBus.TryInvokeUltraLocalTyped<TMessage, TResponse>(
+				var hasTypedUltraLocal = localMessageBus!.TryInvokeUltraLocalTyped<TMessage, TResponse>(
 					message,
 					cancellationToken,
 					out var typedUltraLocalInvocation,
@@ -1488,10 +1681,6 @@ internal sealed class Dispatcher(
 			{
 				return CancelledResultTaskCache<TResponse>.Task;
 			}
-			catch (Exception ex)
-			{
-				return Task.FromResult(CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed"));
-			}
 		}
 		finally
 		{
@@ -1499,6 +1688,8 @@ internal sealed class Dispatcher(
 		}
 	}
 
+	[RequiresUnreferencedCode("Direct local action dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local action dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private Task<IMessageResult> DispatchDirectLocalActionUntypedWithResponseAsync<TMessage>(
 		TMessage message,
 		IDispatchAction action,
@@ -1523,7 +1714,7 @@ internal sealed class Dispatcher(
 		{
 			try
 			{
-				var hasUltraLocal = localMessageBus.TryInvokeUltraLocal(
+				var hasUltraLocal = localMessageBus!.TryInvokeUltraLocal(
 					action,
 					cancellationToken,
 					out var ultraLocalInvocation,
@@ -1578,10 +1769,6 @@ internal sealed class Dispatcher(
 			{
 				return CancelledResultTask;
 			}
-			catch (Exception ex)
-			{
-				return Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
-			}
 		}
 		finally
 		{
@@ -1589,6 +1776,8 @@ internal sealed class Dispatcher(
 		}
 	}
 
+	[RequiresUnreferencedCode("Direct local event dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local event dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private Task<IMessageResult> DispatchDirectLocalEventAsync<TMessage>(
 		TMessage message,
 		IDispatchEvent evt,
@@ -1626,10 +1815,6 @@ internal sealed class Dispatcher(
 			{
 				return CancelledResultTask;
 			}
-			catch (Exception ex)
-			{
-				return Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local event dispatch failed"));
-			}
 		}
 		finally
 		{
@@ -1646,11 +1831,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
+			return MR.Cancelled();
 		}
 	}
 
@@ -1663,11 +1844,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
+			return MR.Cancelled();
 		}
 	}
 
@@ -1682,11 +1859,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return MessageResultOfT<TResponse>.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed");
+			return MR.Cancelled<TResponse>();
 		}
 	}
 
@@ -1701,11 +1874,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return MessageResultOfT<TResponse>.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed");
+			return MR.Cancelled<TResponse>();
 		}
 	}
 
@@ -1720,11 +1889,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return MessageResultOfT<TResponse>.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed");
+			return MR.Cancelled<TResponse>();
 		}
 	}
 
@@ -1740,11 +1905,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
+			return MR.Cancelled();
 		}
 	}
 
@@ -1759,11 +1920,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
+			return MR.Cancelled();
 		}
 	}
 
@@ -1776,11 +1933,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local event dispatch failed");
+			return MR.Cancelled();
 		}
 	}
 
@@ -1896,47 +2049,6 @@ internal sealed class Dispatcher(
 		return CreateDirectLocalTypedSuccessResult(ResolveResponseValue<TResponse>(context), context);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static IMessageResult CreateDirectLocalFailureResult(Exception ex, IMessageContext context, string title)
-	{
-		var problem = new MessageProblemDetails
-		{
-			Type = "dispatch.handler_error",
-			Title = title,
-			Status = 500,
-			Detail = ex.Message,
-			Instance = Guid.NewGuid().ToString(),
-		};
-
-		return Messaging.MessageResult.Failure(
-			problem,
-			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static IMessageResult<TResponse> CreateDirectLocalFailureResult<TResponse>(
-		Exception ex,
-		IMessageContext context,
-		string title)
-	{
-		var problem = new MessageProblemDetails
-		{
-			Type = "dispatch.handler_error",
-			Title = title,
-			Status = 500,
-			Detail = ex.Message,
-			Instance = Guid.NewGuid().ToString(),
-		};
-
-		return MessageResultOfT<TResponse>.Failure(
-			problem,
-			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
-	}
-
 	private static IMessageResult<TResponse> ConvertResult<TResponse>(IMessageResult result, IMessageContext context)
 	{
 		if (result is IMessageResult<TResponse> typedResult)
@@ -2001,7 +2113,7 @@ internal sealed class Dispatcher(
 	private static class CancelledResultTaskCache<TResponse>
 	{
 		internal static readonly Task<IMessageResult<TResponse>> Task =
-			System.Threading.Tasks.Task.FromResult<IMessageResult<TResponse>>(MessageResultOfT<TResponse>.Cancelled());
+			System.Threading.Tasks.Task.FromResult<IMessageResult<TResponse>>(MR.Cancelled<TResponse>());
 	}
 
 	private static class ResponseTypeTraits<TResponse>
@@ -2022,32 +2134,40 @@ internal sealed class Dispatcher(
 		return !(busOptionsMap?.TryGetValue(LocalBusName, out var localOptions) == true && localOptions?.EnableRetries == true);
 	}
 
+	/// <summary>
+	/// Resolves whether correlation tracking is enabled, accounting for <c>UseLightMode</c>.
+	/// When <c>UseLightMode</c> is true, correlation is disabled to eliminate
+	/// 2 volatile writes (MarkForLazyCorrelation + MarkForLazyCausation) per dispatch.
+	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private bool CanBypassMiddlewareForMessage(IDispatchMessage message)
+	private static bool ResolveCorrelationEnabled(IOptions<DispatchOptions>? options)
 	{
-		if (_canBypassAllMiddleware)
+		if (options?.Value is not { } opts)
 		{
 			return true;
 		}
 
-		if (_concreteMiddlewareInvoker is null)
+		if (opts.UseLightMode)
 		{
 			return false;
 		}
 
-		var messageType = message.GetType();
-		return _middlewareBypassCache.GetOrAdd(
-			messageType,
-			static (type, invoker) => invoker.CanBypassFor(type),
-			_concreteMiddlewareInvoker);
+		return opts.Features.EnableCorrelation;
 	}
 
+	/// <summary>
+	/// Resolves whether ambient context flow is enabled, accounting for <c>UseLightMode</c>.
+	/// When <c>UseLightMode</c> is true, ambient context flow is disabled to eliminate
+	/// 2 AsyncLocal&lt;T&gt;.Value writes (~100B ExecutionContext copy each) per dispatch.
+	/// </summary>
 	/// <summary>
 	/// Gets combined dispatch info for a message type in a single cache lookup, replacing
 	/// repeated type checks and middleware applicability queries with one
 	/// <see cref="ConcurrentDictionary{TKey,TValue}"/> access.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Dispatch info resolution uses reflection for type analysis and fast-path invoker construction.")]
+	[RequiresDynamicCode("Dispatch info resolution uses MakeGenericType/MakeGenericMethod for typed invoker construction.")]
 	private MessageDispatchInfo GetMessageDispatchInfo(Type messageType)
 	{
 		if (ReferenceEquals(s_cachedDispatchInfoDispatcher, this) &&
@@ -2122,6 +2242,8 @@ internal sealed class Dispatcher(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Fast-path resolution uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Fast-path resolution uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private bool TryGetDirectLocalFastPath(
 		Type messageType,
 		out bool expectsResponse,
@@ -2245,26 +2367,19 @@ internal sealed class Dispatcher(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private IMessageContext? PushAmbientContext(IMessageContext context)
+	private static IMessageContext? PushAmbientContext(IMessageContext context)
 	{
-		if (!_ambientContextFlowEnabled)
-		{
-			return null;
-		}
-
 		var previous = MessageContextHolder.Current;
 		MessageContextHolder.Current = context;
 		return previous;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void PopAmbientContext(IMessageContext? previous)
+	private static void PopAmbientContext(IMessageContext? previous)
 	{
-		if (_ambientContextFlowEnabled)
-		{
-			MessageContextHolder.Current = previous;
-		}
+		MessageContextHolder.Current = previous;
 	}
+
 
 	/// <summary>
 	/// Dispatches a document to a streaming handler and returns the output stream.

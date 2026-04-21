@@ -23,7 +23,9 @@ namespace Excalibur.Cdc;
 /// </list>
 /// </para>
 /// </remarks>
+#pragma warning disable CA1711 // Identifier 'EventArgs' suffix is intentional — this type represents event arguments
 public sealed class CdcPositionResetEventArgs
+#pragma warning restore CA1711
 {
 	/// <summary>
 	/// Gets or sets the unique identifier of the CDC processor instance.
@@ -143,7 +145,7 @@ public sealed class CdcPositionResetEventArgs
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// Recovery may be attempted multiple times based on <see cref="CdcRecoveryOptions.MaxRecoveryAttempts"/>.
+	/// Recovery may be attempted multiple times based on <see cref="CdcOptions.MaxRecoveryAttempts"/>.
 	/// This property indicates which attempt is currently in progress.
 	/// </para>
 	/// </remarks>

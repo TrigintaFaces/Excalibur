@@ -8,7 +8,7 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// <summary>
 /// Unit tests for <see cref="DataChangeType"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
 [Trait("Feature", "Cdc")]
 public sealed class DataChangeTypeShould : UnitTestBase

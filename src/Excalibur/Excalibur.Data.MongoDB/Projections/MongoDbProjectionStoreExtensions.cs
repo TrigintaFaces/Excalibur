@@ -36,8 +36,8 @@ public static class MongoDbProjectionStoreExtensions
 		// Configure options
 		_ = services.AddOptions<MongoDbProjectionStoreOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbProjectionStoreOptions>, MongoDbProjectionStoreOptionsValidator>());
 
 		// Register projection store
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
@@ -104,8 +104,8 @@ public static class MongoDbProjectionStoreExtensions
 		// Configure options
 		_ = services.AddOptions<MongoDbProjectionStoreOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbProjectionStoreOptions>, MongoDbProjectionStoreOptionsValidator>());
 
 		// Register projection store with client factory
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
@@ -116,6 +116,76 @@ public static class MongoDbProjectionStoreExtensions
 
 			return new MongoDbProjectionStore<TProjection>(client, options, logger);
 		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple MongoDB projection stores that share a common connection string
+	/// and database name, reducing boilerplate when multiple projections target the same database.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The shared MongoDB connection string.</param>
+	/// <param name="databaseName">The shared MongoDB database name.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddMongoDbProjections("mongodb://localhost:27017", "mydb", projections =>
+	/// {
+	///     projections.Add&lt;OrderSummary&gt;();
+	///     projections.Add&lt;CustomerProfile&gt;(options => options.CollectionName = "customers");
+	///     projections.Add&lt;ProductCatalog&gt;();
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddMongoDbProjections(
+		this IServiceCollection services,
+		string connectionString,
+		string databaseName,
+		Action<MongoDbProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new MongoDbProjectionRegistrar(services, connectionString, databaseName);
+		configure(registrar);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple MongoDB projection stores with shared options configuration,
+	/// allowing advanced settings like custom timeouts, SSL, and pool sizes.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureShared">Shared options applied to all projections before per-projection overrides.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddMongoDbProjections(
+	///     shared => { shared.ConnectionString = connStr; shared.DatabaseName = "mydb"; shared.UseSsl = true; },
+	///     projections =>
+	///     {
+	///         projections.Add&lt;OrderSummary&gt;();
+	///         projections.Add&lt;CustomerProfile&gt;(options => options.CollectionName = "customers");
+	///     });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddMongoDbProjections(
+		this IServiceCollection services,
+		Action<MongoDbProjectionStoreOptions> configureShared,
+		Action<MongoDbProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configureShared);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new MongoDbProjectionRegistrar(services, configureShared);
+		configure(registrar);
 
 		return services;
 	}

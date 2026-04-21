@@ -18,8 +18,8 @@ public sealed class PublishingErrorShould
 
 		// Assert
 		error.MessageId.ShouldBe("msg-1");
-		error.Error.ShouldBe("Connection refused");
-		error.Exception.ShouldBeNull();
+		error.Error!.ShouldBe("Connection refused");
+		error.Exception!.ShouldBeNull();
 		error.Timestamp.ShouldBeGreaterThan(DateTimeOffset.MinValue);
 	}
 
@@ -33,7 +33,7 @@ public sealed class PublishingErrorShould
 		var error = new PublishingError("msg-1", "Failed", ex);
 
 		// Assert
-		error.Exception.ShouldBe(ex);
+		error.Exception!.ShouldBe(ex);
 	}
 
 	[Fact]

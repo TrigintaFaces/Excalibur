@@ -18,9 +18,12 @@ namespace Excalibur.Saga.Orchestration;
 /// </summary>
 /// <param name="sagaStore"> Persistent store for saga state management and retrieval operations. </param>
 /// <param name="serviceProvider"> Service provider for DI-aware saga instantiation via ActivatorUtilities. </param>
-/// <param name="loggerFactory"> Factory for creating saga-specific loggers for business logic tracing. </param>
-public sealed class SagaManager(ISagaStore sagaStore, IServiceProvider serviceProvider, ILoggerFactory loggerFactory)
+/// <param name="loggerFactory"> Factory for creating saga-specific loggers for business logic tracing. Reserved for future use. </param>
+internal sealed class SagaManager(ISagaStore sagaStore, IServiceProvider serviceProvider, ILoggerFactory loggerFactory)
 {
+	// Reserved for future use: saga-specific loggers for business logic tracing
+	private readonly ILoggerFactory _loggerFactory = loggerFactory;
+
 	/// <summary>
 	/// Handles an event for a specific saga instance by loading state, processing the event, and persisting changes. This method manages
 	/// the complete saga event processing lifecycle including state management and saga instantiation. Creates new saga state if none
@@ -35,7 +38,7 @@ public sealed class SagaManager(ISagaStore sagaStore, IServiceProvider servicePr
 	/// <exception cref="ArgumentNullException"> Thrown when event parameter is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when saga cannot be instantiated or state cannot be managed. </exception>
 	/// <exception cref="ConcurrencyException"> Thrown when the saga state was modified by another handler between load and save. </exception>
-	// MA0038: Cannot make method static - requires access to sagaStore and loggerFactory instance fields from primary constructor
+	// MA0038: Cannot make method static - requires access to sagaStore and serviceProvider instance fields from primary constructor
 #pragma warning disable MA0038
 
 	// AD-541.4: Use ActivatorUtilities.CreateInstance for DI-aware saga creation (fixes missing IDispatcher)

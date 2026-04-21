@@ -14,8 +14,8 @@ namespace Excalibur.Data.Tests.InMemory;
 /// Depth tests for InMemoryTransactionScope (accessed via InMemoryPersistenceProvider.CreateTransactionScope).
 /// Covers commit, rollback, callbacks, disposal, and provider enlistment.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemoryTransactionScopeDepthShould
 {
 	private InMemoryPersistenceProvider CreateProvider()

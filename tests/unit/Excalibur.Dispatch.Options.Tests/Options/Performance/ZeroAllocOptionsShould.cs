@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Options.Performance;
 /// Unit tests for <see cref="ZeroAllocOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class ZeroAllocOptionsShould
 {

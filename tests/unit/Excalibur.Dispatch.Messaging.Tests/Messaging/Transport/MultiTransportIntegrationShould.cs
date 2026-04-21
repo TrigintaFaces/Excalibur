@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// Tests publishing to multiple transports, per-transport delivery status,
 /// routing configuration, default transport fallback, and error handling.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class MultiTransportIntegrationShould
 {
@@ -296,12 +296,12 @@ public sealed class MultiTransportIntegrationShould
 		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
 		var options = A.Fake<MessageBusOptions>();
 
-		// Act
+		// Act - InitializeAsync is now on IMessageBusAdapterLifecycle (ISP split in Sprint 745)
 		await multiAdapter.InitializeAsync(options, CancellationToken.None);
 
-		// Assert
-		_ = A.CallTo(() => adapter1.InitializeAsync(options, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		_ = A.CallTo(() => adapter2.InitializeAsync(options, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		// Assert - verify via the lifecycle sub-interface
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter1).InitializeAsync(options, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter2).InitializeAsync(options, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]

@@ -1,10 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsAotCompatible>true</IsAotCompatible>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <DefineConstants>$(DefineConstants);AWS_LAMBDA_SUPPORT</DefineConstants>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <RootNamespace>Excalibur.Dispatch.Hosting.AwsLambda</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Hosting.AwsLambda</AssemblyName>
     <PackageId>$(AssemblyName)</PackageId>
@@ -26,6 +25,8 @@
     <PackageReference Include="Amazon.Lambda.DynamoDBEvents" />
     <PackageReference Include="Amazon.Lambda.KinesisEvents" Condition="'$(AllowAwsSdkV4)' == 'true'" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Hosting.Serverless.Tests" />
@@ -34,9 +35,5 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Functional" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

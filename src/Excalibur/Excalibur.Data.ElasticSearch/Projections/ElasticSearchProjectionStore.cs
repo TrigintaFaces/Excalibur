@@ -22,6 +22,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.ElasticSearch.Projections;
 
+#pragma warning disable CS8604 // Possible null reference argument -- Elastic client API nullability annotations are overly strict for query builder lambdas
+
 /// <summary>
 /// ElasticSearch implementation of <see cref="IProjectionStore{TProjection}"/>.
 /// </summary>
@@ -86,7 +88,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_indexName = ResolveIndexName(_options, _projectionType);
+		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName(_options, _projectionType);
 	}
 
 	/// <summary>
@@ -110,18 +112,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_indexName = ResolveIndexName(_options, _projectionType);
-	}
-
-	private static string ResolveIndexName(ElasticSearchProjectionStoreOptions options, string projectionType)
-	{
-		var name = !string.IsNullOrWhiteSpace(options.IndexName)
-			? options.IndexName
-			: projectionType.ToLowerInvariant();
-
-		return string.IsNullOrWhiteSpace(options.IndexPrefix)
-			? name
-			: $"{options.IndexPrefix}-{name}";
+		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName(_options, _projectionType);
 	}
 
 	private enum ProjectionFieldType
@@ -151,7 +142,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var response = await _client
+		var response = await _client!
 			.GetAsync<ElasticSearchProjectionDocument>(_indexName, id, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -194,7 +185,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var document = ElasticSearchProjectionDocument.FromProjection(id, _projectionType, projection);
 
 		// IndexAsync with same ID performs upsert (insert or replace)
-		var response = await _client
+		var response = await _client!
 			.IndexAsync(document, _indexName, id, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -228,7 +219,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var deleteRequest = new DeleteRequest(_indexName, new Id(id));
-		var response = await _client
+		var response = await _client!
 			.DeleteAsync(deleteRequest, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -264,8 +255,8 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		var searchRequest = BuildSearchRequest(filters, options);
 
-		var response = await _client
-			.SearchAsync(searchRequest, cancellationToken)
+		var response = await _client!
+			.SearchAsync<ElasticSearchProjectionDocument>(searchRequest, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (!response.IsValidResponse)
@@ -310,7 +301,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		var query = BuildQuery(filters);
 
-		var response = await _client
+		var response = await _client!
 			.CountAsync<ElasticSearchProjectionDocument>(c => c
 				.Indices(_indexName)
 				.Query(query), cancellationToken)
@@ -416,7 +407,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		return q => q.Terms(t => t
 			.Field(GetExactMatchFieldName(fieldName, fieldType))
-			.Term(new TermsQueryField(values)));
+			.Terms(new TermsQueryField(values)));
 	}
 
 	private static FieldValue ConvertToFieldValue(object? value)
@@ -751,7 +742,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 	private async Task CreateIndexIfNotExistsAsync(CancellationToken cancellationToken)
 	{
-		var existsResponse = await _client.Indices
+		var existsResponse = await _client!.Indices
 			.ExistsAsync(_indexName, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -766,7 +757,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		// - Strings become text with .keyword subfield
 		// - Numbers become long/double
 		// - Dates become date
-		var createResponse = await _client.Indices
+		var createResponse = await _client!.Indices
 			.CreateAsync(_indexName, c => c
 				.Settings(s => s
 					.NumberOfShards(_options.NumberOfShards)
@@ -835,7 +826,9 @@ public sealed partial class ElasticSearchProjectionStore<
 		public static ElasticSearchProjectionDocument FromProjection<T>(string id, string projectionType, T projection)
 			where T : class
 		{
+			#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 			var json = JsonSerializer.Serialize(projection, JsonOptions);
+			#pragma warning restore IL2026, IL3050
 			var data = JsonDocument.Parse(json).RootElement;
 
 			return new ElasticSearchProjectionDocument
@@ -860,7 +853,9 @@ public sealed partial class ElasticSearchProjectionStore<
 				return null;
 			}
 
+			#pragma warning disable IL2026, IL3050 // JSON deserialization uses reflection
 			return JsonSerializer.Deserialize<T>(Data.GetRawText(), JsonOptions);
+			#pragma warning restore IL2026, IL3050
 		}
 	}
 

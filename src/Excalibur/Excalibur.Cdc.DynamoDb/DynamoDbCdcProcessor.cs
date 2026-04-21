@@ -87,7 +87,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		await InitializeAsync(cancellationToken).ConfigureAwait(false);
-		LogStartingCdcProcessor(_options.ProcessorName, _streamArn);
+		LogStartingCdcProcessor(_options.ProcessorName, _streamArn!);
 
 		while (!cancellationToken.IsCancellationRequested)
 		{
@@ -187,7 +187,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 		_disposed = true;
 		_processingLock.Dispose();
-		(_stateStore as IDisposable)?.Dispose();
+		_stateStore?.Dispose();
 	}
 
 	private static DynamoDbDataChangeType MapChangeType(OperationType operationType)
@@ -294,7 +294,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 			iteratorRequest.ShardIteratorType = ShardIteratorType.AFTER_SEQUENCE_NUMBER;
 			iteratorRequest.SequenceNumber = sequenceNumber;
 		}
-		else if (_currentPosition.IsBeginning)
+		else if (_currentPosition!.IsBeginning)
 		{
 			iteratorRequest.ShardIteratorType = ShardIteratorType.TRIM_HORIZON;
 		}
@@ -409,7 +409,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		var newImage = DynamoDbAttributeValueConverter.ToAttributeValueMap(streamRecord.NewImage);
 		var oldImage = DynamoDbAttributeValueConverter.ToAttributeValueMap(streamRecord.OldImage);
 
-		var position = _currentPosition.WithShardPosition(shardId, sequenceNumber);
+		var position = _currentPosition!.WithShardPosition(shardId, sequenceNumber);
 		var changeType = MapChangeType(record.EventName);
 
 		return changeType switch

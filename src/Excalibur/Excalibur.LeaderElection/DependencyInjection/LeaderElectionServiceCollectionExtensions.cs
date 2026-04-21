@@ -2,23 +2,27 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.LeaderElection;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for configuring leader election services.
+/// Internal extension methods for configuring leader election services. Consumers opt-in via
+/// <c>IExcaliburBuilder.AddLeaderElection(...)</c> (see <c>LeaderElectionExcaliburBuilderExtensions</c>).
 /// </summary>
-public static class LeaderElectionServiceCollectionExtensions
+internal static class LeaderElectionServiceCollectionExtensions
 {
 	/// <summary>
 	/// Adds leader election services to the service collection with default options.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddExcaliburLeaderElection(this IServiceCollection services)
+	internal static IServiceCollection AddExcaliburLeaderElection(this IServiceCollection services)
 	{
 		return services.AddExcaliburLeaderElection(static (LeaderElectionOptions _) => { });
 	}
@@ -29,7 +33,7 @@ public static class LeaderElectionServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure leader election options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddExcaliburLeaderElection(
+	internal static IServiceCollection AddExcaliburLeaderElection(
 		this IServiceCollection services,
 		Action<LeaderElectionOptions> configure)
 	{
@@ -38,7 +42,29 @@ public static class LeaderElectionServiceCollectionExtensions
 
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds leader election services to the service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	[RequiresUnreferencedCode("Configuration binding for LeaderElectionOptions may require types not preserved during trimming.")]
+	[RequiresDynamicCode("Configuration binding for LeaderElectionOptions requires dynamic code generation.")]
+	internal static IServiceCollection AddExcaliburLeaderElection(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<LeaderElectionOptions>()
+			.Bind(configuration)
 			.ValidateOnStart();
 
 		return services;
@@ -64,10 +90,10 @@ public static class LeaderElectionServiceCollectionExtensions
 	///     LeaseDuration = TimeSpan.FromSeconds(30),
 	///     RenewInterval = TimeSpan.FromSeconds(10)
 	/// };
-	/// services.AddExcaliburLeaderElection(options);
+	/// services.AddExcalibur(x => x.AddLeaderElection(options));
 	/// </code>
 	/// </example>
-	public static IServiceCollection AddExcaliburLeaderElection(
+	internal static IServiceCollection AddExcaliburLeaderElection(
 		this IServiceCollection services,
 		LeaderElectionOptions options)
 	{

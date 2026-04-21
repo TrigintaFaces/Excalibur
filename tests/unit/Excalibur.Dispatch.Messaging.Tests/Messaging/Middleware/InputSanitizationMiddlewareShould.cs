@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Validation;
 using Excalibur.Dispatch.Options.Middleware;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
@@ -22,8 +22,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Tests sanitization of message properties, pass-through of clean messages,
 /// XSS prevention, path traversal prevention, and custom sanitization service.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class InputSanitizationMiddlewareShould
 {
 	private readonly ILogger<InputSanitizationMiddleware> _logger;

@@ -4,12 +4,12 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Options.ErrorHandling;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -27,6 +27,10 @@ public static class PoisonMessageServiceCollectionExtensions
 	[RequiresUnreferencedCode(
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPoisonMessageHandling(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -34,9 +38,11 @@ public static class PoisonMessageServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PoisonMessageOptions>, PoisonMessageOptionsValidator>());
+
 		_ = services.AddOptions<PoisonMessageOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services.AddPoisonMessageHandling();
@@ -54,13 +60,16 @@ public static class PoisonMessageServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PoisonMessageOptions>, PoisonMessageOptionsValidator>());
+
 		var optionsBuilder = services.AddOptions<PoisonMessageOptions>();
 		if (configureOptions != null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = optionsBuilder.ValidateOnStart();
 
 		// Register core services
 		services.TryAddSingleton<IPoisonMessageHandler, PoisonMessageHandler>();
@@ -73,11 +82,12 @@ public static class PoisonMessageServiceCollectionExtensions
 		// Register composite detector as the primary detector
 		services.TryAddSingleton<IPoisonMessageDetector, CompositePoisonDetector>();
 
-		// Register middleware
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, PoisonMessageMiddleware>());
+		// Register middleware concrete type for pipeline resolution
+		services.TryAddSingleton<PoisonMessageMiddleware>();
 
 		// Register default in-memory store if no store is registered
 		services.TryAddSingleton<IDeadLetterStore, InMemoryDeadLetterStore>();
+		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => (IDeadLetterStoreAdmin)sp.GetRequiredService<IDeadLetterStore>());
 
 		// Register cleanup service if auto-cleanup is enabled
 		_ = services.AddHostedService<PoisonMessageCleanupService>();
@@ -117,7 +127,10 @@ public static class PoisonMessageServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.RemoveAll<IDeadLetterStore>();
-		_ = services.AddSingleton<IDeadLetterStore, InMemoryDeadLetterStore>();
+		_ = services.RemoveAll<IDeadLetterStoreAdmin>();
+		_ = services.AddSingleton<InMemoryDeadLetterStore>();
+		_ = services.AddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<InMemoryDeadLetterStore>());
+		_ = services.AddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<InMemoryDeadLetterStore>());
 
 		return services;
 	}

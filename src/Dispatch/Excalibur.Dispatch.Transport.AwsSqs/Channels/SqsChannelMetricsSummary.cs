@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Summary of SQS channel metrics.
 /// </summary>
-public sealed class SqsChannelMetricsSummary
+internal sealed class SqsChannelMetricsSummary
 {
 	public Dictionary<string, QueueMetricsSnapshot> QueueMetrics { get; init; } = [];
 }

@@ -3,7 +3,6 @@
 
 
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.LeaderElection;
 
@@ -149,8 +148,6 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	}
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("JSON serialization of health metadata requires dynamic code generation for type inspection and property access")]
-	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	public Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
 	{
 		if (_state == 0)
@@ -213,8 +210,6 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	}
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("JSON serialization of candidate health requires dynamic code generation for type inspection and property access")]
-	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	public async Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken)
 	{
 		if (_candidates.TryGetValue(_resourceName, out var candidateDict))

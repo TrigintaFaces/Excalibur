@@ -155,7 +155,7 @@ public abstract class ElasticsearchUnitTestBase : IDisposable
 		}));
 
 		// Capture the request for verification
-		_ = A.CallTo(() => MockClient.SearchAsync(A<SearchRequestDescriptor<TDocument>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => MockClient.SearchAsync<TDocument>(A<SearchRequestDescriptor<TDocument>>._, A<CancellationToken>._))
 			.Invokes((SearchRequestDescriptor<TDocument> request, CancellationToken ct) => CapturedRequests.Add(new CapturedRequest
 			{
 				RequestType = "Search",
@@ -216,16 +216,13 @@ public abstract class ElasticsearchUnitTestBase : IDisposable
 		_ = A.CallTo(() => bulkResponse.Errors).Returns(!success);
 		_ = A.CallTo(() => bulkResponse.Took).Returns(100);
 
-		var items = Enumerable.Range(0, itemCount).Select(i =>
-		{
-			var item = A.Fake<BulkResponseItem>();
-			_ = A.CallTo(() => item.Status).Returns(success ? 200 : 400);
-			_ = A.CallTo(() => item.Id).Returns($"doc-{i}");
-			return item;
-		}).ToList();
-
-		// Note: Type mismatch between ResponseItem and BulkResponseItem in FakeItEasy configuration This may need adjustment based on
-		// actual ElasticSearch API version A.CallTo(() => bulkResponse.Items).Returns(items.AsReadOnly());
+		// S799 bd-iqlx2p: the per-item BulkResponseItem setup was never
+		// attached to the fake BulkResponse (the `A.CallTo(...Items)` line
+		// was commented out), so it was dead code. Removed to drain the
+		// SdkFakeDebtBaseline entry for BulkResponseItem per ADR-142 §D7.
+		// Reinstate with the correct v8 BulkResponseItemBase sub-type only
+		// when a concrete test demands item-level assertions.
+		_ = itemCount; // parameter retained for API compatibility
 
 		_ = A.CallTo(() => MockClient.BulkAsync(
 				A<BulkRequestDescriptor>._,

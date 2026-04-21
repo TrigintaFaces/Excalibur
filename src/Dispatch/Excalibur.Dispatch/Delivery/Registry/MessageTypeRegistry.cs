@@ -19,15 +19,9 @@ public static class MessageTypeRegistry
 {
 	private static readonly Dictionary<string, Type> TypeNameToType = [];
 	private static readonly Dictionary<string, Type> SimpleNameToType = [];
-#if NET9_0_OR_GREATER
 
 	private static readonly Lock RegistryLock = new();
 
-#else
-
-	private static readonly object RegistryLock = new();
-
-#endif
 	private static volatile bool _isInitialized;
 
 	/// <summary>
@@ -151,39 +145,41 @@ public static class MessageTypeRegistry
 		// Example manual registrations: RegisterType(typeof(PingCommand)); RegisterType(typeof(TestEvent)); RegisterType(typeof(ComplexAction));
 
 		// Assembly scanning for development - in production, use explicit registration or source generation
-#if !AOT_ENABLED
-		try
+		// Only scan assemblies in JIT mode; AOT uses source-generated registrations
+		if (System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
 		{
-			foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+			try
 			{
-				// Skip system assemblies for performance
-				if (assembly.FullName?.StartsWith("System.", StringComparison.Ordinal) == true ||
-					assembly.FullName?.StartsWith("Microsoft.", StringComparison.Ordinal) == true)
+				foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
 				{
-					continue;
-				}
-
-				try
-				{
-					foreach (var type in assembly.GetTypes())
+					// Skip system assemblies for performance
+					if (assembly.FullName?.StartsWith("System.", StringComparison.Ordinal) == true ||
+						assembly.FullName?.StartsWith("Microsoft.", StringComparison.Ordinal) == true)
 					{
-						if (type is { IsAbstract: false, IsInterface: false } &&
-							typeof(IDispatchMessage).IsAssignableFrom(type))
+						continue;
+					}
+
+					try
+					{
+						foreach (var type in assembly.GetTypes())
 						{
-							RegisterType(type);
+							if (type is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false } &&
+								typeof(IDispatchMessage).IsAssignableFrom(type))
+							{
+								RegisterType(type);
+							}
 						}
 					}
-				}
-				catch
-				{
-					// Ignore types that can't be loaded
+					catch
+					{
+						// Ignore types that can't be loaded
+					}
 				}
 			}
+			catch
+			{
+				// Ignore assembly scanning errors
+			}
 		}
-		catch
-		{
-			// Ignore assembly scanning errors
-		}
-#endif
 	}
 }

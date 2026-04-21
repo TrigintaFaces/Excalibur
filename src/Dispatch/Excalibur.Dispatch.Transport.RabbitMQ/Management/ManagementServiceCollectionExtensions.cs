@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Transport.RabbitMQ;
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -38,9 +43,9 @@ public static class ManagementServiceCollectionExtensions
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// Registers <see cref="RabbitMqManagementOptions"/> in the DI container with data annotation
-	/// validation and startup validation. The management client implementation should be
-	/// registered separately as <see cref="IRabbitMqManagementClient"/>.
+	/// Registers <see cref="RabbitMqManagementOptions"/> in the DI container with
+	/// <see cref="IValidateOptions{TOptions}"/> validation and startup validation.
+	/// The management client implementation should be registered separately as <see cref="IRabbitMqManagementClient"/>.
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddRabbitMqManagement(
@@ -52,8 +57,40 @@ public static class ManagementServiceCollectionExtensions
 
 		_ = services.AddOptions<RabbitMqManagementOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqManagementOptions>, RabbitMqManagementOptionsValidator>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds RabbitMQ Management API client support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RabbitMqManagementOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddRabbitMqManagement(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RabbitMqManagementOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqManagementOptions>, RabbitMqManagementOptionsValidator>());
 
 		return services;
 	}
@@ -70,7 +107,7 @@ public static class ManagementServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
 	/// </exception>
-	public static IServiceCollection AddRabbitMqManagement<TImplementation>(
+	public static IServiceCollection AddRabbitMqManagement<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		Action<RabbitMqManagementOptions> configure)
 		where TImplementation : class, IRabbitMqManagementClient
@@ -80,8 +117,46 @@ public static class ManagementServiceCollectionExtensions
 
 		_ = services.AddOptions<RabbitMqManagementOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqManagementOptions>, RabbitMqManagementOptionsValidator>());
+
+		services.AddSingleton<IRabbitMqManagementClient, TImplementation>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds a concrete RabbitMQ Management API client using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TImplementation">
+	/// The concrete type implementing <see cref="IRabbitMqManagementClient"/>.
+	/// </typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RabbitMqManagementOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddRabbitMqManagement<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		where TImplementation : class, IRabbitMqManagementClient
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RabbitMqManagementOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqManagementOptions>, RabbitMqManagementOptionsValidator>());
 
 		services.AddSingleton<IRabbitMqManagementClient, TImplementation>();
 

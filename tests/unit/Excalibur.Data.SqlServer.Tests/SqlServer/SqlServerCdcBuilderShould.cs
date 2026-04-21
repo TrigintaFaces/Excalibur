@@ -14,8 +14,8 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc.Builders;
 /// These tests validate the ADR-098 Microsoft-style fluent builder pattern implementation
 /// for the SQL Server CDC provider.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Database", "SqlServer")]
 public sealed class SqlServerCdcBuilderShould : UnitTestBase
 {

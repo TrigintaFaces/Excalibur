@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class BackoffStrategyShould
 {
     [Theory]

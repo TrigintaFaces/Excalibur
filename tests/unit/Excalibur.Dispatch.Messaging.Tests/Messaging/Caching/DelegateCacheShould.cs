@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// Tests for <see cref="DelegateCache"/> static class.
 /// AD-258-2: Validates both string-based and struct-based cache key support.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DelegateCacheShould : IDisposable
 {
 	public DelegateCacheShould()

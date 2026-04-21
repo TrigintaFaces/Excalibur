@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// Covers transaction lifecycle, commit, rollback, async disposal, and DbConnection/DbTransaction paths.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class UnitOfWorkDepthShould
 {
 	[Fact]

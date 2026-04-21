@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Default implementation of <see cref="IMessageMappingBuilder"/> for fluent message mapping configuration.
 /// </summary>
-public sealed class MessageMappingBuilder : IMessageMappingBuilder, IMessageMappingConventions
+internal sealed class MessageMappingBuilder : IMessageMappingBuilder, IMessageMappingConventions
 {
 	private readonly IServiceCollection _services;
 	private readonly MessageMapperRegistry _registry;
@@ -64,11 +64,13 @@ public sealed class MessageMappingBuilder : IMessageMappingBuilder, IMessageMapp
 	}
 
 	/// <inheritdoc/>
+#pragma warning disable IL2095 // DynamicallyAccessedMembers on implementation generic parameter is stricter than interface; intentional for DI registration
 	void IMessageMappingConventions.RegisterMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMapper>()
 	{
 		_services.TryAddSingleton<TMapper>();
 		_ = _services.AddSingleton<IMessageMapper, TMapper>();
 	}
+#pragma warning restore IL2095
 
 	/// <inheritdoc/>
 	void IMessageMappingConventions.UseDefaultMappers()
@@ -99,7 +101,7 @@ public sealed class MessageMappingBuilder : IMessageMappingBuilder, IMessageMapp
 /// Builder for configuring transport-specific mappings for a message type.
 /// </summary>
 /// <typeparam name="TMessage">The message type being configured.</typeparam>
-public sealed class MessageTypeMappingBuilder<TMessage> : IMessageTypeMappingBuilder<TMessage>
+internal sealed class MessageTypeMappingBuilder<TMessage> : IMessageTypeMappingBuilder<TMessage>
 	where TMessage : class
 {
 	private readonly MessageMappingBuilder _parent;
@@ -132,7 +134,7 @@ public sealed class MessageTypeMappingBuilder<TMessage> : IMessageTypeMappingBui
 /// <summary>
 /// Builder for configuring default mapping behavior.
 /// </summary>
-public sealed class DefaultMappingBuilder : IDefaultMappingBuilder
+internal sealed class DefaultMappingBuilder : IDefaultMappingBuilder
 {
 	private readonly DefaultMappingConfiguration _config;
 

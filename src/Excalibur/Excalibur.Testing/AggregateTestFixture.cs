@@ -46,7 +46,7 @@ public sealed class AggregateTestFixture<TAggregate>
 	/// <param name="events">The events to replay onto the aggregate.</param>
 	/// <returns>This fixture for method chaining.</returns>
 	/// <remarks>
-	/// Events provided via Given are applied using <see cref="IAggregateRoot.LoadFromHistory"/>
+	/// Events provided via Given are applied using <see cref="IAggregateSnapshotSupport.LoadFromHistory"/>
 	/// and do not appear in the uncommitted events collection.
 	/// </remarks>
 	/// <example>

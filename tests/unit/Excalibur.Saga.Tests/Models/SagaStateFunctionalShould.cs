@@ -147,7 +147,7 @@ public sealed class SagaStateFunctionalShould
 		state.CurrentStepIndex.ShouldBe(0);
 		state.DataJson.ShouldBe(string.Empty);
 		state.DataType.ShouldBe(string.Empty);
-		state.ErrorMessage.ShouldBeNull();
+		state.ErrorMessage!.ShouldBeNull();
 		state.CompletedAt.ShouldBeNull();
 		state.StepHistory.ShouldNotBeNull();
 		state.StepHistory.Count.ShouldBe(0);
@@ -195,7 +195,7 @@ public sealed class SagaStateFunctionalShould
 
 		// Assert
 		state.Status.ShouldBe(SagaStatus.Failed);
-		state.ErrorMessage.ShouldBe("Payment declined: insufficient funds");
+		state.ErrorMessage!.ShouldBe("Payment declined: insufficient funds");
 	}
 
 	[Fact]

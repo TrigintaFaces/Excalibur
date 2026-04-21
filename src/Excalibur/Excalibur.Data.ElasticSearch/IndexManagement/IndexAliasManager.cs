@@ -43,7 +43,7 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 			var actions = new List<IndexUpdateAliasesAction>();
 			foreach (var indexName in indexNamesList)
 			{
-				actions.Add(IndexUpdateAliasesAction.Add(new AddAction { Index = indexName, Alias = aliasName }));
+				actions.Add(new IndexUpdateAliasesAction { Add = new AddAction { Index = indexName, Alias = aliasName } });
 			}
 
 			var request = new UpdateAliasesRequest { Actions = actions };
@@ -86,12 +86,12 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 			{
 				foreach (var indexName in indexNames)
 				{
-					actions.Add(IndexUpdateAliasesAction.Remove(new RemoveAction { Index = indexName, Alias = aliasName }));
+					actions.Add(new IndexUpdateAliasesAction { Remove = new RemoveAction { Index = indexName, Alias = aliasName } });
 				}
 			}
 			else
 			{
-				actions.Add(IndexUpdateAliasesAction.Remove(new RemoveAction { Index = "*", Alias = aliasName }));
+				actions.Add(new IndexUpdateAliasesAction { Remove = new RemoveAction { Index = "*", Alias = aliasName } });
 			}
 
 			var request = new UpdateAliasesRequest { Actions = actions };
@@ -197,16 +197,19 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 
 			var actions = operationsList.Select(static op =>
 				op.OperationType == AliasOperationType.Add
-					? IndexUpdateAliasesAction.Add(new AddAction
+					? new IndexUpdateAliasesAction
 					{
-						Index = op.IndexName,
-						Alias = op.AliasName,
-						Filter = op.AliasConfiguration?.Filter,
-						IndexRouting = op.AliasConfiguration?.IndexRouting,
-						SearchRouting = op.AliasConfiguration?.SearchRouting,
-						IsWriteIndex = op.AliasConfiguration?.IsWriteIndex,
-					})
-					: IndexUpdateAliasesAction.Remove(new RemoveAction { Index = op.IndexName, Alias = op.AliasName }));
+						Add = new AddAction
+						{
+							Index = op.IndexName,
+							Alias = op.AliasName,
+							Filter = op.AliasConfiguration?.Filter,
+							IndexRouting = op.AliasConfiguration?.IndexRouting,
+							SearchRouting = op.AliasConfiguration?.SearchRouting,
+							IsWriteIndex = op.AliasConfiguration?.IsWriteIndex,
+						},
+					}
+					: new IndexUpdateAliasesAction { Remove = new RemoveAction { Index = op.IndexName, Alias = op.AliasName } });
 
 			var request = new UpdateAliasesRequest { Actions = [.. actions] };
 

@@ -1,10 +1,11 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Text.Json.Serialization;
 
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch.ErrorHandling;
 
 namespace Excalibur.Dispatch.Serialization;
 
@@ -36,6 +37,9 @@ namespace Excalibur.Dispatch.Serialization;
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 
+// Error handling types
+[JsonSerializable(typeof(PoisonExceptionInfo))]
+
 // Common .NET types used in messaging
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(int))]
@@ -56,4 +60,4 @@ namespace Excalibur.Dispatch.Serialization;
 [JsonSerializable(typeof(DateTimeOffset?))]
 [JsonSerializable(typeof(TimeSpan?))]
 [JsonSerializable(typeof(Guid?))]
-public partial class DispatchJsonContext : JsonSerializerContext;
+internal partial class DispatchJsonContext : JsonSerializerContext;

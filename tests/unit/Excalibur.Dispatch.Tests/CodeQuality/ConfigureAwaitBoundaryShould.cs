@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Tests.CodeQuality;
 /// </list>
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "CodeQuality")]
 public sealed class ConfigureAwaitBoundaryShould
 {

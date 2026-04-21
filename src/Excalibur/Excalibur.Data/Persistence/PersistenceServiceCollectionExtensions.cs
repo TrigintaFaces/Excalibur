@@ -84,6 +84,10 @@ public static class PersistenceServiceCollectionExtensions
 	/// </summary>
 	[RequiresUnreferencedCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
 	[RequiresDynamicCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	private static void ConfigureFromConfiguration(PersistenceConfiguration config, IConfiguration configuration)
 	{
 		// Load global options
@@ -97,7 +101,7 @@ public static class PersistenceServiceCollectionExtensions
 		var providersSection = configuration.GetSection("Persistence:Providers");
 		foreach (var providerSection in providersSection.GetChildren())
 		{
-			var providerConfig = new ProviderConfiguration
+			var providerConfig = new PersistenceProviderOptions
 			{
 				Name = providerSection.Key,
 				Type = Enum.Parse<PersistenceProviderType>(

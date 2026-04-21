@@ -61,7 +61,13 @@ public interface IPerformanceMetricsCollector
 	/// </summary>
 	/// <returns> Performance metrics snapshot. </returns>
 	PerformanceSnapshot GetSnapshot();
+}
 
+/// <summary>
+/// Provides administrative operations for performance metrics collection.
+/// </summary>
+public interface IPerformanceMetricsCollectorAdmin
+{
 	/// <summary>
 	/// Resets all collected metrics.
 	/// </summary>

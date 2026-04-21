@@ -28,3 +28,13 @@ Notes
 - Providers depend on `Excalibur.A3.Abstractions` only. No references to `Excalibur.A3` implementation remain.
 - Adapters internally execute existing IDataRequest request objects through the configured pipeline.
 
+
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.SqlServer` | Complete | Everything for SQL Server: ES + Outbox + Inbox + Saga + LE + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.SqlServer` for a production-ready SQL Server stack with a single package reference.

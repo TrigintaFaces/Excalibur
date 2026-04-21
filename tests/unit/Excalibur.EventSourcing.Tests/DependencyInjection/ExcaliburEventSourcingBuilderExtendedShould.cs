@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Data;
-
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Versioning;
 
@@ -10,7 +8,6 @@ using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.InMemory;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.Snapshots;
 
 using FakeItEasy;
@@ -20,8 +17,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 using Xunit;
-
-using OutboxMessage = Excalibur.EventSourcing.Outbox.OutboxMessage;
 
 namespace Excalibur.EventSourcing.Tests.DependencyInjection;
 
@@ -93,24 +88,6 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 		public object DeserializeSnapshot(byte[] data, Type snapshotType) => new object();
 		public string GetTypeName(Type type) => type.Name;
 		public Type ResolveType(string typeName) => typeof(object);
-	}
-
-	internal sealed class FakeOutboxStore : IEventSourcedOutboxStore
-	{
-		public Task AddAsync(OutboxMessage message, IDbTransaction transaction, CancellationToken cancellationToken = default)
-			=> Task.CompletedTask;
-
-		public Task<IReadOnlyList<OutboxMessage>> GetPendingAsync(int batchSize = 100, CancellationToken cancellationToken = default)
-			=> Task.FromResult<IReadOnlyList<OutboxMessage>>(Array.Empty<OutboxMessage>());
-
-		public Task MarkAsPublishedAsync(Guid messageId, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
-			=> Task.CompletedTask;
-
-		public Task<int> DeletePublishedOlderThanAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken = default)
-			=> Task.FromResult(0);
-
-		public Task IncrementRetryCountAsync(Guid messageId, CancellationToken cancellationToken = default)
-			=> Task.CompletedTask;
 	}
 
 	#endregion
@@ -227,42 +204,6 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 		// Assert
 		var serializer = provider.GetRequiredService<IEventSerializer>();
 		serializer.ShouldBeOfType<FakeEventSerializer>();
-	}
-
-	#endregion
-
-	#region UseOutboxStore Tests
-
-	[Fact]
-	public void UseOutboxStore_ShouldRegisterOutboxStore()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var builder = new ExcaliburEventSourcingBuilder(services);
-
-		// Act
-		var result = builder.UseOutboxStore<FakeOutboxStore>();
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		result.ShouldBe(builder);
-		var outbox = provider.GetService<IEventSourcedOutboxStore>();
-		outbox.ShouldNotBeNull();
-		outbox.ShouldBeOfType<FakeOutboxStore>();
-	}
-
-	[Fact]
-	public void UseOutboxStore_ShouldReturnBuilderForChaining()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var builder = new ExcaliburEventSourcingBuilder(services);
-
-		// Act
-		var result = builder.UseOutboxStore<FakeOutboxStore>();
-
-		// Assert
-		result.ShouldBe(builder);
 	}
 
 	#endregion
@@ -404,8 +345,7 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 			.UseEventStore<InMemoryEventStore>()
 			.UseEventSerializer<FakeEventSerializer>()
 			.UseIntervalSnapshots(50)
-			.UseSnapshotManager<FakeSnapshotManager>()
-			.UseOutboxStore<FakeOutboxStore>();
+			.UseSnapshotManager<FakeSnapshotManager>();
 
 		// Assert
 		result.ShouldBe(builder);

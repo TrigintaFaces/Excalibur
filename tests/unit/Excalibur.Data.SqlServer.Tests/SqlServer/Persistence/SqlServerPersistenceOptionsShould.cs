@@ -15,7 +15,7 @@ namespace Excalibur.Data.Tests.SqlServer.Persistence;
 /// <see cref="SqlServerObservabilityOptions"/>).
 /// Validates default values, setters, ISP property count gates, and sub-object initialization.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Persistence")]
 public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 {

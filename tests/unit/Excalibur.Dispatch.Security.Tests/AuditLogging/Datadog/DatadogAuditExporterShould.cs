@@ -6,7 +6,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.AuditLogging.Datadog;
+using Excalibur.AuditLogging.Datadog;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Datadog;
 
@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Datadog;
 /// Unit tests for <see cref="DatadogAuditExporter"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class DatadogAuditExporterShould : IDisposable
 {
 	private readonly MockHttpMessageHandler _mockHandler;
@@ -129,7 +129,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.EventId.ShouldBe(auditEvent.EventId);
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 		result.IsTransientError.ShouldBeFalse();
 	}
 
@@ -332,7 +332,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Connection refused");
+		result.ErrorMessage!.ShouldContain("Connection refused");
 	}
 
 	[Fact]
@@ -421,7 +421,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldContain("Connection refused");
+		result.ErrorMessage!.ShouldContain("Connection refused");
 	}
 
 	[Fact]
@@ -437,7 +437,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 	}
 
 	#endregion HttpRequestException and Timeout Tests
@@ -578,8 +578,8 @@ public sealed class DatadogAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
-		result.ErrorMessage.ShouldContain("Unexpected status code");
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldContain("Unexpected status code");
 		result.Diagnostics.ShouldNotBeNull();
 	}
 

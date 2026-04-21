@@ -30,15 +30,11 @@ namespace Excalibur.EventSourcing.InMemory;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
+internal sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 {
 	private readonly ConcurrentDictionary<(string AggregateId, string AggregateType), List<StoredEvent>> _events = new();
 	private readonly ConcurrentDictionary<string, StoredEvent> _eventsById = new();
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 	private long _position;
 	private readonly JsonSerializerOptions _jsonOptions;
 
@@ -138,6 +134,10 @@ public sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "InMemoryEventStore is a test/dev store. SerializeEvent and SerializeMetadata use reflection-based JSON serialization by design.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "InMemoryEventStore is a test/dev store. SerializeEvent and SerializeMetadata use reflection-based JSON serialization by design.")]
 	public ValueTask<AppendResult> AppendAsync(
 		string aggregateId,
 		string aggregateType,
@@ -204,8 +204,10 @@ public sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 							AggregateId: aggregateId,
 							AggregateType: aggregateType,
 							EventType: eventTypeName,
+							#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 							EventData: SerializeEvent(@event),
 							Metadata: @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null,
+							#pragma warning restore IL2026, IL3050
 							Version: version,
 							Timestamp: @event.OccurredAt);
 

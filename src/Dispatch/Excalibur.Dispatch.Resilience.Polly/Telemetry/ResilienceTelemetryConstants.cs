@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// Telemetry constants for resilience pipeline metrics and tracing.
 /// </summary>
 [SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Logical grouping of telemetry constants")]
-public static class ResilienceTelemetryConstants
+internal static class ResilienceTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for resilience pipeline metrics.

@@ -52,10 +52,15 @@ Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.UseOnDemandCapacity.g
 Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.UseOnDemandCapacity.set -> void
 Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.WriteCapacityUnits.get -> int
 Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.WriteCapacityUnits.set -> void
-Excalibur.EventSourcing.DynamoDb.EventSourcingBuilderDynamoDbExtensions
-Microsoft.Extensions.DependencyInjection.DynamoDbEventStoreServiceCollectionExtensions
-static Excalibur.EventSourcing.DynamoDb.EventSourcingBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Excalibur.EventSourcing.DynamoDb.EventSourcingBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.DynamoDbEventStoreServiceCollectionExtensions.AddDynamoDbEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DynamoDbEventStoreServiceCollectionExtensions.AddDynamoDbEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DynamoDbEventStoreServiceCollectionExtensions.AddDynamoDbEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Microsoft.Extensions.DependencyInjection.EventSourcingBuilderDynamoDbExtensions
+Microsoft.Extensions.DependencyInjection.DynamoDbTenantShardingExtensions
+static Microsoft.Extensions.DependencyInjection.DynamoDbTenantShardingExtensions.UseDynamoDbTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder
+Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
+Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.Client(Amazon.DynamoDBv2.IAmazonDynamoDB! client) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
+Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.ClientFactory(System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
+Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.Region(Amazon.RegionEndpoint! region) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
+Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
+Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.TableName(string! tableName) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
+Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.TablePrefix(string! prefix) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.EventSourcingBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

@@ -31,7 +31,7 @@ public sealed class StepResultAbstractionsShould
 		var result = new StepResultAbstractions();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -41,7 +41,7 @@ public sealed class StepResultAbstractionsShould
 		var result = new StepResultAbstractions();
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -75,7 +75,7 @@ public sealed class StepResultAbstractionsShould
 		var result = new StepResultAbstractions { ErrorMessage = "Test error" };
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Test error");
+		result.ErrorMessage!.ShouldBe("Test error");
 	}
 
 	[Fact]
@@ -88,7 +88,7 @@ public sealed class StepResultAbstractionsShould
 		var result = new StepResultAbstractions { Exception = exception };
 
 		// Assert
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]
@@ -120,8 +120,8 @@ public sealed class StepResultAbstractionsShould
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
-		result.ErrorMessage.ShouldBeNull();
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 		result.OutputData.ShouldBeNull();
 	}
 
@@ -163,8 +163,8 @@ public sealed class StepResultAbstractionsShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Operation failed");
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldBe("Operation failed");
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -178,8 +178,8 @@ public sealed class StepResultAbstractionsShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Service timeout");
-		result.Exception.ShouldBe(exception);
+		result.ErrorMessage!.ShouldBe("Service timeout");
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]
@@ -190,8 +190,8 @@ public sealed class StepResultAbstractionsShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Error message");
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldBe("Error message");
+		result.Exception!.ShouldBeNull();
 	}
 
 	#endregion Factory Method Tests
@@ -257,8 +257,8 @@ public sealed class StepResultAbstractionsShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Invalid");
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldContain("Invalid");
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -275,7 +275,7 @@ public sealed class StepResultAbstractionsShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 		result.Exception.Data["currentState"].ShouldBe("Processing");
 	}
 

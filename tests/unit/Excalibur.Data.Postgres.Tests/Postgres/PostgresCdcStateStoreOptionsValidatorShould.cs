@@ -9,7 +9,7 @@ namespace Excalibur.Data.Tests.Postgres.Cdc;
 /// <summary>
 /// Unit tests for <see cref="PostgresCdcStateStoreOptionsValidator"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "PostgresCdcStateStoreOptionsValidator")]
 public sealed class PostgresCdcStateStoreOptionsValidatorShould : UnitTestBase
 {

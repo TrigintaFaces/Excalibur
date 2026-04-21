@@ -28,7 +28,7 @@ namespace Excalibur.Cdc.SqlServer;
 	Justification = "CDC processor requires coordination across many types; LoggerMessage source generation adds coupling.")]
 public partial class CdcProcessor : ICdcProcessor
 {
-	private readonly IDatabaseConfig _dbConfig;
+	private readonly IDatabaseOptions _dbConfig;
 
 	// CA1859: These fields are declared as interfaces to allow external consumers to provide custom implementations This is a public API in
 	// a NuGet package designed for extensibility R0.8: Use concrete types when possible for improved performance
@@ -53,11 +53,7 @@ public partial class CdcProcessor : ICdcProcessor
 
 	private readonly SortedSet<(byte[] Lsn, string TableName)> _minHeap = new(new MinHeapComparer());
 
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _minHeapLock = new();
-#else
-	private readonly object _minHeapLock = new();
-#endif
+	private readonly Lock _minHeapLock = new();
 
 	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
 
@@ -114,7 +110,7 @@ public partial class CdcProcessor : ICdcProcessor
 	/// <exception cref="ArgumentNullException"> Thrown if any required dependency is <c> null </c>. </exception>
 	public CdcProcessor(
 			IHostApplicationLifetime appLifetime,
-			IDatabaseConfig dbConfig,
+			IDatabaseOptions dbConfig,
 			SqlConnection cdcConnection,
 			SqlConnection stateStoreConnection,
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,

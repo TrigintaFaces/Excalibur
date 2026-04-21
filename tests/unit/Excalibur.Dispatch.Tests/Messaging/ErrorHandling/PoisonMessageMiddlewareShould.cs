@@ -16,7 +16,7 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class PoisonMessageMiddlewareShould : IDisposable
 {

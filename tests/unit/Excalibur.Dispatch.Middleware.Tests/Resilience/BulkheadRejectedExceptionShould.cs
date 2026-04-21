@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// <summary>
 /// Unit tests for <see cref="BulkheadRejectedException"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class BulkheadRejectedExceptionShould : UnitTestBase
 {
 	[Fact]
@@ -48,7 +48,7 @@ public sealed class BulkheadRejectedExceptionShould : UnitTestBase
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]

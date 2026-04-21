@@ -6,7 +6,7 @@ namespace Excalibur.Outbox.Postgres.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for Postgres outbox store instrumentation.
 /// </summary>
-public static class OutboxPostgresTelemetryConstants
+internal static class OutboxPostgresTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for Postgres outbox metrics.

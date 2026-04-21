@@ -36,6 +36,10 @@ builder.ConfigureServices((hostContext, services) =>
 #endif
     });
 
+    // OpenTelemetry: one call registers all Dispatch meters + activity sources
+    services.AddOpenTelemetry()
+        .AddDispatchInstrumentation();
+
     services.AddHostedService<OrderProcessingWorker>();
 });
 

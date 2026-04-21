@@ -58,7 +58,7 @@ public sealed class ElasticsearchClusterHealthShould
 		var health = new ElasticsearchClusterHealth();
 
 		// Assert
-		health.ErrorMessage.ShouldBeNull();
+		health.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -265,7 +265,7 @@ public sealed class ElasticsearchClusterHealthShould
 		var health = new ElasticsearchClusterHealth { ErrorMessage = "Connection timeout" };
 
 		// Assert
-		health.ErrorMessage.ShouldBe("Connection timeout");
+		health.ErrorMessage!.ShouldBe("Connection timeout");
 	}
 
 	[Fact]
@@ -340,7 +340,7 @@ public sealed class ElasticsearchClusterHealthShould
 		health.IsHealthy.ShouldBeFalse();
 		health.Status.ShouldBe(HealthStatus.Red);
 		health.UnassignedShards.ShouldBe(10);
-		health.ErrorMessage.ShouldNotBeNull();
+		health.ErrorMessage!.ShouldNotBeNull();
 	}
 
 	#endregion

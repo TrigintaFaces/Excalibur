@@ -5,8 +5,8 @@ using Excalibur.Outbox.Postgres.Diagnostics;
 
 namespace Excalibur.Data.Tests.Postgres.Diagnostics;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PostgresOutboxTelemetryConstantsShould
 {
 	[Fact]

@@ -31,7 +31,7 @@ internal sealed class KafkaTimestampConverter : JsonConverter<Timestamp>
 				return new Timestamp(DateTimeOffset.FromUnixTimeMilliseconds(unixMs).UtcDateTime);
 			}
 
-			var dateTime = DateTimeOffset.Parse(str, System.Globalization.CultureInfo.InvariantCulture);
+			var dateTime = DateTimeOffset.Parse(str!, System.Globalization.CultureInfo.InvariantCulture);
 			return new Timestamp(dateTime.UtcDateTime);
 		}
 

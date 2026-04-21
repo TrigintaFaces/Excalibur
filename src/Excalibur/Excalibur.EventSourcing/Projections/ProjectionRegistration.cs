@@ -27,13 +27,19 @@ internal sealed class ProjectionRegistration
 		ProjectionMode mode,
 		object projection,
 		InlineApplyDelegate? inlineApply,
-		TimeSpan? cacheTtl = null)
+		TimeSpan? cacheTtl = null,
+		Func<string, CancellationToken, Task>? deleteAction = null,
+		Type? storeType = null,
+		ProjectionOptions? options = null)
 	{
 		ProjectionType = projectionType;
 		Mode = mode;
 		Projection = projection;
 		InlineApply = inlineApply;
 		CacheTtl = cacheTtl;
+		DeleteAction = deleteAction;
+		StoreType = storeType;
+		Options = options;
 	}
 
 	/// <summary>
@@ -62,4 +68,22 @@ internal sealed class ProjectionRegistration
 	/// Null means no caching.
 	/// </summary>
 	internal TimeSpan? CacheTtl { get; }
+
+	/// <summary>
+	/// Gets the optional deletion handler registered via <c>WhenDeleted</c> (R27.23).
+	/// Null means no deletion handler is configured.
+	/// </summary>
+	internal Func<string, CancellationToken, Task>? DeleteAction { get; }
+
+	/// <summary>
+	/// Gets the optional store type override registered via <c>WithStore&lt;TStore&gt;</c>.
+	/// Null means the default DI-resolved <c>IProjectionStore&lt;T&gt;</c> is used.
+	/// </summary>
+	internal Type? StoreType { get; }
+
+	/// <summary>
+	/// Gets the optional per-projection options configured via <c>WithOptions</c>.
+	/// Null means default options apply.
+	/// </summary>
+	internal ProjectionOptions? Options { get; }
 }

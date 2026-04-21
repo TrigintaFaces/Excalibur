@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.AuditLogging.Datadog;
+using Excalibur.AuditLogging.Datadog;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Datadog;
 
@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Datadog;
 /// Unit tests for <see cref="DatadogExporterOptions"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "AuditLogging")]
+[Trait(TraitNames.Component, TestComponents.AuditLogging)]
 public sealed class DatadogExporterOptionsShould
 {
 	#region Default Value Tests

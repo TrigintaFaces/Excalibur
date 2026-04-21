@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// GrpcChannel factory registration with MaxMessageSize options, ValidateOnStart registration,
 /// and service descriptor idempotency.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportServiceCollectionExtensionsDepthShould
 {
 	[Fact]

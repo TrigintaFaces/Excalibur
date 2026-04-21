@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing.Sprint523;
 /// Verifies that legacy routing types from Abstractions have been removed (S523.4/S523.5)
 /// and that the new two-tier routing types are intact.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class LegacyRoutingTypeRemovalShould
 {
 	private static readonly Assembly AbstractionsAssembly =

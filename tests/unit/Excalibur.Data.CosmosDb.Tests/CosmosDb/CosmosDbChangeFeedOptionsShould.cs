@@ -11,8 +11,8 @@ namespace Excalibur.Data.Tests.CosmosDb;
 /// <remarks>
 /// Sprint 633: Updated for Cdc.CosmosDb extraction -- new API surface.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CosmosDbChangeFeedOptionsShould
 {
 	[Fact]

@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// <summary>
 /// In-memory implementation of the dead letter store for development and testing.
 /// </summary>
-public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore
+public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLetterStoreAdmin
 {
 	private readonly ConcurrentDictionary<string, DeadLetterMessage> _messages = new(StringComparer.Ordinal);
 	private readonly ILogger<InMemoryDeadLetterStore> _logger;

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Security.Aws;
+using Excalibur.Security.Aws;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Aws;
 /// Deep coverage tests for <see cref="AwsSecretsManagerCredentialStore"/> covering concurrent access,
 /// store failure wrapping, multiple secrets retrieval, and SecureString conversion edge cases.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class AwsSecretsManagerCredentialStoreDepthShould
 {
 	[Fact]
@@ -87,7 +87,7 @@ public sealed class AwsSecretsManagerCredentialStoreDepthShould
 
 		ex.Message.ShouldContain("Failed to store secret");
 		ex.Message.ShouldContain("test");
-		ex.InnerException.ShouldBeOfType<ArgumentException>();
+		ex.InnerException!.ShouldBeOfType<ArgumentException>();
 	}
 
 	[Fact]
@@ -108,7 +108,7 @@ public sealed class AwsSecretsManagerCredentialStoreDepthShould
 
 		ex.Message.ShouldContain("Failed to retrieve secret");
 		ex.Message.ShouldContain("test-key");
-		ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+		ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

@@ -3,11 +3,13 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
+using Excalibur.Dispatch.Delivery.Pipeline;
+using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Excalibur.Dispatch.Benchmarks.Diagnostics.Support;
 
@@ -192,14 +194,25 @@ internal sealed partial class DiagnosticBenchmarkFixture : IDisposable
 			_ = services.AddTransient<IActionHandler<CancelableCommand>, CancelableCommandHandler>();
 		}
 
-		for (var i = 0; i < middlewareCount; i++)
+		// Register benchmark middleware through a replaced IDispatchMiddlewareInvoker
+		// so it participates in the builder-materialized pipeline.
+		// Direct IDispatchMiddleware DI registration is ignored after Build() replaces the invoker.
+		if (middlewareCount > 0 || includeDelayMiddleware)
 		{
-			_ = services.AddSingleton<IDispatchMiddleware>(new BenchmarkPassThroughMiddleware(i));
-		}
+			var benchmarkMiddleware = new List<IDispatchMiddleware>(middlewareCount + (includeDelayMiddleware ? 1 : 0));
 
-		if (includeDelayMiddleware)
-		{
-			_ = services.AddSingleton<IDispatchMiddleware>(new DelayMiddleware(delayMiddlewareDuration ?? TimeSpan.FromMilliseconds(2)));
+			for (var i = 0; i < middlewareCount; i++)
+			{
+				benchmarkMiddleware.Add(new BenchmarkPassThroughMiddleware(i));
+			}
+
+			if (includeDelayMiddleware)
+			{
+				benchmarkMiddleware.Add(new DelayMiddleware(delayMiddlewareDuration ?? TimeSpan.FromMilliseconds(2)));
+			}
+
+			services.Replace(ServiceDescriptor.Singleton<IDispatchMiddlewareInvoker>(
+				new DispatchMiddlewareInvoker(benchmarkMiddleware)));
 		}
 
 		_provider = services.BuildServiceProvider();

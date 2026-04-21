@@ -12,7 +12,7 @@ namespace Excalibur.Outbox.Diagnostics;
 /// <para>
 /// This class provides a shared <see cref="ActivitySource"/> for tracing background
 /// processor operations (outbox, inbox). Activities follow OpenTelemetry semantic
-/// conventions and are registered under the <c>Excalibur.BackgroundServices</c> source.
+/// conventions and are registered under the <c>Excalibur.Dispatch.BackgroundServices</c> source.
 /// </para>
 /// <para>
 /// To enable collection, register the source with your OpenTelemetry provider:

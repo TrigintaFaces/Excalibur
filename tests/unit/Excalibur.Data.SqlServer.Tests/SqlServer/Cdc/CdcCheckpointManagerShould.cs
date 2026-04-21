@@ -10,18 +10,18 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// <summary>
 /// Unit tests for <see cref="CdcCheckpointManager"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcCheckpointManagerShould : UnitTestBase
 {
 	private static CdcCheckpointManager CreateSut(
-		IDatabaseConfig? dbConfig = null,
+		IDatabaseOptions? dbConfig = null,
 		ICdcRepository? cdcRepository = null,
 		ISqlServerCdcStateStore? stateStore = null)
 	{
 		return new CdcCheckpointManager(
-			dbConfig ?? A.Fake<IDatabaseConfig>(),
+			dbConfig ?? A.Fake<IDatabaseOptions>(),
 			cdcRepository ?? A.Fake<ICdcRepository>(),
 			stateStore ?? A.Fake<ISqlServerCdcStateStore>(),
 			NullLogger.Instance);
@@ -70,7 +70,7 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	[Fact]
 	public async Task InitializeTrackingAsync_LoadsPositionsFromStateStore()
 	{
-		var dbConfig = A.Fake<IDatabaseConfig>();
+		var dbConfig = A.Fake<IDatabaseOptions>();
 		var cdcRepository = A.Fake<ICdcRepository>();
 		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, cdcRepository, stateStore);
@@ -106,7 +106,7 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	[Fact]
 	public async Task InitializeTrackingAsync_FallsBackToMinPosition_WhenNoState()
 	{
-		var dbConfig = A.Fake<IDatabaseConfig>();
+		var dbConfig = A.Fake<IDatabaseOptions>();
 		var cdcRepository = A.Fake<ICdcRepository>();
 		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, cdcRepository, stateStore);
@@ -131,7 +131,7 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	[Fact]
 	public async Task InitializeTrackingAsync_FallsBackToMinPosition_WhenLsnIsAllZeros()
 	{
-		var dbConfig = A.Fake<IDatabaseConfig>();
+		var dbConfig = A.Fake<IDatabaseOptions>();
 		var cdcRepository = A.Fake<ICdcRepository>();
 		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, cdcRepository, stateStore);
@@ -201,7 +201,7 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	[Fact]
 	public async Task UpdateTableLastProcessedAsync_DelegatesToStateStore()
 	{
-		var dbConfig = A.Fake<IDatabaseConfig>();
+		var dbConfig = A.Fake<IDatabaseOptions>();
 		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, stateStore: stateStore);
 

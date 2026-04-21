@@ -18,10 +18,10 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// </para>
 /// <para><b>Usage:</b>
 /// <code>
-/// services.AddExcaliburEventSourcing(builder =&gt; builder
+/// services.AddExcalibur(x => x.AddEventSourcing(builder =&gt; builder
 ///     .AddSnapshotUpgrading(upgrading =&gt; upgrading
 ///         .RegisterUpgrader&lt;OrderSnapshotV1, OrderSnapshotV2&gt;(new OrderSnapshotUpgraderV1ToV2(serializer))
-///         .SetCurrentVersion("OrderAggregate", 3)));
+///         .SetCurrentVersion("OrderAggregate", 3))));
 /// </code>
 /// </para>
 /// </remarks>

@@ -62,9 +62,13 @@ Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.ReadChangesAsync(Sys
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.SubscriptionId.get -> string!
-Microsoft.Extensions.DependencyInjection.DynamoDbOutboxServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions
-static Microsoft.Extensions.DependencyInjection.DynamoDbOutboxServiceCollectionExtensions.AddDynamoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DynamoDbOutboxServiceCollectionExtensions.AddDynamoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DynamoDbOutboxServiceCollectionExtensions.AddDynamoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions!>? configure = null) -> Excalibur.Outbox.IOutboxBuilder!
+Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder
+Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
+Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.Client(Amazon.DynamoDBv2.IAmazonDynamoDB! client) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
+Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.ClientFactory(System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
+Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.Region(Amazon.RegionEndpoint! region) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
+Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
+Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.TableName(string! tableName) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
+Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.TablePrefix(string! prefix) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
+static Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!

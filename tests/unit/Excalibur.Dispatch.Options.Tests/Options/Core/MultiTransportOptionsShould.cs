@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Core;
 /// Unit tests for <see cref="MultiTransportOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class MultiTransportOptionsShould
 {
@@ -91,7 +91,7 @@ public sealed class MultiTransportOptionsShould
 	{
 		// Arrange
 		var options = new MultiTransportOptions();
-		var config = new TransportConfiguration { Name = "rabbitmq", Enabled = true };
+		var config = new TransportOptions { Name = "rabbitmq", Enabled = true };
 
 		// Act
 		options.Transports["rabbitmq"] = config;
@@ -135,9 +135,9 @@ public sealed class MultiTransportOptionsShould
 		};
 
 		// Act
-		options.Transports["rabbitmq"] = new TransportConfiguration { Name = "rabbitmq", Enabled = true };
-		options.Transports["kafka"] = new TransportConfiguration { Name = "kafka", Enabled = true };
-		options.Transports["azure-servicebus"] = new TransportConfiguration { Name = "azure-servicebus", Enabled = false };
+		options.Transports["rabbitmq"] = new TransportOptions { Name = "rabbitmq", Enabled = true };
+		options.Transports["kafka"] = new TransportOptions { Name = "kafka", Enabled = true };
+		options.Transports["azure-servicebus"] = new TransportOptions { Name = "azure-servicebus", Enabled = false };
 
 		// Assert
 		options.Transports.Count.ShouldBe(3);
@@ -156,7 +156,7 @@ public sealed class MultiTransportOptionsShould
 		};
 
 		// Act
-		options.Transports["rabbitmq"] = new TransportConfiguration { Name = "rabbitmq", Enabled = true };
+		options.Transports["rabbitmq"] = new TransportOptions { Name = "rabbitmq", Enabled = true };
 
 		// Assert
 		options.EnableFailover.ShouldBeFalse();
@@ -174,8 +174,8 @@ public sealed class MultiTransportOptionsShould
 		};
 
 		// Act
-		options.Transports["rabbitmq"] = new TransportConfiguration { Name = "rabbitmq", Enabled = true };
-		options.Transports["fallback-kafka"] = new TransportConfiguration { Name = "fallback-kafka", Enabled = true };
+		options.Transports["rabbitmq"] = new TransportOptions { Name = "rabbitmq", Enabled = true };
+		options.Transports["fallback-kafka"] = new TransportOptions { Name = "fallback-kafka", Enabled = true };
 
 		// Assert
 		options.EnableFailover.ShouldBeTrue();

@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Tests object pool usage, middleware delegation, reset behavior, and poolability state.
 /// Uses a concrete test subclass to exercise the abstract base class behavior.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class PooledDispatchMiddlewareShould
 {
 	private static DispatchRequestDelegate CreateSuccessDelegate()

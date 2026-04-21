@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Security.Tests.Excalibur;
 /// <summary>
 /// Unit tests for <see cref="Argon2Options"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "PasswordHashing")]
 public sealed class Argon2OptionsShould
 {

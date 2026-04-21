@@ -164,20 +164,6 @@ public sealed class AotAnnotationsAndTrimmerRootsShould
 		Should.Throw<TypeLoadException>(() => TypeResolver.ResolveTypeRequired("NonExistent.Type.That.DoesNotExist"));
 	}
 
-	[Fact]
-	public void TypeResolver_ResolveTypeRuntime_ShouldReturnNullForNullInput()
-	{
-		var result = TypeResolver.ResolveTypeRuntime(null!);
-		result.ShouldBeNull();
-	}
-
-	[Fact]
-	public void TypeResolver_ResolveTypeRuntime_ShouldReturnNullForEmptyString()
-	{
-		var result = TypeResolver.ResolveTypeRuntime("");
-		result.ShouldBeNull();
-	}
-
 	#endregion
 
 	#region Helper Methods
@@ -198,7 +184,6 @@ public sealed class AotAnnotationsAndTrimmerRootsShould
 
 	private static string FindProjectRoot()
 	{
-		// Walk up from the test output directory to find the repo root
 		var dir = AppDomain.CurrentDomain.BaseDirectory;
 		while (dir != null)
 		{
@@ -210,17 +195,7 @@ public sealed class AotAnnotationsAndTrimmerRootsShould
 			dir = Directory.GetParent(dir)?.FullName;
 		}
 
-		// Fallback: try user profile path (cross-platform safe)
-		var userProfileCandidate = Path.Combine(
-			Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Excalibur.Dispatch");
-
-		if (Directory.Exists(userProfileCandidate))
-		{
-			return userProfileCandidate;
-		}
-
-		throw new DirectoryNotFoundException("Could not find project root directory. " +
-			"Ensure the test runs from within the repository or set the working directory to the repo root.");
+		throw new DirectoryNotFoundException("Could not find project root");
 	}
 
 	#endregion

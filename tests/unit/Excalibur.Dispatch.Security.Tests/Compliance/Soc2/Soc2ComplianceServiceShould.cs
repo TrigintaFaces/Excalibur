@@ -3,13 +3,14 @@
 
 using Microsoft.Extensions.Options;
 
+using Excalibur.Compliance.Soc2;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 
 /// <summary>
 /// Unit tests for <see cref="Soc2ComplianceService"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class Soc2ComplianceServiceShould
 {
 	private readonly IControlValidationService _fakeControlValidation;

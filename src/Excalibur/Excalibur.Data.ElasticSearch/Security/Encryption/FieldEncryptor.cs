@@ -79,8 +79,10 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 	/// <inheritdoc />
 	public bool SupportsIntegrityValidation => true;
-
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("JSON serialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON serialization uses reflection to dynamically access and serialize types")]
 	public async Task<object> EncryptDocumentAsync(object document, CancellationToken cancellationToken)
@@ -120,8 +122,10 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			_ = _encryptionSemaphore.Release();
 		}
 	}
-
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task<object> DecryptDocumentAsync(object encryptedDocument, CancellationToken cancellationToken)
@@ -172,6 +176,8 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("JSON serialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON serialization uses reflection to dynamically access and serialize types")]
 	public async Task<EncryptedFieldResult> EncryptFieldAsync(
@@ -211,7 +217,10 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 				keyData = await _keyProvider.GetSecretAsync(keyName, cancellationToken).ConfigureAwait(false);
 			}
 
-			var encryptedData = await PerformEncryptionAsync(plaintextBytes, keyData, algorithm).ConfigureAwait(false);
+			var encryptedData = await PerformEncryptionAsync(
+				plaintextBytes,
+				keyData ?? throw new InvalidOperationException($"Key provider returned null for encryption key '{keyName}'."),
+				algorithm).ConfigureAwait(false);
 
 			var result = new EncryptedFieldResult(
 				Convert.ToBase64String(encryptedData.EncryptedBytes),
@@ -239,6 +248,8 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
 	public async Task<object> DecryptFieldAsync(
@@ -398,17 +409,21 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			if (rotationResult.Success)
 			{
 				// Raise key rotation event
+				var newVersion = rotationResult.NewKeyVersion ?? throw new InvalidOperationException("Key rotation succeeded but NewKeyVersion is null.");
+				var previousVersion = rotationResult.PreviousKeyVersion ?? throw new InvalidOperationException("Key rotation succeeded but PreviousKeyVersion is null.");
+
+				// Raise key rotation event
 				KeyRotated?.Invoke(this, new EncryptionKeyRotatedEventArgs(
-					classification, rotationResult.NewKeyVersion, rotationResult.PreviousKeyVersion,
+					classification, newVersion, previousVersion,
 					0, DateTimeOffset.UtcNow)); // Document count would need separate tracking
 
 				_logger.LogInformation(
 					"Encryption key rotated for classification {Classification}, new version {NewVersion}",
-					classification, rotationResult.NewKeyVersion);
+					classification, newVersion);
 
 				return EncryptionKeyRotationResult.CreateSuccess(
 					classification,
-					rotationResult.NewKeyVersion, rotationResult.PreviousKeyVersion);
+					newVersion, previousVersion);
 			}
 
 			return EncryptionKeyRotationResult.CreateFailure(classification, rotationResult.ErrorMessage ?? "Unknown error");

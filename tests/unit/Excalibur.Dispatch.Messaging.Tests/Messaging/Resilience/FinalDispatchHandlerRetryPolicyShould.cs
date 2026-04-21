@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Options.Resilience;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Sprint 44: Verifies behavioral equivalence between DefaultRetryPolicy and NoOpRetryPolicy.
 /// Task: Excalibur.Dispatch-4n0b
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class FinalDispatchHandlerRetryPolicyShould
 {

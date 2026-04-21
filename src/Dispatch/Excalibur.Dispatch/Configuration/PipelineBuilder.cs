@@ -6,6 +6,7 @@ using System.Globalization;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Delivery.Pipeline;
+using Excalibur.Dispatch.Middleware;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,6 +20,7 @@ public sealed class PipelineBuilder : IPipelineBuilder
 	private readonly IServiceProvider _serviceProvider;
 	private readonly List<MiddlewareRegistration> _middlewares = [];
 	private readonly IMiddlewareApplicabilityStrategy? _applicabilityStrategy;
+	private MessageKinds? _messageKinds;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PipelineBuilder"/> class.
@@ -53,9 +55,13 @@ public sealed class PipelineBuilder : IPipelineBuilder
 	public IPipelineBuilder Use<TMiddleware>()
 		where TMiddleware : IDispatchMiddleware
 	{
+		var capturedKinds = _messageKinds;
 		_middlewares.Add(new MiddlewareRegistration(
 			typeof(TMiddleware),
-			static sp => sp.GetRequiredService<TMiddleware>(),
+			capturedKinds.HasValue
+				? sp => new MessageKindFilteringMiddleware(
+					sp.GetRequiredService<TMiddleware>(), capturedKinds.Value)
+				: static sp => sp.GetRequiredService<TMiddleware>(),
 			stage: null,
 			condition: null));
 		return this;
@@ -66,9 +72,13 @@ public sealed class PipelineBuilder : IPipelineBuilder
 	{
 		ArgumentNullException.ThrowIfNull(middlewareFactory);
 
+		var capturedKinds = _messageKinds;
 		_middlewares.Add(new MiddlewareRegistration(
 			type: null,
-			middlewareFactory,
+			capturedKinds.HasValue
+				? sp => new MessageKindFilteringMiddleware(
+					middlewareFactory(sp), capturedKinds.Value)
+				: middlewareFactory,
 			stage: null,
 			condition: null));
 		return this;
@@ -78,9 +88,13 @@ public sealed class PipelineBuilder : IPipelineBuilder
 	public IPipelineBuilder UseAt<TMiddleware>(DispatchMiddlewareStage stage)
 		where TMiddleware : IDispatchMiddleware
 	{
+		var capturedKinds = _messageKinds;
 		_middlewares.Add(new MiddlewareRegistration(
 			typeof(TMiddleware),
-			static sp => sp.GetRequiredService<TMiddleware>(),
+			capturedKinds.HasValue
+				? sp => new MessageKindFilteringMiddleware(
+					sp.GetRequiredService<TMiddleware>(), capturedKinds.Value)
+				: static sp => sp.GetRequiredService<TMiddleware>(),
 			stage,
 			condition: null));
 		return this;
@@ -92,16 +106,24 @@ public sealed class PipelineBuilder : IPipelineBuilder
 	{
 		ArgumentNullException.ThrowIfNull(condition);
 
+		var capturedKinds = _messageKinds;
 		_middlewares.Add(new MiddlewareRegistration(
 			typeof(TMiddleware),
-			static sp => sp.GetRequiredService<TMiddleware>(),
+			capturedKinds.HasValue
+				? sp => new MessageKindFilteringMiddleware(
+					sp.GetRequiredService<TMiddleware>(), capturedKinds.Value)
+				: static sp => sp.GetRequiredService<TMiddleware>(),
 			stage: null,
 			condition));
 		return this;
 	}
 
 	/// <inheritdoc />
-	public IPipelineBuilder ForMessageKinds(MessageKinds messageKinds) => this;
+	public IPipelineBuilder ForMessageKinds(MessageKinds messageKinds)
+	{
+		_messageKinds = messageKinds;
+		return this;
+	}
 
 	/// <inheritdoc />
 	public IPipelineBuilder UseProfile(string profileName)

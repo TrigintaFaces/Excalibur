@@ -10,8 +10,8 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Tests.Transport;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class TransportFailureInjectionShould
 {
 	private static TransportMessage CreateMessage(string id = "msg-1") =>

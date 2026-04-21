@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// Covers callbacks, provider enlistment, status guards, timeout, and disposal.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class TransactionScopeBaseDepthShould
 {
 	[Fact]

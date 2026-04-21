@@ -40,7 +40,6 @@ public static class LoggingPipelineExtensions
 
 		builder.Services.TryAddSingleton<LoggingMiddleware>();
 		_ = builder.Services.AddOptions<LoggingMiddlewareOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder.UseMiddleware<LoggingMiddleware>();
@@ -75,7 +74,6 @@ public static class LoggingPipelineExtensions
 		builder.Services.TryAddSingleton<LoggingMiddleware>();
 		_ = builder.Services.AddOptions<LoggingMiddlewareOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder.UseMiddleware<LoggingMiddleware>();

@@ -163,7 +163,7 @@ public sealed partial class FluentSagaOrchestration<TSagaInput, TSagaOutput>
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			if (!step.ShouldExecute(input, state))
+			if (!step.ShouldExecute(input!, state))
 			{
 				LogStepSkipping(step.Name);
 				continue;
@@ -198,7 +198,7 @@ public sealed partial class FluentSagaOrchestration<TSagaInput, TSagaOutput>
 		cancellationToken.ThrowIfCancellationRequested();
 
 		var tasks = parallelGroup.Steps
-			.Where(step => step.ShouldExecute(input, state))
+			.Where(step => step.ShouldExecute(input!, state))
 			.Select(step => ExecuteSingleStepAsync(input, state, step, cancellationToken));
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -223,7 +223,7 @@ public sealed partial class FluentSagaOrchestration<TSagaInput, TSagaOutput>
 			// Lock state to prevent concurrent mutation from parallel steps
 			lock (state.SyncLock)
 			{
-				var stepInput = step.PrepareInput(input, state);
+				var stepInput = step.PrepareInput(input!, state);
 				step.ProcessOutput(stepInput, state);
 			}
 
@@ -239,7 +239,7 @@ public sealed partial class FluentSagaOrchestration<TSagaInput, TSagaOutput>
 			lock (state.SyncLock)
 			{
 				// In a real Azure Functions implementation, this would call the actual activity
-				activityInput = step.PrepareInput(input, state);
+				activityInput = step.PrepareInput(input!, state);
 			}
 
 			// Currently simulating activity execution - in production this would call the actual Azure Functions activity
@@ -297,8 +297,8 @@ public sealed partial class FluentSagaOrchestration<TSagaInput, TSagaOutput>
 		}
 
 		// Exhausted all retries
-		LogRetryExhausted(lastException, step.Name, _maxRetryAttempts);
-		throw lastException;
+		LogRetryExhausted(lastException!, step.Name, _maxRetryAttempts);
+		throw lastException!;
 	}
 
 	/// <summary>
@@ -347,10 +347,8 @@ public sealed partial class FluentSagaOrchestration<TSagaInput, TSagaOutput>
 	/// <param name="state"> The saga state. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	// IDE0060: cancellationToken intentionally unused — compensation runs to completion for data consistency
-#pragma warning disable IDE0060
 
 	private async Task CompensateAsync(SagaState state, CancellationToken cancellationToken)
-#pragma warning restore IDE0060
 	{
 		LogSagaCompensationStarting(SagaName);
 

@@ -18,7 +18,6 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,8 +46,7 @@ var host = new HostBuilder()
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-			// Register JSON serializer for message payloads
-			_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+			// Configure JSON serialization
 		});
 
 		// ============================================================

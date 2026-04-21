@@ -79,7 +79,7 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 			Builders<ActivityGroupDocument>.Filter.Eq(x => x.UserId, userId),
 			Builders<ActivityGroupDocument>.Filter.Eq(x => x.GrantType, grantType));
 
-		var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
+		var result = await _collection!.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
 		LogActivityGroupGrantsDeletedByUser(userId, grantType, (int)result.DeletedCount);
 
 		return (int)result.DeletedCount;
@@ -92,7 +92,7 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = Builders<ActivityGroupDocument>.Filter.Eq(x => x.GrantType, grantType);
-		var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
+		var result = await _collection!.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
 		LogAllActivityGroupGrantsDeleted(grantType, (int)result.DeletedCount);
 
 		return (int)result.DeletedCount;
@@ -135,7 +135,7 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 			Builders<ActivityGroupDocument>.Filter.Eq(x => x.Qualifier, qualifier));
 
 		var options = new ReplaceOptions { IsUpsert = true };
-		var result = await _collection.ReplaceOneAsync(filter, document, options, cancellationToken).ConfigureAwait(false);
+		var result = await _collection!.ReplaceOneAsync(filter, document, options, cancellationToken).ConfigureAwait(false);
 
 		LogActivityGroupGrantInserted(userId, grantType, qualifier);
 		return result.ModifiedCount > 0 || result.UpsertedId is not null ? 1 : 0;
@@ -149,7 +149,7 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = Builders<ActivityGroupDocument>.Filter.Eq(x => x.GrantType, grantType);
-		var userIds = await _collection.DistinctAsync(
+		var userIds = await _collection!.DistinctAsync(
 			new StringFieldDefinition<ActivityGroupDocument, string>("userId"),
 			filter,
 			cancellationToken: cancellationToken).ConfigureAwait(false);

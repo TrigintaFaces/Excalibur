@@ -10,8 +10,8 @@ using Excalibur.Dispatch.Validation.Context;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Enums;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessagingEnumsShould
 {
 	// --- MessageFlags (Flags enum, byte) ---
@@ -167,7 +167,7 @@ public sealed class MessagingEnumsShould
 	{
 		ValidationSeverity.Info.ShouldBe((ValidationSeverity)0);
 		ValidationSeverity.Warning.ShouldBe((ValidationSeverity)1);
-		ValidationSeverity.Error.ShouldBe((ValidationSeverity)2);
+		ValidationSeverity.Error!.ShouldBe((ValidationSeverity)2);
 		ValidationSeverity.Critical.ShouldBe((ValidationSeverity)3);
 	}
 

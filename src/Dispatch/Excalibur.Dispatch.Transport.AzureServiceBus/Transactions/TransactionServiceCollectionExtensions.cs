@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Transport.Azure;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -32,7 +33,7 @@ public static class TransactionServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="services"/> is null.
 	/// </exception>
-	public static IServiceCollection AddAzureServiceBusTransactions<TImplementation>(
+	public static IServiceCollection AddAzureServiceBusTransactions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services)
 		where TImplementation : class, IAzureServiceBusTransaction
 	{

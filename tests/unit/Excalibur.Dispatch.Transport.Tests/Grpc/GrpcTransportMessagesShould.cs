@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Transport.Grpc;
 
 namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class GrpcTransportMessagesShould
 {
@@ -68,7 +68,7 @@ public sealed class GrpcTransportMessagesShould
 		response.IsSuccess.ShouldBeFalse();
 		response.MessageId.ShouldBeNull();
 		response.ErrorCode.ShouldBeNull();
-		response.ErrorMessage.ShouldBeNull();
+		response.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]

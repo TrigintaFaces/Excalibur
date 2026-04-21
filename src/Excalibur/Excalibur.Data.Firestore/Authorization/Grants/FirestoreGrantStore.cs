@@ -87,7 +87,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = FirestoreGrantDocument.CreateDocumentId(tenantId, userId, grantType, qualifier);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 		if (!snapshot.Exists)
@@ -124,7 +124,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = FirestoreGrantDocument.CreateDocumentId(tenantId, userId, grantType, qualifier);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
@@ -155,7 +155,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 
 		var tenant = string.IsNullOrEmpty(tenantId) ? FirestoreGrantDocument.NullTenantSentinel : tenantId;
 
-		var query = _collection
+		var query = _collection!
 			.WhereEqualTo(FirestoreGrantDocument.TenantIdFieldName, tenant)
 			.WhereEqualTo(FirestoreGrantDocument.GrantTypeFieldName, grantType)
 			.WhereEqualTo(FirestoreGrantDocument.QualifierFieldName, qualifier)
@@ -193,7 +193,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = FirestoreGrantDocument.CreateDocumentId(tenantId, userId, grantType, qualifier);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
@@ -207,7 +207,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		// Query by user ID across all tenants
-		var query = _collection
+		var query = _collection!
 			.WhereEqualTo(FirestoreGrantDocument.UserIdFieldName, userId)
 			.WhereEqualTo(FirestoreGrantDocument.IsRevokedFieldName, false);
 
@@ -234,7 +234,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = FirestoreGrantDocument.CreateDocumentId(grant.TenantId, grant.UserId, grant.GrantType, grant.Qualifier);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 		var data = FirestoreGrantDocument.ToDocumentData(grant);
 
 		// SetAsync with merge behavior acts as upsert
@@ -251,7 +251,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		// Query by user ID across all tenants
-		var query = _collection
+		var query = _collection!
 			.WhereEqualTo(FirestoreGrantDocument.UserIdFieldName, userId)
 			.WhereEqualTo(FirestoreGrantDocument.IsRevokedFieldName, false);
 
@@ -263,7 +263,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 			var grant = FirestoreGrantDocument.FromSnapshot(doc);
 			if (grant is not null)
 			{
-				var key = $"{grant.GrantType}:{grant.Qualifier}";
+				var key = $"{grant.TenantId ?? string.Empty}:{grant.GrantType}:{grant.Qualifier}";
 				result[key] = grant;
 			}
 		}
@@ -298,6 +298,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 				_ = FirestoreEmulatorHelper.TryConfigureEmulatorHost(_options.EmulatorHost);
 			}
 
+#pragma warning disable CS0618 // CredentialsPath/JsonCredentials are obsolete but replacements require significant refactoring
 			if (!string.IsNullOrEmpty(_options.CredentialsJson))
 			{
 				builder.JsonCredentials = _options.CredentialsJson;
@@ -306,6 +307,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 			{
 				builder.CredentialsPath = _options.CredentialsPath;
 			}
+#pragma warning restore CS0618
 
 			_db = await builder.BuildAsync(cancellationToken).ConfigureAwait(false);
 			_collection = _db.Collection(_options.GrantsCollectionName);

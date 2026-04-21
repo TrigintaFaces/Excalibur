@@ -133,7 +133,7 @@ public sealed class CompositeDeduplicationStrategyShould : UnitTestBase
 		// Arrange
 		const string messageBody = "{\"test\": true}";
 		const string primaryId = "primary-id";
-		_ = A.CallTo(() => _fakePrimary.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>.Ignored, A<CancellationToken>.Ignored))
+		_ = A.CallTo(() => _fakePrimary.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>.Ignored))
 			.Returns(primaryId);
 		var strategy = new CompositeDeduplicationStrategy(_fakePrimary, [], _options);
 
@@ -149,9 +149,9 @@ public sealed class CompositeDeduplicationStrategyShould : UnitTestBase
 	{
 		// Arrange
 		const string messageBody = "{\"test\": true}";
-		_ = A.CallTo(() => _fakePrimary.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>.Ignored, A<CancellationToken>.Ignored))
+		_ = A.CallTo(() => _fakePrimary.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>.Ignored))
 			.Returns("primary");
-		_ = A.CallTo(() => _fakeSecondary1.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>.Ignored, A<CancellationToken>.Ignored))
+		_ = A.CallTo(() => _fakeSecondary1.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>.Ignored))
 			.Returns("secondary1");
 		var strategy = new CompositeDeduplicationStrategy(_fakePrimary, [_fakeSecondary1], _options);
 
@@ -167,11 +167,11 @@ public sealed class CompositeDeduplicationStrategyShould : UnitTestBase
 	{
 		// Arrange
 		const string messageBody = "{\"test\": true}";
-		_ = A.CallTo(() => _fakePrimary.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>.Ignored, A<CancellationToken>.Ignored))
+		_ = A.CallTo(() => _fakePrimary.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>.Ignored))
 			.Returns("primary");
-		_ = A.CallTo(() => _fakeSecondary1.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>.Ignored, A<CancellationToken>.Ignored))
+		_ = A.CallTo(() => _fakeSecondary1.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>.Ignored))
 			.Returns("secondary1");
-		_ = A.CallTo(() => _fakeSecondary2.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>.Ignored, A<CancellationToken>.Ignored))
+		_ = A.CallTo(() => _fakeSecondary2.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>.Ignored))
 			.Returns("secondary2");
 		var strategy = new CompositeDeduplicationStrategy(_fakePrimary, [_fakeSecondary1, _fakeSecondary2], _options);
 

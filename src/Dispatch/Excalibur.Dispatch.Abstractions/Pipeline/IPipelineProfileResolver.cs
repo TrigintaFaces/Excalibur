@@ -22,11 +22,11 @@ public interface IPipelineProfileResolver
 	/// <param name="context"> The message context containing metadata and state. </param>
 	/// <param name="transportBinding">
 	/// The transport binding that received this message, or <see langword="null"/> for directly dispatched messages.
-	/// When provided, the resolver should consider the binding's <see cref="ITransportBinding.PipelineProfile"/>
+	/// When provided, the resolver should consider the binding's PipelineProfile
 	/// as a candidate profile.
 	/// </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> The selected pipeline profile, or null to use the default pipeline. </returns>
+	/// <returns> The selected <see cref="IPipelineProfile"/>, or null to use the default pipeline. </returns>
 	/// <remarks>
 	/// <para>
 	/// The resolver should evaluate all registered profiles and select the most appropriate one based on factors such as:

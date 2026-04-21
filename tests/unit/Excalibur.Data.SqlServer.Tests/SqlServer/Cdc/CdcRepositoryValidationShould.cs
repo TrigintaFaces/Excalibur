@@ -12,9 +12,9 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// Tests verifying SQL identifier validation used by CdcRepository (S543.8, bd-4y6t3).
 /// Validates that the centralized SqlIdentifierValidator rejects malicious input and accepts valid names.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcRepositoryValidationShould : UnitTestBase
 {
 	private static readonly MethodInfo NormalizeCaptureInstanceForSqlMethod = typeof(CdcRepository)

@@ -10,7 +10,7 @@ Repository tests verify that aggregates can be saved to and loaded from the even
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch.Testing
@@ -46,10 +46,10 @@ public class OrderRepositoryTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddDispatch();
-        services.AddExcaliburEventSourcing(builder =>
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
             builder.AddRepository<Order, OrderId>();
-        });
+        }));
         services.AddInMemoryEventStore();
 
         _provider = services.BuildServiceProvider();
@@ -79,11 +79,11 @@ public class SqlServerRepositoryTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddDispatch();
-        services.AddExcaliburEventSourcing(builder =>
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
+            builder.UseSqlServer(opts => opts.ConnectionString = _container.GetConnectionString());
             builder.AddRepository<Order, OrderId>();
-        });
-        services.AddSqlServerEventSourcing(_container.GetConnectionString());
+        }));
 
         _provider = services.BuildServiceProvider();
         _repository = _provider.GetRequiredService<IEventSourcedRepository<Order, OrderId>>();
@@ -218,11 +218,11 @@ public async Task Snapshot_created_at_threshold()
 {
     var services = new ServiceCollection();
     services.AddDispatch();
-    services.AddExcaliburEventSourcing(builder =>
+    services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
     {
         builder.AddRepository<Order, OrderId>();
         builder.UseIntervalSnapshots(5); // Snapshot every 5 events
-    });
+    }));
     services.AddInMemoryEventStore();
 
     using var provider = services.BuildServiceProvider();
@@ -363,11 +363,11 @@ public class DatabaseFixture : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddDispatch();
-        services.AddExcaliburEventSourcing(builder =>
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
+            builder.UseSqlServer(opts => opts.ConnectionString = Container.GetConnectionString());
             builder.AddRepository<Order, OrderId>();
-        });
-        services.AddSqlServerEventSourcing(Container.GetConnectionString());
+        }));
         Provider = services.BuildServiceProvider();
     }
 

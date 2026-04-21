@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Observability.Metrics;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Observability.Metrics;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class ExemplarHistogramExtensionsShould : IDisposable
 {

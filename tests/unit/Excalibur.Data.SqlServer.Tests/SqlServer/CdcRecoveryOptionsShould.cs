@@ -17,7 +17,7 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// bd-1710x: CDC Recovery Infrastructure Tests.
 /// Updated: Uses consolidated core StalePositionRecoveryStrategy.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "CdcRecoveryOptions")]
 public sealed class CdcRecoveryOptionsShould : UnitTestBase
 {

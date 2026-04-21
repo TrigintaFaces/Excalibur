@@ -29,12 +29,6 @@ public interface ITransportBinding
 	string EndpointPattern { get; }
 
 	/// <summary>
-	/// Gets the pipeline profile to use for messages from this binding.
-	/// </summary>
-	/// <value> The pipeline profile applied to matching messages. </value>
-	IPipelineProfile? PipelineProfile { get; }
-
-	/// <summary>
 	/// Gets the message kinds this binding accepts.
 	/// </summary>
 	/// <value> The accepted message kinds. </value>
@@ -46,10 +40,17 @@ public interface ITransportBinding
 	/// <value> The numeric priority used for ordering bindings. </value>
 	int Priority { get; }
 
-	/// <summary>
-	/// Determines if this binding matches an endpoint.
-	/// </summary>
-	/// <param name="endpoint"> The endpoint to match. </param>
-	/// <returns> <see langword="true" /> if the binding matches; otherwise, <see langword="false" />. </returns>
+}
+
+/// <summary>
+/// Provides routing and matching operations for transport bindings.
+/// Implementations should implement this alongside <see cref="ITransportBinding"/>.
+/// </summary>
+public interface ITransportBindingRouting
+{
+	/// <summary>Gets the pipeline profile to use for messages from this binding.</summary>
+	IPipelineProfile? PipelineProfile { get; }
+
+	/// <summary>Determines if this binding matches an endpoint.</summary>
 	bool Matches(string endpoint);
 }

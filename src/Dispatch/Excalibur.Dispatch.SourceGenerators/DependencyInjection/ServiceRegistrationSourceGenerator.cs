@@ -188,7 +188,7 @@ public sealed class ServiceRegistrationSourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine(
 			"[UnconditionalSuppressMessage(\"Trimming\", \"IL2026:Members annotated with RequiresUnreferencedCode may break with trimming\",");
 		_ = sb.AppendLine("    Justification = \"All service types are preserved by this source generator\")]");
-		_ = sb.AppendLine("public static class GeneratedServiceCollectionExtensions");
+		_ = sb.AppendLine("internal static class GeneratedServiceCollectionExtensions");
 		_ = sb.AppendLine("{");
 
 		// Generate the AddGeneratedServices method

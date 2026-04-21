@@ -16,32 +16,40 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, ISnapshot?>
 {
-	private const string Sql = """
-		SELECT snapshot_id AS SnapshotId, aggregate_id AS AggregateId, aggregate_type AS AggregateType,
-		       version AS Version, data AS Data, created_at AS CreatedAt
-		FROM event_store_snapshots
-		WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetLatestSnapshotRequest"/> class.
 	/// </summary>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the snapshot store table. Default: "public".</param>
+	/// <param name="table">The snapshot store table name. Default: "event_store_snapshots".</param>
 	public GetLatestSnapshotRequest(
 		string aggregateId,
 		string aggregateType,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "public",
+		string table = "event_store_snapshots")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+
+		var qualifiedTable = PgTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		var sql = $"""
+			SELECT snapshot_id AS SnapshotId, aggregate_id AS AggregateId, aggregate_type AS AggregateType,
+			       version AS Version, data AS Data, created_at AS CreatedAt
+			FROM {qualifiedTable}
+			WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 		{

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Tests.Pipeline;
 /// Unit tests for the DispatchPipeline class covering execution ordering, short-circuit behavior,
 /// exception handling, async middleware, context propagation, and conditional middleware.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DispatchPipelineShould : UnitTestBase
 {
@@ -439,7 +439,7 @@ public sealed class DispatchPipelineShould : UnitTestBase
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Error handled");
+		result.ErrorMessage!.ShouldBe("Error handled");
 	}
 
 	[Fact]

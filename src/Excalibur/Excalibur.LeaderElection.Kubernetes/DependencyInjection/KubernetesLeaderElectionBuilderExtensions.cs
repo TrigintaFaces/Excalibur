@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.LeaderElection;
@@ -24,45 +25,126 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class KubernetesLeaderElectionBuilderExtensions
 {
 	/// <summary>
-	/// Configures the leader election builder to use the Kubernetes provider.
+	/// Configures the leader election builder to use the Kubernetes provider via a fluent builder.
 	/// </summary>
 	/// <param name="builder">The leader election builder.</param>
-	/// <param name="configure">Optional action to configure Kubernetes-specific options.</param>
+	/// <param name="configure">Configuration action for the Kubernetes builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddExcalibur(x => x.AddLeaderElection(le =&gt;
+	/// {
+	///     le.UseKubernetes(k8s =&gt;
+	///     {
+	///         k8s.Namespace("my-namespace")
+	///            .LeaseName("my-app-leader")
+	///            .LeaseDuration(15);
+	///     });
+	/// }));
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static ILeaderElectionBuilder UseKubernetes(
 		this ILeaderElectionBuilder builder,
-		Action<KubernetesLeaderElectionOptions>? configure = null)
+		Action<ILeaderElectionKubernetesBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		// Configure options
-		var optionsBuilder = builder.Services.AddOptions<KubernetesLeaderElectionOptions>();
-		if (configure != null)
+		var k8sBuilder = new LeaderElectionKubernetesBuilder();
+		configure(k8sBuilder);
+
+		RegisterOptionsAndServices(builder, k8sBuilder);
+
+		return builder;
+	}
+
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		ILeaderElectionBuilder builder,
+		LeaderElectionKubernetesBuilder k8sBuilder)
+	{
+		// Configure options from builder state
+		_ = builder.Services.Configure<KubernetesLeaderElectionOptions>(opt =>
 		{
-			_ = optionsBuilder.Configure(configure);
+			if (k8sBuilder.NamespaceValue is not null)
+			{
+				opt.Namespace = k8sBuilder.NamespaceValue;
+			}
+
+			if (k8sBuilder.LeaseNameValue is not null)
+			{
+				opt.LeaseName = k8sBuilder.LeaseNameValue;
+			}
+
+			if (k8sBuilder.LeaseIdentityValue is not null)
+			{
+				opt.CandidateId = k8sBuilder.LeaseIdentityValue;
+			}
+
+			if (k8sBuilder.LeaseDurationSeconds.HasValue)
+			{
+				opt.LeaseDurationSeconds = k8sBuilder.LeaseDurationSeconds.Value;
+			}
+
+			if (k8sBuilder.RenewDeadlineMilliseconds.HasValue)
+			{
+				opt.RenewIntervalMilliseconds = k8sBuilder.RenewDeadlineMilliseconds.Value;
+			}
+
+			if (k8sBuilder.RetryPeriodMilliseconds.HasValue)
+			{
+				opt.RetryIntervalMilliseconds = k8sBuilder.RetryPeriodMilliseconds.Value;
+			}
+		});
+
+		// Register BindConfiguration if set
+		if (k8sBuilder.BindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<KubernetesLeaderElectionOptions>()
+				.BindConfiguration(k8sBuilder.BindConfigurationPath)
+				.ValidateOnStart();
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		builder.Services.AddOptions<KubernetesLeaderElectionOptions>().ValidateOnStart();
 
 		// Register cross-property validators
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<KubernetesLeaderElectionOptions>,
 				KubernetesLeaderElectionOptionsValidator>());
 
-		// Register Kubernetes client if not already registered
-		_ = builder.Services.AddSingleton<IKubernetes>(static _ =>
+		// Register Kubernetes client
+		if (k8sBuilder.UseInCluster)
 		{
-			if (IsRunningInKubernetes())
+			_ = builder.Services.AddSingleton<IKubernetes>(static _ =>
 			{
 				var config = KubernetesClientConfiguration.InClusterConfig();
 				return new K8sClient(config);
-			}
-			else
+			});
+		}
+		else
+		{
+			// Auto-detect: try in-cluster first, fall back to kubeconfig
+			_ = builder.Services.AddSingleton<IKubernetes>(static _ =>
 			{
-				var config = KubernetesClientConfiguration.BuildConfigFromConfigFile();
-				return new K8sClient(config);
-			}
-		});
+				if (IsRunningInKubernetes())
+				{
+					var config = KubernetesClientConfiguration.InClusterConfig();
+					return new K8sClient(config);
+				}
+				else
+				{
+					var config = KubernetesClientConfiguration.BuildConfigFromConfigFile();
+					return new K8sClient(config);
+				}
+			});
+		}
 
 		// Register the factory with telemetry wrapping
 		_ = builder.Services.AddSingleton<ILeaderElectionFactory>(sp =>
@@ -73,8 +155,6 @@ public static class KubernetesLeaderElectionBuilderExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Kubernetes");
 		});
-
-		return builder;
 	}
 
 	/// <summary>

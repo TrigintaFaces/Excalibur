@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <remarks>
 /// Tests the abstract middleware base class using concrete test implementations.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class DispatchMiddlewareBaseShould
 {
@@ -339,8 +339,8 @@ public sealed class DispatchMiddlewareBaseShould
 		var ex = await Should.ThrowAsync<InvalidOperationException>(
 			middleware.InvokeAsync(message, context, next, CancellationToken.None).AsTask());
 		ex.Message.ShouldContain("encountered an error");
-		_ = ex.InnerException.ShouldNotBeNull();
-		ex.InnerException.Message.ShouldBe("Test error");
+		_ = ex.InnerException!.ShouldNotBeNull();
+		ex.InnerException!.Message.ShouldBe("Test error");
 	}
 
 	#endregion

@@ -3,8 +3,8 @@
 
 
 using Elastic.Clients.Elasticsearch;
-using Elastic.Clients.Elasticsearch.IndexManagement;
 
+using Excalibur.Data.ElasticSearch.Internal;
 
 using Microsoft.Extensions.Logging;
 
@@ -13,16 +13,41 @@ namespace Excalibur.Data.ElasticSearch.IndexManagement;
 /// <summary>
 /// Provides functionality for managing Elasticsearch index templates including creation, updates, and validation.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="IndexTemplateManager" /> class.
-/// </remarks>
-/// <param name="client"> The Elasticsearch client instance. </param>
-/// <param name="logger"> The logger instance. </param>
-/// <exception cref="ArgumentNullException"> Thrown if any parameter is null. </exception>
-public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<IndexTemplateManager> logger) : IIndexTemplateManager
+public sealed class IndexTemplateManager : IIndexTemplateManager
 {
-	private readonly ElasticsearchClient _client = client ?? throw new ArgumentNullException(nameof(client));
-	private readonly ILogger<IndexTemplateManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly IIndexTemplateStore _indexStore;
+	private readonly IComponentTemplateStore _componentStore;
+	private readonly ILogger<IndexTemplateManager> _logger;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="IndexTemplateManager"/> class.
+	/// </summary>
+	/// <param name="client"> The Elasticsearch client instance. </param>
+	/// <param name="logger"> The logger instance. </param>
+	/// <exception cref="ArgumentNullException"> Thrown if any parameter is null. </exception>
+	public IndexTemplateManager(ElasticsearchClient client, ILogger<IndexTemplateManager> logger)
+		: this(CreateIndexStore(client), CreateComponentStore(client), logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="IndexTemplateManager"/>
+	/// class using pre-built store adapters. Used by tests to substitute
+	/// the SDK via the <see cref="IIndexTemplateStore"/> +
+	/// <see cref="IComponentTemplateStore"/> seams (ADR-142 §D7 S799 F1 split).
+	/// </summary>
+	/// <param name="indexStore"> The index-template store seam adapter. </param>
+	/// <param name="componentStore"> The component-template store seam adapter. </param>
+	/// <param name="logger"> The logger instance. </param>
+	internal IndexTemplateManager(
+		IIndexTemplateStore indexStore,
+		IComponentTemplateStore componentStore,
+		ILogger<IndexTemplateManager> logger)
+	{
+		_indexStore = indexStore ?? throw new ArgumentNullException(nameof(indexStore));
+		_componentStore = componentStore ?? throw new ArgumentNullException(nameof(componentStore));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	}
 
 	/// <inheritdoc />
 	public async Task<bool> CreateOrUpdateTemplateAsync(string templateName, IndexTemplateConfiguration template,
@@ -35,25 +60,9 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 		{
 			_logger.LogInformation("Creating or updating index template: {TemplateName}", templateName);
 
-			var request = new PutIndexTemplateRequest(templateName)
-			{
-				IndexPatterns = template.IndexPatterns.Select(static p => (IndexName)p).ToArray(),
-				Priority = template.Priority,
-				Version = template.Version,
-				Template = new IndexTemplateMapping { Settings = template.Template, Mappings = template.Mappings },
-				ComposedOf = template.ComposedOf?.Select(static x => (Name)x).ToList(),
-				Meta = template.Metadata?.ToDictionary(static k => k.Key, static k => k.Value!),
-			};
+			var result = await _indexStore.PutAsync(templateName, template, cancellationToken).ConfigureAwait(false);
 
-			// Configure data stream if specified
-			if (template.DataStream is not null)
-			{
-				request.DataStream = new DataStreamVisibility { Hidden = template.DataStream.Hidden };
-			}
-
-			var response = await _client.Indices.PutIndexTemplateAsync(request, cancellationToken).ConfigureAwait(false);
-
-			if (response.IsValidResponse)
+			if (result.Success)
 			{
 				_logger.LogInformation("Successfully created or updated index template: {TemplateName}", templateName);
 				return true;
@@ -61,7 +70,7 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 
 			_logger.LogError(
 				"Failed to create or update index template: {TemplateName}. Error: {Error}",
-				templateName, response.DebugInformation);
+				templateName, result.ErrorDetails);
 			return false;
 		}
 		catch (Exception ex)
@@ -80,9 +89,9 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 		{
 			_logger.LogInformation("Deleting index template: {TemplateName}", templateName);
 
-			var response = await _client.Indices.DeleteIndexTemplateAsync(templateName, cancellationToken).ConfigureAwait(false);
+			var result = await _indexStore.DeleteAsync(templateName, cancellationToken).ConfigureAwait(false);
 
-			if (response.IsValidResponse)
+			if (result.Success)
 			{
 				_logger.LogInformation("Successfully deleted index template: {TemplateName}", templateName);
 				return true;
@@ -90,7 +99,7 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 
 			_logger.LogError(
 				"Failed to delete index template: {TemplateName}. Error: {Error}",
-				templateName, response.DebugInformation);
+				templateName, result.ErrorDetails);
 			return false;
 		}
 		catch (Exception ex)
@@ -107,8 +116,7 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 
 		try
 		{
-			var response = await _client.Indices.ExistsIndexTemplateAsync(templateName, cancellationToken).ConfigureAwait(false);
-			return response.IsValidResponse;
+			return await _indexStore.ExistsAsync(templateName, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -153,7 +161,7 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 	}
 
 	/// <inheritdoc />
-	public async Task<IEnumerable<IndexTemplateItem>> GetTemplatesAsync(
+	public async Task<IEnumerable<IndexTemplateDescriptor>> GetTemplatesAsync(
 		string? namePattern,
 		CancellationToken cancellationToken)
 	{
@@ -161,16 +169,7 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 		{
 			_logger.LogInformation("Getting index templates with pattern: {Pattern}", namePattern ?? "all");
 
-			var request = new GetIndexTemplateRequest(namePattern ?? "*");
-			var response = await _client.Indices.GetIndexTemplateAsync(request, cancellationToken).ConfigureAwait(false);
-
-			if (response.IsValidResponse)
-			{
-				return response.IndexTemplates ?? Enumerable.Empty<IndexTemplateItem>();
-			}
-
-			_logger.LogError("Failed to get index templates. Error: {Error}", response.DebugInformation);
-			return [];
+			return await _indexStore.ListAsync(namePattern ?? "*", cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -190,28 +189,9 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 		{
 			_logger.LogInformation("Creating or updating component template: {TemplateName}", templateName);
 
-			var response = await _client.Cluster.PutComponentTemplateAsync(
-				templateName,
-				r => r
-					.Version(template.Version)
-					.Template(t => t
-						.Settings(template.Template)
-						.Mappings(template.Mappings))
-					.Meta(meta =>
-					{
-						if (template.Metadata != null)
-						{
-							foreach (var kvp in template.Metadata)
-							{
-								_ = meta.Add(kvp.Key, kvp.Value ?? new object());
-							}
-						}
+			var result = await _componentStore.PutAsync(templateName, template, cancellationToken).ConfigureAwait(false);
 
-						return meta;
-					}),
-				cancellationToken).ConfigureAwait(false);
-
-			if (response.IsValidResponse)
+			if (result.Success)
 			{
 				_logger.LogInformation("Successfully created or updated component template: {TemplateName}", templateName);
 				return true;
@@ -219,7 +199,7 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 
 			_logger.LogError(
 				"Failed to create or update component template: {TemplateName}. Error: {Error}",
-				templateName, response.DebugInformation);
+				templateName, result.ErrorDetails);
 			return false;
 		}
 		catch (Exception ex)
@@ -238,9 +218,9 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 		{
 			_logger.LogInformation("Deleting component template: {TemplateName}", templateName);
 
-			var response = await _client.Cluster.DeleteComponentTemplateAsync(templateName, cancellationToken).ConfigureAwait(false);
+			var result = await _componentStore.DeleteAsync(templateName, cancellationToken).ConfigureAwait(false);
 
-			if (response.IsValidResponse)
+			if (result.Success)
 			{
 				_logger.LogInformation("Successfully deleted component template: {TemplateName}", templateName);
 				return true;
@@ -248,7 +228,7 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 
 			_logger.LogError(
 				"Failed to delete component template: {TemplateName}. Error: {Error}",
-				templateName, response.DebugInformation);
+				templateName, result.ErrorDetails);
 			return false;
 		}
 		catch (Exception ex)
@@ -321,5 +301,17 @@ public sealed class IndexTemplateManager(ElasticsearchClient client, ILogger<Ind
 			errors.Add($"Migration failed with exception: {ex.Message}");
 			return new TemplateMigrationResult { IsSuccessful = false, Errors = errors, Warnings = warnings };
 		}
+	}
+
+	private static IIndexTemplateStore CreateIndexStore(ElasticsearchClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		return new IndexTemplateStoreAdapter(client);
+	}
+
+	private static IComponentTemplateStore CreateComponentStore(ElasticsearchClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		return new ComponentTemplateStoreAdapter(client);
 	}
 }

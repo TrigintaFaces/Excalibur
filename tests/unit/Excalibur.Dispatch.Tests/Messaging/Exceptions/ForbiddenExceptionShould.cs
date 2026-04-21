@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Exceptions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ForbiddenExceptionShould
 {
 	[Fact]
@@ -31,7 +31,7 @@ public sealed class ForbiddenExceptionShould
 		var ex = new ForbiddenException("msg", inner);
 
 		ex.Message.ShouldBe("msg");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

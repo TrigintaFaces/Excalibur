@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Unit tests (bd-fiyr) for <see cref="SqlServerDeadLetterQueue"/> and related components.
 /// Tests configuration, options, and behavior without requiring a real database.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class SqlServerDeadLetterQueueShould
 {

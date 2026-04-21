@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
 
@@ -9,92 +10,60 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// <summary>
 /// Unit tests for <see cref="IPluggableSerializationBuilder"/> and
 /// <see cref="PluggableSerializationServiceCollectionExtensions"/> validating
-/// DI configuration and auto-registration behavior.
+/// DI configuration and opt-in serializer registration behavior.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class PluggableSerializationBuilderShould
 {
-	#region AutoRegisterMemoryPack Tests
+	#region Opt-In Serializer Registration Tests
 
 	[Fact]
-	public void AutoRegisterMemoryPack_ByDefault()
+	public void NotRegisterMemoryPack_ByDefault()
 	{
-		// Arrange
+		// ADR-295: MemoryPack is opt-in, not auto-registered
 		var services = new ServiceCollection();
 		_ = services.AddPluggableSerialization();
 
-		// Act
 		using var provider = services.BuildServiceProvider();
 		var registry = provider.GetRequiredService<ISerializerRegistry>();
 
-		// Assert - MemoryPack should be auto-registered
-		registry.IsRegistered(SerializerIds.MemoryPack).ShouldBeTrue();
+		registry.IsRegistered(SerializerIds.MemoryPack).ShouldBeFalse();
 	}
 
 	[Fact]
-	public void SetMemoryPackAsCurrent_ByDefault()
+	public void RegisterMemoryPack_WhenExplicitlyOptedIn()
 	{
-		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddPluggableSerialization();
+		_ = services.AddPluggableSerializer(
+			SerializerIds.MemoryPack,
+			new Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer(),
+			setAsCurrent: true);
 
-		// Act
 		using var provider = services.BuildServiceProvider();
 		var registry = provider.GetRequiredService<ISerializerRegistry>();
 
-		// Assert - MemoryPack should be the current serializer
+		registry.IsRegistered(SerializerIds.MemoryPack).ShouldBeTrue();
 		var (id, serializer) = registry.GetCurrent();
-		_ = serializer.ShouldNotBeNull();
 		serializer.Name.ShouldBe("MemoryPack");
 		id.ShouldBe(SerializerIds.MemoryPack);
 	}
 
 	[Fact]
-	public void DisableMemoryPackAutoRegistration_WhenOptionIsSetToFalse()
+	public void UseSystemTextJson_AsDefaultSerializer()
 	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddPluggableSerialization();
-		_ = services.Configure<PluggableSerializationOptions>(options =>
-		{
-			options.AutoRegisterMemoryPack = false;
-		});
-
-		// Act
-		using var provider = services.BuildServiceProvider();
-		var registry = provider.GetRequiredService<ISerializerRegistry>();
-
-		// Assert - MemoryPack should NOT be registered
-		registry.IsRegistered(SerializerIds.MemoryPack).ShouldBeFalse();
-
-		// GetCurrent should throw since nothing is registered
-		_ = Should.Throw<InvalidOperationException>(() => registry.GetCurrent());
-	}
-
-	[Fact]
-	public void AllowOnlySystemTextJson_WhenMemoryPackDisabled()
-	{
-		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddPluggableSerialization();
 
-		// Add SystemTextJson and disable MemoryPack auto-registration
 		_ = services.AddPluggableSerializer(
 			SerializerIds.SystemTextJson,
 			new SystemTextJsonSerializer(),
 			setAsCurrent: true);
 
-		_ = services.Configure<PluggableSerializationOptions>(options =>
-		{
-			options.AutoRegisterMemoryPack = false;
-		});
-
-		// Act
 		using var provider = services.BuildServiceProvider();
 		var registry = provider.GetRequiredService<ISerializerRegistry>();
 
-		// Assert
 		registry.IsRegistered(SerializerIds.MemoryPack).ShouldBeFalse();
 		registry.IsRegistered(SerializerIds.SystemTextJson).ShouldBeTrue();
 
@@ -102,23 +71,23 @@ public sealed class PluggableSerializationBuilderShould
 		serializer.Name.ShouldBe("System.Text.Json");
 	}
 
-	#endregion AutoRegisterMemoryPack Tests
+	#endregion Opt-In Serializer Registration Tests
 
 	#region Serializer Registration Tests
 
 	[Fact]
 	public void RegisterMultipleSerializers()
 	{
-		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddPluggableSerialization();
+		_ = services.AddPluggableSerializer(
+			SerializerIds.MemoryPack,
+			new Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer());
 		_ = services.AddPluggableSerializer(SerializerIds.SystemTextJson, new SystemTextJsonSerializer());
 
-		// Act
 		using var provider = services.BuildServiceProvider();
 		var registry = provider.GetRequiredService<ISerializerRegistry>();
 
-		// Assert - Both should be registered
 		registry.IsRegistered(SerializerIds.MemoryPack).ShouldBeTrue();
 		registry.IsRegistered(SerializerIds.SystemTextJson).ShouldBeTrue();
 	}
@@ -152,16 +121,6 @@ public sealed class PluggableSerializationBuilderShould
 	#region Options Tests
 
 	[Fact]
-	public void Options_DefaultsAutoRegisterToTrue()
-	{
-		// Arrange & Act
-		var options = new PluggableSerializationOptions();
-
-		// Assert
-		options.AutoRegisterMemoryPack.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void Options_CurrentSerializerName_DefaultsToNull()
 	{
 		// Arrange & Act
@@ -172,4 +131,41 @@ public sealed class PluggableSerializationBuilderShould
 	}
 
 	#endregion Options Tests
+
+	#region Default Serializer Tests (Sprint 739 A.6 / ADR-295)
+
+	[Fact]
+	public void AddEventSerializer_RegistersJsonEventSerializerAsDefault()
+	{
+		// ADR-295: JSON is the default event serializer, not SpanEventSerializer
+		var services = new ServiceCollection();
+		_ = services.AddEventSerializer();
+
+		using var provider = services.BuildServiceProvider();
+		var serializer = provider.GetRequiredService<IEventSerializer>();
+
+		serializer.ShouldBeOfType<JsonEventSerializer>();
+	}
+
+	[Fact]
+	public void AddEventSerializer_DoesNotRegisterSpanEventSerializer()
+	{
+		// ADR-295: SpanEventSerializer is no longer the default
+		var services = new ServiceCollection();
+		_ = services.AddEventSerializer();
+
+		using var provider = services.BuildServiceProvider();
+		var serializer = provider.GetRequiredService<IEventSerializer>();
+
+		serializer.ShouldNotBeOfType<SpanEventSerializer>();
+	}
+
+	[Fact]
+	public void AddEventSerializer_ThrowsOnNullServices()
+	{
+		IServiceCollection services = null!;
+		Should.Throw<ArgumentNullException>(() => services.AddEventSerializer());
+	}
+
+	#endregion Default Serializer Tests (Sprint 739 A.6 / ADR-295)
 }

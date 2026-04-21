@@ -6,8 +6,8 @@ using Shouldly;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.BatchProcessing;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class ProcessingErrorShould
 {
     [Fact]
@@ -20,7 +20,7 @@ public sealed class ProcessingErrorShould
         error.Severity.ShouldBe(default(BatchErrorSeverity));
         error.OccurredAt.ShouldNotBe(default);
         error.MessageId.ShouldBeNull();
-        error.Exception.ShouldBeNull();
+        error.Exception!.ShouldBeNull();
     }
 
     [Fact]
@@ -91,8 +91,8 @@ public sealed class ProcessingErrorShould
         var ex = new InvalidOperationException("Test exception");
         var error = new ProcessingError { Exception = ex };
 
-        error.Exception.ShouldBe(ex);
-        error.Exception.ShouldBeOfType<InvalidOperationException>();
+        error.Exception!.ShouldBe(ex);
+        error.Exception!.ShouldBeOfType<InvalidOperationException>();
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class ProcessingErrorShould
         error.Message.ShouldBe("Rate limit exceeded for message processing");
         error.Severity.ShouldBe(BatchErrorSeverity.Warning);
         error.MessageId.ShouldBe("msg-456");
-        error.Exception.ShouldBeNull();
+        error.Exception!.ShouldBeNull();
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class ProcessingErrorShould
         error.Severity.ShouldBe(BatchErrorSeverity.Critical);
         error.OccurredAt.ShouldBe(timestamp);
         error.MessageId.ShouldBe("msg-789");
-        error.Exception.ShouldBe(ex);
+        error.Exception!.ShouldBe(ex);
     }
 
     [Fact]

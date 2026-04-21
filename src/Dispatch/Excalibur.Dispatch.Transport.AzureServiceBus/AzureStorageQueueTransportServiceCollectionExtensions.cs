@@ -1,14 +1,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 using Azure.Identity;
 using Azure.Storage.Queues;
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Transport.Azure;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -139,6 +143,53 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Accumulated message type registrations for the <see cref="MessageDeserializerRegistry"/>.
+	/// Read by <see cref="MessageDeserializerRegistryPopulator"/> on first options resolution.
+	/// </summary>
+	internal static readonly ConcurrentBag<Action<MessageDeserializerRegistry>> MessageDeserializerPendingRegistrations = [];
+
+	/// <summary>
+	/// Registers a message type for AOT-safe deserialization with Azure Storage Queue transport.
+	/// </summary>
+	/// <typeparam name="TMessage">The message type to register for deserialization.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// AOT consumers must call this method for each message type used with Storage Queues.
+	/// JIT consumers do not need this — the existing reflection path handles type resolution automatically.
+	/// </para>
+	/// <para>
+	/// This follows the same explicit-generic-DI pattern used by <c>AddSaga&lt;TSaga, TSagaState&gt;()</c>
+	/// and <c>AddCachePolicy&lt;TMessage, TPolicy&gt;()</c>.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// // Register message types for AOT-safe Storage Queue deserialization
+	/// services.AddStorageQueueMessage&lt;OrderCreatedEvent&gt;();
+	/// services.AddStorageQueueMessage&lt;PaymentProcessedEvent&gt;();
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddStorageQueueMessage<TMessage>(
+		this IServiceCollection services)
+		where TMessage : class, IDispatchMessage
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// Accumulate for AOT registry population
+		MessageDeserializerPendingRegistrations.Add(
+			static registry => registry.Register<TMessage>());
+
+		// Ensure registry + populator are registered (idempotent)
+		services.TryAddSingleton<MessageDeserializerRegistry>();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IPostConfigureOptions<AzureStorageQueueOptions>, MessageDeserializerRegistryPopulator>());
+
+		return services;
+	}
+
+	/// <summary>
 	/// Registers the core Azure Storage Queue services with the service collection.
 	/// </summary>
 	private static void RegisterAzureStorageQueueServices(
@@ -179,7 +230,6 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 				options.Authentication.UseManagedIdentity = transportOptions.UseManagedIdentity;
 				options.Storage.StorageAccountUri = transportOptions.StorageAccountUri;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Map AzureStorageQueueTransportOptions to existing AzureStorageQueueOptions
@@ -197,8 +247,10 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 				options.DeadLetterQueueName = transportOptions.DeadLetterQueueName;
 				options.MaxDequeueCount = transportOptions.MaxDequeueCount;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureStorageQueueOptions>, AzureStorageQueueOptionsValidator>());
 	}
 
 }
@@ -234,35 +286,6 @@ public interface IAzureStorageQueueTransportBuilder
 	/// <param name="queueName">The queue name.</param>
 	/// <returns>The builder for chaining.</returns>
 	IAzureStorageQueueTransportBuilder QueueName(string queueName);
-
-	/// <summary>
-	/// Sets the visibility timeout for messages.
-	/// </summary>
-	/// <param name="visibilityTimeout">The visibility timeout.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureStorageQueueTransportBuilder VisibilityTimeout(TimeSpan visibilityTimeout);
-
-	/// <summary>
-	/// Sets the maximum number of concurrent messages to process.
-	/// </summary>
-	/// <param name="maxConcurrentMessages">The maximum number of concurrent messages.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureStorageQueueTransportBuilder MaxConcurrentMessages(int maxConcurrentMessages);
-
-	/// <summary>
-	/// Sets the polling interval for checking new messages.
-	/// </summary>
-	/// <param name="pollingInterval">The polling interval.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureStorageQueueTransportBuilder PollingInterval(TimeSpan pollingInterval);
-
-	/// <summary>
-	/// Enables a dead letter queue.
-	/// </summary>
-	/// <param name="deadLetterQueueName">The dead letter queue name.</param>
-	/// <param name="maxDequeueCount">The maximum dequeue count before sending to DLQ.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureStorageQueueTransportBuilder EnableDeadLetterQueue(string deadLetterQueueName, int maxDequeueCount = 5);
 
 	/// <summary>
 	/// Configures the Azure Storage Queue options.
@@ -319,28 +342,28 @@ internal sealed class AzureStorageQueueTransportBuilder : IAzureStorageQueueTran
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the visibility timeout for messages.</summary>
 	public IAzureStorageQueueTransportBuilder VisibilityTimeout(TimeSpan visibilityTimeout)
 	{
 		_options.VisibilityTimeout = visibilityTimeout;
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the maximum number of concurrent messages to process.</summary>
 	public IAzureStorageQueueTransportBuilder MaxConcurrentMessages(int maxConcurrentMessages)
 	{
 		_options.MaxConcurrentMessages = maxConcurrentMessages;
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the polling interval for checking new messages.</summary>
 	public IAzureStorageQueueTransportBuilder PollingInterval(TimeSpan pollingInterval)
 	{
 		_options.PollingInterval = pollingInterval;
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Enables a dead letter queue.</summary>
 	public IAzureStorageQueueTransportBuilder EnableDeadLetterQueue(string deadLetterQueueName, int maxDequeueCount = 5)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(deadLetterQueueName);
@@ -423,4 +446,33 @@ public sealed class AzureStorageQueueTransportOptions
 	/// Gets or sets the maximum dequeue count before sending to DLQ. Default is 5.
 	/// </summary>
 	public int MaxDequeueCount { get; set; } = 5;
+}
+
+/// <summary>
+/// Populates <see cref="MessageDeserializerRegistry"/> from message type actions accumulated during DI composition.
+/// Runs once on first <see cref="AzureStorageQueueOptions"/> resolution via <see cref="IPostConfigureOptions{TOptions}"/>.
+/// </summary>
+[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+	Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
+internal sealed class MessageDeserializerRegistryPopulator(
+	MessageDeserializerRegistry registry) : IPostConfigureOptions<AzureStorageQueueOptions>
+{
+	private volatile bool _populated;
+
+	public void PostConfigure(string? name, AzureStorageQueueOptions options)
+	{
+		if (_populated)
+		{
+			return;
+		}
+
+		_populated = true;
+
+		foreach (var registration in AzureStorageQueueTransportServiceCollectionExtensions.MessageDeserializerPendingRegistrations)
+		{
+			registration(registry);
+		}
+
+		registry.Freeze();
+	}
 }

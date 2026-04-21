@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// Metric and tag names follow OpenTelemetry semantic conventions.
 /// </para>
 /// </remarks>
-public static class StreamingHandlerTelemetryConstants
+internal static class StreamingHandlerTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for streaming handler metrics.

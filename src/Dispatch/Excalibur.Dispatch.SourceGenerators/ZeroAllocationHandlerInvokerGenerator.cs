@@ -155,7 +155,7 @@ public sealed class ZeroAllocHandlerInvokerGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Generated zero-allocation handler invoker registry.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static partial class ZeroAllocationHandlerRegistry");
+		_ = sb.AppendLine("internal static partial class ZeroAllocationHandlerRegistry");
 		_ = sb.AppendLine("{");
 
 		// Generate type mapping dictionaries
@@ -168,7 +168,7 @@ public sealed class ZeroAllocHandlerInvokerGenerator : IIncrementalGenerator
 			{
 				var handlerTypeName = handler.HandlerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 				var messageTypeName = @interface.MessageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-				var resultTypeName = @interface.ResultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				var resultTypeName = @interface.ResultType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
 				_ = sb.AppendLine($" {{ (typeof({handlerTypeName}), typeof({messageTypeName})), typeof({resultTypeName}) }},");
 			}
@@ -209,7 +209,7 @@ public sealed class ZeroAllocHandlerInvokerGenerator : IIncrementalGenerator
 		var methodName = $"InvokeAsync_{handler.SimpleName}_{@interface.MessageType.Name}";
 		var handlerTypeName = handler.HandlerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		var messageTypeName = @interface.MessageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-		var resultTypeName = @interface.ResultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		var resultTypeName = @interface.ResultType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
 		_ = sb.AppendLine(" [MethodImpl(MethodImplOptions.AggressiveInlining)]");
 		_ = sb.AppendLine($" private static async ValueTask<HandlerResult<{resultTypeName}>> {methodName}(");
@@ -267,7 +267,7 @@ public sealed class ZeroAllocHandlerInvokerGenerator : IIncrementalGenerator
 			{
 				var handlerTypeName = handler.HandlerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 				var messageTypeName = @interface.MessageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-				var resultTypeName = @interface.ResultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				var resultTypeName = @interface.ResultType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 				var methodName = $"InvokeAsync_{handler.SimpleName}_{@interface.MessageType.Name}";
 
 				_ = sb.AppendLine($" if (typeof(THandler) == typeof({handlerTypeName}) &&");
@@ -356,7 +356,7 @@ public sealed class ZeroAllocHandlerInvokerGenerator : IIncrementalGenerator
 				{
 					_ = $"InvokeAsync_{handler.SimpleName}_{@interface.MessageType.Name}";
 
-					_ = @interface.ResultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+					_ = @interface.ResultType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
 					_ = sb.AppendLine($" var typedHandler = ({handlerTypeName})handler;");
 					_ = sb.AppendLine($" var typedMessage = ({messageTypeName})message;");
@@ -409,7 +409,7 @@ public sealed class ZeroAllocHandlerInvokerGenerator : IIncrementalGenerator
 		var handlerTypeName = handler.HandlerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 		var messageTypeName = @interface.MessageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-		_ = @interface.ResultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+		_ = @interface.ResultType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
 		_ = sb.AppendLine($" private static async Task<object?> {methodName}(");
 		_ = sb.AppendLine($" {handlerTypeName} handler,");
@@ -458,4 +458,3 @@ public sealed class ZeroAllocHandlerInvokerGenerator : IIncrementalGenerator
 		public ITypeSymbol? ResultType { get; set; }
 	}
 }
-

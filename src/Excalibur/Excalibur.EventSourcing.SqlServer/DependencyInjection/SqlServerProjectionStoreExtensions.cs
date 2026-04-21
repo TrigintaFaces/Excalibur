@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.SqlServer;
+using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -40,11 +41,13 @@ public static class SqlServerProjectionStoreExtensions
 
 			options.Value.Validate();
 
+			#pragma warning disable IL2026, IL3050 // SqlServerProjectionStore uses reflection-based JSON serialization
 			return new SqlServerProjectionStore<TProjection>(
-				options.Value.ConnectionString,
+				options.Value.ConnectionString ?? throw new InvalidOperationException("SqlServerProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				options.Value.TableName,
 				options.Value.JsonSerializerOptions);
+			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;
@@ -132,6 +135,73 @@ public static class SqlServerProjectionStoreExtensions
 				options?.TableName,
 				options?.JsonSerializerOptions);
 		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple SQL Server projection stores that share a common connection string,
+	/// reducing boilerplate when multiple projections target the same database.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The shared SQL Server connection string.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddSqlServerProjections("Server=...;Database=...", projections =>
+	/// {
+	///     projections.Add&lt;OrderSummary&gt;();
+	///     projections.Add&lt;CustomerProfile&gt;(options => options.TableName = "Customers");
+	///     projections.Add&lt;ProductCatalog&gt;();
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddSqlServerProjections(
+		this IServiceCollection services,
+		string connectionString,
+		Action<SqlServerProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new SqlServerProjectionRegistrar(services, connectionString);
+		configure(registrar);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple SQL Server projection stores with shared options configuration,
+	/// allowing advanced settings like custom table names, JSON serialization, and timeouts.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureShared">Shared options applied to all projections before per-projection overrides.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddSqlServerProjections(
+	///     shared => { shared.ConnectionString = connStr; shared.SchemaName = "projections"; },
+	///     projections =>
+	///     {
+	///         projections.Add&lt;OrderSummary&gt;();
+	///         projections.Add&lt;CustomerProfile&gt;(options => options.TableName = "Customers");
+	///     });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddSqlServerProjections(
+		this IServiceCollection services,
+		Action<SqlServerProjectionStoreOptions> configureShared,
+		Action<SqlServerProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configureShared);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new SqlServerProjectionRegistrar(services, configureShared);
+		configure(registrar);
 
 		return services;
 	}

@@ -36,9 +36,10 @@ namespace Excalibur.Dispatch.Observability;
 [JsonSerializable(typeof(AnomalySeverity))]
 [JsonSerializable(typeof(ContextChangeType))]
 [JsonSerializable(typeof(DiagnosticSeverity))]
+[JsonSerializable(typeof(DiagnosticExportData))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(Dictionary<string, object?>))]
 [JsonSerializable(typeof(IReadOnlyDictionary<string, object>))]
-public partial class ObservabilityJsonSerializerContext : JsonSerializerContext
+internal partial class ObservabilityJsonSerializerContext : JsonSerializerContext
 {
 }

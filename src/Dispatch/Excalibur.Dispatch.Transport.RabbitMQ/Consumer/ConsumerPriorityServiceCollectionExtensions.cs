@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Transport.RabbitMQ;
+
+using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -36,8 +39,8 @@ public static class ConsumerPriorityServiceCollectionExtensions
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// Registers <see cref="ConsumerPriorityOptions"/> in the DI container with data annotation
-	/// validation and startup validation. The options are consumed by the RabbitMQ consumer
+	/// Registers <see cref="ConsumerPriorityOptions"/> in the DI container with
+	/// startup validation. The options are consumed by the RabbitMQ consumer
 	/// infrastructure to set the <c>x-priority</c> argument on consumer queue declarations.
 	/// </para>
 	/// </remarks>
@@ -50,7 +53,33 @@ public static class ConsumerPriorityServiceCollectionExtensions
 
 		_ = services.AddOptions<ConsumerPriorityOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds RabbitMQ consumer priority support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="ConsumerPriorityOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddRabbitMQConsumerPriority(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<ConsumerPriorityOptions>()
+			.Bind(configuration)
 			.ValidateOnStart();
 
 		return services;

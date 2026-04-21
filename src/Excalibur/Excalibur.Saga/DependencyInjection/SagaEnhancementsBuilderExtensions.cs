@@ -1,12 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Saga.DependencyInjection;
 using Excalibur.Saga.Handlers;
 using Excalibur.Saga.Hosting;
 using Excalibur.Saga.Idempotency;
 using Excalibur.Saga.Reminders;
 using Excalibur.Saga.Snapshots;
+
+using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -52,7 +55,8 @@ public static class SagaEnhancementsBuilderExtensions
 	/// <typeparam name="THandler">The handler implementation type.</typeparam>
 	/// <param name="builder">The saga builder.</param>
 	/// <returns>The saga builder for chaining.</returns>
-	public static ISagaBuilder WithNotFoundHandler<TSaga, THandler>(this ISagaBuilder builder)
+	public static ISagaBuilder WithNotFoundHandler<TSaga,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(this ISagaBuilder builder)
 		where TSaga : class
 		where THandler : class, ISagaNotFoundHandler<TSaga>
 	{
@@ -102,6 +106,32 @@ public static class SagaEnhancementsBuilderExtensions
 	}
 
 	/// <summary>
+	/// Adds saga reminder services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The saga builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SagaReminderOptions"/>.</param>
+	/// <returns>The saga builder for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static ISagaBuilder WithReminders(
+		this ISagaBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<SagaReminderOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		_ = builder.Services.AddSagaReminders();
+
+		return builder;
+	}
+
+	/// <summary>
 	/// Adds saga state snapshot services.
 	/// </summary>
 	/// <param name="builder">The saga builder.</param>
@@ -126,12 +156,39 @@ public static class SagaEnhancementsBuilderExtensions
 	}
 
 	/// <summary>
+	/// Adds saga state snapshot services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The saga builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SagaSnapshotOptions"/>.</param>
+	/// <returns>The saga builder for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static ISagaBuilder WithSnapshots(
+		this ISagaBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<SagaSnapshotOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		_ = builder.Services.AddSagaSnapshots();
+
+		return builder;
+	}
+
+	/// <summary>
 	/// Adds saga idempotency tracking services.
 	/// </summary>
 	/// <typeparam name="TProvider">The idempotency provider implementation type.</typeparam>
 	/// <param name="builder">The saga builder.</param>
 	/// <returns>The saga builder for chaining.</returns>
-	public static ISagaBuilder WithIdempotency<TProvider>(this ISagaBuilder builder)
+	public static ISagaBuilder WithIdempotency<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(this ISagaBuilder builder)
 		where TProvider : class, ISagaIdempotencyProvider
 	{
 		ArgumentNullException.ThrowIfNull(builder);
@@ -161,6 +218,32 @@ public static class SagaEnhancementsBuilderExtensions
 		{
 			_ = builder.Services.AddSagaTimeoutCleanup();
 		}
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Adds the saga timeout cleanup background service using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The saga builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SagaTimeoutCleanupOptions"/>.</param>
+	/// <returns>The saga builder for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static ISagaBuilder WithTimeoutCleanup(
+		this ISagaBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<SagaTimeoutCleanupOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		_ = builder.Services.AddSagaTimeoutCleanup();
 
 		return builder;
 	}

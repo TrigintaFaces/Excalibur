@@ -16,7 +16,7 @@ namespace Excalibur.Data.Tests.InMemory;
 /// <summary>
 /// Unit tests for <see cref="OutboxBuilderInMemoryExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "DataInMemory")]
 [Trait("Priority", "0")]
 public sealed class OutboxBuilderInMemoryExtensionsShould : UnitTestBase

@@ -18,8 +18,8 @@ namespace Excalibur.Data.Tests.InMemory;
 /// <summary>
 /// Unit tests for InMemoryPersistenceProvider operations.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class InMemoryPersistenceProviderShould : UnitTestBase
 {
 	private readonly ILogger<InMemoryPersistenceProvider> _logger;

@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Metrics;
 /// <remarks>
 /// Tests the histogram wrapper for .NET Metrics API.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Metrics")]
 [Trait("Priority", "0")]
 public sealed class HistogramShould : IDisposable

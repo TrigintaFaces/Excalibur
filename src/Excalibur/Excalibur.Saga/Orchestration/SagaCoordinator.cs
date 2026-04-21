@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
@@ -23,6 +24,8 @@ namespace Excalibur.Saga.Orchestration;
 /// <param name="serviceProvider"> Service provider for dependency injection and saga instantiation. </param>
 /// <param name="sagaStore"> Persistent store for saga state management and retrieval. </param>
 /// <param name="logger"> Logger for saga coordination activities, errors, and performance metrics. </param>
+[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break when trimming",
+	Justification = "HandleEventInternalAsync is preserved via DI registration and reflection is only used in JIT mode")]
 public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, ISagaStore sagaStore, ILogger<SagaCoordinator> logger)
 	: ISagaCoordinator
 {
@@ -49,6 +52,10 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("This method uses reflection to invoke generic HandleEventAsyncInternal method with runtime types")]
 	[RequiresDynamicCode("This method uses MakeGenericMethod with runtime types")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "ISagaCoordinator interface is kept clean for AOT consumers. SagaCoordinator uses RuntimeFeature.IsDynamicCodeSupported branching.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "ISagaCoordinator interface is kept clean for AOT consumers. SagaCoordinator uses RuntimeFeature.IsDynamicCodeSupported branching.")]
 	public async Task ProcessEventAsync(
 		IMessageContext messageContext,
 		ISagaEvent evt,
@@ -74,6 +81,21 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		}
 
 		var sagaStateType = sagaInfo.StateType;
+
+		// AOT path: use pre-registered typed dispatch delegate
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			var registry = serviceProvider.GetService<ISagaDispatchRegistry>();
+			var dispatcher = registry?.GetDispatcher(sagaType, sagaStateType)
+				?? throw new PlatformNotSupportedException(
+					$"Saga dispatch for {sagaType.Name}/{sagaStateType.Name} requires a typed dispatch registration " +
+					"in AOT mode. Register via ISagaDispatchRegistry at DI time or use the SagaRegistrationGenerator source generator.");
+
+			await dispatcher(this, messageContext, evt, sagaInfo, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
+		// JIT path: use cached MakeGenericMethod
 		var cacheKey = (sagaType, sagaStateType);
 
 		MethodInfo method;

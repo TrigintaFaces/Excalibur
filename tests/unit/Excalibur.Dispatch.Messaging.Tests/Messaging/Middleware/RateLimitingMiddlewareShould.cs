@@ -23,8 +23,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Sprint 414 - Task T414.4: ThrottlingMiddleware tests (0% → 50%+).
 /// Tests rate limiting pattern implementation for resilience.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class ThrottlingMiddlewareShould : IDisposable
 {
 	private readonly ILogger<ThrottlingMiddleware> _logger;
@@ -173,7 +173,7 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		{
 			Enabled = true,
 			BypassRateLimitingForTypes = [_message.GetType().Name],
-			DefaultLimit = new RateLimitConfiguration
+			DefaultLimit = new RateLimitOptions
 			{
 				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 1,
@@ -205,14 +205,14 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var options = new RateLimitingOptions
 		{
 			Enabled = true,
-			DefaultLimit = new RateLimitConfiguration
+			DefaultLimit = new RateLimitOptions
 			{
 				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 100,
 				TokensPerPeriod = 100,
 				ReplenishmentPeriod = TimeSpan.FromSeconds(1)
 			},
-			GlobalLimit = new RateLimitConfiguration
+			GlobalLimit = new RateLimitOptions
 			{
 				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 1000,
@@ -236,13 +236,13 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var options = new RateLimitingOptions
 		{
 			Enabled = true,
-			DefaultLimit = new RateLimitConfiguration
+			DefaultLimit = new RateLimitOptions
 			{
 				Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 				PermitLimit = 1,
 				Window = TimeSpan.FromHours(1) // Long window so permits won't replenish
 			},
-			GlobalLimit = new RateLimitConfiguration
+			GlobalLimit = new RateLimitOptions
 			{
 				Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 				PermitLimit = 1000,
@@ -274,13 +274,13 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		{
 			Enabled = true,
 			EnablePerTenantLimiting = true,
-			DefaultLimit = new RateLimitConfiguration
+			DefaultLimit = new RateLimitOptions
 			{
 				Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 				PermitLimit = 1,
 				Window = TimeSpan.FromHours(1)
 			},
-			GlobalLimit = new RateLimitConfiguration
+			GlobalLimit = new RateLimitOptions
 			{
 				Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 				PermitLimit = 1000,
@@ -327,7 +327,7 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var options = new RateLimitingOptions
 		{
 			Enabled = true,
-			DefaultLimit = new RateLimitConfiguration
+			DefaultLimit = new RateLimitOptions
 			{
 				Algorithm = algorithm,
 				TokenLimit = 100,
@@ -337,7 +337,7 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 				Window = TimeSpan.FromSeconds(1),
 				SegmentsPerWindow = 4
 			},
-			GlobalLimit = new RateLimitConfiguration
+			GlobalLimit = new RateLimitOptions
 			{
 				Algorithm = algorithm,
 				TokenLimit = 1000,
@@ -368,7 +368,7 @@ public sealed class ThrottlingMiddlewareShould : IDisposable
 		var options = new RateLimitingOptions
 		{
 			Enabled = true,
-			DefaultLimit = new RateLimitConfiguration
+			DefaultLimit = new RateLimitOptions
 			{
 				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 100,

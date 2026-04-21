@@ -7,8 +7,8 @@ using Excalibur.Dispatch.Caching;
 namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 
 [Collection("MessageTypeCacheTests")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 [Trait("Priority", "1")]
 public sealed class MessageTypeCacheFallbackShould
 {

@@ -134,7 +134,7 @@ public sealed class HandlerInvokerSourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// </summary>");
 		_ = sb.AppendLine("[UnconditionalSuppressMessage(\"AOT\", \"IL2026:RequiresUnreferencedCode\")]");
 		_ = sb.AppendLine("[UnconditionalSuppressMessage(\"AOT\", \"IL3050:RequiresDynamicCode\")]");
-		_ = sb.AppendLine("public static partial class HandlerInvokerRegistry");
+		_ = sb.AppendLine("internal static partial class HandlerInvokerRegistry");
 		_ = sb.AppendLine("{");
 
 		// Generate invoker dictionary

@@ -1,127 +1,104 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Security.Azure;
+using Excalibur.Security.Azure;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Security.Tests.Azure;
 
 /// <summary>
 /// Unit tests for Azure security DI extension methods.
-/// Verifies Sprint 390 implementation: DI extensions for Azure security services.
+/// Verifies builder-based entry point: AddDispatchSecurityAzure(Action&lt;ISecurityAzureBuilder&gt;).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class DispatchSecurityAzureServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
-	public void AddAzureKeyVaultCredentialStore_ThrowsArgumentNullException_WhenServicesIsNull()
+	public void AddDispatchSecurityAzure_ThrowsArgumentNullException_WhenServicesIsNull()
 	{
 		// Arrange
 		IServiceCollection services = null!;
-		var configuration = CreateEmptyConfiguration();
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(
-			() => services.AddAzureKeyVaultCredentialStore(configuration));
+			() => services.AddDispatchSecurityAzure(_ => { }));
 		exception.ParamName.ShouldBe("services");
 	}
 
 	[Fact]
-	public void AddAzureKeyVaultCredentialStore_ThrowsArgumentNullException_WhenConfigurationIsNull()
+	public void AddDispatchSecurityAzure_ThrowsArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(
-			() => services.AddAzureKeyVaultCredentialStore(null!));
-		exception.ParamName.ShouldBe("configuration");
+			() => services.AddDispatchSecurityAzure((Action<ISecurityAzureBuilder>)null!));
+		exception.ParamName.ShouldBe("configure");
 	}
 
 	[Fact]
-	public void AddAzureKeyVaultCredentialStore_DoesNotRegisterServices_WhenVaultUriNotConfigured()
+	public void AddDispatchSecurityAzure_DoesNotRegisterCredentialStore_WhenVaultUriNotConfigured()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = CreateEmptyConfiguration();
 
-		// Act
-		_ = services.AddAzureKeyVaultCredentialStore(configuration);
+		// Act -- builder with no VaultUri call
+		_ = services.AddDispatchSecurityAzure(_ => { });
 
-		// Assert - No services should be registered when VaultUri is empty
+		// Assert - No credential store services should be registered when VaultUri is not set
 		services.ShouldNotContain(s => s.ServiceType == typeof(ICredentialStore));
 		services.ShouldNotContain(s => s.ServiceType == typeof(IWritableCredentialStore));
 	}
 
 	[Fact]
-	public void AddAzureKeyVaultCredentialStore_RegistersCredentialStore_WhenVaultUriConfigured()
+	public void AddDispatchSecurityAzure_RegistersCredentialStore_WhenVaultUriConfigured()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = CreateConfigurationWithVaultUri();
-		_ = services.AddSingleton(configuration);
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddAzureKeyVaultCredentialStore(configuration);
+		_ = services.AddDispatchSecurityAzure(azure =>
+		{
+			azure.VaultUri("https://test-vault.vault.azure.net/");
+		});
 
 		// Assert
 		services.ShouldContain(s => s.ServiceType == typeof(ICredentialStore));
 	}
 
 	[Fact]
-	public void AddAzureKeyVaultCredentialStore_RegistersWritableCredentialStore_WhenVaultUriConfigured()
+	public void AddDispatchSecurityAzure_RegistersWritableCredentialStore_WhenVaultUriConfigured()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = CreateConfigurationWithVaultUri();
-		_ = services.AddSingleton(configuration);
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddAzureKeyVaultCredentialStore(configuration);
+		_ = services.AddDispatchSecurityAzure(azure =>
+		{
+			azure.VaultUri("https://test-vault.vault.azure.net/");
+		});
 
 		// Assert
 		services.ShouldContain(s => s.ServiceType == typeof(IWritableCredentialStore));
 	}
 
 	[Fact]
-	public void AddAzureKeyVaultCredentialStore_ReturnsSameServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var configuration = CreateEmptyConfiguration();
-
-		// Act
-		var result = services.AddAzureKeyVaultCredentialStore(configuration);
-
-		// Assert
-		result.ShouldBeSameAs(services);
-	}
-
-	[Fact]
-	public void AddAzureServiceBusSecurityValidation_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-
-		// Act & Assert
-		var exception = Should.Throw<ArgumentNullException>(
-			() => services.AddAzureServiceBusSecurityValidation());
-		exception.ParamName.ShouldBe("services");
-	}
-
-	[Fact]
-	public void AddAzureServiceBusSecurityValidation_RegistersOptionsValidator()
+	public void AddDispatchSecurityAzure_RegistersServiceBusValidator_ByDefault()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
-		_ = services.AddAzureServiceBusSecurityValidation();
+		// Act -- ServiceBusValidation is enabled by default in SecurityAzureBuilder
+		_ = services.AddDispatchSecurityAzure(azure =>
+		{
+			azure.VaultUri("https://test-vault.vault.azure.net/");
+		});
 
 		// Assert
 		services.ShouldContain(s =>
@@ -130,54 +107,18 @@ public sealed class DispatchSecurityAzureServiceCollectionExtensionsShould : Uni
 	}
 
 	[Fact]
-	public void AddAzureServiceBusSecurityValidation_ReturnsSameServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddAzureServiceBusSecurityValidation();
-
-		// Assert
-		result.ShouldBeSameAs(services);
-	}
-
-	[Fact]
-	public void AddDispatchSecurityAzure_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-		var configuration = CreateEmptyConfiguration();
-
-		// Act & Assert
-		var exception = Should.Throw<ArgumentNullException>(
-			() => services.AddDispatchSecurityAzure(configuration));
-		exception.ParamName.ShouldBe("services");
-	}
-
-	[Fact]
-	public void AddDispatchSecurityAzure_ThrowsArgumentNullException_WhenConfigurationIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		var exception = Should.Throw<ArgumentNullException>(
-			() => services.AddDispatchSecurityAzure(null!));
-		exception.ParamName.ShouldBe("configuration");
-	}
-
-	[Fact]
 	public void AddDispatchSecurityAzure_RegistersAllServices_WhenVaultUriConfigured()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = CreateConfigurationWithVaultUri();
-		_ = services.AddSingleton(configuration);
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddDispatchSecurityAzure(configuration);
+		_ = services.AddDispatchSecurityAzure(azure =>
+		{
+			azure.VaultUri("https://test-vault.vault.azure.net/")
+				.EnableServiceBusValidation();
+		});
 
 		// Assert - Should register both credential store and validator
 		services.ShouldContain(s => s.ServiceType == typeof(ICredentialStore));
@@ -192,29 +133,11 @@ public sealed class DispatchSecurityAzureServiceCollectionExtensionsShould : Uni
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = CreateEmptyConfiguration();
 
 		// Act
-		var result = services.AddDispatchSecurityAzure(configuration);
+		var result = services.AddDispatchSecurityAzure(_ => { });
 
 		// Assert
 		result.ShouldBeSameAs(services);
-	}
-
-	private static IConfiguration CreateEmptyConfiguration()
-	{
-		return new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>())
-			.Build();
-	}
-
-	private static IConfiguration CreateConfigurationWithVaultUri()
-	{
-		return new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["AzureKeyVault:VaultUri"] = "https://test-vault.vault.azure.net/"
-			})
-			.Build();
 	}
 }

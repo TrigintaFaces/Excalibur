@@ -10,7 +10,7 @@ Dispatch integrates with Microsoft.Extensions.DependencyInjection, providing aut
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -228,7 +228,7 @@ builder.Services.Decorate<IActionHandler<CreateOrderAction>, LoggingHandlerDecor
 builder.Services.Decorate<IActionHandler<CreateOrderAction>, RetryHandlerDecorator<CreateOrderAction>>();
 ```
 
-## Keyed Services (.NET 8+)
+## Keyed Services
 
 Use keyed services for named implementations:
 
@@ -262,10 +262,10 @@ builder.Services.AddDispatch(dispatch =>
     dispatch.UseKafka(kafka => kafka.BootstrapServers("localhost:9092"));
 
     // Cross-cutting (Add prefix — additive features)
-    dispatch.AddObservability();
-    dispatch.AddResilience(res => res.DefaultRetryCount = 3);
-    dispatch.AddCaching();
-    dispatch.AddSecurity(builder.Configuration);
+    dispatch.UseObservability();
+    dispatch.UseResilience(res => res.DefaultRetryCount = 3);
+    dispatch.UseCaching();
+    dispatch.UseSecurity(builder.Configuration);
 });
 ```
 
@@ -298,7 +298,7 @@ builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
     dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
-    dispatch.AddObservability();
+    dispatch.UseObservability();
     dispatch.ConfigurePipeline("default", p => p.UseValidation());
 });
 

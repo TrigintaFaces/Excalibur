@@ -25,8 +25,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.DeadLetter;
 /// These tests verify the behavioral contract through method-level testing of the consumer class
 /// using a real (but localhost-targeted) consumer instance.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KafkaDeadLetterConsumerShould : IDisposable
 {
 	private readonly KafkaDeadLetterConsumer _sut;

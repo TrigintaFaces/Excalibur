@@ -27,14 +27,6 @@ public interface IMessageBusAdapter
 	bool IsConnected { get; }
 
 	/// <summary>
-	/// Initializes the message bus adapter with the specified configuration.
-	/// </summary>
-	/// <param name="options"> Configuration options for the adapter. </param>
-	/// <param name="cancellationToken"> Token to cancel the initialization operation. </param>
-	/// <returns> A task representing the initialization operation. </returns>
-	Task InitializeAsync(MessageBusOptions options, CancellationToken cancellationToken);
-
-	/// <summary>
 	/// Publishes a message to the specified destination.
 	/// </summary>
 	/// <param name="message"> The message to publish. </param>
@@ -88,6 +80,14 @@ public interface IMessageBusAdapter
 /// </remarks>
 public interface IMessageBusAdapterLifecycle
 {
+	/// <summary>
+	/// Initializes the message bus adapter with the specified configuration.
+	/// </summary>
+	/// <param name="options"> Configuration options for the adapter. </param>
+	/// <param name="cancellationToken"> Token to cancel the initialization operation. </param>
+	/// <returns> A task representing the initialization operation. </returns>
+	Task InitializeAsync(MessageBusOptions options, CancellationToken cancellationToken);
+
 	/// <summary>
 	/// Performs a health check on the message bus adapter.
 	/// </summary>

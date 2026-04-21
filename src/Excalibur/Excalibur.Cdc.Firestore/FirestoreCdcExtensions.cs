@@ -20,18 +20,6 @@ public static class FirestoreCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds Firestore CDC processor services with the specified options.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Action to configure CDC options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This method registers <see cref="IFirestoreCdcProcessor"/> with the
-	/// <see cref="FirestoreCdcProcessor"/> implementation.
-	/// </para>
-	/// <para>
-	/// Requires <see cref="Google.Cloud.Firestore.FirestoreDb"/> to be registered in the service collection.
-	/// </para>
-	/// </remarks>
 	public static IServiceCollection AddFirestoreCdc(
 		this IServiceCollection services,
 		Action<FirestoreCdcOptions> configure)
@@ -41,8 +29,8 @@ public static class FirestoreCdcServiceCollectionExtensions
 
 		_ = services.AddOptions<FirestoreCdcOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		RegisterCdcValidators(services);
 		services.TryAddSingleton<IFirestoreCdcProcessor, FirestoreCdcProcessor>();
 
 		return services;
@@ -51,19 +39,11 @@ public static class FirestoreCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds Firestore CDC processor services to the service collection using configuration.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This method registers <see cref="IFirestoreCdcProcessor"/> with the
-	/// <see cref="FirestoreCdcProcessor"/> implementation.
-	/// </para>
-	/// <para>
-	/// Requires <see cref="Google.Cloud.Firestore.FirestoreDb"/> to be registered in the service collection.
-	/// </para>
-	/// </remarks>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddFirestoreCdc(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -73,8 +53,8 @@ public static class FirestoreCdcServiceCollectionExtensions
 
 		_ = services.AddOptions<FirestoreCdcOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		RegisterCdcValidators(services);
 		services.TryAddSingleton<IFirestoreCdcProcessor, FirestoreCdcProcessor>();
 
 		return services;
@@ -83,20 +63,11 @@ public static class FirestoreCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds Firestore CDC processor services to the service collection using a named configuration section.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration.</param>
-	/// <param name="sectionName">The configuration section name.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This method registers <see cref="IFirestoreCdcProcessor"/> with the
-	/// <see cref="FirestoreCdcProcessor"/> implementation.
-	/// </para>
-	/// <para>
-	/// Requires <see cref="Google.Cloud.Firestore.FirestoreDb"/> to be registered in the service collection.
-	/// </para>
-	/// </remarks>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddFirestoreCdc(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -108,8 +79,8 @@ public static class FirestoreCdcServiceCollectionExtensions
 
 		_ = services.AddOptions<FirestoreCdcOptions>()
 			.Bind(configuration.GetSection(sectionName))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		RegisterCdcValidators(services);
 		services.TryAddSingleton<IFirestoreCdcProcessor, FirestoreCdcProcessor>();
 
 		return services;
@@ -118,17 +89,6 @@ public static class FirestoreCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds a Firestore-backed state store for CDC position tracking.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Action to configure CDC state store options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Stores positions in a dedicated Firestore collection.
-	/// </para>
-	/// <para>
-	/// Requires <see cref="Google.Cloud.Firestore.FirestoreDb"/> to be registered in the service collection.
-	/// </para>
-	/// </remarks>
 	public static IServiceCollection AddFirestoreCdcStateStore(
 		this IServiceCollection services,
 		Action<FirestoreCdcStateStoreOptions> configure)
@@ -145,18 +105,6 @@ public static class FirestoreCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds a Firestore-backed state store for CDC position tracking with a custom collection name.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="collectionName">The collection name for storing positions.</param>
-	/// <param name="configure">Optional action to configure additional CDC state store options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Stores positions in the specified collection in Firestore.
-	/// </para>
-	/// <para>
-	/// Requires <see cref="Google.Cloud.Firestore.FirestoreDb"/> to be registered in the service collection.
-	/// </para>
-	/// </remarks>
 	public static IServiceCollection AddFirestoreCdcStateStore(
 		this IServiceCollection services,
 		string collectionName,
@@ -179,12 +127,6 @@ public static class FirestoreCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds an in-memory state store for Firestore CDC position tracking.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// This is intended for testing and development. Positions are not
-	/// persisted and will be lost when the process exits.
-	/// </remarks>
 	public static IServiceCollection AddInMemoryFirestoreCdcStateStore(
 		this IServiceCollection services)
 	{
@@ -192,6 +134,12 @@ public static class FirestoreCdcServiceCollectionExtensions
 
 		services.TryAddSingleton<IFirestoreCdcStateStore, InMemoryFirestoreCdcStateStore>();
 		return services;
+	}
+
+	private static void RegisterCdcValidators(IServiceCollection services)
+	{
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreCdcOptions>, FirestoreCdcOptionsValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreCdcRecoveryOptions>, FirestoreCdcRecoveryOptionsValidator>());
 	}
 
 	private static void RegisterCdcStateStoreOptions(
@@ -205,7 +153,6 @@ public static class FirestoreCdcServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreCdcStateStoreOptions>, FirestoreCdcStateStoreOptionsValidator>());

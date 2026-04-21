@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// Tests may fail if the emulator is not available.
 /// </remarks>
 [Collection("EventStore Telemetry Tests")]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEventStoreTelemetryTestFixture>, IAsyncLifetime
 {

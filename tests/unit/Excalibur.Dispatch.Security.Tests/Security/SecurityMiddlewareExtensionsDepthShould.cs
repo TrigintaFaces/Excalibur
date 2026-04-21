@@ -5,9 +5,10 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Telemetry;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Configuration;
+
 
 namespace Excalibur.Dispatch.Security.Tests.Security;
 
@@ -18,8 +19,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security;
 /// individual service registration with IConfiguration, null argument guards,
 /// and ValidateOnStart registration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "DI")]
 public sealed class SecurityMiddlewareExtensionsDepthShould
 {
@@ -166,10 +167,9 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 			opts.Authentication.JwtSigningKey = "ThisIsAVeryLongSigningKeyForHmacSha256ThatExceedsMinimumLength!";
 		});
 
-		// Assert — JWT middleware registered
+		// Assert — JWT middleware registered as concrete type
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(JwtAuthenticationMiddleware));
+			sd.ServiceType == typeof(JwtAuthenticationMiddleware));
 	}
 
 	[Fact]
@@ -193,8 +193,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		services.ShouldNotContain(sd => sd.ServiceType == typeof(IMessageSigningService));
 		services.ShouldNotContain(sd => sd.ServiceType == typeof(RateLimitingMiddleware));
 		services.ShouldNotContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(JwtAuthenticationMiddleware));
+			sd.ServiceType == typeof(JwtAuthenticationMiddleware));
 	}
 
 	[Fact]
@@ -340,8 +339,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(JwtAuthenticationMiddleware));
+			sd.ServiceType == typeof(JwtAuthenticationMiddleware));
 	}
 
 	[Fact]
@@ -399,8 +397,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(JwtAuthenticationMiddleware));
+			sd.ServiceType == typeof(JwtAuthenticationMiddleware));
 	}
 
 	[Fact]

@@ -5,8 +5,9 @@
     <PackageId>Excalibur.Dispatch.Transport.GooglePubSub</PackageId>
     <Description>Google Cloud integration for the Excalibur framework. Provides Pub/Sub implementation with CloudEvents support.</Description>
     <PackageTags>messaging;dispatch;google;gcp;pubsub;cloud;aot</PackageTags>
-    <!-- IL2026: Suppress RequiresUnreferencedCode for source-generated JSON serializer using Exception.TargetSite -->
+    <!-- IL2026: Source-generated JsonSerializer for Exception.TargetSite emits unavoidable RequiresUnreferencedCode warning -->
     <NoWarn>$(NoWarn);IL2026</NoWarn>
+    <!-- AOT: NOT compatible. PubSubBatchSerializer depends on DispatchJsonSerializer dynamic code; Google.Cloud.PubSub.V1 uses reflection. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
@@ -41,9 +42,5 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.GooglePubSub.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

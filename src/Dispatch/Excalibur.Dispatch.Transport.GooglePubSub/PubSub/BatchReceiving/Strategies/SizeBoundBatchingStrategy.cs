@@ -9,12 +9,8 @@ namespace Excalibur.Dispatch.Transport.Google;
 public sealed class SizeBoundBatchingStrategy : IBatchingStrategy
 {
 	private const int SampleWindowSize = 100;
-	private readonly BatchConfiguration _configuration;
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly BatchOptions _configuration;
+	private readonly Lock _lock = new();
 	private readonly MovingAverage _avgMessageSize;
 	private long _currentBatchBytes;
 	private int _currentBatchMessages;
@@ -23,7 +19,7 @@ public sealed class SizeBoundBatchingStrategy : IBatchingStrategy
 	/// Initializes a new instance of the <see cref="SizeBoundBatchingStrategy" /> class.
 	/// </summary>
 	/// <param name="configuration"> Batch configuration. </param>
-	public SizeBoundBatchingStrategy(BatchConfiguration configuration)
+	public SizeBoundBatchingStrategy(BatchOptions configuration)
 	{
 		_configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 		_avgMessageSize = new MovingAverage(SampleWindowSize);

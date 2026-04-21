@@ -4,7 +4,6 @@
     "projects": [
       "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
       "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
-      "tests\\ArchitectureTests\\ArchitectureTests.csproj",
       "tests\\architecture\\Boundary.Tests\\Boundary.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Tests\\Excalibur.Dispatch.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Abstractions.Tests\\Excalibur.Dispatch.Abstractions.Tests.csproj",

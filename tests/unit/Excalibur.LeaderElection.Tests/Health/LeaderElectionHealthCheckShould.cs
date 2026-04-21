@@ -112,8 +112,8 @@ public sealed class LeaderElectionHealthCheckShould : UnitTestBase
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("failed");
-		result.Exception.ShouldNotBeNull();
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldNotBeNull();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	// --- Data dictionary ---

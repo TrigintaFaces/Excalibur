@@ -8,9 +8,13 @@ description: Handle success and failure patterns in Dispatch using the MessageRe
 
 Dispatch provides a comprehensive result type system for handling operation outcomes without relying on exceptions for control flow. The `IMessageResult` and `IMessageResult<T>` interfaces enable clean error handling with full support for railway-oriented programming patterns.
 
+:::info Why Should I Care?
+Throwing exceptions for business validation ("order not found", "insufficient stock") is expensive and makes error paths invisible in your code. `IMessageResult` makes success and failure **first-class values** -- you can pattern-match, chain with `.Map()` and `.Match()`, and convert directly to HTTP responses with `.ToApiResult()`. Your handlers return results, not throw exceptions.
+:::
+
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -34,6 +38,7 @@ return MessageResult.SuccessFromCache();
 // Success with additional context
 return MessageResult.Success(
     value: order,
+    routingDecision: null,
     validationResult: validationContext,
     authorizationResult: authResult,
     cacheHit: false);
@@ -56,6 +61,27 @@ return MessageResult.Failed(new MessageProblemDetails
 
 // Typed failure
 return MessageResult.Failed<Order>("Validation failed", problemDetails);
+
+// Failure from an exception
+return MessageResult.Failed(exception);
+
+// Typed failure from an exception
+return MessageResult.Failed<Order>(exception);
+
+// Failure with validation and authorization context
+return MessageResult.Failed(problemDetails, validationResult, authorizationResult);
+```
+
+### Creating Cancelled Results
+
+Use `Cancelled()` when an operation is cancelled via a `CancellationToken` or business logic. The non-generic overload returns a cached singleton for hot-path performance.
+
+```csharp
+// Cancellation (returns cached singleton)
+return MessageResult.Cancelled();
+
+// Typed cancellation
+return MessageResult.Cancelled<Order>();
 ```
 
 ## IMessageResult Interface
@@ -942,12 +968,12 @@ Dispatch provides centralized exception-to-HTTP mapping that automatically conve
 
 ### Configuring Exception Mapping
 
-Configure exception mapping using the `ConfigureExceptionMapping` extension on the dispatch builder:
+Configure exception mapping using the `WithExceptionMapping` extension on the dispatch builder:
 
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.ConfigureExceptionMapping(mapping =>
+    dispatch.WithExceptionMapping(mapping =>
     {
         // ApiException hierarchy auto-mapped via ToProblemDetails() (default)
         mapping.UseApiExceptionMapping();
@@ -1007,7 +1033,7 @@ Exception mappings are evaluated in this order:
 3. **Default mapper** - Catches all remaining exceptions
 
 ```csharp
-dispatch.ConfigureExceptionMapping(mapping =>
+dispatch.WithExceptionMapping(mapping =>
 {
     // Order matters! More specific mappings should come first
     mapping.MapWhen<DbException>(
@@ -1199,6 +1225,39 @@ public class ErrorController : ControllerBase
     }
 }
 ```
+
+## Error Handling Decision Tree
+
+Use this to pick the right error strategy for your scenario:
+
+```
+Is the error a business rule violation (validation, not found, insufficient funds)?
+├── YES → Return MessageResult.Failed(problemDetails)
+│         Don't throw exceptions for expected business outcomes.
+│
+└── NO → Is it a transient infrastructure failure (timeout, connection reset)?
+    ├── YES → Let resilience middleware handle it
+    │         Add: dispatch.UseResilience()
+    │         The middleware retries automatically with backoff.
+    │
+    └── NO → Is it a permanent infrastructure failure (bad config, missing table)?
+        ├── YES → Throw an exception
+        │         Let it propagate to the caller. Log it. Fix the root cause.
+        │
+        └── NO → Is it a message that cannot be processed after retries?
+            └── YES → Use the dead-letter pattern
+                      Messages move to a DLQ after max retries.
+                      See: Dead Letter Pattern docs
+```
+
+| Scenario | Strategy | Code Pattern |
+|----------|----------|-------------|
+| Validation failure | `MessageResult.Failed(problem)` | Return result, don't throw |
+| Entity not found | `MessageResult.Failed("Not found")` | Return result |
+| Transient failure | Resilience middleware | `dispatch.UseResilience()` |
+| Permanent failure | Exception | `throw new InvalidOperationException(...)` |
+| Poison message | Dead letter queue | Transport DLQ config |
+| Concurrency conflict | Reload + retry | Catch `ConcurrencyException`, reload aggregate |
 
 ## What's Next
 

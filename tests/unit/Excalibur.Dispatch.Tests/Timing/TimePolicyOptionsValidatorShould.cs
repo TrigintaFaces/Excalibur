@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Tests.Timing;
 /// HandlerTimeout, TransportTimeout, SerializationTimeout, ValidationTimeout,
 /// ComplexityMultiplier, and custom/message/handler timeout dictionaries.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class TimePolicyOptionsValidatorShould
 {
 	private readonly TimePolicyOptionsValidator _validator = new();

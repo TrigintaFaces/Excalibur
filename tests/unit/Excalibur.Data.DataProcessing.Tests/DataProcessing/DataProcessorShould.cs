@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Unit tests for <see cref="DataProcessor{TRecord}"/> abstract class.
 /// </summary>
 [UnitTest]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataProcessorShould : UnitTestBase
 {
 	private readonly IHostApplicationLifetime _fakeLifetime = A.Fake<IHostApplicationLifetime>();

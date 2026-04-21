@@ -3,7 +3,7 @@
 
 using System.Text;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -11,8 +11,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Signing;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
 {
     private readonly byte[] _testKey = Encoding.UTF8.GetBytes("test-key-1234567890-abcdefghijkl");
@@ -554,7 +554,7 @@ public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
         // Act & Assert
         var ex = await Should.ThrowAsync<SigningException>(
             () => sut.SignMessageAsync(new byte[] { 1, 2, 3 }, context, CancellationToken.None));
-        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
     }
 
     [Fact]
@@ -576,7 +576,7 @@ public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
         // Act & Assert
         var ex = await Should.ThrowAsync<VerificationException>(
             () => sut.VerifySignatureAsync(new byte[] { 1, 2, 3 }, new byte[32], context, CancellationToken.None));
-        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
     }
 
     [Fact]

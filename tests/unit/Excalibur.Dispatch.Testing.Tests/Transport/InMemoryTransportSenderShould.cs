@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Transport;
 namespace Excalibur.Dispatch.Testing.Tests.Transport;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Testing")]
+[Trait(TraitNames.Component, TestComponents.Testing)]
 public sealed class InMemoryTransportSenderShould : IAsyncDisposable
 {
 	private readonly InMemoryTransportSender _sender = new("test-destination");

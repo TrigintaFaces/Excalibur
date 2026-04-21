@@ -7,8 +7,8 @@ using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StringCachesShould : IDisposable
 {
 	private readonly StringEncodingCache _encodingCache;

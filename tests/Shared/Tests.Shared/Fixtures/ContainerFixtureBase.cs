@@ -67,6 +67,30 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	public string? InitializationError { get; private set; }
 
 	/// <summary>
+	/// Marks the fixture as unavailable after the container started but a dependent
+	/// service (e.g., queue creation, admin API) failed. Tests should skip.
+	/// </summary>
+	/// <param name="reason">Description of what failed.</param>
+	public void MarkUnavailable(string reason)
+	{
+		DockerAvailable = false;
+		InitializationError = reason;
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the fixture should degrade gracefully when the
+	/// container cannot start, instead of throwing.
+	/// </summary>
+	/// <remarks>
+	/// Override and return <c>true</c> for optional infrastructure (e.g., cloud transport
+	/// emulators like LocalStack or ASB emulator) that may not be available in all CI
+	/// environments. When <c>true</c>, initialization failure sets <see cref="DockerAvailable"/>
+	/// to <c>false</c> without throwing, allowing tests to skip gracefully.
+	/// Default is <c>false</c> — required infrastructure (SQL Server, Redis) fails loudly.
+	/// </remarks>
+	protected virtual bool AllowGracefulDegradation => false;
+
+	/// <summary>
 	/// Gets the timeout for container startup operations.
 	/// </summary>
 	/// <remarks>
@@ -97,6 +121,8 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	public async Task InitializeAsync()
 	{
 		const int maxAttempts = 3;
+		Exception? lastException = null;
+
 		for (var attempt = 1; attempt <= maxAttempts; attempt++)
 		{
 			try
@@ -110,18 +136,30 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			catch (Exception ex) when (attempt < maxAttempts && IsRetriableDockerException(ex))
 			{
 				// Retry transient Docker startup issues (daemon hiccups, named pipe timeouts, etc.).
+				lastException = ex;
 				await Task.Delay(TimeSpan.FromSeconds(5 * attempt)).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				DockerAvailable = false;
-				InitializationError = ex.Message;
-				return;
+				lastException = ex;
+				break;
 			}
 		}
 
 		DockerAvailable = false;
-		InitializationError ??= "Container initialization failed after retries.";
+		InitializationError = lastException?.Message ?? "Container initialization failed after retries.";
+
+		if (!AllowGracefulDegradation)
+		{
+			// Throw so the collection/class fixture fails clearly instead of producing
+			// hundreds of cryptic "Could not find resource" errors from individual tests.
+			throw new InvalidOperationException(
+				$"Container startup failed after {maxAttempts} attempts: {InitializationError}",
+				lastException);
+		}
+
+		// Graceful degradation: container is optional (e.g., cloud transport emulators).
+		// Tests should check DockerAvailable and skip when false.
 	}
 
 	/// <summary>
@@ -138,7 +176,17 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			try
 			{
 				using var cts = new CancellationTokenSource(ContainerDisposeTimeout);
-				await DisposeContainerAsync(cts.Token).ConfigureAwait(false);
+				// Use Task.WhenAny because IContainer.DisposeAsync() does not accept
+				// a CancellationToken, so the CTS alone cannot interrupt a hung dispose.
+				var disposeTask = DisposeContainerAsync(cts.Token);
+				var completed = await Task.WhenAny(disposeTask, Task.Delay(ContainerDisposeTimeout)).ConfigureAwait(false);
+				if (completed != disposeTask)
+				{
+					// Timed out -- abandon the dispose rather than hanging the test host
+					return;
+				}
+
+				await disposeTask.ConfigureAwait(false);
 			}
 			catch
 			{

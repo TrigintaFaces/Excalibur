@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Options;
 
@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Options;
 /// for all security options classes.
 /// Sprint 562 S562.51: Security ValidateOnStart registration tests.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SecurityValidateOnStartRegistrationShould
 {
 	#region Encryption

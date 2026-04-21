@@ -18,7 +18,7 @@ public sealed class BatchMetadata
 	public double PullDurationMs { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether flow control was applied.
+	/// Gets or sets a value indicating whether flow control was applied.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether flow control was applied.

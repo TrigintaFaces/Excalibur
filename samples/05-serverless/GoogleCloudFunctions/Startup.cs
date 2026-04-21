@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Serialization;
 
 using Google.Cloud.Functions.Hosting;
 
@@ -35,8 +34,7 @@ public class Startup : FunctionsStartup
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(Startup).Assembly);
 
-			// Register JSON serializer for message payloads
-			_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+			// Configure JSON serialization
 		});
 
 		// Configure Google Cloud Functions Serverless hosting

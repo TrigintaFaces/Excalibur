@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
 using SqlServerContainerFixture = Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures.SqlServerContainerFixture;
 using Microsoft.Extensions.Logging;
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 
 /// <summary>

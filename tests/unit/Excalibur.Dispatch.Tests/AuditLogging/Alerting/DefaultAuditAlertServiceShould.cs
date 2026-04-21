@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.AuditLogging.Alerting;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.AuditLogging.Alerting;
+using Excalibur.Compliance;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.AuditLogging.Alerting;
 /// <summary>
 /// Unit tests for <see cref="DefaultAuditAlertService"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "AuditLogging")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.AuditLogging)]
 public sealed class DefaultAuditAlertServiceShould
 {
 	private static AuditEvent CreateTestEvent(string eventId = "evt-1", string action = "Login") =>

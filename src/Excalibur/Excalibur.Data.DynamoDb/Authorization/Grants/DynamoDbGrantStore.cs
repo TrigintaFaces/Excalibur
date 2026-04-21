@@ -103,7 +103,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 					ConditionExpression = $"attribute_exists({GrantItem.PartitionKeyAttribute})"
 				};
 
-				_ = await _client.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
+				_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
 				LogGrantRevoked(userId, tenantId ?? "null", grantType, qualifier);
 				return 1;
 			}
@@ -117,7 +117,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 					ConditionExpression = $"attribute_exists({GrantItem.PartitionKeyAttribute})"
 				};
 
-				_ = await _client.DeleteItemAsync(deleteRequest, cancellationToken).ConfigureAwait(false);
+				_ = await _client!.DeleteItemAsync(deleteRequest, cancellationToken).ConfigureAwait(false);
 				LogGrantDeleted(userId, tenantId ?? "null", grantType, qualifier);
 				return 1;
 			}
@@ -150,7 +150,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 			ProjectionExpression = $"{GrantItem.IsRevokedAttribute}"
 		};
 
-		var response = await _client.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
+		var response = await _client!.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 		if (response.Item == null || response.Item.Count == 0)
 		{
@@ -216,7 +216,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 				request.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
 
-			response = await _client.QueryAsync(request, cancellationToken).ConfigureAwait(false);
+			response = await _client!.QueryAsync(request, cancellationToken).ConfigureAwait(false);
 
 			foreach (var item in response.Items)
 			{
@@ -246,7 +246,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 
 		var request = new GetItemRequest { TableName = _options.GrantsTableName, Key = key, ConsistentRead = _options.UseConsistentReads };
 
-		var response = await _client.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
+		var response = await _client!.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 		if (response.Item == null || response.Item.Count == 0)
 		{
@@ -286,7 +286,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 				request.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
 
-			response = await _client.QueryAsync(request, cancellationToken).ConfigureAwait(false);
+			response = await _client!.QueryAsync(request, cancellationToken).ConfigureAwait(false);
 
 			foreach (var item in response.Items)
 			{
@@ -312,7 +312,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 
 		var request = new PutItemRequest { TableName = _options.GrantsTableName, Item = item };
 
-		_ = await _client.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
+		_ = await _client!.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 		LogGrantSaved(grant.UserId, grant.TenantId ?? "null", grant.GrantType, grant.Qualifier);
 		return 1;
@@ -348,14 +348,14 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 				request.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
 
-			response = await _client.QueryAsync(request, cancellationToken).ConfigureAwait(false);
+			response = await _client!.QueryAsync(request, cancellationToken).ConfigureAwait(false);
 
 			foreach (var item in response.Items)
 			{
 				var grant = GrantItem.FromItem(item);
 				if (grant is not null)
 				{
-					var key = $"{grant.GrantType}:{grant.Qualifier}";
+					var key = $"{grant.TenantId ?? string.Empty}:{grant.GrantType}:{grant.Qualifier}";
 					result[key] = grant;
 				}
 			}

@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// ASP.NET Core health checks and the <c>MultiTransportHealthCheck</c>.
 /// </para>
 /// </remarks>
-internal sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter, ITransportAdapterLifecycle, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for AWS EventBridge adapters.

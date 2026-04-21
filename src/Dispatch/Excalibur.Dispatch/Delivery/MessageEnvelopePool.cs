@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// <summary>
 /// Thread-local message envelope pool implementation.
 /// </summary>
-public sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
+internal sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 {
 	private readonly IMessagePool _messagePool;
 	private readonly MessageEnvelopePoolOptions _options;
@@ -56,7 +56,7 @@ public sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 		}
 
 		// For reference types, try to get from thread-local cache first
-		var localPool = _threadLocalPool.Value;
+		var localPool = _threadLocalPool.Value!;
 		if (localPool.TryRent<TMessage>(out var cachedEnvelope))
 		{
 			if (_diagnosticsEnabled)

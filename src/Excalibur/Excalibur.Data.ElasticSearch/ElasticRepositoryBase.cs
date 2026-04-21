@@ -18,7 +18,7 @@ namespace Excalibur.Data.ElasticSearch;
 /// This class includes operations for adding, updating, retrieving, deleting, and searching documents, as well as initializing indices
 /// in Elasticsearch.
 /// </remarks>
-public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex, IElasticRepositoryBase<TDocument>
+public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex, IElasticRepositoryBase<TDocument>, IElasticRepositoryBaseQuery<TDocument>
 	where TDocument : class
 {
 	private readonly ElasticsearchClient _client;
@@ -77,7 +77,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		ArgumentNullException.ThrowIfNull(document);
 
 		var response = await _client
-			.IndexAsync(document, (IndexName)_indexName, cancellationToken).ConfigureAwait(false);
+			.IndexAsync(document, idx => idx.Index(_indexName), cancellationToken).ConfigureAwait(false);
 
 		if (response.IsValidResponse)
 		{
@@ -164,7 +164,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		SearchRequestDescriptor<TDocument> searchRequest,
 		CancellationToken cancellationToken)
 	{
-		var response = await _client.SearchAsync(searchRequest, cancellationToken).ConfigureAwait(false);
+		var response = await _client.SearchAsync<TDocument>(searchRequest, cancellationToken).ConfigureAwait(false);
 
 		if (response.IsValidResponse)
 		{

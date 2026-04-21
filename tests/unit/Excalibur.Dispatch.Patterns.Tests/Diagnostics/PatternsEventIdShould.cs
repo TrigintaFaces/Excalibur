@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Diagnostics;
 /// <summary>
 /// Unit tests for <see cref="PatternsEventId"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Patterns")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Patterns)]
 [Trait("Feature", "Diagnostics")]
 public sealed class PatternsEventIdShould
 {

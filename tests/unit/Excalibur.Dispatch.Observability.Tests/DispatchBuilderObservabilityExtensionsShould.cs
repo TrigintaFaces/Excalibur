@@ -19,10 +19,10 @@ namespace Excalibur.Dispatch.Observability.Tests;
 public sealed class DispatchBuilderObservabilityExtensionsShould
 {
 	[Fact]
-	public void AddObservability_ThrowOnNullBuilder()
+	public void UseObservability_ThrowOnNullBuilder()
 	{
 		IDispatchBuilder builder = null!;
-		Should.Throw<ArgumentNullException>(() => builder.AddObservability());
+		Should.Throw<ArgumentNullException>(() => builder.UseObservability());
 	}
 
 	[Fact]

@@ -12,7 +12,7 @@ In 2024, the ASP.NET Core team proposed an [Eventing Framework Epic for .NET 9](
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Familiarity with [getting started](../getting-started/index.md) and [transports](../transports/choosing-a-transport.md)
 
 ---
@@ -56,34 +56,43 @@ app.Run();
 ```csharp title="Excalibur.Dispatch"
 var builder = Host.CreateApplicationBuilder();
 
-// Register prerequisites
-builder.Services.AddSingleton<ICronScheduler, CronScheduler>();
-
-// Azure Storage Queue - full consumer with polling, visibility timeout, DLQ
-builder.Services.AddAzureStorageQueueTransport("orders", options =>
+// Azure Storage Queue - fluent builder with polling, visibility timeout, DLQ
+builder.Services.AddAzureStorageQueueTransport("orders", sq =>
 {
-    options.ConnectionString = builder.Configuration["AzureStorage:ConnectionString"];
-    options.QueueName = "orders";
-    options.PollingIntervalMs = 1000;
-    options.MaxRetries = 3;
-    options.EnableDeadLetterQueue = true;
+    sq.ConnectionString(builder.Configuration["AzureStorage:ConnectionString"]!)
+      .QueueName("orders")
+      .PollingInterval(TimeSpan.FromSeconds(1))
+      .MaxConcurrentMessages(10)
+      .EnableDeadLetterQueue("orders-dlq", maxDequeueCount: 3);
 });
 
-// Define typed timer marker
-public struct ScheduledJobTimer : ICronTimerMarker { }
-
 // Cron timer - scheduled message generation with typed routing
+public struct ScheduledJobTimer : ICronTimerMarker { }
 builder.Services.AddCronTimerTransport<ScheduledJobTimer>("*/5 * * * *", options =>
 {
     options.TimeZone = TimeZoneInfo.Utc;
     options.PreventOverlap = true;
 });
 
-// Register handlers via DI (type-safe, testable)
-builder.Services.AddDispatch(typeof(Program).Assembly);
+// Register handlers and configure routing
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    // Route messages to the correct transport
+    dispatch.UseRouting(routing =>
+    {
+        routing.Transport
+            .Route<OrderReceived>().To("orders")
+            .Default("orders");
+    });
+});
 
 var app = builder.Build();
 app.Run();
+
+// Define your message type
+public record OrderReceived(string OrderId) : IDispatchAction;
 
 // Strongly-typed handler for queue messages
 public class OrderReceivedHandler : IActionHandler<OrderReceived>
@@ -116,6 +125,39 @@ public class CronJobHandler : IActionHandler<CronTimerTriggerMessage<ScheduledJo
 }
 ```
 
+### Message Routing
+
+Unlike the ASP.NET proposal's `MapEvent("name", handler)` approach, Excalibur routes messages by type. When a transport receives a message, it is deserialized and dispatched through `IDispatcher`, which resolves the matching `IActionHandler<T>` from DI.
+
+For **multi-transport scenarios** (e.g., some messages go to Kafka, others to RabbitMQ), configure routing explicitly with `UseRouting`:
+
+```csharp
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    dispatch.UseRouting(routing =>
+    {
+        // Transport routing - which message bus handles each message type?
+        routing.Transport
+            .Route<OrderCreatedEvent>().To("kafka")
+            .Route<PaymentProcessedEvent>().To("rabbitmq")
+            .Default("rabbitmq");
+
+        // Endpoint routing - which services receive the message?
+        routing.Endpoints
+            .Route<OrderCreatedEvent>()
+                .To("billing-service", "inventory-service")
+                .When(msg => msg.Amount > 1000).AlsoTo("fraud-detection");
+
+        // Fallback for unmatched messages
+        routing.Fallback.To("dead-letter-queue");
+    });
+});
+```
+
+For **single-transport scenarios**, routing is automatic -- the dispatcher resolves `IActionHandler<T>` by message type without any explicit routing configuration.
+
 ---
 
 ## Feature-by-Feature Comparison
@@ -124,21 +166,22 @@ public class CronJobHandler : IActionHandler<CronTimerTriggerMessage<ScheduledJo
 
 | Proposed Feature | Excalibur Equivalent | Implementation |
 |------------------|----------------------|----------------|
-| `AddAzureStorageEventQueue()` | `AddAzureStorageQueueTransport()` | `AzureStorageQueueConsumer` - full consumer with CloudEvents, visibility timeout, DLQ, exponential backoff |
+| `AddAzureStorageEventQueue()` | `AddAzureStorageQueueTransport()` | Full consumer with fluent builder, CloudEvents, visibility timeout, DLQ, exponential backoff |
 | `AddAzureServiceBusEventQueue()` | `AddAzureServiceBusTransport()` | `SimpleServiceBusConsumer`, `SessionServiceBusConsumer` - sessions, peek-lock, auto-complete |
 | `AddAwsSqsEventQueue()` | `AddAwsSqsTransport()` | `AwsSqsConsumer` - long polling, FIFO support, visibility timeout |
 | `AddGooglePubSubEventQueue()` | `AddGooglePubSubTransport()` | `GooglePubSubConsumer` - streaming pull, batch receiving, ack deadline |
 | `AddKafkaEventQueue()` | `AddKafkaTransport()` | `KafkaChannelConsumer` - consumer groups, offset management, exactly-once |
 | `AddRabbitMqEventQueue()` | `AddRabbitMQTransport()` | `RabbitMqChannelConsumer` - ack modes, prefetch, DLX |
-| `AddTimerEventQueue()` | `AddCronTimerTransport<TTimer>()` | `CronTimerTransportAdapter` - cron scheduling, overlap prevention, time zones, typed handlers |
+| `AddTimerEventQueue()` | `AddCronTimerTransport<TTimer>()` | Cron scheduling, overlap prevention, time zones, typed handlers via `CronTimerTriggerMessage<TTimer>` |
 
-### Handler Registration
+### Handler Registration & Routing
 
 | Proposed Approach | Excalibur Approach | Advantage |
 |-------------------|--------------------|-----------|
 | `MapEvent("name", lambda)` | `IActionHandler<T>` classes | Type-safe, testable, full DI support |
 | String-based event names | Strongly-typed message classes | Compile-time safety, refactoring support |
 | Inline lambdas in Program.cs | Dedicated handler classes | Separation of concerns, unit testable |
+| `WithEventQueue("orders").MapEvent(...)` | `UseRouting(r => r.Transport.Route<T>().To("kafka"))` | Two-tier routing: transport + endpoint |
 
 ### Framework Primitives
 
@@ -238,7 +281,7 @@ builder.Services.AddDispatch(typeof(Program).Assembly);  // Handlers discovered 
 
 > *"Integration with schema registries for message validation."*
 
-**`Excalibur.Dispatch`:** Full schema registry integration for all major cloud platforms:
+**`Excalibur.Dispatch`:** Schema registry integration via the Kafka transport package:
 
 ```csharp
 // Kafka with Confluent Schema Registry
@@ -247,18 +290,6 @@ services.AddConfluentSchemaRegistry(options =>
     options.Url = "http://localhost:8081";
     options.AutoRegisterSchemas = true;
     options.DefaultCompatibility = CompatibilityMode.Backward;
-});
-
-// Dispatch observability (covers all transports including Google Pub/Sub)
-services.AddDispatchObservability();
-
-// AWS Glue Schema Registry
-services.AddAwsGlueSchemaRegistry(options =>
-{
-    options.RegistryName = "my-registry";
-    options.Region = RegionEndpoint.USEast1;
-    options.DefaultCompatibility = AwsGlueCompatibilityMode.Backward;
-    options.DataFormat = AwsGlueDataFormat.Json; // Also supports Avro, Protobuf
 });
 ```
 
@@ -279,7 +310,7 @@ app.MapHealthChecks("/health");
 
 ```csharp
 builder.Services.AddOpenTelemetry()
-    .WithTracing(b => b.AddSource("Excalibur.Dispatch.Observability"))
+    .WithTracing(b => b.AddSource("Excalibur.Dispatch"))
     .WithMetrics(b => b.AddDispatchMetrics());
 ```
 
@@ -373,14 +404,14 @@ Unlike a proposal, Excalibur has **working implementations** with full consumer 
 |--------|--------------|-----------|
 | **Status** | Closed, not implemented | Production-ready, ~36,000 tests |
 | **Queue Consumers** | Proposed only | Full implementations for 6 providers (`Excalibur.Dispatch.Transport.*`) |
-| **Timer/Cron** | Proposed only | Native `AddCronTimerTransport<TTimer>()` with typed handlers |
+| **Timer/Cron** | Proposed only | `AddCronTimerTransport<TTimer>()` with typed `CronTimerTriggerMessage<TTimer>` handlers |
 | **Type Safety** | String-based event names | Strongly-typed `IActionHandler<T>` |
 | **Testability** | Inline lambdas | Handler classes with full DI |
 | **Pipeline** | Planned | Full `IDispatchMiddleware` pipeline |
 | **Health Checks** | Planned | Built-in `ITransportHealthChecker` |
 | **Observability** | Planned | OpenTelemetry instrumentation |
 | **Source Generators** | Community requested | Full `Excalibur.Dispatch.SourceGenerators` package |
-| **Schema Registry** | Community requested | Kafka Confluent + Google Pub/Sub + AWS Glue |
+| **Schema Registry** | Community requested | Kafka Confluent Schema Registry |
 | **Outbox Pattern** | Community requested | Abstractions in `Excalibur.Dispatch`, stores in `Excalibur.EventSourcing.*` |
 | **Database Queues** | Community requested | SQL Server/PostgreSQL with SKIP LOCKED (`Excalibur.EventSourcing.*`) |
 | **AOT Support** | Mentioned | Source generation, no runtime reflection |
@@ -415,20 +446,26 @@ The `Excalibur.Dispatch.Transport.AzureServiceBus` package includes support for 
 ### 2. Configure Transports
 
 ```csharp
-// Register prerequisites for cron timers
-builder.Services.AddSingleton<ICronScheduler, CronScheduler>();
+// Configure transports using fluent builder entry points
+builder.Services.AddAzureStorageQueueTransport("orders", sq =>
+{
+    sq.ConnectionString(builder.Configuration["AzureStorage:ConnectionString"]!)
+      .QueueName("orders-queue");
+});
 
-// Configure transports using standard single entry points
-builder.Services.AddAzureStorageQueueTransport("orders", options => { /* ... */ });
+// Register the dispatcher with handler discovery
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-// Typed timer with marker interface (recommended)
-public struct ScheduledJobTimer : ICronTimerMarker { }
-builder.Services.AddCronTimerTransport<ScheduledJobTimer>("*/5 * * * *");
-
-// Or named timer without marker
-builder.Services.AddCronTimerTransport("scheduled-jobs", "*/5 * * * *");
-
-builder.Services.AddDispatch(typeof(Program).Assembly);
+    // Optional: configure routing for multi-transport scenarios
+    dispatch.UseRouting(routing =>
+    {
+        routing.Transport
+            .Route<OrderCreated>().To("orders")
+            .Default("orders");
+    });
+});
 ```
 
 ### 3. Create Handlers
@@ -453,7 +490,7 @@ public class MyHandler : IActionHandler<MyMessage>
 ```csharp
 builder.Services.AddHealthChecks().AddTransportHealthChecks();
 builder.Services.AddOpenTelemetry()
-    .WithTracing(b => b.AddSource("Excalibur.Dispatch.Observability"))
+    .WithTracing(b => b.AddSource("Excalibur.Dispatch"))
     .WithMetrics(b => b.AddDispatchMetrics());
 ```
 

@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.ComponentModel.DataAnnotations;
-
 namespace Excalibur.LeaderElection.Watch;
 
 /// <summary>
@@ -11,7 +9,7 @@ namespace Excalibur.LeaderElection.Watch;
 /// </summary>
 /// <remarks>
 /// Follows the <c>IOptions&lt;T&gt;</c> pattern from <c>Microsoft.Extensions.Options</c>.
-/// Property count: 2 (within the ≤10-property quality gate).
+/// Property count: 2 (within the 10-property quality gate).
 /// </remarks>
 public sealed class LeaderWatchOptions
 {
@@ -19,7 +17,6 @@ public sealed class LeaderWatchOptions
 	/// Gets or sets the interval between leader state polls.
 	/// </summary>
 	/// <value>The poll interval. Defaults to 5 seconds.</value>
-	[Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
 	public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(5);
 
 	/// <summary>

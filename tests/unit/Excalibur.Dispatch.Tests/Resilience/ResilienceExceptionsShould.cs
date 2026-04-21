@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Resilience;
 /// Unit tests for resilience exception types: <see cref="BulkheadRejectedException"/>,
 /// <see cref="DegradationRejectedException"/>, and <see cref="NoFallbackAvailableException"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class ResilienceExceptionsShould : UnitTestBase
 {
 	#region BulkheadRejectedException
@@ -47,7 +47,7 @@ public sealed class ResilienceExceptionsShould : UnitTestBase
 
 		// Assert
 		ex.Message.ShouldBe("Bulkhead full");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	#endregion
@@ -85,7 +85,7 @@ public sealed class ResilienceExceptionsShould : UnitTestBase
 
 		// Assert
 		ex.Message.ShouldBe("Degraded");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	#endregion
@@ -123,7 +123,7 @@ public sealed class ResilienceExceptionsShould : UnitTestBase
 
 		// Assert
 		ex.Message.ShouldBe("No fallback");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	#endregion

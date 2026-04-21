@@ -26,22 +26,18 @@ internal sealed class NullRetryPolicy : IRelationalDataRequestRetryPolicy, IDocu
 
 	/// <inheritdoc />
 	// R0.8: Remove unused parameter - interface contract requires these parameters even though null policy never retries
-#pragma warning disable IDE0060
 
 	public static bool ShouldRetry(Exception exception, int attemptNumber) => false;
 
-#pragma warning restore IDE0060
 
 	/// <inheritdoc />
 	public bool ShouldRetry(Exception exception) => false;
 
 	/// <inheritdoc />
 	// R0.8: Remove unused parameter - interface contract requires this parameter even though null policy always returns zero
-#pragma warning disable IDE0060
 
 	public static TimeSpan GetDelay(int attemptNumber) => TimeSpan.Zero;
 
-#pragma warning restore IDE0060
 
 	/// <inheritdoc />
 	public async Task<TResult> ResolveAsync<TConnection, TResult>(

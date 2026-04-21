@@ -16,7 +16,7 @@ namespace Excalibur.Saga.Orchestration;
 /// This implementation does not persist state across application restarts. For production scenarios requiring durability, use a persistent
 /// saga store implementation.
 /// </remarks>
-public sealed class InMemorySagaStore : ISagaStore
+internal sealed class InMemorySagaStore : ISagaStore
 {
 	private readonly ConcurrentDictionary<Guid, SagaState> _store = new();
 

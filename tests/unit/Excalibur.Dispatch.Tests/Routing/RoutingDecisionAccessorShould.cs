@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Routing;
 /// Sprint 619 D.1: R1-FIX regression tests for RoutingDecisionAccessor and
 /// MessageContext.CachedRoutingDecision fast-path optimization.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RoutingDecisionAccessorShould
 {
 	private static readonly RoutingDecision TestDecision = RoutingDecision.Success(

@@ -22,8 +22,8 @@ namespace Excalibur.Data.Tests.InMemory.Outbox;
 /// IOutboxStore interface contract including message staging, status transitions, cleanup,
 /// and statistics tracking.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class InMemoryOutboxStoreConformanceShould : OutboxStoreConformanceTestBase
 {
 	/// <inheritdoc/>

@@ -7,7 +7,7 @@ using Excalibur.Data.Persistence;
 namespace Excalibur.Data.Tests.Core;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PersistenceConfigurationShould
 {
 	private readonly PersistenceConfiguration _config = new();
@@ -45,7 +45,7 @@ public sealed class PersistenceConfigurationShould
 	[Fact]
 	public void RegisterProviderConfiguration_WithProviderConfig()
 	{
-		var providerConfig = new ProviderConfiguration
+		var providerConfig = new PersistenceProviderOptions
 		{
 			Name = "sql",
 			Type = PersistenceProviderType.SqlServer,
@@ -61,7 +61,7 @@ public sealed class PersistenceConfigurationShould
 	[Fact]
 	public void RegisterProviderConfiguration_ThrowsForNullName()
 	{
-		var providerConfig = new ProviderConfiguration
+		var providerConfig = new PersistenceProviderOptions
 		{
 			Name = "x",
 			Type = PersistenceProviderType.InMemory,
@@ -80,7 +80,7 @@ public sealed class PersistenceConfigurationShould
 	[Fact]
 	public void RemoveProviderConfiguration_ReturnsTrueForExisting()
 	{
-		_config.RegisterProviderConfiguration("test", new ProviderConfiguration
+		_config.RegisterProviderConfiguration("test", new PersistenceProviderOptions
 		{
 			Name = "test",
 			Type = PersistenceProviderType.InMemory,
@@ -99,7 +99,7 @@ public sealed class PersistenceConfigurationShould
 	[Fact]
 	public void GetProviderOptions_ReturnsRegisteredOptions()
 	{
-		_config.RegisterProviderConfiguration("test", new ProviderConfiguration
+		_config.RegisterProviderConfiguration("test", new PersistenceProviderOptions
 		{
 			Name = "test",
 			Type = PersistenceProviderType.InMemory,
@@ -120,14 +120,14 @@ public sealed class PersistenceConfigurationShould
 	[Fact]
 	public void GetConfiguredProviders_ReturnsRegisteredNames()
 	{
-		_config.RegisterProviderConfiguration("p1", new ProviderConfiguration
+		_config.RegisterProviderConfiguration("p1", new PersistenceProviderOptions
 		{
 			Name = "p1",
 			Type = PersistenceProviderType.InMemory,
 			ConnectionString = "x"
 		});
 
-		_config.RegisterProviderConfiguration("p2", new ProviderConfiguration
+		_config.RegisterProviderConfiguration("p2", new PersistenceProviderOptions
 		{
 			Name = "p2",
 			Type = PersistenceProviderType.Redis,
@@ -143,7 +143,7 @@ public sealed class PersistenceConfigurationShould
 	public void Validate_ReturnsSuccessForValidConfig()
 	{
 		_config.DefaultProvider = "sql";
-		_config.RegisterProviderConfiguration("sql", new ProviderConfiguration
+		_config.RegisterProviderConfiguration("sql", new PersistenceProviderOptions
 		{
 			Name = "sql",
 			Type = PersistenceProviderType.SqlServer,
@@ -167,7 +167,7 @@ public sealed class PersistenceConfigurationShould
 	public void Validate_ReportsInvalidProviderConfig()
 	{
 		_config.DefaultProvider = "";
-		_config.RegisterProviderConfiguration("bad", new ProviderConfiguration
+		_config.RegisterProviderConfiguration("bad", new PersistenceProviderOptions
 		{
 			Name = "",
 			Type = PersistenceProviderType.SqlServer,
@@ -193,7 +193,7 @@ public sealed class PersistenceConfigurationShould
 	public void Reload_SucceedsForValidConfig()
 	{
 		_config.DefaultProvider = "sql";
-		_config.RegisterProviderConfiguration("sql", new ProviderConfiguration
+		_config.RegisterProviderConfiguration("sql", new PersistenceProviderOptions
 		{
 			Name = "sql",
 			Type = PersistenceProviderType.SqlServer,

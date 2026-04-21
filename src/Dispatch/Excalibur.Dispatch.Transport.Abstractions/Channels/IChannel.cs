@@ -4,4 +4,6 @@
 
 namespace Excalibur.Dispatch.Transport;
 
+/// <summary>Represents a bidirectional transport channel.</summary>
+/// <typeparam name="T">The type of messages handled by this channel.</typeparam>
 public interface IChannel<T> : IChannelReceiver, IChannelSender;

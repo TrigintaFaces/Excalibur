@@ -136,11 +136,6 @@ public interface IChangeFeedSubscription<TDocument> : IAsyncDisposable
 	bool IsActive { get; }
 
 	/// <summary>
-	/// Gets the current continuation token for checkpointing.
-	/// </summary>
-	string? CurrentContinuationToken { get; }
-
-	/// <summary>
 	/// Starts the subscription and begins receiving changes.
 	/// </summary>
 	/// <param name="cancellationToken">Cancellation token.</param>
@@ -160,6 +155,20 @@ public interface IChangeFeedSubscription<TDocument> : IAsyncDisposable
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>An async enumerable of change feed events.</returns>
 	IAsyncEnumerable<IChangeFeedEvent<TDocument>> ReadChangesAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Provides diagnostics capabilities for change feed subscriptions including checkpoint
+/// token tracking. This is an ISP sub-interface of <see cref="IChangeFeedSubscription{TDocument}"/>
+/// for consumers that need to inspect or persist continuation tokens.
+/// </summary>
+/// <typeparam name="TDocument">The type of documents in the feed.</typeparam>
+public interface IChangeFeedSubscriptionDiagnostics<TDocument>
+{
+	/// <summary>
+	/// Gets the current continuation token for checkpointing.
+	/// </summary>
+	string? CurrentContinuationToken { get; }
 }
 
 /// <summary>

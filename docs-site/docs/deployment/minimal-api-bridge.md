@@ -311,7 +311,7 @@ Result mapping for controllers: same status code logic, but returns `IActionResu
 ## See Also
 
 - [Vertical Slice Architecture](../architecture/vertical-slice-architecture.md) -- Organize features as slices
-- [Healthcare API Sample](https://github.com/TrigintaFaces/Excalibur/tree/main/samples/12-vertical-slice-api) -- Full working example
+- [Healthcare API Sample](https://github.com/TrigintaFaces/Excalibur/tree/main/samples/11-real-world/HealthcareApi) -- Full working example
 - [ASP.NET Core Deployment](./aspnet-core.md) -- General hosting guide
 - [Authorization Middleware](../middleware/authorization.md) -- Full authorization middleware docs
 

@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.ContextValues;
 /// Sprint 693, Task T.4 (bd-j954v): Closes the gap where no test validates
 /// context value survival through transport serialization boundaries.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ContextPropagationShould
 {
 	private static readonly JsonSerializerOptions SerializerOptions = new()

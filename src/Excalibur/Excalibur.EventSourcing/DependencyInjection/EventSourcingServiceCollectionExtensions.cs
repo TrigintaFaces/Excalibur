@@ -32,7 +32,7 @@ public static class EventSourcingServiceCollectionExtensions
 	/// to configure repositories, snapshot strategies, and other options.
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddExcaliburEventSourcing(this IServiceCollection services)
+	internal static IServiceCollection AddExcaliburEventSourcing(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -41,6 +41,9 @@ public static class EventSourcingServiceCollectionExtensions
 
 		// Register default snapshot strategy (no snapshots)
 		services.TryAddSingleton<ISnapshotStrategy>(NoSnapshotStrategy.Instance);
+
+		// bd-x6rg45: fail loud at host start if the consumer forgot to pick an event store.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, EventSourcingPrerequisiteValidator>());
 
 		return services;
 	}
@@ -59,7 +62,7 @@ public static class EventSourcingServiceCollectionExtensions
 	/// <para>
 	/// <b>Usage:</b>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =>
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =>
 	/// {
 	///     // Register repositories with explicit factory
 	///     builder.AddRepository&lt;OrderAggregate, Guid&gt;(id => new OrderAggregate(id));
@@ -80,11 +83,11 @@ public static class EventSourcingServiceCollectionExtensions
 	///     builder.AddUpcastingPipeline(u => u
 	///         .RegisterUpcaster&lt;OrderCreatedV1, OrderCreatedV2&gt;(new OrderCreatedV1ToV2())
 	///         .EnableAutoUpcastOnReplay());
-	/// });
+	/// }));
 	/// </code>
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddExcaliburEventSourcing(
+	internal static IServiceCollection AddExcaliburEventSourcing(
 		this IServiceCollection services,
 		Action<IEventSourcingBuilder> configure)
 	{

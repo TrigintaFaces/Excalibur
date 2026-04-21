@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// ASP.NET Core health checks and the <c>MultiTransportHealthCheck</c>.
 /// </para>
 /// </remarks>
-internal sealed partial class GooglePubSubTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class GooglePubSubTransportAdapter : ITransportAdapter, ITransportAdapterLifecycle, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for Google Pub/Sub adapters.

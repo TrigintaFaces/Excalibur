@@ -13,9 +13,9 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// Unit tests for <see cref="CdcBuilderSqlServerExtensions"/>.
 /// Tests the connection factory overload and DI registration.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 {
 	private const string TestConnectionString = "Server=localhost;Database=TestDb;Encrypt=false;TrustServerCertificate=true";

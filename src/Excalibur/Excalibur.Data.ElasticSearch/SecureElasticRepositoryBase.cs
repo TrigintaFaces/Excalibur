@@ -92,8 +92,7 @@ public abstract class SecureElasticRepositoryBase<TEntity>(
 			}
 
 			// Perform the indexing operation
-			var indexRequest = new IndexRequest<TEntity>(_indexName) { Document = (TEntity)processedDocument };
-			var response = await _client.IndexAsync(indexRequest, cancellationToken)
+			var response = await _client.IndexAsync((TEntity)processedDocument, idx => idx.Index(_indexName), cancellationToken)
 				.ConfigureAwait(false);
 
 			// Audit the security activity

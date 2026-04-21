@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Transport.Aws;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Channels;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class LongPollingOptionsShould
 {
@@ -13,7 +13,7 @@ public sealed class LongPollingOptionsShould
 	public void HaveCorrectDefaults()
 	{
 		// Arrange & Act
-		var options = new LongPollingOptions();
+		var options = new ChannelLongPollingOptions();
 
 		// Assert
 		options.QueueUrl.ShouldBeNull();
@@ -29,7 +29,7 @@ public sealed class LongPollingOptionsShould
 	{
 		// Arrange & Act
 		var queueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue");
-		var options = new LongPollingOptions
+		var options = new ChannelLongPollingOptions
 		{
 			QueueUrl = queueUrl,
 			MinPollers = 2,

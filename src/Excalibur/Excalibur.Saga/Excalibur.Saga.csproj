@@ -6,7 +6,10 @@
     <PackageId>Excalibur.Saga</PackageId>
     <Description>Saga pattern abstractions for Excalibur, providing persistence interfaces for long-running business processes and distributed workflows.</Description>
     <PackageTags>excalibur;saga;process-manager;workflow;distributed-transactions</PackageTags>
-    <IsAotCompatible>false</IsAotCompatible>
+    <!-- AOT: Compatible. SagaCoordinator uses RuntimeFeature.IsDynamicCodeSupported dual-path:
+         AOT path uses ISagaDispatchRegistry/ISagaTypeRegistry/ISagaContextFactory (source-gen safe).
+         JIT path uses MakeGenericMethod (reflection). Both paths are properly annotated. -->
+    <IsAotCompatible>true</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
@@ -33,6 +36,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
   </ItemGroup>
   <ItemGroup>
@@ -52,10 +56,18 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Saga.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Testing.Conformance.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+    <!-- S795 A2: IVT granted to test assemblies that retain direct access to the
+         AddExcaliburSaga aggregator per COMPASS msg 1498 §1 — migration to
+         IExcaliburBuilder.AddSagas() would force >2 file / >1h rewrite of
+         existing test fixtures that predate the S792 bridge. -->
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
+    <InternalsVisibleTo Include="Excalibur.Data.DynamoDb.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Hosting.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Tests" />
   </ItemGroup>
 </Project>

@@ -10,7 +10,7 @@ Dispatch includes Roslyn source generators that enable ahead-of-time (AOT) compi
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch.SourceGenerators.Analyzers
@@ -48,7 +48,6 @@ The `Excalibur.Dispatch.SourceGenerators` package includes:
 | [`HandlerInvocationGenerator`](#handlerinvocationgenerator) | Zero-reflection handler invocation | `SourceGeneratedHandlerInvoker.g.cs` |
 | [`MessageTypeSourceGenerator`](#messagetypesourcegenerator) | Message type metadata | `PrecompiledHandlerMetadata.g.cs` |
 | [`StaticPipelineGenerator`](#staticpipelinegenerator) | Static middleware pipelines | `StaticPipelines.g.cs` |
-| [`DispatchInterceptorGenerator`](#dispatchinterceptorgenerator) | C# 12 dispatch interceptors | `DispatchInterceptors.g.cs` |
 | [`MiddlewareDecompositionAnalyzer`](#middlewaredecompositionanalyzer) | Middleware analysis | `MiddlewareDecomposition.g.cs` |
 | [`CachePolicySourceGenerator`](#cachepolicysourcegenerator) | Cache policy registration | `CacheInfoRegistry.g.cs` |
 | [`JsonSerializationSourceGenerator`](#jsonserializationsourcegenerator) | Message type metadata for AOT serialization | `DiscoveredMessageTypeMetadata.g.cs` |
@@ -274,41 +273,6 @@ Messages with these attributes are non-deterministic and fallback to runtime pip
 
 ---
 
-### DispatchInterceptorGenerator
-
-Creates C# 12 interceptors that redirect `DispatchAsync` calls to optimized static methods.
-
-**Resolution Hierarchy:**
-1. **Intercepted** (this generator) - Direct static dispatch, zero lookups
-2. **Precompiled** - FrozenDictionary lookup
-3. **Runtime** - Reflection-based fallback
-
-**Generated Output:**
-
-```csharp
-// DispatchInterceptors.g.cs
-file static class DispatchInterceptors
-{
-    [InterceptsLocation(1, "...")]
-    internal static async Task<IMessageResult<OrderDto>> Intercept_abc123(
-        this IDispatcher dispatcher,
-        GetOrderQuery message,
-        IMessageContext context,
-        CancellationToken cancellationToken)
-    {
-        // PERF-9: Direct dispatch through Dispatcher internals
-        return await ((Dispatcher)dispatcher).DispatchAsync<GetOrderQuery, OrderDto>(
-            message, context, cancellationToken).ConfigureAwait(false);
-    }
-}
-```
-
-**Requirements:**
-- .NET 8+ with C# 12
-- `<LangVersion>preview</LangVersion>` or `12.0`
-
----
-
 ### MiddlewareDecompositionAnalyzer
 
 Analyzes middleware implementations to determine if they can be decomposed into Before/After phases for static inlining.
@@ -471,8 +435,8 @@ public static partial class ResultFactoryRegistry
     {
         return result switch
         {
-            global::Excalibur.Dispatch.Messaging.MessageResult<Guid> r => r.ReturnValue,
-            global::Excalibur.Dispatch.Messaging.MessageResult<OrderDto> r => r.ReturnValue,
+            global::Excalibur.Dispatch.Abstractions.IMessageResult<Guid> r => r.ReturnValue,
+            global::Excalibur.Dispatch.Abstractions.IMessageResult<OrderDto> r => r.ReturnValue,
             _ => null
         };
     }
@@ -481,7 +445,7 @@ public static partial class ResultFactoryRegistry
 
 Under `#if AOT_ENABLED`, `FinalDispatchHandler.CreateTypedResult()` calls `ResultFactoryRegistry.GetFactory()` instead of using reflection. The existing `ResultFactoryCache` remains as the JIT fallback.
 
-**Generated code uses `MessageResult.Success<T>()`** — the `MessageResult<T>` type is constructed via static factory methods in the `Excalibur.Dispatch.Messaging.HighPerformance` namespace.
+**Generated code uses `IMessageResult<T>` interface matching** — return value extraction uses pattern matching on the `Excalibur.Dispatch.Abstractions.IMessageResult<T>` interface, accessing `ReturnValue` directly.
 
 ---
 

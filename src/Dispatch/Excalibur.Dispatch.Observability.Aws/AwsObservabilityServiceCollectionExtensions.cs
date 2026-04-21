@@ -5,6 +5,10 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Observability.Aws;
 
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -19,8 +23,6 @@ public static class AwsObservabilityServiceCollectionExtensions
 	/// <param name="configure">The configuration action.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
 	public static IServiceCollection AddAwsObservability(
 		this IServiceCollection services,
 		Action<AwsObservabilityOptions> configure)
@@ -30,8 +32,41 @@ public static class AwsObservabilityServiceCollectionExtensions
 
 		_ = services.AddOptions<AwsObservabilityOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsObservabilityOptions>, AwsObservabilityOptionsValidator>());
+
+		_ = services.AddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds AWS X-Ray and CloudWatch observability integration services
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind AWS observability options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddAwsObservability(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<AwsObservabilityOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsObservabilityOptions>, AwsObservabilityOptionsValidator>());
 
 		_ = services.AddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
 

@@ -3,7 +3,7 @@
 
 // Message Encryption Sample
 // =========================
-// This sample demonstrates how to use Excalibur.Dispatch.Security for message encryption:
+// This sample demonstrates how to use Excalibur.Security for message encryption:
 // - Payload encryption/decryption using DataProtection API
 // - Field-level encryption for sensitive data (PII, PCI)
 // - Key rotation patterns
@@ -14,13 +14,12 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 using Excalibur.Dispatch.Serialization;
 
 using MessageEncryptionSample.Messages;
@@ -50,8 +49,7 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register JSON serializer for message payloads
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+	// Configure JSON serialization
 });
 
 // ============================================================
@@ -68,7 +66,7 @@ builder.Services.AddSingleton<IMessageEncryptionService, DataProtectionMessageEn
 // Configure outbox/inbox for reliable messaging
 // ============================================================
 builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
+builder.Services.AddInMemoryInboxStore();
 builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
 

@@ -161,12 +161,16 @@ public sealed partial class RedisEventStore : IEventStore
 				aggregateId,
 				aggregateType,
 				evt.EventType,
+				#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 				JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType()),
+				#pragma warning restore IL2026, IL3050
 				null,
 				nextVersion,
 				evt.OccurredAt);
 
+			#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			var serialized = JsonSerializer.Serialize(storedEvent);
+			#pragma warning restore IL2026, IL3050
 			args.Add(evt.EventId);
 			args.Add(serialized);
 		}
@@ -213,7 +217,9 @@ public sealed partial class RedisEventStore : IEventStore
 			foreach (var nv in entry.Values)
 			{
 				var json = nv.Value.ToString();
+				#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 				var storedEvent = JsonSerializer.Deserialize<StoredEvent>(json);
+				#pragma warning restore IL2026, IL3050
 				if (storedEvent != null)
 				{
 					events.Add(storedEvent);

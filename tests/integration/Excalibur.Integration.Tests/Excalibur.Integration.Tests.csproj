@@ -103,6 +103,11 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Caching\Excalibur.Caching.csproj" />
+    <!-- Cold store providers for tiered storage integration tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.AzureBlob\Excalibur.EventSourcing.AzureBlob.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.AwsS3\Excalibur.EventSourcing.AwsS3.csproj" />
+    <!-- OpenSearch projection store integration tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.OpenSearch\Excalibur.Data.OpenSearch.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

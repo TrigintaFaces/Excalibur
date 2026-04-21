@@ -80,6 +80,8 @@ public sealed partial class MessageProcessor(
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Dead letter queue handler serialization uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Dead letter queue handler serialization uses reflection by design")]
 	public async Task HandleMessageRejectionAsync(QueueMessage queueMessage, string reason, CancellationToken cancellationToken, Exception? exception = null)
 	{
 		ArgumentNullException.ThrowIfNull(queueMessage);

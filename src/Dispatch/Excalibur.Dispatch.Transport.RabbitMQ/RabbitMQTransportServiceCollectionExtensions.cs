@@ -321,8 +321,10 @@ public static class RabbitMQTransportServiceCollectionExtensions
 					options.DeadLetter.DeadLetterRoutingKey = transportOptions.DeadLetter.RoutingKey;
 				}
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqOptions>, RabbitMqOptionsValidator>());
 
 		// Map to CloudEvent options
 		_ = services.AddOptions<RabbitMqCloudEventOptions>()
@@ -335,8 +337,10 @@ public static class RabbitMQTransportServiceCollectionExtensions
 				options.Exchange.RoutingStrategy = cloudEvents.Exchange.RoutingStrategy;
 				options.Exchange.EnablePublisherConfirms = cloudEvents.Exchange.EnablePublisherConfirms;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqCloudEventOptions>, RabbitMqCloudEventOptionsValidator>());
 	}
 
 	/// <summary>

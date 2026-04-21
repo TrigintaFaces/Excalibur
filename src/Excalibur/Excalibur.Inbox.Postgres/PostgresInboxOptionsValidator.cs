@@ -7,9 +7,16 @@ namespace Excalibur.Inbox.Postgres;
 
 /// <summary>
 /// Validates <see cref="PostgresInboxOptions"/> at startup via the <c>ValidateOnStart</c> pipeline.
+/// Supports builder-configured connections that don't set ConnectionString on the options object.
 /// </summary>
 internal sealed class PostgresInboxOptionsValidator : IValidateOptions<PostgresInboxOptions>
 {
+	/// <summary>
+	/// Gets or sets a value indicating whether a builder-level connection was configured.
+	/// When true, ConnectionString validation is skipped.
+	/// </summary>
+	internal bool HasBuilderConnection { get; init; }
+
 	/// <inheritdoc />
 	public ValidateOptionsResult Validate(string? name, PostgresInboxOptions options)
 	{
@@ -18,10 +25,12 @@ internal sealed class PostgresInboxOptionsValidator : IValidateOptions<PostgresI
 			return ValidateOptionsResult.Fail("Postgres inbox options cannot be null.");
 		}
 
-		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		if (!HasBuilderConnection && string.IsNullOrWhiteSpace(options.ConnectionString))
 		{
 			return ValidateOptionsResult.Fail(
-				"PostgresInboxOptions.ConnectionString is required. Provide a valid Postgres connection string.");
+				"No connection configured for Inbox (Postgres). " +
+				"Call ConnectionString(), ConnectionStringName(), DataSource(), DataSourceFactory(), " +
+				"or BindConfiguration() inside UsePostgres().");
 		}
 
 		if (string.IsNullOrWhiteSpace(options.SchemaName))

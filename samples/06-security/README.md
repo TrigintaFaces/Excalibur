@@ -1,6 +1,6 @@
 # Security Samples
 
-Security and compliance patterns for enterprise applications using **Excalibur.Dispatch.Security**.
+Security and compliance patterns for enterprise applications using **Excalibur.Security**.
 
 ## Choosing a Security Pattern
 
@@ -163,9 +163,9 @@ var event = new CustomerCreatedEvent(
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.Security` | Core security abstractions, IMessageEncryptionService |
-| `Excalibur.Dispatch.Security.Azure` | Azure Key Vault ICredentialStore |
-| `Excalibur.Dispatch.Security.Aws` | AWS Secrets Manager ICredentialStore |
+| `Excalibur.Security` | Core security abstractions, IMessageEncryptionService |
+| `Excalibur.Security.Azure` | Azure Key Vault ICredentialStore |
+| `Excalibur.Security.Aws` | AWS Secrets Manager ICredentialStore |
 
 ## Related Samples
 

@@ -6,9 +6,9 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Encryption;
 /// <summary>
 /// Unit tests for <see cref="EncryptionException"/> and <see cref="EncryptionErrorCode"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
-[Trait("Feature", "Encryption")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
+[Trait(TraitNames.Feature, TestFeatures.Encryption)]
 public sealed class EncryptionExceptionShould : UnitTestBase
 {
 	[Fact]
@@ -20,7 +20,7 @@ public sealed class EncryptionExceptionShould : UnitTestBase
 		// Assert
 		exception.Message.ShouldNotBeNullOrWhiteSpace();
 		exception.ErrorCode.ShouldBe(EncryptionErrorCode.Unknown);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -49,7 +49,7 @@ public sealed class EncryptionExceptionShould : UnitTestBase
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

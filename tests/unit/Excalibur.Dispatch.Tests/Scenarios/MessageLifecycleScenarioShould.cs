@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Tests.Scenarios;
 /// Uses the framework's real pipeline implementation with fake middleware/handlers to verify
 /// the complete dispatch flow without external infrastructure.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class MessageLifecycleScenarioShould
 {

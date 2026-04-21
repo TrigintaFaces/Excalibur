@@ -68,7 +68,7 @@ public static class SagaBuilderExtensions
 	/// </para>
 	/// <para>
 	/// The coordination middleware runs at the <see cref="Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.End"/>
-	/// stage and processes <see cref="Excalibur.Saga.Orchestration.ISagaEvent"/> messages
+	/// stage and processes <see cref="Excalibur.Saga.EventSourced.ISagaEvent"/> messages
 	/// through the <see cref="SagaCoordinator"/>.
 	/// </para>
 	/// </remarks>
@@ -151,14 +151,14 @@ public static class SagaBuilderExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburSaga(saga => saga
+	/// services.AddExcalibur(x => x.AddSagas(saga => saga
 	///     .WithOutbox(options =>
 	///     {
 	///         options.PublishDelegate = async (events, sagaId, ct) =>
 	///         {
 	///             // publish events through outbox store
 	///         };
-	///     }));
+	///     })));
 	/// </code>
 	/// </example>
 	public static ISagaBuilder WithOutbox(

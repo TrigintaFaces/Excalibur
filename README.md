@@ -14,7 +14,9 @@
 [![Latest Release](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/latest/total?logo=github&style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
 <!-- badges -->
 
-**Dispatch messaging core + Excalibur CQRS/hosting wrapper for .NET**
+**High-performance .NET messaging framework with CQRS, event sourcing, and production hosting — 170 packages, Native AOT ready**
+
+**[Read the full documentation](https://docs.excalibur-dispatch.dev/)**
 
 ---
 
@@ -42,6 +44,9 @@ Start with Dispatch when you need a MediatR-class dispatcher. Layer Excalibur pa
 | `Excalibur.Dispatch.Transport.AwsSqs` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.AwsSqs/ |
 | `Excalibur.Dispatch.Transport.Kafka` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.Kafka/ |
 | `Excalibur.Dispatch.Transport.RabbitMQ` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.RabbitMQ/ |
+| `Excalibur.Dispatch.Transport.GooglePubSub` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.GooglePubSub/ |
+| `Excalibur.Dispatch.Transport.Grpc` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.Grpc/ |
+| `Excalibur.Dispatch.SourceGenerators` | https://www.nuget.org/packages/Excalibur.Dispatch.SourceGenerators/ |
 | `Excalibur.EventSourcing` | https://www.nuget.org/packages/Excalibur.EventSourcing/ |
 | `Excalibur.Hosting.Web` | https://www.nuget.org/packages/Excalibur.Hosting.Web/ |
 
@@ -124,10 +129,10 @@ You continue to dispatch messages through `IDispatcher`; Excalibur layers domain
 | Family | Packages | Notes |
 |--------|----------|-------|
 | **Dispatch Core** | `Excalibur.Dispatch`, `Excalibur.Dispatch.Abstractions`, `Excalibur.Dispatch.Hosting.AspNetCore`, `Excalibur.Dispatch.Middleware.*`, `Excalibur.Dispatch.Observability` | Messaging primitives, pipeline, analytics, and the thin hosting bridge. |
-| **Dispatch Transports** | `Excalibur.Dispatch.Transport.AzureServiceBus`, `Excalibur.Dispatch.Transport.AwsSqs`, `Excalibur.Dispatch.Transport.Kafka`, `Excalibur.Dispatch.Transport.RabbitMQ` | Bring only the transports you need; no domain logic included. |
+| **Dispatch Transports** | `Excalibur.Dispatch.Transport.AzureServiceBus`, `Excalibur.Dispatch.Transport.AwsSqs`, `Excalibur.Dispatch.Transport.Kafka`, `Excalibur.Dispatch.Transport.RabbitMQ`, `Excalibur.Dispatch.Transport.GooglePubSub`, `Excalibur.Dispatch.Transport.Grpc`, `Excalibur.Dispatch.Transport.InMemory` | Bring only the transports you need; no domain logic included. |
 | **Excalibur Domain/CQRS** | `Excalibur.Domain`, `Excalibur.EventSourcing`, `Excalibur.EventSourcing.*`, `Excalibur.Saga.*` | Aggregates, repositories, snapshots, sagas, and serialization helpers (`EventTypeNameHelper`). |
 | **Excalibur Hosting** | `Excalibur.Hosting.Web`, `Excalibur.Hosting.AzureFunctions`, `Excalibur.Hosting.AwsLambda`, `Excalibur.Hosting.GoogleCloudFunctions` | Opinionated hosting templates that compose Dispatch + Excalibur. |
-| **Compliance & Coordination** | `Excalibur.Dispatch.Compliance.*`, `Excalibur.Dispatch.AuditLogging.*`, `Excalibur.LeaderElection.*` | Audit logging, masking, key escrow, leader election, and cross-cutting governance. |
+| **Compliance & Coordination** | `Excalibur.Compliance.*`, `Excalibur.AuditLogging.*`, `Excalibur.LeaderElection.*` | Audit logging, masking, key escrow, leader election, and cross-cutting governance. |
 
 The [`Directory.Packages.props`](Directory.Packages.props) file lists every published package and version.
 
@@ -139,15 +144,18 @@ Dispatch is optimized for high-throughput, low-latency messaging with lean local
 
 ### Key Metrics
 
+From the 20260420 epoch baseline (`benchmarks/baselines/net10.0/dispatch-comparative-20260420/`, BenchmarkDotNet 0.15.8, .NET 10.0.6 / SDK 10.0.202, i9-14900K):
+
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Dispatch single command (lean)** | 75.32 ns | BenchmarkDotNet comparative matrix baseline (March 2, 2026) |
-| **Dispatch ultra-local single command** | 31.54 ns | Lowest-overhead local Dispatch path in the same run |
-| **Dispatch singleton-promoted single command** | 31.73 ns | Cached direct handler path in the same run |
-| **Dispatch vs Wolverine (`InvokeAsync`)** | 132.26 ns vs 368.19 ns | In-process command parity comparison |
-| **Dispatch vs MassTransit Mediator** | 178.2 ns vs 4,120.8 ns | In-process mediator parity comparison |
-| **Dispatch queued command end-to-end** | 1.147 us | Queued/bus parity benchmark |
-| **Pre-routed local command** | 78.17 ns | Routing-first parity benchmark |
+| **Standard dispatch** | 70.87 ns / 240 B | Full pipeline with context, routing, and correlation (`MediatRWarmPathComparisonBenchmarks`) |
+| **Ultra-local dispatch** | 34.56 ns / 24 B | Lowest-overhead path, near-zero allocation |
+| **Singleton-promoted** | 33.67 ns / 24 B | Cached direct handler path |
+| **Handler invocation** | 6.0 ns / 0 B | Direct delegate, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
+| **Handler activation** | 24.4 ns / 0 B | Pre-created context, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
+| **100 concurrent commands** | 7,293.79 ns / 19,360 B | Scales linearly (WarmPath — one row under investigation pending methodology-matched rerun) |
+
+**Competitor comparisons** (ns, WarmPath): Dispatch ultra-local **1.28× faster than MediatR** with 6.3× less memory; Dispatch **2.64× faster than Wolverine** on InvokeAsync; Dispatch **leads MassTransit Mediator** on every in-process tier.
 
 ### Optimizations Included
 
@@ -155,6 +163,7 @@ Dispatch is optimized for high-throughput, low-latency messaging with lean local
 - **FrozenDictionary Caches** - Lock-free handler and middleware lookup
 - **Static Pipelines** - Zero-allocation execution for known message types
 - **Auto-Freeze on Startup** - Zero-configuration production optimization
+- **LightMode** - Opt-in minimal overhead (disables AsyncLocal context flow + correlation)
 
 ### Quick Configuration
 
@@ -168,15 +177,19 @@ services.Configure<PerformanceOptions>(o => o.AutoFreezeOnStart = false);
 
 For detailed benchmarks, methodology caveats, and raw reports, see:
 - [Competitor comparison](docs-site/docs/performance/competitor-comparison.md)
-- `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/` (current published baseline)
+- `benchmarks/baselines/` (published baselines)
 - `benchmarks/runs/BenchmarkDotNet.Artifacts/results/` (latest local run outputs)
+- `benchmarks/experiments/` (auto-optimize experiment logs)
 
 ---
 
 ## Status & Testing
 
-- **Supported frameworks:** .NET 8.0 LTS, .NET 9.0, .NET 10.0 (shipping graph currently includes 110 packable projects; 111 in shipping filter)
-- **Test coverage:** CI-sharded suite across unit, integration, functional, conformance, architecture, and performance categories
+- **170 NuGet packages** across Dispatch, Excalibur, and hosting families (334 total projects in solution)
+- **Supported frameworks:** .NET 8.0 LTS, .NET 9.0, .NET 10.0
+- **150 of 170 packages** are Native AOT compatible (`IsAotCompatible=true`)
+- **112,000+ automated tests** across 10 CI shards (unit, integration, functional, conformance, performance)
+- **21 Roslyn source generators** for AOT-safe handler registration, serialization, and saga coordination
 
 Run the full suite locally:
 

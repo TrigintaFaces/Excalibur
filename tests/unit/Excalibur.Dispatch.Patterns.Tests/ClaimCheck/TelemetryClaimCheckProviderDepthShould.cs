@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 /// <summary>
 /// Depth coverage tests for <see cref="TelemetryClaimCheckProvider"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class TelemetryClaimCheckProviderDepthShould : IDisposable
 {
 	private readonly IClaimCheckProvider _inner = A.Fake<IClaimCheckProvider>();

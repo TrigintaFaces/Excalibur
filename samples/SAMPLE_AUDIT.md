@@ -10,7 +10,7 @@ This document records the current sample quality baseline.
 
 ## Results
 
-- Buildable sample projects: **57**
+- Buildable sample projects: **84**
 - Build failures: **0**
 - Orphan sample folders with source files and no project file: **0**
 

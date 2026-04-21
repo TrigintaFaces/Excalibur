@@ -16,7 +16,7 @@ using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Resilience.Polly;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 using Excalibur.Dispatch.Validation;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Abstractions;
@@ -69,7 +69,7 @@ public sealed class VerificationScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(VerificationScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
+			_ = dispatch.UseValidation();
 		});
 
 		// Ensure validation uses DataAnnotations (default = true, but explicit for clarity)
@@ -81,9 +81,9 @@ public sealed class VerificationScenarioTests
 
 		services.AddEventSerializer();
 #pragma warning disable IL2026 // RequiresUnreferencedCode -- test code, not AOT-published
-		services.AddExcaliburEventSourcing(builder =>
+		services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			builder.AddRepository<PipelineOrderAggregate, Guid>(
-				_ => new PipelineOrderAggregate()));
+				_ => new PipelineOrderAggregate())));
 #pragma warning restore IL2026
 		services.AddInMemoryEventStore();
 
@@ -127,15 +127,15 @@ public sealed class VerificationScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(VerificationScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
-			_ = dispatch.AddDispatchResilience();
+			_ = dispatch.UseValidation();
+			_ = dispatch.UseResilience();
 		});
 
 		services.AddEventSerializer();
 #pragma warning disable IL2026
-		services.AddExcaliburEventSourcing(builder =>
+		services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			builder.AddRepository<PipelineOrderAggregate, Guid>(
-				_ => new PipelineOrderAggregate()));
+				_ => new PipelineOrderAggregate())));
 #pragma warning restore IL2026
 		services.AddInMemoryEventStore();
 
@@ -236,9 +236,9 @@ public sealed class VerificationScenarioTests
 		services.AddAllDispatchMetrics();
 		services.AddEventSerializer();
 #pragma warning disable IL2026
-		services.AddExcaliburEventSourcing(builder =>
+		services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			builder.AddRepository<PipelineOrderAggregate, Guid>(
-				_ => new PipelineOrderAggregate()));
+				_ => new PipelineOrderAggregate())));
 #pragma warning restore IL2026
 		services.AddInMemoryEventStore();
 
@@ -363,10 +363,10 @@ public sealed class VerificationScenarioTests
 		var services = new ServiceCollection();
 		services.AddLogging();
 
-		// Register outbox (includes AddDispatch internally per ADR-078)
+		// Register outbox via builder chain (includes AddDispatch internally per ADR-078)
 		var regException = Record.Exception(() =>
 		{
-			services.AddExcaliburOutbox();
+			services.AddExcalibur(excalibur => excalibur.AddOutbox(_ => { }));
 		});
 		regException.ShouldBeNull();
 

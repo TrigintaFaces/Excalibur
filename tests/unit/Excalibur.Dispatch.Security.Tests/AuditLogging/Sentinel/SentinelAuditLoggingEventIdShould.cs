@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.AuditLogging.Sentinel;
+using Excalibur.AuditLogging.Sentinel;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Sentinel;
 
@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Sentinel;
 /// Unit tests for <see cref="SentinelAuditLoggingEventId"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "AuditLogging")]
+[Trait(TraitNames.Component, TestComponents.AuditLogging)]
 public sealed class SentinelAuditLoggingEventIdShould
 {
 	#region Event ID Value Tests

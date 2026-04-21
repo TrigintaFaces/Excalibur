@@ -7,8 +7,8 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Soc2;
 /// Unit tests for <see cref="TrustServicesCriterion"/>, <see cref="TrustServicesCategory"/>,
 /// and <see cref="TrustServicesCriteriaExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [Trait("Feature", "Soc2")]
 public sealed class TrustServicesCriteriaShould : UnitTestBase
 {

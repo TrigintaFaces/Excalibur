@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck.InMemory;
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("IDisposableAnalyzers.Correctness", "CA1001:Types that own disposable fields should be disposable",
 	Justification = "Disposal is handled by IAsyncLifetime.DisposeAsync() which is the xUnit pattern for test fixtures.")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Patterns")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Patterns)]
 public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 {
 	private InMemoryClaimCheckProvider? _provider;

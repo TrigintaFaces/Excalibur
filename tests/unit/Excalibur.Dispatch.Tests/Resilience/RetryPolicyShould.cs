@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Tests.Resilience;
 /// Sprint 168 (bd-adyfx): 30 tests covering comprehensive retry policy behavior.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class RetryPolicyShould : UnitTestBase
 {
 	#region Retry Strategy Tests (10 tests)

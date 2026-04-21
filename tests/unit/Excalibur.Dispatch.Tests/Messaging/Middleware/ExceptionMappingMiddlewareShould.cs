@@ -15,7 +15,7 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class ExceptionMappingMiddlewareShould
 {

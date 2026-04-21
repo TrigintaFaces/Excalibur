@@ -1,110 +1,128 @@
 # TransportBindings
 
-Demonstrates the Transport Bindings API for configuring message routing.
+**Beads:** `bd-xk0s07` (S790 redesign per COMPASS msg 1187)
+**Location:** `samples/02-messaging-transports/TransportBindings/`
 
-## Purpose
+Canonical end-to-end demonstration of the Excalibur event-ingress pipeline:
+named message transports (broker queues) and **typed cron timers**, composed
+into the dispatcher through a single declarative `AddEventBindings(...)`
+lambda, with handlers resolved by `AddDispatch(assembly)`.
 
-This sample shows how to configure transport bindings - the rules that map incoming messages to Dispatch pipeline profiles. It demonstrates the declarative API for defining transport sources and routing.
+> **Sprint 790 redesign:** Earlier revisions of this sample used a fabricated
+> "bucket" stand-in and had the `AddEventBindings` lambda commented out as a
+> TODO. The sample now exercises the real framework primitives published in
+> `Excalibur.Dispatch` — no fabrication, no stand-ins.
 
-## What This Sample Demonstrates
+## What the sample demonstrates
 
-- **Transport Registration** - Adding transport providers (InMemory, Kafka, RabbitMQ, etc.)
-- **Binding Configuration** - Mapping sources to dispatcher profiles
-- **Transport Registry** - Inspecting registered transports
-- **Binding Registry** - Viewing configured bindings
+### 1. Two transport modalities behind the same abstraction
 
-## Running the Sample
+| Registration | What it adds |
+|--------------|--------------|
+| `services.AddInMemoryTransport("orders")` | A queue-style pull transport. Swap for `AddRabbitMQTransport` / `AddKafkaTransport` / `AddAzureServiceBusTransport` / `AddAwsSqsTransport` / `AddGooglePubSubTransport` / etc. in production — the binding DSL below doesn't change. |
+| `services.AddCronTimerTransport<OrderArrivalTimer>("*/10 * * * * *", o => ...)` | A cron-scheduled trigger that publishes `CronTimerTriggerMessage<OrderArrivalTimer>` to the dispatcher on every tick. Built-in overlap prevention, time-zone awareness, health checks, and OpenTelemetry metrics. |
+
+### 2. Typed cron markers eliminate string filtering
+
+```csharp
+// Zero-allocation struct marker — uniqueness of the type identifies the timer.
+public struct OrderArrivalTimer : ICronTimerMarker;
+```
+
+Every `AddCronTimerTransport<TTimer>(...)` call creates an independent timer
+keyed by `typeof(TTimer).Name`. The generic `CronTimerTriggerMessage<TTimer>`
+gives handlers type-safe routing:
+
+```csharp
+public sealed class OrderArrivalHandler
+    : IEventHandler<CronTimerTriggerMessage<OrderArrivalTimer>>
+{
+    // Fires only for OrderArrivalTimer — no string-name filtering.
+}
+```
+
+### 3. Declarative bindings route inbound messages into the dispatcher
+
+```csharp
+services.AddEventBindings(b =>
+{
+    b.FromQueue("orders")
+     .RouteType<OrderReceived>()
+     .ToDispatcher("default");
+
+    b.FromTimer(nameof(OrderArrivalTimer))
+     .RouteType<CronTimerTriggerMessage<OrderArrivalTimer>>()
+     .ToDispatcher("default");
+});
+```
+
+`FromQueue`, `FromTimer`, and `FromTransport` all produce the same builder
+shape (`IInboundRouteBuilder`). The three differ only in the semantics they
+read from their named transport registration — the dispatcher side is
+uniform.
+
+## Running the sample
 
 ```bash
 dotnet run --project samples/02-messaging-transports/TransportBindings
 ```
 
-## Sample Output
+Expected output (abbreviated):
 
 ```
 Transport Bindings API Demo
 ===========================
 
 Registered Transports:
-  - test (InMemory)
+  - orders (type: inmemory)
+  - OrderArrivalTimer (type: cron-timer)
 
-Registered Bindings:
-  (bindings are commented out in demo - uncomment to see them)
+Cron timer will fire every 10 seconds — watch the logs.
+Press Ctrl+C to stop.
 
-Transport Bindings API implementation complete!
-Press any key to exit...
+info: TransportBindings.OrderArrivalHandler[0]
+      Timer OrderArrivalTimer fired at 2026-04-17T... (cron: */10 * * * * *, tz: UTC)
+info: TransportBindings.OrderArrivalHandler[0]
+      Timer OrderArrivalTimer fired at 2026-04-17T... (cron: */10 * * * * *, tz: UTC)
+...
 ```
 
-## Key Concepts
+## Swapping in a production broker
 
-### Transport Registration
-
-Register transport providers using the ADR-098 single entry point pattern:
+The binding lambda does not change — only the transport registration does:
 
 ```csharp
-// Simple in-memory transport for testing
-builder.Services.AddInMemoryTransport("test");
+// before
+services.AddInMemoryTransport("orders");
 
-// Production transports (when infrastructure is available):
-// builder.Services.AddKafkaTransport("kafka", k => k.BootstrapServers("localhost:9092"));
-// builder.Services.AddRabbitMQTransport("rabbitmq", r => r.ConnectionString("amqp://localhost"));
-// builder.Services.AddAzureServiceBusTransport("servicebus", sb => sb.ConnectionString("Endpoint=sb://..."));
-// builder.Services.AddAzureStorageQueueTransport("orders", sq => sq.ConnectionString("..."));
-// builder.Services.AddAzureEventHubsTransport("eventhubs", eh => eh.ConnectionString("Endpoint=sb://..."));
+// after (any of these)
+services.AddRabbitMQTransport("orders", r => r.ConnectionString("amqp://localhost"));
+services.AddKafkaTransport("orders", k => k.BootstrapServers("localhost:9092"));
+services.AddAzureServiceBusTransport("orders", sb => sb.ConnectionString("Endpoint=sb://..."));
+services.AddAwsSqsTransport("orders", s => s.Region("us-east-1").QueueName("orders"));
+services.AddGooglePubSubTransport("orders", g => g.ProjectId("my-project").SubscriptionName("orders"));
 ```
 
-### Binding Configuration
+## Learn more
 
-Define how messages from transports route to Dispatch pipelines:
+- [`docs-site/docs/transports/cron-timer.md`](../../../docs-site/docs/transports/cron-timer.md)
+  — Full cron-timer reference (marker struct design, cron expression syntax,
+  overlap prevention semantics, health checks, metrics).
+- [`docs-site/docs/migration/from-aspnet-eventing-proposal.md`](../../../docs-site/docs/migration/from-aspnet-eventing-proposal.md)
+  — Framework positioning: how `AddCronTimerTransport<T>` + `AddEventBindings`
+  compare to ASP.NET Core hosted services, IHostedService timers, and
+  Quartz.NET.
+- `samples/04-reliability/Outbox/` — reliability patterns on the publish side.
+- `samples/11-real-world/EnterpriseOrderProcessing/` — full L3 composition
+  using these transports end-to-end.
 
-```csharp
-builder.Services.AddEventBindings(b =>
-{
-    // Route messages from a queue to a dispatcher profile
-    b.FromQueue("orders")
-        .RouteName("order-received")
-        .ToDispatcher("internal-event");
+## Key framework types used
 
-    // Route specific message types
-    b.FromTransport("rabbitmq")
-        .RouteType<GenericDispatchMessage>()
-        .ToDispatcher("strict");
-});
-```
-
-### Available Transports
-
-| Transport | Method | Connection |
-|-----------|--------|------------|
-| InMemory | `AddInMemoryTransport(name)` | No external deps |
-| Kafka | `AddKafkaTransport(name, configure)` | Kafka cluster |
-| RabbitMQ | `AddRabbitMQTransport(name, configure)` | RabbitMQ server |
-| Azure Service Bus | `AddAzureServiceBusTransport(name, configure)` | Azure connection |
-| Azure Storage Queue | `AddAzureStorageQueueTransport(name, configure)` | Storage account |
-| Azure Event Hubs | `AddAzureEventHubsTransport(name, configure)` | Event Hubs |
-
-## Project Structure
-
-```
-TransportBindings/
-├── TransportBindings.csproj    # Project file
-├── Program.cs                  # Transport and binding configuration
-└── README.md                   # This file
-```
-
-## Related Packages
-
-| Package | Purpose |
-|---------|---------|
-| `Excalibur.Dispatch.Transport.Abstractions` | Transport interfaces |
-| `Excalibur.Dispatch.Transport.RabbitMQ` | RabbitMQ provider |
-| `Excalibur.Dispatch.Transport.Kafka` | Kafka provider |
-| `Excalibur.Dispatch.Transport.AzureServiceBus` | Azure Service Bus provider |
-
-## Next Steps
-
-- [MultiBusSample](../MultiBusSample/) - Full multi-transport example
-
----
-
-*Category: Messaging Transports | Sprint 428*
+| Type | Location |
+|------|----------|
+| `AddCronTimerTransport<TTimer>(cronExpression, configure)` | `src/Dispatch/Excalibur.Dispatch/Transport/CronTimerTransportServiceCollectionExtensions.cs` |
+| `ICronTimerMarker` | `src/Dispatch/Excalibur.Dispatch.Abstractions/Transport/ICronTimerMarker.cs` |
+| `CronTimerTriggerMessage<TTimer>` | `src/Dispatch/Excalibur.Dispatch/Transport/CronTimerTriggerMessageOfT.cs` |
+| `CronTimerTransportAdapter` (production transport — OTel + health + overlap policy) | `src/Dispatch/Excalibur.Dispatch/Transport/CronTimerTransportAdapter.cs` |
+| `AddInMemoryTransport(name, configure)` | `src/Dispatch/Excalibur.Dispatch/Configuration/InMemoryTransportServiceCollectionExtensions.cs` |
+| `AddEventBindings(configure)` | `src/Dispatch/Excalibur.Dispatch/Configuration/ServiceCollectionTransportExtensions.cs` |

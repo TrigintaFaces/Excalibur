@@ -28,7 +28,8 @@ public class ProviderOptionsValidator : IValidateOptions<ProviderOptions>
 		if (options.DefaultTimeoutMs <= 0)
 		{
 			failures.Add(
-				$"{nameof(ProviderOptions.DefaultTimeoutMs)} must be greater than 0 (was {options.DefaultTimeoutMs}).");
+				$"{nameof(ProviderOptions)}.{nameof(ProviderOptions.DefaultTimeoutMs)} must be greater than 0 (was {options.DefaultTimeoutMs}). " +
+				$"Configure it via services.Configure<{nameof(ProviderOptions)}>(o => o.DefaultTimeoutMs = 30000).");
 		}
 
 		if (options.RetryPolicy is not null)
@@ -36,20 +37,20 @@ public class ProviderOptionsValidator : IValidateOptions<ProviderOptions>
 			if (options.RetryPolicy.BaseDelayMs > options.RetryPolicy.MaxDelayMs)
 			{
 				failures.Add(
-					$"{nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.BaseDelayMs)} ({options.RetryPolicy.BaseDelayMs}) " +
+					$"{nameof(ProviderOptions)}.{nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.BaseDelayMs)} ({options.RetryPolicy.BaseDelayMs}) " +
 					$"must be less than or equal to {nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.MaxDelayMs)} ({options.RetryPolicy.MaxDelayMs}).");
 			}
 
 			if (options.RetryPolicy.BaseDelayMs <= 0)
 			{
 				failures.Add(
-					$"{nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.BaseDelayMs)} must be greater than 0 (was {options.RetryPolicy.BaseDelayMs}).");
+					$"{nameof(ProviderOptions)}.{nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.BaseDelayMs)} must be greater than 0 (was {options.RetryPolicy.BaseDelayMs}).");
 			}
 
 			if (options.RetryPolicy.MaxDelayMs <= 0)
 			{
 				failures.Add(
-					$"{nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.MaxDelayMs)} must be greater than 0 (was {options.RetryPolicy.MaxDelayMs}).");
+					$"{nameof(ProviderOptions)}.{nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.MaxDelayMs)} must be greater than 0 (was {options.RetryPolicy.MaxDelayMs}).");
 			}
 		}
 

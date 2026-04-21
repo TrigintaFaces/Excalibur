@@ -6,8 +6,8 @@ using Shouldly;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.DeadLetterQueue;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class DeadLetterMessageShould
 {
     [Fact]
@@ -19,7 +19,7 @@ public sealed class DeadLetterMessageShould
         message.OriginalEnvelope.ShouldBeNull();
         message.OriginalContext.ShouldBeNull();
         message.Reason.ShouldBe(string.Empty);
-        message.Exception.ShouldBeNull();
+        message.Exception!.ShouldBeNull();
         message.DeliveryAttempts.ShouldBe(0);
         message.OriginalSource.ShouldBeNull();
         message.DeadLetteredAt.ShouldBe(default);
@@ -51,8 +51,8 @@ public sealed class DeadLetterMessageShould
         var ex = new InvalidOperationException("Processing failed");
         var message = new DeadLetterMessage { Exception = ex };
 
-        message.Exception.ShouldBe(ex);
-        message.Exception.ShouldBeOfType<InvalidOperationException>();
+        message.Exception!.ShouldBe(ex);
+        message.Exception!.ShouldBeOfType<InvalidOperationException>();
     }
 
     [Theory]
@@ -143,7 +143,7 @@ public sealed class DeadLetterMessageShould
         message.OriginalMessage.Id.ShouldBe("msg-order-123");
         message.OriginalMessage.Subject.ShouldBe("order.created");
         message.Reason.ShouldBe("Database connection timeout after 5 retries");
-        message.Exception.ShouldBeOfType<TimeoutException>();
+        message.Exception!.ShouldBeOfType<TimeoutException>();
         message.DeliveryAttempts.ShouldBe(5);
         message.OriginalSource.ShouldBe("orders-queue");
         message.DeadLetteredAt.ShouldBe(timestamp);
@@ -172,6 +172,6 @@ public sealed class DeadLetterMessageShould
         message.OriginalMessage.Id.ShouldBe("msg-poison");
         message.Reason.ShouldBe("Message could not be deserialized");
         message.DeliveryAttempts.ShouldBe(1);
-        message.Exception.ShouldBeNull();
+        message.Exception!.ShouldBeNull();
     }
 }

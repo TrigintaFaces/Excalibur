@@ -1,14 +1,11 @@
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.Core;
 
-using EncryptionOptions = Excalibur.Dispatch.Options.Core.EncryptionOptions;
-
 namespace Excalibur.Dispatch.Tests.Options.Core;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CoreOptionsShould
 {
 	[Fact]
@@ -71,38 +68,6 @@ public sealed class CoreOptionsShould
 		opts.IncludeExceptionDetails.ShouldBeFalse();
 		opts.EnableRecovery.ShouldBeTrue();
 		opts.RecoveryInterval.ShouldBe(TimeSpan.FromMinutes(30));
-	}
-
-	[Fact]
-	public void EncryptionOptions_HaveDefaults()
-	{
-		var opts = new EncryptionOptions();
-
-		opts.Enabled.ShouldBeFalse();
-		opts.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
-		opts.Key.ShouldBeNull();
-		opts.KeyDerivation.ShouldBeNull();
-		opts.EnableKeyRotation.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void EncryptionOptions_AllowSettingProperties()
-	{
-		var key = new byte[] { 1, 2, 3 };
-		var opts = new EncryptionOptions
-		{
-			Enabled = true,
-			Algorithm = EncryptionAlgorithm.Aes256CbcHmac,
-			Key = key,
-			KeyDerivation = new KeyDerivationOptions(),
-			EnableKeyRotation = true,
-		};
-
-		opts.Enabled.ShouldBeTrue();
-		opts.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
-		opts.Key.ShouldBe(key);
-		opts.KeyDerivation.ShouldNotBeNull();
-		opts.EnableKeyRotation.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -289,11 +254,4 @@ public sealed class CoreOptionsShould
 		opts.ShouldNotBeNull();
 	}
 
-	[Fact]
-	public void KeyDerivationOptions_HaveDefaults()
-	{
-		var opts = new KeyDerivationOptions();
-
-		opts.ShouldNotBeNull();
-	}
 }

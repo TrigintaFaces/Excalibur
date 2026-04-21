@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Scheduling;
 /// Unit tests for <see cref="SchedulerOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class SchedulerOptionsShould
 {

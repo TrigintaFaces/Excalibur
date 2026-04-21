@@ -10,7 +10,7 @@ Integration tests verify that all components work together with real infrastruct
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - **Docker** installed and running (required for TestContainers)
 - Install the required packages:
   ```bash
@@ -42,15 +42,15 @@ public class SqlServerIntegrationTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddDispatch();
-        services.AddExcaliburEventSourcing(builder =>
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
+            builder.UseSqlServer(opts => opts.ConnectionString = _container.GetConnectionString());
             builder.AddRepository<Order, OrderId>();
-        });
-        services.AddSqlServerEventSourcing(_container.GetConnectionString());
-        services.AddExcaliburOutbox(outbox =>
+        }));
+        services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
         {
             outbox.UseSqlServer(_container.GetConnectionString());
-        });
+        }));
 
         _provider = services.BuildServiceProvider();
     }
@@ -101,10 +101,10 @@ public class PostgresIntegrationTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddDispatch();
-        services.AddExcaliburEventSourcing(builder =>
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
             builder.AddRepository<Order, OrderId>();
-        });
+        }));
         services.AddPostgresEventStore(_container.GetConnectionString());
 
         // ... setup
@@ -131,11 +131,18 @@ public class MongoDbIntegrationTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddDispatch();
-        services.AddExcaliburEventSourcing(builder =>
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
             builder.AddRepository<Order, OrderId>();
-        });
-        services.AddMongoDbEventStore(_container.GetConnectionString(), "test-db");
+        }));
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+        {
+            es.UseMongoDB(mongo =>
+            {
+                mongo.ConnectionString(_container.GetConnectionString())
+                     .DatabaseName("test-db");
+            });
+        }));
 
         // ... setup
     }
@@ -261,15 +268,15 @@ public class IntegrationTestFixture : IAsyncLifetime
     private void ConfigureServices(IServiceCollection services)
     {
         services.AddDispatch();
-        services.AddExcaliburEventSourcing(builder =>
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
+            builder.UseSqlServer(opts => opts.ConnectionString = SqlServer.GetConnectionString());
             builder.AddRepository<Order, OrderId>();
-        });
-        services.AddSqlServerEventSourcing(SqlServer.GetConnectionString());
-        services.AddExcaliburOutbox(outbox =>
+        }));
+        services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
         {
             outbox.UseSqlServer(SqlServer.GetConnectionString());
-        });
+        }));
         // ... other services
     }
 

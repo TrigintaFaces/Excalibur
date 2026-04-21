@@ -441,13 +441,24 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		                          """;
 
 		using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-		var stats = await connection.QuerySingleAsync<dynamic>(statsQuery).ConfigureAwait(false);
+		var stats = await connection.QuerySingleAsync<ProviderDatabaseStatisticsDto>(statsQuery).ConfigureAwait(false);
 
-		var result = new Dictionary<string, object>(StringComparer.Ordinal);
-		foreach (var property in (IDictionary<string, object>)stats)
+		var result = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
-			result[property.Key] = property.Value ?? "N/A";
-		}
+			["Version"] = stats.Version ?? "N/A",
+			["ServerName"] = stats.ServerName ?? "N/A",
+			["DatabaseName"] = stats.DatabaseName ?? "N/A",
+			["ActiveConnections"] = stats.ActiveConnections,
+			["BlockedRequests"] = stats.BlockedRequests,
+			["ActiveTransactions"] = stats.ActiveTransactions,
+			["DataSizeMB"] = stats.DataSizeMB ?? (object)"N/A",
+			["LogSizeMB"] = stats.LogSizeMB ?? (object)"N/A",
+			["BufferCacheHitRatio"] = stats.BufferCacheHitRatio ?? (object)"N/A",
+			["SqlServerEdition"] = stats.SqlServerEdition ?? "N/A",
+			["ProductVersion"] = stats.ProductVersion ?? "N/A",
+			["ProductLevel"] = stats.ProductLevel ?? "N/A",
+			["MaxServerMemoryMB"] = stats.MaxServerMemoryMB ?? (object)"N/A",
+		};
 
 		return result;
 	}
@@ -488,13 +499,19 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 			                         """;
 
 			using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-			var poolStats = await connection.QuerySingleAsync<dynamic>(poolQuery).ConfigureAwait(false);
+			var poolStats = await connection.QuerySingleAsync<ProviderConnectionPoolDto>(poolQuery).ConfigureAwait(false);
 
-			var result = new Dictionary<string, object>(StringComparer.Ordinal);
-			foreach (var property in (IDictionary<string, object>)poolStats)
+			var result = new Dictionary<string, object>(StringComparer.Ordinal)
 			{
-				result[property.Key] = property.Value ?? "N/A";
-			}
+				["ProviderType"] = poolStats.ProviderType ?? "N/A",
+				["ServerName"] = poolStats.ServerName ?? "N/A",
+				["DatabaseName"] = poolStats.DatabaseName ?? "N/A",
+				["TotalConnections"] = poolStats.TotalConnections,
+				["UserConnections"] = poolStats.UserConnections,
+				["ActiveRequests"] = poolStats.ActiveRequests,
+				["BlockedRequests"] = poolStats.BlockedRequests,
+				["ActiveTransactions"] = poolStats.ActiveTransactions,
+			};
 
 			// Add configured pool settings
 			result["ConfiguredMaxPoolSize"] = _options.Pooling.MaxPoolSize;
@@ -916,4 +933,29 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 	[LoggerMessage(DataSqlServerEventId.PersistenceTransientRetry, LogLevel.Warning,
 		"Transient error occurred. Retry {RetryCount}/{MaxRetries} after {Delay}ms")]
 	private partial void LogTransientRetry(int retryCount, int maxRetries, double delay);
+
+	private sealed record ProviderDatabaseStatisticsDto(
+		string? Version,
+		string? ServerName,
+		string? DatabaseName,
+		int ActiveConnections,
+		int BlockedRequests,
+		int ActiveTransactions,
+		int? DataSizeMB,
+		int? LogSizeMB,
+		long? BufferCacheHitRatio,
+		string? SqlServerEdition,
+		string? ProductVersion,
+		string? ProductLevel,
+		int? MaxServerMemoryMB);
+
+	private sealed record ProviderConnectionPoolDto(
+		string? ProviderType,
+		string? ServerName,
+		string? DatabaseName,
+		int TotalConnections,
+		int UserConnections,
+		int ActiveRequests,
+		int BlockedRequests,
+		int ActiveTransactions);
 }

@@ -2,6 +2,16 @@
 
 AWS messaging transport implementation for the Excalibur framework, providing integration with Amazon SQS, SNS, and EventBridge services.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.Aws` | Starter | + Resilience (Polly) + Observability |
+
+> **Tip:** If you are getting started, install `Excalibur.Dispatch.Aws` instead of this package directly. It includes production-ready defaults.
+
 ## Overview
 
 This package provides AWS messaging integration for Excalibur.Dispatch, enabling:
@@ -165,7 +175,7 @@ services.AddAwsSqs(options =>
 ```csharp
 services.AddAwsSqs(options =>
 {
-    options.BatchConfig = new BatchConfiguration
+    options.BatchConfig = new BatchOptions
     {
         MaxBatchSize = 10,           // Messages per batch (max 10)
         MaxBatchWaitTime = TimeSpan.FromMilliseconds(100)
@@ -178,12 +188,12 @@ services.AddAwsSqs(options =>
 ```csharp
 services.AddAwsSqs(options =>
 {
-    options.LongPollingConfig = new LongPollingConfiguration
+    options.LongPollingConfig = new LongPollingOptions
     {
-        WaitTimeSeconds = 20,        // Long polling duration
-        MaxEmptyReceives = 5,        // Max empty receives before backing off
-        BackoffMultiplier = 1.5      // Backoff multiplier
+        QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue"),
     };
+    options.LongPollingConfig.Polling.MaxWaitTimeSeconds = 20;
+    options.LongPollingConfig.Adaptive.Enabled = true;
 });
 ```
 
@@ -352,7 +362,7 @@ services.AddAwsSqs(options =>
     options.WaitTimeSeconds = TimeSpan.FromSeconds(20);   // Long polling (reduces API calls)
     options.VisibilityTimeout = TimeSpan.FromMinutes(5);  // 5 minutes for slow processing
 
-    options.BatchConfig = new BatchConfiguration
+    options.BatchConfig = new BatchOptions
     {
         MaxBatchSize = 10,
         MaxBatchWaitTime = TimeSpan.FromMilliseconds(50)  // Faster batching

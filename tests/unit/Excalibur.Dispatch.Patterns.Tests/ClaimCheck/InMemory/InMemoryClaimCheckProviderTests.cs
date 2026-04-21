@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck.InMemory;
 /// <summary>
 /// Unit tests for <see cref="InMemoryClaimCheckProvider"/> core CRUD operations.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Patterns")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Patterns)]
 public sealed class InMemoryClaimCheckProviderTests
 {
 	[Fact]

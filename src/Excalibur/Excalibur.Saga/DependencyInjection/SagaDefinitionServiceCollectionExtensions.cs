@@ -56,7 +56,7 @@ public static class SagaDefinitionServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(assembly);
 
 		var definitionTypes = assembly.GetTypes()
-			.Where(static type => type is { IsClass: true, IsAbstract: false, IsInterface: false }
+			.Where(static type => type is { IsClass: true, IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false }
 				&& ImplementsSagaDefinition(type));
 
 		foreach (var definitionType in definitionTypes)
@@ -79,6 +79,8 @@ public static class SagaDefinitionServiceCollectionExtensions
 		return services;
 	}
 
+	[UnconditionalSuppressMessage("Trimming", "IL2070:DynamicallyAccessedMembers on parameter",
+		Justification = "Called only from AddSagaDefinitionsFromAssembly which is already marked [RequiresUnreferencedCode]")]
 	private static bool ImplementsSagaDefinition(Type type) =>
 		type.GetInterfaces().Any(static i =>
 			i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ISagaDefinition<>));

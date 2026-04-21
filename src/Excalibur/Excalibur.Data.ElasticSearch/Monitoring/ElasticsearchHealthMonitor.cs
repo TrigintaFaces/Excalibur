@@ -267,7 +267,7 @@ public sealed class ElasticsearchHealthMonitor(
 			DelayedUnassignedShards = healthResponse.DelayedUnassignedShards,
 			NumberOfPendingTasks = healthResponse.NumberOfPendingTasks,
 			NumberOfInFlightFetch = healthResponse.NumberOfInFlightFetch,
-			TaskMaxWaitingInQueueMillis = healthResponse.TaskMaxWaitingInQueueMillis,
+			TaskMaxWaitingInQueueMillis = (long)healthResponse.TaskMaxWaitingInQueueMillis.TotalMilliseconds,
 			ActiveShardsPercentAsNumber = healthResponse.ActiveShardsPercentAsNumber,
 			Timestamp = DateTimeOffset.UtcNow,
 		};

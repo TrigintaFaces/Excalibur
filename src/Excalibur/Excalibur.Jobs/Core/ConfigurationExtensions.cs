@@ -16,26 +16,26 @@ public static class ConfigurationExtensions
 	/// <summary>
 	/// Retrieves the configuration section for a specified job and maps it to a strongly-typed configuration object.
 	/// </summary>
-	/// <typeparam name="TConfig"> The type of the configuration object to retrieve. </typeparam>
+	/// <typeparam name="TOptions"> The type of the configuration object to retrieve. </typeparam>
 	/// <param name="configuration"> The <see cref="IConfiguration" /> instance containing the application's configuration. </param>
 	/// <param name="jobConfigSectionName"> The name of the configuration section for the job. </param>
-	/// <returns> A strongly-typed <typeparamref name="TConfig" /> object populated with values from the specified configuration section. </returns>
+	/// <returns> A strongly-typed <typeparamref name="TOptions" /> object populated with values from the specified configuration section. </returns>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="configuration" /> or <paramref name="jobConfigSectionName" /> is null.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if the specified configuration section is not found or cannot be mapped to the <typeparamref name="TConfig" /> type.
+	/// Thrown if the specified configuration section is not found or cannot be mapped to the <typeparamref name="TOptions" /> type.
 	/// </exception>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
-	public static TConfig GetJobConfiguration<TConfig>(this IConfiguration configuration, string jobConfigSectionName)
+	public static TOptions GetJobConfiguration<TOptions>(this IConfiguration configuration, string jobConfigSectionName)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(jobConfigSectionName);
 
 		return configuration
 				   .GetSection(jobConfigSectionName)
-				   .Get<TConfig>() ??
+				   .Get<TOptions>() ??
 			   throw new InvalidOperationException($"Job configuration not found at {jobConfigSectionName}.");
 	}
 }

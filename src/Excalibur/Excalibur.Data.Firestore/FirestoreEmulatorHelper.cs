@@ -16,11 +16,7 @@ namespace Excalibur.Data.Firestore;
 public static class FirestoreEmulatorHelper
 {
 	private const string EmulatorHostVariable = "FIRESTORE_EMULATOR_HOST";
-#if NET9_0_OR_GREATER
 	private static readonly Lock Lock = new();
-#else
-	private static readonly object Lock = new();
-#endif
 
 	/// <summary>
 	/// Configures the emulator host environment variable thread-safely.

@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 /// <summary>
 /// Unit tests for <see cref="ChannelMessagePumpStatus"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Channels")]
 [Trait("Priority", "0")]
 public sealed class ChannelMessagePumpStatusShould

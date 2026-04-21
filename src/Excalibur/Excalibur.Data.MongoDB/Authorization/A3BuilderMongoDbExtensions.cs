@@ -7,6 +7,7 @@ using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.Data.MongoDB.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -28,8 +29,10 @@ public static class A3BuilderMongoDbExtensions
 
 		_ = builder.Services.AddOptions<MongoDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbAuthorizationOptions>, MongoDbAuthorizationOptionsValidator>());
 
 		builder.Services.TryAddSingleton<IActivityGroupGrantStore, MongoDbActivityGroupGrantStore>();
 

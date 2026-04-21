@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.Firestore;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Firestore")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class InMemoryFirestoreCdcStateStoreShould : IAsyncDisposable
 {
 	private readonly InMemoryFirestoreCdcStateStore _store = new();
@@ -300,10 +300,10 @@ public sealed class InMemoryFirestoreCdcStateStoreShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public void BePublic()
+	public void BeInternal()
 	{
 		// Assert
-		typeof(InMemoryFirestoreCdcStateStore).IsPublic.ShouldBeTrue();
+		typeof(InMemoryFirestoreCdcStateStore).IsPublic.ShouldBeFalse();
 	}
 
 	[Fact]

@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing;
 /// Regression tests for T.6 (7gor0): LeastConnectionsLoadBalancer atomic counter correctness.
 /// Verifies that concurrent SelectRoute + UpdateMetrics produces consistent connection counts.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class LeastConnectionsAtomicIncrementShould
 {
 	private readonly LeastConnectionsLoadBalancer _balancer;

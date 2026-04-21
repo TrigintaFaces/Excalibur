@@ -15,6 +15,7 @@ namespace Excalibur.Saga.Tests.StateMachine;
 /// Unit tests for <see cref="ProcessManager{TData}"/>.
 /// Verifies state machine transitions, event handling, and state definitions.
 /// </summary>
+[Collection("SagaContextFactoryRegistry")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Saga")]
 public sealed class ProcessManagerShould
@@ -206,7 +207,7 @@ public sealed class ProcessManagerShould
 			innerException);
 
 		// Assert
-		exception.InnerException.ShouldBeSameAs(innerException);
+		exception.InnerException!.ShouldBeSameAs(innerException);
 	}
 
 	#endregion

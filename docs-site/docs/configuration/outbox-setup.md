@@ -10,7 +10,7 @@ The outbox pattern ensures reliable message delivery by storing messages in the 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Outbox
@@ -38,11 +38,11 @@ With an outbox:
 ## Basic Setup
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
-});
+}));
 ```
 
 Alternatively, use the unified builder:
@@ -63,7 +63,7 @@ services.AddExcalibur(excalibur =>
 ### Fluent Builder API
 
 ```csharp
-services.AddExcaliburOutbox(outbox =>
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(sql =>
     {
@@ -87,7 +87,7 @@ services.AddExcaliburOutbox(outbox =>
                .CleanupInterval(TimeSpan.FromHours(6));
     })
     .EnableBackgroundProcessing();
-});
+}));
 ```
 
 ### Preset-Based API
@@ -96,23 +96,23 @@ Use presets for common scenarios:
 
 ```csharp
 // High throughput (event streaming, analytics)
-services.AddExcaliburOutbox(OutboxOptions.HighThroughput().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighThroughput().Build()));
 
 // Balanced (most applications)
-services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
 
 // High reliability (financial, critical systems)
-services.AddExcaliburOutbox(OutboxOptions.HighReliability().Build());
+services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighReliability().Build()));
 ```
 
 Customize presets:
 
 ```csharp
-services.AddExcaliburOutbox(
+services.AddExcalibur(excalibur => excalibur.AddOutbox(
     OutboxOptions.HighThroughput()
         .WithBatchSize(2000)
         .WithProcessorId("worker-1")
-        .Build());
+        .Build()));
 ```
 
 ## Preset Comparison
@@ -153,21 +153,20 @@ outbox.UsePostgres(pg =>
 ### Redis
 
 ```csharp
-// With connection string
-outbox.UseRedis(options =>
+// With connection string (builder API)
+outbox.UseRedis(redis =>
 {
-    options.ConnectionString = "localhost:6379";
-    options.KeyPrefix = "outbox:";
-    options.DatabaseId = 0;
+    redis.ConnectionString("localhost:6379")
+         .KeyPrefix("outbox:")
+         .Database(0);
 });
 
-// With existing ConnectionMultiplexer from DI
-outbox.UseRedis(
-    sp => sp.GetRequiredService<ConnectionMultiplexer>(),
-    options =>
-    {
-        options.KeyPrefix = "outbox:";
-    });
+// With existing ConnectionMultiplexer
+outbox.UseRedis(redis =>
+{
+    redis.Multiplexer(existingMultiplexer)
+         .KeyPrefix("outbox:");
+});
 ```
 
 `RedisOutboxOptions` properties:
@@ -187,15 +186,16 @@ outbox.UseRedis(
 ### MongoDB
 
 ```csharp
-outbox.UseMongoDB(options =>
+outbox.UseMongoDB(mongo =>
 {
-    options.ConnectionString = "mongodb://localhost:27017";
-    options.DatabaseName = "myapp";
-    options.CollectionName = "outbox_messages";
+    mongo.ConnectionString("mongodb://localhost:27017")
+         .DatabaseName("myapp");
 });
 ```
 
-Key `MongoDbOutboxOptions` properties:
+The MongoDB outbox builder (`IMongoDBOutboxBuilder`) supports 4 connection overloads: `ConnectionString()`, `Client()`, `ClientFactory()`, and `BindConfiguration()`.
+
+Key `MongoDbOutboxOptions` properties (set via builder or configuration binding):
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -203,7 +203,6 @@ Key `MongoDbOutboxOptions` properties:
 | `DatabaseName` | `string` | `"excalibur"` | Database name |
 | `CollectionName` | `string` | `"outbox_messages"` | Collection name |
 | `SentMessageTtlSeconds` | `int` | `604800` (7 days) | TTL for sent messages |
-| `MaxPoolSize` | `int` | `100` | Max connection pool size |
 
 ### Elasticsearch
 
@@ -247,11 +246,11 @@ Key `FirestoreOutboxOptions` properties:
 ### Cosmos DB
 
 ```csharp
-outbox.UseCosmosDb(options =>
+outbox.UseCosmosDb(cosmos =>
 {
-    options.Connection.ConnectionString = connectionString;
-    options.DatabaseName = "myapp";
-    options.ContainerName = "outbox";
+    cosmos.ConnectionString(connectionString)
+          .DatabaseName("myapp")
+          .ContainerName("outbox");
 });
 ```
 

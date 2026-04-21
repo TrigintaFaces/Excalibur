@@ -107,17 +107,17 @@ internal sealed partial class PersistenceProviderFactory(
 
 	/// <inheritdoc />
 	public TProvider CreateProvider<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(
-		ProviderConfiguration configuration)
+		PersistenceProviderOptions options)
 		where TProvider : class, IPersistenceProvider
 	{
-		ArgumentNullException.ThrowIfNull(configuration);
+		ArgumentNullException.ThrowIfNull(options);
 
 		var provider = ActivatorUtilities.CreateInstance<TProvider>(_serviceProvider);
 
 		// Initialize provider with configuration
 		if (provider is IConfigurableProvider configurable)
 		{
-			configurable.Configure(configuration);
+			configurable.Configure(options);
 		}
 
 		return provider;
@@ -233,12 +233,12 @@ internal sealed partial class PersistenceProviderFactory(
 	private static partial void LogProviderUnregistered(ILogger logger, string providerName);
 
 	/// <summary>
-	/// Creates a provider instance based on configuration.
+	/// Creates a provider instance based on options.
 	/// </summary>
-	private IPersistenceProvider CreateProviderInstance(ProviderConfiguration config)
+	private IPersistenceProvider CreateProviderInstance(PersistenceProviderOptions options)
 	{
 		// Resolve provider type from service container based on configuration
-		var providerType = config.Type switch
+		var providerType = options.Type switch
 		{
 			PersistenceProviderType.SqlServer => typeof(IPersistenceProvider), // Would be SqlServerProvider
 			PersistenceProviderType.Postgres => typeof(IPersistenceProvider), // Would be PostgresProvider
@@ -254,7 +254,7 @@ internal sealed partial class PersistenceProviderFactory(
 		// Configure the provider if it supports configuration
 		if (provider is IConfigurableProvider configurable)
 		{
-			configurable.Configure(config);
+			configurable.Configure(options);
 		}
 
 		return provider;

@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 /// These tests directly verify the ExceptionMapper implementation behavior.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ExceptionMapperShould
 {
 	#region Constructor Tests

@@ -10,7 +10,7 @@ Complete catalog of all OpenTelemetry metrics exposed by Excalibur framework com
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch.Observability
@@ -318,7 +318,7 @@ PostgreSQL outbox store metrics.
 
 ## Compliance Metrics
 
-### Excalibur.Dispatch.Compliance
+### Excalibur.Compliance
 
 Security and compliance metrics.
 

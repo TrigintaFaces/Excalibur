@@ -65,8 +65,8 @@ public interface ISagaCorrelationBuilder<TSaga>
 		where TMessage : class;
 
 	/// <summary>
-	/// Builds the correlation configuration into an immutable set of correlation rules.
+	/// Builds the correlation map into an immutable set of correlation rules.
 	/// </summary>
-	/// <returns>The compiled correlation configuration.</returns>
-	SagaCorrelationConfiguration<TSaga> Build();
+	/// <returns>The compiled correlation map.</returns>
+	SagaCorrelationMap<TSaga> Build();
 }

@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class InMemoryDynamoDbCdcStateStoreShould : IAsyncDisposable
 {
 	private readonly InMemoryDynamoDbCdcStateStore _store = new();
@@ -330,10 +330,10 @@ public sealed class InMemoryDynamoDbCdcStateStoreShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public void IsPublic()
+	public void BeInternal()
 	{
 		// Assert
-		typeof(InMemoryDynamoDbCdcStateStore).IsPublic.ShouldBeTrue();
+		typeof(InMemoryDynamoDbCdcStateStore).IsPublic.ShouldBeFalse();
 	}
 
 	#endregion

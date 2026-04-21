@@ -20,7 +20,10 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
     <!-- Extracted concern.provider packages -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.Firestore\Excalibur.Cdc.Firestore.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Firestore\Excalibur.EventSourcing.Firestore.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Firestore\Excalibur.Inbox.Firestore.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Firestore\Excalibur.Outbox.Firestore.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Firestore\Excalibur.Saga.Firestore.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

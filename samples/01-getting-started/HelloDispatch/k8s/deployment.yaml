@@ -1,0 +1,53 @@
+# Kubernetes Deployment — HelloDispatch (JIT)
+# See: docs-site/docs/advanced/container-deployment.md §3
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-dispatch
+  labels:
+    app: hello-dispatch
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hello-dispatch
+  template:
+    metadata:
+      labels:
+        app: hello-dispatch
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: hello-dispatch
+          image: hello-dispatch:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          # Startup probe: allow JIT warmup time
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            failureThreshold: 10
+          # Liveness probe: restart on deadlock
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 15
+            failureThreshold: 3
+          # Readiness probe: drain-aware
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 2

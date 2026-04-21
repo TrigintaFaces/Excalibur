@@ -105,4 +105,74 @@ public static class CosmosDbProjectionStoreExtensions
 			configureOptions?.Invoke(options);
 		});
 	}
+
+	/// <summary>
+	/// Registers multiple Cosmos DB projection stores that share a common connection string
+	/// and database name, reducing boilerplate when multiple projections target the same database.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The shared Cosmos DB connection string.</param>
+	/// <param name="databaseName">The shared Cosmos DB database name.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddCosmosDbProjections("AccountEndpoint=...;AccountKey=...", "mydb", projections =>
+	/// {
+	///     projections.Add&lt;OrderSummary&gt;();
+	///     projections.Add&lt;CustomerProfile&gt;(options => options.ContainerName = "customers");
+	///     projections.Add&lt;ProductCatalog&gt;();
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddCosmosDbProjections(
+		this IServiceCollection services,
+		string connectionString,
+		string databaseName,
+		Action<CosmosDbProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new CosmosDbProjectionRegistrar(services, connectionString, databaseName);
+		configure(registrar);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple Cosmos DB projection stores with shared options configuration,
+	/// allowing advanced settings like custom timeouts, consistency levels, and endpoint overrides.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureShared">Shared options applied to all projections before per-projection overrides.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddCosmosDbProjections(
+	///     shared => { shared.Client.ConnectionString = connStr; shared.DatabaseName = "mydb"; },
+	///     projections =>
+	///     {
+	///         projections.Add&lt;OrderSummary&gt;();
+	///         projections.Add&lt;CustomerProfile&gt;(options => options.ContainerName = "customers");
+	///     });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddCosmosDbProjections(
+		this IServiceCollection services,
+		Action<CosmosDbProjectionStoreOptions> configureShared,
+		Action<CosmosDbProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configureShared);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new CosmosDbProjectionRegistrar(services, configureShared);
+		configure(registrar);
+
+		return services;
+	}
 }

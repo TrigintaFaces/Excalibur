@@ -74,7 +74,7 @@ public sealed class MigrationResultShould
 		var result = MigrationResult.Succeeded(appliedMigrations);
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -87,7 +87,7 @@ public sealed class MigrationResultShould
 		var result = MigrationResult.Succeeded(appliedMigrations);
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	#endregion
@@ -121,7 +121,7 @@ public sealed class MigrationResultShould
 		var result = MigrationResult.NoMigrationsPending();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -131,7 +131,7 @@ public sealed class MigrationResultShould
 		var result = MigrationResult.NoMigrationsPending();
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	#endregion
@@ -155,7 +155,7 @@ public sealed class MigrationResultShould
 		var result = MigrationResult.Failed("Migration failed: table already exists");
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Migration failed: table already exists");
+		result.ErrorMessage!.ShouldBe("Migration failed: table already exists");
 	}
 
 	[Fact]
@@ -168,7 +168,7 @@ public sealed class MigrationResultShould
 		var result = MigrationResult.Failed("Migration failed", exception);
 
 		// Assert
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]
@@ -178,7 +178,7 @@ public sealed class MigrationResultShould
 		var result = MigrationResult.Failed("Migration failed");
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]

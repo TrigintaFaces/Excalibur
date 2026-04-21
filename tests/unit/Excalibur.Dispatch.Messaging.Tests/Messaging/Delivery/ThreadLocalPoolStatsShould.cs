@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 /// <remarks>
 /// Tests the thread-local pool statistics class.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Delivery")]
 [Trait("Priority", "0")]
 public sealed class ThreadLocalPoolStatsShould

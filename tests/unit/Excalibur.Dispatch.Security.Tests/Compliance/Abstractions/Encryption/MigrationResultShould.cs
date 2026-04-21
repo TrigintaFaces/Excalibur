@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 using Shouldly;
 using Xunit;
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Encryption;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class MigrationResultShould
 {
     [Fact]
@@ -35,8 +35,8 @@ public sealed class MigrationResultShould
         result.Duration.ShouldBe(duration);
         result.SourceKeyId.ShouldBe("src-key");
         result.TargetKeyId.ShouldBe("target-key");
-        result.ErrorMessage.ShouldBeNull();
-        result.Exception.ShouldBeNull();
+        result.ErrorMessage!.ShouldBeNull();
+        result.Exception!.ShouldBeNull();
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public sealed class MigrationResultShould
 
         // Assert
         result.Success.ShouldBeFalse();
-        result.ErrorMessage.ShouldBe("Something failed");
-        result.Exception.ShouldBe(ex);
+        result.ErrorMessage!.ShouldBe("Something failed");
+        result.Exception!.ShouldBe(ex);
         result.MigratedData.ShouldBeNull();
     }
 
@@ -61,6 +61,6 @@ public sealed class MigrationResultShould
         var result = EncryptionMigrationResult.Failed("error");
 
         result.Duration.ShouldBe(TimeSpan.Zero);
-        result.Exception.ShouldBeNull();
+        result.Exception!.ShouldBeNull();
     }
 }

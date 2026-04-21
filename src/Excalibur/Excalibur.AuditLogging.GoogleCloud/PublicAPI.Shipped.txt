@@ -1,0 +1,42 @@
+#nullable enable
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.GoogleCloudAuditOptions() -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.Labels.get -> System.Collections.Generic.Dictionary<string!, string!>?
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.Labels.set -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.LogName.get -> string!
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.LogName.set -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.MaxBatchSize.get -> int
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.MaxBatchSize.set -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.MaxRetryAttempts.get -> int
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.MaxRetryAttempts.set -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.ProjectId.get -> string!
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.ProjectId.set -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.ResourceType.get -> string!
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.ResourceType.set -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.RetryBaseDelay.get -> System.TimeSpan
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.RetryBaseDelay.set -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.Timeout.get -> System.TimeSpan
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions.Timeout.set -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudLoggingAuditExporter
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudLoggingAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExporterHealthResult!>!
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudLoggingAuditExporter.ExportAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportResult!>!
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudLoggingAuditExporter.ExportBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>! auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportBatchResult!>!
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudLoggingAuditExporter.GoogleCloudLoggingAuditExporter(System.Net.Http.HttpClient! httpClient, Microsoft.Extensions.Options.IOptions<Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.GoogleCloud.GoogleCloudLoggingAuditExporter!>! logger) -> void
+Excalibur.AuditLogging.GoogleCloud.GoogleCloudLoggingAuditExporter.Name.get -> string!
+Microsoft.Extensions.DependencyInjection.GoogleCloudServiceCollectionExtensions
+const Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.BatchForwarded = 93511 -> int
+const Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.EventForwarded = 93510 -> int
+const Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.ForwardFailedBatchChunk = 93520 -> int
+const Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.ForwardFailedHttpError = 93518 -> int
+const Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.ForwardFailedStatus = 93515 -> int
+const Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.ForwardFailedTimeout = 93519 -> int
+const Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.ForwardRetried = 93516 -> int
+const Excalibur.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.HealthCheckFailed = 93517 -> int
+Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder
+Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.CredentialsJson(string! credentialsJson) -> Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.LogName(string! logName) -> Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.ProjectId(string! projectId) -> Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+static Microsoft.Extensions.DependencyInjection.GoogleCloudServiceCollectionExtensions.AddGoogleCloudAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

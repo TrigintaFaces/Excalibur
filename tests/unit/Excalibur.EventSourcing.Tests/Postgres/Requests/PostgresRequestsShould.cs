@@ -4,7 +4,6 @@
 using System.Data;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.Postgres.Requests;
 
 namespace Excalibur.EventSourcing.Tests.Postgres.Requests;
@@ -30,7 +29,7 @@ public sealed class PostgresRequestsShould
 			new byte[] { 1, 2, 3 }, null, 1, DateTimeOffset.UtcNow, null, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO events");
+		request.Command.CommandText.ShouldContain("INSERT INTO \"public\".\"events\"");
 	}
 
 	[Theory]
@@ -91,7 +90,7 @@ public sealed class PostgresRequestsShould
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("SELECT");
-		request.Command.CommandText.ShouldContain("FROM events");
+		request.Command.CommandText.ShouldContain("FROM \"public\".\"events\"");
 	}
 
 	[Theory]
@@ -157,7 +156,7 @@ public sealed class PostgresRequestsShould
 		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("event_store_snapshots");
+		request.Command.CommandText.ShouldContain("\"public\".\"event_store_snapshots\"");
 	}
 
 	[Theory]
@@ -190,7 +189,7 @@ public sealed class PostgresRequestsShould
 		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("DELETE FROM snapshots");
+		request.Command.CommandText.ShouldContain("DELETE FROM \"public\".\"event_store_snapshots\"");
 	}
 
 	[Theory]
@@ -264,7 +263,7 @@ public sealed class PostgresRequestsShould
 		var request = new SaveSnapshotRequest(snapshot, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO event_store_snapshots");
+		request.Command.CommandText.ShouldContain("INSERT INTO \"public\".\"event_store_snapshots\"");
 		request.Command.CommandText.ShouldContain("ON CONFLICT");
 	}
 
@@ -273,114 +272,6 @@ public sealed class PostgresRequestsShould
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new SaveSnapshotRequest(null!, Ct));
-	}
-
-	#endregion
-
-	#region AddOutboxMessageRequest
-
-	[Fact]
-	public void AddOutboxMessageRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var message = new OutboxMessage
-		{
-			Id = Guid.NewGuid(),
-			AggregateId = "agg-1",
-			AggregateType = "OrderAggregate",
-			EventType = "OrderCreated",
-			EventData = "{}",
-			CreatedAt = DateTimeOffset.UtcNow,
-			RetryCount = 0,
-			MessageType = "DomainEvent"
-		};
-		var transaction = A.Fake<IDbTransaction>();
-
-		var request = new AddOutboxMessageRequest(message, transaction, Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO event_sourced_outbox");
-	}
-
-	[Fact]
-	public void AddOutboxMessageRequest_ThrowOnNullMessage()
-	{
-		var transaction = A.Fake<IDbTransaction>();
-
-		Should.Throw<ArgumentNullException>(() =>
-			new AddOutboxMessageRequest(null!, transaction, Ct));
-	}
-
-	[Fact]
-	public void AddOutboxMessageRequest_ThrowOnNullTransaction()
-	{
-		var message = new OutboxMessage
-		{
-			Id = Guid.NewGuid(),
-			AggregateId = "agg-1",
-			AggregateType = "OrderAggregate",
-			EventType = "OrderCreated",
-			EventData = "{}",
-			CreatedAt = DateTimeOffset.UtcNow,
-			RetryCount = 0,
-			MessageType = "DomainEvent"
-		};
-
-		Should.Throw<ArgumentNullException>(() =>
-			new AddOutboxMessageRequest(message, null!, Ct));
-	}
-
-	#endregion
-
-	#region GetPendingOutboxMessagesRequest
-
-	[Fact]
-	public void GetPendingOutboxMessagesRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new GetPendingOutboxMessagesRequest(100, Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("published_at IS NULL");
-		request.Command.CommandText.ShouldContain("LIMIT @BatchSize");
-	}
-
-	#endregion
-
-	#region DeletePublishedOutboxMessagesRequest
-
-	[Fact]
-	public void DeletePublishedOutboxMessagesRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.FromDays(7), Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("DELETE FROM event_sourced_outbox");
-		request.Command.CommandText.ShouldContain("published_at < @CutoffDate");
-	}
-
-	#endregion
-
-	#region IncrementOutboxRetryCountRequest
-
-	[Fact]
-	public void IncrementOutboxRetryCountRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new IncrementOutboxRetryCountRequest(Guid.NewGuid(), Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("retry_count = retry_count + 1");
-	}
-
-	#endregion
-
-	#region MarkOutboxMessagePublishedRequest
-
-	[Fact]
-	public void MarkOutboxMessagePublishedRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), null, Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("published_at = @PublishedAt");
 	}
 
 	#endregion

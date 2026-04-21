@@ -36,7 +36,7 @@ namespace Excalibur.Dispatch.Middleware.Outbox;
 /// <para>
 /// For true <strong>Transactional Outbox</strong> guarantees (atomic commit of business
 /// data + outbox messages), the handler must stage messages directly within its own
-/// transaction scope -- for example via <c>IEventSourcedOutboxStore.AddAsync</c> or
+/// transaction scope -- for example via <c>ITransactionalOutboxWriter.StageMessageAsync</c> or
 /// by writing outbox entries within the same <c>IUnitOfWork</c>. The middleware approach
 /// is suitable when eventual consistency is acceptable or when the transport itself
 /// provides delivery guarantees.
@@ -167,11 +167,6 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 	}
 
 	/// <summary>
-	/// Gets the transaction from the message context, if available.
-	/// </summary>
-	private static object? GetTransactionFromContext(IMessageContext context) => context.GetItem<object>("Transaction");
-
-	/// <summary>
 	/// Creates message headers for the outbox store.
 	/// </summary>
 	private static Dictionary<string, object> CreateMessageHeaders(OutboxContext outboxContext, OutboundMessageRequest outboundMessage)
@@ -274,7 +269,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 				};
 
 				// Stage message in outbox store
-				await _outboxStore.StageMessageAsync(storeMessage, cancellationToken).ConfigureAwait(false);
+				await _outboxStore!.StageMessageAsync(storeMessage, cancellationToken).ConfigureAwait(false);
 
 				LogStagedOutboundMessageWithStore(outboundMessage.Message.GetType().Name, storeMessage.Id);
 			}
@@ -297,39 +292,6 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		try
 		{
 			return JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
-		}
-		catch (Exception ex)
-		{
-			LogFailedToSerializeMessage(message.GetType().Name, ex);
-			throw new InvalidOperationException(
-				string.Format(
-					CultureInfo.InvariantCulture,
-					Resources.OutboxStagingMiddleware_FailedToSerializeMessage,
-					message.GetType().Name),
-				ex);
-		}
-	}
-
-	/// <summary>
-	/// Serializes a message for storage in the outbox (legacy method).
-	/// </summary>
-	/// <exception cref="InvalidOperationException"></exception>
-	[SuppressMessage("Style", "RCS1163:Unused parameter",
-		Justification = "CancellationToken parameter required for async pattern consistency and future cancellable serialization support")]
-	[SuppressMessage("Style", "IDE0060:Remove unused parameter",
-		Justification = "CancellationToken parameter required for async pattern consistency and future cancellable serialization support")]
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize(Object, Type, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize(Object, Type, JsonSerializerOptions)")]
-	private Task<string> SerializeMessageAsync(
-		IDispatchMessage message,
-		CancellationToken cancellationToken)
-	{
-		// This would typically use your configured message serializer For now, we'll use a simple JSON serialization approach
-		try
-		{
-			// This is a placeholder - would be replaced with your actual serialization logic
-			var json = JsonSerializer.Serialize(message, message.GetType());
-			return Task.FromResult(json);
 		}
 		catch (Exception ex)
 		{
@@ -379,18 +341,6 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 	[LoggerMessage(MiddlewareEventId.OutboxStagingFailed + 20, LogLevel.Error,
 		"Failed to stage outbound message {MessageType} in outbox store")]
 	private partial void LogFailedToStageWithStore(string messageType, Exception ex);
-
-	[LoggerMessage(MiddlewareEventId.MessageStagedInOutbox + 31, LogLevel.Debug,
-		"Staging {MessageCount} outbound messages in outbox")]
-	private partial void LogStagingOutboundMessages(int messageCount);
-
-	[LoggerMessage(MiddlewareEventId.MessageStagedInOutbox + 32, LogLevel.Debug,
-		"Staged outbound message {MessageType} in outbox with ID {OutboxEntryId}")]
-	private partial void LogStagedOutboundMessage(string messageType, string outboxEntryId);
-
-	[LoggerMessage(MiddlewareEventId.OutboxStagingFailed + 40, LogLevel.Error,
-		"Failed to stage outbound message {MessageType} in outbox")]
-	private partial void LogFailedToStageMessage(string messageType, Exception ex);
 
 	[LoggerMessage(MiddlewareEventId.OutboxStagingFailed + 41, LogLevel.Error,
 		"Failed to serialize message {MessageType} for outbox")]

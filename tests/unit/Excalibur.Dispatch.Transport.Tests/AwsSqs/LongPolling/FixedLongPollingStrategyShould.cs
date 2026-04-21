@@ -5,15 +5,15 @@ using Excalibur.Dispatch.Transport.Aws;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class FixedLongPollingStrategyShould
 {
 	[Fact]
 	public void ThrowWhenConfigurationIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new FixedLongPollingStrategy((LongPollingConfiguration)null!));
+			new FixedLongPollingStrategy((LongPollingOptions)null!));
 	}
 
 	[Fact]
@@ -40,11 +40,11 @@ public sealed class FixedLongPollingStrategyShould
 	[Fact]
 	public void CreateWithConfiguration()
 	{
-		var config = new LongPollingConfiguration
+		var config = new LongPollingOptions
 		{
-			MaxWaitTimeSeconds = 15,
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue"),
 		};
+		config.Polling.MaxWaitTimeSeconds = 15;
 		var strategy = new FixedLongPollingStrategy(config);
 		strategy.Name.ShouldBe("Fixed");
 	}
@@ -74,7 +74,7 @@ public sealed class FixedLongPollingStrategyShould
 		await strategy.RecordReceiveResultAsync(3, TimeSpan.FromSeconds(5));
 
 		// Assert
-		var stats = await strategy.GetStatisticsAsync();
+		var stats = await ((ILongPollingStrategyAdmin)strategy).GetStatisticsAsync();
 		stats.TotalReceives.ShouldBe(3);
 		stats.TotalMessages.ShouldBe(8);
 		stats.EmptyReceives.ShouldBe(1);
@@ -113,10 +113,11 @@ public sealed class FixedLongPollingStrategyShould
 		await strategy.RecordReceiveResultAsync(5, TimeSpan.FromSeconds(3));
 
 		// Act
-		await strategy.ResetAsync();
+		var admin = (ILongPollingStrategyAdmin)strategy;
+		await admin.ResetAsync();
 
 		// Assert
-		var stats = await strategy.GetStatisticsAsync();
+		var stats = await admin.GetStatisticsAsync();
 		stats.TotalReceives.ShouldBe(0);
 		stats.TotalMessages.ShouldBe(0);
 		stats.EmptyReceives.ShouldBe(0);
@@ -142,7 +143,48 @@ public sealed class FixedLongPollingStrategyShould
 		await strategy.RecordReceiveResultAsync(0, TimeSpan.FromSeconds(5));
 
 		// Assert — API calls saved should be > 0 (5/1 - 1 = 4 potential polls saved)
-		var stats = await strategy.GetStatisticsAsync();
+		var stats = await ((ILongPollingStrategyAdmin)strategy).GetStatisticsAsync();
 		stats.ApiCallsSaved.ShouldBeGreaterThan(0);
+	}
+
+	[Fact]
+	public void ImplementILongPollingStrategyAdmin()
+	{
+		var strategy = new FixedLongPollingStrategy(TimeSpan.FromSeconds(10));
+
+		strategy.ShouldBeAssignableTo<ILongPollingStrategyAdmin>();
+	}
+
+	[Fact]
+	public async Task AdminGetStatisticsAsync_ReturnsValidStats()
+	{
+		// Arrange
+		var strategy = new FixedLongPollingStrategy(TimeSpan.FromSeconds(10));
+		await strategy.RecordReceiveResultAsync(5, TimeSpan.FromSeconds(3));
+
+		// Act -- call via admin interface
+		ILongPollingStrategyAdmin admin = strategy;
+		var stats = await admin.GetStatisticsAsync();
+
+		// Assert
+		stats.TotalReceives.ShouldBe(1);
+		stats.TotalMessages.ShouldBe(5);
+	}
+
+	[Fact]
+	public async Task AdminResetAsync_ClearsStats()
+	{
+		// Arrange
+		var strategy = new FixedLongPollingStrategy(TimeSpan.FromSeconds(10));
+		await strategy.RecordReceiveResultAsync(5, TimeSpan.FromSeconds(3));
+
+		// Act -- reset via admin interface
+		ILongPollingStrategyAdmin admin = strategy;
+		await admin.ResetAsync();
+
+		// Assert
+		var stats = await admin.GetStatisticsAsync();
+		stats.TotalReceives.ShouldBe(0);
+		stats.TotalMessages.ShouldBe(0);
 	}
 }

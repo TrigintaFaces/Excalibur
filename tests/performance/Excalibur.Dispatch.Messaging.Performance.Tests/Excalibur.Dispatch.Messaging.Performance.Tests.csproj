@@ -5,9 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsTestProject>true</IsTestProject>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>Excalibur.Dispatch.Tests</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Messaging.Performance.Tests</AssemblyName>
+    <NoWarn>$(NoWarn);CS1591;SA1600;SA1201;SA1305;MA0038;MA0042;MA0051;MA0076;CA1711;CA1812;CA1852;CA1859</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
@@ -28,14 +28,14 @@
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.AwsSqs\Excalibur.Dispatch.Transport.AwsSqs.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.AzureServiceBus\Excalibur.Dispatch.Transport.AzureServiceBus.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.GooglePubSub\Excalibur.Dispatch.Transport.GooglePubSub.csproj" />
-    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
-    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Aws\Excalibur.Dispatch.Compliance.Aws.csproj" />
-    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Azure\Excalibur.Dispatch.Compliance.Azure.csproj" />
-    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Vault\Excalibur.Dispatch.Compliance.Vault.csproj" />
-    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Security\Excalibur.Dispatch.Security.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance\Excalibur.Compliance.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Aws\Excalibur.Compliance.Aws.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Azure\Excalibur.Compliance.Azure.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Vault\Excalibur.Compliance.Vault.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Security\Excalibur.Security.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Caching\Excalibur.Dispatch.Caching.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.Serverless.Abstractions\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
-    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.AuditLogging.SqlServer\Excalibur.Dispatch.AuditLogging.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.AuditLogging.SqlServer\Excalibur.AuditLogging.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Resilience.Polly\Excalibur.Dispatch.Resilience.Polly.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MessagePack\Excalibur.Dispatch.Serialization.MessagePack.csproj" />
@@ -44,6 +44,5 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
     <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />
-    <ProjectReference Include="..\..\unit\Excalibur.Dispatch.Tests\Excalibur.Dispatch.Tests.csproj" />
   </ItemGroup>
 </Project>

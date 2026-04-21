@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Aot;
 /// Per AD-522.1: Only Kafka SchemaRegistry uses Activator.CreateInstance via CreateSubjectNameStrategy().
 /// This is the single reflection risk in all 5 transport packages.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Transport.AOT")]
 public sealed class KafkaSchemaRegistryAotShould
 {

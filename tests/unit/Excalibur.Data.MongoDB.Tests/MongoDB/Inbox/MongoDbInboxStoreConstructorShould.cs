@@ -19,7 +19,7 @@ namespace Excalibur.Data.Tests.MongoDB.Inbox;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "MongoDB")]
-[Trait("Feature", "Inbox")]
+[Trait(TraitNames.Feature, TestFeatures.Inbox)]
 public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<MongoDbInboxStore> _logger;

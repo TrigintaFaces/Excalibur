@@ -10,7 +10,7 @@ Snapshots store the current state of an aggregate, avoiding the need to replay a
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -37,15 +37,13 @@ Load snapshot at version 9,900
 ## Basic Setup
 
 ```csharp
-// Configure event sourcing with snapshot strategy
-services.AddExcaliburEventSourcing(builder =>
+// Configure event sourcing with provider and snapshot strategy in one builder
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
+    builder.UseSqlServer(sql => sql.ConnectionString(connectionString));
     builder.AddRepository<OrderAggregate, Guid>();
     builder.UseIntervalSnapshots(100);  // Snapshot every 100 events
-});
-
-// Add the SQL Server event store and snapshot store
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
+}));
 ```
 
 ## Snapshot Strategies
@@ -118,7 +116,10 @@ Store snapshots in the same database as events (default):
 
 ```csharp
 // SQL Server stores snapshots in the Snapshots table alongside events
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+{
+    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+}));
 ```
 
 ### Separate Store
@@ -130,10 +131,10 @@ Use a different storage backend for snapshots:
 services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
 
 // Use a custom snapshot manager
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseSnapshotManager<RedisSnapshotManager>();
-});
+}));
 ```
 
 ## Implementing Snapshot Methods
@@ -285,7 +286,8 @@ public class SnapshotMigrationJob
 Choose efficient serialization:
 
 ```csharp
-builder.UseEventSerializer<MessagePackSnapshotSerializer>();
+// Register your custom IEventSerializer implementation
+builder.UseEventSerializer<MyCustomEventSerializer>();
 ```
 
 | Serializer | Size | Speed | Human-Readable |
@@ -334,7 +336,7 @@ Metrics:
 
 ### Health Check
 
-Snapshot store health is monitored automatically when `RegisterHealthChecks = true` in `SqlServerEventSourcingOptions` (default). See [Event Store Setup](./event-store-setup.md) for details.
+Snapshot store health is monitored automatically when `HealthChecks.RegisterHealthChecks = true` in `SqlServerEventSourcingOptions` (default). See [Event Store Setup](./event-store-setup.md) for details.
 
 ## Best Practices
 

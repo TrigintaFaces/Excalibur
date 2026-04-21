@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Hosting.Serverless;
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -26,11 +31,46 @@ public static class ServerlessServiceCollectionExtensions
 		// Register core services
 		_ = services.AddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
 
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ServerlessHostOptions>, ServerlessHostOptionsValidator>());
+
 		// Configure options if provided
 		if (configureOptions != null)
 		{
 			_ = services.Configure(configureOptions);
 		}
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds serverless hosting services to the service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
+	/// <returns> The service collection for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddServerlessHosting(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		// Register core services
+		_ = services.AddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
+
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ServerlessHostOptions>, ServerlessHostOptionsValidator>());
+
+		// Bind options from configuration
+		_ = services.AddOptions<ServerlessHostOptions>().Bind(configuration).ValidateOnStart();
 
 		return services;
 	}

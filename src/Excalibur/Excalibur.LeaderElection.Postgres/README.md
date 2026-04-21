@@ -2,6 +2,16 @@
 
 PostgreSQL implementation of leader election for the Excalibur framework. Uses advisory locks (`pg_try_advisory_lock`) for distributed coordination with automatic failover and session-based locking.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Postgres` | Complete | Everything for PostgreSQL: ES + Outbox + Inbox + Saga + LE + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.Postgres` for a production-ready PostgreSQL stack with a single package reference.
+
 ## Features
 
 - **Advisory lock-based leader election** -- lightweight, session-scoped locks that auto-release on connection loss
@@ -23,11 +33,11 @@ services.AddPostgresLeaderElection(options =>
 Or using the builder pattern:
 
 ```csharp
-services.AddExcaliburLeaderElection(builder =>
+services.AddExcalibur(x => x.AddLeaderElection(builder =>
 {
     builder.UsePostgres(options =>
     {
         options.ConnectionString = connectionString;
     });
-});
+}));
 ```

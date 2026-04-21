@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 internal sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 {
 	private readonly IAmazonSQS _sqsClient;
-	private readonly LongPollingOptions _options;
+	private readonly ChannelLongPollingOptions _options;
 	private readonly ILogger<ChannelLongPollingReceiver> _logger;
 	private readonly Channel<Message> _messageChannel;
 	private readonly CancellationTokenSource _shutdownTokenSource;
@@ -50,7 +50,7 @@ internal sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 	/// <param name="logger">The logger.</param>
 	public ChannelLongPollingReceiver(
 		IAmazonSQS sqsClient,
-		LongPollingOptions options,
+		ChannelLongPollingOptions options,
 		ILogger<ChannelLongPollingReceiver> logger)
 	{
 		_sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
@@ -145,7 +145,7 @@ internal sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 		{
 			await Task.WhenAll(activeTasks).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -174,11 +174,11 @@ internal sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 
 		var request = new ReceiveMessageRequest
 		{
-			QueueUrl = _options.QueueUrl.ToString(),
+			QueueUrl = _options.QueueUrl!.ToString(),
 			MaxNumberOfMessages = 10, // SQS max
 			WaitTimeSeconds = 20, // Max long polling (20 seconds)
 			VisibilityTimeout = _options.VisibilityTimeout,
-			AttributeNames = ["All"],
+			MessageSystemAttributeNames = ["All"],
 			MessageAttributeNames = ["All"],
 		};
 

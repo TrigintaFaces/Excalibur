@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Postgres.Requests.Authorization.Grants;
 /// Unit tests for <see cref="SaveGrantRequest"/>.
 /// Covers constructor validation, SQL structure, and parameter setup.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Postgres")]
 public sealed class SaveGrantRequestShould
 {

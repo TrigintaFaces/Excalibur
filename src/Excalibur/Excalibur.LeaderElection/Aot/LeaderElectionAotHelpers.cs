@@ -24,7 +24,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// where AOT-compatible APIs use concrete type parameters rather than <c>Type</c> objects.
 /// </para>
 /// </remarks>
-public static class LeaderElectionAotHelpers
+internal static class LeaderElectionAotHelpers
 {
 	/// <summary>
 	/// Registers a specific <see cref="ILeaderElection"/> implementation in an AOT-safe manner.

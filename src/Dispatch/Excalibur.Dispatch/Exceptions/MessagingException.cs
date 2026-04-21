@@ -83,13 +83,17 @@ public sealed class MessagingException : DispatchException
 	/// <returns> A new MessagingException instance. </returns>
 	public static MessagingException HandlerNotFound(Type messageType)
 	{
-		var ex = new MessagingException($"No handler found for message type '{messageType.Name}'.")
+		var ex = new MessagingException(
+			$"No handler found for message type '{messageType.FullName}'. " +
+			$"Did you forget to call services.AddDispatch(d => d.AddHandlersFromAssembly(typeof({messageType.Name}).Assembly))? " +
+			$"Alternatively, register the handler directly with services.AddTransient<IDispatchHandler<{messageType.Name}>, YourHandler>().")
 		{
 			Data = { ["ErrorCode"] = ErrorCodes.MessageHandlerNotFound },
 			MessageType = messageType.FullName,
 		};
 		return ex.WithContext("messageType", messageType.FullName)
-			.WithSuggestedAction($"Register a handler for {messageType.Name} in your service configuration.")
+			.WithSuggestedAction(
+				$"Register a handler for '{messageType.Name}' by calling services.AddDispatch(d => d.AddHandlersFromAssembly(typeof({messageType.Name}).Assembly)).")
 			.WithStatusCode(500) as MessagingException ?? new MessagingException();
 	}
 

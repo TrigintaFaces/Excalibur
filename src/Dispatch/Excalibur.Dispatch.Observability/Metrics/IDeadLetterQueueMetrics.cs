@@ -21,8 +21,8 @@ public interface IDeadLetterQueueMetrics
 	/// </summary>
 	/// <param name="messageType">The type of message that was dead lettered.</param>
 	/// <param name="reason">The reason for dead lettering.</param>
-	/// <param name="sourceQueue">Optional source queue name.</param>
-	void RecordEnqueued(string messageType, string reason, string? sourceQueue = null);
+	/// <param name="sourceQueue">The source queue name, or <see langword="null"/> if not applicable.</param>
+	void RecordEnqueued(string messageType, string reason, string? sourceQueue);
 
 	/// <summary>
 	/// Records a message being replayed from the dead letter queue.
@@ -42,6 +42,29 @@ public interface IDeadLetterQueueMetrics
 	/// Updates the current depth gauge for the dead letter queue.
 	/// </summary>
 	/// <param name="depth">The current number of messages in the queue.</param>
-	/// <param name="queueName">Optional queue name for multi-queue scenarios.</param>
-	void UpdateDepth(long depth, string? queueName = null);
+	/// <param name="queueName">The queue name, or <see langword="null"/> for the default queue.</param>
+	void UpdateDepth(long depth, string? queueName);
+}
+
+/// <summary>
+/// Extension methods for <see cref="IDeadLetterQueueMetrics"/> providing convenience overloads.
+/// </summary>
+public static class DeadLetterQueueMetricsExtensions
+{
+	/// <summary>
+	/// Records a message being enqueued to the dead letter queue without specifying a source queue.
+	/// </summary>
+	/// <param name="metrics">The metrics instance.</param>
+	/// <param name="messageType">The type of message that was dead lettered.</param>
+	/// <param name="reason">The reason for dead lettering.</param>
+	public static void RecordEnqueued(this IDeadLetterQueueMetrics metrics, string messageType, string reason)
+		=> metrics.RecordEnqueued(messageType, reason, null);
+
+	/// <summary>
+	/// Updates the current depth gauge for the default dead letter queue.
+	/// </summary>
+	/// <param name="metrics">The metrics instance.</param>
+	/// <param name="depth">The current number of messages in the queue.</param>
+	public static void UpdateDepth(this IDeadLetterQueueMetrics metrics, long depth)
+		=> metrics.UpdateDepth(depth, null);
 }

@@ -5,8 +5,8 @@ using Excalibur.Data.ElasticSearch.Projections;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class BulkOperationFailureShould
 {
 	[Fact]
@@ -19,7 +19,7 @@ public sealed class BulkOperationFailureShould
 		};
 
 		sut.DocumentId.ShouldBe("doc-123");
-		sut.ErrorMessage.ShouldBe("Mapping exception on field 'price'");
+		sut.ErrorMessage!.ShouldBe("Mapping exception on field 'price'");
 	}
 
 	[Fact]

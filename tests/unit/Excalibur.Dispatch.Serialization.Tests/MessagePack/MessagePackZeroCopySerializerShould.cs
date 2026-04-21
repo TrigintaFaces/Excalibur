@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// consolidated <see cref="MpkSerializer"/> with IBufferWriter-based Serialize and
 /// ReadOnlySpan-based Deserialize.
 /// </summary>
-[Trait("Component", "Serialization")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class MessagePackZeroCopySerializerShould : UnitTestBase
 {
 	#region Constructor Tests

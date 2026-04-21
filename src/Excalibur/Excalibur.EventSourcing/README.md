@@ -21,10 +21,14 @@ dotnet add package Excalibur.EventSourcing
 
 ```csharp
 // Register event sourcing with a provider (SQL Server example)
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
+services.AddExcalibur(x => x.AddEventSourcing(es =>
+{
+    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+    es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
+}));
 
 // Or use in-memory for testing
-services.AddInMemoryEventStore();
+services.AddExcalibur(x => x.AddEventSourcing(es => es.UseInMemory()));
 
 // Use with aggregates
 public class OrderAggregate : AggregateRoot<Guid>

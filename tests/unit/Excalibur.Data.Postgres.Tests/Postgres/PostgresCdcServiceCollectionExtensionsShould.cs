@@ -9,7 +9,7 @@ namespace Excalibur.Data.Tests.Postgres.Cdc;
 /// <summary>
 /// Unit tests for Postgres CDC service collection extensions.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "PostgresCdcServiceCollectionExtensions")]
 public sealed class PostgresCdcServiceCollectionExtensionsShould : UnitTestBase
 {

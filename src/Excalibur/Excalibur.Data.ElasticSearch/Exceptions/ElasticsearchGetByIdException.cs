@@ -64,7 +64,7 @@ public sealed class ElasticsearchGetByIdException : ApiException
 	/// <value>
 	/// The ID of the document that could not be retrieved.
 	/// </value>
-	public string DocumentId { get; }
+	public string DocumentId { get; } = string.Empty;
 
 	/// <summary>
 	/// Gets the type of the document that could not be retrieved.
@@ -80,5 +80,5 @@ public sealed class ElasticsearchGetByIdException : ApiException
 	/// <value>
 	/// Details of the API call that failed.
 	/// </value>
-	public string ApiCallDetails { get; }
+	public string ApiCallDetails { get; } = string.Empty;
 }

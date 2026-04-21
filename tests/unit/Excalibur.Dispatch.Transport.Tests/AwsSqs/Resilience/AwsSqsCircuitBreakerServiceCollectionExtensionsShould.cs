@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport.AwsSqs;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Resilience;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AwsSqsCircuitBreakerServiceCollectionExtensionsShould
 {
 	[Fact]
@@ -23,7 +23,7 @@ public sealed class AwsSqsCircuitBreakerServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsSqsCircuitBreaker(null!));
+			services.AddAwsSqsCircuitBreaker((Action<AwsSqsCircuitBreakerOptions>)null!));
 	}
 
 	[Fact]

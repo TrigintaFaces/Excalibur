@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc.Builders;
 /// Unit tests for <see cref="ISqlServerCdcBuilder.ConnectionStringName(string)"/>
 /// which resolves a connection string from <see cref="IConfiguration"/> at registration time.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Database", "SqlServer")]
 public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 {
@@ -115,7 +115,7 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 		sqlOptions.Value.BatchSize.ShouldBe(200);
 		sqlOptions.Value.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
 
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.DatabaseName.ShouldBe("OrdersDb");
 	}
 
@@ -176,7 +176,7 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 			sd.Lifetime == ServiceLifetime.Singleton);
 
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDatabaseConfig) &&
+			sd.ServiceType == typeof(IDatabaseOptions) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
 	}
 

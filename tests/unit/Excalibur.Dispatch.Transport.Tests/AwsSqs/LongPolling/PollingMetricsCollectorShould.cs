@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class PollingMetricsCollectorShould : IDisposable
 {
 	private readonly PollingMetricsCollector _collector;

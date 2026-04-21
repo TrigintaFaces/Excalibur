@@ -218,6 +218,18 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 	{
 		ArgumentNullException.ThrowIfNull(@event);
 
+		// Framework enforces metadata via internal IEventMetadataWriter.
+		// The public IDomainEvent interface is read-only -- consumers cannot set
+		// AggregateId or Version. Only the framework stamps these values.
+		// Events deriving from DomainEvent get this automatically.
+		// Custom IDomainEvent implementations are responsible for their own metadata.
+		if (@event is IEventMetadataWriter writer)
+		{
+			writer.SetAggregateMetadata(
+				Id?.ToString() ?? string.Empty,
+				Version + _uncommittedEvents.Count + 1);
+		}
+
 		ApplyEventInternal(@event);
 		_uncommittedEvents.Add(@event);
 	}

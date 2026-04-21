@@ -149,7 +149,9 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 
 		if (snapshot.Metadata != null)
 		{
+			#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			entries.Add(new HashEntry(HashFields.Metadata, JsonSerializer.Serialize(snapshot.Metadata)));
+			#pragma warning restore IL2026, IL3050
 		}
 
 		return entries.ToArray();
@@ -165,7 +167,9 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 		IDictionary<string, object>? metadata = null;
 		if (dict.TryGetValue("metadata", out var metaValue) && metaValue.HasValue)
 		{
+			#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			metadata = JsonSerializer.Deserialize<Dictionary<string, object>>(metaValue.ToString());
+			#pragma warning restore IL2026, IL3050
 		}
 
 		return new RedisSnapshot

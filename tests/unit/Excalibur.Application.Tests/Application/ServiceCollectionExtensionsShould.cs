@@ -9,6 +9,9 @@ namespace Excalibur.Tests.Application;
 [Trait("Component", "Application")]
 public sealed class ServiceCollectionExtensionsShould
 {
+	// S804 bd-sdhocq A7: AddExcaliburApplicationServices(...) deleted. Consumer path is
+	// services.AddExcalibur(x => x.ScanAssemblies(...)).
+
 	[Fact]
 	public void RegisterActivityContext()
 	{
@@ -16,7 +19,7 @@ public sealed class ServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburApplicationServices(typeof(ServiceCollectionExtensionsShould).Assembly);
+		services.AddExcalibur(b => b.ScanAssemblies(typeof(ServiceCollectionExtensionsShould).Assembly));
 
 		// Assert
 		services.ShouldContain(s => s.ServiceType == typeof(IActivityContext));
@@ -29,7 +32,7 @@ public sealed class ServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburApplicationServices(typeof(ServiceCollectionExtensionsShould).Assembly);
+		services.AddExcalibur(b => b.ScanAssemblies(typeof(ServiceCollectionExtensionsShould).Assembly));
 
 		// Assert
 		var descriptor = services.FirstOrDefault(s => s.ServiceType == typeof(IActivityContext));

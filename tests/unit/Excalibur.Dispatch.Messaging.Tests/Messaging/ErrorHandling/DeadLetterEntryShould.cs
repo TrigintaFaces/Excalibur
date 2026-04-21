@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 /// <summary>
 /// Unit tests for <see cref="DeadLetterEntry"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DeadLetterEntryShould
 {
 	[Fact]

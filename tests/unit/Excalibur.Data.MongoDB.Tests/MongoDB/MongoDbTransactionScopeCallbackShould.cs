@@ -14,8 +14,8 @@ namespace Excalibur.Data.Tests.MongoDB.Transactions;
 /// Verifies that onCommit/onComplete/onRollback callback exceptions are logged
 /// instead of being silently swallowed.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Feature", "MongoDB")]
 public sealed class MongoDbTransactionScopeCallbackShould : IDisposable
 {

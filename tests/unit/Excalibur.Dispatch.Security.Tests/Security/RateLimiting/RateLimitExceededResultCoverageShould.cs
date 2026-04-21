@@ -3,12 +3,12 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.RateLimiting;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class RateLimitExceededResultCoverageShould
 {
     [Fact]
@@ -48,7 +48,7 @@ public sealed class RateLimitExceededResultCoverageShould
         result.RoutingDecision.ShouldBe(routingDecision);
         result.ValidationResult.ShouldBe("validation");
         result.AuthorizationResult.ShouldBe("authorization");
-        result.ErrorMessage.ShouldBe("Rate limit exceeded");
+        result.ErrorMessage!.ShouldBe("Rate limit exceeded");
         result.CacheHit.ShouldBeTrue();
         result.RetryAfterMilliseconds.ShouldBe(3000);
         result.RateLimitKey.ShouldBe("tenant:abc");
@@ -65,7 +65,7 @@ public sealed class RateLimitExceededResultCoverageShould
         result.RoutingDecision.ShouldBeNull();
         result.ValidationResult.ShouldBeNull();
         result.AuthorizationResult.ShouldBeNull();
-        result.ErrorMessage.ShouldBeNull();
+        result.ErrorMessage!.ShouldBeNull();
         result.RateLimitKey.ShouldBeNull();
         result.CacheHit.ShouldBeFalse();
         result.Succeeded.ShouldBeFalse();

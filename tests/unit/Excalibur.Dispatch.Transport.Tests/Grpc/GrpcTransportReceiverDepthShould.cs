@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// MapToReceivedMessage mapping, interface compliance, Source property,
 /// and edge cases for acknowledge/reject method path construction.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 {
 	private readonly GrpcChannel _channel;

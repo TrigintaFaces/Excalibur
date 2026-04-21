@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Transport.Aws;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.DeadLetterQueue;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class DlqModelsShould
 {
@@ -118,7 +118,7 @@ public sealed class DlqModelsShould
 		result.Success.ShouldBeFalse();
 		result.MessageId.ShouldBe("msg-1");
 		result.Action.ShouldBe(DlqAction.None);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.ProcessedAt.ShouldNotBe(default);
 		result.RetryAttempts.ShouldBe(0);
 		result.Metadata.ShouldBeEmpty();
@@ -145,7 +145,7 @@ public sealed class DlqModelsShould
 		// Assert
 		result.Success.ShouldBeTrue();
 		result.Action.ShouldBe(DlqAction.Redriven);
-		result.ErrorMessage.ShouldBe("Transient failure");
+		result.ErrorMessage!.ShouldBe("Transient failure");
 		result.ProcessedAt.ShouldBe(now);
 		result.RetryAttempts.ShouldBe(2);
 		result.Metadata.Count.ShouldBe(1);

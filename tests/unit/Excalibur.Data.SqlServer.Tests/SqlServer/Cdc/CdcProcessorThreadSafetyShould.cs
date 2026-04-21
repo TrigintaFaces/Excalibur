@@ -16,9 +16,9 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// - volatile bool _isRunning (S543.12)
 /// - CancellationTokenSource disposal timeout (S543.13)
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcProcessorThreadSafetyShould : UnitTestBase
 {
 	#region S543.10: ConcurrentBag<Task> Background Task Tracking

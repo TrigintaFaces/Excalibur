@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 ///     Performance tests for timeout and cancellation scenarios in throughput messaging components.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Performance")]
+[Trait(TraitNames.Category, TestCategories.Performance)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class TimeoutCancellationPerformanceShould : IDisposable
 {

@@ -11,11 +11,11 @@ dotnet add package Excalibur.Outbox.MongoDB
 ## Usage
 
 ```csharp
-services.AddExcaliburOutbox(outbox => outbox.UseMongoDB(options =>
+services.AddExcalibur(x => x.AddOutbox(outbox => outbox.UseMongoDB(options =>
 {
     options.ConnectionString = "mongodb://localhost:27017";
     options.DatabaseName = "myapp";
-}));
+})));
 ```
 
 This bridge package provides:

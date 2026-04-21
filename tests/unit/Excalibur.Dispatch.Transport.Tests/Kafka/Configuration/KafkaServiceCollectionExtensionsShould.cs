@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.Configuration;
 /// Updated for ADR-098 compliant AddKafkaTransport() API.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class KafkaServiceCollectionExtensionsShould : UnitTestBase
 {

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Data.Tests.Core;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DefaultPersistenceHealthCheckShould
 {
 	private readonly IPersistenceProviderFactory _factory;
@@ -187,7 +187,7 @@ public sealed class DefaultPersistenceHealthCheckShould
 		var result = await _healthCheck.CheckDetailedHealthAsync(provider, CancellationToken.None);
 
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Exception.ShouldNotBeNull();
+		result.Exception!.ShouldNotBeNull();
 	}
 
 	[Fact]

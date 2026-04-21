@@ -29,11 +29,7 @@ public static partial class ApplicationContext
 
 	private static readonly Regex ExpansionPattern = ExpansionRegex();
 	private static readonly ConcurrentDictionary<string, string?> ContextValues = new(StringComparer.OrdinalIgnoreCase);
-#if NET9_0_OR_GREATER
 	private static readonly Lock InitLock = new();
-#else
-	private static readonly object InitLock = new();
-#endif
 	private static readonly ConcurrentDictionary<string, string> SecureContextValues = new(StringComparer.OrdinalIgnoreCase);
 	// Process-lifetime lock for static ApplicationContext; no disposal needed (static class cannot implement IDisposable).
 	private static readonly ReaderWriterLockSlim CacheLock = new();

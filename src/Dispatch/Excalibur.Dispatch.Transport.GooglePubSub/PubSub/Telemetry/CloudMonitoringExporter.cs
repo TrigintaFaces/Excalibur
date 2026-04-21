@@ -28,11 +28,7 @@ internal sealed class CloudMonitoringExporter : IDisposable
 	private readonly Timer? _exportTimer;
 	private readonly Dictionary<string, GoogleApi.MetricDescriptor> _metricDescriptors;
 	private readonly MeterListener? _meterListener;
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 
 	/// <summary>
 	/// Buffered metric points for batch export.

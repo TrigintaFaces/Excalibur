@@ -4,7 +4,7 @@
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 namespace Excalibur.Testing.Conformance;
 
@@ -333,7 +333,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 			var result = await service.MigrateAsync(encrypted, sourceContext, targetContext, CancellationToken.None).ConfigureAwait(false);
 
 			// Decrypt the migrated data to verify plaintext
-			var decrypted = await encryption.DecryptAsync(result.MigratedData, targetContext, CancellationToken.None)
+			var decrypted = await encryption.DecryptAsync(result.MigratedData!, targetContext, CancellationToken.None)
 				.ConfigureAwait(false);
 
 			// Assert

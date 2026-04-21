@@ -10,7 +10,7 @@ CDC captures row-level changes from your database and publishes them as events, 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Cdc.SqlServer  # or Excalibur.Cdc.Postgres
@@ -70,7 +70,7 @@ services.AddCdcProcessor(cdc =>
            .StateTableName("CdcProcessingState")
            .PollingInterval(TimeSpan.FromSeconds(5))
            .BatchSize(100)
-           .DatabaseName("OrdersDb")                   // Auto-registers IDatabaseConfig
+           .DatabaseName("OrdersDb")                   // Auto-registers IDatabaseOptions
            .CaptureInstances("dbo_Orders", "dbo_Customers")
            .StopOnMissingTableHandler(false);           // Skip unknown tables in production
     })
@@ -450,7 +450,7 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `PollingInterval(TimeSpan)` | How often to poll for changes | 5 seconds |
 | `BatchSize(int)` | Changes per processing batch | 100 |
 | `CommandTimeout(TimeSpan)` | Database command timeout | 30 seconds |
-| `DatabaseName(string)` | Database name; auto-registers `IDatabaseConfig` | -- |
+| `DatabaseName(string)` | Database name; auto-registers `IDatabaseOptions` | -- |
 | `DatabaseConnectionIdentifier(string)` | Identifier for CDC source connection | `cdc-{DatabaseName}` |
 | `StateConnectionIdentifier(string)` | Identifier for state store connection | `state-{DatabaseName}` |
 | `CaptureInstances(params string[])` | CDC capture instances to process | -- |
@@ -461,8 +461,8 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `StateConnectionFactory(Func<IServiceProvider, Func<SqlConnection>>)` | DI-integrated state connection factory | Source connection |
 | `BindConfiguration(string)` | Bind source options from `IConfiguration` section | -- |
 
-:::tip Auto-Registration of IDatabaseConfig
-When you call `DatabaseName()`, the builder automatically registers an `IDatabaseConfig` singleton with sensible defaults for connection identifiers. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseConfig` registration takes precedence.
+:::tip Auto-Registration of IDatabaseOptions
+When you call `DatabaseName()`, the builder automatically registers an `IDatabaseOptions` singleton with sensible defaults for connection identifiers. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseOptions` registration takes precedence.
 :::
 
 ### Connection Factory
@@ -1326,11 +1326,11 @@ services.AddCdcProcessor(cdc =>
 // Cloud-native providers (same builder pattern)
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseCosmosDb(options =>
+    cdc.UseCosmosDb(cosmos =>
     {
-        options.DatabaseName = "mydb";
-        options.ContainerName = "orders";
-        options.LeaseContainerName = "leases";
+        cosmos.ConnectionString(connectionString)
+              .DatabaseName("mydb")
+              .ContainerName("orders");
     });
 });
 ```
@@ -1436,12 +1436,12 @@ dotnet add package Excalibur.Cdc.CosmosDb
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseCosmosDb(options =>
+    cdc.UseCosmosDb(cosmos =>
     {
-        options.DatabaseName = "MyApp";
-        options.ContainerName = "orders";
-        options.LeaseContainerName = "leases";
-        options.ProcessorName = "order-processor";
+        cosmos.ConnectionString(connectionString)
+              .DatabaseName("MyApp")
+              .ContainerName("orders")
+              .ProcessorName("order-processor");
     })
     .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();

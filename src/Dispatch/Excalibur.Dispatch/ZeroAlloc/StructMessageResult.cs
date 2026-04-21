@@ -240,7 +240,7 @@ public readonly struct StructMessageResult<T>(
 	/// <value>The current <see cref="ProblemDetails"/> value.</value>
 	public IMessageProblemDetails? ProblemDetails => _baseResult.ProblemDetails;
 
-	// R0.8: Make property static - these properties implement IMessageResult interface which requires instance members
+	// MA0041: Properties delegate to static members but must remain instance to implement IMessageResult interface.
 #pragma warning disable MA0041
 
 	/// <summary>
@@ -316,7 +316,7 @@ public readonly struct StructMessageResult<T>(
 	/// Returns the hash code for this result.
 	/// </summary>
 	/// <returns> A hash code for the current result. </returns>
-	public override int GetHashCode() => HashCode.Combine(_baseResult, EqualityComparer<T>.Default.GetHashCode(ReturnValue));
+	public override int GetHashCode() => HashCode.Combine(_baseResult, EqualityComparer<T>.Default.GetHashCode(ReturnValue!));
 
 	/// <summary>
 	/// Determines whether two results are equal.

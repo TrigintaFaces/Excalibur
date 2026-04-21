@@ -9,8 +9,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Bus;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 {
 	private readonly IMessageBusAdapter _adapter1;
@@ -130,9 +130,9 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		// Act
 		await adapter.InitializeAsync(options, CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => _adapter1.InitializeAsync(options, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		A.CallTo(() => _adapter2.InitializeAsync(options, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		// Assert -- InitializeAsync moved to IMessageBusAdapterLifecycle ISP sub-interface
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter1).InitializeAsync(options, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter2).InitializeAsync(options, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]

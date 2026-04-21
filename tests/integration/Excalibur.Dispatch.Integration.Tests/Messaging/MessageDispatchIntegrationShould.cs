@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Messaging;
 /// Integration tests for message dispatching, handler registration, and routing.
 /// These tests verify that the complete messaging pipeline works correctly.
 /// </summary>
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessageDispatchIntegrationShould : IntegrationTestBase
 {
 	#region Basic Dispatch Tests
@@ -127,12 +127,10 @@ public sealed class MessageDispatchIntegrationShould : IntegrationTestBase
 		var context = new TestMessageContext();
 		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
-		// Act
+		// Act & Assert - Cancellation exceptions now propagate directly (Sprint 759)
 		var command = new SlowCommand(TimeSpan.FromSeconds(5));
-		var result = await dispatcher.DispatchAsync(command, context, cts.Token).ConfigureAwait(false);
-
-		// Assert - Framework catches OperationCanceledException and returns a failed result
-		result.Succeeded.ShouldBeFalse();
+		await Should.ThrowAsync<OperationCanceledException>(
+			() => dispatcher.DispatchAsync(command, context, cts.Token));
 	}
 
 	#endregion
@@ -166,10 +164,13 @@ public sealed class MessageDispatchIntegrationShould : IntegrationTestBase
 	[Fact]
 	public async Task DispatchMessage_GeneratesCorrelationIdWhenMissing()
 	{
-		// Arrange
+		// Arrange - Enable context enrichment and Full context initialization for correlation
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch();
+		_ = services.AddDispatch(builder => builder.UseContextEnrichment());
+		_ = services.Configure<Excalibur.Dispatch.Options.Configuration.DispatchOptions>(o =>
+			o.CrossCutting.Performance.DirectLocalContextInitialization =
+				Excalibur.Dispatch.Options.Configuration.DirectLocalContextInitializationProfile.Full);
 		_ = services.AddTransient<IActionHandler<TestCommand>, TestCommandHandler>();
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
@@ -198,12 +199,10 @@ public sealed class MessageDispatchIntegrationShould : IntegrationTestBase
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 		var context = new TestMessageContext();
 
-		// Act
+		// Act & Assert - Missing handler now throws directly (Sprint 759)
 		var command = new UnhandledCommand();
-		var result = await dispatcher.DispatchAsync(command, context, TestCancellationToken).ConfigureAwait(false);
-
-		// Assert - Should indicate failure when no handler found
-		result.Succeeded.ShouldBeFalse();
+		await Should.ThrowAsync<InvalidOperationException>(
+			() => dispatcher.DispatchAsync(command, context, TestCancellationToken));
 	}
 
 	[Fact]
@@ -218,13 +217,11 @@ public sealed class MessageDispatchIntegrationShould : IntegrationTestBase
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 		var context = new TestMessageContext();
 
-		// Act
+		// Act & Assert - Handler exceptions now propagate directly (Sprint 759)
 		var command = new ThrowingCommand();
-		var result = await dispatcher.DispatchAsync(command, context, TestCancellationToken).ConfigureAwait(false);
-
-		// Assert
-		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => dispatcher.DispatchAsync(command, context, TestCancellationToken));
+		ex.Message.ShouldNotBeNullOrEmpty();
 	}
 
 	#endregion

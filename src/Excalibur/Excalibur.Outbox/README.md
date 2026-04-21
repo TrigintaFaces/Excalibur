@@ -19,11 +19,11 @@ dotnet add package Excalibur.Outbox
 
 ```csharp
 // Register outbox services
-services.AddExcaliburOutbox(options =>
+services.AddExcalibur(x => x.AddOutbox(options =>
 {
     options.BatchSize = 100;
     options.MaxRetries = 3;
-});
+}));
 ```
 
 ## Transactional Outbox Pattern

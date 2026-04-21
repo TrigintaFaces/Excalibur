@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Abstractions.Features;
 
 using Microsoft.Extensions.Options;
 
-using MessageResult = Excalibur.Dispatch.Messaging.MessageResult;
+using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Tests.Shared.TestTypes
 {
@@ -77,7 +77,7 @@ namespace Tests.Shared.TestTypes
 					throw;
 				}
 
-				return MessageResult.Failure(problemDetails);
+				return MessageResult.Failed(problemDetails);
 			}
 		}
 	}

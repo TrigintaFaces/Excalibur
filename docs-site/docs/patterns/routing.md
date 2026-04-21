@@ -10,7 +10,7 @@ Dispatch provides a unified routing system that controls **where messages go**. 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -380,7 +380,7 @@ var result = await dispatcher.DispatchAsync(message, ct);
 
 ### When a Transport Name Isn't Registered
 
-If routing selects `"kafka"` but no `AddKafkaTransport("kafka", ...)` was called, `TransportRegistry` throws:
+If routing selects `"kafka"` but no `AddKafkaTransport("kafka", ...)` was called, the transport registry throws:
 
 ```
 InvalidOperationException: Cannot set default transport to 'kafka': transport is not registered.

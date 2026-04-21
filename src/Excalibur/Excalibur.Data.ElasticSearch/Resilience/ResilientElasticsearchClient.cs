@@ -290,12 +290,12 @@ public sealed class ResilientElasticsearchClient(
 					await _circuitBreaker.RecordSuccessAsync().ConfigureAwait(false);
 				}
 
-				// Check if response indicates a successful operation In the new client, we need to check the response differently
-				var isValid = result switch
-				{
-					TransportResponse tr => tr.ApiCallDetails?.HttpStatusCode is >= 200 and < 300,
-					_ => false,
-				};
+				// Check if response indicates a successful operation.
+				// Cast to ElasticsearchResponse for the full IsValidResponse check (handles 404 etc.),
+				// fall back to Transport-level HasSuccessfulStatusCode for raw TransportResponse.
+				var isValid = result is Elastic.Transport.Products.Elasticsearch.ElasticsearchResponse esResponse
+					? esResponse.IsValidResponse
+					: result.ApiCallDetails?.HasSuccessfulStatusCode == true;
 				if (isValid)
 				{
 					_logger.LogDebug(

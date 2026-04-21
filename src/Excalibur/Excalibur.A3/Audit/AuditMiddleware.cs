@@ -35,7 +35,6 @@ public sealed partial class AuditMiddleware(
 	/// </summary>
 	/// <value> The middleware execution stage, set to <see cref="DispatchMiddlewareStage.End" />. </value>
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.End;
-
 	/// <summary>
 	/// Executes the audit middleware logic to record audit information for auditable actions.
 	/// </summary>
@@ -44,6 +43,9 @@ public sealed partial class AuditMiddleware(
 	/// <param name="nextDelegate"> The next middleware delegate in the pipeline. </param>
 	/// <param name="cancellationToken"> Token to cancel the operation. </param>
 	/// <returns> The result of the message processing. </returns>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresDynamicCode("Audit middleware uses reflection for dynamic type resolution.")]
 	[RequiresUnreferencedCode("Audit middleware may access types that could be trimmed.")]
 	public async ValueTask<IMessageResult> InvokeAsync(
@@ -137,8 +139,6 @@ public sealed partial class AuditMiddleware(
 		}
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private async Task SaveToOutboxAsync(ActivityAudited activityAudited, CancellationToken cancellationToken)
 	{
 		var headers = new Dictionary<string, string>
@@ -146,7 +146,9 @@ public sealed partial class AuditMiddleware(
 			{
 				{
 					ExcaliburHeaderNames.RaisedBy,
-					activityContext.AccessToken() is { } token ? JsonSerializer.Serialize(new RaisedBy(token)) : "Unknown"
+					activityContext.AccessToken() is { } token
+						? JsonSerializer.Serialize(new RaisedBy(token), AuditJsonContext.Default.RaisedBy)
+						: "Unknown"
 				},
 				{ ExcaliburHeaderNames.CorrelationId, activityAudited.CorrelationId.ToString() },
 			};
@@ -159,8 +161,8 @@ public sealed partial class AuditMiddleware(
 		var message = new OutboxMessage(
 			Uuid7Extensions.GenerateString(),
 			nameof(ActivityAudited),
-			JsonSerializer.Serialize(headers),
-			JsonSerializer.Serialize(activityAudited),
+			JsonSerializer.Serialize(headers, AuditJsonContext.Default.DictionaryStringString),
+			JsonSerializer.Serialize(activityAudited, AuditJsonContext.Default.ActivityAudited),
 			DateTimeOffset.UtcNow);
 
 		_ = await outbox.SaveMessagesAsync([message], cancellationToken).ConfigureAwait(false);

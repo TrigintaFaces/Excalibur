@@ -47,7 +47,7 @@ public sealed class DomainExceptionShould
 		var exception = Should.Throw<DomainException>(() =>
 			DomainException.ThrowIf(true, message, innerException));
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -96,7 +96,7 @@ public sealed class DomainExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]

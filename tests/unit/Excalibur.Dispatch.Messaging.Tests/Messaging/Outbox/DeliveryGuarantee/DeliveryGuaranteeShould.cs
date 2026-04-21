@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Outbox.DeliveryGuarantee;
 /// 4. TransactionalWhenApplicable fallback
 /// 5. Failure recovery behavior
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DeliveryGuaranteeShould
 {

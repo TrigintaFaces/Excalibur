@@ -32,6 +32,117 @@ public sealed class InboxOptions
 	public SkipBehavior DuplicateBehavior { get; set; } = SkipBehavior.Silent;
 
 	/// <summary>
+	/// Gets or sets the maximum number of processing attempts for failed messages.
+	/// </summary>
+	/// <value> An integer representing the maximum number of times a failed message will be retried. Must be greater than zero. </value>
+	[Range(1, int.MaxValue)]
+	public int MaxAttempts { get; set; } = 5;
+
+	/// <summary>
+	/// Gets or sets the default time-to-live for messages in the inbox before they expire.
+	/// </summary>
+	/// <value>
+	/// A nullable <see cref="TimeSpan" /> representing the message expiration time, or <c> null </c> if messages should not expire by default.
+	/// </value>
+	public TimeSpan? DefaultMessageTimeToLive { get; set; }
+
+	/// <summary>
+	/// Gets or sets the deduplication options for inbox message processing.
+	/// </summary>
+	/// <value>
+	/// The deduplication options for inbox message processing.
+	/// </value>
+	public DeduplicationOptions Deduplication { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the capacity and throughput options controlling queue sizes, batch sizes, and parallelism.
+	/// </summary>
+	/// <value>The capacity options.</value>
+	public InboxCapacityOptions Capacity { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the batch tuning options controlling database batching, timeouts, and dynamic sizing.
+	/// </summary>
+	/// <value>The batch tuning options.</value>
+	public InboxBatchTuningOptions BatchTuning { get; set; } = new();
+
+	/// <summary>
+	/// Validates the configured option values.
+	/// </summary>
+	/// <param name="options"> The options instance to validate. </param>
+	/// <returns> An error message if validation fails; otherwise <c> null </c>. </returns>
+	public static string? Validate(InboxOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+
+		if (options.Capacity.QueueCapacity <= 0)
+		{
+			return "Capacity.QueueCapacity must be greater than zero.";
+		}
+
+		if (options.Capacity.ProducerBatchSize <= 0)
+		{
+			return "Capacity.ProducerBatchSize must be greater than zero.";
+		}
+
+		if (options.Capacity.ConsumerBatchSize <= 0)
+		{
+			return "Capacity.ConsumerBatchSize must be greater than zero.";
+		}
+
+		if (options.Capacity.PerRunTotal <= 0)
+		{
+			return "Capacity.PerRunTotal must be greater than zero.";
+		}
+
+		if (options.MaxAttempts <= 0)
+		{
+			return "MaxAttempts must be greater than zero.";
+		}
+
+		if (options.Capacity.QueueCapacity < options.Capacity.ProducerBatchSize)
+		{
+			return "Capacity.QueueCapacity cannot be less than the Capacity.ProducerBatchSize.";
+		}
+
+		if (options.Capacity.ParallelProcessingDegree <= 0)
+		{
+			return "Capacity.ParallelProcessingDegree must be greater than zero.";
+		}
+
+		if (options.BatchTuning.EnableDynamicBatchSizing)
+		{
+			if (options.BatchTuning.MinBatchSize <= 0)
+			{
+				return "BatchTuning.MinBatchSize must be greater than zero when dynamic batch sizing is enabled.";
+			}
+
+			if (options.BatchTuning.MaxBatchSize <= 0)
+			{
+				return "BatchTuning.MaxBatchSize must be greater than zero when dynamic batch sizing is enabled.";
+			}
+
+			if (options.BatchTuning.MinBatchSize > options.BatchTuning.MaxBatchSize)
+			{
+				return "BatchTuning.MinBatchSize cannot be greater than BatchTuning.MaxBatchSize.";
+			}
+		}
+
+		if (options.BatchTuning.BatchProcessingTimeout <= TimeSpan.Zero)
+		{
+			return "BatchTuning.BatchProcessingTimeout must be greater than zero.";
+		}
+
+		return null;
+	}
+}
+
+/// <summary>
+/// Configuration options for inbox capacity and throughput, controlling queue sizes, batch sizes, and parallelism.
+/// </summary>
+public sealed class InboxCapacityOptions
+{
+	/// <summary>
 	/// Gets or sets the maximum number of messages to process in a single execution run. This setting provides backpressure control and
 	/// prevents runaway message processing.
 	/// </summary>
@@ -67,122 +178,23 @@ public sealed class InboxOptions
 	public int ConsumerBatchSize { get; set; } = 100;
 
 	/// <summary>
-	/// Gets or sets the maximum number of processing attempts for failed messages.
-	/// </summary>
-	/// <value> An integer representing the maximum number of times a failed message will be retried. Must be greater than zero. </value>
-	[Range(1, int.MaxValue)]
-	public int MaxAttempts { get; set; } = 5;
-
-	/// <summary>
-	/// Gets or sets the default time-to-live for messages in the inbox before they expire.
-	/// </summary>
-	/// <value>
-	/// A nullable <see cref="TimeSpan" /> representing the message expiration time, or <c> null </c> if messages should not expire by default.
-	/// </value>
-	public TimeSpan? DefaultMessageTimeToLive { get; set; }
-
-	/// <summary>
-	/// Gets or sets the deduplication options for inbox message processing.
-	/// </summary>
-	/// <value>
-	/// The deduplication options for inbox message processing.
-	/// </value>
-	public DeduplicationOptions Deduplication { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable batch database operations.
-	/// </summary>
-	/// <value>The current <see cref="EnableBatchDatabaseOperations"/> value.</value>
-	public bool EnableBatchDatabaseOperations { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the batch processing configuration including parallelism and dynamic sizing.
-	/// </summary>
-	/// <value>The batch processing options.</value>
-	public InboxBatchProcessingOptions BatchProcessing { get; set; } = new();
-
-	/// <summary>
-	/// Validates the configured option values.
-	/// </summary>
-	/// <param name="options"> The options instance to validate. </param>
-	/// <returns> An error message if validation fails; otherwise <c> null </c>. </returns>
-	public static string? Validate(InboxOptions options)
-	{
-		ArgumentNullException.ThrowIfNull(options);
-
-		if (options.QueueCapacity <= 0)
-		{
-			return "QueueCapacity must be greater than zero.";
-		}
-
-		if (options.ProducerBatchSize <= 0)
-		{
-			return "ProducerBatchSize must be greater than zero.";
-		}
-
-		if (options.ConsumerBatchSize <= 0)
-		{
-			return "ConsumerBatchSize must be greater than zero.";
-		}
-
-		if (options.PerRunTotal <= 0)
-		{
-			return "PerRunTotal must be greater than zero.";
-		}
-
-		if (options.MaxAttempts <= 0)
-		{
-			return "MaxAttempts must be greater than zero.";
-		}
-
-		if (options.QueueCapacity < options.ProducerBatchSize)
-		{
-			return "QueueCapacity cannot be less than the ProducerBatchSize.";
-		}
-
-		if (options.BatchProcessing.ParallelProcessingDegree <= 0)
-		{
-			return "BatchProcessing.ParallelProcessingDegree must be greater than zero.";
-		}
-
-		if (options.BatchProcessing.EnableDynamicBatchSizing)
-		{
-			if (options.BatchProcessing.MinBatchSize <= 0)
-			{
-				return "BatchProcessing.MinBatchSize must be greater than zero when dynamic batch sizing is enabled.";
-			}
-
-			if (options.BatchProcessing.MaxBatchSize <= 0)
-			{
-				return "BatchProcessing.MaxBatchSize must be greater than zero when dynamic batch sizing is enabled.";
-			}
-
-			if (options.BatchProcessing.MinBatchSize > options.BatchProcessing.MaxBatchSize)
-			{
-				return "BatchProcessing.MinBatchSize cannot be greater than BatchProcessing.MaxBatchSize.";
-			}
-		}
-
-		if (options.BatchProcessing.BatchProcessingTimeout <= TimeSpan.Zero)
-		{
-			return "BatchProcessing.BatchProcessingTimeout must be greater than zero.";
-		}
-
-		return null;
-	}
-}
-
-/// <summary>
-/// Configuration options for inbox batch processing including parallelism and dynamic sizing.
-/// </summary>
-public sealed class InboxBatchProcessingOptions
-{
-	/// <summary>
 	/// Gets or sets the degree of parallelism for batch processing. Default is 1 (sequential processing).
 	/// </summary>
 	/// <value>The current <see cref="ParallelProcessingDegree"/> value.</value>
 	[Range(1, int.MaxValue)]
 	public int ParallelProcessingDegree { get; set; } = 1;
+}
+
+/// <summary>
+/// Configuration options for inbox batch tuning, controlling database batching, timeouts, and dynamic sizing.
+/// </summary>
+public sealed class InboxBatchTuningOptions
+{
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable batch database operations.
+	/// </summary>
+	/// <value>The current <see cref="EnableBatchDatabaseOperations"/> value.</value>
+	public bool EnableBatchDatabaseOperations { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets the timeout for processing a batch of messages.

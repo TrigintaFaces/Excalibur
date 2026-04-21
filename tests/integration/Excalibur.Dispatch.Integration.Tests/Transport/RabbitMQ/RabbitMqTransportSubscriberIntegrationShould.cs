@@ -21,9 +21,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.RabbitMQ;
 /// a real RabbitMQ container.
 /// </summary>
 [Collection(ContainerCollections.RabbitMQ)]
-[Trait("Category", "Integration")]
-[Trait("Provider", "RabbitMQ")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait("Database", "RabbitMQ")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetime
 {
     private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(15));
@@ -59,11 +59,15 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
 
     public async Task DisposeAsync()
     {
+        var timeout = TimeSpan.FromSeconds(30);
+
         try
         {
             if (_channel is not null)
             {
-                await _channel.CloseAsync().ConfigureAwait(false);
+                var task = _channel.CloseAsync();
+                var completed = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
+                if (completed == task) await task.ConfigureAwait(false);
                 _channel.Dispose();
             }
         }
@@ -76,7 +80,9 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         {
             if (_connection is not null)
             {
-                await _connection.CloseAsync().ConfigureAwait(false);
+                var task = _connection.CloseAsync();
+                var completed = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
+                if (completed == task) await task.ConfigureAwait(false);
                 _connection.Dispose();
             }
         }
@@ -89,7 +95,9 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         {
             if (_container is not null)
             {
-                await _container.DisposeAsync().ConfigureAwait(false);
+                var task = _container.DisposeAsync().AsTask();
+                var completed = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
+                if (completed == task) await task.ConfigureAwait(false);
             }
         }
         catch

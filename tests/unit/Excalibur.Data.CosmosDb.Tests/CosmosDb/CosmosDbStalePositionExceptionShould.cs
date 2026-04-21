@@ -15,7 +15,7 @@ namespace Excalibur.Data.Tests.CosmosDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "CosmosDb")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CosmosDbStalePositionExceptionShould
 {
 	#region Constructor Tests
@@ -55,7 +55,7 @@ public sealed class CosmosDbStalePositionExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

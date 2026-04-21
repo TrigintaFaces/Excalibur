@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance.Erasure;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
 /// <summary>
@@ -10,7 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Tests personal data discovery and mapping per ADR-054.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class DataInventoryServiceShould
 {
 	private readonly IDataInventoryStore _store;

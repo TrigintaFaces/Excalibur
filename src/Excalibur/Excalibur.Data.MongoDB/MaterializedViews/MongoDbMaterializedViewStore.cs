@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
-using System.Diagnostics.CodeAnalysis;
+// MongoDB BSON serialization requires dynamic code; interface cannot be annotated per AOT checklist.
+// UnconditionalSuppressMessage does not suppress IL2046/IL3051 at the compiler level.
+#pragma warning disable IL2046, IL2026, IL3050, IL3051
 
 using Excalibur.Data.MongoDB.Diagnostics;
 using Excalibur.EventSourcing.Abstractions;
@@ -84,8 +85,6 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("BSON deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("BSON deserialization might require runtime code generation.")]
 	public async ValueTask<TView?> GetAsync<TView>(
 		string viewName,
 		string viewId,
@@ -101,7 +100,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 		var documentId = MongoDbMaterializedViewDocument.CreateId(viewName, viewId);
 		var filter = Builders<MongoDbMaterializedViewDocument>.Filter.Eq(d => d.Id, documentId);
 
-		var document = await _viewsCollection
+		var document = await _viewsCollection!
 			.Find(filter)
 			.FirstOrDefaultAsync(cancellationToken)
 			.ConfigureAwait(false);
@@ -117,8 +116,6 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("BSON serialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("BSON serialization might require runtime code generation.")]
 	public async ValueTask SaveAsync<TView>(
 		string viewName,
 		string viewId,
@@ -147,7 +144,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 		var filter = Builders<MongoDbMaterializedViewDocument>.Filter.Eq(d => d.Id, document.Id);
 		var replaceOptions = new ReplaceOptions { IsUpsert = true };
 
-		_ = await _viewsCollection.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
+		_ = await _viewsCollection!.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
 			.ConfigureAwait(false);
 
 		LogViewSaved(viewName, viewId);
@@ -168,7 +165,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 		var documentId = MongoDbMaterializedViewDocument.CreateId(viewName, viewId);
 		var filter = Builders<MongoDbMaterializedViewDocument>.Filter.Eq(d => d.Id, documentId);
 
-		var result = await _viewsCollection.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
+		var result = await _viewsCollection!.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
 
 		if (result.DeletedCount > 0)
 		{
@@ -188,7 +185,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 
 		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(d => d.Id, viewName);
 
-		var document = await _positionsCollection
+		var document = await _positionsCollection!
 			.Find(filter)
 			.FirstOrDefaultAsync(cancellationToken)
 			.ConfigureAwait(false);
@@ -226,7 +223,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(d => d.Id, viewName);
 		var replaceOptions = new ReplaceOptions { IsUpsert = true };
 
-		_ = await _positionsCollection.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
+		_ = await _positionsCollection!.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
 			.ConfigureAwait(false);
 
 		LogPositionSaved(viewName, position);
@@ -283,7 +280,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 				viewIndexBuilder.Ascending(d => d.ViewId)),
 			new CreateIndexOptions { Name = "ix_view_name_id" });
 
-		_ = await _viewsCollection.Indexes.CreateManyAsync(
+		_ = await _viewsCollection!.Indexes.CreateManyAsync(
 			[viewNameIndex, viewIdIndex],
 			cancellationToken).ConfigureAwait(false);
 
@@ -294,7 +291,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 			positionIndexBuilder.Ascending(d => d.ViewName),
 			new CreateIndexOptions { Name = "ix_view_name" });
 
-		_ = await _positionsCollection.Indexes.CreateManyAsync(
+		_ = await _positionsCollection!.Indexes.CreateManyAsync(
 			[positionViewNameIndex],
 			cancellationToken).ConfigureAwait(false);
 

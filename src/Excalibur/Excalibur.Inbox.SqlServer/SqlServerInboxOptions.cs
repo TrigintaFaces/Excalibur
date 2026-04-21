@@ -14,8 +14,10 @@ public sealed class SqlServerInboxOptions
 	/// <summary>
 	/// Gets or sets the SQL Server connection string.
 	/// </summary>
-	/// <value>The connection string for the SQL Server database.</value>
-	[Required]
+	/// <value>The connection string, or empty when using
+	/// <see cref="ISqlServerInboxBuilder.ConnectionFactory"/>,
+	/// <see cref="ISqlServerInboxBuilder.ConnectionStringName"/>, or
+	/// <see cref="ISqlServerInboxBuilder.BindConfiguration"/>.</value>
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>

@@ -10,16 +10,16 @@ using OptionsFactory = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class GooglePubSubDisposalShould
 {
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void DisposeBatchProcessorWithoutThrowing()
 	{
-		var options = OptionsFactory.Create(new BatchConfiguration());
+		var options = OptionsFactory.Create(new BatchOptions());
 		var metrics = new BatchMetricsCollector();
 		var processor = new ParallelBatchProcessor(
 				options,
@@ -33,7 +33,7 @@ public sealed class GooglePubSubDisposalShould
 
 	[Fact]
 	[UnitTest]
-	[Trait("Component", "Transport")]
+	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
 	public void DisposeMetricsWithoutThrowing()
 	{

@@ -12,7 +12,7 @@
 | CQRS and domain orchestration | Excalibur | — | Excalibur.Application, Excalibur.Domain | CQRS composition and domain model behavior are Excalibur concerns. |
 | Event sourcing, outbox, saga orchestration | Excalibur | — | Excalibur.EventSourcing, Excalibur.Outbox, Excalibur.Saga | State persistence and orchestration policies are opinionated platform behavior. |
 | Enterprise hosting templates | Excalibur | — | Excalibur.Hosting, Excalibur.Hosting.Web, Excalibur.Hosting.AzureFunctions, Excalibur.Hosting.AwsLambda, Excalibur.Hosting.GoogleCloudFunctions | Production hosting defaults and templates belong in wrapper framework. |
-| Compliance providers and key management | Excalibur | Excalibur.Dispatch.Compliance.Abstractions | Excalibur.Compliance.SqlServer, Excalibur.Compliance.Postgres | Dispatch exposes hooks while Excalibur owns concrete compliance providers. |
+| Compliance providers and key management | Excalibur | Excalibur.Compliance.Abstractions | Excalibur.Compliance.SqlServer, Excalibur.Compliance.Postgres | Dispatch exposes hooks while Excalibur owns concrete compliance providers. |
 
 ## Provider Naming Policy
 

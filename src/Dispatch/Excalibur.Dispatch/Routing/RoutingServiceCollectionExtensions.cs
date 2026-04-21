@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Options.Routing;
 using Excalibur.Dispatch.Routing.Builder;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -24,7 +26,7 @@ public static class RoutingServiceCollectionExtensions
 	/// <para>
 	/// This method registers a default <see cref="IDispatchRouter"/> that routes all messages
 	/// to the "local" transport. For custom routing configuration, use <c>UseRouting()</c>
-	/// on the <see cref="IDispatchBuilder"/> instead.
+	/// on the <see cref="Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder"/> instead.
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddDispatchRouting(this IServiceCollection services, Action<RoutingOptions>? configure = null)
@@ -35,8 +37,38 @@ public static class RoutingServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configure);
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = optionsBuilder.ValidateOnStart();
 
+		RegisterRoutingServices(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds dispatch routing services to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection to add routing services to.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RoutingOptions"/>.</param>
+	/// <returns>The same service collection instance for method chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddDispatchRouting(this IServiceCollection services, IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RoutingOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		RegisterRoutingServices(services);
+
+		return services;
+	}
+
+	private static void RegisterRoutingServices(IServiceCollection services)
+	{
 		// Register default transport selector (routes everything to "local")
 		services.TryAddSingleton<ITransportSelector>(sp =>
 		{
@@ -61,7 +93,5 @@ public static class RoutingServiceCollectionExtensions
 			var endpointRouter = sp.GetRequiredService<IEndpointRouter>();
 			return new DefaultDispatchRouter(transportSelector, endpointRouter);
 		});
-
-		return services;
 	}
 }

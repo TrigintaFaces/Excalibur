@@ -120,9 +120,14 @@ public static class DispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(assembly);
 
+		if (builder is DispatchBuilder concreteBuilder)
+		{
+			concreteBuilder.HasHandlerRegistrations = true;
+		}
+
 		// Scan for all handler interface implementations
 		var handlerTypes = assembly.GetTypes()
-			.Where(static type => type is { IsAbstract: false, IsInterface: false } &&
+			.Where(static type => type is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false } &&
 								  type.GetInterfaces()
 									  .Any(static i => i.IsGenericType &&
 													   HandlerInterfaceTypes.Contains(i.GetGenericTypeDefinition())));

@@ -24,8 +24,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Sagas.Timeouts;
 /// Thread-safety is verified through concurrent operations.
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Saga")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Saga)]
 [Trait("Sprint", "215")]
 public sealed class InMemorySagaTimeoutStoreShould
 {

@@ -6,7 +6,7 @@ using System.Collections.Concurrent;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Delivery.Pipeline;
 
-using MessageResult = Excalibur.Dispatch.Messaging.MessageResult;
+using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Middleware;
 
@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// Sprint 693, Task T.3 (bd-8tvcp): Closes the gap where no test validates
 /// concurrent middleware execution safety.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MiddlewareConcurrencyStressShould : IDisposable
 {
 	private readonly CancellationTokenSource _cts = new();
@@ -47,7 +47,7 @@ public sealed class MiddlewareConcurrencyStressShould : IDisposable
 			tasks.Add(pipeline.ExecuteAsync(
 				message,
 				context,
-				static (msg, ctx, ct) => new ValueTask<IMessageResult>(new MessageResult(true)),
+				static (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success()),
 				_cts.Token).AsTask());
 		}
 
@@ -92,7 +92,7 @@ public sealed class MiddlewareConcurrencyStressShould : IDisposable
 			tasks.Add(pipeline.ExecuteAsync(
 				message,
 				context,
-				static (msg, ctx, ct) => new ValueTask<IMessageResult>(new MessageResult(true)),
+				static (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success()),
 				_cts.Token).AsTask());
 		}
 
@@ -128,7 +128,7 @@ public sealed class MiddlewareConcurrencyStressShould : IDisposable
 			tasks.Add(pipeline.ExecuteAsync(
 				message,
 				context,
-				static (msg, ctx, ct) => new ValueTask<IMessageResult>(new MessageResult(true)),
+				static (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success()),
 				_cts.Token).AsTask());
 		}
 
@@ -163,7 +163,7 @@ public sealed class MiddlewareConcurrencyStressShould : IDisposable
 			tasks.Add(pipeline.ExecuteAsync(
 				message,
 				context,
-				static (msg, ctx, ct) => new ValueTask<IMessageResult>(new MessageResult(true)),
+				static (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success()),
 				_cts.Token).AsTask());
 		}
 
@@ -222,7 +222,7 @@ public sealed class MiddlewareConcurrencyStressShould : IDisposable
 		{
 			if (context.Items.TryGetValue("Index", out var indexObj) && indexObj is int index && index % 3 == 0)
 			{
-				return new ValueTask<IMessageResult>(new MessageResult(false));
+				return new ValueTask<IMessageResult>(MessageResult.Failed("Conditional failure"));
 			}
 
 			return nextDelegate(message, context, cancellationToken);

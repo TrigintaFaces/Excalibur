@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Observability")]
+[Trait(TraitNames.Component, TestComponents.Observability)]
 [Trait("Priority", "0")]
 public sealed class ObservabilityEventIdShould : UnitTestBase
 {

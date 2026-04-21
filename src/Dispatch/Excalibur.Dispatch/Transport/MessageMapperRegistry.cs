@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport;
 /// are evaluated last to allow specific mappers to take precedence.
 /// </para>
 /// </remarks>
-public sealed class MessageMapperRegistry : IMessageMapperRegistry
+internal sealed class MessageMapperRegistry : IMessageMapperRegistry
 {
 	private readonly ConcurrentDictionary<string, IMessageMapper> _mappers = new(StringComparer.OrdinalIgnoreCase);
 

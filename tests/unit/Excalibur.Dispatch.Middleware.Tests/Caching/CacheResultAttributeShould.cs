@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// <summary>
 /// Unit tests for <see cref="CacheResultAttribute"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class CacheResultAttributeShould
 {
 	private static readonly string[] ProductCatalogTags = ["products", "catalog"];

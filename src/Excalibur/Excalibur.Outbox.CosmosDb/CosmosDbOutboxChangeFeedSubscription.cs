@@ -187,9 +187,11 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 			MessageId = doc.Id,
 			MessageType = doc.MessageType,
 			Payload = Convert.FromBase64String(doc.Payload),
+#pragma warning disable IL2026
 			Headers = !string.IsNullOrEmpty(doc.Headers)
 				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.Headers, JsonOptions)
 				: null,
+#pragma warning restore IL2026
 			AggregateId = doc.AggregateId,
 			AggregateType = doc.AggregateType,
 			CorrelationId = doc.CorrelationId,

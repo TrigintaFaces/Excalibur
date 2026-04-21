@@ -12,6 +12,7 @@ using FakeItEasy;
 
 using System.Diagnostics.Metrics;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -78,6 +79,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() => new OutboxBackgroundService(
 			null!,
 			options,
+			new ServiceCollection().BuildServiceProvider(),
 			logger));
 	}
 
@@ -92,6 +94,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() => new OutboxBackgroundService(
 			publisher,
 			null!,
+			new ServiceCollection().BuildServiceProvider(),
 			logger));
 	}
 
@@ -106,6 +109,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() => new OutboxBackgroundService(
 			publisher,
 			options,
+			new ServiceCollection().BuildServiceProvider(),
 			null!));
 	}
 
@@ -118,7 +122,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		// Act
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		// Assert
 		_ = service.ShouldNotBeNull();
@@ -140,7 +144,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -181,7 +185,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -221,7 +225,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -262,7 +266,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -298,7 +302,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -334,7 +338,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -364,7 +368,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		// Act
-		var service = new OutboxBackgroundService(publisher, options, logger, healthState: null);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger, healthState: null);
 
 		// Assert
 		_ = service.ShouldNotBeNull();
@@ -380,7 +384,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var healthState = new BackgroundServiceHealthState();
 
 		// Act
-		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger, healthState);
 
 		// Assert
 		_ = service.ShouldNotBeNull();
@@ -410,7 +414,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
-		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger, healthState);
 
 		using var cts = new CancellationTokenSource();
 
@@ -446,7 +450,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
-		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger, healthState);
 
 		using var cts = new CancellationTokenSource();
 
@@ -489,7 +493,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		using var listener = CreateOutboxProcessingDurationListener(durations, durationObserved);
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -528,7 +532,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
-		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger, healthState);
 
 		using var cts = new CancellationTokenSource();
 
@@ -567,7 +571,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
-		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger, healthState);
 
 		using var cts = new CancellationTokenSource();
 
@@ -608,7 +612,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -651,7 +655,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -692,7 +696,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
-		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger, healthState);
 
 		using var cts = new CancellationTokenSource();
 
@@ -743,7 +747,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -797,7 +801,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			RetryFailedMessages = false
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		// Act
 		using var cts = new CancellationTokenSource();
@@ -852,7 +856,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			RetryFailedMessages = false
 		});
 		var logger = NullLogger<OutboxBackgroundService>.Instance;
-		var service = new OutboxBackgroundService(publisher, options, logger);
+		var service = new OutboxBackgroundService(publisher, options, new ServiceCollection().BuildServiceProvider(), logger);
 
 		// Act
 		using var cts = new CancellationTokenSource();

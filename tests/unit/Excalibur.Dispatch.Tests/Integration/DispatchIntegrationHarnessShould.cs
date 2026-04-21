@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Integration;
 /// Verifies the harness correctly wires DI, dispatches through the pipeline,
 /// and provides the handler execution tracker.
 /// </summary>
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchIntegrationHarnessShould : IAsyncDisposable
 {
 	private DispatchIntegrationTestHarness? _harness;

@@ -22,6 +22,14 @@ Excalibur.Saga.Postgres.PostgresSagaStore.SaveAsync<TSagaState>(TSagaState! saga
 Excalibur.Saga.Postgres.SaveSagaRequest<TSagaState>
 Excalibur.Saga.Postgres.SaveSagaRequest<TSagaState>.SaveSagaRequest(TSagaState! sagaState, Excalibur.Saga.Postgres.PostgresSagaOptions! options, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> void
 Microsoft.Extensions.DependencyInjection.PostgresSagaExtensions
-static Excalibur.Saga.Postgres.DependencyInjection.SagaBuilderPostgresExtensions.UsePostgres(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Postgres.PostgresSagaOptions!>! configure) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
 static Microsoft.Extensions.DependencyInjection.PostgresSagaExtensions.AddPostgresSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Postgres.PostgresSagaOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresSagaExtensions.AddPostgresSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Saga.Postgres.PostgresSagaOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Saga.Postgres.IPostgresSagaBuilder
+Excalibur.Saga.Postgres.IPostgresSagaBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Saga.Postgres.IPostgresSagaBuilder!
+Excalibur.Saga.Postgres.IPostgresSagaBuilder.ConnectionString(string! connectionString) -> Excalibur.Saga.Postgres.IPostgresSagaBuilder!
+Excalibur.Saga.Postgres.IPostgresSagaBuilder.ConnectionStringName(string! name) -> Excalibur.Saga.Postgres.IPostgresSagaBuilder!
+Excalibur.Saga.Postgres.IPostgresSagaBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Saga.Postgres.IPostgresSagaBuilder!
+Excalibur.Saga.Postgres.IPostgresSagaBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Saga.Postgres.IPostgresSagaBuilder!
+Excalibur.Saga.Postgres.IPostgresSagaBuilder.SchemaName(string! schema) -> Excalibur.Saga.Postgres.IPostgresSagaBuilder!
+Excalibur.Saga.Postgres.IPostgresSagaBuilder.TableName(string! tableName) -> Excalibur.Saga.Postgres.IPostgresSagaBuilder!
+static Excalibur.Saga.Postgres.DependencyInjection.SagaBuilderPostgresExtensions.UsePostgres(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Postgres.IPostgresSagaBuilder!>! configure) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!

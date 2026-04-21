@@ -1,222 +1,195 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
 using Excalibur.Dispatch.Serialization.Protobuf;
 
 namespace Excalibur.Dispatch.Serialization.Tests.Protobuf;
 
 /// <summary>
-/// Tests for <see cref="ProtobufSerializationExtensions"/>.
+/// Unit tests for <see cref="ProtobufSerializationExtensions" />.
 /// </summary>
-/// <remarks>
-/// Per T10.*, these tests verify:
-/// - DI registration correctness
-/// - Options configuration via delegate
-/// - Null argument validation
-/// - Service collection integrity
-/// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class ProtobufSerializationExtensionsShould
 {
+	#region AddProtobufSerializer (no-arg overload)
+
 	[Fact]
-	public void Register_Protobuf_Serializer_Without_Configuration()
+	public void AddProtobufSerializer_RegistersISerializer()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddProtobufSerialization();
-		var provider = services.BuildServiceProvider();
+		_ = services.AddProtobufSerializer();
 
 		// Assert
+		using var provider = services.BuildServiceProvider();
 		var serializer = provider.GetService<ISerializer>();
 		_ = serializer.ShouldNotBeNull();
 		_ = serializer.ShouldBeOfType<ProtobufSerializer>();
 	}
 
 	[Fact]
-	public void Register_Protobuf_Serializer_With_Configuration()
+	public void AddProtobufSerializer_ThrowsOnNullServices()
 	{
 		// Arrange
-		var services = new ServiceCollection();
-		var configuredFormat = ProtobufWireFormat.Json;
+		IServiceCollection services = null!;
 
-		// Act
-		_ = services.AddProtobufSerialization(options =>
-		{
-			options.WireFormat = configuredFormat;
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<IOptions<ProtobufSerializationOptions>>();
-		options.Value.WireFormat.ShouldBe(configuredFormat);
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() => services.AddProtobufSerializer());
 	}
 
 	[Fact]
-	public void Return_Same_ServiceCollection_For_Chaining()
+	public void AddProtobufSerializer_ReturnsServiceCollectionForChaining()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddProtobufSerialization();
+		var result = services.AddProtobufSerializer();
 
 		// Assert
 		result.ShouldBeSameAs(services);
 	}
 
 	[Fact]
-	public void Throw_ArgumentNullException_When_ServiceCollection_Is_Null()
+	public void AddProtobufSerializer_UsesTryAdd_DoesNotOverrideExisting()
 	{
-		// Arrange
-		IServiceCollection? nullServices = null;
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => nullServices.AddProtobufSerialization());
-	}
-
-	[Fact]
-	public void Not_Throw_When_Configuration_Delegate_Is_Null()
-	{
-		// Arrange
+		// Arrange - register a fake serializer first
 		var services = new ServiceCollection();
+		var fakeSerializer = A.Fake<ISerializer>();
+		services.AddSingleton(fakeSerializer);
 
-		// Act & Assert
-		_ = Should.NotThrow(() => services.AddProtobufSerialization(configure: null));
-	}
-
-	[Fact]
-	public void Register_As_Singleton()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddProtobufSerialization();
-		var provider = services.BuildServiceProvider();
-
-		// Act
-		var serializer1 = provider.GetRequiredService<ISerializer>();
-		var serializer2 = provider.GetRequiredService<ISerializer>();
+		// Act - Protobuf should NOT override the existing registration (TryAdd)
+		_ = services.AddProtobufSerializer();
 
 		// Assert
-		serializer1.ShouldBeSameAs(serializer2);
-	}
-
-	[Fact]
-	public void Not_Override_Existing_Serializer_When_Already_Registered()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var existingSerializer = A.Fake<ISerializer>();
-		_ = services.AddSingleton(existingSerializer);
-
-		// Act
-		_ = services.AddProtobufSerialization();
-		var provider = services.BuildServiceProvider();
-
-		// Assert
+		using var provider = services.BuildServiceProvider();
 		var resolved = provider.GetRequiredService<ISerializer>();
-		resolved.ShouldBeSameAs(existingSerializer); // TryAddSingleton should not override
+		resolved.ShouldBeSameAs(fakeSerializer);
 	}
 
 	[Fact]
-	public void Use_Default_Options_When_No_Configuration_Provided()
+	public void AddProtobufSerializer_RegistersPluggableSerializationOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		_ = services.AddProtobufSerialization();
-		var provider = services.BuildServiceProvider();
 
 		// Act
-		var options = provider.GetService<IOptions<ProtobufSerializationOptions>>();
+		_ = services.AddProtobufSerializer();
 
 		// Assert
-		if (options != null)
-		{
-			// If options are registered, they should have default values
-			options.Value.WireFormat.ShouldBe(ProtobufWireFormat.Binary);
-		}
+		using var provider = services.BuildServiceProvider();
+		var options = provider.GetService<IOptions<PluggableSerializationOptions>>();
+		_ = options.ShouldNotBeNull();
+		var value = options.Value;
+		value.CurrentSerializerName.ShouldBe("Protobuf");
 	}
 
+	#endregion
+
+	#region AddProtobufSerializer (configure overload)
+
 	[Fact]
-	public void Allow_Multiple_Configuration_Calls()
+	public void AddProtobufSerializer_WithConfigure_RegistersISerializer()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddProtobufSerialization(options => options.WireFormat = ProtobufWireFormat.Binary);
-		_ = services.Configure<ProtobufSerializationOptions>(options => options.WireFormat = ProtobufWireFormat.Json);
-		var provider = services.BuildServiceProvider();
-
-		// Assert — last Configure wins
-		var options = provider.GetRequiredService<IOptions<ProtobufSerializationOptions>>();
-		options.Value.WireFormat.ShouldBe(ProtobufWireFormat.Json);
-	}
-
-	[Fact]
-	public void Register_Serializer_That_Can_Serialize_And_Deserialize()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddProtobufSerialization();
-		var provider = services.BuildServiceProvider();
-
-		var serializer = provider.GetRequiredService<ISerializer>();
-		var message = new TestMessage { Name = "IntegrationTest", Value = 999, IsActive = true };
-
-		// Act
-		var serialized = serializer.SerializeToBytes(message);
-		var deserialized = serializer.Deserialize<TestMessage>(serialized);
+		_ = services.AddProtobufSerializer(opts => opts.WireFormat = ProtobufWireFormat.Json);
 
 		// Assert
-		_ = deserialized.ShouldNotBeNull();
-		deserialized.Name.ShouldBe(message.Name);
-		deserialized.Value.ShouldBe(message.Value);
-		deserialized.IsActive.ShouldBe(message.IsActive);
-	}
-
-	[Fact]
-	public void Support_Binary_Wire_Format_Configuration()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddProtobufSerialization(options => options.WireFormat = ProtobufWireFormat.Binary);
-		var provider = services.BuildServiceProvider();
-
-		var serializer = provider.GetRequiredService<ISerializer>();
-		var message = new TestMessage { Name = "BinaryTest", Value = 42 };
-
-		// Act
-		var serialized = serializer.SerializeToBytes(message);
-
-		// Assert
-		_ = serialized.ShouldNotBeNull();
-		serialized.Length.ShouldBeGreaterThan(0);
-	}
-
-	[Fact]
-	public void Be_Compatible_With_Dispatch_Builder_Pattern()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		// Simulate Dispatch registration pattern
-		_ = services.AddLogging();
-
-		// Act
-		_ = services.AddProtobufSerialization(options =>
-		{
-			options.WireFormat = ProtobufWireFormat.Binary;
-		});
-
-		var provider = services.BuildServiceProvider();
-
-		// Assert
+		using var provider = services.BuildServiceProvider();
 		var serializer = provider.GetService<ISerializer>();
 		_ = serializer.ShouldNotBeNull();
 		_ = serializer.ShouldBeOfType<ProtobufSerializer>();
 	}
+
+	[Fact]
+	public void AddProtobufSerializer_WithConfigure_ThrowsOnNullServices()
+	{
+		// Arrange
+		IServiceCollection services = null!;
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(
+			() => services.AddProtobufSerializer(_ => { }));
+	}
+
+	[Fact]
+	public void AddProtobufSerializer_WithConfigure_ThrowsOnNullConfigure()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(
+			() => services.AddProtobufSerializer((Action<ProtobufSerializationOptions>)null!));
+	}
+
+	[Fact]
+	public void AddProtobufSerializer_WithConfigure_ReturnsServiceCollectionForChaining()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act
+		var result = services.AddProtobufSerializer(_ => { });
+
+		// Assert
+		result.ShouldBeSameAs(services);
+	}
+
+	[Fact]
+	public void AddProtobufSerializer_WithConfigure_AppliesOptions()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act
+		_ = services.AddProtobufSerializer(opts => opts.WireFormat = ProtobufWireFormat.Json);
+
+		// Assert
+		using var provider = services.BuildServiceProvider();
+		var serializer = provider.GetRequiredService<ISerializer>();
+		serializer.ContentType.ShouldBe("application/json");
+	}
+
+	[Fact]
+	public void AddProtobufSerializer_WithConfigure_UsesTryAdd_DoesNotOverrideExisting()
+	{
+		// Arrange - register a fake serializer first
+		var services = new ServiceCollection();
+		var fakeSerializer = A.Fake<ISerializer>();
+		services.AddSingleton(fakeSerializer);
+
+		// Act
+		_ = services.AddProtobufSerializer(_ => { });
+
+		// Assert
+		using var provider = services.BuildServiceProvider();
+		var resolved = provider.GetRequiredService<ISerializer>();
+		resolved.ShouldBeSameAs(fakeSerializer);
+	}
+
+	[Fact]
+	public void AddProtobufSerializer_WithConfigure_RegistersPluggableSerializationOptions()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act
+		_ = services.AddProtobufSerializer(_ => { });
+
+		// Assert
+		using var provider = services.BuildServiceProvider();
+		var options = provider.GetService<IOptions<PluggableSerializationOptions>>();
+		_ = options.ShouldNotBeNull();
+		var value = options.Value;
+		value.CurrentSerializerName.ShouldBe("Protobuf");
+	}
+
+	#endregion
 }

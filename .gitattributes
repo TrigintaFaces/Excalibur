@@ -1,3 +1,43 @@
+# Auto-detect text files and ensure consistent line endings
+* text=auto
+
+# Explicitly declare text files to ensure normalization
+*.cs        text diff=csharp
+*.csproj    text
+*.sln       text
+*.slnf      text
+*.json      text
+*.jsonl     text
+*.xml       text
+*.yaml      text
+*.yml       text
+*.md        text
+*.txt       text
+*.ps1       text
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.props     text
+*.targets   text
+*.config    text
+*.editorconfig text
+*.razor     text
+*.cshtml    text
+*.html      text
+*.css       text
+*.js        text
+*.ts        text
+
+# Binary files
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.snk       binary
+*.pfx       binary
+*.dll       binary
+*.exe       binary
+*.nupkg     binary
 
 # Use bd merge for beads JSONL files
 .beads/beads.jsonl merge=beads

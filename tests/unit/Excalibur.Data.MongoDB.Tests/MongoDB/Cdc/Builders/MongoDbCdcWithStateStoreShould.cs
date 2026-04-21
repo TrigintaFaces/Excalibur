@@ -11,8 +11,8 @@ namespace Excalibur.Data.Tests.MongoDB.Cdc.Builders;
 /// <see cref="IMongoDbCdcBuilder.BindConfiguration"/> methods.
 /// Validates the unified WithStateStore(Action&lt;ICdcStateStoreBuilder&gt;) pattern.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MongoDbCdcWithStateStoreShould : UnitTestBase
 {
 	private const string SourceConnectionString = "mongodb://source-host:27017";
@@ -34,7 +34,7 @@ public sealed class MongoDbCdcWithStateStoreShould : UnitTestBase
 				     .DatabaseName("TestDb")
 				     .ProcessorId("test-processor")
 				     .WithStateStore(state =>
-					     state.ConnectionString(StateConnectionString))));
+					     state.TableName("state-collection"))));
 
 		// Assert -- state store options should be registered
 		services.ShouldContain(sd =>
@@ -57,7 +57,7 @@ public sealed class MongoDbCdcWithStateStoreShould : UnitTestBase
 				     .DatabaseName("TestDb")
 				     .ProcessorId("test-processor")
 				     .WithStateStore(state =>
-					     state.ConnectionString(StateConnectionString))));
+					     state.TableName("state-collection"))));
 
 		// Assert -- MongoDbCdcOptions still has source connection string
 		var provider = services.BuildServiceProvider();
@@ -94,14 +94,11 @@ public sealed class MongoDbCdcWithStateStoreShould : UnitTestBase
 				     .DatabaseName("TestDb")
 				     .ProcessorId("test-processor")
 				     .WithStateStore(state =>
-					     state.ConnectionString(StateConnectionString)
-					          .SchemaName("custom-db")
-					          .TableName("custom-collection"))));
+					     state.TableName("custom-collection"))));
 
-		// Assert -- state store options reflect custom database/collection
+		// Assert -- state store options reflect custom collection
 		var provider = services.BuildServiceProvider();
 		var stateOptions = provider.GetRequiredService<IOptions<MongoDbCdcStateStoreOptions>>();
-		stateOptions.Value.DatabaseName.ShouldBe("custom-db");
 		stateOptions.Value.CollectionName.ShouldBe("custom-collection");
 	}
 
@@ -183,7 +180,7 @@ public sealed class MongoDbCdcWithStateStoreShould : UnitTestBase
 				     .DatabaseName("TestDb")
 				     .ProcessorId("test-processor")
 				     .WithStateStore(state =>
-					     state.ConnectionString(StateConnectionString)
+					     state.TableName("state-collection")
 					          .BindConfiguration("Cdc:State"))));
 
 		// Assert -- state store options BindConfiguration is wired

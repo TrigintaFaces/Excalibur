@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// on a single thread with no escaping references.
 /// </para>
 /// </remarks>
-public sealed class MessageContextFactory(IServiceProvider serviceProvider) : IMessageContextFactory
+internal sealed class MessageContextFactory(IServiceProvider serviceProvider) : IMessageContextFactory
 {
 	[ThreadStatic] private static MessageContext? s_cachedContext;
 
@@ -41,12 +41,14 @@ public sealed class MessageContextFactory(IServiceProvider serviceProvider) : IM
 		if (context is not null)
 		{
 			s_cachedContext = null;
-			context.Initialize(serviceProvider);
+			// PERF: Use fast init path -- serviceProvider is constructor-injected, guaranteed non-null.
+			context.InitializeFast(serviceProvider);
 			return context;
 		}
 
 		var fresh = new MessageContext();
-		fresh.Initialize(serviceProvider);
+		// PERF: Use fast init path -- serviceProvider is constructor-injected, guaranteed non-null.
+		fresh.InitializeFast(serviceProvider);
 		return fresh;
 	}
 

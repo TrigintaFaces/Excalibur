@@ -15,68 +15,8 @@ namespace Excalibur.Dispatch.Hosting.Serverless;
 /// Use <see cref="GetService"/> to access optional capabilities like <see cref="IServerlessPlatformDetails"/>.
 /// </para>
 /// </remarks>
-public interface IServerlessContext : IDisposable
+public interface IServerlessContext : IServerlessExecutionContext, IServerlessPlatformContext, IDisposable
 {
-	/// <summary>
-	/// Gets the unique identifier for this function invocation.
-	/// </summary>
-	/// <value>The unique identifier for this function invocation.</value>
-	string RequestId { get; }
-
-	/// <summary>
-	/// Gets the name of the executing function.
-	/// </summary>
-	/// <value>The name of the executing function.</value>
-	string FunctionName { get; }
-
-	/// <summary>
-	/// Gets the logger for this context.
-	/// </summary>
-	/// <value>The logger for this context.</value>
-	ILogger Logger { get; }
-
-	/// <summary>
-	/// Gets the execution deadline.
-	/// </summary>
-	/// <value>The execution deadline.</value>
-	DateTimeOffset ExecutionDeadline { get; }
-
-	/// <summary>
-	/// Gets the elapsed execution time.
-	/// </summary>
-	/// <value>The elapsed execution time.</value>
-	TimeSpan ElapsedTime { get; }
-
-	/// <summary>
-	/// Gets the remaining execution time.
-	/// </summary>
-	/// <value>The remaining execution time.</value>
-	TimeSpan RemainingTime { get; }
-
-	/// <summary>
-	/// Gets custom properties for context extension.
-	/// </summary>
-	/// <value>The custom properties for context extension.</value>
-	IDictionary<string, object> Properties { get; }
-
-	/// <summary>
-	/// Gets the trace context for distributed tracing.
-	/// </summary>
-	/// <value>The trace context for distributed tracing.</value>
-	TraceContext? TraceContext { get; }
-
-	/// <summary>
-	/// Gets the serverless platform.
-	/// </summary>
-	/// <value>The serverless platform.</value>
-	ServerlessPlatform Platform { get; }
-
-	/// <summary>
-	/// Gets the original platform-specific context object.
-	/// </summary>
-	/// <value>The original platform-specific context object.</value>
-	object PlatformContext { get; }
-
 	/// <summary>
 	/// Gets a service of the specified type from this context.
 	/// </summary>

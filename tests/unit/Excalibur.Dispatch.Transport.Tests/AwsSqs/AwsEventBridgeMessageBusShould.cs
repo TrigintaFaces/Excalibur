@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs;
 /// Unit tests for <see cref="AwsEventBridgeMessageBus" />.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsEventBridgeMessageBusShould : UnitTestBase
 {

@@ -83,7 +83,7 @@ This checklist provides step-by-step guidance for HIPAA compliance preparation u
 
 ```bash
 dotnet add package Excalibur.Domain  # For encryption, audit, access control
-dotnet add package Excalibur.Dispatch.Compliance  # For GDPR erasure (right to access)
+dotnet add package Excalibur.Compliance  # For GDPR erasure (right to access)
 ```
 
 #### 1.3 Engage HIPAA Compliance Specialist
@@ -399,7 +399,7 @@ services.AddSession(options =>
 **Code Example:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 services.AddEncryption(encryption => encryption
     .UseKeyManagement<AesGcmEncryptionProvider>("aes-gcm-primary")
@@ -459,7 +459,7 @@ Implement hardware, software, and/or procedural mechanisms that record and exami
 **Code Example:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class PatientRecordService
 {

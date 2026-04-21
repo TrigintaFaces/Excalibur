@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.DeadLetter;
 /// <summary>
 /// Verifies Kafka DLQ event IDs are within the assigned range and have no duplicates (S523.7).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KafkaDeadLetterEventIdShould
 {
 	[Theory]

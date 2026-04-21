@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 using Azure.Messaging.ServiceBus;
 
 using Microsoft.Extensions.Logging;
@@ -25,7 +26,7 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus;
 /// </remarks>
 internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueueManager, IDisposable
 {
-	private readonly ServiceBusClient _client;
+	private readonly IServiceBusClient _client;
 	private readonly ServiceBusDeadLetterOptions _options;
 	private readonly ILogger<ServiceBusDeadLetterQueueManager> _logger;
 	private volatile bool _disposed;
@@ -38,6 +39,22 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 	/// <param name="logger"> The logger instance. </param>
 	public ServiceBusDeadLetterQueueManager(
 		ServiceBusClient client,
+		IOptions<ServiceBusDeadLetterOptions> options,
+		ILogger<ServiceBusDeadLetterQueueManager> logger)
+		: this(CreateAdapter(client), options, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="ServiceBusDeadLetterQueueManager"/>
+	/// class using a pre-built adapter. Used by tests to substitute the SDK via
+	/// the <see cref="IServiceBusClient"/> seam (ADR-142 §D7).
+	/// </summary>
+	/// <param name="client"> The Service Bus client adapter. </param>
+	/// <param name="options"> The dead letter queue configuration options. </param>
+	/// <param name="logger"> The logger instance. </param>
+	internal ServiceBusDeadLetterQueueManager(
+		IServiceBusClient client,
 		IOptions<ServiceBusDeadLetterOptions> options,
 		ILogger<ServiceBusDeadLetterQueueManager> logger)
 	{
@@ -69,8 +86,6 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 			// Note: In real Azure SB, DeadLetterMessageAsync requires a lock token from a received message.
 			// For the MoveToDeadLetterAsync interface (moving arbitrary TransportMessages), we publish
 			// to the DLQ subqueue path directly.
-			await using var sender = _client.CreateSender(_options.EntityPath);
-
 			var sbMessage = new ServiceBusMessage(message.Body)
 			{
 				MessageId = message.Id,
@@ -93,7 +108,7 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 				}
 			}
 
-			await sender.SendMessageAsync(sbMessage, cancellationToken).ConfigureAwait(false);
+			await _client.SendMessageAsync(_options.EntityPath, sbMessage, cancellationToken).ConfigureAwait(false);
 
 			LogMessageMoved(_logger, message.Id, _options.EntityPath);
 
@@ -113,12 +128,8 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 	{
 		try
 		{
-			await using var receiver = _client.CreateReceiver(
-				_options.EntityPath,
-				new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
-
-			var peeked = await receiver.PeekMessagesAsync(
-				maxMessages, cancellationToken: cancellationToken).ConfigureAwait(false);
+			var peeked = await _client.PeekDlqMessagesAsync(
+				_options.EntityPath, maxMessages, cancellationToken).ConfigureAwait(false);
 
 			var result = new List<DeadLetterMessage>(peeked.Count);
 
@@ -169,14 +180,7 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 		var result = new ReprocessResult();
 		var messageList = messages as IList<DeadLetterMessage> ?? [.. messages];
 		var maxMessages = options.MaxMessages ?? messageList.Count;
-
-		// Create receiver for the DLQ subqueue to receive-and-complete
-		await using var dlqReceiver = _client.CreateReceiver(
-			_options.EntityPath,
-			new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
-
-		await using var sender = _client.CreateSender(
-			options.TargetQueue ?? _options.EntityPath);
+		var targetEntity = options.TargetQueue ?? _options.EntityPath;
 
 		foreach (var dlqMessage in messageList.Take(maxMessages))
 		{
@@ -204,10 +208,10 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 					ContentType = messageToReprocess.ContentType,
 				};
 
-				await sender.SendMessageAsync(sbMessage, cancellationToken).ConfigureAwait(false);
+				await _client.SendMessageAsync(targetEntity, sbMessage, cancellationToken).ConfigureAwait(false);
 
 				result.SuccessCount++;
-				LogMessageReprocessed(_logger, dlqMessage.OriginalMessage.Id, options.TargetQueue ?? _options.EntityPath);
+				LogMessageReprocessed(_logger, dlqMessage.OriginalMessage.Id, targetEntity);
 
 				if (options.RetryDelay > TimeSpan.Zero)
 				{
@@ -236,12 +240,8 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 	public async Task<DeadLetterStatistics> GetStatisticsAsync(
 		CancellationToken cancellationToken)
 	{
-		await using var receiver = _client.CreateReceiver(
-			_options.EntityPath,
-			new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
-
-		var peeked = await receiver.PeekMessagesAsync(
-			_options.StatisticsPeekCount, cancellationToken: cancellationToken).ConfigureAwait(false);
+		var peeked = await _client.PeekDlqMessagesAsync(
+			_options.EntityPath, _options.StatisticsPeekCount, cancellationToken).ConfigureAwait(false);
 
 		var now = DateTimeOffset.UtcNow;
 
@@ -288,32 +288,11 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 	{
 		try
 		{
-			await using var receiver = _client.CreateReceiver(
+			var purgedCount = await _client.PurgeDlqAsync(
 				_options.EntityPath,
-				new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
-
-			var purgedCount = 0;
-
-			while (true)
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-
-				var batch = await receiver.ReceiveMessagesAsync(
-					_options.MaxBatchSize,
-					_options.ReceiveWaitTime,
-					cancellationToken).ConfigureAwait(false);
-
-				if (batch.Count == 0)
-				{
-					break;
-				}
-
-				foreach (var msg in batch)
-				{
-					await receiver.CompleteMessageAsync(msg, cancellationToken).ConfigureAwait(false);
-					purgedCount++;
-				}
-			}
+				_options.MaxBatchSize,
+				_options.ReceiveWaitTime,
+				cancellationToken).ConfigureAwait(false);
 
 			LogPurged(_logger, purgedCount, _options.EntityPath);
 
@@ -335,6 +314,12 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 		}
 
 		_disposed = true;
+	}
+
+	private static IServiceBusClient CreateAdapter(ServiceBusClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		return new ServiceBusClientAdapter(client);
 	}
 
 	[LoggerMessage(AzureServiceBusEventId.DlqManagerInitialized, LogLevel.Information,

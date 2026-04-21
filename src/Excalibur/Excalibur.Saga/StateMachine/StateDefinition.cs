@@ -41,6 +41,12 @@ internal sealed class StateDefinition<TData> : IStateDefinition<TData>
 		configure(handler);
 		_messageHandlers[typeof(TMessage)] = handler;
 
+		// Register AOT-safe context factory for this (TData, TMessage) pair.
+		// At state definition time, both generic types are concrete, so the AOT compiler
+		// preserves the SagaContext<TData, TMessage> constructor. Idempotent: subsequent
+		// registrations for the same type pair overwrite harmlessly.
+		SagaContextFactoryRegistry.Register<TData, TMessage>();
+
 		return this;
 	}
 

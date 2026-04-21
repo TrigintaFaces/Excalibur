@@ -18,12 +18,11 @@
 using AuditLoggingSample.Messages;
 using AuditLoggingSample.Middleware;
 
-using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Configuration;
@@ -51,24 +50,20 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register JSON serializer for message payloads
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+	// Register JSON serializer via the builder serialization API
+
+	// Configure security auditing (encryption, signing, rate limiting, validation)
+	_ = dispatch.UseSecurity(builder.Configuration);
+
+	// Register the sample's custom audit logging middleware in the pipeline
+	_ = dispatch.UseMiddleware<AuditLoggingMiddleware>();
 });
-
-// ============================================================
-// Configure security auditing
-// ============================================================
-// Add security auditing services (uses InMemory store by default)
-builder.Services.AddSecurityAuditing(builder.Configuration);
-
-// Register audit logging middleware
-builder.Services.AddSingleton<IDispatchMiddleware, AuditLoggingMiddleware>();
 
 // ============================================================
 // Configure outbox/inbox for reliable messaging
 // ============================================================
 builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
+builder.Services.AddInMemoryInboxStore();
 builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
 

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport.Kafka")]
+[Trait(TraitNames.Component, TestComponents.Kafka)]
 [Trait("Priority", "0")]
 public sealed class KafkaEventIdShould : UnitTestBase
 {

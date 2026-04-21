@@ -39,7 +39,9 @@ internal sealed class RevokeGrantCommandHandler(IGrantRepository grantRepository
 		var key = new GrantKey(request.UserId, request.TenantId, request.GrantType, request.Qualifier);
 
 		// Attempt to retrieve the grant using the key
+		#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 		var grant = await grantRepository.GetByIdAsync(key.ToString(), cancellationToken).ConfigureAwait(false);
+		#pragma warning restore IL2026, IL3050
 
 		if (grant is null)
 		{

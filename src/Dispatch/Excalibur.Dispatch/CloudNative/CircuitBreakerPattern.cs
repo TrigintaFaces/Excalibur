@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
@@ -35,18 +34,10 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 	private readonly ILogger _logger;
 	private readonly SemaphoreSlim _halfOpenSemaphore;
 	private readonly List<IPatternObserver> _observers = [];
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _observerLock = new();
-#else
-	private readonly object _observerLock = new();
-#endif
+	private readonly Lock _observerLock = new();
 
 	private readonly CircuitBreakerMetrics _metrics = new();
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _stateLock = new();
-#else
-	private readonly object _stateLock = new();
-#endif
+	private readonly Lock _stateLock = new();
 	private readonly ConcurrentDictionary<string, long> _operationLatencies = new(StringComparer.Ordinal);
 	private int _consecutiveFailures;
 	private int _consecutiveSuccesses;
@@ -66,7 +57,6 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 		_halfOpenSemaphore = new SemaphoreSlim(_options.MaxHalfOpenTests, _options.MaxHalfOpenTests);
 	}
 
-
 	/// <summary>
 	/// Gets the name of the circuit breaker pattern.
 	/// </summary>
@@ -78,7 +68,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 	/// </summary>
 	/// <value>The current <see cref="Configuration"/> value.</value>
 	public IReadOnlyDictionary<string, object> Configuration => new Dictionary<string, object>
-(StringComparer.Ordinal)
+		(StringComparer.Ordinal)
 	{
 		[nameof(_options.FailureThreshold)] = _options.FailureThreshold,
 		[nameof(_options.SuccessThreshold)] = _options.SuccessThreshold,
@@ -113,7 +103,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 			FailedOperations = circuitMetrics.FailedRequests,
 			AverageOperationTime = circuitMetrics.AverageResponseTime,
 			CustomMetrics = new Dictionary<string, object>
-(StringComparer.Ordinal)
+				(StringComparer.Ordinal)
 			{
 				["RejectedRequests"] = circuitMetrics.RejectedRequests,
 				["FallbackExecutions"] = circuitMetrics.FallbackExecutions,
@@ -157,8 +147,6 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 		LogCircuitBreakerStopping(Name);
 		return Task.CompletedTask;
 	}
-
-
 
 	/// <summary>
 	/// Gets the current resilience state of the circuit breaker (Closed, Open, HalfOpen).
@@ -327,6 +315,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 				case ResilienceState.Open:
 					// Already open, no action needed
 					break;
+
 				default:
 					break;
 			}
@@ -406,8 +395,6 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 		_metrics.AverageResponseTime = TimeSpan.FromMilliseconds(avgMs);
 	}
 
-
-
 	/// <summary>
 	/// Gets the current metrics for the circuit breaker including request counts, states, and performance data.
 	/// </summary>
@@ -434,7 +421,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 			NewState = newState.ToString(),
 			Reason = reason,
 			Context = new Dictionary<string, object>
-(StringComparer.Ordinal)
+				(StringComparer.Ordinal)
 			{
 				["ConsecutiveFailures"] = _consecutiveFailures,
 				["ConsecutiveSuccesses"] = _consecutiveSuccesses,
@@ -457,8 +444,6 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 			}
 		}
 	}
-
-
 
 	/// <summary>
 	/// Subscribes an observer to receive notifications about pattern state changes and metrics updates.
@@ -494,8 +479,6 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 			}
 		}
 	}
-
-
 
 	/// <summary>
 	/// Asynchronously disposes the circuit breaker, stopping it and cleaning up resources.
@@ -576,5 +559,5 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 		"Error stopping circuit breaker {Name} during disposal")]
 	private partial void LogCircuitBreakerStopError(Exception ex, string name);
 
-	#endregion
+	#endregion LoggerMessage Definitions
 }

@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Postgres.Authorization;
 /// <summary>
 /// Unit tests for <see cref="PostgresGrantStore"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "A3")]
 public sealed class PostgresGrantStoreShould
 {

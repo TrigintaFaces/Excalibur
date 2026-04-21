@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Signing;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SigningModelsCoverageShould
 {
     [Fact]
@@ -132,7 +132,7 @@ public sealed class SigningModelsCoverageShould
         var inner = new InvalidOperationException("inner");
         var ex3 = new SigningException("outer", inner);
         ex3.Message.ShouldBe("outer");
-        ex3.InnerException.ShouldBe(inner);
+        ex3.InnerException!.ShouldBe(inner);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class SigningModelsCoverageShould
         var inner = new InvalidOperationException("inner");
         var ex3 = new VerificationException("outer", inner);
         ex3.Message.ShouldBe("outer");
-        ex3.InnerException.ShouldBe(inner);
+        ex3.InnerException!.ShouldBe(inner);
     }
 
     [Theory]

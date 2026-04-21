@@ -10,7 +10,7 @@ Repositories provide a high-level API for loading and saving event-sourced aggre
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.EventSourcing
@@ -155,7 +155,7 @@ await eventStore.AppendAsync(
 ### Using the Builder (Recommended)
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     // With explicit factory
     builder.AddRepository<Order, Guid>(id => new Order());
@@ -165,7 +165,7 @@ services.AddExcaliburEventSourcing(builder =>
 
     // String-keyed aggregates
     builder.AddRepository<Customer>(id => new Customer(id));
-});
+}));
 ```
 
 ### Generic Registration

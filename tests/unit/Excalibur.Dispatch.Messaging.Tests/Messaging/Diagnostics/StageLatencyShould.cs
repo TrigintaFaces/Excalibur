@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Diagnostics;
 /// <summary>
 /// Unit tests for <see cref="StageLatency"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Diagnostics")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Diagnostics)]
 [Trait("Priority", "0")]
 public sealed class StageLatencyShould
 {

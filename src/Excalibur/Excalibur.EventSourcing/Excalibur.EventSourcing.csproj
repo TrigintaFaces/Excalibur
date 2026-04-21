@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -20,6 +20,19 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Tests" />
     <InternalsVisibleTo Include="Excalibur.Testing.Conformance" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.SqlServer" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.Postgres" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.Sqlite" />
+    <InternalsVisibleTo Include="Excalibur.Benchmarks" />
+    <!-- S795 A3: IVT granted to test assemblies that retain direct aggregator
+         access per COMPASS msg 1498 §1. -->
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Testing.Conformance.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Hosting.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Tests" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">
@@ -33,12 +46,15 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="NCrontab" />
+    <PackageReference Include="System.IO.Hashing" />
     <PackageReference Include="OpenTelemetry.Api" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
   </ItemGroup>
@@ -48,17 +64,13 @@
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
-    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Compliance\Excalibur.Compliance.csproj" />
+    <ProjectReference Include="..\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
-    <PackageReference Include="Excalibur.Dispatch.Compliance" VersionOverride="$(DispatchPackageVersion)" />
-    <PackageReference Include="Excalibur.Dispatch.Compliance.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+    <PackageReference Include="Excalibur.Compliance" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Compliance.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
 </Project>

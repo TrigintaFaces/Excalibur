@@ -124,7 +124,7 @@ public sealed partial class MessageOutbox(
 	/// <param name="cancellationToken"> Cancellation token for operation timeout and shutdown support. </param>
 	/// <returns> Task representing the asynchronous event saving operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when integrationEvents is null. </exception>
-	/// <exception cref="Exceptions.SerializationException"> Thrown when event or metadata serialization fails. </exception>
+	/// <exception cref="Excalibur.Dispatch.Abstractions.Serialization.SerializationException"> Thrown when event or metadata serialization fails. </exception>
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL3050:Using RequiresDynamicCode member in AOT",
@@ -152,7 +152,7 @@ public sealed partial class MessageOutbox(
 
 		var outboxMessages = integrationEvents.Select(evt => new OutboxMessage(
 			messageId: Uuid7Extensions.GenerateString(),
-			messageType: evt.GetType().FullName,
+			messageType: evt.GetType().FullName ?? evt.GetType().Name,
 			messageMetadata: serializer.Serialize(metadata),
 			messageBody: serializer.Serialize(evt),
 			createdAt: created,
@@ -258,6 +258,7 @@ public sealed partial class MessageOutbox(
 		return dispatchMessages;
 	}
 
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Assembly.GetType() for runtime message type resolution.")]
 	private static Type? ResolveMessageType(string typeName)
 	{
 		if (string.IsNullOrWhiteSpace(typeName))

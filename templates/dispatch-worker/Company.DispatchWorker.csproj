@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ExcaliburDispatchVersion Condition="'$(ExcaliburDispatchVersion)' == ''">0.1.0-*</ExcaliburDispatchVersion>
@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Observability" Version="$(ExcaliburDispatchVersion)" />
     <!--#if (UseKafka) -->
     <PackageReference Include="Excalibur.Dispatch.Transport.Kafka" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport.GooglePubSub")]
+[Trait(TraitNames.Component, TestComponents.GooglePubSub)]
 [Trait("Priority", "0")]
 public sealed class GooglePubSubEventIdShould : UnitTestBase
 {

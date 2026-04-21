@@ -6,8 +6,8 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Erasure;
 /// <summary>
 /// Unit tests for <see cref="ErasureResult"/> and related types.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [Trait("Feature", "Erasure")]
 public sealed class ErasureResultShould : UnitTestBase
 {

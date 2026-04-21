@@ -3,7 +3,7 @@
 
 using System.Security.Cryptography;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Signing;
 /// Deep coverage tests for <see cref="HmacMessageSigningService"/> covering all signing paths,
 /// key caching, multi-tenant isolation, signature formats, expiration, and disposal.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class HmacMessageSigningServiceDepthShould : IDisposable
 {
 	private readonly byte[] _testKey = RandomNumberGenerator.GetBytes(32);

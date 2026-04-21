@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Excalibur.EventSourcing.Abstractions;
 
@@ -110,6 +111,10 @@ internal sealed class InMemoryIncrementalSnapshotStore<TState> : IIncrementalSna
 	private static string MakeKey(string aggregateId, string aggregateType)
 		=> $"{aggregateType}:{aggregateId}";
 
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "In-memory snapshot store is for development/testing only; AOT compatibility is not required.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026",
+		Justification = "In-memory snapshot store is for development/testing only; trimming compatibility is not required.")]
 	private static TState? DeepCopy(TState? state)
 	{
 		if (state is null)

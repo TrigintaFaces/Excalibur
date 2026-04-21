@@ -21,6 +21,7 @@ This section explains how Excalibur's package families are structured, how bound
 2. [Capability Ownership Matrix](capability-ownership-matrix.md)
 3. [Capability Migration Map](capability-migration-map.md)
 4. [MessageContext Design](messagecontext-design.md)
+5. [SDK Seam Pattern](sdk-seam-pattern.md) — contributor reference for insulating the framework from third-party SDK churn
 
 ## Contributor Expectations
 

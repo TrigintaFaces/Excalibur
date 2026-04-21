@@ -9,8 +9,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Unit tests for <see cref="DataOrchestrationManager"/>.
 /// </summary>
 [UnitTest]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataOrchestrationManagerShould : UnitTestBase
 {
 	private readonly Func<IDbConnection> _fakeConnectionFactory = () => A.Fake<IDbConnection>();

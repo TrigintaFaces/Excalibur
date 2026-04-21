@@ -84,7 +84,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		// Query for all activity groups for this user with this grant type
-		var query = _collection
+		var query = _collection!
 			.WhereEqualTo(FirestoreActivityGroupDocument.UserIdFieldName, userId)
 			.WhereEqualTo(FirestoreActivityGroupDocument.GrantTypeFieldName, grantType);
 
@@ -112,7 +112,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		// Query for all activity groups with this grant type
-		var query = _collection
+		var query = _collection!
 			.WhereEqualTo(FirestoreActivityGroupDocument.GrantTypeFieldName, grantType);
 
 		var querySnapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
@@ -146,7 +146,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 
 		var now = DateTimeOffset.UtcNow;
 		var docId = FirestoreActivityGroupDocument.CreateDocumentId(tenantId, userId, grantType, qualifier);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var data = FirestoreActivityGroupDocument.ToDocumentData(
 			userId,
@@ -175,7 +175,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		// Query for all activity groups with this grant type
-		var query = _collection
+		var query = _collection!
 			.WhereEqualTo(FirestoreActivityGroupDocument.GrantTypeFieldName, grantType);
 
 		var querySnapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
@@ -216,6 +216,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 				_ = FirestoreEmulatorHelper.TryConfigureEmulatorHost(_options.EmulatorHost);
 			}
 
+#pragma warning disable CS0618 // CredentialsPath/JsonCredentials are obsolete but replacements require significant refactoring
 			if (!string.IsNullOrEmpty(_options.CredentialsJson))
 			{
 				builder.JsonCredentials = _options.CredentialsJson;
@@ -224,6 +225,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 			{
 				builder.CredentialsPath = _options.CredentialsPath;
 			}
+#pragma warning restore CS0618
 
 			_db = await builder.BuildAsync(cancellationToken).ConfigureAwait(false);
 			_collection = _db.Collection(_options.ActivityGroupsCollectionName);
@@ -259,7 +261,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 
 		for (var i = 0; i < documents.Count; i += _options.MaxBatchSize)
 		{
-			var batch = _db.StartBatch();
+			var batch = _db!.StartBatch();
 			var batchDocs = documents.Skip(i).Take(_options.MaxBatchSize).ToList();
 
 			foreach (var doc in batchDocs)

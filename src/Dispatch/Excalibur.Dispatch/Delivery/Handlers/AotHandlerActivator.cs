@@ -9,28 +9,30 @@ using Excalibur.Dispatch.Abstractions;
 namespace Excalibur.Dispatch.Delivery.Handlers;
 
 /// <summary>
-/// AOT-compatible handler activator that uses source-generated code instead of expression compilation.
+/// AOT-compatible handler activator that resolves handlers from the DI container without expression compilation.
 /// </summary>
 /// <remarks>
-/// This implementation avoids reflection and expression compilation, making it suitable for Native AOT scenarios. It delegates to a
-/// source-generated activator that contains compile-time generated switch statements for known handler types.
+/// <para>
+/// This implementation avoids runtime expression compilation, making it suitable for Native AOT scenarios.
+/// Handlers are resolved from the service provider and context is injected via <see cref="IMessageContextAware"/>.
+/// </para>
+/// <para>
+/// For further optimization, the <c>Excalibur.Dispatch.SourceGenerators</c> package generates a
+/// <c>SourceGeneratedHandlerActivator</c> with compile-time switch statements for known handler types.
+/// Register it as <see cref="IHandlerActivator"/> in the DI container to replace this default implementation.
+/// </para>
 /// </remarks>
 public sealed class AotHandlerActivator : IHandlerActivator
 {
-	private static readonly IHandlerActivator GeneratedActivator = new SourceGeneratedHandlerActivator();
-	private static readonly IHandlerActivator FallbackActivator = new SourceGeneratedHandlerActivatorFallback();
+	private static readonly SourceGeneratedHandlerActivatorFallback Inner = new();
 
 	/// <summary>
-	/// Activates a handler instance using AOT-compatible source-generated code.
+	/// Activates a handler instance using the service provider.
 	/// </summary>
 	/// <param name="handlerType"> The type of handler to activate. </param>
 	/// <param name="context"> The message context to inject into the handler. </param>
-	/// <param name="provider"> The service provider for dependency Excalibur.Tests.Integration. </param>
+	/// <param name="provider"> The service provider for dependency resolution. </param>
 	/// <returns> The activated handler instance with context injected if applicable. </returns>
-	/// <remarks>
-	/// This method uses source-generated code to avoid reflection and expression compilation. The source generator scans all handler types
-	/// at compile time and generates optimized activation code for each known handler type.
-	/// </remarks>
 	[RequiresUnreferencedCode("Handler activation may require reflection to instantiate handler types")]
 	public object ActivateHandler(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
@@ -41,13 +43,6 @@ public sealed class AotHandlerActivator : IHandlerActivator
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(provider);
 
-		try
-		{
-			return GeneratedActivator.ActivateHandler(handlerType, context, provider);
-		}
-		catch (InvalidOperationException)
-		{
-			return FallbackActivator.ActivateHandler(handlerType, context, provider);
-		}
+		return Inner.ActivateHandler(handlerType, context, provider);
 	}
 }

@@ -118,7 +118,7 @@ public sealed class ConcurrencyExceptionShould
 		var exception = new ConcurrencyException(message, innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.Message.ShouldBe(message);
 	}
 

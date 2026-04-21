@@ -60,7 +60,7 @@ public sealed class InvalidStateTransitionExceptionShould
 		// Assert
 		exception.CurrentState.ShouldBe("Pending");
 		exception.AttemptedTransition.ShouldBe("Active");
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	#endregion Constructor Tests
@@ -241,7 +241,7 @@ public sealed class InvalidStateTransitionExceptionShould
 			innerException);
 
 		// Assert
-		exception.InnerException.Message.ShouldContain("Cannot skip states");
+		exception.InnerException!.Message.ShouldContain("Cannot skip states");
 	}
 
 	[Fact]

@@ -14,8 +14,8 @@ public sealed class MultiTransportOptions
 	/// Gets the configured transports.
 	/// </summary>
 	/// <value> The transport configurations keyed by transport name. </value>
-	public IDictionary<string, TransportConfiguration> Transports { get; } =
-		new Dictionary<string, TransportConfiguration>(StringComparer.Ordinal);
+	public IDictionary<string, TransportOptions> Transports { get; } =
+		new Dictionary<string, TransportOptions>(StringComparer.Ordinal);
 
 	/// <summary>
 	/// Gets or sets the default transport name.

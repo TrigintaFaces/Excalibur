@@ -68,6 +68,6 @@ public sealed class HealthChecksBuilderExtensionsShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			builder.AddMemoryHealthChecks(null!));
+			builder.AddMemoryHealthChecks((Action<MemoryHealthCheckOptions>)null!));
 	}
 }

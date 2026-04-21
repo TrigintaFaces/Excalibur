@@ -23,8 +23,9 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		// Act
 		services.AddConfigurationValidation();
 
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(ConfigurationValidationOptions));
+		// Assert - IOptions<T> is resolved via open-generic registration, verify via build
+		using var sp = services.BuildServiceProvider();
+		sp.GetRequiredService<IOptions<ConfigurationValidationOptions>>().ShouldNotBeNull();
 		services.ShouldContain(sd => sd.ServiceType == typeof(IHostedService));
 	}
 
@@ -42,8 +43,8 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		});
 
 		// Assert
-		var sp = services.BuildServiceProvider();
-		var options = sp.GetRequiredService<ConfigurationValidationOptions>();
+		using var sp = services.BuildServiceProvider();
+		var options = sp.GetRequiredService<IOptions<ConfigurationValidationOptions>>().Value;
 		options.Enabled.ShouldBeFalse();
 		options.FailFast.ShouldBeFalse();
 	}
@@ -210,8 +211,9 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		// Act
 		services.AddExcaliburConfigurationValidation();
 
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(ConfigurationValidationOptions));
+		// Assert - IOptions<T> resolved via open-generic registration
+		using var sp = services.BuildServiceProvider();
+		sp.GetRequiredService<IOptions<ConfigurationValidationOptions>>().ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -362,8 +364,9 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		// Act
 		builder.UseConfigurationValidation();
 
-		// Assert
-		builder.Services.ShouldContain(sd => sd.ServiceType == typeof(ConfigurationValidationOptions));
+		// Assert - IOptions<T> resolved via open-generic registration
+		using var sp = builder.Services.BuildServiceProvider();
+		sp.GetRequiredService<IOptions<ConfigurationValidationOptions>>().ShouldNotBeNull();
 	}
 
 	[Fact]

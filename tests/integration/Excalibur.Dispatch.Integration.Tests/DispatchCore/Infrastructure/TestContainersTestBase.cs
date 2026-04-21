@@ -41,15 +41,40 @@ public abstract class TestContainersTestBase(ITestOutputHelper output = null) : 
 	/// <inheritdoc/>
 	public override async Task DisposeAsync()
 	{
-		// Dispose hosts first
+		// Dispose hosts first (with timeout to prevent hang)
 		foreach (var host in _hosts)
 		{
-			await host.StopAsync(TestCancellationToken).ConfigureAwait(false);
+			try
+			{
+				var stopTask = host.StopAsync(TestCancellationToken);
+				var completed = await Task.WhenAny(stopTask, Task.Delay(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+				if (completed == stopTask)
+				{
+					await stopTask.ConfigureAwait(false);
+				}
+			}
+			catch
+			{
+				// Best effort cleanup
+			}
+
 			host.Dispose();
 		}
 
-		// Dispose other resources
-		await Task.WhenAll(_disposables.Select(static d => d.DisposeAsync().AsTask())).ConfigureAwait(false);
+		// Dispose other resources (with timeout to prevent hang)
+		try
+		{
+			var disposeAll = Task.WhenAll(_disposables.Select(static d => d.DisposeAsync().AsTask()));
+			var completed = await Task.WhenAny(disposeAll, Task.Delay(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+			if (completed == disposeAll)
+			{
+				await disposeAll.ConfigureAwait(false);
+			}
+		}
+		catch
+		{
+			// Best effort cleanup
+		}
 
 		await base.DisposeAsync().ConfigureAwait(false);
 	}

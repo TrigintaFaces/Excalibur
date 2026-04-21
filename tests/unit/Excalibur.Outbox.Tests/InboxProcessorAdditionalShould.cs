@@ -51,7 +51,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			serializer,
 			logger,
 
-			internalSerializer: null,
+			envelopeDeserializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
 			backoffCalculator: backoffCalculator);
@@ -66,12 +66,15 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		// Arrange - QueueCapacity == ProducerBatchSize is valid (edge case)
 		var options = Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 100,
-			ProducerBatchSize = 100, // Equal to queue capacity - should be valid
-			ConsumerBatchSize = 50,
-			PerRunTotal = 1000,
+			Capacity =
+			{
+				QueueCapacity = 100,
+				ProducerBatchSize = 100, // Equal to queue capacity - should be valid
+				ConsumerBatchSize = 50,
+				PerRunTotal = 1000,
+				ParallelProcessingDegree = 4,
+			},
 			MaxAttempts = 5,
-			BatchProcessing = { ParallelProcessingDegree = 4 }
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
@@ -97,16 +100,19 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		// Arrange
 		var options = Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 500,
-			ProducerBatchSize = 100,
-			ConsumerBatchSize = 50,
-			PerRunTotal = 1000,
-			MaxAttempts = 5,
-			BatchProcessing =
+			Capacity =
 			{
+				QueueCapacity = 500,
+				ProducerBatchSize = 100,
+				ConsumerBatchSize = 50,
+				PerRunTotal = 1000,
 				ParallelProcessingDegree = 4,
-				EnableDynamicBatchSizing = false
-			}
+			},
+			MaxAttempts = 5,
+			BatchTuning =
+			{
+				EnableDynamicBatchSizing = false,
+			},
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
@@ -155,7 +161,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>(o => o.Implements<IInboxStoreAdmin>());
 		_ = A.CallTo(() => ((IInboxStoreAdmin)inboxStore).GetFailedEntriesAsync(
 				A<int>._,
-				A<DateTimeOffset>._,
+				A<DateTimeOffset?>._,
 				A<int>._,
 				A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<InboxEntry>>(Enumerable.Empty<InboxEntry>()));
@@ -180,12 +186,15 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		// Arrange
 		var options = Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 500,
-			ProducerBatchSize = 100,
-			ConsumerBatchSize = 50,
-			PerRunTotal = 1000,
+			Capacity =
+			{
+				QueueCapacity = 500,
+				ProducerBatchSize = 100,
+				ConsumerBatchSize = 50,
+				PerRunTotal = 1000,
+				ParallelProcessingDegree = 1, // Sequential processing
+			},
 			MaxAttempts = 5,
-			BatchProcessing = { ParallelProcessingDegree = 1 } // Sequential processing
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
@@ -211,12 +220,15 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		// Arrange
 		var options = Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 2000,
-			ProducerBatchSize = 500,
-			ConsumerBatchSize = 200,
-			PerRunTotal = 5000,
+			Capacity =
+			{
+				QueueCapacity = 2000,
+				ProducerBatchSize = 500,
+				ConsumerBatchSize = 200,
+				PerRunTotal = 5000,
+				ParallelProcessingDegree = 16, // High parallelism
+			},
 			MaxAttempts = 3,
-			BatchProcessing = { ParallelProcessingDegree = 16 } // High parallelism
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
@@ -246,20 +258,23 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		// Arrange
 		var options = Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 2000,
-			ProducerBatchSize = 500,
-			ConsumerBatchSize = 200,
-			PerRunTotal = 5000,
-			MaxAttempts = 3,
-			BatchProcessing =
+			Capacity =
 			{
+				QueueCapacity = 2000,
+				ProducerBatchSize = 500,
+				ConsumerBatchSize = 200,
+				PerRunTotal = 5000,
 				ParallelProcessingDegree = 8,
+			},
+			MaxAttempts = 3,
+			BatchTuning =
+			{
 				EnableDynamicBatchSizing = true,
 				MinBatchSize = 10,
 				MaxBatchSize = 1000,
 				BatchProcessingTimeout = TimeSpan.FromMinutes(2),
+				EnableBatchDatabaseOperations = true,
 			},
-			EnableBatchDatabaseOperations = true
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
@@ -289,17 +304,20 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		// Arrange
 		var options = Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 100,
-			ProducerBatchSize = 20,
-			ConsumerBatchSize = 10,
-			PerRunTotal = 200,
-			MaxAttempts = 10,
-			BatchProcessing =
+			Capacity =
 			{
+				QueueCapacity = 100,
+				ProducerBatchSize = 20,
+				ConsumerBatchSize = 10,
+				PerRunTotal = 200,
 				ParallelProcessingDegree = 1, // Sequential for reliability
+			},
+			MaxAttempts = 10,
+			BatchTuning =
+			{
 				EnableDynamicBatchSizing = false,
 				BatchProcessingTimeout = TimeSpan.FromMinutes(10),
-			}
+			},
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
@@ -359,12 +377,15 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 	{
 		return Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 500,
-			ProducerBatchSize = 100,
-			ConsumerBatchSize = 50,
-			PerRunTotal = 1000,
+			Capacity =
+			{
+				QueueCapacity = 500,
+				ProducerBatchSize = 100,
+				ConsumerBatchSize = 50,
+				PerRunTotal = 1000,
+				ParallelProcessingDegree = 4,
+			},
 			MaxAttempts = 5,
-			BatchProcessing = { ParallelProcessingDegree = 4 }
 		});
 	}
 
@@ -385,7 +406,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			serializer ?? new DispatchJsonSerializer(),
 			logger ?? NullLogger<InboxProcessor>.Instance,
 
-			internalSerializer: null,
+			envelopeDeserializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
 			backoffCalculator: backoffCalculator);

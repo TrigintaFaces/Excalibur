@@ -8,7 +8,7 @@ namespace Excalibur.Data.Tests.SqlServer.Persistence;
 /// <summary>
 /// Unit tests for <see cref="SqlConnectionColumnEncryptionSetting"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
 [Trait("Feature", "Persistence")]
 public sealed class SqlConnectionColumnEncryptionSettingShould : UnitTestBase

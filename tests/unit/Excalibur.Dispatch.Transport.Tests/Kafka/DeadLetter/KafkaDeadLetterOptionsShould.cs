@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.DeadLetter;
 /// <summary>
 /// Unit tests for <see cref="KafkaDeadLetterOptions"/> (S523.7).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KafkaDeadLetterOptionsShould
 {
 	[Fact]

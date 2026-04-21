@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Microsoft.AspNetCore.Builder;
 
 /// <summary>
@@ -19,6 +21,8 @@ public static class ExcaliburJobHostApplicationExtensions
 	/// This method sets up monitoring and health check endpoints for job applications. It's particularly useful for ASP.NET Core
 	/// applications that also run background jobs.
 	/// </remarks>
+	[RequiresUnreferencedCode("Calls UseExcaliburJobHost which uses JSON serialization that may require unreferenced code.")]
+	[RequiresDynamicCode("Calls UseExcaliburJobHost which uses JSON serialization that requires dynamic code generation.")]
 	public static IApplicationBuilder UseExcaliburJobHost(this IApplicationBuilder app)
 	{
 		ArgumentNullException.ThrowIfNull(app);

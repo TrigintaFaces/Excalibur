@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Validates that when TryGetCacheKeyFromInterface reflection fails, the builder
 /// falls back to a type name + hash code based key instead of propagating the exception.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 [Trait("Priority", "2")]
 public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBase
 {

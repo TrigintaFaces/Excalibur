@@ -412,7 +412,7 @@ public sealed class ContextObservabilityOptionsShould
 		tracing.IncludeNullFields.ShouldBeFalse();
 		tracing.PreserveUnknownBaggageItems.ShouldBeTrue();
 		tracing.SensitiveFieldPatterns.ShouldNotBeNull();
-		tracing.SensitiveFieldPatterns.Length.ShouldBe(6);
+		tracing.SensitiveFieldPatterns.Count.ShouldBe(6);
 	}
 
 	[Fact]

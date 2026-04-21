@@ -21,7 +21,7 @@ namespace Excalibur.Integration.Tests.EventSourcing.SqlServer;
 /// Sprint 175 - Provider Testing Epic Phase 1.
 /// </remarks>
 [Trait("Category", "Integration")]
-[Trait("Provider", "SqlServer")]
+[Trait("Database", "SqlServer")]
 [Trait("Component", "EventSourcing")]
 [SuppressMessage("Design", "CA1506", Justification = "Integration test requires multiple dependencies for proper setup")]
 public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
@@ -58,7 +58,8 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		{
 			try
 			{
-				await _container.DisposeAsync().ConfigureAwait(false);
+				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await _container.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{

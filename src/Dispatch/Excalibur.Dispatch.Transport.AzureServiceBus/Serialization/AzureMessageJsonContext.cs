@@ -66,6 +66,8 @@ namespace Excalibur.Dispatch.Transport.Azure;
 [JsonSerializable(typeof(DeadLetterInfo))]
 [JsonSerializable(typeof(RetryInfo))]
 [JsonSerializable(typeof(List<DeadLetterInfo>))]
+[JsonSerializable(typeof(DeadLetterMessageEnvelope))]
+[JsonSerializable(typeof(StorageQueueMessageEnvelope))]
 
 // Common Azure types
 [JsonSerializable(typeof(byte[]))]
@@ -75,7 +77,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 [JsonSerializable(typeof(Guid))]
 [JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(TimeSpan))]
-public partial class AzureMessageJsonContext : JsonSerializerContext
+internal partial class AzureMessageJsonContext : JsonSerializerContext
 {
 	/// <summary>
 	/// Gets the singleton instance for Azure message serialization.

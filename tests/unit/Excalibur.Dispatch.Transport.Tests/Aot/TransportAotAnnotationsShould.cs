@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Aot;
 /// DI methods need [RequiresUnreferencedCode] + [RequiresDynamicCode].
 /// RabbitMQ, Azure, AWS, Google are verified AOT-safe (no reflection risk on DI entry points).
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Transport.AOT")]
 public sealed class TransportAotAnnotationsShould
 {

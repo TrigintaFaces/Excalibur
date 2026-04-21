@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// resolution, thread safety, and edge cases.
 /// </summary>
 [Collection("MessageTypeCacheTests")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class MessageTypeCacheShould : IDisposable
 {
 	public MessageTypeCacheShould()

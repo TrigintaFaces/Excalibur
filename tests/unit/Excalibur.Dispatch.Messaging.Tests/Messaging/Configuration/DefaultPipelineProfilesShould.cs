@@ -9,9 +9,9 @@ namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 /// <summary>
 /// Unit tests for <see cref="DefaultPipelineProfiles"/> public static class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
-[Trait("Feature", "Configuration")]
+[Trait(TraitNames.Feature, TestFeatures.Configuration)]
 public sealed class DefaultPipelineProfilesShould
 {
 	[Fact]

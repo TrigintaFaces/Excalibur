@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Options.Resilience;
 /// <para>
 /// For Polly-specific retry options with advanced features like <c>JitterStrategy</c>,
 /// <c>OperationTimeout</c>, and custom <c>ShouldRetry</c> predicates, use
-/// <see cref="Dispatch.Resilience.Polly.RetryOptions"/> instead.
+/// <c>Excalibur.Dispatch.Resilience.Polly.RetryOptions</c> instead.
 /// </para>
 /// </remarks>
 public sealed class RetryOptions

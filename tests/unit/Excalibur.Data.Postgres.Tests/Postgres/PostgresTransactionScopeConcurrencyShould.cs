@@ -14,8 +14,8 @@ namespace Excalibur.Data.Tests.Postgres;
 /// Regression tests for S541.3 (bd-kahxj): Postgres transaction scope dictionary race condition fix.
 /// Validates that _transactions uses ConcurrentDictionary and that concurrent access is safe.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PostgresTransactionScopeConcurrencyShould : UnitTestBase
 {
 	#region ConcurrentDictionary Verification

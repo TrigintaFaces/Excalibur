@@ -16,31 +16,39 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// </summary>
 public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, ISnapshot?>
 {
-	private const string Sql = """
-		SELECT SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt
-		FROM EventStoreSnapshots
-		WHERE AggregateId = @AggregateId AND AggregateType = @AggregateType
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetLatestSnapshotRequest"/> class.
 	/// </summary>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the snapshot store table. Default: "dbo".</param>
+	/// <param name="table">The snapshot store table name. Default: "EventStoreSnapshots".</param>
 	public GetLatestSnapshotRequest(
 		string aggregateId,
 		string aggregateType,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "dbo",
+		string table = "EventStoreSnapshots")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+
+		var qualifiedTable = SqlTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		var sql = $"""
+			SELECT SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt
+			FROM {qualifiedTable}
+			WHERE AggregateId = @AggregateId AND AggregateType = @AggregateType
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 		{

@@ -1,24 +1,28 @@
-﻿---
+---
 sidebar_position: 7
 title: Serialization Providers
-description: Dedicated setup guides for MemoryPack, MessagePack, and Protobuf serialization providers.
+description: Dedicated setup guides for MemoryPack, MessagePack, Protobuf, and Avro serialization providers.
 ---
 
 # Serialization Providers
 
-Dispatch supports pluggable serialization via dedicated provider packages. Each provider implements `IEventSerializer` and can be registered for internal serialization, transport serialization, or both.
+Dispatch supports pluggable serialization via dedicated provider packages. Each provider registers itself with a single DI call that handles everything: DI registration, serializer registry entry, and setting the serializer as current.
 
 For an overview of all serialization options, see [Serialization](./serialization.md).
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the core package plus your chosen provider:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Serialization.MemoryPack  # or MessagePack / Protobuf
+  dotnet add package Excalibur.Dispatch.Serialization.MemoryPack  # or MessagePack / Protobuf / Avro
   ```
 - Familiarity with [serialization overview](./serialization.md) and [middleware concepts](./index.md)
+
+:::tip Two-layer architecture
+Dispatch has two independent serialization layers: **event storage** (`IEventSerializer` -- JSON by default) and **envelope transport** (`ISerializer`). The providers below configure the envelope layer. Your domain events stay as plain POCOs -- no serializer-specific attributes needed. See [Serialization Architecture](./serialization.md#two-layer-serialization-architecture) for details.
+:::
 
 ## When to Choose Each Provider
 
@@ -28,12 +32,14 @@ For an overview of all serialization options, see [Serialization](./serializatio
 | **MemoryPack** | `Excalibur.Dispatch.Serialization.MemoryPack` | Yes | No | .NET only | Fastest |
 | **MessagePack** | `Excalibur.Dispatch.Serialization.MessagePack` | Yes | Optional | Yes | Very fast |
 | **Protobuf** | `Excalibur.Dispatch.Serialization.Protobuf` | Yes | Required (.proto) | Yes | Fast |
+| **Avro** | `Excalibur.Dispatch.Serialization.Avro` | Yes | Required | Yes | Fast |
 
 **Decision guide:**
-- **.NET-only, maximum throughput** → MemoryPack
-- **Cross-language, compact binary** → MessagePack
-- **Schema evolution, gRPC integration** → Protobuf
-- **Debugging, human-readable** → System.Text.Json (default)
+- **.NET-only, maximum throughput** -> MemoryPack
+- **Cross-language, compact binary** -> MessagePack
+- **Schema evolution, gRPC integration** -> Protobuf
+- **Hadoop/Kafka ecosystem** -> Avro
+- **Debugging, human-readable** -> System.Text.Json (default)
 
 ---
 
@@ -52,36 +58,18 @@ dotnet add package Excalibur.Dispatch.Serialization.MemoryPack
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// Register MemoryPack for internal serialization
-services.AddMemoryPackInternalSerialization();
+// One call does everything: registers ISerializer, IBinaryEnvelopeDeserializer,
+// adds MemoryPack to the serializer registry, and sets it as current.
+services.AddMemoryPackSerializer();
 ```
 
-### Message Annotation
-
-MemoryPack requires the `[MemoryPackable]` attribute on message types:
-
-```csharp
-using MemoryPack;
-
-[MemoryPackable]
-public partial class OrderCreatedEvent : IDomainEvent
-{
-    public Guid EventId { get; init; }
-    public Guid AggregateId { get; init; }
-    public int Version { get; init; }
-    public DateTimeOffset OccurredAt { get; init; }
-    public string EventType => nameof(OrderCreatedEvent);
-    public IDictionary<string, string>? Metadata { get; init; }
-
-    public string ProductName { get; init; } = default!;
-    public decimal Price { get; init; }
-}
-```
+:::info No attributes needed on your events
+Consumer event types do **not** need `[MemoryPackable]` or any serializer-specific attributes. Only the internal envelope wrapper uses MemoryPack attributes. Your domain events remain plain POCOs.
+:::
 
 ### Considerations
 
-- .NET-only — cannot be deserialized by non-.NET consumers
-- Requires `partial` class declarations for source generation
+- .NET-only -- cannot be deserialized by non-.NET consumers
 - Ideal for internal event store serialization where all consumers are .NET
 
 ---
@@ -99,44 +87,16 @@ dotnet add package Excalibur.Dispatch.Serialization.MessagePack
 ### Registration
 
 ```csharp
-using Microsoft.Extensions.DependencyInjection;
-
-// Basic registration
-services.AddMessagePackSerialization();
-
-// With custom resolver
-services.AddMessagePackSerialization<MyCustomResolver>();
-
-// Pluggable (replaces default IEventSerializer)
-services.AddMessagePackPluggableSerialization();
-
-// Pluggable with options
-services.AddMessagePackPluggableSerialization(options =>
-{
-    options.EnableLZ4Compression = true;
-});
+// One call does everything: DI registration, serializer registry, set as current
+services.AddMessagePackSerializer();
 ```
 
-### Message Annotation
-
-MessagePack uses key-based attributes:
+With custom MessagePack options:
 
 ```csharp
-using MessagePack;
-
-[MessagePackObject]
-public class OrderCreatedEvent : IDomainEvent
-{
-    [Key(0)] public Guid EventId { get; init; }
-    [Key(1)] public Guid AggregateId { get; init; }
-    [Key(2)] public int Version { get; init; }
-    [Key(3)] public DateTimeOffset OccurredAt { get; init; }
-    [Key(4)] public string EventType => nameof(OrderCreatedEvent);
-    [Key(5)] public IDictionary<string, string>? Metadata { get; init; }
-
-    [Key(6)] public string ProductName { get; init; } = default!;
-    [Key(7)] public decimal Price { get; init; }
-}
+services.AddMessagePackSerializer(
+    MessagePackSerializerOptions.Standard
+        .WithCompression(MessagePackCompression.Lz4BlockArray));
 ```
 
 ### Considerations
@@ -160,9 +120,17 @@ dotnet add package Excalibur.Dispatch.Serialization.Protobuf
 ### Registration
 
 ```csharp
-using Microsoft.Extensions.DependencyInjection;
+// One call does everything: DI registration, serializer registry, set as current
+services.AddProtobufSerializer();
+```
 
-services.AddProtobufSerialization();
+With custom options:
+
+```csharp
+services.AddProtobufSerializer(opts =>
+{
+    opts.WireFormat = ProtobufWireFormat.Json; // default: Binary
+});
 ```
 
 ### Schema Definition
@@ -192,27 +160,57 @@ message OrderCreatedEvent {
 - Strong versioning and backward compatibility guarantees
 - Native gRPC transport compatibility
 - Requires `.proto` file management and code generation
+- Supports both binary (default) and JSON wire formats via `ProtobufSerializationOptions.WireFormat`
+
+---
+
+## Avro
+
+Apache Avro serialization for schema-based data exchange, commonly used in Kafka and Hadoop ecosystems.
+
+### Installation
+
+```bash
+dotnet add package Excalibur.Dispatch.Serialization.Avro
+```
+
+### Registration
+
+```csharp
+// One call does everything: DI registration, serializer registry, set as current
+services.AddAvroSerializer();
+```
+
+With custom options:
+
+```csharp
+services.AddAvroSerializer(opts =>
+{
+    opts.BufferSize = 8192; // default: 4096
+});
+```
+
+### Considerations
+
+- Schema-based contract definition
+- Native integration with Kafka and Confluent Schema Registry
+- Configurable buffer size for encoding operations (default: 4096 bytes)
 
 ---
 
 ## Mixing Serializers
 
-You can use different serializers for different purposes:
+You can register multiple serializers -- the last one registered wins as the "current" serializer for new writes. Old data remains readable via its magic byte regardless of which serializer is current.
 
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
-
 // MemoryPack for internal event store (fastest)
-services.AddMemoryPackInternalSerialization();
+services.AddMemoryPackSerializer();
 
-// MessagePack for transport serialization (cross-language)
-services.AddMessagePackPluggableSerialization();
+// If you later switch, old MemoryPack data is still readable
+// because the magic byte tells the system which deserializer to use.
 ```
 
 ## See Also
 
-- [Serialization Overview](./serialization.md) — Core serialization concepts
-- [Transports](../transports/index.md) — Transport-level serialization configuration
+- [Serialization Overview](./serialization.md) -- Core serialization concepts
+- [Transports](../transports/index.md) -- Transport-level serialization configuration

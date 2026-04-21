@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// <summary>
 /// Tests for <see cref="RetryPolicy"/> backoff strategies and jitter configurations.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class RetryPolicyBackoffShould
 {
 	[Fact]

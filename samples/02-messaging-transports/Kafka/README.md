@@ -101,7 +101,7 @@ Kafka/
 ├── Messages/
 │   └── SensorReadingEvent.cs     # Event definition
 ├── Handlers/
-│   └── SensorReadingEventHandler.cs # Message handler
+│   └── SensorReadingHandler.cs # Message handler
 ├── Program.cs                     # Application entry point
 ├── appsettings.json              # Configuration
 ├── docker-compose.yml            # Kafka container (KRaft mode)

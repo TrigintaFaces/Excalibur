@@ -46,11 +46,7 @@ internal sealed class PubSubTelemetryProvider : IDisposable
 	private readonly Histogram<double> _ackLatency;
 	private readonly ObservableGauge<int> _activeStreams;
 	private readonly ObservableGauge<double> _throughput;
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _throughputLock = new();
-#else
-	private readonly object _throughputLock = new();
-#endif
+	private readonly Lock _throughputLock = new();
 	private MeterProvider? _meterProvider;
 	private TracerProvider? _tracerProvider;
 

@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Sprint 693, Task T.1 (bd-jcswc): Closes the critical gap where JSON property renames
 /// or type changes could silently break deserialization of persisted events.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class DomainEventSerializationContractShould
 {
 	[SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code")]
@@ -446,6 +446,7 @@ public sealed class DomainEventSerializationContractShould
 		// Arrange - uses the DomainEvent abstract record base class
 		var original = new OrderCreatedEvent("order-rec-1", 199.99m)
 		{
+			AggregateId = "order-rec-1",
 			EventId = "evt-record",
 			Version = 10,
 			OccurredAt = new DateTimeOffset(2026, 6, 15, 12, 0, 0, TimeSpan.Zero),
@@ -479,10 +480,9 @@ public sealed class DomainEventSerializationContractShould
 		var bytes = serializer.SerializeEvent(original);
 		var deserialized = (OrderCreatedEvent)serializer.DeserializeEvent(bytes, typeof(OrderCreatedEvent));
 
-		// Assert
-		deserialized.Metadata.ShouldNotBeNull();
-		deserialized.Metadata["CorrelationId"].ToString().ShouldBe("12345678-1234-1234-1234-123456789012");
-		deserialized.Metadata["CausationId"].ToString().ShouldBe("cause-001");
+		// Assert -- T.21: CorrelationId/CausationId are first-class properties
+		deserialized.CorrelationId.ShouldBe("12345678-1234-1234-1234-123456789012");
+		deserialized.CausationId.ShouldBe("cause-001");
 	}
 
 	#endregion
@@ -614,10 +614,7 @@ public sealed class DomainEventSerializationContractShould
 	/// <summary>
 	/// DomainEvent record using the abstract base class pattern.
 	/// </summary>
-	private sealed record OrderCreatedEvent(string OrderId, decimal Total) : DomainEvent
-	{
-		public override string AggregateId { get; init; } = OrderId;
-	}
+	private sealed record OrderCreatedEvent(string OrderId, decimal Total) : DomainEvent;
 
 	/// <summary>
 	/// Non-IDomainEvent class for negative testing.

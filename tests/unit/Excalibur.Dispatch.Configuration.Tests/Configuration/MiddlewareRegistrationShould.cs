@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 /// Tests middleware registration construction and property behavior.
 /// </remarks>
 [Trait("Category", "Unit")]
-[Trait("Component", "Configuration")]
+[Trait(TraitNames.Component, TestComponents.Configuration)]
 [Trait("Priority", "0")]
 public sealed class MiddlewareRegistrationShould
 {

@@ -36,11 +36,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	private readonly LeaderElectionOptions _electionOptions;
 	private readonly ILogger<PostgresLeaderElection> _logger;
 
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 
 	private NpgsqlConnection? _connection;
 	private CancellationTokenSource? _renewalCts;

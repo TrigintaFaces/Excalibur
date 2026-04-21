@@ -4,3 +4,5 @@
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("Excalibur.Dispatch")]
+[assembly: InternalsVisibleTo("Excalibur.Domain")]
+[assembly: InternalsVisibleTo("Excalibur.EventSourcing")]

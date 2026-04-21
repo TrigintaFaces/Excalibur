@@ -92,7 +92,7 @@ public sealed class SagaTimeoutServiceCollectionExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddSagaTimeoutDelivery(null!));
+			services.AddSagaTimeoutDelivery((Action<SagaTimeoutOptions>)null!));
 	}
 
 	[Fact]

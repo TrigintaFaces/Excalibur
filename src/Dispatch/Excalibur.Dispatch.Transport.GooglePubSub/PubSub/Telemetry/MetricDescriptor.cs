@@ -7,9 +7,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Stub implementation for MetricDescriptor if not available in the library.
 /// </summary>
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034:Nested types should not be visible",
-	Justification = "MetricDescriptorTypes nested class mirrors Google Cloud API structure and is intentionally visible for API compatibility.")]
-public sealed class MetricDescriptor
+internal sealed class MetricDescriptor
 {
 	/// <summary>
 	/// Gets or sets the metric type.
@@ -51,9 +49,12 @@ public sealed class MetricDescriptor
 	/// </value>
 	public MetricDescriptorTypes.ValueType ValueType { get; set; }
 
-	//
-	// Gets or sets the unit.
-	// </summary>
+	/// <summary>
+	/// Gets or sets the unit.
+	/// </summary>
+	/// <value>
+	/// The unit.
+	/// </value>
 	public string Unit { get; set; } = string.Empty;
 
 	/// <summary>
@@ -67,12 +68,12 @@ public sealed class MetricDescriptor
 	/// <summary>
 	/// Nested types for MetricDescriptor.
 	/// </summary>
-	public static class MetricDescriptorTypes
+	internal static class MetricDescriptorTypes
 	{
 		/// <summary>
 		/// Metric kind enumeration.
 		/// </summary>
-		public enum MetricKind
+		internal enum MetricKind
 		{
 			/// <summary>
 			/// Unspecified metric kind.
@@ -98,7 +99,7 @@ public sealed class MetricDescriptor
 		/// <summary>
 		/// Value type enumeration.
 		/// </summary>
-		public enum ValueType
+		internal enum ValueType
 		{
 			/// <summary>
 			/// Value type unspecified.

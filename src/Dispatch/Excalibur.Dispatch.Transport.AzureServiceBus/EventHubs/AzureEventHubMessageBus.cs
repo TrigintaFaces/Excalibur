@@ -42,6 +42,8 @@ internal sealed partial class AzureEventHubMessageBus(
 	AzureEventHubOptions options,
 	ILogger<AzureEventHubMessageBus> logger) : IMessageBus, IAsyncDisposable
 {
+	// Retain options for future use (e.g., batching, partitioning configuration).
+	private readonly AzureEventHubOptions _options = options;
 
 	/// <summary>
 	/// Publishes a dispatch action to the Event Hub.
@@ -113,7 +115,7 @@ internal sealed partial class AzureEventHubMessageBus(
 		var evt = new EventData(body);
 		if (context.CorrelationId != null)
 		{
-			evt.Properties["correlation-id"] = context.CorrelationId;
+			evt.Properties[OutboxHeaderNames.CorrelationId] = context.CorrelationId;
 		}
 
 		var traceParent = context.GetTraceParent();

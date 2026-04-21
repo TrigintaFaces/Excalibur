@@ -48,8 +48,8 @@ public sealed class CacheModeIntegrationShould
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CacheModeIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(o =>
 				{
 					o.Enabled = true;
@@ -120,8 +120,8 @@ public sealed class CacheModeIntegrationShould
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CacheModeIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(o =>
 				{
 					o.Enabled = true;

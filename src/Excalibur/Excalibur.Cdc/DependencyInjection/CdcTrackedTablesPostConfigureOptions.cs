@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +30,14 @@ internal sealed class CdcTrackedTablesPostConfigureOptions : IPostConfigureOptio
 		_sectionPath = sectionPath ?? throw new ArgumentNullException(nameof(sectionPath));
 	}
 
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL2026:RequiresUnreferencedCode",
+		Justification = "CdcTableTrackingOptions is a simple POCO with primitive properties; all members are preserved.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:RequiresDynamicCode",
+		Justification = "CdcTableTrackingOptions is a simple POCO with primitive properties; no dynamic code required.")]
 	public void PostConfigure(string? name, CdcOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);

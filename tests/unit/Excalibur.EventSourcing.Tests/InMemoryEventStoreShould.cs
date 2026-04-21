@@ -24,13 +24,13 @@ public sealed class InMemoryEventStoreShould
 	internal sealed record TestCreatedEvent : DomainEvent
 	{
 		public string Name { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	internal sealed record TestUpdatedEvent : DomainEvent
 	{
 		public string Value { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	#endregion Test Events

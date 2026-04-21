@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
 
@@ -27,10 +29,10 @@ namespace Excalibur.Jobs.Outbox;
 /// defined in the application configuration under "Jobs:OutboxJob".
 /// </remarks>
 [DisallowConcurrentExecution]
-public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
+public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 {
 	/// <summary>
-	/// The configuration section name used to bind <see cref="OutboxJobConfig"/> from application configuration.
+	/// The configuration section name used to bind <see cref="OutboxJobOptions"/> from application configuration.
 	/// </summary>
 	public const string JobConfigSectionName = $"Jobs:{nameof(OutboxJob)}";
 
@@ -63,12 +65,16 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 	/// </summary>
 	/// <param name="configurator"> The Quartz configurator for registering the job and trigger. </param>
 	/// <param name="configuration"> The application configuration. </param>
+	[UnconditionalSuppressMessage("AOT", "IL2026",
+		Justification = "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced code for binding. This is acceptable at startup.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "GetJobConfiguration uses IConfiguration.Get<T>() which requires dynamic code for binding. This is acceptable at startup.")]
 	public static void ConfigureJob(IServiceCollectionQuartzConfigurator configurator, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<OutboxJobConfig>(JobConfigSectionName);
+		var jobConfig = configuration.GetJobConfiguration<OutboxJobOptions>(JobConfigSectionName);
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
 		if (jobConfig.Disabled)
@@ -90,12 +96,16 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 	/// </summary>
 	/// <param name="healthChecks"> The health checks builder. </param>
 	/// <param name="configuration"> The application configuration. </param>
+	[UnconditionalSuppressMessage("AOT", "IL2026",
+		Justification = "GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced code for binding. This is acceptable at startup.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "GetJobConfiguration uses IConfiguration.Get<T>() which requires dynamic code for binding. This is acceptable at startup.")]
 	public static void ConfigureHealthChecks(IHealthChecksBuilder healthChecks, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<OutboxJobConfig>(JobConfigSectionName);
+		var jobConfig = configuration.GetJobConfiguration<OutboxJobOptions>(JobConfigSectionName);
 
 		_ = healthChecks.Add(new HealthCheckRegistration(
 			$"{jobConfig.JobName}HealthCheck",

@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Transport.Google;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.Common;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class CommonOptionsShould
 {

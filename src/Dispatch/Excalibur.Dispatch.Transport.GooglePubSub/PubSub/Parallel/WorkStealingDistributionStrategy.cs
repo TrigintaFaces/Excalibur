@@ -11,11 +11,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 	Justification = "Random is used for probabilistic worker selection/load balancing, not for security purposes. Cryptographic randomness is unnecessary for work distribution.")]
 public sealed class WorkStealingDistributionStrategy : IWorkDistributionStrategy
 {
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 	private readonly Dictionary<int, int> _workerQueueDepths;
 
 	/// <summary>

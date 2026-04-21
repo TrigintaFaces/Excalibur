@@ -4,10 +4,10 @@
 namespace Excalibur.Cdc.Postgres;
 
 /// <summary>
-/// Internal implementation of <see cref="ICdcStateStoreBuilder"/> for Postgres CDC.
+/// Internal implementation of <see cref="ICdcRelationalStateStoreBuilder"/> for Postgres CDC.
 /// Configures <see cref="PostgresCdcStateStoreOptions"/>.
 /// </summary>
-internal sealed class PostgresCdcStateStoreBuilder : ICdcStateStoreBuilder
+internal sealed class PostgresCdcStateStoreBuilder : ICdcRelationalStateStoreBuilder
 {
 	private readonly PostgresCdcStateStoreOptions _options;
 
@@ -32,7 +32,7 @@ internal sealed class PostgresCdcStateStoreBuilder : ICdcStateStoreBuilder
 	internal string? StateConnectionStringName { get; private set; }
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder ConnectionString(string connectionString)
+	public ICdcRelationalStateStoreBuilder ConnectionString(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
@@ -41,7 +41,7 @@ internal sealed class PostgresCdcStateStoreBuilder : ICdcStateStoreBuilder
 	}
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder ConnectionStringName(string name)
+	public ICdcRelationalStateStoreBuilder ConnectionStringName(string name)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -50,7 +50,7 @@ internal sealed class PostgresCdcStateStoreBuilder : ICdcStateStoreBuilder
 	}
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder SchemaName(string schema)
+	public ICdcRelationalStateStoreBuilder SchemaName(string schema)
 	{
 		if (string.IsNullOrWhiteSpace(schema))
 		{
@@ -62,7 +62,7 @@ internal sealed class PostgresCdcStateStoreBuilder : ICdcStateStoreBuilder
 	}
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder TableName(string tableName)
+	public ICdcRelationalStateStoreBuilder TableName(string tableName)
 	{
 		if (string.IsNullOrWhiteSpace(tableName))
 		{
@@ -74,11 +74,15 @@ internal sealed class PostgresCdcStateStoreBuilder : ICdcStateStoreBuilder
 	}
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder BindConfiguration(string sectionPath)
+	public ICdcRelationalStateStoreBuilder BindConfiguration(string sectionPath)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 
 		BindConfigurationPath = sectionPath;
 		return this;
 	}
+
+	ICdcStateStoreBuilder ICdcStateStoreBuilder.TableName(string tableName) => TableName(tableName);
+
+	ICdcStateStoreBuilder ICdcStateStoreBuilder.BindConfiguration(string sectionPath) => BindConfiguration(sectionPath);
 }

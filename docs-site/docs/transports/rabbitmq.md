@@ -9,7 +9,7 @@ RabbitMQ transport for flexible message routing, work queues, and traditional pu
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A running RabbitMQ server (or Docker: `docker run -p 5672:5672 -p 15672:15672 rabbitmq:management`)
 - Familiarity with [transport concepts](./index.md) and [choosing a transport](./choosing-a-transport.md)
 
@@ -17,6 +17,23 @@ RabbitMQ transport for flexible message routing, work queues, and traditional pu
 ```bash
 dotnet add package Excalibur.Dispatch.Transport.RabbitMQ
 ```
+
+:::tip One-Line Setup with Metapackage
+For the fastest setup, use the **`Excalibur.Dispatch.RabbitMQ`** experience metapackage. It bundles the RabbitMQ transport with Polly resilience and OpenTelemetry observability in a single call:
+
+```bash
+dotnet add package Excalibur.Dispatch.RabbitMQ
+```
+
+```csharp
+services.AddDispatchRabbitMQ(rmq =>
+{
+    rmq.ConnectionString("amqp://guest:guest@localhost:5672/");
+});
+```
+
+`AddDispatchRabbitMQ` calls `AddDispatch` internally and configures `UseRabbitMQ`, `UseResilience`, and `UseObservability`. Pass an optional second parameter (`Action<IDispatchBuilder>`) for additional pipeline configuration. See [Package Guide](../package-guide.md#experience-metapackages) for details.
+:::
 
 ## Quick Start
 
@@ -57,6 +74,11 @@ var bus = serviceProvider.GetRequiredKeyedService<IMessageBus>("rabbitmq");
 ## Configuration
 
 ### Fluent Builder Configuration
+
+:::tip Start simple
+For most applications, the Quick Start above is all you need. The fluent builder below is for advanced scenarios (custom exchanges, queue bindings, CloudEvents routing).
+:::
+
 Configure RabbitMQ transport using the fluent builder:
 
 ```csharp
@@ -92,6 +114,11 @@ services.AddRabbitMQTransport(rmq =>
 ```
 
 ### Broker Options
+
+:::tip When do I need this?
+Use `RabbitMqOptions` when you need fine-grained control over queue arguments, consumer behavior, or dead letter exchanges. The fluent builder above covers most scenarios.
+:::
+
 Configure low-level broker behavior via `RabbitMqOptions`:
 
 ```csharp
@@ -236,7 +263,7 @@ services.AddHealthChecks()
 services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
-        tracing.AddSource("Excalibur.Dispatch.Observability");
+        tracing.AddSource("Excalibur.Dispatch");
         // Traces: publish, consume, ack, reject
     })
     .WithMetrics(metrics =>
@@ -255,12 +282,12 @@ services.AddOpenTelemetry()
 - [ ] Use TLS (`amqps://`) in production
 
 ## Next Steps
-- [Kafka Transport](kafka.md) — High-throughput streaming
-- [Multi-Transport Routing](multi-transport.md) — Combine RabbitMQ with other transports
+- [Kafka Transport](kafka.md) -- High-throughput streaming
+- [Multi-Transport Routing](multi-transport.md) -- Combine RabbitMQ with other transports
 
 ## See Also
 
-- [Choosing a Transport](./choosing-a-transport.md) — Compare RabbitMQ against other transports to find the best fit
-- [Message Mapping](./message-mapping.md) — Configure how message types map to exchanges and queues
-- [Dead Letter Handling](../patterns/dead-letter.md) — Strategies for managing failed messages with DLX
-- [Multi-Transport Routing](./multi-transport.md) — Route different message types across RabbitMQ and other transports
+- [Choosing a Transport](./choosing-a-transport.md) -- Compare RabbitMQ against other transports to find the best fit
+- [Message Mapping](./message-mapping.md) -- Configure how message types map to exchanges and queues
+- [Dead Letter Handling](../patterns/dead-letter.md) -- Strategies for managing failed messages with DLX
+- [Multi-Transport Routing](./multi-transport.md) -- Route different message types across RabbitMQ and other transports

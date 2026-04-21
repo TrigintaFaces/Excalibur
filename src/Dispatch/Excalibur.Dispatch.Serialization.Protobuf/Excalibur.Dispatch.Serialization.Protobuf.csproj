@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -8,11 +8,9 @@
     <Description>Protobuf serialization support for the Excalibur framework (opt-in package for GCP/AWS interoperability).</Description>
     <PackageTags>protobuf;serialization;dispatch;messaging;opt-in;gcp;aws</PackageTags>
   </PropertyGroup>
-  <!-- AOT: NOT compatible — protobuf-net uses reflection-based serialization -->
+  <!-- AOT: Compatible. ProtobufSerializer class carries [RequiresUnreferencedCode]/[RequiresDynamicCode] for reflection-based Parser/Descriptor access. Google.Protobuf 3.32.1 supports AOT. -->
   <PropertyGroup>
-    <IsAotCompatible>false</IsAotCompatible>
-    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" />
@@ -37,9 +35,5 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

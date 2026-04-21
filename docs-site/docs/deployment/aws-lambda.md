@@ -8,7 +8,7 @@
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An AWS account with Lambda access
 - AWS CLI and SAM CLI installed locally
 - Familiarity with [ASP.NET Core deployment](./aspnet-core.md) and [dependency injection](../core-concepts/dependency-injection.md)
@@ -101,7 +101,7 @@ public class Function
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <AWSProjectType>Lambda</AWSProjectType>
@@ -132,7 +132,7 @@ dotnet lambda package -c Release -o function.zip
 # Create Lambda function
 aws lambda create-function \
   --function-name your-function \
-  --runtime dotnet9 \
+  --runtime dotnet10 \
   --role arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role \
   --handler YourAssembly::YourNamespace.Function::FunctionHandler \
   --zip-file fileb://function.zip \
@@ -174,7 +174,7 @@ aws lambda invoke \
 dotnet publish -c Release -r linux-x64 /p:PublishAot=true
 
 # Create deployment package
-cd bin/Release/net9.0/linux-x64/publish
+cd bin/Release/net10.0/linux-x64/publish
 zip -r ../../../../function.zip .
 
 # Deploy
@@ -187,8 +187,8 @@ aws lambda update-function-code \
 
 | Runtime | Package Size | Cold Start | Memory |
 |---------|--------------|------------|--------|
-| .NET 9 (JIT) | 35 MB | 1-3 seconds | 150 MB |
-| .NET 9 (AOT) | 10 MB | 100-300 ms | 50 MB |
+| .NET 10 (JIT) | 35 MB | 1-3 seconds | 150 MB |
+| .NET 10 (AOT) | 10 MB | 100-300 ms | 50 MB |
 
 ---
 
@@ -745,7 +745,7 @@ Transform: AWS::Serverless-2016-10-31
 
 Globals:
   Function:
-    Runtime: dotnet9
+    Runtime: dotnet10
     Timeout: 30
     MemorySize: 512
     Environment:
@@ -757,7 +757,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: YourAssembly::YourNamespace.Function::FunctionHandler
-      CodeUri: ./bin/Release/net9.0/publish/
+      CodeUri: ./bin/Release/net10.0/publish/
       Events:
         ApiEvent:
           Type: Api
@@ -772,7 +772,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: YourAssembly::YourNamespace.SqsFunction::FunctionHandler
-      CodeUri: ./bin/Release/net9.0/publish/
+      CodeUri: ./bin/Release/net10.0/publish/
       Events:
         SqsEvent:
           Type: SQS
@@ -895,4 +895,4 @@ aws lambda update-function-configuration \
 
 **Last Updated:** 2026-01-01
 **Framework:** Excalibur 1.0.0
-**AWS Lambda:** .NET 9 Runtime with Native AOT support
+**AWS Lambda:** .NET 10 Runtime with Native AOT support

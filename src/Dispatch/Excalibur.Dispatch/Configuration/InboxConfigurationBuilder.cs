@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 
@@ -108,9 +110,11 @@ internal sealed class InboxConfigurationBuilder : IInboxConfigurationBuilder
 
 		var configs = new Dictionary<Type, InboxHandlerSettings>();
 
+#pragma warning disable IL2067, IL2072 // Handler types from DI are preserved through registration
 		foreach (var handlerType in handlerTypes)
 		{
 			var settings = ResolveConfiguration(handlerType);
+#pragma warning restore IL2067, IL2072
 			if (settings is not null)
 			{
 				configs[handlerType] = settings;
@@ -123,7 +127,9 @@ internal sealed class InboxConfigurationBuilder : IInboxConfigurationBuilder
 	/// <summary>
 	/// Determines if a handler type processes a specific message type.
 	/// </summary>
-	private static bool HandlerProcessesMessageType(Type handlerType, Type messageType)
+	private static bool HandlerProcessesMessageType(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type handlerType,
+		Type messageType)
 	{
 		// Check all interfaces implemented by the handler
 		var interfaces = handlerType.GetInterfaces();
@@ -148,7 +154,7 @@ internal sealed class InboxConfigurationBuilder : IInboxConfigurationBuilder
 	/// <summary>
 	/// Resolves configuration for a handler type using selection precedence.
 	/// </summary>
-	private InboxHandlerSettings? ResolveConfiguration(Type handlerType)
+	private InboxHandlerSettings? ResolveConfiguration([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type handlerType)
 	{
 		// 1. Exact type match (highest priority)
 		if (_exactTypeConfigs.TryGetValue(handlerType, out var exactConfig))

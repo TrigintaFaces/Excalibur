@@ -18,9 +18,9 @@ namespace Excalibur.Dispatch.Tests.Observability.Sanitization;
 /// <summary>
 /// Unit tests for <see cref="ComplianceTelemetrySanitizer"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Observability")]
-[Trait("Feature", "Sanitization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Observability)]
+[Trait(TraitNames.Feature, TestFeatures.Sanitization)]
 public sealed class ComplianceTelemetrySanitizerShould
 {
 	private static ComplianceTelemetrySanitizer CreateSanitizer(
@@ -835,7 +835,7 @@ public sealed class ComplianceTelemetrySanitizerShould
 		for (var i = 0; i < inputs.Length; i++)
 		{
 			results[i].ShouldNotBeNull();
-			results[i].ShouldNotContain(inputs[i]);
+			results[i]!.ShouldNotContain(inputs[i]);
 			results[i].ShouldBe("[REDACTED]");
 		}
 	}
@@ -864,7 +864,7 @@ public sealed class ComplianceTelemetrySanitizerShould
 		for (var i = 0; i < inputs.Length; i++)
 		{
 			results1[i].ShouldNotBeNull();
-			results1[i].ShouldNotContain(inputs[i]);
+			results1[i]!.ShouldNotContain(inputs[i]);
 			results1[i].ShouldBe(results2[i]);
 		}
 	}
@@ -887,7 +887,7 @@ public sealed class ComplianceTelemetrySanitizerShould
 		for (var i = 0; i < uniqueCount; i++)
 		{
 			results[i].ShouldNotBeNull();
-			results[i].ShouldNotContain($"user{i}@example.com");
+			results[i]!.ShouldNotContain($"user{i}@example.com");
 			results[i].ShouldBe("[REDACTED]");
 		}
 	}
@@ -963,6 +963,76 @@ public sealed class ComplianceTelemetrySanitizerShould
 
 		// Assert — redacted because of tag name, not pattern
 		result.ShouldBe("[REDACTED]");
+	}
+
+	#endregion
+
+	#region IsFullyHashed Short-Circuit
+
+	[Fact]
+	public void SanitizeTag_SkipSubsequentPatterns_WhenEmailHashCoversEntireValue()
+	{
+		// Arrange — hash mode, input is a pure email (entire value matches)
+		var sanitizer = CreateSanitizer(o => o.HashDetectedPii = true);
+
+		// Act — "user95@example.com" produces a hash whose hex digits include 9+ digit runs
+		// that would trigger false-positive SSN detection without the IsFullyHashed guard
+		var result = sanitizer.SanitizeTag("notes", "user95@example.com");
+
+		// Assert — result should be a single sha256: hash, not a double-hash
+		result.ShouldNotBeNull();
+		result.ShouldStartWith("sha256:");
+
+		// Verify determinism: calling again must produce the same value
+		var result2 = sanitizer.SanitizeTag("notes", "user95@example.com");
+		result.ShouldBe(result2);
+
+		// Verify it's the direct hash of the email, not a hash-of-hash
+		result.ShouldBe(ExpectedHash("user95@example.com"));
+	}
+
+	[Fact]
+	public void SanitizeTag_SkipSubsequentPatterns_WhenRedactedPlaceholderCoversEntireValue()
+	{
+		// Arrange — redaction mode (default), input is a pure email
+		var sanitizer = CreateSanitizer();
+
+		// Act
+		var result = sanitizer.SanitizeTag("notes", "alice@example.com");
+
+		// Assert — should be the placeholder, not further processed
+		result.ShouldBe("[REDACTED]");
+	}
+
+	[Fact]
+	public void SanitizeTag_NotShortCircuit_WhenValueContainsMixedContent()
+	{
+		// Arrange — hash mode, input has email embedded in other text
+		var sanitizer = CreateSanitizer(o => o.HashDetectedPii = true);
+
+		// Act — mixed content: email + surrounding text
+		var result = sanitizer.SanitizeTag("notes", "Contact alice@example.com for info");
+
+		// Assert — email is hashed but surrounding text remains
+		result.ShouldNotBeNull();
+		result.ShouldContain("Contact ");
+		result.ShouldContain(" for info");
+		result.ShouldNotContain("alice@example.com");
+		result.ShouldContain("sha256:");
+	}
+
+	[Fact]
+	public void SanitizeTag_NoFalsePositiveSsnInEmailHash()
+	{
+		// Arrange — hash mode; user17's email hash has exactly 9 consecutive digits
+		// that would match SSN pattern without the IsFullyHashed guard
+		var sanitizer = CreateSanitizer(o => o.HashDetectedPii = true);
+
+		// Act
+		var result = sanitizer.SanitizeTag("notes", "user17@example.com");
+
+		// Assert — result is the direct hash, not a mangled hash-with-SSN-replacement
+		result.ShouldBe(ExpectedHash("user17@example.com"));
 	}
 
 	#endregion

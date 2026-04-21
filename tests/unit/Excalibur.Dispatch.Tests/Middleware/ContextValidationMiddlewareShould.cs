@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// strict vs lenient mode, and metrics recording.
 /// Sprint 560 (S560.45).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class ContextValidationMiddlewareShould : UnitTestBase
 {
 	private readonly IContextValidator _validator;

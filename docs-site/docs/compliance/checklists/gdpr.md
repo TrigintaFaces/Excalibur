@@ -57,7 +57,7 @@ This checklist provides step-by-step guidance for GDPR compliance using the Exca
 
 **Command:**
 ```bash
-dotnet add package Excalibur.Dispatch.Compliance
+dotnet add package Excalibur.Compliance
 dotnet add package Excalibur.Compliance.SqlServer  # Production
 dotnet add package Excalibur.Domain  # For [PersonalData] attribute
 ```
@@ -86,7 +86,7 @@ Data subjects have the right to obtain erasure of personal data without undue de
 **Development Setup:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -452,7 +452,7 @@ Maintain records of processing activities (RoPA) documenting personal data categ
 **Automatic Discovery:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class UserProfile
 {
@@ -562,7 +562,7 @@ Implement appropriate technical and organizational measures to ensure data prote
 **Encryption Setup:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 services.AddEncryption(encryption => encryption
     .UseKeyManagement<AesGcmEncryptionProvider>("aes-gcm-primary")
@@ -605,7 +605,7 @@ Implement appropriate technical and organizational measures to ensure a level of
 **Audit Setup:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class UserService
 {
@@ -864,7 +864,7 @@ dotnet test --filter "FullyQualifiedName~AuditStoreConformance"
 Enable detailed logging:
 
 ```csharp
-builder.Logging.AddFilter("Excalibur.Dispatch.Compliance", LogLevel.Debug);
+builder.Logging.AddFilter("Excalibur.Compliance", LogLevel.Debug);
 ```
 
 ---

@@ -100,13 +100,13 @@ All frameworks require the core security packages:
 dotnet add package Excalibur.Domain
 
 # Compliance features (GDPR erasure, SOC 2 validation)
-dotnet add package Excalibur.Dispatch.Compliance
+dotnet add package Excalibur.Compliance
 
 # Audit logging
-dotnet add package Excalibur.Dispatch.AuditLogging
+dotnet add package Excalibur.AuditLogging
 
 # For production audit persistence (SQL Server)
-dotnet add package Excalibur.Dispatch.AuditLogging.SqlServer
+dotnet add package Excalibur.AuditLogging.SqlServer
 
 # For production erasure/legal hold persistence (SQL Server)
 dotnet add package Excalibur.Compliance.SqlServer
@@ -115,7 +115,7 @@ dotnet add package Excalibur.Compliance.SqlServer
 ### Basic Configuration
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -146,7 +146,7 @@ builder.Services.AddGdprErasure(options =>
 ### Usage Example
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 // 1. Annotate sensitive data for automatic encryption
 public class Patient

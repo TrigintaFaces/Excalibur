@@ -54,6 +54,26 @@ public interface ISchemaEvolutionHandler
 		CancellationToken cancellationToken);
 
 	/// <summary>
+	/// Performs a dry run of a schema migration without applying changes.
+	/// </summary>
+	/// <param name="plan"> The migration plan to test. </param>
+	/// <param name="sampleSize"> The number of documents to test with. </param>
+	/// <param name="cancellationToken"> The cancellation token. </param>
+	/// <returns> The dry run results. </returns>
+	Task<SchemaMigrationDryRunResult> DryRunMigrationAsync(
+		SchemaMigrationPlan plan,
+		int sampleSize,
+		CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Provides administrative operations for schema evolution including version registration
+/// and history tracking. This is an ISP sub-interface of <see cref="ISchemaEvolutionHandler"/>
+/// for consumers that need schema versioning management.
+/// </summary>
+public interface ISchemaEvolutionHandlerAdmin
+{
+	/// <summary>
 	/// Registers a schema version for tracking.
 	/// </summary>
 	/// <param name="registration"> The schema version registration details. </param>
@@ -71,17 +91,5 @@ public interface ISchemaEvolutionHandler
 	/// <returns> The version history of the schema. </returns>
 	Task<SchemaVersionHistory> GetSchemaHistoryAsync(
 		string projectionType,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Performs a dry run of a schema migration without applying changes.
-	/// </summary>
-	/// <param name="plan"> The migration plan to test. </param>
-	/// <param name="sampleSize"> The number of documents to test with. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> The dry run results. </returns>
-	Task<SchemaMigrationDryRunResult> DryRunMigrationAsync(
-		SchemaMigrationPlan plan,
-		int sampleSize,
 		CancellationToken cancellationToken);
 }

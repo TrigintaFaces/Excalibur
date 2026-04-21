@@ -11,8 +11,8 @@ namespace Excalibur.Data.Tests.CosmosDb.Cdc.Builders;
 /// <see cref="ICosmosDbCdcBuilder.BindConfiguration"/> methods.
 /// Validates the unified WithStateStore(Action&lt;ICdcStateStoreBuilder&gt;) pattern.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CosmosDbCdcWithStateStoreShould : UnitTestBase
 {
 	private const string SourceConnectionString = "AccountEndpoint=https://source-cosmos.documents.azure.com:443/;AccountKey=dGVzdA==;";
@@ -34,7 +34,7 @@ public sealed class CosmosDbCdcWithStateStoreShould : UnitTestBase
 				      .ContainerId("orders")
 				      .ProcessorName("test-processor")
 				      .WithStateStore(state =>
-					      state.ConnectionString(StateConnectionString))));
+					      state.TableName("state-container"))));
 
 		// Assert -- state store options should be registered
 		services.ShouldContain(sd =>
@@ -57,7 +57,7 @@ public sealed class CosmosDbCdcWithStateStoreShould : UnitTestBase
 				      .ContainerId("orders")
 				      .ProcessorName("test-processor")
 				      .WithStateStore(state =>
-					      state.ConnectionString(StateConnectionString))));
+					      state.TableName("state-container"))));
 
 		// Assert -- CosmosDbCdcOptions still has source connection string
 		var provider = services.BuildServiceProvider();
@@ -95,9 +95,7 @@ public sealed class CosmosDbCdcWithStateStoreShould : UnitTestBase
 				      .ContainerId("orders")
 				      .ProcessorName("test-processor")
 				      .WithStateStore(state =>
-					      state.ConnectionString(StateConnectionString)
-					           .SchemaName("state-db")
-					           .TableName("state-container"))));
+					      state.TableName("state-container"))));
 
 		// Assert -- we can verify the options descriptors exist
 		var provider = services.BuildServiceProvider();
@@ -184,7 +182,7 @@ public sealed class CosmosDbCdcWithStateStoreShould : UnitTestBase
 				      .ContainerId("orders")
 				      .ProcessorName("test-processor")
 				      .WithStateStore(state =>
-					      state.ConnectionString(StateConnectionString)
+					      state.TableName("state-container")
 					           .BindConfiguration("Cdc:State"))));
 
 		// Assert -- state store BindConfiguration registered additional IConfigureOptions

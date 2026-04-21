@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Microsoft.Extensions.Options;
@@ -35,6 +36,11 @@ public sealed class DefaultBoundedContextValidator : IBoundedContextValidator
 	/// Initializes a new instance of the <see cref="DefaultBoundedContextValidator"/> class.
 	/// </summary>
 	/// <param name="options">The bounded context enforcement options.</param>
+	/// <remarks>
+	/// This constructor uses <see cref="AppDomain.CurrentDomain"/> assembly scanning.
+	/// For AOT scenarios, use the overload that accepts an explicit assembly list.
+	/// </remarks>
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() to discover bounded context types at runtime. Use the overload accepting explicit assemblies for AOT scenarios.")]
 	public DefaultBoundedContextValidator(IOptions<BoundedContextOptions> options)
 		: this(options, AppDomain.CurrentDomain.GetAssemblies())
 	{
@@ -56,6 +62,7 @@ public sealed class DefaultBoundedContextValidator : IBoundedContextValidator
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Uses Assembly.GetTypes() to discover bounded context types at runtime.")]
 	public Task<IReadOnlyList<BoundedContextViolation>> ValidateAsync(CancellationToken cancellationToken)
 	{
 		var violations = new List<BoundedContextViolation>();
@@ -94,6 +101,7 @@ public sealed class DefaultBoundedContextValidator : IBoundedContextValidator
 		return Task.FromResult(result);
 	}
 
+	[RequiresUnreferencedCode("Uses Assembly.GetTypes() to discover bounded context types at runtime.")]
 	private List<(Type Type, string Context)> DiscoverBoundedContextTypes()
 	{
 		var result = new List<(Type, string)>();

@@ -18,7 +18,7 @@ namespace Excalibur.Data.Tests.Configuration;
 /// Sprint 564 S564.58-59: Provider Options DataAnnotation coverage.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ProviderDataAnnotationsShould
 {
 	private static bool TryValidate(object instance, out ICollection<ValidationResult> results)

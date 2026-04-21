@@ -43,7 +43,7 @@ public sealed class ElasticsearchContainerFixture : ContainerFixtureBase, IDatab
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new ElasticsearchBuilder()
-			.WithImage("docker.elastic.co/elasticsearch/elasticsearch:8.13.0")
+			.WithImage("docker.elastic.co/elasticsearch/elasticsearch:9.0.0")
 			.WithName($"es-test-{Guid.NewGuid():N}")
 			.WithEnvironment("discovery.type", "single-node")
 			.WithEnvironment("xpack.security.enabled", "false")

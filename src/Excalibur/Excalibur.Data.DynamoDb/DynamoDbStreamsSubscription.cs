@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -221,7 +221,9 @@ TDocument>
 					var image = record.Dynamodb?.NewImage ?? record.Dynamodb?.OldImage;
 					if (image != null)
 					{
+#pragma warning disable IL2026
 						document = DeserializeDocument(image);
+#pragma warning restore IL2026
 					}
 
 					var documentId = GetDocumentIdFromRecord(record);

@@ -11,8 +11,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// <summary>
 /// Unit tests for <c>EnableDataProcessingBackgroundService</c> DI extension method.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class EnableDataProcessingBackgroundServiceShould : UnitTestBase
 {
 	[Fact]

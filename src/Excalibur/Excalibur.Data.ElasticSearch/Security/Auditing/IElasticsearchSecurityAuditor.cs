@@ -13,103 +13,18 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the core auditing interface (5 methods). For reporting and compliance
-/// queries, see <see cref="IElasticsearchSecurityAuditorReporting"/>. For maintenance
-/// operations (integrity validation, archival), see <see cref="IElasticsearchSecurityAuditorMaintenance"/>.
+/// This is the composite auditing interface that inherits from:
+/// <list type="bullet">
+/// <item><description><see cref="IElasticsearchSecurityAuditorCore"/> -- configuration, compliance, activity auditing, authentication recording</description></item>
+/// <item><description><see cref="IElasticsearchSecurityAuditorRecording"/> -- data access, configuration change, and security incident recording</description></item>
+/// <item><description><see cref="IElasticsearchSecurityAuditorEvents"/> -- event notifications</description></item>
+/// </list>
+/// For reporting and compliance queries, see <see cref="IElasticsearchSecurityAuditorReporting"/>.
+/// For maintenance operations (integrity validation, archival), see <see cref="IElasticsearchSecurityAuditorMaintenance"/>.
 /// </para>
 /// </remarks>
-public interface IElasticsearchSecurityAuditor
+public interface IElasticsearchSecurityAuditor : IElasticsearchSecurityAuditorCore, IElasticsearchSecurityAuditorRecording, IElasticsearchSecurityAuditorEvents
 {
-	/// <summary>
-	/// Occurs when a security event is successfully recorded.
-	/// </summary>
-	event EventHandler<SecurityEventRecordedEventArgs>? SecurityEventRecorded;
-
-	/// <summary>
-	/// Occurs when audit log integrity validation fails.
-	/// </summary>
-	event EventHandler<AuditIntegrityViolationEventArgs>? IntegrityViolationDetected;
-
-	/// <summary>
-	/// Occurs when audit log archiving is completed.
-	/// </summary>
-	event EventHandler<AuditArchiveCompletedEventArgs>? AuditArchiveCompleted;
-
-	/// <summary>
-	/// Gets the audit configuration settings currently in use.
-	/// </summary>
-	/// <value> The current audit configuration settings. </value>
-	AuditOptions Configuration { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether audit log integrity protection is enabled.
-	/// </summary>
-	/// <value> True if audit logs are cryptographically protected, false otherwise. </value>
-	bool IntegrityProtectionEnabled { get; }
-
-	/// <summary>
-	/// Gets the supported compliance frameworks for reporting.
-	/// </summary>
-	/// <value> A collection of compliance frameworks supported by this auditor. </value>
-	IReadOnlyCollection<ComplianceFramework> SupportedComplianceFrameworks { get; }
-
-	/// <summary>
-	/// Audits a security activity event for compliance and monitoring purposes.
-	/// </summary>
-	/// <param name="activityEvent"> The security activity event to audit. </param>
-	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
-	/// <returns> A task representing the asynchronous audit operation. </returns>
-	Task AuditSecurityActivityAsync(SecurityActivityEvent activityEvent, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Records an authentication event for security monitoring and compliance purposes.
-	/// </summary>
-	/// <param name="authenticationEvent"> The authentication event details to record. </param>
-	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
-	/// <returns>
-	/// A task that represents the asynchronous operation. The task result contains true if the event was successfully recorded, false otherwise.
-	/// </returns>
-	/// <exception cref="SecurityException"> Thrown when audit recording fails due to security constraints. </exception>
-	/// <exception cref="ArgumentNullException"> Thrown when the authentication event is null. </exception>
-	Task<bool> RecordAuthenticationEventAsync(
-		AuthenticationEvent authenticationEvent,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Records a data access event for monitoring data usage patterns and detecting anomalies.
-	/// </summary>
-	/// <param name="dataAccessEvent"> The data access event details to record. </param>
-	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
-	/// <returns>
-	/// A task that represents the asynchronous operation. The task result contains true if the event was successfully recorded, false otherwise.
-	/// </returns>
-	/// <exception cref="SecurityException"> Thrown when audit recording fails due to security constraints. </exception>
-	/// <exception cref="ArgumentNullException"> Thrown when the data access event is null. </exception>
-	Task<bool> RecordDataAccessEventAsync(DataAccessEvent dataAccessEvent, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Records a security configuration change for compliance and change tracking purposes.
-	/// </summary>
-	/// <param name="configurationEvent"> The configuration change event details to record. </param>
-	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
-	/// <returns>
-	/// A task that represents the asynchronous operation. The task result contains true if the event was successfully recorded, false otherwise.
-	/// </returns>
-	/// <exception cref="SecurityException"> Thrown when audit recording fails due to security constraints. </exception>
-	/// <exception cref="ArgumentNullException"> Thrown when the configuration event is null. </exception>
-	Task<bool> RecordConfigurationChangeAsync(ConfigurationChangeEvent configurationEvent, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Records a security incident or violation for immediate attention and investigation.
-	/// </summary>
-	/// <param name="securityIncident"> The security incident details to record. </param>
-	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
-	/// <returns>
-	/// A task that represents the asynchronous operation. The task result contains true if the incident was successfully recorded, false otherwise.
-	/// </returns>
-	/// <exception cref="SecurityException"> Thrown when audit recording fails due to security constraints. </exception>
-	/// <exception cref="ArgumentNullException"> Thrown when the security incident is null. </exception>
-	Task<bool> RecordSecurityIncidentAsync(SecurityIncident securityIncident, CancellationToken cancellationToken);
 }
 
 /// <summary>

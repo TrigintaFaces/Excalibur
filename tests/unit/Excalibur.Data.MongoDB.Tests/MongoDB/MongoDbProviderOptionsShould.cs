@@ -8,8 +8,8 @@ namespace Excalibur.Data.Tests.MongoDB;
 /// <summary>
 /// Unit tests for MongoDbProviderOptions configuration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class MongoDbProviderOptionsShould : UnitTestBase
 {
 	#region Default Values

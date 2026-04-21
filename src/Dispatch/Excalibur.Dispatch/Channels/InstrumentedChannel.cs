@@ -14,17 +14,13 @@ namespace Excalibur.Dispatch.Channels;
 /// <typeparam name="T"> The type of items in the channel. </typeparam>
 internal sealed class InstrumentedChannel<T>
 {
-	// R0.8: Remove unread private members - field is kept for future use
-#pragma warning disable IDE0052
-	private readonly string _channelName;
-#pragma warning restore IDE0052
 	private readonly InternalChannelMetrics _metrics;
 	private readonly Channel<T> _innerChannel;
 
 	private InstrumentedChannel(Channel<T> innerChannel, string channelName, int capacity)
 	{
 		_innerChannel = innerChannel ?? throw new ArgumentNullException(nameof(innerChannel));
-		_channelName = channelName ?? throw new ArgumentNullException(nameof(channelName));
+		ArgumentNullException.ThrowIfNull(channelName);
 		_metrics = new InternalChannelMetrics(channelName, capacity);
 		Reader = new InstrumentedChannelReader<T>(_innerChannel.Reader, _metrics);
 		Writer = new InstrumentedChannelWriter<T>(_innerChannel.Writer, _metrics);

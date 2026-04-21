@@ -16,7 +16,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// then produces a <see cref="MultiStreamProjection{TProjection}"/> via <see cref="Build"/>.
 /// </para>
 /// </remarks>
-public sealed class MultiStreamProjectionBuilder<TProjection> : IMultiStreamProjectionBuilder<TProjection>
+internal sealed class MultiStreamProjectionBuilder<TProjection> : IMultiStreamProjectionBuilder<TProjection>
 	where TProjection : class, new()
 {
 	private readonly MultiStreamProjection<TProjection> _projection = new();

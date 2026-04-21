@@ -48,13 +48,18 @@ public interface IDeduplicationStrategy
 	/// <returns> True if the record was removed; otherwise, false. </returns>
 	Task<bool> RemoveAsync(string deduplicationId, CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Generates a unique identifier for deduplication asynchronously.
-	/// </summary>
-	/// <param name="messageBody"> The message body. </param>
-	/// <param name="messageAttributes"> Optional message attributes. </param>
-	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
-	/// <returns> A unique identifier for deduplication. </returns>
-	Task<string> GenerateIdAsync(string messageBody, IDictionary<string, object>? messageAttributes,
-		CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Extension methods for <see cref="IDeduplicationStrategy"/>.
+/// </summary>
+public static class DeduplicationStrategyExtensions
+{
+	/// <summary>Generates a unique identifier for deduplication asynchronously.</summary>
+	public static Task<string> GenerateIdAsync(this IDeduplicationStrategy strategy, string messageBody, IDictionary<string, object>? messageAttributes, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(strategy);
+		cancellationToken.ThrowIfCancellationRequested();
+		return Task.FromResult(strategy.GenerateDeduplicationId(messageBody, messageAttributes));
+	}
 }

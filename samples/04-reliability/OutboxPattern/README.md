@@ -43,15 +43,16 @@ The outbox pattern solves a common distributed systems problem: how to reliably 
 Uses the preset-based fluent API (ADR-098). Start with a preset (`Balanced`, `HighThroughput`, `HighReliability`) then override specific settings:
 
 ```csharp
-builder.Services.AddExcaliburOutbox(
-    OutboxOptions.Balanced()                                    // Sensible defaults
-        .WithBatchSize(50)                                      // Messages per batch
-        .WithPollingInterval(TimeSpan.FromSeconds(2))           // Check interval
-        .WithMaxRetries(3)                                      // Max retries
-        .WithRetryDelay(TimeSpan.FromSeconds(10))               // Retry delay
-        .WithRetentionPeriod(TimeSpan.FromHours(1))             // Keep messages for 1 hour
-        .WithCleanupInterval(TimeSpan.FromMinutes(5))           // Cleanup every 5 minutes
-        .Build());
+builder.Services.AddExcalibur(excalibur => excalibur
+    .AddOutbox(
+        OutboxOptions.Balanced()                                    // Sensible defaults
+            .WithBatchSize(50)                                      // Messages per batch
+            .WithPollingInterval(TimeSpan.FromSeconds(2))           // Check interval
+            .WithMaxRetries(3)                                      // Max retries
+            .WithRetryDelay(TimeSpan.FromSeconds(10))               // Retry delay
+            .WithRetentionPeriod(TimeSpan.FromHours(1))             // Keep messages for 1 hour
+            .WithCleanupInterval(TimeSpan.FromMinutes(5))           // Cleanup every 5 minutes
+            .Build()));
 ```
 
 ### Store Registration
@@ -62,8 +63,9 @@ builder.Services.AddOutbox<InMemoryOutboxStore>();
 builder.Services.AddInbox<InMemoryInboxStore>();
 
 // Production: Durable stores
-// builder.Services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
-// builder.Services.AddSqlServerInboxStore(opts => opts.ConnectionString = connectionString);
+// builder.Services.AddExcalibur(excalibur => excalibur
+//     .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
+// builder.Services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 ```
 
 ### Background Services
@@ -153,30 +155,41 @@ This is essential for at-least-once delivery systems where messages may be redel
 
 ```csharp
 // Use durable SQL Server stores
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
-services.AddSqlServerInboxStore(opts => opts.ConnectionString = connectionString);
+services.AddExcalibur(excalibur => excalibur
+    .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
+services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 ```
 
 ### Required Tables
 
-The SQL Server implementation creates these tables:
+The SQL Server implementation does **not** auto-create tables. You must create them before starting the application:
 
 ```sql
--- Outbox table
+-- Outbox table (dbo.OutboxMessages)
 CREATE TABLE dbo.OutboxMessages (
-    Id UNIQUEIDENTIFIER PRIMARY KEY,
-    MessageType NVARCHAR(500) NOT NULL,
-    Payload NVARCHAR(MAX) NOT NULL,
-    CreatedAt DATETIMEOFFSET NOT NULL,
-    ProcessedAt DATETIMEOFFSET NULL,
-    RetryCount INT NOT NULL DEFAULT 0,
-    Error NVARCHAR(MAX) NULL
+    Id              NVARCHAR(256)     NOT NULL PRIMARY KEY,
+    MessageType     NVARCHAR(500)     NOT NULL,
+    Payload         VARBINARY(MAX)    NOT NULL,
+    Headers         NVARCHAR(MAX)     NULL,
+    Destination     NVARCHAR(500)     NOT NULL,
+    CreatedAt       DATETIMEOFFSET    NOT NULL,
+    ScheduledAt     DATETIMEOFFSET    NULL,
+    Status          INT               NOT NULL DEFAULT 0,
+    RetryCount      INT               NOT NULL DEFAULT 0,
+    CorrelationId   NVARCHAR(256)     NULL,
+    CausationId     NVARCHAR(256)     NULL,
+    TenantId        NVARCHAR(256)     NULL,
+    Priority        INT               NOT NULL DEFAULT 0,
+    TargetTransports NVARCHAR(MAX)    NULL,
+    IsMultiTransport BIT              NOT NULL DEFAULT 0,
+    ProcessedAt     DATETIMEOFFSET    NULL,
+    Error           NVARCHAR(MAX)     NULL
 );
 
--- Inbox table
+-- Inbox table (dbo.InboxMessages)
 CREATE TABLE dbo.InboxMessages (
-    MessageId UNIQUEIDENTIFIER PRIMARY KEY,
-    ProcessedAt DATETIMEOFFSET NOT NULL
+    MessageId   NVARCHAR(256)     NOT NULL PRIMARY KEY,
+    ProcessedAt DATETIMEOFFSET    NOT NULL
 );
 ```
 
@@ -191,7 +204,7 @@ README.md                  # This file
 Messages/
    OrderEvents.cs          # Event classes
 Handlers/
-    OrderEventHandlers.cs  # Event handlers
+    OrderHandlers.cs  # Event handlers
 ```
 
 ## Related Samples

@@ -56,17 +56,17 @@ Excalibur.Jobs.Abstractions.IBackgroundJob
 Excalibur.Jobs.Abstractions.IBackgroundJob.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.Abstractions.IBackgroundJob<TContext>
 Excalibur.Jobs.Abstractions.IBackgroundJob<TContext>.ExecuteAsync(TContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Jobs.Abstractions.IConfigurableJob<TConfig>
-Excalibur.Jobs.Abstractions.IJobConfig
-Excalibur.Jobs.Abstractions.IJobConfig.CronSchedule.get -> string!
-Excalibur.Jobs.Abstractions.IJobConfig.CronSchedule.init -> void
-Excalibur.Jobs.Abstractions.IJobConfig.DegradedThreshold.get -> System.TimeSpan
-Excalibur.Jobs.Abstractions.IJobConfig.DegradedThreshold.init -> void
-Excalibur.Jobs.Abstractions.IJobConfig.Disabled.get -> bool
-Excalibur.Jobs.Abstractions.IJobConfig.Disabled.init -> void
-Excalibur.Jobs.Abstractions.IJobConfig.JobGroup.get -> string!
-Excalibur.Jobs.Abstractions.IJobConfig.JobGroup.init -> void
-Excalibur.Jobs.Abstractions.IJobConfig.JobName.get -> string!
-Excalibur.Jobs.Abstractions.IJobConfig.JobName.init -> void
-Excalibur.Jobs.Abstractions.IJobConfig.UnhealthyThreshold.get -> System.TimeSpan
-Excalibur.Jobs.Abstractions.IJobConfig.UnhealthyThreshold.init -> void
+Excalibur.Jobs.Abstractions.IConfigurableJob<TOptions>
+Excalibur.Jobs.Abstractions.IJobOptions
+Excalibur.Jobs.Abstractions.IJobOptions.CronSchedule.get -> string!
+Excalibur.Jobs.Abstractions.IJobOptions.CronSchedule.init -> void
+Excalibur.Jobs.Abstractions.IJobOptions.DegradedThreshold.get -> System.TimeSpan
+Excalibur.Jobs.Abstractions.IJobOptions.DegradedThreshold.init -> void
+Excalibur.Jobs.Abstractions.IJobOptions.Disabled.get -> bool
+Excalibur.Jobs.Abstractions.IJobOptions.Disabled.init -> void
+Excalibur.Jobs.Abstractions.IJobOptions.JobGroup.get -> string!
+Excalibur.Jobs.Abstractions.IJobOptions.JobGroup.init -> void
+Excalibur.Jobs.Abstractions.IJobOptions.JobName.get -> string!
+Excalibur.Jobs.Abstractions.IJobOptions.JobName.init -> void
+Excalibur.Jobs.Abstractions.IJobOptions.UnhealthyThreshold.get -> System.TimeSpan
+Excalibur.Jobs.Abstractions.IJobOptions.UnhealthyThreshold.init -> void

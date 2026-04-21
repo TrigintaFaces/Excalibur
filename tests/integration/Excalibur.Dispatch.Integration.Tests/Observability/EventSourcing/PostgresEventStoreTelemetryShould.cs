@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// when executing actual database operations against a Postgres container.
 /// </summary>
 [Collection("EventStore Telemetry Tests")]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 public sealed class PostgresEventStoreTelemetryShould : IClassFixture<PostgresEventStoreTelemetryTestFixture>, IAsyncLifetime
 {

@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 /// <summary>
 /// Unit tests for <see cref="MiddlewareContext"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Pipeline")]
 [Trait("Priority", "0")]
 public sealed class MiddlewareContextShould

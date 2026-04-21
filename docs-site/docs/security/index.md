@@ -10,11 +10,11 @@ Excalibur provides comprehensive security features for enterprise applications, 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Security  # encryption, signing, input validation
+  dotnet add package Excalibur.Security  # encryption, signing, input validation
   ```
 - Familiarity with [middleware](../middleware/index.md) and [pipeline concepts](../pipeline/index.md)
 
@@ -22,6 +22,7 @@ Excalibur provides comprehensive security features for enterprise applications, 
 
 | Topic | Description |
 |-------|-------------|
+| [Authorization & Audit (A3)](authorization.md) | Activity-based authorization, grants, audit events. Use `Excalibur.A3` (full-stack) or `Excalibur.A3.Core` (standalone) |
 | [Encryption Architecture](encryption-architecture.md) | AES-256-GCM encryption, key management, cloud KMS integration |
 | [Audit Logging](audit-logging.md) | Tamper-evident audit trails with hash chain integrity |
 | [Threat Model Baseline](threat-model.md) | Release-blocking threat categories and governance expectations |

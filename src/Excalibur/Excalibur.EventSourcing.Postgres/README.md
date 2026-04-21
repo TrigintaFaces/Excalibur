@@ -2,6 +2,17 @@
 
 Postgres implementations for Excalibur event sourcing, including event store, snapshot store, and outbox store. Uses Npgsql and Dapper for high-performance data access.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.Postgres` | Starter | + Dispatch core + Outbox + Hosting |
+| `Excalibur.Postgres` | Complete | + Inbox + Saga + Leader Election + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.Postgres` for a production-ready PostgreSQL stack with a single package reference.
+
 ## Installation
 
 ```bash

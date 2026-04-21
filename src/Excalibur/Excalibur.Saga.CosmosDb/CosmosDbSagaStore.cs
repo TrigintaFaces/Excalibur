@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+#pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -117,7 +118,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 		try
 		{
-			var response = await _container.ReadItemAsync<CosmosDbSagaDocument>(
+			var response = await _container!.ReadItemAsync<CosmosDbSagaDocument>(
 				documentId,
 				new PartitionKey(sagaType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -159,7 +160,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		try
 		{
 			// Try to read existing saga to preserve createdUtc
-			var readResponse = await _container.ReadItemAsync<CosmosDbSagaDocument>(
+			var readResponse = await _container!.ReadItemAsync<CosmosDbSagaDocument>(
 				documentId,
 				partitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -178,7 +179,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				UpdatedUtc = now
 			};
 
-			_ = await _container.UpsertItemAsync(
+			_ = await _container!.UpsertItemAsync(
 				document,
 				partitionKey,
 				new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
@@ -203,7 +204,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 			try
 			{
-				_ = await _container.CreateItemAsync(
+				_ = await _container!.CreateItemAsync(
 					document,
 					partitionKey,
 					new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
@@ -216,14 +217,14 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			{
 				// Race condition: another process created the document
 				// Re-read and upsert to preserve their createdUtc
-				var conflictReadResponse = await _container.ReadItemAsync<CosmosDbSagaDocument>(
+				var conflictReadResponse = await _container!.ReadItemAsync<CosmosDbSagaDocument>(
 					documentId,
 					partitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
 
 				document.CreatedUtc = conflictReadResponse.Resource.CreatedUtc;
 
-				_ = await _container.UpsertItemAsync(
+				_ = await _container!.UpsertItemAsync(
 					document,
 					partitionKey,
 					new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },

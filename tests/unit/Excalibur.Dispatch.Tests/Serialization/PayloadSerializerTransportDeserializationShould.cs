@@ -31,7 +31,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// See ADR-062 and ADR-063 for architecture and magic byte format details.
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class PayloadSerializerTransportDeserializationShould
 {

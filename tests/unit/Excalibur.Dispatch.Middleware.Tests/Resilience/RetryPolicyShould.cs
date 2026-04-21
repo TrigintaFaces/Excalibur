@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// <summary>
 /// Unit tests for <see cref="RetryPolicy"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class RetryPolicyShould : UnitTestBase
 {
 	#region Constructor Tests

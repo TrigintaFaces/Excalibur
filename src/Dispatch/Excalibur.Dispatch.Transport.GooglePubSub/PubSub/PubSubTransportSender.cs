@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;
 using Excalibur.Dispatch.Transport.GooglePubSub;
@@ -207,12 +208,12 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 
 		if (!string.IsNullOrWhiteSpace(message.CorrelationId))
 		{
-			pubsubMessage.Attributes["correlation-id"] = message.CorrelationId;
+			pubsubMessage.Attributes[OutboxHeaderNames.CorrelationId] = message.CorrelationId;
 		}
 
 		if (!string.IsNullOrWhiteSpace(message.CausationId))
 		{
-			pubsubMessage.Attributes["causation-id"] = message.CausationId;
+			pubsubMessage.Attributes[OutboxHeaderNames.CausationId] = message.CausationId;
 		}
 
 		if (!string.IsNullOrWhiteSpace(message.MessageType))

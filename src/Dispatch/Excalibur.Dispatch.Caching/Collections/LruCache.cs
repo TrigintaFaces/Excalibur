@@ -25,11 +25,7 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 	private readonly Counter<long> _lruEvictionCounter;
 	private readonly Counter<long> _lruExpirationCounter;
 
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 	private readonly Dictionary<TKey, LinkedListNode<CacheEntry>> _cache;
 	private readonly LinkedList<CacheEntry> _lruList;
 	private readonly TimeSpan? _defaultTtl;

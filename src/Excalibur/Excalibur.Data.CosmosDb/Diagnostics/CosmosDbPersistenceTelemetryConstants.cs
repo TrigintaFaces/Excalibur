@@ -6,7 +6,7 @@ namespace Excalibur.Data.CosmosDb.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for Cosmos DB persistence instrumentation.
 /// </summary>
-public static class CosmosDbPersistenceTelemetryConstants
+internal static class CosmosDbPersistenceTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for Cosmos DB persistence metrics.

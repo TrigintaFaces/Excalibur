@@ -63,7 +63,7 @@ internal sealed partial class DlqProcessor(
 			var attempt = message.AttemptCount + 1;
 			if (!retryStrategy.ShouldRetry(attempt, message.LastError != null
 					? new InvalidOperationException(message.LastError)
-					: null))
+					: null!))
 			{
 				LogMessageExhaustedRetries(_logger, message.MessageId, attempt);
 				return new DlqProcessingResult

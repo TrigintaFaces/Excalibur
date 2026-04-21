@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Redis-based session store implementation.
 /// </summary>
-internal sealed class RedisSessionStore : ISessionStore
+internal sealed class RedisSessionStore : ISessionStore, ISessionStoreAdmin
 {
 	private readonly IDatabase _database;
 	private readonly ILogger<RedisSessionStore> _logger;
@@ -99,8 +99,10 @@ internal sealed class RedisSessionStore : ISessionStore
 		var key = GetSessionKey(session.Id);
 		var json = JsonSerializer.Serialize(session);
 		var expiry = session.ExpiresAt?.Subtract(DateTimeOffset.UtcNow);
-
-		_ = await _database.StringSetAsync(key, json, expiry).ConfigureAwait(false);
+		// StackExchange.Redis 2.12 added an Expiration-based StringSetAsync overload which made
+		// the 3-argument TimeSpan? call ambiguous; qualify with the When parameter to pin to the
+		// legacy overload.
+		_ = await _database.StringSetAsync(key, json, expiry, When.Always).ConfigureAwait(false);
 
 		_logger.LogTrace("Stored session '{SessionId}' in Redis with key '{Key}'", session.Id, key);
 	}

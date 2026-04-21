@@ -11,8 +11,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Unit tests for <see cref="DataProcessingEventId"/> constants.
 /// </summary>
 [UnitTest]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataProcessingEventIdShould : UnitTestBase
 {
 	[Fact]

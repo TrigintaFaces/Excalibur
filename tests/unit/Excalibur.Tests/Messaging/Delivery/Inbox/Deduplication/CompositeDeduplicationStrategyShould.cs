@@ -108,9 +108,9 @@ public sealed class CompositeDeduplicationStrategyShould
 	{
 		// Arrange
 		var messageBody = "{\"test\": \"data\"}";
-		_ = A.CallTo(() => _primaryStrategy.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _primaryStrategy.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>._))
 			.Returns("id1");
-		_ = A.CallTo(() => _secondaryStrategy.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _secondaryStrategy.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>._))
 			.Returns("id2");
 
 		var secondary = new[] { _secondaryStrategy };
@@ -128,7 +128,7 @@ public sealed class CompositeDeduplicationStrategyShould
 	{
 		// Arrange
 		var messageBody = "{\"test\": \"data\"}";
-		_ = A.CallTo(() => _primaryStrategy.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _primaryStrategy.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>._))
 			.Returns("primary-only");
 
 		var composite = new CompositeDeduplicationStrategy(_primaryStrategy, Array.Empty<IDeduplicationStrategy>(), _options);
@@ -145,9 +145,9 @@ public sealed class CompositeDeduplicationStrategyShould
 	{
 		// Arrange
 		var messageBody = "{\"test\": \"data\"}";
-		_ = A.CallTo(() => _primaryStrategy.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _primaryStrategy.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>._))
 			.Returns("id1");
-		_ = A.CallTo(() => _secondaryStrategy.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _secondaryStrategy.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>._))
 			.Returns("id2");
 
 		var secondary = new[] { _secondaryStrategy };
@@ -157,9 +157,9 @@ public sealed class CompositeDeduplicationStrategyShould
 		_ = await composite.GenerateIdAsync(messageBody, null, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		_ = A.CallTo(() => _primaryStrategy.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _primaryStrategy.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>._))
 			.MustHaveHappenedOnceExactly();
-		_ = A.CallTo(() => _secondaryStrategy.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _secondaryStrategy.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -169,14 +169,14 @@ public sealed class CompositeDeduplicationStrategyShould
 		// Arrange
 		var messageBody = "{\"test\": \"data\"}";
 		var primary = A.Fake<IDeduplicationStrategy>();
-		_ = A.CallTo(() => primary.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => primary.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>._))
 			.Returns("key1");
 
 		var manyStrategies = Enumerable.Range(2, 9)
 			.Select(i =>
 			{
 				var strategy = A.Fake<IDeduplicationStrategy>();
-				_ = A.CallTo(() => strategy.GenerateIdAsync(messageBody, A<IDictionary<string, object>?>._, A<CancellationToken>._))
+				_ = A.CallTo(() => strategy.GenerateDeduplicationId(messageBody, A<IDictionary<string, object>?>._))
 					.Returns($"key{i}");
 				return strategy;
 			})

@@ -34,7 +34,8 @@ This folder contains all build, validation, and CI scripts for the repository. I
 | `validate-package-composition.ps1` | End-to-end PackageReference validation |
 | `validate-architecture-boundaries.ps1` | Architecture boundary enforcement |
 | `validate-serializer-policy.ps1` | Serializer policy compliance |
-| `validate-aot-trim.ps1` | AOT/trimming compatibility |
+| `Invoke-AotPublishValidation.ps1` | AOT publish validation (against sample app) |
+| `Invoke-AotBuildAnalysis.ps1` | AOT/trim build-time analysis + JSON context scan |
 | `validate-api-compatibility.ps1` | API compatibility checks |
 | `verify-banned-apis.ps1` | Banned API usage checks |
 | `verify-layout.ps1` | Repository layout verification |

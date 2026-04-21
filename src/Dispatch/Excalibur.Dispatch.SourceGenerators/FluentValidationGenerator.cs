@@ -2,13 +2,21 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Immutable;
+using System.Text;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Excalibur.Dispatch.SourceGenerators;
 
 /// <summary>
-/// Generates AOT-compatible FluentValidation resolver code to replace runtime reflection.
+/// Generates AOT-compatible FluentValidation dispatcher code that eliminates
+/// runtime reflection for validator resolution. Discovers all
+/// <c>AbstractValidator&lt;T&gt;</c> implementations where <c>T</c> implements
+/// <c>IDispatchMessage</c> and emits a type-switch dispatch class implementing
+/// <c>IAotValidationDispatcher</c>.
 /// </summary>
 [Generator]
 public sealed class FluentValidationGenerator : IIncrementalGenerator
@@ -19,71 +27,247 @@ public sealed class FluentValidationGenerator : IIncrementalGenerator
 	/// <param name="context">The generator initialization context.</param>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		// Find all message types that have validators
-		var messageProvider = context.SyntaxProvider
+		// Find all classes that inherit from AbstractValidator<T>
+		var validatorProvider = context.SyntaxProvider
 			.CreateSyntaxProvider(
-				predicate: static (s, _) => IsMessageType(s),
-				transform: static (ctx, _) => GetMessageTypeInfo(ctx))
-			.Where(static m => m is not null)
+				predicate: static (s, _) => IsValidatorCandidate(s),
+				transform: static (ctx, _) => GetValidatorInfo(ctx))
+			.Where(static v => v is not null)
 			.Collect();
 
-		// NOTE: Validation resolver generation is currently disabled due to dependency issues.
-		// The generator creates code that references AotFluentValidatorResolver which is not available in the Excalibur.Dispatch.Messaging project.
-		// This will be re-enabled when the dependency structure is resolved.
-		// context.RegisterSourceOutput(messageProvider, static (spc, messages) => GenerateValidationResolver(spc, messages!));
+		context.RegisterSourceOutput(validatorProvider,
+			static (spc, validators) => GenerateDispatcher(spc, validators!));
 	}
 
 	/// <summary>
-	/// Determines if a syntax node represents a potential message type.
+	/// Fast syntactic filter: classes with a base list are potential validator subclasses.
 	/// </summary>
-	/// <param name="node">The syntax node to examine.</param>
-	/// <returns>True if the node could be a message type.</returns>
-	private static bool IsMessageType(SyntaxNode node) =>
-		node is ClassDeclarationSyntax { BaseList: not null } or RecordDeclarationSyntax { BaseList: not null };
+	private static bool IsValidatorCandidate(SyntaxNode node) =>
+		node is ClassDeclarationSyntax { BaseList: not null };
 
 	/// <summary>
-	/// Extracts message type information from a generator transform context.
+	/// Extracts validator information from the semantic model. Returns non-null only
+	/// when the class inherits <c>AbstractValidator&lt;T&gt;</c> and <c>T</c>
+	/// implements <c>IDispatchMessage</c>.
 	/// </summary>
-	/// <param name="context">The generator syntax context.</param>
-	/// <returns>Message type information if valid, null otherwise.</returns>
-	private static MessageTypeInfo? GetMessageTypeInfo(GeneratorSyntaxContext context)
+	private static ValidatorInfo? GetValidatorInfo(GeneratorSyntaxContext context)
 	{
-		var typeDecl = context.Node;
-		var model = context.SemanticModel;
-		var symbol = model.GetDeclaredSymbol(typeDecl);
-
+		var symbol = context.SemanticModel.GetDeclaredSymbol(context.Node);
 		if (symbol is not INamedTypeSymbol typeSymbol)
 		{
 			return null;
 		}
 
-		// Check if type implements IDispatchMessage
-		var implementsDispatchMessage = typeSymbol.AllInterfaces
-			.Any(static i => i.Name == "IDispatchMessage");
-
-		if (!implementsDispatchMessage)
+		// Skip abstract validators themselves
+		if (typeSymbol.IsAbstract)
 		{
 			return null;
 		}
 
-		return new MessageTypeInfo(
-			typeSymbol.ToDisplayString(),
-			typeSymbol.Name);
+		// Walk the inheritance chain to find AbstractValidator<T>
+		var baseType = typeSymbol.BaseType;
+		while (baseType is not null)
+		{
+			if (baseType.IsGenericType)
+			{
+				var originalDef = baseType.OriginalDefinition.ToDisplayString();
+				if (originalDef == "FluentValidation.AbstractValidator<T>")
+				{
+					var messageType = baseType.TypeArguments[0];
+
+					// Verify T implements IDispatchMessage
+					if (ImplementsDispatchMessage(messageType))
+					{
+						return new ValidatorInfo(
+							messageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+							messageType.Name);
+					}
+
+					// Found AbstractValidator<T> but T doesn't implement IDispatchMessage
+					return null;
+				}
+			}
+
+			baseType = baseType.BaseType;
+		}
+
+		return null;
 	}
 
 	/// <summary>
-	/// Information about a message type discovered during compilation.
+	/// Checks whether the given type symbol implements IDispatchMessage.
 	/// </summary>
-	private sealed class MessageTypeInfo(string fullName, string shortName)
+	private static bool ImplementsDispatchMessage(ITypeSymbol typeSymbol)
 	{
-		/// <summary>
-		/// The fully qualified name of the message type.
-		/// </summary>
-		public string FullName { get; } = fullName;
+		foreach (var iface in typeSymbol.AllInterfaces)
+		{
+			if (iface.Name == "IDispatchMessage" &&
+				iface.ContainingNamespace.ToDisplayString() == "Excalibur.Dispatch.Abstractions")
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Generates the <c>IAotValidationDispatcher</c> implementation and DI extension method.
+	/// </summary>
+	private static void GenerateDispatcher(
+		SourceProductionContext context,
+		ImmutableArray<ValidatorInfo?> validators)
+	{
+		// Deduplicate message types (multiple validators may target the same message type)
+		var messageTypes = new Dictionary<string, string>(); // fullName -> shortName
+		foreach (var v in validators)
+		{
+			if (v is not null && !messageTypes.ContainsKey(v.FullName))
+			{
+				messageTypes[v.FullName] = v.ShortName;
+			}
+		}
+
+		if (messageTypes.Count == 0)
+		{
+			return;
+		}
+
+		var sb = new StringBuilder();
+		sb.AppendLine("// <auto-generated/>");
+		sb.AppendLine("// Generated by Excalibur.Dispatch.SourceGenerators.FluentValidationGenerator");
+		sb.AppendLine("#nullable enable");
+		sb.AppendLine();
+
+		// Dispatcher class
+		sb.AppendLine("namespace Excalibur.Dispatch.Validation.FluentValidation.Generated");
+		sb.AppendLine("{");
+		sb.AppendLine("    /// <summary>");
+		sb.AppendLine("    /// Source-generated AOT validation dispatcher. Maps message types to");
+		sb.AppendLine("    /// strongly-typed FluentValidation validators without reflection.");
+		sb.AppendLine("    /// </summary>");
+		sb.AppendLine("    [global::System.CodeDom.Compiler.GeneratedCode(\"FluentValidationGenerator\", \"1.0\")]");
+		sb.AppendLine("    internal sealed class GeneratedFluentValidationDispatcher : global::Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher");
+		sb.AppendLine("    {");
+		sb.AppendLine("        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool> _hasValidatorsCache = new();");
+		sb.AppendLine();
+		sb.AppendLine("        /// <inheritdoc />");
+		sb.AppendLine("        public global::Excalibur.Dispatch.Abstractions.Validation.IValidationResult? TryValidate(");
+		sb.AppendLine("            global::Excalibur.Dispatch.Abstractions.IDispatchMessage message,");
+		sb.AppendLine("            global::System.IServiceProvider provider)");
+		sb.AppendLine("        {");
+		sb.AppendLine("            return message switch");
+		sb.AppendLine("            {");
+
+		foreach (var kvp in messageTypes)
+		{
+			sb.AppendLine($"                {kvp.Key} m => ValidateTyped(m, provider),");
+		}
+
+		sb.AppendLine("                _ => null");
+		sb.AppendLine("            };");
+		sb.AppendLine("        }");
+		sb.AppendLine();
+
+		// ValidateTyped<T> helper -- AOT-safe because callers supply concrete T
+		sb.AppendLine("        private static global::Excalibur.Dispatch.Abstractions.Validation.IValidationResult? ValidateTyped<TMessage>(");
+		sb.AppendLine("            TMessage message,");
+		sb.AppendLine("            global::System.IServiceProvider provider)");
+		sb.AppendLine("            where TMessage : global::Excalibur.Dispatch.Abstractions.IDispatchMessage");
+		sb.AppendLine("        {");
+		sb.AppendLine("            var cacheKey = typeof(TMessage);");
+		sb.AppendLine("            // Cache only whether validators are registered (bool), not instances.");
+		sb.AppendLine("            // Validator instances must be resolved fresh from the provider each call");
+		sb.AppendLine("            // to respect DI scoping (validators may be Scoped or Transient).");
+		sb.AppendLine("            if (!_hasValidatorsCache.TryGetValue(cacheKey, out var hasValidators))");
+		sb.AppendLine("            {");
+		sb.AppendLine("                var probe = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions");
+		sb.AppendLine("                    .GetServices<global::FluentValidation.IValidator<TMessage>>(provider);");
+		sb.AppendLine("                hasValidators = global::System.Linq.Enumerable.Any(probe);");
+		sb.AppendLine("                _hasValidatorsCache.TryAdd(cacheKey, hasValidators);");
+		sb.AppendLine("            }");
+		sb.AppendLine();
+		sb.AppendLine("            if (!hasValidators) return null;");
+		sb.AppendLine("            var array = global::System.Linq.Enumerable.ToArray(");
+		sb.AppendLine("                global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions");
+		sb.AppendLine("                    .GetServices<global::FluentValidation.IValidator<TMessage>>(provider));");
+		sb.AppendLine();
+		sb.AppendLine("            var failures = new global::System.Collections.Generic.List<global::FluentValidation.Results.ValidationFailure>();");
+		sb.AppendLine("            foreach (var validator in array)");
+		sb.AppendLine("            {");
+		sb.AppendLine("                var result = validator.Validate(message);");
+		sb.AppendLine("                if (!result.IsValid)");
+		sb.AppendLine("                {");
+		sb.AppendLine("                    failures.AddRange(result.Errors);");
+		sb.AppendLine("                }");
+		sb.AppendLine("            }");
+		sb.AppendLine();
+		sb.AppendLine("            if (failures.Count == 0)");
+		sb.AppendLine("            {");
+		sb.AppendLine("                return global::Excalibur.Dispatch.Abstractions.Serialization.SerializableValidationResult.Success();");
+		sb.AppendLine("            }");
+		sb.AppendLine();
+		sb.AppendLine("            var errors = new object[failures.Count];");
+		sb.AppendLine("            for (var i = 0; i < failures.Count; i++)");
+		sb.AppendLine("            {");
+		sb.AppendLine("                var f = failures[i];");
+		sb.AppendLine("                errors[i] = new global::Excalibur.Dispatch.Abstractions.Validation.ValidationError(f.PropertyName, f.ErrorMessage) { ErrorCode = f.ErrorCode };");
+		sb.AppendLine("            }");
+		sb.AppendLine();
+		sb.AppendLine("            return global::Excalibur.Dispatch.Abstractions.Serialization.SerializableValidationResult.Failed(errors);");
+		sb.AppendLine("        }");
+		sb.AppendLine("    }");
+		sb.AppendLine("}");
+		sb.AppendLine();
+
+		// DI extension method
+		sb.AppendLine("namespace Microsoft.Extensions.DependencyInjection");
+		sb.AppendLine("{");
+		sb.AppendLine("    /// <summary>");
+		sb.AppendLine("    /// Generated extension methods for registering AOT-compatible FluentValidation.");
+		sb.AppendLine("    /// </summary>");
+		sb.AppendLine("    [global::System.CodeDom.Compiler.GeneratedCode(\"FluentValidationGenerator\", \"1.0\")]");
+		sb.AppendLine("    internal static class GeneratedFluentValidationExtensions");
+		sb.AppendLine("    {");
+		sb.AppendLine("        /// <summary>");
+		sb.AppendLine("        /// Registers the source-generated <see cref=\"global::Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher\"/>");
+		sb.AppendLine("        /// so that <see cref=\"global::Excalibur.Dispatch.Validation.FluentValidation.AotFluentValidatorResolver\"/>");
+		sb.AppendLine("        /// can dispatch validation without reflection.");
+		sb.AppendLine("        /// </summary>");
+		sb.AppendLine("        public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddGeneratedFluentValidationDispatcher(");
+		sb.AppendLine("            this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
+		sb.AppendLine("        {");
+		sb.AppendLine("            global::Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton<");
+		sb.AppendLine("                global::Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher,");
+		sb.AppendLine("                global::Excalibur.Dispatch.Validation.FluentValidation.Generated.GeneratedFluentValidationDispatcher>(services);");
+		sb.AppendLine("            return services;");
+		sb.AppendLine("        }");
+		sb.AppendLine("    }");
+		sb.AppendLine("}");
+
+		context.AddSource("FluentValidationDispatcher.g.cs",
+			SourceText.From(sb.ToString(), Encoding.UTF8));
+	}
+
+	/// <summary>
+	/// Information about a message type that has FluentValidation validators.
+	/// </summary>
+	private sealed class ValidatorInfo
+	{
+		public ValidatorInfo(string fullName, string shortName)
+		{
+			FullName = fullName;
+			ShortName = shortName;
+		}
 
 		/// <summary>
-		/// The short name of the message type.
+		/// The fully qualified name of the validated message type.
 		/// </summary>
-		public string ShortName { get; } = shortName;
+		public string FullName { get; }
+
+		/// <summary>
+		/// The short name of the validated message type.
+		/// </summary>
+		public string ShortName { get; }
 	}
 }

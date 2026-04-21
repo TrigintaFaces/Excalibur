@@ -6,8 +6,8 @@ using Shouldly;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.BatchProcessing;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class MessageProcessingResultShould
 {
     [Fact]
@@ -17,8 +17,8 @@ public sealed class MessageProcessingResultShould
 
         result.MessageId.ShouldBe(string.Empty);
         result.IsSuccess.ShouldBeFalse();
-        result.ErrorMessage.ShouldBeNull();
-        result.Exception.ShouldBeNull();
+        result.ErrorMessage!.ShouldBeNull();
+        result.Exception!.ShouldBeNull();
         result.ProcessingDuration.ShouldBe(TimeSpan.Zero);
         result.ShouldRetry.ShouldBeFalse();
         result.MovedToDeadLetter.ShouldBeFalse();
@@ -47,7 +47,7 @@ public sealed class MessageProcessingResultShould
     {
         var result = new MessageProcessingResult { ErrorMessage = "Processing failed" };
 
-        result.ErrorMessage.ShouldBe("Processing failed");
+        result.ErrorMessage!.ShouldBe("Processing failed");
     }
 
     [Fact]
@@ -56,8 +56,8 @@ public sealed class MessageProcessingResultShould
         var ex = new InvalidOperationException("Test error");
         var result = new MessageProcessingResult { Exception = ex };
 
-        result.Exception.ShouldBe(ex);
-        result.Exception.ShouldBeOfType<InvalidOperationException>();
+        result.Exception!.ShouldBe(ex);
+        result.Exception!.ShouldBeOfType<InvalidOperationException>();
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public sealed class MessageProcessingResultShould
         result.MessageId.ShouldBe("msg-success");
         result.IsSuccess.ShouldBeTrue();
         result.ProcessingDuration.ShouldBe(TimeSpan.FromMilliseconds(100));
-        result.ErrorMessage.ShouldBeNull();
-        result.Exception.ShouldBeNull();
+        result.ErrorMessage!.ShouldBeNull();
+        result.Exception!.ShouldBeNull();
         result.ShouldRetry.ShouldBeFalse();
         result.MovedToDeadLetter.ShouldBeFalse();
     }
@@ -125,8 +125,8 @@ public sealed class MessageProcessingResultShould
 
         result.MessageId.ShouldBe("msg-failed");
         result.IsSuccess.ShouldBeFalse();
-        result.ErrorMessage.ShouldBe("Processing timed out after 30 seconds");
-        result.Exception.ShouldBe(ex);
+        result.ErrorMessage!.ShouldBe("Processing timed out after 30 seconds");
+        result.Exception!.ShouldBe(ex);
         result.ProcessingDuration.ShouldBe(TimeSpan.FromSeconds(30));
         result.ShouldRetry.ShouldBeTrue();
         result.MovedToDeadLetter.ShouldBeFalse();
@@ -149,8 +149,8 @@ public sealed class MessageProcessingResultShould
 
         result.MessageId.ShouldBe("msg-dlq");
         result.IsSuccess.ShouldBeFalse();
-        result.ErrorMessage.ShouldBe("Message could not be processed after max retries");
-        result.Exception.ShouldBe(ex);
+        result.ErrorMessage!.ShouldBe("Message could not be processed after max retries");
+        result.Exception!.ShouldBe(ex);
         result.ShouldRetry.ShouldBeFalse();
         result.MovedToDeadLetter.ShouldBeTrue();
     }

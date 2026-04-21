@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.MassTransitComparisonBenchmarks-20260420-180101</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8117/25H2/2025Update/HudsonValley2)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.202
+  [Host] : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=comparative-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+InvocationCount=1  IterationCount=10  UnrollFactor=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                          </th><th>Mean  </th><th>Error </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch: Single command&#39;</td><td>7.406 &mu;s</td><td>1.506 &mu;s</td><td>0.8960 &mu;s</td><td>1.01</td><td>0.16</td><td>264 B</td><td>1.00</td>
+</tr><tr><td>&#39;MassTransit: Single command&#39;</td><td>299.083 &mu;s</td><td>50.687 &mu;s</td><td>30.1629 &mu;s</td><td>40.89</td><td>5.95</td><td>26144 B</td><td>99.03</td>
+</tr><tr><td>&#39;Dispatch: Event to 2 handlers&#39;</td><td>24.160 &mu;s</td><td>13.732 &mu;s</td><td>9.0831 &mu;s</td><td>3.30</td><td>1.24</td><td>7008 B</td><td>26.55</td>
+</tr><tr><td>&#39;MassTransit: Event to 2 consumers&#39;</td><td>372.160 &mu;s</td><td>69.935 &mu;s</td><td>46.2574 &mu;s</td><td>50.88</td><td>8.22</td><td>46784 B</td><td>177.21</td>
+</tr><tr><td>&#39;Dispatch: 10 concurrent commands&#39;</td><td>20.222 &mu;s</td><td>3.702 &mu;s</td><td>2.2033 &mu;s</td><td>2.76</td><td>0.42</td><td>9040 B</td><td>34.24</td>
+</tr><tr><td>&#39;MassTransit: 10 concurrent commands&#39;</td><td>1,123.889 &mu;s</td><td>42.855 &mu;s</td><td>25.5025 &mu;s</td><td>153.66</td><td>17.08</td><td>227064 B</td><td>860.09</td>
+</tr><tr><td>&#39;Dispatch: 100 concurrent commands&#39;</td><td>63.050 &mu;s</td><td>5.745 &mu;s</td><td>3.7998 &mu;s</td><td>8.62</td><td>1.06</td><td>28432 B</td><td>107.70</td>
+</tr><tr><td>&#39;MassTransit: 100 concurrent commands&#39;</td><td>8,782.310 &mu;s</td><td>1,131.108 &mu;s</td><td>748.1576 &mu;s</td><td>1,200.70</td><td>163.53</td><td>2230280 B</td><td>8,448.03</td>
+</tr><tr><td>&#39;Dispatch: Batch send (10)&#39;</td><td>16.133 &mu;s</td><td>2.716 &mu;s</td><td>1.6163 &mu;s</td><td>2.21</td><td>0.32</td><td>2208 B</td><td>8.36</td>
+</tr><tr><td>&#39;MassTransit: Batch send (10)&#39;</td><td>961.550 &mu;s</td><td>90.459 &mu;s</td><td>47.3120 &mu;s</td><td>131.46</td><td>15.60</td><td>228584 B</td><td>865.85</td>
+</tr></tbody></table>
+</body>
+</html>

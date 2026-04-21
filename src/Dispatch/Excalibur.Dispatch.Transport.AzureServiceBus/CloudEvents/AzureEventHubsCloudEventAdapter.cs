@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
@@ -81,6 +80,8 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public Task<EventData> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -353,8 +354,10 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 		}
 	}
 
-	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureEventHubsCloudEventAdapter.ConvertToBinaryData(Object)")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureEventHubsCloudEventAdapter.ConvertToBinaryData(Object)")]
+	[RequiresUnreferencedCode(
+		"Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureEventHubsCloudEventAdapter.ConvertToBinaryData(Object)")]
+	[RequiresDynamicCode(
+		"Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureEventHubsCloudEventAdapter.ConvertToBinaryData(Object)")]
 	private static EventData CreateBinaryMessage(CloudEvent cloudEvent) => new(ConvertToBinaryData(cloudEvent.Data))
 	{
 		ContentType = cloudEvent.DataContentType ?? "application/json",
@@ -413,12 +416,14 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 			cloudEvent[$"{DispatchPrefixWithoutSeparator}sequencenumber"] ??= sequenceNumber;
 		}
 
+#pragma warning disable CS0618 // EventData.Offset is obsolete but OffsetString is not available in all SDK versions
 		if (message.Offset != long.MinValue)
 		{
 			var offset = message.Offset.ToString(CultureInfo.InvariantCulture);
 			cloudEvent[$"{DispatchPrefix}offset"] = offset;
 			cloudEvent[$"{DispatchPrefixWithoutSeparator}offset"] ??= offset;
 		}
+#pragma warning restore CS0618
 
 		if (message.EnqueuedTime != default)
 		{

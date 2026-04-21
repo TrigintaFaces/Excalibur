@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Hosting.Serverless.Tests;
 [Trait("Component", "Platform")]
 public sealed class AwsLambdaHostProviderShould : UnitTestBase
 {
-	private readonly AwsLambdaHostProvider _sut = new(EnabledTestLogger.Create());
+	private readonly AwsLambdaHostProvider _sut = new(EnabledTestLogger.Create<AwsLambdaHostProvider>());
 
 	[Fact]
 	public void Platform_ReturnAwsLambda()

@@ -46,22 +46,4 @@ public interface IPersistenceConfiguration
 	/// <returns> Validation results. </returns>
 	IEnumerable<ConfigurationValidationResult> Validate();
 
-	/// <summary>
-	/// Registers a provider configuration.
-	/// </summary>
-	/// <param name="providerName"> The name of the provider. </param>
-	/// <param name="options"> The provider options. </param>
-	void RegisterProviderConfiguration(string providerName, IPersistenceOptions options);
-
-	/// <summary>
-	/// Removes a provider configuration.
-	/// </summary>
-	/// <param name="providerName"> The name of the provider to remove. </param>
-	/// <returns> True if the provider was removed; otherwise, false. </returns>
-	bool RemoveProviderConfiguration(string providerName);
-
-	/// <summary>
-	/// Reloads configuration from the underlying configuration source.
-	/// </summary>
-	void Reload();
 }

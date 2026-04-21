@@ -28,7 +28,7 @@ public interface IExceptionMapper
 	/// <remarks>
 	/// <para>
 	/// If a specific mapping exists for the exception type, it will be used.
-	/// Otherwise, falls back to <see cref="Exceptions.ApiException.ToProblemDetails"/>
+	/// Otherwise, falls back to <see cref="ApiException.ToProblemDetails"/>
 	/// (if the exception is an ApiException and ApiException mapping is enabled),
 	/// or the default mapper.
 	/// </para>
@@ -58,7 +58,7 @@ public interface IExceptionMapper
 	/// <returns> <see langword="true"/> if a mapping exists for the exception; otherwise, <see langword="false"/>. </returns>
 	/// <remarks>
 	/// Returns <see langword="true"/> if there is a specific mapping for the exception type,
-	/// or if the exception is an <see cref="Exceptions.ApiException"/> and ApiException mapping is enabled.
+	/// or if the exception is an <see cref="ApiException"/> and ApiException mapping is enabled.
 	/// Always returns <see langword="true"/> if a default mapper is configured.
 	/// </remarks>
 	bool CanMap(Exception exception);

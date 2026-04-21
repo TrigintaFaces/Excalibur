@@ -265,7 +265,7 @@ public abstract class TransportSenderConformanceTests
 	}
 
 	/// <summary>
-	/// Verifies that <see cref="ITransportSender.DisposeAsync"/> can be called multiple times.
+	/// Verifies that <see cref="IAsyncDisposable.DisposeAsync"/> can be called multiple times.
 	/// </summary>
 	protected async Task VerifyDisposeAsyncIsIdempotent()
 	{

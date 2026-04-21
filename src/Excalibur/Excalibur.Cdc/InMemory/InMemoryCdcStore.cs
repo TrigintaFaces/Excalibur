@@ -15,17 +15,13 @@ namespace Excalibur.Cdc.InMemory;
 /// This store is thread-safe and suitable for concurrent access in testing scenarios.
 /// </para>
 /// </remarks>
-public sealed class InMemoryCdcStore : IInMemoryCdcStore
+internal sealed class InMemoryCdcStore : IInMemoryCdcStore
 {
 	private readonly ConcurrentQueue<InMemoryCdcChange> _pendingChanges = new();
 	private readonly ConcurrentBag<InMemoryCdcChange> _processedChanges = [];
 	private readonly InMemoryCdcOptions _options;
 
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryCdcStore"/> class.

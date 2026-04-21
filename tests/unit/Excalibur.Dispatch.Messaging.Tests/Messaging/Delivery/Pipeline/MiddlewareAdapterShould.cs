@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 /// Sprint 461 - Task S461.1: Remaining 0% Coverage Tests.
 /// Tests the adapter that wraps IDispatchMiddleware for zero-allocation pipeline usage.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class MiddlewareAdapterShould : IDisposable
 {

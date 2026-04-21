@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class GrpcTransportServiceCollectionExtensionsShould
 {
@@ -90,7 +90,7 @@ public sealed class GrpcTransportServiceCollectionExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddGrpcTransport(null!));
+			services.AddGrpcTransport((Action<GrpcTransportOptions>)null!));
 	}
 
 	[Fact]

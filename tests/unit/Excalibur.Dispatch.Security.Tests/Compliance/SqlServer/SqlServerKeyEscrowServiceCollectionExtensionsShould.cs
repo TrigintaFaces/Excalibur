@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.SqlServer;
 /// Unit tests for <see cref="SqlServerKeyEscrowServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SqlServerKeyEscrowServiceCollectionExtensionsShould
 {
 	#region AddSqlServerKeyEscrow with Action<SqlServerKeyEscrowOptions>

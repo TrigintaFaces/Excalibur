@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Transport.Builders;
 /// Part of S471.4 - Unit Tests for SNS Builders (Sprint 471).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsFilterPolicyOptionsShould : UnitTestBase
 {
@@ -242,7 +242,7 @@ public sealed class AwsSqsFilterPolicyOptionsShould : UnitTestBase
 /// Unit tests for <see cref="AwsSqsFilterCondition"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsFilterConditionShould : UnitTestBase
 {
@@ -416,7 +416,7 @@ public sealed class AwsSqsFilterConditionShould : UnitTestBase
 /// Unit tests for <see cref="AwsSqsFilterPolicyScope"/> enum.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsFilterPolicyScopeShould : UnitTestBase
 {
@@ -439,7 +439,7 @@ public sealed class AwsSqsFilterPolicyScopeShould : UnitTestBase
 /// Unit tests for <see cref="AwsSqsFilterOperator"/> enum.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsFilterOperatorShould : UnitTestBase
 {

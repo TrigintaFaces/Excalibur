@@ -95,7 +95,7 @@ This checklist provides step-by-step guidance for SOC 2 certification preparatio
 #### 1.2 Install Framework Packages
 
 ```bash
-dotnet add package Excalibur.Dispatch.Compliance
+dotnet add package Excalibur.Compliance
 ```
 
 #### 1.3 Basic SOC 2 Configuration
@@ -103,7 +103,7 @@ dotnet add package Excalibur.Dispatch.Compliance
 **Development Setup:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -171,7 +171,7 @@ The entity monitors the system and takes action to remediate identified deficien
 **Code Example:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class UserService
 {
@@ -307,7 +307,7 @@ The entity restricts logical access through the use of access control software a
 **Code Example:**
 
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 services.AddEncryption(encryption => encryption
     .UseKeyManagement<AesGcmEncryptionProvider>("aes-gcm-primary")
@@ -428,7 +428,7 @@ The entity implements change management processes to manage changes to the syste
 jobs:
   build:
     - Checkout code
-    - Setup .NET 9.0
+    - Setup .NET 10.0
     - Restore dependencies
     - Build solution
     - Run unit tests

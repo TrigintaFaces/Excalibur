@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Jobs.Abstractions.Coordination;
 
@@ -16,6 +17,8 @@ public interface IJobDistributor
 	/// <param name="jobData"> The job data to be processed. </param>
 	/// <param name="cancellationToken"> A token to monitor for cancellation requests. </param>
 	/// <returns> A task containing the instance ID that was assigned the job, or null if no instances are available. </returns>
+	[RequiresUnreferencedCode("Serializing job data of unknown type requires type metadata that may be removed during trimming")]
+	[RequiresDynamicCode("Serializing job data of unknown type may require runtime code generation")]
 	Task<string?> DistributeJobAsync(string jobKey, object jobData, CancellationToken cancellationToken);
 
 	/// <summary>
@@ -27,6 +30,8 @@ public interface IJobDistributor
 	/// <param name="result"> Optional result data from the job execution. </param>
 	/// <param name="cancellationToken"> A token to monitor for cancellation requests. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
+	[RequiresUnreferencedCode("Serializing result data of unknown type requires type metadata that may be removed during trimming")]
+	[RequiresDynamicCode("Serializing result data of unknown type may require runtime code generation")]
 	Task ReportJobCompletionAsync(string jobKey, string instanceId, bool success, object? result,
 		CancellationToken cancellationToken);
 }

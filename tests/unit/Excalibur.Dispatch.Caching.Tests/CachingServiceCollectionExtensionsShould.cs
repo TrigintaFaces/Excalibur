@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Serialization;
 
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -166,8 +167,9 @@ public sealed class CachingServiceCollectionExtensionsShould
 		// Act
 		services.AddDispatchCaching();
 
-		// Assert — verify middleware descriptors are registered (can't resolve without all CachingMiddleware deps)
-		services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchMiddleware));
+		// S717 T.2: middleware registered as concrete type only
+		// Assert — verify middleware concrete types are registered (can't resolve without all CachingMiddleware deps)
+		services.ShouldContain(sd => sd.ServiceType == typeof(CachingMiddleware));
 	}
 
 	[Fact]
@@ -177,6 +179,6 @@ public sealed class CachingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => services.AddDispatchRedisCaching(null!));
+		Should.Throw<ArgumentNullException>(() => services.AddDispatchRedisCaching((Action<RedisCacheOptions>)null!));
 	}
 }

@@ -27,4 +27,21 @@ public static class EventSourcingExcaliburBuilderExtensions
 		_ = builder.Services.AddExcaliburEventSourcing(configure);
 		return builder;
 	}
+
+	/// <summary>
+	/// Registers default event sourcing services (no aggregate repositories;
+	/// NoSnapshotStrategy). Consumers who need repositories or snapshot
+	/// strategies should use the
+	/// <see cref="AddEventSourcing(IExcaliburBuilder, Action{IEventSourcingBuilder})"/>
+	/// overload.
+	/// </summary>
+	/// <param name="builder">The Excalibur builder.</param>
+	/// <returns>The same builder for fluent chaining.</returns>
+	public static IExcaliburBuilder AddEventSourcing(this IExcaliburBuilder builder)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		_ = builder.Services.AddExcaliburEventSourcing();
+		return builder;
+	}
 }

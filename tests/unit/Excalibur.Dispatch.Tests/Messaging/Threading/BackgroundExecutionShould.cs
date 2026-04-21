@@ -9,8 +9,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Threading;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class BackgroundExecutionShould
 {
 	// --- BackgroundExecutionMiddleware ---
@@ -193,9 +193,8 @@ public sealed class BackgroundExecutionShould
 		// Act
 		services.AddDispatchThreading();
 
-		// Assert
+		// Assert -- S717 T.2: middleware registered as concrete type, not IDispatchMiddleware
 		services.ShouldContain(sd => sd.ServiceType == typeof(IKeyedLock));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchMiddleware));
 	}
 
 	// --- Test helpers ---

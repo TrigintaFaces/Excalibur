@@ -6,8 +6,8 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Classificati
 /// <summary>
 /// Unit tests for <see cref="PersonalDataAttribute"/>, <see cref="PersonalDataCategory"/>, and <see cref="LegalBasis"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [Trait("Feature", "Classification")]
 public sealed class PersonalDataAttributeShould : UnitTestBase
 {

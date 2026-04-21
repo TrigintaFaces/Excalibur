@@ -68,7 +68,7 @@ public sealed class ExcaliburAwsLambdaServiceCollectionExtensionsShould : UnitTe
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddExcaliburAwsLambdaServerless(null!));
+			services.AddExcaliburAwsLambdaServerless((Action<ServerlessHostOptions>)null!));
 	}
 #pragma warning restore IL2026
 }

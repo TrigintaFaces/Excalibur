@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Azure;
 using Azure.Identity;
 using Azure.Messaging.EventGrid;
@@ -13,6 +14,7 @@ using Excalibur.Dispatch.Transport.Azure;
 using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -69,8 +71,49 @@ public static class EventGridTransportServiceCollectionExtensions
 
 		_ = services.AddOptions<EventGridTransportOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		RegisterEventGridCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the Azure Event Grid transport sender using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="EventGridTransportOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddEventGridTransport(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<EventGridTransportOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		RegisterEventGridCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers the core Event Grid services shared by all overloads.
+	/// </summary>
+	private static void RegisterEventGridCore(IServiceCollection services)
+	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<EventGridTransportOptions>, EventGridTransportOptionsValidator>());
 
 		services.TryAddSingleton(sp =>
 		{
@@ -101,7 +144,5 @@ public static class EventGridTransportServiceCollectionExtensions
 				.UseTelemetry("eventgrid", meter, activitySource)
 				.Build();
 		});
-
-		return services;
 	}
 }

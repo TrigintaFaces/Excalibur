@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 /// Sprint 460 - Task S460.4: Middleware Pipeline Tests.
 /// Tests the result struct used for middleware execution outcomes.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class MiddlewareResultShould
 {
@@ -28,7 +28,7 @@ public sealed class MiddlewareResultShould
 		// Assert
 		result.ContinueExecution.ShouldBeTrue();
 		result.Success.ShouldBeTrue();
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -40,7 +40,7 @@ public sealed class MiddlewareResultShould
 		// Assert
 		result.ContinueExecution.ShouldBeFalse();
 		result.Success.ShouldBeTrue();
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -55,7 +55,7 @@ public sealed class MiddlewareResultShould
 		// Assert
 		result.ContinueExecution.ShouldBeFalse();
 		result.Success.ShouldBeFalse();
-		result.Error.ShouldBe(errorMessage);
+		result.Error!.ShouldBe(errorMessage);
 	}
 
 	#endregion
@@ -74,7 +74,7 @@ public sealed class MiddlewareResultShould
 		// Assert
 		result.ContinueExecution.ShouldBeTrue();
 		result.Success.ShouldBeFalse();
-		result.Error.ShouldBe("custom error");
+		result.Error!.ShouldBe("custom error");
 	}
 
 	[Fact]
@@ -86,7 +86,7 @@ public sealed class MiddlewareResultShould
 			success: true);
 
 		// Assert
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	#endregion
@@ -217,7 +217,7 @@ public sealed class MiddlewareResultShould
 		// Assert
 		result.ContinueExecution.ShouldBeFalse();
 		result.Success.ShouldBeFalse();
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]

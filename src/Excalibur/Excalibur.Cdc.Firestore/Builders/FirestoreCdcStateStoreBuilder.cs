@@ -5,7 +5,7 @@ namespace Excalibur.Cdc.Firestore;
 
 /// <summary>
 /// Internal implementation of <see cref="ICdcStateStoreBuilder"/> for Firestore CDC.
-/// Maps SchemaName -> no-op (Firestore has no schema concept), TableName -> CollectionName.
+/// Firestore uses project-based auth, not connection strings, and has no schema concept.
 /// </summary>
 internal sealed class FirestoreCdcStateStoreBuilder : ICdcStateStoreBuilder
 {
@@ -18,38 +18,6 @@ internal sealed class FirestoreCdcStateStoreBuilder : ICdcStateStoreBuilder
 
 	/// <summary>Gets the BindConfiguration section path, if set.</summary>
 	internal string? BindConfigurationPath { get; private set; }
-
-	/// <summary>Gets the project ID / connection string set via <see cref="ConnectionString"/>.</summary>
-	internal string? StateProjectId { get; private set; }
-
-	/// <summary>Gets the connection string name to resolve from configuration, if set.</summary>
-	internal string? StateConnectionStringName { get; private set; }
-
-	/// <inheritdoc/>
-	/// <remarks>For Firestore, this sets the project ID for the state store.</remarks>
-	public ICdcStateStoreBuilder ConnectionString(string connectionString)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		StateProjectId = connectionString;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ICdcStateStoreBuilder ConnectionStringName(string name)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(name);
-		StateConnectionStringName = name;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	/// <remarks>No-op for Firestore as it does not have a schema concept. The value is accepted but ignored.</remarks>
-	public ICdcStateStoreBuilder SchemaName(string schema)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(schema);
-		// Firestore has no schema concept; accept but ignore.
-		return this;
-	}
 
 	/// <inheritdoc/>
 	/// <remarks>Maps to <see cref="FirestoreCdcStateStoreOptions.CollectionName"/>.</remarks>

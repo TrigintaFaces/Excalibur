@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Diagnostics;
@@ -184,7 +185,7 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 
 		if (message.CausationId is not null)
 		{
-			properties.Headers["causation-id"] = message.CausationId;
+			properties.Headers[OutboxHeaderNames.CausationId] = message.CausationId;
 		}
 
 		if (message.Subject is not null)

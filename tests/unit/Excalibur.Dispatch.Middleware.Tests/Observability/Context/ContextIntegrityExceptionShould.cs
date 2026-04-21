@@ -8,9 +8,9 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Context;
 /// <summary>
 /// Unit tests for <see cref="ContextIntegrityException" />.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Excalibur.Dispatch.Observability")]
-[Trait("Feature", "Context")]
+[Trait(TraitNames.Feature, TestFeatures.Context)]
 public sealed class ContextIntegrityExceptionShould : UnitTestBase
 {
 	#region Constructor Tests
@@ -24,7 +24,7 @@ public sealed class ContextIntegrityExceptionShould : UnitTestBase
 		// Assert
 		exception.ShouldNotBeNull();
 		exception.Message.ShouldNotBeNullOrEmpty(); // Default exception message
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class ContextIntegrityExceptionShould : UnitTestBase
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -53,7 +53,7 @@ public sealed class ContextIntegrityExceptionShould : UnitTestBase
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	#endregion

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using FakeItEasy;
 
@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Signing;
 /// <summary>
 /// Unit tests for <see cref="MessageSigningMiddleware"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "Signing")]
 public sealed class MessageSigningMiddlewareShould
 {

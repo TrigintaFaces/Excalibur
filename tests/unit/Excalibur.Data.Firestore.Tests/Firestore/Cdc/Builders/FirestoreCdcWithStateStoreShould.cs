@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.Firestore.Cdc.Builders;
 /// Validates the unified WithStateStore(Action&lt;ICdcStateStoreBuilder&gt;) pattern.
 /// Firestore uses project IDs via ConnectionString() instead of traditional connection strings.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 {
 	private const string StateProjectId = "my-state-project";
@@ -29,11 +29,11 @@ public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseFirestore(firestore =>
+			builder.UseFirestore((Action<IFirestoreCdcBuilder>)(firestore =>
 				firestore.CollectionPath("orders")
 				         .ProcessorName("order-cdc")
 				         .WithStateStore(state =>
-					         state.ConnectionString(StateProjectId))));
+					         state.TableName("cdc-positions")))));
 
 		// Assert -- FirestoreCdcStateStoreOptions should be registered
 		services.ShouldContain(sd =>
@@ -66,12 +66,11 @@ public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseFirestore(firestore =>
+			builder.UseFirestore((Action<IFirestoreCdcBuilder>)(firestore =>
 				firestore.CollectionPath("orders")
 				         .ProcessorName("order-cdc")
 				         .WithStateStore(state =>
-					         state.ConnectionString(StateProjectId)
-					              .TableName("custom-positions"))));
+					         state.TableName("custom-positions")))));
 
 		// Assert -- state store options reflect custom collection name
 		var provider = services.BuildServiceProvider();
@@ -90,9 +89,9 @@ public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 
 		// Act -- no WithStateStore call
 		services.AddCdcProcessor(builder =>
-			builder.UseFirestore(firestore =>
+			builder.UseFirestore((Action<IFirestoreCdcBuilder>)(firestore =>
 				firestore.CollectionPath("orders")
-				         .ProcessorName("order-cdc")));
+				         .ProcessorName("order-cdc"))));
 
 		// Assert -- FirestoreCdcOptions are registered
 		services.ShouldContain(sd =>
@@ -151,12 +150,11 @@ public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseFirestore(firestore =>
+			builder.UseFirestore((Action<IFirestoreCdcBuilder>)(firestore =>
 				firestore.CollectionPath("orders")
 				         .ProcessorName("order-cdc")
 				         .WithStateStore(state =>
-					         state.ConnectionString(StateProjectId)
-					              .BindConfiguration("Cdc:State"))));
+					         state.BindConfiguration("Cdc:State")))));
 
 		// Assert -- state store options BindConfiguration is wired
 		var stateOptionsDescriptors = services.Where(sd =>

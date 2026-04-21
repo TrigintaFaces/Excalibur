@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Covers all key building paths: ICacheable-based keys, serialization fallback, tenant/user context,
 /// and hashing behavior.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 {
 	private readonly DispatchJsonSerializer _serializer;

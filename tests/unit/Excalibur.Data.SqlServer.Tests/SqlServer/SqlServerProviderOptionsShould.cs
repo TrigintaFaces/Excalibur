@@ -8,7 +8,7 @@ namespace Excalibur.Data.Tests.SqlServer;
 /// <summary>
 /// Unit tests for SqlServerProviderOptions configuration.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "SqlServerProviderOptions")]
 public sealed class SqlServerProviderOptionsShould : UnitTestBase
 {

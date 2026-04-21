@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Dispatch.Abstractions;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Excalibur.Dispatch.Hosting.AwsLambda;
 
@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="AwsLambdaHostProvider" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-internal partial class AwsLambdaHostProvider(ILogger logger) : IServerlessHostProvider, IServerlessHostConfigurator
+internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logger) : IServerlessHostProvider, IServerlessHostConfigurator
 {
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -28,7 +28,10 @@ internal partial class AwsLambdaHostProvider(ILogger logger) : IServerlessHostPr
 		!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LAMBDA_TASK_ROOT"));
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT",
+		"IL2026:RequiresUnreferencedCode",
+		Justification = "DefaultLambdaJsonSerializer is registered as a fallback. " +
+			"Consumers targeting AOT should register SourceGeneratorLambdaJsonSerializer instead.")]
 	public void ConfigureServices(IServiceCollection services, ServerlessHostOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -40,7 +43,7 @@ internal partial class AwsLambdaHostProvider(ILogger logger) : IServerlessHostPr
 		_ = services.AddSingleton(sp => CreateDefaultContext());
 
 		// Add Lambda serializer if not already configured
-		_ = services.AddSingleton<DefaultLambdaJsonSerializer>();
+		services.TryAddSingleton<DefaultLambdaJsonSerializer>();
 
 		// Configure cold start optimization if enabled
 		if (options.EnableColdStartOptimization)

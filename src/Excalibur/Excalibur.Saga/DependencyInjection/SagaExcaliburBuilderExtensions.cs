@@ -1,8 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Hosting.Builders;
 using Excalibur.Saga;
+using Excalibur.Saga.DependencyInjection;
+
+using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -33,6 +37,51 @@ public static class SagaExcaliburBuilderExtensions
 		{
 			_ = builder.Services.AddExcaliburSaga();
 		}
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Configures saga processing for the Excalibur host using the
+	/// <see cref="ISagaBuilder"/> sub-feature builder (orchestration, timeouts,
+	/// instrumentation, storage provider).
+	/// </summary>
+	/// <param name="builder">The Excalibur builder.</param>
+	/// <param name="configure">Action to configure saga sub-features.</param>
+	/// <returns>The same builder for fluent chaining.</returns>
+	public static IExcaliburBuilder AddSagas(
+		this IExcaliburBuilder builder,
+		Action<ISagaBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		_ = builder.Services.AddExcaliburSaga(configure);
+		return builder;
+	}
+
+	/// <summary>
+	/// Configures saga processing for the Excalibur host using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The Excalibur builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SagaOptions"/>.</param>
+	/// <returns>The same builder for fluent chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IExcaliburBuilder AddSagas(
+		this IExcaliburBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<SagaOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		_ = builder.Services.AddExcaliburSaga();
 
 		return builder;
 	}

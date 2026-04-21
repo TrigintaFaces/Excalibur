@@ -14,8 +14,8 @@ namespace Excalibur.Data.Tests.Redis;
 /// <summary>
 /// Unit tests for RedisRetryPolicy.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class RedisRetryPolicyShould : UnitTestBase
 {
 	private static object CreateRedisRetryPolicy(int maxRetryAttempts)

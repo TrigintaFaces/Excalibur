@@ -39,15 +39,9 @@ public sealed class MaterializedViewMetrics : IDisposable
 	private readonly TagCardinalityGuard _viewNameGuard = new(maxCardinality: 128);
 	private readonly TagCardinalityGuard _errorTypeGuard = new(maxCardinality: 50);
 
-	#if NET9_0_OR_GREATER
 
-	private readonly System.Threading.Lock _stateLock = new();
+	private readonly Lock _stateLock = new();
 
-	#else
-
-	private readonly object _stateLock = new();
-
-	#endif
 	private readonly Dictionary<string, ViewState> _viewStates = new();
 	private long _totalRefreshAttempts;
 	private long _totalRefreshFailures;

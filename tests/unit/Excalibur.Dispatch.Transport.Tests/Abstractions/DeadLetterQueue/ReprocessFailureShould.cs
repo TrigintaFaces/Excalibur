@@ -6,8 +6,8 @@ using Shouldly;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.DeadLetterQueue;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class ReprocessFailureShould
 {
     [Fact]
@@ -19,7 +19,7 @@ public sealed class ReprocessFailureShould
 
         failure.Message.ShouldBeNull();
         failure.Reason.ShouldBe(string.Empty);
-        failure.Exception.ShouldBeNull();
+        failure.Exception!.ShouldBeNull();
         failure.FailedAt.ShouldBeGreaterThanOrEqualTo(before);
         failure.FailedAt.ShouldBeLessThanOrEqualTo(after);
     }
@@ -56,9 +56,9 @@ public sealed class ReprocessFailureShould
         var exception = new InvalidOperationException("Something went wrong");
         var failure = new ReprocessFailure { Exception = exception };
 
-        failure.Exception.ShouldNotBeNull();
-        failure.Exception.Message.ShouldBe("Something went wrong");
-        failure.Exception.ShouldBeOfType<InvalidOperationException>();
+        failure.Exception!.ShouldNotBeNull();
+        failure.Exception!.Message.ShouldBe("Something went wrong");
+        failure.Exception!.ShouldBeOfType<InvalidOperationException>();
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class ReprocessFailureShould
             FailedAt = DateTimeOffset.UtcNow
         };
 
-        failure.Exception.ShouldBeOfType<TimeoutException>();
+        failure.Exception!.ShouldBeOfType<TimeoutException>();
         failure.Reason.ShouldContain("timeout");
     }
 
@@ -102,7 +102,7 @@ public sealed class ReprocessFailureShould
             FailedAt = DateTimeOffset.UtcNow
         };
 
-        failure.Exception.ShouldBeOfType<HttpRequestException>();
+        failure.Exception!.ShouldBeOfType<HttpRequestException>();
         failure.Reason.ShouldContain("Network");
     }
 
@@ -120,7 +120,7 @@ public sealed class ReprocessFailureShould
             FailedAt = DateTimeOffset.UtcNow
         };
 
-        failure.Exception.ShouldBeOfType<ArgumentException>();
+        failure.Exception!.ShouldBeOfType<ArgumentException>();
         failure.Reason.ShouldContain("validation");
     }
 
@@ -138,7 +138,7 @@ public sealed class ReprocessFailureShould
             FailedAt = DateTimeOffset.UtcNow
         };
 
-        failure.Exception.ShouldBeNull();
+        failure.Exception!.ShouldBeNull();
         failure.Reason.ShouldNotBeEmpty();
     }
 
@@ -163,7 +163,7 @@ public sealed class ReprocessFailureShould
             FailedAt = DateTimeOffset.UtcNow
         };
 
-        failure.Exception.ShouldBeOfType<AggregateException>();
+        failure.Exception!.ShouldBeOfType<AggregateException>();
         ((AggregateException)failure.Exception).InnerExceptions.Count.ShouldBe(2);
     }
 

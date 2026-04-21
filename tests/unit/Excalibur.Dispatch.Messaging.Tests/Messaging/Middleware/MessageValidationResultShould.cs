@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <remarks>
 /// Tests the validation result class with Success and Failure factory methods.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class MessageValidationResultShould
 {
@@ -107,7 +107,7 @@ public sealed class MessageValidationResultShould
 		// Assert
 		result.Errors.Count.ShouldBe(1);
 		result.Errors[0].PropertyName.ShouldBe("Amount");
-		result.Errors[0].ErrorMessage.ShouldBe("Amount must be positive");
+		result.Errors[0].ErrorMessage!.ShouldBe("Amount must be positive");
 	}
 
 	#endregion

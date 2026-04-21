@@ -47,6 +47,17 @@ public sealed class ByteArrayComparer : IComparer<byte[]>, System.Collections.IC
 
 		return x.Length.CompareTo(y.Length);
 	}
+
+	/// <summary>
+	/// Compares two objects as byte arrays lexicographically.
+	/// </summary>
+	/// <param name="x">The first object to compare. Must be a byte array.</param>
+	/// <param name="y">The second object to compare. Must be a byte array.</param>
+	/// <returns>
+	/// A negative value if x is less than y, zero if they are equal,
+	/// or a positive value if x is greater than y.
+	/// </returns>
+	/// <exception cref="ArgumentException">Thrown when either argument is not a byte array.</exception>
 	public int Compare(object? x, object? y)
 	{
 		if (x == y)

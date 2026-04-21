@@ -29,7 +29,7 @@ internal static class DataProcessorDiscovery
 		assembly
 			.GetTypes()
 			.Where(static t =>
-				t is { IsClass: true, IsAbstract: false, IsInterface: false } && typeof(IDataProcessor).IsAssignableFrom(t)));
+				t is { IsClass: true, IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false } && typeof(IDataProcessor).IsAssignableFrom(t)));
 
 	/// <summary>
 	/// Tries to retrieve the record type name associated with a data processor type, either from an attribute or a public property.

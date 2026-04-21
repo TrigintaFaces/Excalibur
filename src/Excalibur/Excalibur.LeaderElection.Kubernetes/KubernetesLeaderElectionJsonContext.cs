@@ -9,9 +9,31 @@ using Excalibur.Dispatch.LeaderElection;
 namespace Excalibur.LeaderElection.Kubernetes;
 
 /// <summary>
+/// DTO for health data stored in Kubernetes lease annotations.
+/// </summary>
+internal sealed class KubernetesHealthAnnotation
+{
+	[JsonPropertyName("candidateId")]
+	public string CandidateId { get; set; } = string.Empty;
+
+	[JsonPropertyName("isHealthy")]
+	public bool IsHealthy { get; set; }
+
+	[JsonPropertyName("healthScore")]
+	public double HealthScore { get; set; }
+
+	[JsonPropertyName("lastUpdated")]
+	public DateTimeOffset LastUpdated { get; set; }
+
+	[JsonPropertyName("metadata")]
+	public IDictionary<string, string>? Metadata { get; set; }
+}
+
+/// <summary>
 /// Source-generated serialization context for Kubernetes leader election payloads.
 /// </summary>
 [JsonSerializable(typeof(CandidateHealth))]
+[JsonSerializable(typeof(KubernetesHealthAnnotation))]
 internal sealed partial class KubernetesLeaderElectionJsonContext : JsonSerializerContext
 {
 	// All configuration is provided via attributes.

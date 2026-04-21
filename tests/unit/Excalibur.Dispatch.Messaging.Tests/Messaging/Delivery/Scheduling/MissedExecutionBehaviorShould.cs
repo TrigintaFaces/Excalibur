@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 /// <summary>
 /// Unit tests for <see cref="MissedExecutionBehavior"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class MissedExecutionBehaviorShould
 {

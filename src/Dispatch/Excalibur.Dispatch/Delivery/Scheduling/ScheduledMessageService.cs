@@ -29,7 +29,9 @@ public partial class ScheduledMessageService(
 	ICronScheduler cronScheduler,
 	IOptions<SchedulerOptions> options,
 	IOptions<CronScheduleOptions> cronOptions,
-	ILogger<ScheduledMessageService> logger) : BackgroundService
+	ILogger<ScheduledMessageService> logger,
+	ITimePolicy? timePolicy = null,
+	ITimeoutMonitor? timeoutMonitor = null) : BackgroundService
 {
 	private readonly SchedulerOptions _schedulerOptions = options.Value;
 	private readonly CronScheduleOptions _cronOptions = cronOptions.Value;
@@ -69,7 +71,9 @@ public partial class ScheduledMessageService(
 
 			try
 			{
-				var schedules = await scheduleStore.GetAllAsync(stoppingToken).ConfigureAwait(false);
+				// Apply timeout to schedule retrieval when ITimePolicy is available
+				using var retrievalCts = CreateTimeoutToken(TimeoutOperationType.Database, stoppingToken);
+				var schedules = await scheduleStore.GetAllAsync(retrievalCts.Token).ConfigureAwait(false);
 				foreach (var item in schedules)
 				{
 					if (!item.Enabled || item.NextExecutionUtc is null || item.NextExecutionUtc > DateTimeOffset.UtcNow)
@@ -85,12 +89,21 @@ public partial class ScheduledMessageService(
 						await HandleMissedExecutionsAsync(item, stoppingToken).ConfigureAwait(false);
 					}
 
-					// Process the current execution
-					await ProcessScheduledMessageAsync(item, stoppingToken).ConfigureAwait(false);
+					// Process the current execution with optional timeout
+					using var processCts = CreateTimeoutToken(TimeoutOperationType.Handler, stoppingToken);
+					await ProcessScheduledMessageAsync(item, processCts.Token).ConfigureAwait(false);
 
 					// Calculate next execution time
 					await UpdateNextExecutionTimeAsync(item, stoppingToken).ConfigureAwait(false);
 				}
+			}
+			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			{
+				break;
+			}
+			catch (TimeoutException ex)
+			{
+				LogTimeoutDuringProcessing(ex);
 			}
 			catch (Exception ex)
 			{
@@ -294,6 +307,23 @@ public partial class ScheduledMessageService(
 		}
 	}
 
+	/// <summary>
+	/// Creates a timeout-aware cancellation token when <see cref="ITimePolicy"/> is registered.
+	/// When no time policy is available, returns a token linked only to the parent.
+	/// </summary>
+	private CancellationTokenSource CreateTimeoutToken(TimeoutOperationType operationType, CancellationToken parentToken)
+	{
+		if (timePolicy is null || !timePolicy.ShouldApplyTimeout(operationType, null))
+		{
+			return CancellationTokenSource.CreateLinkedTokenSource(parentToken);
+		}
+
+		var timeout = timePolicy.GetTimeoutFor(operationType);
+		var cts = CancellationTokenSource.CreateLinkedTokenSource(parentToken);
+		cts.CancelAfter(timeout);
+		return cts;
+	}
+
 	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
 	[LoggerMessage(DeliveryEventId.ScheduledUnknownMessageType, LogLevel.Warning,
 		"Unknown scheduled message type {Type}")]
@@ -310,6 +340,10 @@ public partial class ScheduledMessageService(
 	[LoggerMessage(DeliveryEventId.ScheduledProcessingError, LogLevel.Error,
 		"Error processing scheduled messages")]
 	private partial void LogErrorProcessingMessages(Exception ex);
+
+	[LoggerMessage(DeliveryEventId.ScheduledTimeoutDuringProcessing, LogLevel.Warning,
+		"Timeout occurred during scheduled message processing")]
+	private partial void LogTimeoutDuringProcessing(Exception ex);
 
 	[LoggerMessage(DeliveryEventId.ScheduledServiceStopping, LogLevel.Information,
 		"EnhancedScheduledMessageService stopped.")]

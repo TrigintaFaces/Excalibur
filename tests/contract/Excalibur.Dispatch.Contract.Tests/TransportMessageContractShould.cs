@@ -109,14 +109,14 @@ public sealed class TransportMessageContractShould
 	[Fact]
 	public void Schema_HasExpectedPropertyCount()
 	{
-		// Contract guard: TransportMessage should have exactly 10 public properties
-		// (Id, Body, ContentType, MessageType, CorrelationId, Subject, TimeToLive, CreatedAt, Properties, HasProperties)
+		// Contract guard: TransportMessage should have exactly 11 public properties
+		// (Id, Body, ContentType, MessageType, CorrelationId, CausationId, Subject, TimeToLive, CreatedAt, Properties, HasProperties)
 		// If this count changes, it indicates a schema change that needs review.
 		var publicProperties = typeof(TransportMessage)
 			.GetProperties()
 			.ToList();
 
-		publicProperties.Count.ShouldBe(10, "TransportMessage property count changed — this is a contract change that requires review");
+		publicProperties.Count.ShouldBe(11, "TransportMessage property count changed — this is a contract change that requires review");
 	}
 
 	[Fact]

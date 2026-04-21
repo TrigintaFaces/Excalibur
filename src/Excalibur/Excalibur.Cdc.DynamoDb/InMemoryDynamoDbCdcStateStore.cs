@@ -16,7 +16,7 @@ namespace Excalibur.Cdc.DynamoDb;
 /// This implementation is intended for testing and development.
 /// Positions are not persisted and will be lost when the process exits.
 /// </remarks>
-public sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
+internal sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 {
 	private readonly ConcurrentDictionary<string, DynamoDbCdcStateEntry> _positions = new();
 	private volatile bool _disposed;
@@ -34,10 +34,12 @@ public sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 			return Task.FromResult<DynamoDbCdcPosition?>(null);
 		}
 
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		if (!DynamoDbCdcPosition.TryFromBase64(entry.PositionData, out var position))
 		{
 			return Task.FromResult<DynamoDbCdcPosition?>(null);
 		}
+#pragma warning restore IL2026
 
 		return Task.FromResult(position);
 	}
@@ -52,6 +54,7 @@ public sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorName);
 		ArgumentNullException.ThrowIfNull(position);
 
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		var entry = new DynamoDbCdcStateEntry
 		{
 			ProcessorName = processorName,
@@ -59,6 +62,7 @@ public sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 			UpdatedAt = DateTimeOffset.UtcNow,
 			EventCount = position.ShardPositions.Count,
 		};
+#pragma warning restore IL2026
 
 		_positions[processorName] = entry;
 		return Task.CompletedTask;
@@ -102,10 +106,12 @@ public sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 	{
 		ArgumentNullException.ThrowIfNull(position);
 
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		if (position is not DynamoDbCdcPosition dynamoPosition)
 		{
 			dynamoPosition = DynamoDbCdcPosition.FromBase64(position.ToToken());
 		}
+#pragma warning restore IL2026
 
 		return SavePositionAsync(consumerId, dynamoPosition, cancellationToken);
 	}
@@ -125,10 +131,12 @@ public sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 
 		foreach (var kvp in _positions)
 		{
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 			if (DynamoDbCdcPosition.TryFromBase64(kvp.Value.PositionData, out var position) && position is not null)
 			{
 				yield return (kvp.Key, position);
 			}
+#pragma warning restore IL2026
 		}
 	}
 

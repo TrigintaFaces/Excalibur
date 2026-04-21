@@ -6,7 +6,7 @@ namespace Excalibur.Data.DynamoDb.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for DynamoDB persistence instrumentation.
 /// </summary>
-public static class DynamoDbPersistenceTelemetryConstants
+internal static class DynamoDbPersistenceTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for DynamoDB persistence metrics.

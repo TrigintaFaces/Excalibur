@@ -13,8 +13,8 @@ using PubSubFailedMessage = Excalibur.Dispatch.Transport.Google.FailedMessage;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.BatchReceiving;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class BatchProcessingResultShould
 {
 	private static PubSubMessageBatch CreateBatch(int count)

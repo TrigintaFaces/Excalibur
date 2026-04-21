@@ -8,8 +8,8 @@ namespace Excalibur.Data.Tests.InMemory;
 /// <summary>
 /// Unit tests for <see cref="InMemorySnapshotOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class InMemorySnapshotOptionsShould : UnitTestBase
 {
 	#region Default Values Tests

@@ -4,16 +4,17 @@
 using System.Runtime.InteropServices;
 using System.Security;
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Configuration;
+
 
 namespace Excalibur.Dispatch.Security.Tests;
 
 [UnitTest]
-[Trait("Component", "Security")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 {
 	private readonly HttpClient _httpClient;

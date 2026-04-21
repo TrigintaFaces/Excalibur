@@ -16,7 +16,7 @@ namespace Excalibur.Data.Tests.InMemory;
 /// <summary>
 /// Unit tests for the ITransactionScope implementation returned by InMemoryPersistenceProvider.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.InMemory")]
 public sealed class InMemoryTransactionScopeShould : UnitTestBase
 {

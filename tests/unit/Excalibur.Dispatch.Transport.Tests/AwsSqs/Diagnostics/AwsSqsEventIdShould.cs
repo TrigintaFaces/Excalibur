@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport.AwsSqs")]
+[Trait(TraitNames.Component, TestComponents.AwsSqs)]
 [Trait("Priority", "0")]
 public sealed class AwsSqsEventIdShould : UnitTestBase
 {

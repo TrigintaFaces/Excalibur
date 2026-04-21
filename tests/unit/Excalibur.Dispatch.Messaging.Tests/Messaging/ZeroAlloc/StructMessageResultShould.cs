@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ZeroAlloc;
 /// <summary>
 ///     Tests for the <see cref="StructMessageResult" /> struct.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class StructMessageResultShould
 {
@@ -20,7 +20,7 @@ public sealed class StructMessageResultShould
 		result.Succeeded.ShouldBeTrue();
 		result.ProblemDetails.ShouldBeNull();
 		result.CacheHit.ShouldBeFalse();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -30,7 +30,7 @@ public sealed class StructMessageResultShould
 		var result = StructMessageResult.Failed(problem);
 		result.Succeeded.ShouldBeFalse();
 		result.ProblemDetails.ShouldBe(problem);
-		result.ErrorMessage.ShouldBe("Something went wrong");
+		result.ErrorMessage!.ShouldBe("Something went wrong");
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class StructMessageResultShould
 /// <summary>
 ///     Tests for the <see cref="StructMessageResult{T}" /> generic struct.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class StructMessageResultOfTShould
 {
 	[Fact]
@@ -121,7 +121,7 @@ public sealed class StructMessageResultOfTShould
 		result.Succeeded.ShouldBeFalse();
 		result.ReturnValue.ShouldBeNull();
 		result.ProblemDetails.ShouldBe(problem);
-		result.ErrorMessage.ShouldBe("Oops");
+		result.ErrorMessage!.ShouldBe("Oops");
 	}
 
 	[Fact]

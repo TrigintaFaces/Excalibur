@@ -22,8 +22,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Pipeline;
 /// Tests the runtime behavior when static pipelines execute or fall back to dynamic dispatch.
 /// </remarks>
 [Collection("HandlerInvokerRegistry")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class StaticPipelineInvocationShould : IDisposable
 {

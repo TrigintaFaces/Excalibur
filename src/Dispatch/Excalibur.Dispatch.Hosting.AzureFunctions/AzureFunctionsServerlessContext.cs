@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
-#if AZURE_FUNCTIONS_SUPPORT
 using Microsoft.Azure.Functions.Worker;
-#endif
 
 using Excalibur.Dispatch.Abstractions;
 
@@ -15,9 +12,7 @@ namespace Excalibur.Dispatch.Hosting.AzureFunctions;
 /// </summary>
 internal sealed class AzureFunctionsServerlessContext : ServerlessContextBase
 {
-#if AZURE_FUNCTIONS_SUPPORT
 	private readonly FunctionContext _functionContext;
-#endif
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AzureFunctionsServerlessContext" /> class.
@@ -27,7 +22,6 @@ internal sealed class AzureFunctionsServerlessContext : ServerlessContextBase
 	public AzureFunctionsServerlessContext(object functionContext, ILogger logger)
 		: base(functionContext, ServerlessPlatform.AzureFunctions, logger)
 	{
-#if AZURE_FUNCTIONS_SUPPORT
 		if (functionContext is FunctionContext context)
 		{
 			_functionContext = context;
@@ -36,28 +30,14 @@ internal sealed class AzureFunctionsServerlessContext : ServerlessContextBase
 		{
 			throw new ArgumentException(ErrorConstants.FunctionContextMustBeFunctionContext, nameof(functionContext));
 		}
-#else
-		throw new NotSupportedException(ErrorConstants.AzureFunctionsSupportNotAvailable);
-#endif
 	}
 
 	/// <inheritdoc />
-	public override string RequestId =>
-#if AZURE_FUNCTIONS_SUPPORT
-		_functionContext.FunctionId;
-#else
-		"unknown";
-
-#endif
+	public override string RequestId => _functionContext.FunctionId;
 
 	/// <inheritdoc />
 	public override string FunctionName =>
-#if AZURE_FUNCTIONS_SUPPORT
 		_functionContext.FunctionDefinition?.Name ?? Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ?? "unknown";
-#else
-		"unknown";
-
-#endif
 
 	/// <inheritdoc />
 	public override string FunctionVersion =>
@@ -159,7 +139,6 @@ internal sealed class AzureFunctionsServerlessContext : ServerlessContextBase
 		}
 	}
 
-#if AZURE_FUNCTIONS_SUPPORT
 	/// <summary>
 	/// Gets the Azure-specific Function context.
 	/// </summary>
@@ -194,7 +173,6 @@ internal sealed class AzureFunctionsServerlessContext : ServerlessContextBase
 			return null;
 		}
 	}
-#endif
 
 	/// <inheritdoc />
 	protected override void Dispose(bool disposing)

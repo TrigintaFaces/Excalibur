@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Metrics;
 /// <summary>
 /// Unit tests for <see cref="LabeledCounter"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Metrics")]
 public sealed class LabeledCounterShould : UnitTestBase
 {

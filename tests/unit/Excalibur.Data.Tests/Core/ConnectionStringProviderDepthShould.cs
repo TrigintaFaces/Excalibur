@@ -13,7 +13,7 @@ namespace Excalibur.Data.Tests.Core;
 /// Covers CRUD operations, validation, building/parsing, refresh, and edge cases.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConnectionStringProviderDepthShould : IDisposable
 {
 	private readonly ConnectionStringProvider _provider;

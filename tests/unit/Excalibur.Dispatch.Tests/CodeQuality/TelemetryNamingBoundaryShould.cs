@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Tests.CodeQuality;
 /// requiring an extra <c>.AddMeter("Excalibur.Dispatch.*")</c> band-aid in the observability setup.
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "CodeQuality")]
 public sealed class TelemetryNamingBoundaryShould
 {

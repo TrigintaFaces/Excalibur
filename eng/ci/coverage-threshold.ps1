@@ -4,7 +4,7 @@
 param(
 	[Parameter(Mandatory = $true)]
 	[string]$CoverageRoot,
-	[int]$Threshold = 60,
+	[int]$Threshold = 65,
 	[switch]$FailBelowThreshold
 )
 

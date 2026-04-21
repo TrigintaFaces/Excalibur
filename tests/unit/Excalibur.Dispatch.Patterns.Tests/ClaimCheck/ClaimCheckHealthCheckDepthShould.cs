@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 /// <summary>
 /// Depth coverage tests for <see cref="ClaimCheckHealthCheck"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ClaimCheckHealthCheckDepthShould
 {
 	private readonly IClaimCheckProvider _provider = A.Fake<IClaimCheckProvider>();
@@ -76,8 +76,8 @@ public sealed class ClaimCheckHealthCheckDepthShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Exception.ShouldNotBeNull();
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldNotBeNull();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]
@@ -97,7 +97,7 @@ public sealed class ClaimCheckHealthCheckDepthShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Exception.ShouldBeOfType<KeyNotFoundException>();
+		result.Exception!.ShouldBeOfType<KeyNotFoundException>();
 	}
 
 	[Fact]

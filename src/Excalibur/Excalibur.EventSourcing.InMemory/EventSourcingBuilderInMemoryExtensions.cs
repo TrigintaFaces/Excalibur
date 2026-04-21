@@ -13,7 +13,7 @@ namespace Excalibur.EventSourcing.InMemory;
 /// <remarks>
 /// <para>
 /// These extensions provide fluent provider selection following the established
-/// CDC builder pattern (see <c>CdcBuilderInMemoryExtensions</c>).
+/// builder pattern used by other InMemory provider packages.
 /// </para>
 /// <para>
 /// <b>Warning:</b> The in-memory event store is intended for testing and development only.
@@ -32,18 +32,51 @@ public static class EventSourcingBuilderInMemoryExtensions
 	/// </exception>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
 	/// {
 	///     es.UseInMemory()
 	///       .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IEventSourcingBuilder UseInMemory(this IEventSourcingBuilder builder)
 	{
+		return UseInMemory(builder, null);
+	}
+
+	/// <summary>
+	/// Configures the event sourcing builder to use an in-memory event store
+	/// with optional in-memory-specific configuration.
+	/// </summary>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="configure">Optional action to configure in-memory-specific options.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="builder"/> is null.
+	/// </exception>
+	/// <example>
+	/// <code>
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
+	/// {
+	///     es.UseInMemory(inmemory =&gt;
+	///     {
+	///         inmemory.StoreName("test-store");
+	///     })
+	///     .AddRepository&lt;OrderAggregate, Guid&gt;();
+	/// }));
+	/// </code>
+	/// </example>
+	public static IEventSourcingBuilder UseInMemory(
+		this IEventSourcingBuilder builder,
+		Action<IInMemoryEventSourcingBuilder>? configure)
+	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		_ = builder.Services.AddInMemoryEventStore();
+		var inmemoryBuilder = new InMemoryEventSourcingBuilder();
+
+		configure?.Invoke(inmemoryBuilder);
+
+		_ = builder.Services.AddInMemoryEventStore(inmemoryBuilder.ConfiguredStoreName);
 
 		return builder;
 	}

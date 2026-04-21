@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Transport.Builders;
 /// Part of S471.4 - Unit Tests for SNS Builders (Sprint 471).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsSnsOptionsShould : UnitTestBase
 {
@@ -308,7 +308,7 @@ public sealed class AwsSqsSnsOptionsShould : UnitTestBase
 /// Unit tests for <see cref="AwsSqsSubscriptionOptions"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsSubscriptionOptionsShould : UnitTestBase
 {

@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 /// than local dev). All timeouts are calibrated for worst-case CI, not local performance.
 /// </remarks>
 [Collection("Performance Tests")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 [Trait("Feature", "Channels")]
 public sealed class AdaptiveWaitStrategyCpuShould

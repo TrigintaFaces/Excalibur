@@ -40,9 +40,10 @@ public static class PostgresSnapshotStoreServiceCollectionExtensions
 			_ = builder.Configure(configureOptions);
 		}
 
-		_ = builder
-			.ValidateDataAnnotations()
-			.ValidateOnStart();
+		_ = builder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresSnapshotStoreOptions>, PostgresSnapshotStoreOptionsValidator>());
 
 		// Register snapshot store with connection string
 		services.TryAddScoped<ISnapshotStore>(sp =>
@@ -82,9 +83,10 @@ public static class PostgresSnapshotStoreServiceCollectionExtensions
 			_ = builder.Configure(configureOptions);
 		}
 
-		_ = builder
-			.ValidateDataAnnotations()
-			.ValidateOnStart();
+		_ = builder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresSnapshotStoreOptions>, PostgresSnapshotStoreOptionsValidator>());
 
 		// Register snapshot store with connection factory
 		services.TryAddScoped<ISnapshotStore>(sp =>

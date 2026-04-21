@@ -18,8 +18,8 @@ namespace Excalibur.Data.Tests.Postgres.Builders;
 /// These tests validate the Microsoft-style fluent builder pattern implementation
 /// for the Postgres outbox provider, where connection is configured via the builder.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Database", "Postgres")]
 public sealed class PostgresOutboxBuilderShould : UnitTestBase
 {

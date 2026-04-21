@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing;
 /// <summary>
 ///     Tests for the <see cref="RouteCache" /> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class RouteCacheShould
 {

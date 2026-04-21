@@ -6,8 +6,8 @@ using Shouldly;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.DeadLetterQueue;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class DeadLetterExceptionShould
 {
     [Fact]
@@ -18,7 +18,7 @@ public sealed class DeadLetterExceptionShould
         exception.Message.ShouldBe(string.Empty);
         exception.ExceptionType.ShouldBe(string.Empty);
         exception.OriginalStackTrace.ShouldBeNull();
-        exception.InnerException.ShouldBeNull();
+        exception.InnerException!.ShouldBeNull();
     }
 
     [Fact]

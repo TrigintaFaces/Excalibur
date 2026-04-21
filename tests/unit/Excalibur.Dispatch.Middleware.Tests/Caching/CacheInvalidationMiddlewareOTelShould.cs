@@ -24,8 +24,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests verifying OTel metric emission from <see cref="CacheInvalidationMiddleware"/>.
 /// Uses meter-instance tracking to isolate from concurrent test execution.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class CacheInvalidationMiddlewareOTelShould : UnitTestBase
 {
 	private readonly ConcurrentDictionary<Meter, byte> _ownedMeters = new();

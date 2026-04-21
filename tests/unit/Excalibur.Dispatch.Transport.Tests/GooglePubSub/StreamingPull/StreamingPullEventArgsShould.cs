@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport.Google;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.StreamingPull;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class StreamingPullEventArgsShould
 {
 	[Fact]
@@ -64,7 +64,7 @@ public sealed class StreamingPullEventArgsShould
 		args.MessageId.ShouldBe("msg-1");
 		args.Success.ShouldBeTrue();
 		args.Duration.ShouldBe(duration);
-		args.Error.ShouldBeNull();
+		args.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -81,7 +81,7 @@ public sealed class StreamingPullEventArgsShould
 		args.MessageId.ShouldBe("msg-2");
 		args.Success.ShouldBeFalse();
 		args.Duration.ShouldBe(duration);
-		args.Error.ShouldBe(error);
+		args.Error!.ShouldBe(error);
 	}
 
 	[Fact]

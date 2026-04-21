@@ -98,7 +98,7 @@ public sealed partial class ContextObservabilityMiddleware(
 		{
 			// Capture context state before processing
 			beforeSnapshot = CaptureContextSnapshot(context, $"{stageName}.Before");
-			_tracker.RecordContextState(context, $"{stageName}.Before", GetStageMetadata(context));
+			_tracker.RecordContextState(context, $"{stageName}.Before", GetStageMetadata());
 
 			// Validate context integrity
 			ValidateContextIntegrityAndFail(context, stageName);
@@ -176,18 +176,13 @@ public sealed partial class ContextObservabilityMiddleware(
 		}
 	}
 
-	// R0.8: Unused parameter
-#pragma warning disable RCS1163, IDE0060
-
-	private static Dictionary<string, object> GetStageMetadata(IMessageContext context) =>
+	private static Dictionary<string, object> GetStageMetadata() =>
 		new(StringComparer.Ordinal)
 		{
 			["thread_id"] = Environment.CurrentManagedThreadId,
 			["process_id"] = Environment.ProcessId,
 			["timestamp_utc"] = DateTimeOffset.UtcNow.ToString("O"),
 		};
-
-#pragma warning restore RCS1163, IDE0060
 
 	private void ValidateContextIntegrityAndFail(IMessageContext context, string stageName)
 	{
@@ -222,7 +217,7 @@ public sealed partial class ContextObservabilityMiddleware(
 	{
 		// Capture context state after processing
 		var afterSnapshot = CaptureContextSnapshot(context, $"{stageName}.After");
-		_tracker.RecordContextState(context, $"{stageName}.After", GetStageMetadata(context));
+		_tracker.RecordContextState(context, $"{stageName}.After", GetStageMetadata());
 
 		// Detect mutations
 		DetectAndRecordMutations(context, beforeSnapshot, afterSnapshot, stageName);

@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// <remarks>
 /// Tests the multi-transport health check configuration options.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Priority", "0")]
 public sealed class MultiTransportHealthCheckOptionsShould
 {

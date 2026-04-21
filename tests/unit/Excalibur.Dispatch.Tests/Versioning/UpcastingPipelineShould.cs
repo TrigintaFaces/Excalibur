@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Versioning;
 /// Unit tests for <see cref="UpcastingPipeline"/> validating BFS path finding,
 /// caching, thread safety, and error handling.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class UpcastingPipelineShould : IDisposable
 {

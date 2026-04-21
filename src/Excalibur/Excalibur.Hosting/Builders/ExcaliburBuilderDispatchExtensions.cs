@@ -47,4 +47,29 @@ public static class ExcaliburBuilderDispatchExtensions
 
 		return builder;
 	}
+
+	/// <summary>
+	/// Adds the Dispatch messaging pipeline within the Excalibur builder.
+	/// </summary>
+	/// <param name="builder">The Excalibur builder.</param>
+	/// <param name="configure">An optional action to configure the dispatch pipeline.</param>
+	/// <returns>The Excalibur builder for fluent configuration.</returns>
+	/// <remarks>
+	/// <para>
+	/// Alias for <see cref="UseDispatch(IExcaliburBuilder, Action{IDispatchBuilder}?)"/> providing
+	/// naming consistency with peer subsystem registration methods (<c>AddEventSourcing</c>,
+	/// <c>AddOutbox</c>, <c>AddCdc</c>, <c>AddSagas</c>, <c>AddIdentityMap</c>,
+	/// <c>AddLeaderElection</c>). Consumers may use either form interchangeably.
+	/// </para>
+	/// <code>
+	/// services.AddExcalibur(excalibur => excalibur
+	///     .AddDispatch(dispatch => dispatch
+	///         .AddHandlersFromAssembly(typeof(Program).Assembly)
+	///         .WithDefaults()));
+	/// </code>
+	/// </remarks>
+	public static IExcaliburBuilder AddDispatch(
+		this IExcaliburBuilder builder,
+		Action<IDispatchBuilder>? configure = null)
+		=> UseDispatch(builder, configure);
 }

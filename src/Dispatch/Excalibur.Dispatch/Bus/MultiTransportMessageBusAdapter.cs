@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Frozen;
 using System.Globalization;
@@ -128,15 +128,17 @@ public sealed partial class MultiTransportMessageBusAdapter : IMessageBusAdapter
 	/// <inheritdoc />
 	public Task InitializeAsync(MessageBusOptions options, CancellationToken cancellationToken)
 	{
-		if (_adapterArray.Length == 0)
+		var lifecycleAdapters = GetLifecycleAdapters();
+
+		if (lifecycleAdapters.Count == 0)
 		{
 			return Task.CompletedTask;
 		}
 
-		var tasks = new Task[_adapterArray.Length];
-		for (var i = 0; i < _adapterArray.Length; i++)
+		var tasks = new Task[lifecycleAdapters.Count];
+		for (var i = 0; i < lifecycleAdapters.Count; i++)
 		{
-			tasks[i] = _adapterArray[i].InitializeAsync(options, cancellationToken);
+			tasks[i] = lifecycleAdapters[i].Lifecycle.InitializeAsync(options, cancellationToken);
 		}
 
 		return Task.WhenAll(tasks);

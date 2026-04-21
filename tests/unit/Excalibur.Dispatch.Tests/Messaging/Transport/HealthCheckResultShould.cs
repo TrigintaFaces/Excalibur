@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class HealthCheckResultShould
 {
 	[Fact]
@@ -13,7 +13,7 @@ public sealed class HealthCheckResultShould
 
 		result.IsHealthy.ShouldBeTrue();
 		result.Description.ShouldBe("Healthy");
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 		result.CheckTimestamp.ShouldNotBe(default);
 		result.CheckTimestamp.Kind.ShouldBe(DateTimeKind.Utc);
 	}
@@ -34,7 +34,7 @@ public sealed class HealthCheckResultShould
 
 		result.IsHealthy.ShouldBeFalse();
 		result.Description.ShouldBe("Connection failed");
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 		result.CheckTimestamp.ShouldNotBe(default);
 		result.CheckTimestamp.Kind.ShouldBe(DateTimeKind.Utc);
 	}
@@ -47,7 +47,7 @@ public sealed class HealthCheckResultShould
 
 		result.IsHealthy.ShouldBeFalse();
 		result.Description.ShouldBe("Connection failed");
-		result.Exception.ShouldBe(ex);
+		result.Exception!.ShouldBe(ex);
 	}
 
 	[Fact]
@@ -72,6 +72,6 @@ public sealed class HealthCheckResultShould
 
 		result.Description.ShouldBe(string.Empty);
 		result.IsHealthy.ShouldBeFalse();
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 }

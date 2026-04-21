@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Compliance.Erasure;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
 /// <summary>
@@ -11,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Validates Sprint 394 implementation: GDPR Audit Log Verification (T394.5).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class ErasureVerificationServiceAuditShould
 {
 	private readonly IErasureStore _fakeStore;

@@ -16,7 +16,7 @@ namespace Excalibur.Data.Persistence;
 /// <summary>
 /// Implementation of connection string provider with configuration and secret management support.
 /// </summary>
-internal sealed partial class ConnectionStringProvider : IConnectionStringProvider, IDisposable
+internal sealed partial class ConnectionStringProvider : IConnectionStringProvider, IConnectionStringProviderAdmin, IDisposable
 {
 	private readonly IConfiguration _configuration;
 	private readonly ILogger<ConnectionStringProvider> _logger;
@@ -302,9 +302,7 @@ internal sealed partial class ConnectionStringProvider : IConnectionStringProvid
 	// R0.8: Async method lacks 'await' operators
 #pragma warning disable CS1998
 	// R0.8: Remove unused parameter - cancellationToken reserved for future Key Vault integration
-#pragma warning disable IDE0060
 	private async ValueTask<string?> ResolveFromExternalSourceAsync(string name, CancellationToken cancellationToken)
-#pragma warning restore IDE0060, CS1998 // Async method lacks 'await' operators
 	{
 		// Check for environment variable override
 		var envVarName = $"CONNECTIONSTRINGS__{name.ToUpperInvariant().Replace(":", "__", StringComparison.Ordinal)}";
@@ -327,14 +325,13 @@ internal sealed partial class ConnectionStringProvider : IConnectionStringProvid
 
 		return null;
 	}
+#pragma warning restore CS1998
 
 	/// <summary>
 	/// Loads connection strings from external sources.
 	/// </summary>
 	// R0.8: Remove unused parameter - cancellationToken reserved for future external secret store integration
-#pragma warning disable IDE0060
 	private ValueTask LoadFromExternalSourcesAsync(CancellationToken cancellationToken)
-#pragma warning restore IDE0060
 	{
 		// This method would integrate with external secret stores For now, just log that it was called
 		LogCheckingExternalSources();

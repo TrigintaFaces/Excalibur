@@ -64,7 +64,7 @@ public sealed class ElasticsearchUpdateException : ApiException
 	/// <value>
 	/// The ID of the document that failed to update.
 	/// </value>
-	public string DocumentId { get; }
+	public string DocumentId { get; } = string.Empty;
 
 	/// <summary>
 	/// Gets the type of the document that failed to update.
@@ -80,5 +80,5 @@ public sealed class ElasticsearchUpdateException : ApiException
 	/// <value>
 	/// Details about the API call that failed.
 	/// </value>
-	public string ApiCallDetails { get; }
+	public string ApiCallDetails { get; } = string.Empty;
 }

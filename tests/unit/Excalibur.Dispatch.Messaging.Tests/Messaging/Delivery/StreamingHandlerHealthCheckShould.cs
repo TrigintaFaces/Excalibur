@@ -10,25 +10,15 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 /// <summary>
 /// Unit tests for <see cref="StreamingHandlerHealthCheck"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "HealthCheck")]
 public sealed class StreamingHandlerHealthCheckShould
 {
 	[Fact]
-	public void ThrowArgumentNullException_WhenServiceProviderIsNull()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => new StreamingHandlerHealthCheck(null!));
-	}
-
-	[Fact]
 	public async Task ReturnHealthyOrDegraded_WithValidServiceProvider()
 	{
-		// Arrange — Build a minimal service provider
-		var services = new ServiceCollection();
-		var sp = services.BuildServiceProvider();
-
-		var healthCheck = new StreamingHandlerHealthCheck(sp);
+		// Arrange
+		var healthCheck = new StreamingHandlerHealthCheck();
 		var context = new HealthCheckContext
 		{
 			Registration = new HealthCheckRegistration("streaming", healthCheck, null, null),
@@ -47,10 +37,7 @@ public sealed class StreamingHandlerHealthCheckShould
 	public async Task IncludeHandlerCountInData()
 	{
 		// Arrange
-		var services = new ServiceCollection();
-		var sp = services.BuildServiceProvider();
-
-		var healthCheck = new StreamingHandlerHealthCheck(sp);
+		var healthCheck = new StreamingHandlerHealthCheck();
 		var context = new HealthCheckContext
 		{
 			Registration = new HealthCheckRegistration("streaming", healthCheck, null, null),
@@ -67,10 +54,7 @@ public sealed class StreamingHandlerHealthCheckShould
 	public async Task ReturnCorrectStatus_BasedOnDiscoveredHandlerCount()
 	{
 		// Arrange
-		var services = new ServiceCollection();
-		var sp = services.BuildServiceProvider();
-
-		var healthCheck = new StreamingHandlerHealthCheck(sp);
+		var healthCheck = new StreamingHandlerHealthCheck();
 		var context = new HealthCheckContext
 		{
 			Registration = new HealthCheckRegistration("streaming", healthCheck, null, null),

@@ -9,8 +9,8 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Excalibur.Data.Tests.ElasticSearch;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ElasticClientHealthCheckShould
 {
 	private readonly IElasticsearchHealthClient _healthClient;
@@ -35,7 +35,7 @@ public sealed class ElasticClientHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy);
 		result.Description.ShouldContain("Failed to check");
-		result.Exception.ShouldNotBeNull();
+		result.Exception!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -51,7 +51,7 @@ public sealed class ElasticClientHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy);
 		result.Description.ShouldContain("Failed to check");
-		result.Exception.ShouldBeOfType<TaskCanceledException>();
+		result.Exception!.ShouldBeOfType<TaskCanceledException>();
 	}
 
 	[Fact]
@@ -66,7 +66,7 @@ public sealed class ElasticClientHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy);
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

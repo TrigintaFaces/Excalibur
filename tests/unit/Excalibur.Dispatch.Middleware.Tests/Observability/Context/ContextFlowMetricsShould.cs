@@ -10,9 +10,9 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Context;
 /// <summary>
 /// Unit tests for <see cref="ContextFlowMetrics" />.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Excalibur.Dispatch.Observability")]
-[Trait("Feature", "Metrics")]
+[Trait(TraitNames.Feature, TestFeatures.Metrics)]
 public sealed class ContextFlowMetricsShould : UnitTestBase
 {
 	private readonly ContextFlowMetrics _metrics;

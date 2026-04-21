@@ -1,8 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Inbox.DependencyInjection;
 using Excalibur.Inbox.Firestore;
+
+using Google.Cloud.Firestore;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -15,17 +23,129 @@ public static class InboxBuilderFirestoreExtensions
 	/// Configures the inbox to use Google Cloud Firestore storage.
 	/// </summary>
 	/// <param name="builder">The inbox builder.</param>
-	/// <param name="configure">Action to configure the Firestore inbox options.</param>
+	/// <param name="configure">Configuration action for the Firestore inbox builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburInbox(inbox =&gt;
+	/// {
+	///     inbox.UseFirestore(firestore =&gt;
+	///     {
+	///         firestore.ProjectId("my-project")
+	///                  .CollectionName("inbox_messages");
+	///     });
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static IInboxBuilder UseFirestore(
 		this IInboxBuilder builder,
-		Action<FirestoreInboxOptions> configure)
+		Action<IFirestoreInboxBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.AddFirestoreInboxStore(configure);
+		var options = new FirestoreInboxOptions();
+		var firestoreBuilder = new FirestoreInboxBuilder(options);
+		configure(firestoreBuilder);
+
+		var hasBuilderClient = firestoreBuilder.ClientInstance is not null
+			|| firestoreBuilder.ClientFactoryFunc is not null;
+
+		RegisterOptionsAndServices(builder, firestoreBuilder, options, hasBuilderClient);
 
 		return builder;
+	}
+
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IInboxBuilder builder,
+		FirestoreInboxBuilder firestoreBuilder,
+		FirestoreInboxOptions options,
+		bool hasBuilderClient)
+	{
+		// Register store-specific options from builder state
+		_ = builder.Services.Configure<FirestoreInboxOptions>(opt =>
+		{
+			opt.ProjectId = options.ProjectId;
+			opt.CollectionName = options.CollectionName;
+			opt.CredentialsPath = options.CredentialsPath;
+			opt.CredentialsJson = options.CredentialsJson;
+			opt.EmulatorHost = options.EmulatorHost;
+		});
+
+		// Register BindConfiguration if set
+		if (firestoreBuilder.BindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<FirestoreInboxOptions>()
+				.BindConfiguration(firestoreBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
+
+		// Register ValidateOnStart
+		builder.Services.AddOptions<FirestoreInboxOptions>().ValidateOnStart();
+
+		// Register validator
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreInboxOptions>, FirestoreInboxOptionsValidator>());
+
+		// Register FirestoreDb based on connection path
+		if (hasBuilderClient)
+		{
+			RegisterBuilderManagedClient(builder.Services, firestoreBuilder, options);
+		}
+		else if (firestoreBuilder.EmulatorHostValue is not null)
+		{
+			var projectId = firestoreBuilder.ProjectIdValue ?? "emulator-project";
+			var emulatorHost = firestoreBuilder.EmulatorHostValue;
+			builder.Services.TryAddSingleton(_ =>
+				new FirestoreDbBuilder { ProjectId = projectId, EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly, Endpoint = emulatorHost }.Build());
+		}
+		else if (firestoreBuilder.ProjectIdValue is not null)
+		{
+			var projectId = firestoreBuilder.ProjectIdValue;
+			builder.Services.TryAddSingleton(_ => FirestoreDb.Create(projectId));
+		}
+
+		// Register store services
+		builder.Services.TryAddSingleton<FirestoreInboxStore>();
+		builder.Services.AddKeyedSingleton<IInboxStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreInboxStore>());
+		builder.Services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("firestore"));
+	}
+
+	private static void RegisterBuilderManagedClient(
+		IServiceCollection services,
+		FirestoreInboxBuilder firestoreBuilder,
+		FirestoreInboxOptions options)
+	{
+		const string sentinel = "builder-managed-firestore-project";
+
+		options.ProjectId = sentinel;
+
+		_ = services.Configure<FirestoreInboxOptions>(opt =>
+		{
+			opt.ProjectId = sentinel;
+		});
+
+		if (firestoreBuilder.ClientInstance is not null)
+		{
+			var client = firestoreBuilder.ClientInstance;
+			services.TryAddSingleton(client);
+		}
+		else if (firestoreBuilder.ClientFactoryFunc is not null)
+		{
+			var factory = firestoreBuilder.ClientFactoryFunc;
+			services.TryAddSingleton(factory);
+		}
 	}
 }

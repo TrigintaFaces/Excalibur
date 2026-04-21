@@ -5,13 +5,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance.Encryption;
+using Excalibur.Compliance.Configuration;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Configuration;
 
 /// <summary>
 /// Unit tests for <see cref="EncryptionConfigurationBuilder"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class EncryptionConfigurationBuilderShould
 {
 	#region UseInMemoryKeyManagement Tests
@@ -318,7 +320,7 @@ public sealed class EncryptionConfigurationBuilderShould
 
 		// Assert
 		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<Dispatch.Compliance.EncryptionOptions>();
+		var options = provider.GetRequiredService<global::Excalibur.Compliance.Configuration.EncryptionOptions>();
 
 		options.RequireFipsCompliance.ShouldBeTrue();
 		options.DefaultPurpose.ShouldBe("custom-purpose");
@@ -431,7 +433,7 @@ public sealed class EncryptionConfigurationBuilderShould
 		registry.GetLegacyProviders().ShouldContain(legacyProvider);
 
 		// Verify options are set
-		var options = provider.GetRequiredService<Dispatch.Compliance.EncryptionOptions>();
+		var options = provider.GetRequiredService<global::Excalibur.Compliance.Configuration.EncryptionOptions>();
 		options.RequireFipsCompliance.ShouldBeFalse();
 		options.DefaultPurpose.ShouldBe("integration-test");
 	}

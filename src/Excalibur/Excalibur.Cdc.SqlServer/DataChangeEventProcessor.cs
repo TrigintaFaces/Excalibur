@@ -20,7 +20,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// </summary>
 public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 {
-	private readonly IDatabaseConfig _dbConfig;
+	private readonly IDatabaseOptions _dbConfig;
 
 	private readonly IServiceProvider _serviceProvider;
 
@@ -47,7 +47,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	/// </param>
 	public DataChangeEventProcessor(
 			IHostApplicationLifetime appLifetime,
-			IDatabaseConfig dbConfig,
+			IDatabaseOptions dbConfig,
 			SqlConnection cdcConnection,
 			SqlConnection stateStoreConnection,
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
@@ -139,7 +139,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> The number of events successfully processed. </returns>
 	/// <exception cref="CdcMissingTableHandlerException">
-	/// Thrown when no handler is found for a table, and <see cref="IDatabaseConfig.StopOnMissingTableHandler" /> is true.
+	/// Thrown when no handler is found for a table, and <see cref="IDatabaseOptions.StopOnMissingTableHandler" /> is true.
 	/// </exception>
 	private async ValueTask HandleCdcDataChangeEventsAsync(DataChangeEvent changeEvent, CancellationToken cancellationToken)
 	{

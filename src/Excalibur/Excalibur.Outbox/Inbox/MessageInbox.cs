@@ -189,7 +189,11 @@ public sealed partial class MessageInbox : IInbox
 	/// <returns>The serialized payload bytes.</returns>
 	[UnconditionalSuppressMessage(
 			"AOT",
-			"IL3050:Using RequiresDynamicCode member in AOT",
+			"IL2026:RequiresUnreferencedCode",
+			Justification = "Inbox payload serialization relies on runtime generic serializer support.")]
+	[UnconditionalSuppressMessage(
+			"AOT",
+			"IL3050:RequiresDynamicCode",
 			Justification = "Inbox payload serialization relies on runtime generic serializer support.")]
 	private async Task<byte[]> SerializePayloadAsync<T>(T message)
 	{
@@ -199,7 +203,7 @@ public sealed partial class MessageInbox : IInbox
 		}
 
 		// Fallback to DispatchJsonSerializer for backward compatibility
-		var payloadJson = await _serializer.SerializeAsync(message, typeof(T)).ConfigureAwait(false);
+		var payloadJson = await _serializer.SerializeAsync(message!, typeof(T)).ConfigureAwait(false);
 		return PayloadEncoding.GetBytes(payloadJson);
 	}
 }

@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for <see cref="DefaultResultCachePolicy"/>.
 /// Covers the delegate-based policy evaluation with various inputs.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class DefaultResultCachePolicyShould : UnitTestBase
 {
 	[Fact]

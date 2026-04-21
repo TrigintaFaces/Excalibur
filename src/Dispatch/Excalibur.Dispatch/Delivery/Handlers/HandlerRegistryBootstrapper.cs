@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// <summary>
 /// Bootstraps the handler registry by either using a precompiled handler registry or scanning assemblies.
 /// </summary>
-public static class HandlerRegistryBootstrapper
+internal static class HandlerRegistryBootstrapper
 {
 	/// <summary>
 	/// Bootstraps the handler registry with handlers.
@@ -41,6 +41,7 @@ public static class HandlerRegistryBootstrapper
 		registry.RegisterHandlersFromAssemblies(fallbackAssemblies);
 	}
 
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Assembly.GetType() to discover precompiled registry types.")]
 	private static Type? ResolvePrecompiledRegistryType()
 	{
 		const string precompiledRegistryTypeName = "Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerRegistry";

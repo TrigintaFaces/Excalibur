@@ -18,20 +18,6 @@ namespace Excalibur.Dispatch.Caching;
 public static class CachingDispatchBuilderExtensions
 {
 	/// <summary>
-	/// Adds caching middleware to the builder's service collection.
-	/// </summary>
-	/// <param name="builder"> The <see cref="IDispatchBuilder" /> to configure. </param>
-	/// <returns> The configured <see cref="IDispatchBuilder" />. </returns>
-	public static IDispatchBuilder AddDispatchCaching(this IDispatchBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		_ = builder.Services.AddDispatchCaching();
-
-		return builder;
-	}
-
-	/// <summary>
 	/// Adds Dispatch caching (memory, distributed, hybrid) via the builder.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>
@@ -44,11 +30,11 @@ public static class CachingDispatchBuilderExtensions
 	/// <code>
 	/// services.AddDispatch(dispatch =>
 	/// {
-	///     dispatch.AddCaching();
+	///     dispatch.UseCaching();
 	/// });
 	/// </code>
 	/// </example>
-	public static IDispatchBuilder AddCaching(
+	public static IDispatchBuilder UseCaching(
 		this IDispatchBuilder builder,
 		Action<CacheOptions>? configure = null)
 	{
@@ -62,6 +48,11 @@ public static class CachingDispatchBuilderExtensions
 		{
 			_ = builder.Services.AddDispatchCaching();
 		}
+
+		// Register middleware in the builder pipeline (not just DI).
+		// Required because DispatchBuilderSentinel prevents legacy GetServices<IDispatchMiddleware>() discovery.
+		_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CachingMiddlewareWrapper>();
+		_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CacheInvalidationMiddlewareWrapper>();
 
 		return builder;
 	}
@@ -103,7 +94,6 @@ public static class CachingDispatchBuilderExtensions
 				opts.GlobalPolicy = options.GlobalPolicy;
 				opts.CacheKeyBuilder = options.CacheKeyBuilder;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder;
@@ -119,13 +109,16 @@ public static class CachingDispatchBuilderExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"Configuration binding for CacheOptions requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IDispatchBuilder WithCachingOptions(this IDispatchBuilder builder, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
 		_ = builder.Services.AddOptions<CacheOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		return builder;
 	}

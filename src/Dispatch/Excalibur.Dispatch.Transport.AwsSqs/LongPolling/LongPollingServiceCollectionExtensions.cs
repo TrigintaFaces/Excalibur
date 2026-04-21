@@ -30,6 +30,10 @@ public static class LongPollingServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsLongPolling(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -37,7 +41,7 @@ public static class LongPollingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var config = new LongPollingConfiguration();
+		var config = new LongPollingOptions();
 		configuration.Bind(config);
 
 		return services.AddAwsLongPolling(config);
@@ -51,12 +55,12 @@ public static class LongPollingServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddAwsLongPolling(
 		this IServiceCollection services,
-		Action<LongPollingConfiguration> configureOptions)
+		Action<LongPollingOptions> configureOptions)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		var config = new LongPollingConfiguration();
+		var config = new LongPollingOptions();
 		configureOptions(config);
 
 		return services.AddAwsLongPolling(config);
@@ -70,12 +74,10 @@ public static class LongPollingServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddAwsLongPolling(
 		this IServiceCollection services,
-		LongPollingConfiguration configuration)
+		LongPollingOptions configuration)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
-
-		configuration.Validate();
 
 		// Register configuration
 		services.TryAddSingleton(configuration);
@@ -85,7 +87,7 @@ public static class LongPollingServiceCollectionExtensions
 		services.TryAddSingleton<IAmazonCloudWatch>(static sp => new AmazonCloudWatchClient());
 
 		// Register polling strategy
-		if (configuration.EnableAdaptivePolling)
+		if (configuration.Adaptive.Enabled)
 		{
 			services.TryAddSingleton<ILongPollingStrategy, AdaptiveLongPollingStrategy>();
 		}
@@ -117,7 +119,7 @@ public static class LongPollingServiceCollectionExtensions
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TStrategy>(
 		this IServiceCollection services,
-		LongPollingConfiguration configuration)
+		LongPollingOptions configuration)
 		where TStrategy : class, ILongPollingStrategy
 	{
 		_ = services.AddAwsLongPolling(configuration);
@@ -139,7 +141,7 @@ public static class LongPollingServiceCollectionExtensions
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TMetricsCollector>(
 		this IServiceCollection services,
-		LongPollingConfiguration configuration)
+		LongPollingOptions configuration)
 		where TMetricsCollector : class, LocalPollingMetricsCollector
 	{
 		_ = services.AddAwsLongPolling(configuration);

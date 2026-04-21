@@ -4,14 +4,14 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 
-using Excalibur.Dispatch.AuditLogging;
+using Excalibur.AuditLogging;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 
 /// <summary>
-/// Targeted tests to push Excalibur.Dispatch.AuditLogging coverage past 95%.
+/// Targeted tests to push Excalibur.AuditLogging coverage past 95%.
 /// Focuses on:
 /// - VerifyChainIntegrityAsync hash mismatch path (lines 193-209)
 /// - GetPreviousHash empty tenant list edge case (lines 263-265)
@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 /// - AuditLoggingServiceCollectionExtensions uncovered branches
 /// - RbacAuditStore.ApplyRoleFilters fallback path
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [UnitTest]
 public sealed class AuditLoggingCoveragePushShould
 {

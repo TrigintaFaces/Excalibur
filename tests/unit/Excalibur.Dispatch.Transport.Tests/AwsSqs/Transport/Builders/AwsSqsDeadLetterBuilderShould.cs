@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Transport.Builders;
 /// Part of S470.5 - Unit Tests for Fluent Builders (Sprint 470).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsDeadLetterBuilderShould : UnitTestBase
 {

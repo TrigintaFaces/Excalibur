@@ -4,7 +4,7 @@
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
 
-using Excalibur.Dispatch.Compliance.Aws;
+using Excalibur.Compliance.Aws;
 
 using FakeItEasy;
 
@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Aws.Encryption;
 /// Unit tests for <see cref="AwsKmsProvider"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class AwsKmsProviderShould : IDisposable
 {
 	private readonly IAmazonKeyManagementService _mockKmsClient;
@@ -1042,7 +1042,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 	}
 
 	[Fact]

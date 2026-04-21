@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Jobs.Abstractions.Coordination;
 using Excalibur.Jobs.SqlServer;
+
+using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -20,6 +23,10 @@ public static class SqlServerJobCoordinatorServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="services"/> or <paramref name="configure"/> is null.
 	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSqlServerJobCoordinator(
 		this IServiceCollection services,
 		Action<SqlServerJobCoordinatorOptions> configure)
@@ -29,7 +36,39 @@ public static class SqlServerJobCoordinatorServiceCollectionExtensions
 
 		_ = services.AddOptions<SqlServerJobCoordinatorOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = services.AddSingleton<SqlServerJobCoordinator>();
+		_ = services.AddSingleton<IJobLockProvider>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
+		_ = services.AddSingleton<IJobRegistry>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
+		_ = services.AddSingleton<IJobDistributor>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds distributed job coordination services using SQL Server as the coordination backend,
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection to configure.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The configured <see cref="IServiceCollection"/>.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddSqlServerJobCoordinator(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqlServerJobCoordinatorOptions>()
+			.Bind(configuration)
 			.ValidateOnStart();
 
 		_ = services.AddSingleton<SqlServerJobCoordinator>();

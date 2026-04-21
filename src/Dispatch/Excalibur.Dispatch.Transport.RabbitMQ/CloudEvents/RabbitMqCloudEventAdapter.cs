@@ -322,7 +322,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 		var encoded = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
 		var payload = encoded.ToArray();
 		properties.ContentType = contentType?.ToString() ?? StructuredContentType;
-		properties.Headers[ContentTypeHeader] = properties.ContentType;
+		properties.Headers![ContentTypeHeader] = properties.ContentType;
 		return payload;
 	}
 
@@ -330,7 +330,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 	[RequiresDynamicCode("Calls Excalibur.Dispatch.Transport.RabbitMQ.CloudEvents.RabbitMqCloudEventAdapter.EncodeBody(Object, String)")]
 	private ReadOnlyMemory<byte> EncodeBinaryMessage(CloudEvent cloudEvent, CloudEventBasicProperties properties)
 	{
-		var headers = properties.Headers;
+		var headers = properties.Headers!;
 
 		headers[CeSpecVersionHeader] = cloudEvent.SpecVersion.VersionId;
 

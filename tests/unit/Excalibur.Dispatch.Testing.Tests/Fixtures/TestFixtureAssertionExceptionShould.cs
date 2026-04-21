@@ -6,7 +6,7 @@ using Excalibur.Testing;
 namespace Excalibur.Dispatch.Testing.Tests.Fixtures;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Testing")]
+[Trait(TraitNames.Component, TestComponents.Testing)]
 public sealed class TestFixtureAssertionExceptionShould
 {
 	[Fact]
@@ -23,7 +23,7 @@ public sealed class TestFixtureAssertionExceptionShould
 		var ex = new TestFixtureAssertionException("outer", inner);
 
 		ex.Message.ShouldBe("outer");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]

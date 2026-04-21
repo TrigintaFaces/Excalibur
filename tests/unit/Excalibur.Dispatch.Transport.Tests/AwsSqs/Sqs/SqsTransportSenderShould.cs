@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Sqs;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class SqsTransportSenderShould : IAsyncDisposable
 {
@@ -72,7 +72,7 @@ public sealed class SqsTransportSenderShould : IAsyncDisposable
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.Error.ShouldNotBeNull();
+		result.Error!.ShouldNotBeNull();
 		result.Error!.IsRetryable.ShouldBeTrue();
 	}
 
@@ -347,7 +347,7 @@ public sealed class SqsTransportSenderShould : IAsyncDisposable
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.Error.ShouldNotBeNull();
+		result.Error!.ShouldNotBeNull();
 		result.Error!.IsRetryable.ShouldBeFalse();
 	}
 

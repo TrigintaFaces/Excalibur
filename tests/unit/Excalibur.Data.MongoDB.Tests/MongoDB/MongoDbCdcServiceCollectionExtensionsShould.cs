@@ -1,58 +1,61 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Cdc;
 using Excalibur.Cdc.MongoDB;
-
-using Microsoft.Extensions.Options;
-
-using Excalibur.Data.MongoDB;
 
 namespace Excalibur.Data.Tests.MongoDB.Cdc;
 
 /// <summary>
-/// Unit tests for MongoDB CDC service collection extensions.
+/// Unit tests for MongoDB CDC state store options registration via the builder pattern.
 /// </summary>
-[Trait("Category", "Unit")]
+/// <remarks>
+/// Updated Sprint 779: State store is now configured via <c>UseMongoDB(Action&lt;IMongoDbCdcBuilder&gt;)</c>
+/// with <c>WithStateStore()</c>, not the deleted <c>AddMongoDbCdcStateStore</c> standalone method.
+/// </remarks>
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "MongoDbCdcServiceCollectionExtensions")]
 public sealed class MongoDbCdcServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
-	public void AddMongoDbCdcStateStore_RegistersStateStoreOptions()
+	public void UseMongoDB_WithStateStore_RegistersStateStoreOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		var builder = A.Fake<ICdcBuilder>();
+		A.CallTo(() => builder.Services).Returns(services);
 
-		// Act -- register IMongoClient so the state store can resolve it
-		services.AddSingleton(A.Fake<global::MongoDB.Driver.IMongoClient>());
-		_ = services.AddMongoDbCdcStateStore(
-				options =>
-				{
-					options.DatabaseName = "custom_db";
-					options.CollectionName = "overridden";
-				});
+		// Act — register via builder with state store configuration
+		builder.UseMongoDB((Action<IMongoDbCdcBuilder>)(mongo => mongo
+			.ConnectionString("mongodb://localhost:27017")
+			.DatabaseName("cdc_source")
+			.WithStateStore(state =>
+			{
+				state.TableName("overridden");
+			})));
 
 		using var provider = services.BuildServiceProvider();
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<MongoDbCdcStateStoreOptions>>();
-		options.Value.DatabaseName.ShouldBe("custom_db");
 		options.Value.CollectionName.ShouldBe("overridden");
 	}
 
 	[Fact]
-	public void AddMongoDbCdcStateStore_WithInvalidConfiguration_ThrowsOptionsValidationException()
+	public void UseMongoDB_WithStateStore_WithInvalidTableName_ThrowsArgumentException()
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		var builder = A.Fake<ICdcBuilder>();
+		A.CallTo(() => builder.Services).Returns(services);
 
-		// Act
-		_ = services.AddMongoDbCdcStateStore(
-				options => options.CollectionName = " ");
-
-		using var provider = services.BuildServiceProvider();
-
-		// Assert
-		_ = Should.Throw<OptionsValidationException>(() =>
-				provider.GetRequiredService<IOptions<MongoDbCdcStateStoreOptions>>().Value);
+		// Act & Assert — builder validates eagerly via ArgumentException.ThrowIfNullOrWhiteSpace
+		Should.Throw<ArgumentException>(() =>
+			builder.UseMongoDB((Action<IMongoDbCdcBuilder>)(mongo => mongo
+				.ConnectionString("mongodb://localhost:27017")
+				.WithStateStore(state =>
+				{
+					state.TableName(" ");
+				}))));
 	}
 }

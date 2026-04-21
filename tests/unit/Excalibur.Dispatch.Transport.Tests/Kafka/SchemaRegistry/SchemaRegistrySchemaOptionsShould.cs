@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.SchemaRegistry;
 /// Unit tests for <see cref="SchemaRegistrySchemaOptions"/>.
 /// Verifies defaults and property assignment for schema-level settings.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class SchemaRegistrySchemaOptionsShould : UnitTestBase
 {
 	[Fact]

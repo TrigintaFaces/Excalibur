@@ -21,14 +21,10 @@ namespace Excalibur.Saga.Storage;
 /// (e.g., SQL Server, Redis) for production deployments.
 /// </para>
 /// </remarks>
-public sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
+internal sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
 {
 	private readonly ConcurrentDictionary<string, SagaTimeout> _timeouts = new();
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _dueLock = new();
-#else
-	private readonly object _dueLock = new();
-#endif
+	private readonly Lock _dueLock = new();
 
 	/// <inheritdoc />
 	public Task ScheduleTimeoutAsync(SagaTimeout timeout, CancellationToken cancellationToken)

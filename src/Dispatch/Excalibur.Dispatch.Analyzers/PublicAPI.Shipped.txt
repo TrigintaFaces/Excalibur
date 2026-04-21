@@ -1,1 +1,25 @@
 #nullable enable
+Excalibur.Dispatch.Analyzers.BlockingCallInAsyncAnalyzer
+Excalibur.Dispatch.Analyzers.BlockingCallInAsyncAnalyzer.BlockingCallInAsyncAnalyzer() -> void
+Excalibur.Dispatch.Analyzers.CancellationTokenDefaultAnalyzer
+Excalibur.Dispatch.Analyzers.CancellationTokenDefaultAnalyzer.CancellationTokenDefaultAnalyzer() -> void
+Excalibur.Dispatch.Analyzers.ConfigureAwaitAnalyzer
+Excalibur.Dispatch.Analyzers.ConfigureAwaitAnalyzer.ConfigureAwaitAnalyzer() -> void
+Excalibur.Dispatch.Analyzers.CoreNamespaceSegmentAnalyzer
+Excalibur.Dispatch.Analyzers.CoreNamespaceSegmentAnalyzer.CoreNamespaceSegmentAnalyzer() -> void
+Excalibur.Dispatch.Analyzers.DiExtensionNamespaceAnalyzer
+Excalibur.Dispatch.Analyzers.DiExtensionNamespaceAnalyzer.DiExtensionNamespaceAnalyzer() -> void
+Excalibur.Dispatch.Analyzers.ExtensionClassIPrefixAnalyzer
+Excalibur.Dispatch.Analyzers.ExtensionClassIPrefixAnalyzer.ExtensionClassIPrefixAnalyzer() -> void
+override Excalibur.Dispatch.Analyzers.BlockingCallInAsyncAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Dispatch.Analyzers.BlockingCallInAsyncAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>
+override Excalibur.Dispatch.Analyzers.CancellationTokenDefaultAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Dispatch.Analyzers.CancellationTokenDefaultAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>
+override Excalibur.Dispatch.Analyzers.ConfigureAwaitAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Dispatch.Analyzers.ConfigureAwaitAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>
+override Excalibur.Dispatch.Analyzers.CoreNamespaceSegmentAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Dispatch.Analyzers.CoreNamespaceSegmentAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>
+override Excalibur.Dispatch.Analyzers.DiExtensionNamespaceAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Dispatch.Analyzers.DiExtensionNamespaceAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>
+override Excalibur.Dispatch.Analyzers.ExtensionClassIPrefixAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Dispatch.Analyzers.ExtensionClassIPrefixAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>

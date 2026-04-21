@@ -6,11 +6,9 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Observability;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.Postgres;
 using Excalibur.EventSourcing.Postgres.DependencyInjection;
 
@@ -24,180 +22,24 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring Postgres event sourcing services.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>For event store and snapshot store registration, use the canonical builder pattern:</b>
+/// <code>
+/// services.AddExcalibur(x => x.AddEventSourcing(es =&gt;
+/// {
+///     es.UsePostgres(pg =&gt; pg.ConnectionString("Host=localhost;Database=MyApp;"))
+///       .AddRepository&lt;OrderAggregate, Guid&gt;();
+/// }));
+/// </code>
+/// </para>
+/// <para>
+/// This class retains materialized view store and migrator registration methods
+/// that are not yet covered by the builder pattern.
+/// </para>
+/// </remarks>
 public static class PostgresEventSourcingServiceCollectionExtensions
 {
-	/// <summary>
-	/// Adds Postgres event store implementation with an NpgsqlDataSource.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="dataSource">The NpgsqlDataSource for creating connections.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Use this overload for advanced scenarios like multi-database setups or custom connection pooling.
-	/// Using NpgsqlDataSource is the recommended pattern per Npgsql documentation.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddPostgresEventStore(
-		this IServiceCollection services,
-		NpgsqlDataSource dataSource)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(dataSource);
-
-		services.TryAddSingleton(sp =>
-			new PostgresEventStore(
-				dataSource,
-				sp.GetRequiredService<ILogger<PostgresEventStore>>(),
-				sp.GetService<ISerializer>(),
-				sp.GetService<IPayloadSerializer>()));
-
-		RegisterEventStoreTelemetryWrapper(services);
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds Postgres snapshot store implementation with an NpgsqlDataSource.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="dataSource">The NpgsqlDataSource for creating connections.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	public static IServiceCollection AddPostgresSnapshotStore(
-		this IServiceCollection services,
-		NpgsqlDataSource dataSource)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(dataSource);
-
-		services.TryAddSingleton(sp =>
-			new PostgresSnapshotStore(
-				dataSource,
-				sp.GetRequiredService<ILogger<PostgresSnapshotStore>>()));
-
-		RegisterSnapshotStoreTelemetryWrapper(services);
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds Postgres event-sourced outbox store implementation with an NpgsqlDataSource.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="dataSource">The NpgsqlDataSource for creating connections.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	public static IServiceCollection AddPostgresOutboxStore(
-		this IServiceCollection services,
-		NpgsqlDataSource dataSource)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(dataSource);
-
-		services.TryAddSingleton<IEventSourcedOutboxStore>(sp =>
-			new PostgresEventSourcedOutboxStore(
-				dataSource,
-				sp.GetRequiredService<ILogger<PostgresEventSourcedOutboxStore>>()));
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds all Postgres event sourcing implementations with configuration.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Configuration action for Postgres event sourcing options.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This is the recommended method for configuring Postgres event sourcing.
-	/// It registers all stores and optionally health checks based on the provided options.
-	/// </para>
-	/// <para>
-	/// <b>Usage:</b>
-	/// <code>
-	/// services.AddPostgresEventSourcing(options =>
-	/// {
-	///     options.ConnectionString = configuration.GetConnectionString("EventStore");
-	///     options.HealthChecks.RegisterHealthChecks = true;
-	/// });
-	/// </code>
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddPostgresEventSourcing(
-		this IServiceCollection services,
-		Action<PostgresEventSourcingOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		var options = new PostgresEventSourcingOptions();
-		configure(options);
-
-		if (string.IsNullOrWhiteSpace(options.ConnectionString))
-		{
-			throw new InvalidOperationException(
-				"ConnectionString must be configured for Postgres event sourcing. " +
-				"Set PostgresEventSourcingOptions.ConnectionString or use the NpgsqlDataSource overloads.");
-		}
-
-		_ = services.Configure(configure);
-
-		// Register NpgsqlDataSource as singleton (DI container manages lifecycle)
-#pragma warning disable CA2000 // Dispose objects before losing scope -- managed by DI container
-		var dataSource = NpgsqlDataSource.Create(options.ConnectionString);
-#pragma warning restore CA2000
-		services.TryAddSingleton(dataSource);
-		_ = services.AddPostgresEventStore(dataSource);
-		_ = services.AddPostgresSnapshotStore(dataSource);
-		_ = services.AddPostgresOutboxStore(dataSource);
-
-		// Register health checks if enabled
-		if (options.HealthChecks.RegisterHealthChecks)
-		{
-			_ = services.AddHealthChecks()
-				.AddNpgSql(
-					options.ConnectionString,
-					name: options.HealthChecks.EventStoreHealthCheckName,
-					tags: ["eventstore", "Postgres", "eventsourcing"])
-				.AddNpgSql(
-					options.ConnectionString,
-					name: options.HealthChecks.SnapshotStoreHealthCheckName,
-					tags: ["snapshotstore", "Postgres", "eventsourcing"])
-				.AddNpgSql(
-					options.ConnectionString,
-					name: options.HealthChecks.OutboxStoreHealthCheckName,
-					tags: ["outbox", "Postgres", "eventsourcing"]);
-		}
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds all Postgres event sourcing implementations with an NpgsqlDataSource.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="dataSource">The NpgsqlDataSource for creating connections.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Use this overload for advanced scenarios like multi-database setups or custom connection pooling.
-	/// Health checks are not registered in this overload as there is no connection string available.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddPostgresEventSourcing(
-		this IServiceCollection services,
-		NpgsqlDataSource dataSource)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(dataSource);
-
-		_ = services.AddPostgresEventStore(dataSource);
-		_ = services.AddPostgresSnapshotStore(dataSource);
-		_ = services.AddPostgresOutboxStore(dataSource);
-
-		return services;
-	}
-
 	/// <summary>
 	/// Adds Postgres materialized view store implementation with an NpgsqlDataSource.
 	/// </summary>
@@ -233,11 +75,6 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	/// <param name="migrationAssembly">The assembly containing migration scripts as embedded resources.</param>
 	/// <param name="migrationNamespace">The namespace prefix for migration resources (e.g., "MyApp.Migrations").</param>
 	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Use this overload for advanced scenarios like multi-database setups or custom connection pooling.
-	/// </para>
-	/// </remarks>
 	public static IServiceCollection AddPostgresMigrator(
 		this IServiceCollection services,
 		NpgsqlDataSource dataSource,
@@ -328,26 +165,34 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		return services;
 	}
 
-	private static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
+	internal static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
 		services.AddKeyedSingleton<IEventStore>("postgres", (sp, _) =>
-			new TelemetryEventStore(
+		{
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(EventSourcingMeters.EventStore) ?? new Meter(EventSourcingMeters.EventStore);
+			return new TelemetryEventStore(
 				sp.GetRequiredService<PostgresEventStore>(),
-				new Meter(EventSourcingMeters.EventStore),
+				meter,
 				new ActivitySource(EventSourcingActivitySources.EventStore),
-				"Postgres"));
+				"Postgres");
+		});
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("postgres"));
 	}
 
-	private static void RegisterSnapshotStoreTelemetryWrapper(IServiceCollection services)
+	internal static void RegisterSnapshotStoreTelemetryWrapper(IServiceCollection services)
 	{
 		services.AddKeyedSingleton<ISnapshotStore>("postgres", (sp, _) =>
-			new TelemetrySnapshotStore(
+		{
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(EventSourcingMeters.SnapshotStore) ?? new Meter(EventSourcingMeters.SnapshotStore);
+			return new TelemetrySnapshotStore(
 				sp.GetRequiredService<PostgresSnapshotStore>(),
-				new Meter(EventSourcingMeters.SnapshotStore),
+				meter,
 				new ActivitySource(EventSourcingActivitySources.SnapshotStore),
-				"Postgres"));
+				"Postgres");
+		});
 		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISnapshotStore>("postgres"));
 	}

@@ -107,9 +107,9 @@ public sealed class GrantAddedShould
 		withMeta.ShouldBeOfType<GrantAdded>();
 		var typed = (GrantAdded)withMeta;
 		typed.UserId.ShouldBe("user");
-		typed.Metadata!["CorrelationId"].ShouldBe(correlationId.ToString());
-		typed.Metadata["CausationId"].ShouldBe("parent-cmd-1");
-		typed.Metadata["source"].ShouldBe("test");
+		typed.CorrelationId.ShouldBe(correlationId.ToString());
+		typed.CausationId.ShouldBe("parent-cmd-1");
+		typed.Metadata!["source"].ShouldBe("test");
 	}
 
 	[Fact]

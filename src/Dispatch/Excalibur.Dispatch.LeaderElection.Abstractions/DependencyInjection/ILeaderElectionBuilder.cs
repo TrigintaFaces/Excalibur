@@ -22,10 +22,10 @@ namespace Excalibur.Dispatch.LeaderElection.DependencyInjection;
 /// </remarks>
 /// <example>
 /// <code>
-/// services.AddExcaliburLeaderElection(le => le
+/// services.AddExcalibur(x => x.AddLeaderElection(le => le
 ///     .UseInMemory()
 ///     .WithHealthChecks()
-///     .WithFencingTokens());
+///     .WithFencingTokens()));
 /// </code>
 /// </example>
 public interface ILeaderElectionBuilder

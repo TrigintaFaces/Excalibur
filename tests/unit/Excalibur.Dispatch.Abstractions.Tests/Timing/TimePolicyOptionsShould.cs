@@ -300,7 +300,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("DefaultTimeout must be less than MaxTimeout"));
+		results.ShouldContain(r => r.ErrorMessage!.Contains("DefaultTimeout must be less than MaxTimeout"));
 	}
 
 	[Fact]
@@ -318,7 +318,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("DefaultTimeout must be less than MaxTimeout"));
+		results.ShouldContain(r => r.ErrorMessage!.Contains("DefaultTimeout must be less than MaxTimeout"));
 	}
 
 	[Fact]
@@ -339,7 +339,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("HandlerTimeout cannot exceed MaxTimeout"));
+		results.ShouldContain(r => r.ErrorMessage!.Contains("HandlerTimeout cannot exceed MaxTimeout"));
 	}
 
 	[Fact]
@@ -360,7 +360,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("TransportTimeout cannot exceed MaxTimeout"));
+		results.ShouldContain(r => r.ErrorMessage!.Contains("TransportTimeout cannot exceed MaxTimeout"));
 	}
 
 	[Fact]
@@ -381,7 +381,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("SerializationTimeout should be less than"));
+		results.ShouldContain(r => r.ErrorMessage!.Contains("SerializationTimeout should be less than"));
 	}
 
 	[Fact]
@@ -402,7 +402,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("ValidationTimeout should be less than"));
+		results.ShouldContain(r => r.ErrorMessage!.Contains("ValidationTimeout should be less than"));
 	}
 
 	[Fact]
@@ -420,7 +420,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("Custom timeout for Handler cannot exceed MaxTimeout"));
+		results.ShouldContain(r => r.ErrorMessage!.Contains("Custom timeout for Handler cannot exceed MaxTimeout"));
 	}
 
 	[Fact]
@@ -438,7 +438,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("Message type timeout for MyNamespace.MyMessage cannot exceed MaxTimeout"));
+		results.ShouldContain(r => r.ErrorMessage!.Contains("Message type timeout for MyNamespace.MyMessage cannot exceed MaxTimeout"));
 	}
 
 	[Fact]
@@ -456,7 +456,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("Handler type timeout for MyNamespace.MyHandler cannot exceed MaxTimeout"));
+		results.ShouldContain(r => r.ErrorMessage!.Contains("Handler type timeout for MyNamespace.MyHandler cannot exceed MaxTimeout"));
 	}
 
 	[Fact]

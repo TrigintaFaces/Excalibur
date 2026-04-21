@@ -1,6 +1,6 @@
 namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class ClaimCheckTelemetryConstantsShould
 {

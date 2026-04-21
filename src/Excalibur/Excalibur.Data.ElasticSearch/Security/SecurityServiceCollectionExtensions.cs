@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.ElasticSearch.Security;
@@ -26,6 +25,10 @@ public static class SecurityServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddElasticsearchSecurity(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -37,7 +40,9 @@ public static class SecurityServiceCollectionExtensions
 
 		// Configure security settings
 		var securitySection = configuration.GetSection("Elasticsearch:Security");
-		_ = services.Configure<ElasticsearchSecurityOptions>(securitySection);
+		_ = services.AddOptions<ElasticsearchSecurityOptions>()
+			.Bind(securitySection)
+			.ValidateOnStart();
 
 		if (configureOptions != null)
 		{
@@ -63,13 +68,18 @@ public static class SecurityServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAuthentication(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
 		// Configure authentication settings
-		_ = services.Configure<AuthenticationOptions>(
-			configuration.GetSection("Elasticsearch:Security:Authentication"));
+		_ = services.AddOptions<AuthenticationOptions>()
+			.Bind(configuration.GetSection("Elasticsearch:Security:Authentication"))
+			.ValidateOnStart();
 
 		// Register authentication provider
 		services.TryAddSingleton<IElasticsearchAuthenticationProvider, SecureElasticsearchAuthenticationProvider>();
@@ -84,8 +94,13 @@ public static class SecurityServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	public static IServiceCollection AddFieldEncryption(this IServiceCollection services)
 	{
-		// Register field encryption service Default encryption options are already configured in the EncryptionOptions class
-		services.TryAddSingleton<IElasticsearchFieldEncryptor, FieldEncryptor>();
+		// Register field encryption service (concrete + parent + sub-interfaces forwarded to same singleton)
+		services.TryAddSingleton<FieldEncryptor>();
+		services.TryAddSingleton<IElasticsearchFieldEncryptor>(static sp => sp.GetRequiredService<FieldEncryptor>());
+		services.TryAddSingleton<IElasticsearchFieldEncryption>(static sp => sp.GetRequiredService<FieldEncryptor>());
+		services.TryAddSingleton<IElasticsearchFieldEncryptionPolicy>(static sp => sp.GetRequiredService<FieldEncryptor>());
+		services.TryAddSingleton<IElasticsearchFieldEncryptionMaintenance>(static sp => sp.GetRequiredService<FieldEncryptor>());
+		services.TryAddSingleton<IElasticsearchFieldEncryptorEvents>(static sp => sp.GetRequiredService<FieldEncryptor>());
 
 		return services;
 	}
@@ -98,13 +113,19 @@ public static class SecurityServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddKeyManagement(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
 		// Configure key management settings
 		var keyManagementSection = configuration.GetSection("Elasticsearch:Security:Encryption:KeyManagement");
-		_ = services.Configure<KeyManagementOptions>(keyManagementSection);
+		_ = services.AddOptions<KeyManagementOptions>()
+			.Bind(keyManagementSection)
+			.ValidateOnStart();
 
 		// Register key provider based on configuration
 		var provider = keyManagementSection.GetValue<KeyManagementProvider>("Provider");
@@ -127,14 +148,20 @@ public static class SecurityServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAzureKeyVault(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
-		_ = services.Configure<AzureKeyVaultOptions>(
-			configuration.GetSection("Elasticsearch:Security:KeyManagement:AzureKeyVault"));
+		_ = services.AddOptions<AzureKeyVaultOptions>()
+			.Bind(configuration.GetSection("Elasticsearch:Security:KeyManagement:AzureKeyVault"))
+			.ValidateOnStart();
 
 		services.TryAddSingleton<IElasticsearchKeyProvider, AzureKeyVaultProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 
 		return services;
 	}
@@ -151,6 +178,7 @@ public static class SecurityServiceCollectionExtensions
 	{
 		// AWS KMS implementation would be added here
 		services.TryAddSingleton<IElasticsearchKeyProvider, LocalKeyProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 		return services;
 	}
 
@@ -166,6 +194,7 @@ public static class SecurityServiceCollectionExtensions
 	{
 		// Google Cloud KMS implementation would be added here
 		services.TryAddSingleton<IElasticsearchKeyProvider, LocalKeyProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 		return services;
 	}
 
@@ -181,6 +210,7 @@ public static class SecurityServiceCollectionExtensions
 	{
 		// HashiCorp Vault implementation would be added here
 		services.TryAddSingleton<IElasticsearchKeyProvider, LocalKeyProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 		return services;
 	}
 
@@ -192,6 +222,7 @@ public static class SecurityServiceCollectionExtensions
 	public static IServiceCollection AddLocalKeyProvider(this IServiceCollection services)
 	{
 		services.TryAddSingleton<IElasticsearchKeyProvider, LocalKeyProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 		return services;
 	}
 
@@ -205,9 +236,12 @@ public static class SecurityServiceCollectionExtensions
 		// Configure audit settings Audit settings have default values already configured in the class definition Remove Configure call
 		// since init-only properties cannot be set this way
 
-		// Register auditing service (core + sub-interfaces forwarded to the same singleton)
+		// Register auditing service (core + parent + sub-interfaces forwarded to the same singleton)
 		services.TryAddSingleton<SecurityAuditor>();
 		services.TryAddSingleton<IElasticsearchSecurityAuditor>(static sp => sp.GetRequiredService<SecurityAuditor>());
+		services.TryAddSingleton<IElasticsearchSecurityAuditorCore>(static sp => sp.GetRequiredService<SecurityAuditor>());
+		services.TryAddSingleton<IElasticsearchSecurityAuditorRecording>(static sp => sp.GetRequiredService<SecurityAuditor>());
+		services.TryAddSingleton<IElasticsearchSecurityAuditorEvents>(static sp => sp.GetRequiredService<SecurityAuditor>());
 		services.TryAddSingleton<IElasticsearchSecurityAuditorReporting>(static sp => sp.GetRequiredService<SecurityAuditor>());
 		services.TryAddSingleton<IElasticsearchSecurityAuditorMaintenance>(static sp => sp.GetRequiredService<SecurityAuditor>());
 
@@ -224,8 +258,13 @@ public static class SecurityServiceCollectionExtensions
 		// Configure monitoring settings Security monitoring settings have default values already configured in the class definition Remove
 		// Configure call since init-only properties cannot be set this way
 
-		// Register monitoring service
-		services.TryAddSingleton<IElasticsearchSecurityMonitor, SecurityMonitor>();
+		// Register monitoring service (concrete + parent + sub-interfaces forwarded to same singleton)
+		services.TryAddSingleton<SecurityMonitor>();
+		services.TryAddSingleton<IElasticsearchSecurityMonitor>(static sp => sp.GetRequiredService<SecurityMonitor>());
+		services.TryAddSingleton<IElasticsearchSecurityMonitoring>(static sp => sp.GetRequiredService<SecurityMonitor>());
+		services.TryAddSingleton<IElasticsearchSecurityAnalysis>(static sp => sp.GetRequiredService<SecurityMonitor>());
+		services.TryAddSingleton<IElasticsearchSecurityAlerting>(static sp => sp.GetRequiredService<SecurityMonitor>());
+		services.TryAddSingleton<IElasticsearchSecurityMonitorEvents>(static sp => sp.GetRequiredService<SecurityMonitor>());
 
 		// Register background service for monitoring
 		_ = services.AddHostedService<SecurityMonitoringBackgroundService>();
@@ -245,6 +284,19 @@ public static class SecurityServiceCollectionExtensions
 
 		// Register security policy engine
 		services.TryAddSingleton<SecurityPolicyEngine>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers sub-interface forwarding for <see cref="IElasticsearchKeyProvider"/> so that
+	/// consumers can depend on individual sub-interfaces.
+	/// </summary>
+	private static IServiceCollection AddKeyProviderSubInterfaceForwarding(this IServiceCollection services)
+	{
+		services.TryAddSingleton<IElasticsearchKeyStorage>(static sp => sp.GetRequiredService<IElasticsearchKeyProvider>());
+		services.TryAddSingleton<IElasticsearchKeyManagement>(static sp => sp.GetRequiredService<IElasticsearchKeyProvider>());
+		services.TryAddSingleton<IElasticsearchKeyProviderEvents>(static sp => sp.GetRequiredService<IElasticsearchKeyProvider>());
 
 		return services;
 	}

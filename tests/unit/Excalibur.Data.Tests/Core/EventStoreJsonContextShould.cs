@@ -8,7 +8,7 @@ using Excalibur.Data.EventStore;
 namespace Excalibur.Data.Tests.Core;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class EventStoreJsonContextShould
 {
 	[Fact]
@@ -71,5 +71,27 @@ public sealed class EventStoreJsonContextShould
 		metadata.EventType.ShouldBe("OrderCreated");
 		metadata.EventVersion.ShouldBe(1);
 		metadata.UserId.ShouldBe("user-123");
+	}
+
+	[Fact]
+	public void Instance_DoesNotContainReflectionBasedEnumConverter()
+	{
+		// Sprint 737 replaced `new JsonStringEnumConverter()` with
+		// UseStringEnumConverter = true in source-gen options.
+		// Verify no manually-added JsonStringEnumConverter remains in the Converters collection.
+		var converters = EventStoreJsonContext.Instance.Options.Converters;
+
+		foreach (var converter in converters)
+		{
+			converter.ShouldNotBeOfType<System.Text.Json.Serialization.JsonStringEnumConverter>(
+				"Manual JsonStringEnumConverter should be removed; UseStringEnumConverter handles enums via source-gen.");
+		}
+	}
+
+	[Fact]
+	public void Instance_IgnoresNullValues()
+	{
+		EventStoreJsonContext.Instance.Options.DefaultIgnoreCondition
+			.ShouldBe(System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull);
 	}
 }

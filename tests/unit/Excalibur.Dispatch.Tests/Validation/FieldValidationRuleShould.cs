@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Validation.Context;
 
 namespace Excalibur.Dispatch.Tests.Validation;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FieldValidationRuleShould
 {
 	[Fact]
@@ -22,7 +22,7 @@ public sealed class FieldValidationRuleShould
 		rule.MinLength.ShouldBeNull();
 		rule.MaxLength.ShouldBeNull();
 		rule.CustomValidator.ShouldBeNull();
-		rule.ErrorMessage.ShouldBeNull();
+		rule.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -47,7 +47,7 @@ public sealed class FieldValidationRuleShould
 		rule.MinLength.ShouldBe(1);
 		rule.MaxLength.ShouldBe(100);
 		rule.CustomValidator.ShouldNotBeNull();
-		rule.ErrorMessage.ShouldBe("Invalid field value");
+		rule.ErrorMessage!.ShouldBe("Invalid field value");
 	}
 
 	[Fact]

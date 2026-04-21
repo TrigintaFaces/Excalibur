@@ -107,11 +107,11 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 		_receiveRequestPool = new SimpleObjectPool<ReceiveMessageRequest>(
 			() => new ReceiveMessageRequest
 			{
-				QueueUrl = _options.QueueUrl.ToString(),
+				QueueUrl = _options.QueueUrl!.ToString(),
 				MaxNumberOfMessages = 10, // SQS max
 				WaitTimeSeconds = 20, // Max long polling
 				VisibilityTimeout = _options.VisibilityTimeout,
-				AttributeNames = ["All"],
+				MessageSystemAttributeNames = ["All"],
 				MessageAttributeNames = ["All"],
 			},
 			request =>
@@ -120,7 +120,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 			});
 
 		_deleteRequestPool = new SimpleObjectPool<DeleteMessageBatchRequest>(
-			() => new DeleteMessageBatchRequest { QueueUrl = _options.QueueUrl.ToString() },
+			() => new DeleteMessageBatchRequest { QueueUrl = _options.QueueUrl!.ToString() },
 			request => request.Entries.Clear());
 
 		_bufferPool = ArrayPool<byte>.Shared;
@@ -157,7 +157,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
 		_ = cancellationToken;
-		LogProcessorStarting(_options.QueueUrl.ToString(), _options.Polling.ConcurrentPollers);
+		LogProcessorStarting(_options.QueueUrl!.ToString(), _options.Polling.ConcurrentPollers);
 
 		// Start multiple polling tasks for increased throughput
 		for (var i = 0; i < _options.Polling.ConcurrentPollers; i++)

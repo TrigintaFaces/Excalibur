@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Builders;
 /// Tests for <see cref="TransportSenderBuilderExtensions"/>.
 /// Verifies UseTelemetry(), UseOrdering(), UseDeduplication(), UseScheduling(), and UseCloudEvents().
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class TransportSenderBuilderExtensionsShould : IDisposable
 {
 	private readonly ITransportSender _innerSender = A.Fake<ITransportSender>();

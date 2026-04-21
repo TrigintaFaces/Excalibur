@@ -1,4 +1,10 @@
 #nullable enable
+Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder
+Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder.BindConfiguration(string! sectionPath) -> Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!
+Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory) -> Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!
+Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder.ConnectionString(string! connectionString) -> Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!
+Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder.ConnectionStringName(string! name) -> Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!
+Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder.LockResource(string! lockResource) -> Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!
 Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection
 Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.CandidateId.get -> string!
@@ -41,16 +47,18 @@ Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory
 Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
 Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
 Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.SqlServerLeaderElectionFactory(string! connectionString, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory) -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionOptions
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionOptions.ConnectionString.get -> string?
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionOptions.ConnectionString.set -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionOptions.LockResource.get -> string?
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionOptions.LockResource.set -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionOptions.SqlServerLeaderElectionOptions() -> void
 Microsoft.Extensions.DependencyInjection.SqlServerHealthBasedLeaderElectionExtensions
 Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionBuilderExtensions
-Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionExtensions
-Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionHealthCheckExtensions
+Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionHealthChecksBuilderExtensions
 static Microsoft.Extensions.DependencyInjection.SqlServerHealthBasedLeaderElectionExtensions.AddSqlServerHealthBasedLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! lockResource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqlServerHealthBasedLeaderElectionExtensions.AddSqlServerHealthBasedLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! lockResource, System.Action<Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions!>! configureHealth) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqlServerHealthBasedLeaderElectionExtensions.AddSqlServerHealthBasedLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! lockResource, System.Action<Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions!>! configureHealth, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configureElection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionBuilderExtensions.UseSqlServer(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, string! connectionString, string! lockResource) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
-static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionBuilderExtensions.UseSqlServerFactory(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, string! connectionString) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
-static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionExtensions.AddSqlServerLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! lockResource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionExtensions.AddSqlServerLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! lockResource, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionExtensions.AddSqlServerLeaderElectionFactory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionHealthCheckExtensions.AddSqlServerLeaderElectionHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string? name = null, Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionBuilderExtensions.UseSqlServer(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
+static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionBuilderExtensions.UseSqlServerFactory(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
+static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionHealthChecksBuilderExtensions.AddSqlServerLeaderElectionHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string? name = null, Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!

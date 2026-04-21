@@ -1,10 +1,11 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.EventSourcing.Firestore</PackageId>
     <Description>Google Cloud Firestore event store implementation for Excalibur event sourcing.</Description>
     <PackageTags>excalibur;eventsourcing;firestore;google-cloud;cloud-native;event-store</PackageTags>
+    <!-- AOT: NOT compatible. Google.Cloud.Firestore uses reflection-based attribute mapping for event conversion. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
@@ -22,7 +23,7 @@
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
   <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+    <InternalsVisibleTo Include="Excalibur.Data.Firestore.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 </Project>

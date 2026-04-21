@@ -104,7 +104,7 @@ AwsSqs/
 ├── Messages/
 │   └── OrderPlacedEvent.cs       # Domain event definition
 ├── Handlers/
-│   └── OrderPlacedEventHandler.cs # Message handler
+│   └── OrderPlacedHandler.cs # Message handler
 ├── Program.cs                     # Application entry point
 ├── appsettings.json              # Configuration
 ├── docker-compose.yml            # LocalStack container

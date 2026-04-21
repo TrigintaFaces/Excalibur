@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// MapToReceivedMessage mapping, interface compliance, Source property,
 /// dispose idempotency, and type verification.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportSubscriberDepthShould : IAsyncDisposable
 {
 	private readonly GrpcChannel _channel;

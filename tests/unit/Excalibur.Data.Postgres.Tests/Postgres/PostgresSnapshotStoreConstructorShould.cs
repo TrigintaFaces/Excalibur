@@ -15,8 +15,8 @@ namespace Excalibur.Data.Tests.Postgres.Snapshots;
 /// Unit tests for the <see cref="PostgresSnapshotStore"/> dual-constructor pattern.
 /// Verifies both simple (connection string) and advanced (connection factory) constructors.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class PostgresSnapshotStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<PostgresSnapshotStore> _logger;

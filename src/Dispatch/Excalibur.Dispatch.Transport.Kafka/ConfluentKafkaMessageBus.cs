@@ -135,7 +135,7 @@ internal sealed partial class ConfluentKafkaMessageBus : IMessageBus, IAsyncDisp
 		// Correlation ID header
 		if (!string.IsNullOrEmpty(context.CorrelationId))
 		{
-			headers.Add("correlation-id", Encoding.UTF8.GetBytes(context.CorrelationId));
+			headers.Add(OutboxHeaderNames.CorrelationId, Encoding.UTF8.GetBytes(context.CorrelationId));
 		}
 
 		// W3C Trace Context header

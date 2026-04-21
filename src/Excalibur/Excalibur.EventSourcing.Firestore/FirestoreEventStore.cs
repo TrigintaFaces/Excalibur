@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -150,7 +150,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		try
 		{
 			var events = new List<CloudStoredEvent>();
-			var query = _db.Collection(_options.EventsCollectionName)
+			var query = _db!.Collection(_options.EventsCollectionName)
 				.WhereEqualTo("streamId", streamId)
 				.OrderBy("version");
 
@@ -213,7 +213,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		try
 		{
 			var events = new List<CloudStoredEvent>();
-			var query = _db.Collection(_options.EventsCollectionName)
+			var query = _db!.Collection(_options.EventsCollectionName)
 				.WhereEqualTo("streamId", streamId)
 				.WhereGreaterThan("version", fromVersion)
 				.OrderBy("version");
@@ -295,10 +295,10 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			var conflictDetected = false;
 			var currentActualVersion = expectedVersion;
 
-			await _db.RunTransactionAsync(async transaction =>
+			await _db!.RunTransactionAsync(async transaction =>
 			{
 				// Check current version
-				var versionQuery = _db.Collection(_options.EventsCollectionName)
+				var versionQuery = _db!.Collection(_options.EventsCollectionName)
 					.WhereEqualTo("streamId", streamId)
 					.OrderByDescending("version")
 					.Limit(1);
@@ -327,8 +327,9 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 					version++;
 					var eventTypeName = EventTypeNameHelper.GetEventTypeName(evt.GetType());
 					var docId = $"{streamId}:{version}";
-					var docRef = _db.Collection(_options.EventsCollectionName).Document(docId);
+					var docRef = _db!.Collection(_options.EventsCollectionName).Document(docId);
 
+#pragma warning disable IL2026
 					var data = new Dictionary<string, object>
 					{
 						["eventId"] = evt.EventId.ToString(),
@@ -345,6 +346,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 					{
 						data["metadata"] = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata));
 					}
+#pragma warning restore IL2026
 
 					transaction.Create(docRef, data);
 				}
@@ -409,7 +411,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var subscription = new FirestoreEventStoreListenerSubscription(
-			_db,
+			_db!,
 			_options,
 			_logger);
 
@@ -427,7 +429,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 
 		var streamId = BuildStreamId(aggregateType, aggregateId);
 
-		var query = _db.Collection(_options.EventsCollectionName)
+		var query = _db!.Collection(_options.EventsCollectionName)
 			.WhereEqualTo("streamId", streamId)
 			.OrderByDescending("version")
 			.Limit(1);
@@ -589,11 +591,15 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 
 		if (!string.IsNullOrWhiteSpace(_options.CredentialsJson))
 		{
+			#pragma warning disable CS0618 // Obsolete CredentialsPath/JsonCredentials -- no replacement available yet
 			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, JsonCredentials = _options.CredentialsJson };
+#pragma warning restore CS0618
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
 		{
+			#pragma warning disable CS0618
 			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, CredentialsPath = _options.CredentialsPath };
+#pragma warning restore CS0618
 		}
 		else
 		{

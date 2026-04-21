@@ -14,7 +14,7 @@ using MsOptions = Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class CachingMiddlewareShould : UnitTestBase
 {
@@ -323,7 +323,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 		result.Succeeded.ShouldBeTrue();
 		result.CacheHit.ShouldBeTrue();
 		result.ProblemDetails.ShouldBeNull();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 
 		// Verify it's an IMessageResult<string> with correct value
 		var typedResult = result.ShouldBeAssignableTo<IMessageResult<string>>();

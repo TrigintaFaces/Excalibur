@@ -56,7 +56,7 @@ public sealed class AwsSqsOptions : AwsProviderOptions
 	/// <value>
 	/// The batch configuration.
 	/// </value>
-	public BatchConfiguration? BatchConfig { get; set; }
+	public BatchOptions? BatchConfig { get; set; }
 
 	/// <summary>
 	/// Gets or sets the long polling configuration.
@@ -64,7 +64,7 @@ public sealed class AwsSqsOptions : AwsProviderOptions
 	/// <value>
 	/// The long polling configuration.
 	/// </value>
-	public LongPollingConfiguration? LongPollingConfig { get; set; }
+	public LongPollingOptions? LongPollingConfig { get; set; }
 
 	/// <summary>
 	/// Gets or sets the KMS master key ID for encryption.

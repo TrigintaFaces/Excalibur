@@ -10,7 +10,7 @@ The PostgreSQL provider offers full relational database support with Npgsql-base
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - A PostgreSQL instance (local or cloud-hosted)
 - Familiarity with [data access](../data-access/index.md) and [IDb interface](../data-access/idb-interface.md)
 
@@ -30,51 +30,40 @@ using Microsoft.Extensions.DependencyInjection;
 services.AddPostgresDataExecutors(() => new NpgsqlConnection(connectionString));
 ```
 
-## Registration Options
+## Registration Methods
 
-### Data Executors
+| Method | What It Registers | Key Options |
+|--------|-------------------|-------------|
+| `data.UsePostgres(Action<IPostgresDataBuilder>)` | Core data executors | Builder with 5 connection overloads |
+| `es.UsePostgres(Action<IPostgresEventSourcingBuilder>)` | `IEventStore` + `ISnapshotStore` | Builder with 5 connection overloads |
+| `saga.UsePostgres(Action<IPostgresSagaBuilder>)` | `ISagaStore` | Builder with 5 connection + SchemaName, TableName |
+| `inbox.UsePostgres(Action<IPostgresInboxBuilder>)` | `IInboxStore` | Builder with 5 connection + SchemaName, TableName, MaxRetryCount |
+| `outbox.UsePostgres(Action<IPostgresOutboxBuilder>)` | `IOutboxStore` | Builder with 5+ connection + SchemaName, TableName, DeadLetterTableName |
+| `le.UsePostgres(Action<IPostgresLeaderElectionBuilder>)` | `ILeaderElection` | Builder with 5 connection + LockKey |
+| `cdc.UsePostgres(Action<IPostgresCdcBuilder>)` | CDC processor | Builder with 5 connection + PublicationName, ReplicationSlotName |
+| `compliance.UsePostgres(Action<IPostgresComplianceBuilder>)` | Erasure + DataInventory + LegalHold | Builder with 5 connection overloads |
+| `audit.UsePostgres(Action<IPostgresAuditLoggingBuilder>)` | `IAuditStore` | Builder with 5 connection + SchemaName, TableName |
+| `AddPostgresProjectionStore<T>(opts)` | `IProjectionStore<T>` | `ConnectionString`, `TableName` |
+
+### Batch Projection Registration
+
+Register multiple projections sharing the same connection:
 
 ```csharp
-services.AddPostgresDataExecutors(() => new NpgsqlConnection(connectionString));
-```
-
-### Event Store
-
-```csharp
-// With connection string
-services.AddPostgresEventStore(opts => opts.ConnectionString = connectionString);
-
-// With connection string and options
-services.AddPostgresEventStore(options =>
+services.AddPostgresProjections(connectionString, projections =>
 {
-    options.ConnectionString = connectionString;
-    options.SchemaName = "events";
-});
-```
-
-### Snapshot Store
-
-```csharp
-services.AddPostgresSnapshotStore(opts => opts.ConnectionString = connectionString);
-```
-
-### Inbox / Outbox
-
-```csharp
-services.AddPostgresInboxStore(options =>
-{
-    options.ConnectionString = connectionString;
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.TableName = "customer_views");
 });
 ```
 
 ### Change Data Capture
 
 ```csharp
-services.AddPostgresCdc(options =>
+services.AddCdcProcessor(cdc =>
 {
-    options.ConnectionString = connectionString;
-    options.PublicationName = "my_publication";
-    options.ReplicationSlotName = "my_slot";
+    cdc.UsePostgres(pg => pg.ConnectionString(connectionString))
+       .TrackTable("public.orders", t => t.MapAll<OrderChangedEvent>());
 });
 ```
 

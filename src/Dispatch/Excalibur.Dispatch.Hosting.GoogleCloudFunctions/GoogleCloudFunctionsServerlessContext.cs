@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-#if GOOGLE_CLOUD_FUNCTIONS_SUPPORT
-using Microsoft.AspNetCore.Http;
-#endif
 
 namespace Excalibur.Dispatch.Hosting.GoogleCloud;
 
@@ -13,9 +10,6 @@ namespace Excalibur.Dispatch.Hosting.GoogleCloud;
 /// </summary>
 internal sealed class GoogleCloudFunctionsServerlessContext : ServerlessContextBase
 {
-#if GOOGLE_CLOUD_FUNCTIONS_SUPPORT
-    private readonly HttpContext? _typedHttpContext;
-#endif
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GoogleCloudFunctionsServerlessContext" /> class.
@@ -25,12 +19,6 @@ internal sealed class GoogleCloudFunctionsServerlessContext : ServerlessContextB
 	public GoogleCloudFunctionsServerlessContext(object httpContext, ILogger logger)
 		: base(httpContext, ServerlessPlatform.GoogleCloudFunctions, logger)
 	{
-#if GOOGLE_CLOUD_FUNCTIONS_SUPPORT
-        if (httpContext is HttpContext context)
-        {
-            _typedHttpContext = context;
-        }
-#endif
 	}
 
 	/// <inheritdoc />
@@ -38,12 +26,6 @@ internal sealed class GoogleCloudFunctionsServerlessContext : ServerlessContextB
 	{
 		get
 		{
-#if GOOGLE_CLOUD_FUNCTIONS_SUPPORT
-            if (_typedHttpContext != null)
-            {
-                return _typedHttpContext.TraceIdentifier;
-            }
-#endif
 			return Environment.GetEnvironmentVariable("FUNCTION_EXECUTION_ID") ?? Guid.NewGuid().ToString();
 		}
 	}
@@ -132,32 +114,6 @@ internal sealed class GoogleCloudFunctionsServerlessContext : ServerlessContextB
 		}
 	}
 
-#if GOOGLE_CLOUD_FUNCTIONS_SUPPORT
-/// <summary>
-/// Gets the Google Cloud-specific HTTP context.
-/// </summary>
-    public HttpContext? HttpContext => _typedHttpContext;
-
-/// <summary>
-/// Gets the execution environment information.
-/// </summary>
-    public string ExecutionId => Environment.GetEnvironmentVariable("FUNCTION_EXECUTION_ID") ?? RequestId;
-
-/// <summary>
-/// Gets the service name for Cloud Run functions.
-/// </summary>
-    public string ServiceName => Environment.GetEnvironmentVariable("K_SERVICE") ?? FunctionName;
-
-/// <summary>
-/// Gets the revision name for Cloud Run functions.
-/// </summary>
-    public string RevisionName => Environment.GetEnvironmentVariable("K_REVISION") ?? "1";
-
-/// <summary>
-/// Gets the configuration name for Cloud Run functions.
-/// </summary>
-    public string ConfigurationName => Environment.GetEnvironmentVariable("K_CONFIGURATION") ?? ServiceName;
-#endif
 
 	/// <inheritdoc />
 	protected override void Dispose(bool disposing)

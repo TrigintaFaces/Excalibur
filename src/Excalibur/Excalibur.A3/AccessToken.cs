@@ -86,7 +86,7 @@ public sealed class AccessToken : IAccessToken
 	}
 
 	/// <inheritdoc />
-	public bool IsAuthorized(string activityName, string? resourceId = null) => _authorizationPolicy.IsAuthorized(activityName, resourceId);
+	public bool IsAuthorized(string activityName, string? resourceId) => _authorizationPolicy.IsAuthorized(activityName, resourceId);
 
 	/// <inheritdoc />
 	public bool HasGrant(string activityName) => _authorizationPolicy.HasGrant(activityName);
@@ -137,7 +137,7 @@ public sealed class AccessToken : IAccessToken
 
 		public string? UserId { get; } = uid;
 
-		public bool IsAuthorized(string activityName, string? resourceId = null) => false;
+		public bool IsAuthorized(string activityName, string? resourceId) => false;
 
 		public bool HasGrant(string activityName) => false;
 

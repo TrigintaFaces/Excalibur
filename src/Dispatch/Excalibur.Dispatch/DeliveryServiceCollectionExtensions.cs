@@ -7,10 +7,12 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Options.Scheduling;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 using DeliveryInboxOptions = Excalibur.Dispatch.Options.Delivery.InboxOptions;
 using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
@@ -47,6 +49,9 @@ public static class DeliveryServiceCollectionExtensions
 		// Note: IOutboxProcessor and IOutboxDispatcher implementations are now in Excalibur.Outbox
 		// Use Excalibur.Outbox DI extensions to register those implementations
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeliveryOutboxOptions>, OutboxDeliveryOptionsValidator>());
+
 		var builder = services.AddOptions<DeliveryOutboxOptions>();
 		_ = builder.Configure(static options =>
 		{
@@ -65,7 +70,6 @@ public static class DeliveryServiceCollectionExtensions
 		_ = builder.Validate(
 				static options => DeliveryOutboxOptions.Validate(options) is null,
 				"DeliveryOutboxOptions failed validation.")
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -90,13 +94,16 @@ public static class DeliveryServiceCollectionExtensions
 		// Note: IInboxProcessor, IInbox, and IInMemoryDeduplicator implementations are now in Excalibur.Outbox
 		// Use Excalibur.Outbox DI extensions to register those implementations
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeliveryInboxOptions>, InboxOptionsValidator>());
+
 		var builder = services.AddOptions<DeliveryInboxOptions>();
 		_ = builder.Configure(static options =>
 		{
-			options.PerRunTotal = DefaultPerRunTotal;
-			options.QueueCapacity = DefaultQueueCapacity;
-			options.ProducerBatchSize = DefaultProducerBatchSize;
-			options.ConsumerBatchSize = DefaultConsumerBatchSize;
+			options.Capacity.PerRunTotal = DefaultPerRunTotal;
+			options.Capacity.QueueCapacity = DefaultQueueCapacity;
+			options.Capacity.ProducerBatchSize = DefaultProducerBatchSize;
+			options.Capacity.ConsumerBatchSize = DefaultConsumerBatchSize;
 			options.MaxAttempts = DefaultMaxAttempts;
 		});
 
@@ -108,7 +115,6 @@ public static class DeliveryServiceCollectionExtensions
 		_ = builder.Validate(
 				static options => DeliveryInboxOptions.Validate(options) is null,
 				"DeliveryInboxOptions failed validation.")
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -120,6 +126,10 @@ public static class DeliveryServiceCollectionExtensions
 	[RequiresUnreferencedCode(
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddOutboxOptions(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -127,12 +137,14 @@ public static class DeliveryServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeliveryOutboxOptions>, OutboxDeliveryOptionsValidator>());
+
 		_ = services.AddOptions<DeliveryOutboxOptions>()
 			.Bind(configuration)
 			.Validate(
 				static options => DeliveryOutboxOptions.Validate(options) is null,
 				"DeliveryOutboxOptions failed validation.")
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -144,6 +156,10 @@ public static class DeliveryServiceCollectionExtensions
 	[RequiresUnreferencedCode(
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddInboxOptions(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -151,12 +167,14 @@ public static class DeliveryServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeliveryInboxOptions>, InboxOptionsValidator>());
+
 		_ = services.AddOptions<DeliveryInboxOptions>()
 			.Bind(configuration)
 			.Validate(
 				static options => DeliveryInboxOptions.Validate(options) is null,
 				"DeliveryInboxOptions failed validation.")
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -173,11 +191,14 @@ public static class DeliveryServiceCollectionExtensions
 		services.TryAddSingleton<ICronScheduler, CronScheduler>();
 		services.TryAddSingleton<IDispatchScheduler, RecurringDispatchScheduler>();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SchedulerOptions>, SchedulerOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CronScheduleOptions>, CronScheduleOptionsValidator>());
+
 		_ = services.AddOptions<SchedulerOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddOptions<CronScheduleOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;

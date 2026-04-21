@@ -21,7 +21,6 @@
 
 using AzureServiceBusSample.Messages;
 
-using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
@@ -54,8 +53,7 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register JSON serializer for message payloads
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+	// Configure JSON serialization
 
 	// Route OrderPlacedEvent to Azure Service Bus transport
 	_ = dispatch.UseRouting(routing =>
@@ -68,7 +66,7 @@ builder.Services.AddDispatch(dispatch =>
 // The outbox pattern ensures messages are persisted before sending,
 // providing at-least-once delivery guarantees.
 builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
+builder.Services.AddInMemoryInboxStore();
 builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
 

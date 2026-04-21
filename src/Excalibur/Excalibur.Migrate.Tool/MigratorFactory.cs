@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Reflection;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Loader;
 
 using Excalibur.EventSourcing.Abstractions;
@@ -50,7 +50,7 @@ internal sealed class MigratorResult : IDisposable
 		}
 
 		_disposed = true;
-		(_loggerFactory as IDisposable)?.Dispose();
+		_loggerFactory?.Dispose();
 	}
 }
 
@@ -82,14 +82,18 @@ internal static class MigratorFactory
 
 		var migrator = provider.ToUpperInvariant() switch
 		{
-			"SQLSERVER" => (IMigrator)new SqlServerMigrator(connectionString, assembly, ns, loggerFactory.CreateLogger<SqlServerMigrator>()),
-			"POSTGRES" or "Postgres" => new PostgresMigrator(connectionString, assembly, ns, loggerFactory.CreateLogger<PostgresMigrator>()),
-			_ => throw new ArgumentException($"Unsupported database provider: {provider}. Supported providers: sqlserver, postgres", nameof(provider)),
+			"SQLSERVER" => (IMigrator)new SqlServerMigrator(connectionString, assembly, ns,
+				loggerFactory.CreateLogger<SqlServerMigrator>()),
+			"POSTGRES" or "Postgres" => new PostgresMigrator(connectionString, assembly, ns,
+				loggerFactory.CreateLogger<PostgresMigrator>()),
+			_ => throw new ArgumentException($"Unsupported database provider: {provider}. Supported providers: sqlserver, postgres",
+				nameof(provider)),
 		};
 
 		return new MigratorResult(migrator, disposeLoggerFactory ? loggerFactory : null);
 	}
 
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Assembly loading for migration discovery is inherently reflection-based.")]
 	private static Assembly LoadMigrationAssembly(string? assemblyPath)
 	{
 		if (string.IsNullOrWhiteSpace(assemblyPath))

@@ -6,8 +6,10 @@ using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Excalibur.Outbox.Diagnostics;
 using Excalibur.Outbox.Health;
+using Excalibur.Outbox.Partitioning;
 using Excalibur.Outbox.Processing;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -89,6 +91,9 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 	private readonly IOptions<OutboxProcessingOptions> _options;
 	private readonly IProcessingGate? _gate;
 	private readonly BackgroundServiceHealthState? _healthState;
+	private readonly IOutboxPartitioner? _partitioner;
+	private readonly IOptions<Partitioning.OutboxPartitionOptions>? _partitionOptions;
+	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<OutboxBackgroundService> _logger;
 
 	/// <summary>
@@ -96,21 +101,30 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 	/// </summary>
 	/// <param name="publisher">The outbox publisher for message delivery.</param>
 	/// <param name="options">The processing options.</param>
+	/// <param name="serviceProvider">The service provider for creating scoped processors.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="healthState">Optional health state tracker for health check integration.</param>
 	/// <param name="gate">Optional processing gate (e.g., leader election) that controls whether this instance should process.</param>
+	/// <param name="partitioner">Optional outbox partitioner. When provided, runs N parallel processor loops (one per partition) instead of a single publisher loop.</param>
+	/// <param name="partitionOptions">Optional partition-specific options (polling interval, error backoff). Used only when <paramref name="partitioner"/> is provided.</param>
 	public OutboxBackgroundService(
 		IOutboxPublisher publisher,
 		IOptions<OutboxProcessingOptions> options,
+		IServiceProvider serviceProvider,
 		ILogger<OutboxBackgroundService> logger,
 		BackgroundServiceHealthState? healthState = null,
-		IProcessingGate? gate = null)
+		IProcessingGate? gate = null,
+		IOutboxPartitioner? partitioner = null,
+		IOptions<Partitioning.OutboxPartitionOptions>? partitionOptions = null)
 	{
 		_publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
+		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_healthState = healthState;
 		_gate = gate;
+		_partitioner = partitioner;
+		_partitionOptions = partitionOptions;
 	}
 
 	/// <inheritdoc/>
@@ -145,6 +159,33 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 		}
 
 		_healthState?.MarkStarted();
+
+		// Partitioned mode: run N parallel processor loops (one per partition × processors-per-partition)
+		if (_partitioner is not null)
+		{
+			var processorsPerPartition = _partitionOptions?.Value.ProcessorCountPerPartition ?? 1;
+			var totalProcessors = _partitioner.PartitionCount * processorsPerPartition;
+			LogPartitionedOutboxStarting(totalProcessors);
+
+			var tasks = new Task[totalProcessors];
+			var taskIndex = 0;
+			for (var i = 0; i < _partitioner.PartitionCount; i++)
+			{
+				for (var p = 0; p < processorsPerPartition; p++)
+				{
+					var partitionId = i;
+					var processorIndex = p;
+					tasks[taskIndex++] = ExecutePartitionAsync(partitionId, processorIndex, stoppingToken);
+				}
+			}
+
+			await Task.WhenAll(tasks).ConfigureAwait(false);
+			_healthState?.MarkStopped();
+			LogBackgroundServiceStopped();
+			return;
+		}
+
+		// Single-processor mode (default)
 		LogBackgroundServiceStarting(_options.Value.PollingInterval);
 
 		while (!stoppingToken.IsCancellationRequested)
@@ -187,6 +228,72 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 
 		_healthState?.MarkStopped();
 		LogBackgroundServiceStopped();
+	}
+
+	/// <summary>
+	/// Runs a single partition's processing loop using a scoped <see cref="IOutboxProcessor"/>.
+	/// </summary>
+	private async Task ExecutePartitionAsync(int partitionId, int processorIndex, CancellationToken stoppingToken)
+	{
+		LogPartitionStarted(partitionId);
+		var scope = _serviceProvider.CreateAsyncScope();
+
+		// Use partition-specific intervals when configured, otherwise fall back to global processing options
+		var pollingInterval = _partitionOptions?.Value.PollingInterval ?? _options.Value.PollingInterval;
+		var errorBackoff = _partitionOptions?.Value.ErrorBackoffInterval
+			?? (_options.Value.PollingInterval + _options.Value.PollingInterval);
+
+		try
+		{
+			var processor = scope.ServiceProvider.GetRequiredService<IOutboxProcessor>();
+			processor.Init($"partitioned-{partitionId}-{processorIndex}");
+
+			while (!stoppingToken.IsCancellationRequested)
+			{
+				try
+				{
+					if (_gate is not null && !_gate.ShouldProcess)
+					{
+						await Task.Delay(pollingInterval, stoppingToken).ConfigureAwait(false);
+						continue;
+					}
+
+					var dispatched = await processor.DispatchPendingMessagesAsync(stoppingToken).ConfigureAwait(false);
+
+					if (dispatched > 0)
+					{
+						LogPartitionDispatched(partitionId, dispatched);
+						BackgroundServiceMetrics.RecordMessagesProcessed(
+							BackgroundServiceTypes.Outbox,
+							BackgroundServiceOperations.Pending,
+							dispatched);
+					}
+					else
+					{
+						await Task.Delay(pollingInterval, stoppingToken).ConfigureAwait(false);
+					}
+				}
+				catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+				{
+					break;
+				}
+#pragma warning disable CA1031 // Partition processor must not crash on individual message failures
+				catch (Exception ex)
+#pragma warning restore CA1031
+				{
+					LogPartitionError(ex, partitionId);
+					BackgroundServiceMetrics.RecordProcessingError(
+						BackgroundServiceTypes.Outbox,
+						ex.GetType().Name);
+					await Task.Delay(errorBackoff, stoppingToken).ConfigureAwait(false);
+				}
+			}
+		}
+		finally
+		{
+			await scope.DisposeAsync().ConfigureAwait(false);
+			LogPartitionStopped(partitionId);
+		}
 	}
 
 	private async Task ProcessOutboxAsync(CancellationToken cancellationToken)
@@ -319,4 +426,24 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 	[LoggerMessage(OutboxEventId.OutboxBackgroundSkippedNotLeader, LogLevel.Debug,
 			"Skipped outbox processing cycle -- not the leader.")]
 	private partial void LogSkippedNotLeader();
+
+	[LoggerMessage(OutboxEventId.OutboxBackgroundServiceStarting + 10, LogLevel.Information,
+			"Partitioned outbox processor starting: {PartitionCount} partitions")]
+	private partial void LogPartitionedOutboxStarting(int partitionCount);
+
+	[LoggerMessage(OutboxEventId.OutboxBackgroundServiceStarting + 11, LogLevel.Debug,
+			"Partition {PartitionId} processor started")]
+	private partial void LogPartitionStarted(int partitionId);
+
+	[LoggerMessage(OutboxEventId.OutboxBackgroundServiceStarting + 12, LogLevel.Debug,
+			"Partition {PartitionId} dispatched {MessageCount} messages")]
+	private partial void LogPartitionDispatched(int partitionId, int messageCount);
+
+	[LoggerMessage(OutboxEventId.OutboxBackgroundServiceStarting + 13, LogLevel.Error,
+			"Error processing partition {PartitionId}")]
+	private partial void LogPartitionError(Exception exception, int partitionId);
+
+	[LoggerMessage(OutboxEventId.OutboxBackgroundServiceStarting + 14, LogLevel.Debug,
+			"Partition {PartitionId} processor stopped")]
+	private partial void LogPartitionStopped(int partitionId);
 }

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
 using Google.Cloud.PubSub.V1;
 
@@ -17,6 +18,7 @@ internal interface IStreamingPullManagerFactory
 	/// <param name="subscriptionName"> The subscription name. </param>
 	/// <param name="processor"> The message processor delegate. </param>
 	/// <returns> A new streaming pull manager instance. </returns>
+	[RequiresUnreferencedCode("StreamingPullManager construction may require unreferenced types")]
 	StreamingPullManager CreateManager(
 		SubscriptionName subscriptionName,
 		MessageStreamProcessor.MessageProcessor processor);

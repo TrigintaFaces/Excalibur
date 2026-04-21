@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.Firestore;
 /// Unit tests for <see cref="FirestoreHealthCheck"/> constructor validation
 /// and healthy/unhealthy scenarios.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class FirestoreHealthCheckShould : UnitTestBase
 {
 	private readonly ILogger<FirestoreHealthCheck> _healthCheckLogger;

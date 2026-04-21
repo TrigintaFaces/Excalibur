@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 /// <summary>
 /// Unit tests for <see cref="PastScheduleBehavior"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Delivery")]
 [Trait("Priority", "0")]
 public sealed class PastScheduleBehaviorShould

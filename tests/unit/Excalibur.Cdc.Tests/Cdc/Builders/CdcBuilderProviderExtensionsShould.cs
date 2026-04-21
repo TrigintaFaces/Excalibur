@@ -15,6 +15,7 @@ namespace Excalibur.Tests.Cdc.Builders;
 /// Sprint 637 B.4: Tests for ICdcBuilder Use*() provider extension methods
 /// (UseCosmosDb, UseDynamoDb, UseMongoDB, UseFirestore).
 /// Follows the SagaBuilderProviderExtensionsShould pattern.
+/// Updated for Phase C builder API migration.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -37,7 +38,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseCosmosDb()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((ICdcBuilder)null!).UseCosmosDb((Action<CosmosDbCdcOptions>)(_ => { })));
+			((ICdcBuilder)null!).UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA==")));
 	}
 
 	[Fact]
@@ -45,22 +46,15 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestCdcBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseCosmosDb((Action<CosmosDbCdcOptions>)null!));
+			builder.UseCosmosDb((Action<ICosmosDbCdcBuilder>)null!));
 	}
 
 	[Fact]
 	public void ReturnSameBuilder_ForFluentChaining_UseCosmosDb()
 	{
 		var builder = new TestCdcBuilder();
-		var result = builder.UseCosmosDb((Action<CosmosDbCdcOptions>)(_ => { }));
+		var result = builder.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA=="));
 		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseCosmosDbWithStateStore()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			((ICdcBuilder)null!).UseCosmosDb(_ => { }, _ => { }));
 	}
 
 	#endregion
@@ -105,7 +99,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseMongoDB()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((ICdcBuilder)null!).UseMongoDB((Action<MongoDbCdcOptions>)(_ => { })));
+			((ICdcBuilder)null!).UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017")));
 	}
 
 	[Fact]
@@ -113,22 +107,15 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	{
 		var builder = new TestCdcBuilder();
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseMongoDB((Action<MongoDbCdcOptions>)null!));
+			builder.UseMongoDB((Action<IMongoDbCdcBuilder>)null!));
 	}
 
 	[Fact]
 	public void ReturnSameBuilder_ForFluentChaining_UseMongoDB()
 	{
 		var builder = new TestCdcBuilder();
-		var result = builder.UseMongoDB((Action<MongoDbCdcOptions>)(_ => { }));
+		var result = builder.UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017"));
 		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseMongoDBWithStateStore()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			((ICdcBuilder)null!).UseMongoDB(_ => { }, _ => { }));
 	}
 
 	#endregion

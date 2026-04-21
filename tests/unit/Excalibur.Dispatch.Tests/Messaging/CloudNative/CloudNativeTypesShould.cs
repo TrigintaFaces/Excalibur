@@ -6,8 +6,8 @@ using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.Dispatch.Tests.Messaging.CloudNative;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CloudNativeTypesShould
 {
 	// Sprint 682 T.24: CloudNative.CircuitBreakerOpenException deleted.
@@ -21,7 +21,7 @@ public sealed class CloudNativeTypesShould
 
 		// Assert
 		ex.Message.ShouldNotBeNull();
-		ex.InnerException.ShouldBeNull();
+		ex.InnerException!.ShouldBeNull();
 		ex.CircuitName.ShouldBeNull();
 		ex.RetryAfter.ShouldBeNull();
 	}
@@ -59,7 +59,7 @@ public sealed class CloudNativeTypesShould
 
 		// Assert
 		ex.Message.ShouldBe("circuit is open");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

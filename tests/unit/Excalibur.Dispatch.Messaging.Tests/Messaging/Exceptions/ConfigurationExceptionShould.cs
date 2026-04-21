@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// <summary>
 /// Unit tests for <see cref="ConfigurationException"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConfigurationExceptionShould
 {
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class ConfigurationExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.ErrorCode.ShouldBe(ErrorCodes.ConfigurationInvalid);
 	}
 
@@ -95,7 +95,7 @@ public sealed class ConfigurationExceptionShould
 		// Assert
 		exception.ErrorCode.ShouldBe(errorCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]

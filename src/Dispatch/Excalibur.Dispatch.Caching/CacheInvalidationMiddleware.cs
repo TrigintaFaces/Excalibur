@@ -3,13 +3,10 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
-using System.Globalization;
-using System.Text;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Caching.Diagnostics;
 
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
@@ -18,20 +15,18 @@ namespace Excalibur.Dispatch.Caching;
 
 /// <summary>
 /// Middleware that invalidates cached entries after a message has been processed.
-/// Supports all three cache modes: Memory, Distributed, and Hybrid.
+/// Uses a unified invalidation strategy across all cache modes (Memory, Distributed, Hybrid).
 /// </summary>
 /// <param name="meterFactory"> The meter factory for DI-managed meter lifecycle. </param>
 /// <param name="options"> Configuration options that control middleware behavior. </param>
-/// <param name="tagTracker"> Tag tracker for Memory and Distributed modes (null for Hybrid). </param>
-/// <param name="memoryCache"> Memory cache instance (null if not using Memory mode). </param>
-/// <param name="distributedCache"> Distributed cache instance (null if not using Distributed mode). </param>
-/// <param name="hybridCache"> Hybrid cache instance (null if not using Hybrid mode). </param>
+/// <param name="tagTracker"> Tag tracker for resolving tag-to-key mappings across all modes. </param>
+/// <param name="memoryCache"> Memory cache instance (fallback when HybridCache is unavailable). </param>
+/// <param name="hybridCache"> Hybrid cache instance (preferred for all invalidation operations). </param>
 internal sealed class CacheInvalidationMiddleware(
 	IMeterFactory meterFactory,
 	IOptions<CacheOptions> options,
 	ICacheTagTracker? tagTracker = null,
 	IMemoryCache? memoryCache = null,
-	IDistributedCache? distributedCache = null,
 	HybridCache? hybridCache = null) : IDispatchMiddleware
 {
 	/// <summary>
@@ -53,14 +48,11 @@ internal sealed class CacheInvalidationMiddleware(
 			.CreateCounter<long>("dispatch.cache.keys_invalidated", "keys", "Number of cache keys invalidated");
 
 	private static readonly ConcurrentDictionary<Type, InvalidateCacheAttribute?> _attributeCache = new();
-	private static readonly CompositeFormat UnsupportedCacheModeFormat =
-		CompositeFormat.Parse(Resources.CacheInvalidationMiddleware_UnsupportedCacheModeFormat);
 
 	private readonly string[] _defaultTags = options.Value.DefaultTags ?? [];
 	private readonly CacheOptions _options = options.Value;
 	private readonly ICacheTagTracker? _tagTracker = tagTracker;
 	private readonly IMemoryCache? _memoryCache = memoryCache;
-	private readonly IDistributedCache? _distributedCache = distributedCache;
 	private readonly HybridCache? _hybridCache = hybridCache;
 
 	/// <summary>
@@ -136,28 +128,8 @@ internal sealed class CacheInvalidationMiddleware(
 			_keysInvalidatedCounter.Add(keys.Count);
 		}
 
-		// Dispatch to cache mode-specific invalidation
-		switch (_options.CacheMode)
-		{
-			case CacheMode.Memory:
-				await InvalidateMemoryCacheAsync(tags, keys, cancellationToken).ConfigureAwait(false);
-				break;
-
-			case CacheMode.Distributed:
-				await InvalidateDistributedCacheAsync(tags, keys, cancellationToken).ConfigureAwait(false);
-				break;
-
-			case CacheMode.Hybrid:
-				await InvalidateHybridCacheAsync(tags, keys, cancellationToken).ConfigureAwait(false);
-				break;
-
-			default:
-				throw new InvalidOperationException(
-					string.Format(
-						CultureInfo.CurrentCulture,
-						UnsupportedCacheModeFormat,
-						_options.CacheMode));
-		}
+		// Unified invalidation: L1 native tags + tracker-based L2 + direct keys
+		await InvalidateAsync(tags, keys, cancellationToken).ConfigureAwait(false);
 
 		return result;
 	}
@@ -215,135 +187,54 @@ internal sealed class CacheInvalidationMiddleware(
 	}
 
 	/// <summary>
-	/// Invalidates memory cache entries by tags and keys.
-	/// CachingMiddleware stores entries through HybridCache even in Memory mode (as L1-only),
-	/// so invalidation must go through HybridCache to match the internal key/tag tracking.
-	/// Falls back to IMemoryCache + ICacheTagTracker when HybridCache is not available.
+	/// Unified cache invalidation across all modes (Memory, Distributed, Hybrid).
+	/// Three-step flow: L1 native tag removal, tracker-based L2 key resolution + removal, direct key removal.
 	/// </summary>
-	private async Task InvalidateMemoryCacheAsync(List<string> tags, List<string> keys, CancellationToken cancellationToken)
+	private async Task InvalidateAsync(List<string> tags, List<string> keys, CancellationToken cancellationToken)
 	{
-		// Prefer HybridCache invalidation since entries are stored through it
-		if (_hybridCache is not null)
-		{
-			if (tags.Count > 0)
-			{
-				var distinctTags = tags.Distinct(StringComparer.Ordinal).ToArray();
-				await _hybridCache.RemoveByTagAsync(distinctTags, cancellationToken).ConfigureAwait(false);
-			}
-
-			if (keys.Count > 0)
-			{
-				var distinctKeys = keys.Distinct(StringComparer.Ordinal).ToArray();
-				await _hybridCache.RemoveAsync(distinctKeys, cancellationToken).ConfigureAwait(false);
-			}
-
-			return;
-		}
-
-		// Fallback to IMemoryCache + tag tracker (when HybridCache is not registered)
-		if (_memoryCache is null)
-		{
-			return;
-		}
-
-		if (tags.Count > 0 && _tagTracker is not null)
-		{
-			var distinctTags = tags.Distinct(StringComparer.Ordinal).ToArray();
-			var keysToInvalidate = await _tagTracker.GetKeysByTagsAsync(distinctTags, cancellationToken).ConfigureAwait(false);
-
-			foreach (var key in keysToInvalidate)
-			{
-				_memoryCache.Remove(key);
-			}
-		}
-
-		if (keys.Count > 0)
-		{
-			var distinctKeys = keys.Distinct(StringComparer.Ordinal);
-			foreach (var key in distinctKeys)
-			{
-				_memoryCache.Remove(key);
-			}
-		}
-	}
-
-	/// <summary>
-	/// Invalidates distributed cache entries by tags and keys.
-	/// Uses HybridCache for removal since entries are stored through HybridCache
-	/// (with <see cref="HybridCacheEntryFlags.DisableLocalCache"/>), which uses
-	/// its own internal key format in L2 that differs from our cache keys.
-	/// </summary>
-	private async Task InvalidateDistributedCacheAsync(List<string> tags, List<string> keys, CancellationToken cancellationToken)
-	{
-		// Distributed mode uses HybridCache with DisableLocalCache flag,
-		// so invalidation must go through HybridCache to match the internal key format.
-		if (_hybridCache is not null)
-		{
-			if (tags.Count > 0)
-			{
-				var distinctTags = tags.Distinct(StringComparer.Ordinal).ToArray();
-				await _hybridCache.RemoveByTagAsync(distinctTags, cancellationToken).ConfigureAwait(false);
-			}
-
-			if (keys.Count > 0)
-			{
-				var distinctKeys = keys.Distinct(StringComparer.Ordinal).ToArray();
-				await _hybridCache.RemoveAsync(distinctKeys, cancellationToken).ConfigureAwait(false);
-			}
-
-			return;
-		}
-
-		// Fallback to IDistributedCache directly (should not normally be reached
-		// since all modes register HybridCache, but kept for safety)
-		if (_distributedCache is null)
-		{
-			return;
-		}
-
-		if (tags.Count > 0 && _tagTracker is not null)
-		{
-			var distinctTags = tags.Distinct(StringComparer.Ordinal).ToArray();
-			var keysToInvalidate = await _tagTracker.GetKeysByTagsAsync(distinctTags, cancellationToken).ConfigureAwait(false);
-
-			foreach (var key in keysToInvalidate)
-			{
-				await _distributedCache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		if (keys.Count > 0)
-		{
-			var distinctKeys = keys.Distinct(StringComparer.Ordinal);
-			foreach (var key in distinctKeys)
-			{
-				await _distributedCache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
-			}
-		}
-	}
-
-	/// <summary>
-	/// Invalidates hybrid cache entries by tags and keys using native HybridCache support.
-	/// </summary>
-	private async Task InvalidateHybridCacheAsync(List<string> tags, List<string> keys, CancellationToken cancellationToken)
-	{
-		if (_hybridCache is null)
-		{
-			return;
-		}
-
-		// Use HybridCache's native tag support
-		if (tags.Count > 0)
+		// Step 1: L1 native tag invalidation via HybridCache (no-op in Distributed mode since L1 disabled)
+		if (_hybridCache is not null && tags.Count > 0)
 		{
 			var distinctTags = tags.Distinct(StringComparer.Ordinal).ToArray();
 			await _hybridCache.RemoveByTagAsync(distinctTags, cancellationToken).ConfigureAwait(false);
 		}
 
-		// Direct key-based invalidation
+		// Step 2: Tracker-based L2 invalidation -- resolves tags to keys, removes each key
+		if (_tagTracker is not null && tags.Count > 0)
+		{
+			var distinctTags = tags.Distinct(StringComparer.Ordinal).ToArray();
+			var trackedKeys = await _tagTracker.GetKeysByTagsAsync(distinctTags, cancellationToken).ConfigureAwait(false);
+
+			foreach (var trackedKey in trackedKeys)
+			{
+				if (_hybridCache is not null)
+				{
+					await _hybridCache.RemoveAsync(trackedKey, cancellationToken).ConfigureAwait(false);
+				}
+				else if (_memoryCache is not null)
+				{
+					_memoryCache.Remove(trackedKey);
+				}
+
+				await _tagTracker.UnregisterKeyAsync(trackedKey, cancellationToken).ConfigureAwait(false);
+			}
+		}
+
+		// Step 3: Direct key invalidation (non-tag-based)
 		if (keys.Count > 0)
 		{
 			var distinctKeys = keys.Distinct(StringComparer.Ordinal).ToArray();
-			await _hybridCache.RemoveAsync(distinctKeys, cancellationToken).ConfigureAwait(false);
+			if (_hybridCache is not null)
+			{
+				await _hybridCache.RemoveAsync(distinctKeys, cancellationToken).ConfigureAwait(false);
+			}
+			else if (_memoryCache is not null)
+			{
+				foreach (var key in distinctKeys)
+				{
+					_memoryCache.Remove(key);
+				}
+			}
 		}
 	}
 }

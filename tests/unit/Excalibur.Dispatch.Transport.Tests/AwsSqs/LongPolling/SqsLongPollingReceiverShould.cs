@@ -15,14 +15,14 @@ using IAwsLongPollingStrategy = Excalibur.Dispatch.Transport.ILongPollingStrateg
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class SqsLongPollingReceiverShould : IDisposable
 {
 	private readonly IAmazonSQS _sqsClient;
 	private readonly IAwsLongPollingStrategy _strategy;
 	private readonly IPollingMetricsCollector _metricsCollector;
-	private readonly LongPollingConfiguration _config;
+	private readonly LongPollingOptions _config;
 	private readonly SqsLongPollingReceiver _receiver;
 
 	public SqsLongPollingReceiverShould()
@@ -30,11 +30,11 @@ public sealed class SqsLongPollingReceiverShould : IDisposable
 		_sqsClient = A.Fake<IAmazonSQS>();
 		_strategy = A.Fake<IAwsLongPollingStrategy>();
 		_metricsCollector = A.Fake<IPollingMetricsCollector>();
-		_config = new LongPollingConfiguration
+		_config = new LongPollingOptions
 		{
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-			MaxMessagesPerReceive = 10,
 		};
+		_config.Polling.MaxMessagesPerReceive = 10;
 
 		A.CallTo(() => _strategy.CalculateOptimalWaitTimeAsync())
 			.Returns(new ValueTask<TimeSpan>(TimeSpan.FromSeconds(5)));
@@ -254,8 +254,8 @@ public sealed class SqsLongPollingReceiverShould : IDisposable
 	[Fact]
 	public async Task SkipVisibilityOptimizationWhenDisabled()
 	{
-		// Arrange — config has EnableVisibilityTimeoutOptimization = false by default
-		_config.EnableVisibilityTimeoutOptimization = false;
+		// Arrange — config has EnableOptimization = false
+		_config.Visibility.EnableOptimization = false;
 
 		// Act
 		await _receiver.OptimizeVisibilityTimeoutAsync(

@@ -27,10 +27,10 @@
       "tests\\unit\\Excalibur.Dispatch.Caching.Tests\\Excalibur.Dispatch.Caching.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Serialization.Tests\\Excalibur.Dispatch.Serialization.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.SourceGenerators.Tests\\Excalibur.Dispatch.SourceGenerators.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Tests\\Excalibur.Dispatch.AuditLogging.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Datadog.Tests\\Excalibur.Dispatch.AuditLogging.Datadog.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Sentinel.Tests\\Excalibur.Dispatch.AuditLogging.Sentinel.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Compliance.Tests\\Excalibur.Dispatch.Compliance.Tests.csproj",
+      "tests\\unit\\Excalibur.AuditLogging.Tests\\Excalibur.AuditLogging.Tests.csproj",
+      "tests\\unit\\Excalibur.AuditLogging.Datadog.Tests\\Excalibur.AuditLogging.Datadog.Tests.csproj",
+      "tests\\unit\\Excalibur.AuditLogging.Sentinel.Tests\\Excalibur.AuditLogging.Sentinel.Tests.csproj",
+      "tests\\unit\\Excalibur.Compliance.Tests\\Excalibur.Compliance.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Testing.Tests\\Excalibur.Dispatch.Testing.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Testing.Shouldly.Tests\\Excalibur.Dispatch.Testing.Shouldly.Tests.csproj",
@@ -43,11 +43,13 @@
       "tests\\unit\\Excalibur.Data.CosmosDb.Tests\\Excalibur.Data.CosmosDb.Tests.csproj",
       "tests\\unit\\Excalibur.Data.DynamoDb.Tests\\Excalibur.Data.DynamoDb.Tests.csproj",
       "tests\\unit\\Excalibur.Data.Firestore.Tests\\Excalibur.Data.Firestore.Tests.csproj",
+      "tests\\unit\\Excalibur.Data.IdentityMap.Tests\\Excalibur.Data.IdentityMap.Tests.csproj",
       "tests\\unit\\Excalibur.Data.InMemory.Tests\\Excalibur.Data.InMemory.Tests.csproj",
       "tests\\unit\\Excalibur.Data.DataProcessing.Tests\\Excalibur.Data.DataProcessing.Tests.csproj",
       "tests\\unit\\Excalibur.Data.Abstractions.Tests\\Excalibur.Data.Abstractions.Tests.csproj",
       "tests\\unit\\Excalibur.Tests\\Excalibur.Tests.csproj",
       "tests\\unit\\Excalibur.A3.Tests\\Excalibur.A3.Tests.csproj",
+      "tests\\unit\\Excalibur.A3.Governance.Tests\\Excalibur.A3.Governance.Tests.csproj",
       "tests\\unit\\Excalibur.Application.Tests\\Excalibur.Application.Tests.csproj",
       "tests\\unit\\Excalibur.Caching.Tests\\Excalibur.Caching.Tests.csproj",
       "tests\\unit\\Excalibur.Cdc.Tests\\Excalibur.Cdc.Tests.csproj",
@@ -59,7 +61,11 @@
       "tests\\unit\\Excalibur.Outbox.Tests\\Excalibur.Outbox.Tests.csproj",
       "tests\\unit\\Excalibur.Hosting.Tests\\Excalibur.Hosting.Tests.csproj",
       "tests\\unit\\Excalibur.Jobs.Tests\\Excalibur.Jobs.Tests.csproj",
-      "tests\\unit\\Excalibur.Saga.Tests\\Excalibur.Saga.Tests.csproj"
+      "tests\\unit\\Excalibur.Postgres.Tests\\Excalibur.Postgres.Tests.csproj",
+      "tests\\unit\\Excalibur.Saga.Tests\\Excalibur.Saga.Tests.csproj",
+      "tests\\unit\\Excalibur.SqlServer.Tests\\Excalibur.SqlServer.Tests.csproj",
+      "tests\\contract\\Excalibur.Dispatch.Contract.Tests\\Excalibur.Dispatch.Contract.Tests.csproj",
+      "tests\\smoke\\Excalibur.Dispatch.Tests.Smoke\\Excalibur.Dispatch.Tests.Smoke.csproj"
     ]
   }
 }

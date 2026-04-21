@@ -10,11 +10,7 @@ namespace Excalibur.Dispatch.Channels.Diagnostics;
 public sealed class ChannelMetricsCollector(string channelId)
 {
 	private readonly string _channelId = channelId ?? throw new ArgumentNullException(nameof(channelId));
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	private readonly Lock _lock = new();
 	private long _totalWrites;
 	private long _totalReads;
 	private long _failedWrites;

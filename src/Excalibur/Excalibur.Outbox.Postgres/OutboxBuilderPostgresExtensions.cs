@@ -47,7 +47,7 @@ public static class OutboxBuilderPostgresExtensions
 	/// <example>
 	/// <code>
 	/// // Connection string
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UsePostgres(postgres =>
 	///     {
@@ -58,10 +58,10 @@ public static class OutboxBuilderPostgresExtensions
 	///                 .MaxAttempts(5);
 	///     })
 	///     .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	///
 	/// // IDb factory
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UsePostgres(postgres =>
 	///     {
@@ -69,7 +69,7 @@ public static class OutboxBuilderPostgresExtensions
 	///                 .SchemaName("messaging");
 	///     })
 	///     .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IOutboxBuilder UsePostgres(
@@ -95,8 +95,10 @@ public static class OutboxBuilderPostgresExtensions
 				opt.MaxAttempts = postgresOptions.MaxAttempts;
 				opt.BatchProcessing.BatchProcessingTimeout = postgresOptions.BatchProcessing.BatchProcessingTimeout;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresOutboxStoreOptions>, PostgresOutboxStoreOptionsValidator>());
 
 		// Register services based on connection mode
 		if (postgresBuilder.ConfiguredDbFactory is not null)
@@ -139,6 +141,7 @@ public static class OutboxBuilderPostgresExtensions
 		builder.Services.AddKeyedSingleton<IOutboxStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresOutboxStore>());
 		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("postgres"));
+		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<PostgresOutboxStore>());
 
 		return builder;
 	}

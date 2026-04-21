@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport.RabbitMQ;
 
 namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.CloudEvents;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RabbitMqEnumsShould
 {
 	[Theory]

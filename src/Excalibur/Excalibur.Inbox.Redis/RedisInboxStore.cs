@@ -99,14 +99,14 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 
 		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
 
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
 		var key = GetKey(messageId, handlerType);
 		var value = SerializeEntry(entry);
 
 		// Use SETNX for atomic first-writer-wins
-		var wasSet = await _database.StringSetAsync(
+		var wasSet = await db.StringSetAsync(
 			key,
 			value,
 			when: When.NotExists).ConfigureAwait(false);
@@ -124,7 +124,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 		// Set TTL if configured
 		if (_options.DefaultTtlSeconds > 0)
 		{
-			_ = await _database.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.DefaultTtlSeconds)).ConfigureAwait(false);
+			_ = await db.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.DefaultTtlSeconds)).ConfigureAwait(false);
 		}
 
 		LogCreatedEntry(_logger, messageId, handlerType, null);
@@ -139,10 +139,10 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 
 		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var key = GetKey(messageId, handlerType);
-		var value = await _database.StringGetAsync(key).ConfigureAwait(false);
+		var value = await db.StringGetAsync(key).ConfigureAwait(false);
 
 		if (value.IsNullOrEmpty)
 		{
@@ -154,7 +154,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 					handlerType));
 		}
 
-		var entry = DeserializeEntry(value);
+		var entry = DeserializeEntry(value!);
 
 		if (entry.Status == InboxStatus.Processed)
 		{
@@ -168,12 +168,12 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 
 		entry.MarkProcessed();
 
-		_ = await _database.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
+		_ = await db.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
 
 		// Update TTL if configured
 		if (_options.DefaultTtlSeconds > 0)
 		{
-			_ = await _database.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.DefaultTtlSeconds)).ConfigureAwait(false);
+			_ = await db.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.DefaultTtlSeconds)).ConfigureAwait(false);
 		}
 
 		LogProcessedEntry(_logger, messageId, handlerType, null);
@@ -185,7 +185,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var key = GetKey(messageId, handlerType);
 
@@ -202,7 +202,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 		var value = SerializeEntry(entry);
 
 		// Use SETNX for atomic first-writer-wins
-		var wasSet = await _database.StringSetAsync(
+		var wasSet = await db.StringSetAsync(
 			key,
 			value,
 			when: When.NotExists).ConfigureAwait(false);
@@ -212,7 +212,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 			// Set TTL if configured
 			if (_options.DefaultTtlSeconds > 0)
 			{
-				_ = await _database.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.DefaultTtlSeconds)).ConfigureAwait(false);
+				_ = await db.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.DefaultTtlSeconds)).ConfigureAwait(false);
 			}
 
 			LogTryMarkProcessedSuccess(_logger, messageId, handlerType, null);
@@ -231,17 +231,17 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 
 		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
 
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var key = GetKey(messageId, handlerType);
-		var value = await _database.StringGetAsync(key).ConfigureAwait(false);
+		var value = await db.StringGetAsync(key).ConfigureAwait(false);
 
 		if (value.IsNullOrEmpty)
 		{
 			return false;
 		}
 
-		var entry = DeserializeEntry(value);
+		var entry = DeserializeEntry(value!);
 		return entry.Status == InboxStatus.Processed;
 	}
 
@@ -251,17 +251,17 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var key = GetKey(messageId, handlerType);
-		var value = await _database.StringGetAsync(key).ConfigureAwait(false);
+		var value = await db.StringGetAsync(key).ConfigureAwait(false);
 
 		if (value.IsNullOrEmpty)
 		{
 			return null;
 		}
 
-		return DeserializeEntry(value);
+		return DeserializeEntry(value!);
 	}
 
 	/// <inheritdoc/>
@@ -273,10 +273,10 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var key = GetKey(messageId, handlerType);
-		var value = await _database.StringGetAsync(key).ConfigureAwait(false);
+		var value = await db.StringGetAsync(key).ConfigureAwait(false);
 
 		if (value.IsNullOrEmpty)
 		{
@@ -288,10 +288,10 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 					handlerType));
 		}
 
-		var entry = DeserializeEntry(value);
+		var entry = DeserializeEntry(value!);
 		entry.MarkFailed(errorMessage);
 
-		_ = await _database.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
+		_ = await db.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
 
 		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
 	}
@@ -303,7 +303,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var entries = new List<InboxEntry>();
 		var pattern = $"{_options.KeyPrefix}:*";
@@ -315,13 +315,13 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 				break;
 			}
 
-			var value = await _database.StringGetAsync(key).ConfigureAwait(false);
+			var value = await db.StringGetAsync(key).ConfigureAwait(false);
 			if (value.IsNullOrEmpty)
 			{
 				continue;
 			}
 
-			var entry = DeserializeEntry(value);
+			var entry = DeserializeEntry(value!);
 
 			if (entry.Status == InboxStatus.Failed && entry.RetryCount < maxRetries)
 			{
@@ -342,7 +342,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
 	{
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var entries = new List<InboxEntry>();
 		var pattern = $"{_options.KeyPrefix}:*";
@@ -354,10 +354,10 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 				break;
 			}
 
-			var value = await _database.StringGetAsync(key).ConfigureAwait(false);
+			var value = await db.StringGetAsync(key).ConfigureAwait(false);
 			if (!value.IsNullOrEmpty)
 			{
-				entries.Add(DeserializeEntry(value));
+				entries.Add(DeserializeEntry(value!));
 			}
 		}
 
@@ -367,7 +367,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 	/// <inheritdoc/>
 	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
 	{
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var total = 0;
 		var processed = 0;
@@ -383,13 +383,13 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 				break;
 			}
 
-			var value = await _database.StringGetAsync(key).ConfigureAwait(false);
+			var value = await db.StringGetAsync(key).ConfigureAwait(false);
 			if (value.IsNullOrEmpty)
 			{
 				continue;
 			}
 
-			var entry = DeserializeEntry(value);
+			var entry = DeserializeEntry(value!);
 			total++;
 
 			switch (entry.Status)
@@ -421,7 +421,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
-		await EnsureConnectedAsync().ConfigureAwait(false);
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
 		var cutoff = olderThan;
 		var deleted = 0;
@@ -434,17 +434,17 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 				break;
 			}
 
-			var value = await _database.StringGetAsync(key).ConfigureAwait(false);
+			var value = await db.StringGetAsync(key).ConfigureAwait(false);
 			if (value.IsNullOrEmpty)
 			{
 				continue;
 			}
 
-			var entry = DeserializeEntry(value);
+			var entry = DeserializeEntry(value!);
 
 			if (entry.Status == InboxStatus.Processed && entry.ProcessedAt.HasValue && entry.ProcessedAt < cutoff)
 			{
-				if (await _database.KeyDeleteAsync(key).ConfigureAwait(false))
+				if (await db.KeyDeleteAsync(key).ConfigureAwait(false))
 				{
 					deleted++;
 				}
@@ -564,11 +564,14 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 	private string GetKey(string messageId, string handlerType) =>
 		$"{_options.KeyPrefix}:{messageId}:{handlerType}";
 
-	private async Task EnsureConnectedAsync()
+	/// <summary>
+	/// Ensures the Redis connection is established and returns the database instance.
+	/// </summary>
+	private async Task<IDatabase> GetDatabaseAsync()
 	{
 		if (_database != null)
 		{
-			return;
+			return _database;
 		}
 
 		var configOptions = ConfigurationOptions.Parse(_options.ConnectionString);
@@ -584,11 +587,18 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 
 		_connection = await ConnectionMultiplexer.ConnectAsync(configOptions).ConfigureAwait(false);
 		_database = _connection.GetDatabase(_options.DatabaseId);
+		return _database;
 	}
 
 	private async IAsyncEnumerable<RedisKey> ScanKeysAsync(string pattern)
 	{
-		var server = _connection.GetServers().FirstOrDefault();
+		var connection = _connection;
+		if (connection == null)
+		{
+			yield break;
+		}
+
+		var server = connection.GetServers().FirstOrDefault();
 		if (server == null)
 		{
 			yield break;

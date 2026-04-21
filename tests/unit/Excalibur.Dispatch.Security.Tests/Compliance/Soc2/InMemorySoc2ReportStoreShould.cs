@@ -1,3 +1,4 @@
+using Excalibur.Compliance.Soc2;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -7,7 +8,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// Unit tests for <see cref="InMemorySoc2ReportStore"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class InMemorySoc2ReportStoreShould
 {
 	private readonly InMemorySoc2ReportStore _sut;

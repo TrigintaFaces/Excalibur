@@ -24,8 +24,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Sagas.Health;
 /// Task: kdljl (SAGA-014: Unit Tests - Saga Monitoring).
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Saga")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Saga)]
 [Trait("Sprint", "217")]
 public sealed class SagaHealthCheckShould
 {
@@ -159,8 +159,8 @@ public sealed class SagaHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldBe("Saga health check failed");
-		_ = result.Exception.ShouldNotBeNull();
-		_ = result.Exception.ShouldBeOfType<InvalidOperationException>();
+		_ = result.Exception!.ShouldNotBeNull();
+		_ = result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

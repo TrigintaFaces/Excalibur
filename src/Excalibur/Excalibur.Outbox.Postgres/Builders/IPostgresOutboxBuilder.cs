@@ -106,48 +106,33 @@ public interface IPostgresOutboxBuilder
 	IPostgresOutboxBuilder DeadLetterTableName(string tableName);
 
 	/// <summary>
-	/// Sets the command timeout for Postgres operations.
+	/// Resolves the connection string from <c>IConfiguration.GetConnectionString(name)</c>.
 	/// </summary>
-	/// <param name="timeout">The command timeout. Must be positive.</param>
+	/// <param name="name">The connection string name.</param>
 	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="timeout"/> is not positive.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 30 seconds. Increase for high-volume scenarios or slow networks.
-	/// </para>
-	/// </remarks>
-	IPostgresOutboxBuilder CommandTimeout(TimeSpan timeout);
+	IPostgresOutboxBuilder ConnectionStringName(string name);
 
 	/// <summary>
-	/// Sets the reservation timeout for message processing.
+	/// Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.
 	/// </summary>
-	/// <param name="timeout">The reservation timeout. Must be positive.</param>
+	/// <param name="sectionPath">The configuration section path.</param>
 	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="timeout"/> is not positive.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 5 minutes. Messages reserved for processing will be released
-	/// after this timeout if not completed.
-	/// </para>
-	/// </remarks>
-	IPostgresOutboxBuilder ReservationTimeout(TimeSpan timeout);
+	IPostgresOutboxBuilder BindConfiguration(string sectionPath);
 
 	/// <summary>
-	/// Sets the maximum number of delivery attempts before moving to dead letter.
+	/// Sets a pre-configured <see cref="Npgsql.NpgsqlDataSource"/> directly.
 	/// </summary>
-	/// <param name="maxAttempts">The maximum attempts. Must be greater than 0.</param>
+	/// <param name="dataSource">The Npgsql data source.</param>
 	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="maxAttempts"/> is less than or equal to 0.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 5 attempts.
-	/// </para>
-	/// </remarks>
-	IPostgresOutboxBuilder MaxAttempts(int maxAttempts);
+	IPostgresOutboxBuilder DataSource(Npgsql.NpgsqlDataSource dataSource);
+
+	/// <summary>
+	/// Sets a factory function that creates an <see cref="Npgsql.NpgsqlDataSource"/>.
+	/// </summary>
+	/// <param name="dataSourceFactory">
+	/// A factory receiving <see cref="IServiceProvider"/> and returning an <see cref="Npgsql.NpgsqlDataSource"/>.
+	/// </param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IPostgresOutboxBuilder DataSourceFactory(Func<IServiceProvider, Npgsql.NpgsqlDataSource> dataSourceFactory);
+
 }

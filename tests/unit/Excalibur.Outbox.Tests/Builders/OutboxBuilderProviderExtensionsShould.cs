@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Outbox.CosmosDb;
 using Excalibur.Outbox.MongoDB;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Outbox;
@@ -27,7 +28,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((IOutboxBuilder)null!).UseMongoDB());
+			((IOutboxBuilder)null!).UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017")));
 	}
 
 	[Fact]
@@ -40,26 +41,12 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		// Act
 		services.AddExcaliburOutbox(outbox =>
 		{
-			var result = outbox.UseMongoDB();
+			var result = outbox.UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017"));
 			capturedBuilder = result;
 		});
 
 		// Assert
 		capturedBuilder.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void RegisterOutboxStore_WhenCallingUseMongoDB()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseMongoDB());
-
-		// Assert -- MongoDB outbox registers IOutboxStore
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IOutboxStore));
 	}
 
 	[Fact]
@@ -69,7 +56,8 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseMongoDB());
+		services.AddExcaliburOutbox(outbox => outbox.UseMongoDB(mongo =>
+			mongo.ConnectionString("mongodb://localhost:27017")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -83,31 +71,14 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseMongoDB(opts =>
-		{
-			opts.ConnectionString = "mongodb://localhost:27017";
-			opts.DatabaseName = "test-outbox-db";
-		}));
+		services.AddExcaliburOutbox(outbox => outbox.UseMongoDB(mongo => mongo
+			.ConnectionString("mongodb://localhost:27017")
+			.DatabaseName("test-outbox-db")));
 
 		// Assert -- resolve options to verify configure delegate was stored
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<MongoDbOutboxOptions>>().Value;
-		options.ConnectionString.ShouldBe("mongodb://localhost:27017");
 		options.DatabaseName.ShouldBe("test-outbox-db");
-	}
-
-	[Fact]
-	public void AcceptNullConfigure_WhenCallingUseMongoDB()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act -- should not throw with null configure
-		services.AddExcaliburOutbox(outbox => outbox.UseMongoDB(null));
-
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IOutboxStore));
 	}
 
 	#endregion
@@ -119,7 +90,8 @@ public sealed class OutboxBuilderProviderExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((IOutboxBuilder)null!).UseCosmosDb());
+			((IOutboxBuilder)null!).UseCosmosDb(cosmo =>
+				cosmo.ConnectionString("AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA==")));
 	}
 
 	[Fact]
@@ -132,7 +104,8 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		// Act
 		services.AddExcaliburOutbox(outbox =>
 		{
-			var result = outbox.UseCosmosDb();
+			var result = outbox.UseCosmosDb(cosmo =>
+				cosmo.ConnectionString("AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA=="));
 			capturedBuilder = result;
 		});
 
@@ -147,7 +120,8 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseCosmosDb());
+		services.AddExcaliburOutbox(outbox => outbox.UseCosmosDb(cosmo =>
+			cosmo.ConnectionString("AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA==")));
 
 		// Assert -- CosmosDb outbox registers ICloudNativeOutboxStore
 		services.ShouldContain(sd =>
@@ -161,7 +135,8 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseCosmosDb());
+		services.AddExcaliburOutbox(outbox => outbox.UseCosmosDb(cosmo =>
+			cosmo.ConnectionString("AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA==")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -175,31 +150,14 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseCosmosDb(opts =>
-		{
-			opts.Connection.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
-			opts.DatabaseName = "test-cosmos-outbox";
-		}));
+		services.AddExcaliburOutbox(outbox => outbox.UseCosmosDb(cosmo => cosmo
+			.ConnectionString("AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;")
+			.DatabaseName("test-cosmos-outbox")));
 
 		// Assert -- resolve options to verify configure delegate was stored
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<CosmosDbOutboxOptions>>().Value;
-		options.Connection.ConnectionString.ShouldBe("AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;");
 		options.DatabaseName.ShouldBe("test-cosmos-outbox");
-	}
-
-	[Fact]
-	public void AcceptNullConfigure_WhenCallingUseCosmosDb()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseCosmosDb(null));
-
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ICloudNativeOutboxStore));
 	}
 
 	#endregion
@@ -211,7 +169,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((IOutboxBuilder)null!).UseDynamoDb());
+			((IOutboxBuilder)null!).UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 	}
 
 	[Fact]
@@ -224,7 +182,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		// Act
 		services.AddExcaliburOutbox(outbox =>
 		{
-			var result = outbox.UseDynamoDb();
+			var result = outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000"));
 			capturedBuilder = result;
 		});
 
@@ -239,7 +197,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb());
+		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -253,7 +211,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb());
+		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -267,9 +225,10 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb(opts =>
+		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb(db =>
 		{
-			opts.TableName = "test-outbox";
+			db.ServiceUrl("http://localhost:8000")
+			  .TableName("test-outbox");
 		}));
 
 		// Assert -- resolve options to verify configure delegate was stored
@@ -279,17 +238,15 @@ public sealed class OutboxBuilderProviderExtensionsShould
 	}
 
 	[Fact]
-	public void AcceptNullConfigure_WhenCallingUseDynamoDb()
+	public void ThrowArgumentNullException_WhenConfigureIsNull_ForUseDynamoDb()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb(null));
-
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ICloudNativeOutboxStore));
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddExcaliburOutbox(outbox =>
+				outbox.UseDynamoDb((Action<Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder>)null!)));
 	}
 
 	#endregion
@@ -301,7 +258,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((IOutboxBuilder)null!).UseFirestore());
+			((IOutboxBuilder)null!).UseFirestore(fs => fs.ProjectId("test-project")));
 	}
 
 	[Fact]
@@ -314,7 +271,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		// Act
 		services.AddExcaliburOutbox(outbox =>
 		{
-			var result = outbox.UseFirestore();
+			var result = outbox.UseFirestore(fs => fs.ProjectId("test-project"));
 			capturedBuilder = result;
 		});
 
@@ -329,7 +286,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseFirestore());
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs => fs.ProjectId("test-project")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -343,7 +300,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseFirestore());
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs => fs.ProjectId("test-project")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -357,9 +314,10 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(opts =>
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs =>
 		{
-			opts.CollectionName = "test-outbox";
+			fs.ProjectId("test-project")
+			  .CollectionName("test-outbox");
 		}));
 
 		// Assert -- resolve options to verify configure delegate was stored
@@ -369,17 +327,15 @@ public sealed class OutboxBuilderProviderExtensionsShould
 	}
 
 	[Fact]
-	public void AcceptNullConfigure_WhenCallingUseFirestore()
+	public void ThrowArgumentNullException_WhenConfigureIsNull_ForUseFirestore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(null));
-
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ICloudNativeOutboxStore));
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddExcaliburOutbox(outbox =>
+				outbox.UseFirestore((Action<Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder>)null!)));
 	}
 
 	#endregion
@@ -394,7 +350,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 
 		// Act -- chain provider Use*() with other builder methods
 		services.AddExcaliburOutbox(outbox => outbox
-			.UseCosmosDb()
+			.UseCosmosDb(cosmo => cosmo.ConnectionString("AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA=="))
 			.EnableBackgroundProcessing());
 
 		// Assert -- no exception, services registered
@@ -407,17 +363,16 @@ public sealed class OutboxBuilderProviderExtensionsShould
 	#region E.1: Firestore CS0121 Regression Tests (Sprint 622)
 
 	[Fact]
-	public void RegisterFirestoreOutboxStore_WithoutAmbiguity()
+	public void RegisterFirestoreOutboxStore_ViaBuilder()
 	{
-		// Regression: Sprint 621 had CS0121 due to duplicate AddFirestoreOutboxStore in
-		// both Data.Firestore and Outbox.Firestore. A.1 removed the Data.Firestore duplicate.
-		// This test verifies no ambiguity by calling the method directly on ServiceCollection.
+		// Regression: Sprint 621 had CS0121 due to duplicate AddFirestoreOutboxStore.
+		// Phase C rewire: UseFirestore(Action<IFirestoreOutboxBuilder>) is now the only path.
 
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act -- this would fail at compile time if CS0121 was still present
-		services.AddFirestoreOutboxStore(_ => { });
+		// Act
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs => fs.ProjectId("test-project")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -433,7 +388,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseFirestore());
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs => fs.ProjectId("test-project")));
 
 		// Assert -- count ICloudNativeOutboxStore registrations
 		var registrations = services.Where(sd =>
@@ -452,9 +407,9 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(opts =>
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs =>
 		{
-			opts.ProjectId = "test-project";
+			fs.ProjectId("test-project");
 		}));
 
 		// Assert

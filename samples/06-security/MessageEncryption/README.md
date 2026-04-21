@@ -1,6 +1,6 @@
 ﻿# Message Encryption Sample
 
-This sample demonstrates how to use `Excalibur.Dispatch.Security` for encrypting sensitive message data, including field-level encryption for PII and PCI compliance.
+This sample demonstrates how to use `Excalibur.Security` for encrypting sensitive message data, including field-level encryption for PII and PCI compliance.
 
 ## Prerequisites
 
@@ -81,8 +81,8 @@ MessageEncryption/
 │   ├── CustomerCreatedEvent.cs    # PII encryption example
 │   └── PaymentProcessedEvent.cs   # PCI compliance example
 ├── Handlers/
-│   ├── CustomerCreatedEventHandler.cs
-│   └── PaymentProcessedEventHandler.cs
+│   ├── CustomerCreatedHandler.cs
+│   └── PaymentProcessedHandler.cs
 ├── Program.cs                      # Encryption demos
 ├── appsettings.json               # Configuration
 └── README.md                      # This file
@@ -204,6 +204,6 @@ static string MaskSSN(string ssn)
 ## Learn More
 
 - [ASP.NET Core DataProtection](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/)
-- [Excalibur.Dispatch.Security Package](../../../src/Dispatch/Excalibur.Dispatch.Security/)
+- [Excalibur.Security Package](../../../src/Dispatch/Excalibur.Security/)
 - [PCI DSS Requirements](https://www.pcisecuritystandards.org/)
 - [GDPR Encryption Guidelines](https://gdpr-info.eu/)

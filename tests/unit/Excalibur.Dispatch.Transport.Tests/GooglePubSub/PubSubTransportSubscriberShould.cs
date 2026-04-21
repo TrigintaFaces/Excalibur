@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub;
 /// Unit tests for <see cref="PubSubTransportSubscriber"/>.
 /// Validates constructor validation, source exposure, GetService, disposal, and interface implementation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 {
 	private const string TestSource = "projects/test-project/subscriptions/test-subscription";

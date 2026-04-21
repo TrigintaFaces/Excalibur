@@ -58,7 +58,7 @@ Messages are routed to RabbitMQ using the `UseRouting` fluent API:
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+    // JSON is the default -- no serialization config needed
     dispatch.UseRouting(routing =>
         routing.Transport.Route<PingEvent>().To("rabbitmq"));
 });
@@ -90,7 +90,7 @@ RemoteBusSample/
 ├── PingCommand.cs           # Command definition (in-process)
 ├── PingCommandHandler.cs    # Command handler
 ├── PingEvent.cs             # Integration event (routed to RabbitMQ)
-├── PingEventConsumer.cs     # Event handler
+├── PingHandler.cs           # Event handler
 ├── Program.cs               # Application entry point
 ├── appsettings.json         # Configuration
 └── README.md                # This file

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Security.Aws;
+using Excalibur.Security.Aws;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Security.Tests.Aws;
 /// Unit tests for <see cref="AwsSecretsManagerCredentialStore"/>.
 /// Verifies Sprint 390 implementation: AWS credential store moved to dedicated package.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 {
 	[Fact]
@@ -117,8 +117,8 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 			async () => await store.GetCredentialAsync("test-key", CancellationToken.None));
 		exception.Message.ShouldContain("Failed to retrieve secret");
 		exception.Message.ShouldContain("test-key");
-		_ = exception.InnerException.ShouldNotBeNull();
-		exception.InnerException.ShouldBeOfType<InvalidOperationException>();
+		_ = exception.InnerException!.ShouldNotBeNull();
+		exception.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]
@@ -197,7 +197,7 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 			async () => await store.StoreCredentialAsync("test-key", emptyCredential, CancellationToken.None));
 		exception.Message.ShouldContain("Failed to store secret");
 		exception.Message.ShouldContain("test-key");
-		_ = exception.InnerException.ShouldNotBeNull();
+		_ = exception.InnerException!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -279,7 +279,7 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 		var configuration = CreateConfigurationWithRegion();
 		_ = services.AddSingleton(configuration);
 		_ = services.AddLogging();
-		_ = services.AddAwsSecretsManagerCredentialStore(configuration);
+		_ = services.AddDispatchSecurityAws(aws => aws.Region("us-east-1"));
 
 		var provider = services.BuildServiceProvider();
 
@@ -299,7 +299,7 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 		var configuration = CreateConfigurationWithRegion();
 		_ = services.AddSingleton(configuration);
 		_ = services.AddLogging();
-		_ = services.AddAwsSecretsManagerCredentialStore(configuration);
+		_ = services.AddDispatchSecurityAws(aws => aws.Region("us-east-1"));
 
 		var provider = services.BuildServiceProvider();
 

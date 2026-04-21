@@ -130,25 +130,29 @@ public sealed class ExcaliburBuilderShould : UnitTestBase
 			((IServiceCollection)null!).AddExcaliburHealthChecks());
 	}
 
+	// S804 bd-sdhocq A8: AddExcaliburBaseServices(...) was deleted. The canonical replacement
+	// is services.AddExcalibur(b => b.ScanAssemblies(...)), which exposes tenant / client-address
+	// opt-ins via the builder context extensions.
+
 	[Fact]
-	public void AddExcaliburBaseServicesWithAssemblies()
+	public void AddExcalibur_WithAssemblies_RegistersServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		var assemblies = new[] { typeof(ExcaliburBuilderShould).Assembly };
 
 		// Act
-		services.AddExcaliburBaseServices(assemblies);
+		services.AddExcalibur(b => b.ScanAssemblies(assemblies));
 
 		// Assert - Services should be registered
 		services.Count.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]
-	public void ThrowWhenServicesIsNullForBaseServices()
+	public void AddExcalibur_ThrowsWhenServicesIsNull()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((IServiceCollection)null!).AddExcaliburBaseServices([]));
+			((IServiceCollection)null!).AddExcalibur(static _ => { }));
 	}
 }

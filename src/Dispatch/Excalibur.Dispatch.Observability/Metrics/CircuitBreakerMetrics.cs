@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Observability.Metrics;
 /// <summary>
 /// Provides centralized metrics collection for Circuit Breaker operations.
 /// </summary>
-public sealed class CircuitBreakerMetrics : ICircuitBreakerMetrics, IDisposable
+public sealed class CircuitBreakerMetrics : ICircuitBreakerMetrics, ICircuitBreakerMetricsAdmin, IDisposable
 {
 	/// <summary>
 	/// The meter name for Circuit Breaker metrics.

@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Transport.Tests.CrossTransport;
 /// Kafka, Azure SB, AWS SQS, RabbitMQ, and Google PubSub.
 /// Google PubSub was aligned in Sprint 526 (S526.7).
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class DlqUniversalityShould
 {
 	private static readonly string[] TransportAssemblyNames =

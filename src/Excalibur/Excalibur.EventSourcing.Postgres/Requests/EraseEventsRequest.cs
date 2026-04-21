@@ -15,33 +15,38 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 internal sealed class EraseEventsRequest : DataRequestBase<IDbConnection, int>
 {
-	private const string Sql = """
-		UPDATE events
-		SET event_data = NULL,
-		    event_type = '$erased',
-		    metadata = @ErasureMetadata::jsonb
-		WHERE aggregate_id = @AggregateId
-		  AND aggregate_type = @AggregateType
-		  AND event_type <> '$erased'
-		""";
-
 	public EraseEventsRequest(
 		string aggregateId,
 		string aggregateType,
 		Guid erasureRequestId,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "public",
+		string table = "events")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
+		var qualifiedTable = PgTableName.Format(schema, table);
 		var erasureMetadata = $"{{\"erased\":true,\"erasureRequestId\":\"{erasureRequestId}\"}}";
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		var sql = $"""
+			UPDATE {qualifiedTable}
+			SET event_data = NULL,
+			    event_type = '$erased',
+			    metadata = @ErasureMetadata::jsonb
+			WHERE aggregate_id = @AggregateId
+			  AND aggregate_type = @AggregateType
+			  AND event_type <> '$erased'
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@ErasureMetadata", erasureMetadata);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);

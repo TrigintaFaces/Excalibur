@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Abstractions;
 /// Sprint 410 - Foundation Coverage Tests (T410.8).
 /// Target: Increase OutboundMessage coverage from 43.4% to 80%.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class OutboundMessageShould
 {
@@ -681,8 +681,8 @@ public sealed class OutboundMessageShould
 		_ = message.AddTransport("kafka");
 
 		// Assert
-		message.TargetTransports.ShouldContain("rabbitmq");
-		message.TargetTransports.ShouldContain("kafka");
+		message.TargetTransports!.ShouldContain("rabbitmq");
+		message.TargetTransports!.ShouldContain("kafka");
 	}
 
 	[Fact]
@@ -938,7 +938,7 @@ public sealed class OutboundMessageShould
 
 		// Assert
 		message.Status.ShouldBe(OutboxStatus.PartiallyFailed);
-		message.LastError.ShouldContain("1 of 2 transports failed");
+		message.LastError!.ShouldContain("1 of 2 transports failed");
 	}
 
 	#endregion

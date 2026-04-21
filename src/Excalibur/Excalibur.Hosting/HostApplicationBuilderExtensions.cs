@@ -50,10 +50,10 @@ public static class HostApplicationBuilderExtensions
 	/// <param name="services">The service collection to configure.</param>
 	/// <param name="configuration">The application configuration.</param>
 	/// <returns>The updated <see cref="IServiceCollection"/> for chaining.</returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming.")]
-	[RequiresDynamicCode(
-		"Configuration binding for ApplicationContextOptions requires dynamic code generation.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "ApplicationContextOptions is a simple POCO bound from configuration. All properties are preserved.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "ApplicationContextOptions is a simple POCO bound from configuration. All properties are preserved.")]
 	public static IServiceCollection AddApplicationContext(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -63,7 +63,6 @@ public static class HostApplicationBuilderExtensions
 
 		_ = services.AddOptions<ApplicationContextOptions>()
 			.Bind(configuration.GetSection(nameof(ApplicationContext)))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;

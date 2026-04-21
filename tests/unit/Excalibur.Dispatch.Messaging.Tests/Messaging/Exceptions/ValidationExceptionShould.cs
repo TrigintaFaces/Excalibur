@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// <summary>
 /// Unit tests for <see cref="ValidationException"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ValidationExceptionShould
 {
 	[Fact]
@@ -87,7 +87,7 @@ public sealed class ValidationExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -119,7 +119,7 @@ public sealed class ValidationExceptionShould
 		// Assert
 		exception.ErrorCode.ShouldBe(errorCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]

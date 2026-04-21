@@ -110,7 +110,7 @@ public sealed class DispatchHealthCheckExtensionsCoverageShould
 	public void ResolveType_ReturnNull_WhenTypeDoesNotExistInLoadedAssembly()
 	{
 		// Arrange
-		var assemblyName = typeof(DispatchHealthCheckExtensions).Assembly.GetName().Name!;
+		var assemblyName = typeof(DispatchHealthChecksBuilderExtensions).Assembly.GetName().Name!;
 
 		// Act
 		var resolved = InvokeResolveType(assemblyName, "Microsoft.Extensions.DependencyInjection.NotARealType");
@@ -145,20 +145,20 @@ public sealed class DispatchHealthCheckExtensionsCoverageShould
 	public void ResolveType_ReturnType_WhenAssemblyDisplayNameForcesLoadPath()
 	{
 		// Arrange
-		var assembly = typeof(DispatchHealthCheckExtensions).Assembly.GetName();
+		var assembly = typeof(DispatchHealthChecksBuilderExtensions).Assembly.GetName();
 		var displayName = assembly.FullName!;
 		displayName.ShouldNotBe(assembly.Name);
 
 		// Act
-		var resolved = InvokeResolveType(displayName, typeof(DispatchHealthCheckExtensions).FullName!);
+		var resolved = InvokeResolveType(displayName, typeof(DispatchHealthChecksBuilderExtensions).FullName!);
 
 		// Assert
-		resolved.ShouldBe(typeof(DispatchHealthCheckExtensions));
+		resolved.ShouldBe(typeof(DispatchHealthChecksBuilderExtensions));
 	}
 
 	private static bool InvokeTryInvokeHealthCheckExtension(IHealthChecksBuilder builder, string methodName)
 	{
-		var method = typeof(DispatchHealthCheckExtensions).GetMethod(
+		var method = typeof(DispatchHealthChecksBuilderExtensions).GetMethod(
 			"TryInvokeHealthCheckExtension",
 			BindingFlags.NonPublic | BindingFlags.Static);
 		method.ShouldNotBeNull();
@@ -168,7 +168,7 @@ public sealed class DispatchHealthCheckExtensionsCoverageShould
 
 	private static Type? InvokeResolveType(string assemblyName, string typeName)
 	{
-		var method = typeof(DispatchHealthCheckExtensions).GetMethod(
+		var method = typeof(DispatchHealthChecksBuilderExtensions).GetMethod(
 			"ResolveType",
 			BindingFlags.NonPublic | BindingFlags.Static);
 		method.ShouldNotBeNull();
@@ -180,7 +180,7 @@ public sealed class DispatchHealthCheckExtensionsCoverageShould
 		(string AssemblyName, string TypeName, string MethodName) target,
 		Action action)
 	{
-		var field = typeof(DispatchHealthCheckExtensions).GetField(
+		var field = typeof(DispatchHealthChecksBuilderExtensions).GetField(
 			"HealthCheckExtensionTargets",
 			BindingFlags.NonPublic | BindingFlags.Static);
 		field.ShouldNotBeNull();

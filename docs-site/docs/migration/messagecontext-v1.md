@@ -10,7 +10,7 @@ This guide covers the `IMessageContext` interface and how to use its typed featu
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Familiarity with [message context](../core-concepts/message-context.md) and [middleware](../middleware/)
 
 ## Interface Overview

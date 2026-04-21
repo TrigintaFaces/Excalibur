@@ -18,7 +18,7 @@ namespace Excalibur.EventSourcing.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Follows the <see cref="Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection"/> pattern:
+/// Follows the <c>TelemetryLeaderElection</c> pattern:
 /// a wrapping decorator that instruments an existing <see cref="IEventStore"/> implementation
 /// without requiring modification of the underlying provider.
 /// </para>

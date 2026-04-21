@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// Unit tests for message type implementations (IDomainEvent, IIntegrationEvent, ICommand, IQuery)
 /// covering creation, property validation, metadata handling, and naming conventions.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Messaging")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Messaging)]
 public sealed class MessageTypeShould : UnitTestBase
 {
 	#region IDomainEvent Tests (7 tests)

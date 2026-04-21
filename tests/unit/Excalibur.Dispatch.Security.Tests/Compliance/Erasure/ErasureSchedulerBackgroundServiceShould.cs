@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 
+using Excalibur.Compliance.Erasure;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
 /// <summary>
@@ -19,7 +20,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// integration tests with real DI container setup.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class ErasureSchedulerBackgroundServiceShould
 {
 	private readonly IServiceScopeFactory _scopeFactory;
@@ -253,7 +254,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		result.Success.ShouldBeTrue();
 		result.KeysDeleted.ShouldBe(5);
 		result.RecordsAffected.ShouldBe(10);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -264,7 +265,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Test error message");
+		result.ErrorMessage!.ShouldBe("Test error message");
 		result.KeysDeleted.ShouldBe(0);
 		result.RecordsAffected.ShouldBe(0);
 	}

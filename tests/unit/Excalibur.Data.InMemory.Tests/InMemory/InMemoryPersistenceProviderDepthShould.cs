@@ -14,8 +14,8 @@ namespace Excalibur.Data.Tests.InMemory;
 /// Depth tests for <see cref="InMemoryPersistenceProvider"/>.
 /// Covers Store/Retrieve/Remove, transactions, collections, metadata, GetService, and disposal.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemoryPersistenceProviderDepthShould : IDisposable
 {
 	private readonly InMemoryPersistenceProvider _provider;

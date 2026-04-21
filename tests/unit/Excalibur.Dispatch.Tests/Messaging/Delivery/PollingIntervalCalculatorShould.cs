@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Delivery;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PollingIntervalCalculatorShould
 {
 	[Fact]

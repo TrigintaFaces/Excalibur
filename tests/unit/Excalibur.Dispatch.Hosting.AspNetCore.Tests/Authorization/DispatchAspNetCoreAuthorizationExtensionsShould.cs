@@ -84,7 +84,7 @@ public sealed class DispatchAspNetCoreAuthorizationExtensionsShould : UnitTestBa
 	}
 
 	[Fact]
-	public void UseAspNetCoreAuthorization_RegisterOptionsValidation()
+	public void UseAspNetCoreAuthorization_RegisterOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -95,9 +95,8 @@ public sealed class DispatchAspNetCoreAuthorizationExtensionsShould : UnitTestBa
 		// Act
 		builder.UseAspNetCoreAuthorization();
 
-		// Assert — ValidateOnStart registers IValidateOptions
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(Microsoft.Extensions.Options.IValidateOptions<AspNetCoreAuthorizationOptions>));
+		// Assert -- Sprint 750: explicit AspNetCoreAuthorizationOptionsValidator registered
+		services.ShouldContain(sd => sd.ServiceType == typeof(Microsoft.Extensions.Options.IValidateOptions<AspNetCoreAuthorizationOptions>));
 	}
 
 	[Fact]

@@ -78,8 +78,8 @@ public sealed class CacheResultAttributeWithICacheableIntegrationShould
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CacheResultAttributeWithICacheableIntegrationShould).Assembly);
-			_ = dispatch.AddDispatchResilience();
-			_ = dispatch.AddDispatchCaching()
+			_ = dispatch.UseResilience();
+			_ = dispatch.UseCaching()
 				.WithCachingOptions(o =>
 				{
 					o.Enabled = true;

@@ -26,13 +26,13 @@ This is an open-source project maintained by volunteers. Response times are best
 
 | Framework | Status | Support Ends |
 |-----------|--------|--------------|
-| **.NET 10.0** | Current | .NET 11 + 6 months |
-| **.NET 9.0** | Supported | May 2026 |
-| **.NET 8.0 LTS** | Supported | November 2026 |
+| **.NET 10.0 LTS** | Supported (current) | November 2028 |
+| .NET 9.0 | Dropped in Sprint 797 (April 2026) | — |
+| .NET 8.0 LTS | Dropped in Sprint 797 (April 2026) | — |
 | .NET 7.0 | EOL | Not supported |
 | .NET 6.0 | EOL | Not supported |
 
-All packages multi-target .NET 8.0, .NET 9.0, and .NET 10.0.
+All packages target .NET 10.0 exclusively as of Sprint 797 (April 2026). .NET 8.0 and .NET 9.0 are no longer supported targets. See the [.NET 10 migration guide](./migration/net10-only.md) for consumer project update steps.
 
 ---
 
@@ -158,7 +158,7 @@ For detailed compatibility information, see the [Compatibility Matrix](https://g
 ### How do I report a bug?
 
 Create a [GitHub Issue](https://github.com/TrigintaFaces/Excalibur/issues/new/choose) with:
-- Framework version (.NET 8, 9, or 10)
+- Framework version (.NET 10.0)
 - Provider (SQL Server, Kafka, etc.)
 - Error message and stack trace
 - Minimal reproduction steps

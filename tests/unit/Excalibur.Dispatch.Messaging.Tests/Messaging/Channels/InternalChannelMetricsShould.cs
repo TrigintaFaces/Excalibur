@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 /// <summary>
 /// Unit tests for <see cref="InternalChannelMetrics"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InternalChannelMetricsShould
 {
 	[Fact]

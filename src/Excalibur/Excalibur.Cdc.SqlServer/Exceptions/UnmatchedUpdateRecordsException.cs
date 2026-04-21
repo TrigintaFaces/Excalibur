@@ -36,18 +36,36 @@ public sealed class UnmatchedUpdateRecordsException : ApiException
 		Lsn = lsn;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="UnmatchedUpdateRecordsException" /> class with default values.
+	/// </summary>
 	public UnmatchedUpdateRecordsException() : base()
 	{
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="UnmatchedUpdateRecordsException" /> class with a specified error message.
+	/// </summary>
+	/// <param name="message">The error message that explains the reason for the exception.</param>
 	public UnmatchedUpdateRecordsException(string message) : base(message)
 	{
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="UnmatchedUpdateRecordsException" /> class with a specified error message and inner exception.
+	/// </summary>
+	/// <param name="message">The error message that explains the reason for the exception.</param>
+	/// <param name="innerException">The exception that is the cause of the current exception.</param>
 	public UnmatchedUpdateRecordsException(string message, Exception? innerException) : base(message, innerException)
 	{
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="UnmatchedUpdateRecordsException" /> class with a status code, message, and inner exception.
+	/// </summary>
+	/// <param name="statusCode">The HTTP status code associated with the exception.</param>
+	/// <param name="message">The error message that explains the reason for the exception.</param>
+	/// <param name="innerException">The exception that is the cause of the current exception.</param>
 	public UnmatchedUpdateRecordsException(int statusCode, string? message, Exception? innerException) : base(statusCode, message,
 		innerException)
 	{
@@ -57,5 +75,5 @@ public sealed class UnmatchedUpdateRecordsException : ApiException
 	/// Gets or sets the LSN for which the duplicate record exists.
 	/// </summary>
 	/// <value> The LSN for which the duplicate record exists. </value>
-	public byte[] Lsn { get; private set; }
+	public byte[] Lsn { get; private set; } = [];
 }

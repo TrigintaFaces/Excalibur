@@ -60,11 +60,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	/// </summary>
 	private static volatile bool _isFrozen;
 
-#if NET9_0_OR_GREATER
 	private static readonly Lock PrecompiledProviderLock = new();
-#else
-	private static readonly object PrecompiledProviderLock = new();
-#endif
 	private static PrecompiledInvokerProvider[] _precompiledProviders = [];
 	private static readonly ConcurrentDictionary<(Type HandlerType, Type MessageType), CachedPrecompiledInvoker> _precompiledInvokerCache = new();
 	private static readonly ConcurrentDictionary<(Type HandlerType, Type MessageType), InvokerFunc> _knownInvokerCache = new();
@@ -144,7 +140,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		// Phase 3 (frozen): Fast path with zero synchronization overhead
 		if (_isFrozen)
 		{
-			if (_frozenCache.TryGetValue(cacheKey, out var frozenInvoker))
+			if (_frozenCache!.TryGetValue(cacheKey, out var frozenInvoker))
 			{
 				return frozenInvoker(handler, message, cancellationToken);
 			}
@@ -155,7 +151,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		}
 
 		// Phase 1 (warmup): Thread-safe population using ConcurrentDictionary
-		var invoker = _warmupCache.GetOrAdd(cacheKey, static key => BuildInvoker(key.HandlerType, key.MessageType));
+		var invoker = _warmupCache!.GetOrAdd(cacheKey, static key => BuildInvoker(key.HandlerType, key.MessageType));
 		return invoker(handler, message, cancellationToken);
 	}
 
@@ -330,7 +326,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		{
 			// For Task (no result), convert to ValueTask<object?>.
 			var convertMethod = typeof(HandlerInvoker)
-				.GetMethod(nameof(ConvertTaskToNullObjectValueTask), BindingFlags.NonPublic | BindingFlags.Static);
+				.GetMethod(nameof(ConvertTaskToNullObjectValueTask), BindingFlags.NonPublic | BindingFlags.Static)!;
 
 			var convertCall = Expression.Call(convertMethod, call);
 
@@ -343,7 +339,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		{
 			// For ValueTask (no result), convert to ValueTask<object?> returning null.
 			var convertMethod = typeof(HandlerInvoker)
-				.GetMethod(nameof(ConvertValueTaskToObjectValueTask), BindingFlags.NonPublic | BindingFlags.Static);
+				.GetMethod(nameof(ConvertValueTaskToObjectValueTask), BindingFlags.NonPublic | BindingFlags.Static)!;
 
 			var convertCall = Expression.Call(convertMethod, call);
 
@@ -357,7 +353,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 			// For ValueTask<T>, convert to ValueTask<object?>.
 			var resultType = method.ReturnType.GetGenericArguments()[0];
 			var convertMethod = typeof(HandlerInvoker)
-				.GetMethod(nameof(ConvertValueTaskTToObjectValueTask), BindingFlags.NonPublic | BindingFlags.Static)
+				.GetMethod(nameof(ConvertValueTaskTToObjectValueTask), BindingFlags.NonPublic | BindingFlags.Static)!
 				.MakeGenericMethod(resultType);
 
 			var convertCall = Expression.Call(convertMethod, call);
@@ -372,7 +368,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 			// For Task<T>, we need to await the result and box it properly.
 			var resultType = method.ReturnType.GetGenericArguments()[0];
 			var convertMethod = typeof(HandlerInvoker)
-				.GetMethod(nameof(ConvertTaskToObjectValueTask), BindingFlags.NonPublic | BindingFlags.Static)
+				.GetMethod(nameof(ConvertTaskToObjectValueTask), BindingFlags.NonPublic | BindingFlags.Static)!
 				.MakeGenericMethod(resultType);
 
 			var convertCall = Expression.Call(convertMethod, call);
@@ -403,9 +399,9 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		// return Task.FromResult(value).
 		if (task.IsCompletedSuccessfully)
 		{
-#pragma warning disable CA1849 // Safe: IsCompletedSuccessfully guarantees no blocking
+#pragma warning disable CA1849, RS0030 // Safe: IsCompletedSuccessfully guarantees no blocking
 			var result = task.Result;
-#pragma warning restore CA1849
+#pragma warning restore CA1849, RS0030
 			if (typeof(T) == typeof(bool))
 			{
 				return new ValueTask<object?>(result is true ? CachedTrue : CachedFalse);

@@ -7,6 +7,7 @@ using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.Data.CosmosDb.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -28,8 +29,10 @@ public static class A3BuilderCosmosDbExtensions
 
 		_ = builder.Services.AddOptions<CosmosDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbAuthorizationOptions>, CosmosDbAuthorizationOptionsValidator>());
 
 		builder.Services.TryAddSingleton<IActivityGroupGrantStore, CosmosDbActivityGroupGrantStore>();
 

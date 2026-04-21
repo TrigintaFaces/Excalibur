@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Globalization;
 
 using Dapper;
+
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Excalibur.Data.SqlServer.Diagnostics;
 
@@ -61,7 +62,7 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 				data["response_time_ms"] = stopwatch.ElapsedMilliseconds;
 
 				// Get server version and database info
-				var serverInfo = await connection.QuerySingleAsync<dynamic>("""
+				var serverInfo = await connection.QuerySingleAsync<ServerInfoDto>("""
 			                                                             SELECT
 			                                                             @@VERSION AS ServerVersion,
 			                                                             @@SERVERNAME AS ServerName,
@@ -71,9 +72,9 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 
 			                                                            """).ConfigureAwait(false);
 
-				data["server_name"] = serverInfo.ServerName;
-				data["database_name"] = serverInfo.DatabaseName;
-				data["current_user"] = serverInfo.CurrentUser;
+				data["server_name"] = serverInfo.ServerName ?? "N/A";
+				data["database_name"] = serverInfo.DatabaseName ?? "N/A";
+				data["current_user"] = serverInfo.CurrentUser ?? "N/A";
 				data["session_id"] = serverInfo.SessionId;
 
 				// Check connection pool statistics
@@ -194,7 +195,7 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 
 		try
 		{
-			var poolStats = await connection.QuerySingleOrDefaultAsync<dynamic>("""
+			var poolStats = await connection.QuerySingleOrDefaultAsync<ActiveConnectionsDto>("""
 			                                                                     SELECT
 			                                                                     COUNT(*) AS ActiveConnections
 			                                                                     FROM sys.dm_exec_connections
@@ -205,7 +206,7 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 			stats["active_connections"] = poolStats?.ActiveConnections ?? 0;
 
 			// Get connection pool statistics from SQL Server
-			var perfCounters = await connection.QueryAsync<dynamic>("""
+			var perfCounters = await connection.QueryAsync<PerfCounterDto>("""
 			                                                         SELECT
 			                                                         counter_name,
 			                                                         cntr_value
@@ -217,7 +218,7 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 
 			foreach (var counter in perfCounters)
 			{
-				var name = ((string)counter.counter_name).Replace(' ', '_').ToLower(CultureInfo.CurrentCulture);
+				var name = (counter.counter_name ?? string.Empty).Replace(' ', '_').ToLower(CultureInfo.CurrentCulture);
 				stats[name] = counter.cntr_value;
 			}
 		}
@@ -236,7 +237,7 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 		_ = cancellationToken;
 		try
 		{
-			var blockingInfo = await connection.QuerySingleOrDefaultAsync<dynamic>("""
+			var blockingInfo = await connection.QuerySingleOrDefaultAsync<BlockingQueryDto>("""
 			                                                                        SELECT
 			                                                                        COUNT(DISTINCT blocking_session_id) AS BlockingCount,
 			                                                                        COUNT(*) AS BlockedCount
@@ -283,7 +284,7 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 		_ = cancellationToken;
 		try
 		{
-			var perfStats = await connection.QuerySingleOrDefaultAsync<dynamic>("""
+			var perfStats = await connection.QuerySingleOrDefaultAsync<QueryPerformanceDto>("""
 			                                                                     SELECT
 			                                                                     AVG(total_elapsed_time / 1000.0) AS AvgQueryTimeMs,
 			                                                                     COUNT(*) AS SlowQueryCount
@@ -309,7 +310,7 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 		_ = cancellationToken;
 		try
 		{
-			var sizeInfo = await connection.QuerySingleOrDefaultAsync<dynamic>("""
+			var sizeInfo = await connection.QuerySingleOrDefaultAsync<DatabaseSizeDto>("""
 			                                                                    SELECT
 			                                                                    SUM(CASE WHEN type = 0 THEN size * 8.0 / 1024 ELSE 0 END) AS DataSizeMB,
 			                                                                    SUM(CASE WHEN type = 1 THEN size * 8.0 / 1024 ELSE 0 END) AS LogSizeMB,
@@ -349,7 +350,7 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 				return null;
 			}
 
-			var cdcInfo = await connection.QuerySingleOrDefaultAsync<dynamic>("""
+			var cdcInfo = await connection.QuerySingleOrDefaultAsync<CdcInfoDto>("""
 			                                                                   SELECT
 			                                                                   COUNT(*) AS TableCount,
 			                                                                   DATEDIFF(SECOND, MIN(tran_begin_time), GETDATE()) AS LagSeconds
@@ -408,4 +409,23 @@ internal sealed partial class SqlServerPersistenceHealthCheck(
 
 		public int LagSeconds { get; set; }
 	}
+
+	private sealed record ServerInfoDto(
+		string? ServerVersion,
+		string? ServerName,
+		string? DatabaseName,
+		string? CurrentUser,
+		int SessionId);
+
+	private sealed record ActiveConnectionsDto(int ActiveConnections);
+
+	private sealed record PerfCounterDto(string? counter_name, long cntr_value);
+
+	private sealed record BlockingQueryDto(int BlockingCount, int BlockedCount);
+
+	private sealed record QueryPerformanceDto(double AvgQueryTimeMs, int SlowQueryCount);
+
+	private sealed record DatabaseSizeDto(decimal DataSizeMB, decimal LogSizeMB, decimal SpaceUsedPercent);
+
+	private sealed record CdcInfoDto(int TableCount, int LagSeconds);
 }

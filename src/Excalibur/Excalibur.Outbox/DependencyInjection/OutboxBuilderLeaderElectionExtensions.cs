@@ -38,7 +38,7 @@ public static class OutboxBuilderLeaderElectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburOutbox(outbox =>
+	/// services.AddExcalibur(x => x.AddOutbox(outbox =>
 	/// {
 	///     outbox.UseInMemory()
 	///           .WithLeaderElection(sp =>
@@ -47,7 +47,7 @@ public static class OutboxBuilderLeaderElectionExtensions
 	///               return le.IsLeader;
 	///           })
 	///           .EnableBackgroundProcessing();
-	/// });
+	/// }));
 	/// </code>
 	/// </example>
 	public static IOutboxBuilder WithLeaderElection(

@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <remarks>
 /// Tests the exception thrown for contract version issues.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class ContractVersionExceptionShould
 {
@@ -47,7 +47,7 @@ public sealed class ContractVersionExceptionShould
 		var exception = new ContractVersionException();
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	#endregion
@@ -107,7 +107,7 @@ public sealed class ContractVersionExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -117,7 +117,7 @@ public sealed class ContractVersionExceptionShould
 		var exception = new ContractVersionException("Message", null!);
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -131,8 +131,8 @@ public sealed class ContractVersionExceptionShould
 		var exception = new ContractVersionException("Contract version error", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
-		exception.InnerException.InnerException.ShouldBe(rootCause);
+		exception.InnerException!.ShouldBe(innerException);
+		exception.InnerException.InnerException!.ShouldBe(rootCause);
 	}
 
 	#endregion

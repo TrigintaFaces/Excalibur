@@ -77,14 +77,14 @@ public sealed class ObservabilityServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddContextObservability_ThrowOnNullBuilder()
+	public void UseContextObservability_ThrowOnNullBuilder()
 	{
 		IDispatchBuilder builder = null!;
-		Should.Throw<ArgumentNullException>(() => builder.AddContextObservability());
+		Should.Throw<ArgumentNullException>(() => builder.UseContextObservability());
 	}
 
 	[Fact]
-	public void AddContextObservability_RegistersMiddleware()
+	public void UseContextObservability_RegistersMiddleware()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -92,7 +92,7 @@ public sealed class ObservabilityServiceCollectionExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		builder.AddContextObservability();
+		builder.UseContextObservability();
 
 		// Assert — ContextObservabilityMiddleware registered
 		services.ShouldContain(sd => sd.ServiceType == typeof(ContextObservabilityMiddleware));

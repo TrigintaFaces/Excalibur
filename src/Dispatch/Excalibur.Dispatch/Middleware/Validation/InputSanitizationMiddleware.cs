@@ -441,7 +441,12 @@ public sealed partial class InputSanitizationMiddleware : IDispatchMiddleware
 		return _excludedProperties?.Contains(property.Name) == true;
 	}
 
-	private PropertyInfo[] GetSanitizableProperties(Type type)
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2070:GetOrAdd lambda key does not satisfy DynamicallyAccessedMemberTypes.PublicProperties",
+		Justification = "Message types are preserved through handler registration and DI container; property access is cached and handles missing properties gracefully.")]
+	private PropertyInfo[] GetSanitizableProperties(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
 	{
 		return _sanitizablePropertyCache.GetOrAdd(type, static key =>
 		{

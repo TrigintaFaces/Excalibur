@@ -6,6 +6,7 @@ using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.Data.DynamoDb.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +30,11 @@ public static class DynamoDbAuthorizationExtensions
 
 		_ = services.AddOptions<DynamoDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbAuthorizationOptions>, DynamoDbAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IGrantStore, DynamoDbGrantStore>();
 		services.TryAddSingleton<IActivityGroupGrantStore, DynamoDbActivityGroupGrantStore>();
 
@@ -77,8 +81,11 @@ public static class DynamoDbAuthorizationExtensions
 
 		_ = services.AddOptions<DynamoDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbAuthorizationOptions>, DynamoDbAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IGrantStore, DynamoDbGrantStore>();
 
 		return services;
@@ -99,8 +106,11 @@ public static class DynamoDbAuthorizationExtensions
 
 		_ = services.AddOptions<DynamoDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbAuthorizationOptions>, DynamoDbAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IActivityGroupGrantStore, DynamoDbActivityGroupGrantStore>();
 
 		return services;

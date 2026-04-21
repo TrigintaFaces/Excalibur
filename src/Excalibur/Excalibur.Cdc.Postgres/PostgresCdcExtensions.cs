@@ -51,8 +51,8 @@ public static class PostgresCdcExtensions
 
 		_ = services.AddOptions<PostgresCdcOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<PostgresCdcOptions>, PostgresCdcOptionsValidator>());
 		RegisterCdcStateStoreOptions(services, configureStateStoreOptions);
 
 		// Register state store
@@ -89,8 +89,8 @@ public static class PostgresCdcExtensions
 
 		_ = services.AddOptions<PostgresCdcOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<PostgresCdcOptions>, PostgresCdcOptionsValidator>());
 		RegisterCdcStateStoreOptions(services, configureStateStoreOptions);
 
 		// Register custom state store
@@ -126,8 +126,8 @@ public static class PostgresCdcExtensions
 
 		_ = services.AddOptions<PostgresCdcOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<PostgresCdcOptions>, PostgresCdcOptionsValidator>());
 		RegisterCdcStateStoreOptions(services, configureStateStoreOptions);
 
 		// Register in-memory state store
@@ -150,7 +150,6 @@ public static class PostgresCdcExtensions
 		}
 
 		_ = builder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<PostgresCdcStateStoreOptions>, PostgresCdcStateStoreOptionsValidator>());

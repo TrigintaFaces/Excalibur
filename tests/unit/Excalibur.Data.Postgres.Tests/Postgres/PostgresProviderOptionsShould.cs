@@ -6,8 +6,8 @@ namespace Excalibur.Data.Tests.Postgres;
 /// <summary>
 /// Unit tests for PostgresProviderOptions configuration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class PostgresProviderOptionsShould : UnitTestBase
 {
 	[Fact]

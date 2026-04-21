@@ -10,7 +10,7 @@ Dispatch provides migration paths from popular .NET messaging libraries. Each gu
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -23,6 +23,10 @@ Dispatch provides migration paths from popular .NET messaging libraries. Each gu
 - **[From MassTransit](from-masstransit.md)** -- Migrate consumers, sagas, and transport configuration to Dispatch equivalents.
 - **[From NServiceBus](from-nservicebus.md)** -- Migrate handlers, sagas, and pipeline behaviors to the Dispatch model.
 - **[From ASP.NET Eventing Proposal](from-aspnet-eventing-proposal.md)** -- Migrate from the ASP.NET eventing proposal pattern.
+
+## Framework Migrations
+
+- **[Migrating to .NET 10](net10-only.md)** -- Sprint 797 collapsed every shipping package to `net10.0`. Consumer project TFM, SDK, Docker images, and serverless runtime identifiers must be updated.
 
 ## Reference
 

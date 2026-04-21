@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Options.Middleware;
 /// Unit tests for <see cref="LoggingMiddlewareOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class LoggingMiddlewareOptionsShould
 {
 	[Fact]

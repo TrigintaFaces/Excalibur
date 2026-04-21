@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Extensions;
 /// <remarks>
 /// Tests the trace context extension methods.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Extensions")]
 [Trait("Priority", "0")]
 public sealed class TraceContextExtensionsShould

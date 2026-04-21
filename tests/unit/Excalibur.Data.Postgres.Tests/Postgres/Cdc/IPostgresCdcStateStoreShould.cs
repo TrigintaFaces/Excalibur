@@ -11,7 +11,7 @@ namespace Excalibur.Data.Tests.Postgres.Cdc;
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Postgres")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class IPostgresCdcStateStoreShould
 {
 	private readonly Type _interfaceType = typeof(IPostgresCdcStateStore);

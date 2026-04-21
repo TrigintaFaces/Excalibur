@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -45,11 +45,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private readonly Counter<long>? _returnThreadLocalCounter;
 	private readonly Counter<long>? _returnGlobalCounter;
 	private readonly Timer _adaptiveSizeTimer;
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _sizingLock = new();
-#else
-	private readonly object _sizingLock = new();
-#endif
+	private readonly Lock _sizingLock = new();
 
 	private readonly int _threadLocalCacheSize;
 
@@ -67,7 +63,9 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private long _totalReturned;
 	private long _threadLocalHits;
 	private long _threadLocalMisses;
-#pragma warning disable CS0649, IDE0044 // Telemetry field — reserved for future option-mismatch tracking
+	// Telemetry counter — never assigned today but feeds PoolStatistics.OptionMismatches
+	// (public API). Will be incremented once option-mismatch detection is implemented.
+#pragma warning disable CS0649, IDE0044 // Field is never assigned to; not readonly because it will be Interlocked.Increment'd
 	private long _optionMismatches;
 #pragma warning restore CS0649, IDE0044
 	private long _poolExpansions;
@@ -199,7 +197,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		// Fast path: Try thread-local cache first
 		if (_threadLocalCacheSize > 0)
 		{
-			var cache = _threadLocalCache.Value;
+			var cache = _threadLocalCache.Value!;
 			var writer = cache.TryRent(requestedOptions);
 			if (writer != null)
 			{
@@ -242,7 +240,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			// Try thread-local cache first
 			if (_threadLocalCacheSize > 0)
 			{
-				var cache = _threadLocalCache.Value;
+				var cache = _threadLocalCache.Value!;
 				if (cache.TryReturn(writer))
 				{
 					RecordReturn(toThreadLocal: true);
@@ -519,7 +517,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			return;
 		}
 
-		var cache = _threadLocalCache.Value;
+		var cache = _threadLocalCache.Value!;
 		for (var i = 0; i < count && i < _threadLocalCacheSize; i++)
 		{
 			var dummyBuffer = new ArrayBufferWriter<byte>();

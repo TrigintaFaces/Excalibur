@@ -404,7 +404,7 @@ public sealed class SagaPersistedStateShould
 		public string Currency { get; init; } = string.Empty;
 	}
 
-	private sealed class TestSagaDefinition : ISagaDefinition<TestSagaData>
+	private sealed class TestSagaDefinition : ISagaDefinition<TestSagaData>, ISagaDefinitionLifecycle<TestSagaData>
 	{
 		public string Name => "TestSaga";
 		public TimeSpan Timeout => TimeSpan.FromMinutes(30);
@@ -418,7 +418,7 @@ public sealed class SagaPersistedStateShould
 			=> Task.CompletedTask;
 	}
 
-	private sealed class PaymentSagaDefinition : ISagaDefinition<PaymentSagaData>
+	private sealed class PaymentSagaDefinition : ISagaDefinition<PaymentSagaData>, ISagaDefinitionLifecycle<PaymentSagaData>
 	{
 		public string Name => "PaymentSaga";
 		public TimeSpan Timeout => TimeSpan.FromMinutes(30);

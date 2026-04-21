@@ -16,7 +16,7 @@ description: Excalibur is a high-performance .NET framework for messaging, event
 | **Packages** | 119 NuGet packages across 6 families |
 | **CI Pipeline** | 10 sharded test stages, governance gates, conformance suites |
 | **API Stability** | PublicAPI analyzer tracking on every package |
-| **Target Frameworks** | .NET 8, .NET 9, .NET 10 |
+| **Target Framework** | .NET 10.0 |
 
 ## What Excalibur.Dispatch Does
 
@@ -205,7 +205,7 @@ Because all packages share the same `Excalibur.*` namespace, you never rewrite e
 
 | Package | Description |
 |---------|-------------|
-| `Excalibur.Dispatch.Serialization.MemoryPack` | High-performance binary serialization (default) |
+| `Excalibur.Dispatch.Serialization.MemoryPack` | High-performance binary serialization (opt-in) |
 | `Excalibur.Dispatch.Serialization.MessagePack` | MessagePack serialization |
 | `Excalibur.Dispatch.Serialization.Protobuf` | Protocol Buffers serialization |
 
@@ -213,17 +213,17 @@ Because all packages share the same `Excalibur.*` namespace, you never rewrite e
 
 | Package | Description |
 |---------|-------------|
-| `Excalibur.Dispatch.Security` | Core security infrastructure |
-| `Excalibur.Dispatch.AuditLogging` | Comprehensive audit logging |
-| `Excalibur.Dispatch.AuditLogging.Datadog` | Datadog audit export |
-| `Excalibur.Dispatch.AuditLogging.Sentinel` | Azure Sentinel integration |
-| `Excalibur.Dispatch.AuditLogging.Splunk` | Splunk audit export |
-| `Excalibur.Dispatch.AuditLogging.SqlServer` | SQL Server audit store |
-| `Excalibur.Dispatch.Compliance` | Regulatory compliance framework |
-| `Excalibur.Dispatch.Compliance.Abstractions` | Compliance abstractions |
-| `Excalibur.Dispatch.Compliance.Aws` | AWS compliance integration |
-| `Excalibur.Dispatch.Compliance.Azure` | Azure compliance integration |
-| `Excalibur.Dispatch.Compliance.Vault` | HashiCorp Vault integration |
+| `Excalibur.Security` | Core security infrastructure |
+| `Excalibur.AuditLogging` | Comprehensive audit logging |
+| `Excalibur.AuditLogging.Datadog` | Datadog audit export |
+| `Excalibur.AuditLogging.Sentinel` | Azure Sentinel integration |
+| `Excalibur.AuditLogging.Splunk` | Splunk audit export |
+| `Excalibur.AuditLogging.SqlServer` | SQL Server audit store |
+| `Excalibur.Compliance` | Regulatory compliance framework |
+| `Excalibur.Compliance.Abstractions` | Compliance abstractions |
+| `Excalibur.Compliance.Aws` | AWS compliance integration |
+| `Excalibur.Compliance.Azure` | Azure compliance integration |
+| `Excalibur.Compliance.Vault` | HashiCorp Vault integration |
 
 ### Operations Packages
 

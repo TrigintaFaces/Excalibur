@@ -3,6 +3,7 @@
 
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
 
@@ -16,11 +17,18 @@ internal sealed class HandlerRegistry : IHandlerRegistry
 {
 	private readonly ConcurrentDictionary<Type, List<HandlerRegistryEntry>> _handlers = new();
 	private readonly ConcurrentDictionary<Type, HandlerRegistryEntry[]> _handlerSnapshots = new();
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _updateLock = new();
-#else
-	private readonly object _updateLock = new();
-#endif
+	private readonly Lock _updateLock = new();
+
+	/// <inheritdoc />
+	IReadOnlyList<IHandlerRegistryEntry> IHandlerRegistry.GetAll() => GetAll();
+
+	/// <inheritdoc />
+	bool IHandlerRegistry.TryGetHandler(Type messageType, out IHandlerRegistryEntry entry)
+	{
+		var found = TryGetHandler(messageType, out var concrete);
+		entry = concrete;
+		return found;
+	}
 
 	/// <summary>
 	/// Gets all registered handler entries.
@@ -73,7 +81,7 @@ internal sealed class HandlerRegistry : IHandlerRegistry
 	/// <param name="messageType"> The type of message the handler processes. </param>
 	/// <param name="handlerType"> The type of the handler. </param>
 	/// <param name="expectsResponse"> Whether the handler is expected to return a response. </param>
-	public void Register(Type messageType, Type handlerType, bool expectsResponse)
+	public void Register(Type messageType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType, bool expectsResponse)
 	{
 		var entry = new HandlerRegistryEntry(messageType, handlerType, expectsResponse);
 		HandlerRegistryEntry[]? snapshot = null;

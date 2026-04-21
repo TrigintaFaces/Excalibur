@@ -18,7 +18,7 @@ This guide walks through building a realistic saga from scratch: an order fulfil
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Saga
@@ -242,7 +242,7 @@ public class OrderSaga : ISagaDefinition<OrderSagaData>
 
 ```csharp
 // Registration
-services.AddExcaliburSaga();
+services.AddExcalibur(excalibur => excalibur.AddSaga());
 
 // Execution
 public class PlaceOrderHandler : IActionHandler<PlaceOrderAction>
@@ -350,10 +350,10 @@ With this policy, if `ProcessPaymentStep` throws a `TimeoutException`, the saga 
 For production systems, persist saga state to survive process restarts:
 
 ```csharp
-services.AddExcaliburSaga(options =>
+services.AddExcalibur(excalibur => excalibur.AddSaga(options =>
 {
     // SQL Server persistence
-});
+}));
 ```
 
 Without persistence, a process restart loses all in-flight saga state. The SQL Server store provides:

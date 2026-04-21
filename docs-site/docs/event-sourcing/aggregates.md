@@ -10,7 +10,7 @@ Aggregates are the core building blocks of event-sourced systems. They enforce b
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Domain

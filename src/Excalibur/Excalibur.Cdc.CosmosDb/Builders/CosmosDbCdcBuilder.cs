@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Azure.Cosmos;
+
 namespace Excalibur.Cdc.CosmosDb;
 
 /// <summary>
@@ -21,11 +23,57 @@ internal sealed class CosmosDbCdcBuilder : ICosmosDbCdcBuilder
 	/// <summary>Gets the source BindConfiguration section path.</summary>
 	internal string? SourceBindConfigurationPath { get; private set; }
 
+	internal CosmosClient? ClientInstance { get; private set; }
+	internal Func<IServiceProvider, CosmosClient>? ClientFactoryFunc { get; private set; }
+	internal string? EndpointValue { get; private set; }
+	internal string? AuthKeyValue { get; private set; }
+
 	/// <inheritdoc/>
 	public ICosmosDbCdcBuilder ConnectionString(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		_options.ConnectionString = connectionString;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		EndpointValue = null;
+		AuthKeyValue = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ICosmosDbCdcBuilder Endpoint(string endpoint, string authKey)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
+		ArgumentException.ThrowIfNullOrWhiteSpace(authKey);
+		EndpointValue = endpoint;
+		AuthKeyValue = authKey;
+		_options.ConnectionString = null!;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ICosmosDbCdcBuilder Client(CosmosClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		ClientInstance = client;
+		_options.ConnectionString = null!;
+		ClientFactoryFunc = null;
+		EndpointValue = null;
+		AuthKeyValue = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ICosmosDbCdcBuilder ClientFactory(Func<IServiceProvider, CosmosClient> clientFactory)
+	{
+		ArgumentNullException.ThrowIfNull(clientFactory);
+		ClientFactoryFunc = clientFactory;
+		_options.ConnectionString = null!;
+		ClientInstance = null;
+		EndpointValue = null;
+		AuthKeyValue = null;
 		return this;
 	}
 

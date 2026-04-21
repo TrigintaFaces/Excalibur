@@ -4,18 +4,17 @@
 
 using Elastic.Clients.Elasticsearch;
 
+using Excalibur.Data.ElasticSearch;
 using Excalibur.Data.ElasticSearch.Resources;
-
-using Microsoft.Extensions.DependencyInjection;
 
 using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
-namespace Excalibur.Data.ElasticSearch;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Provides extension methods for configuring health checks in an application.
+/// Provides extension methods for configuring ElasticSearch health checks.
 /// </summary>
-public static class HealthChecksBuilderExtensions
+public static class ElasticSearchHealthChecksBuilderExtensions
 {
 	/// <summary>
 	/// Adds an Elasticsearch health check using the registered <see cref="ElasticsearchClient" />.

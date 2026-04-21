@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.Configuration;
 /// invalid options are rejected when resolved through the options pipeline.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ValidateOnStartRegistrationShould
 {
 	#region InMemory Outbox

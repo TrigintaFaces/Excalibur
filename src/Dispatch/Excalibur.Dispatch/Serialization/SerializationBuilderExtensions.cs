@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using System.Diagnostics.CodeAnalysis;
 
-using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Abstractions.Serialization;
 
 namespace Excalibur.Dispatch.Serialization;
 
@@ -20,27 +20,12 @@ namespace Excalibur.Dispatch.Serialization;
 public static class SerializationBuilderExtensions
 {
 	/// <summary>
-	/// Registers MemoryPack serializer (framework-assigned ID: 1).
-	/// </summary>
-	/// <param name="builder">The serialization builder.</param>
-	/// <returns>The builder for method chaining.</returns>
-	/// <remarks>
-	/// MemoryPack is automatically registered by default when using <c>AddDispatch()</c>.
-	/// This method is provided for explicit registration scenarios.
-	/// </remarks>
-	public static ISerializationBuilder RegisterMemoryPack(this ISerializationBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		return builder.Register(
-			MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer(),
-			SerializerIds.MemoryPack);
-	}
-
-	/// <summary>
 	/// Registers System.Text.Json serializer (framework-assigned ID: 2).
 	/// </summary>
 	/// <param name="builder">The serialization builder.</param>
 	/// <returns>The builder for method chaining.</returns>
+	[RequiresUnreferencedCode("SystemTextJsonSerializer uses reflection for JSON serialization.")]
+	[RequiresDynamicCode("SystemTextJsonSerializer requires dynamic code generation for JSON serialization.")]
 	public static ISerializationBuilder RegisterSystemTextJson(this ISerializationBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Compliance.Diagnostics;
+using Excalibur.Compliance.Diagnostics;
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Diagnostics;
 
@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [Trait("Priority", "0")]
 public sealed class ComplianceEventIdShould : UnitTestBase
 {

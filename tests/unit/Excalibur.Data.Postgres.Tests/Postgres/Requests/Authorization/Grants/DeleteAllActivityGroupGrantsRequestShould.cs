@@ -9,7 +9,7 @@ namespace Excalibur.Data.Tests.Postgres.Requests.Authorization.Grants;
 /// Unit tests for <see cref="DeleteAllActivityGroupGrantsRequest"/>.
 /// Covers SQL structure, parameter setup, and command timeout.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Postgres")]
 public sealed class DeleteAllActivityGroupGrantsRequestShould
 {

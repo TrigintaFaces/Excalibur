@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Decorators;
 /// Tests for <see cref="DeadLetterTransportReceiver"/>.
 /// Verifies that rejected messages are routed to the dead letter handler and metrics are recorded.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class DeadLetterTransportReceiverShould : IDisposable
 {
 	private readonly ITransportReceiver _innerReceiver = A.Fake<ITransportReceiver>();

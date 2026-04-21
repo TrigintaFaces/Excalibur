@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
+using Excalibur.Compliance.Configuration;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Encryption.Decorators;
 

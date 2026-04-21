@@ -63,6 +63,8 @@ internal sealed partial class ConfluentJsonSerializer : IConfluentFormatSerializ
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of message types uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of message types uses reflection by design")]
 	public async Task<byte[]> SerializeAsync<T>(
 		string topic,
 		T message,
@@ -75,6 +77,8 @@ internal sealed partial class ConfluentJsonSerializer : IConfluentFormatSerializ
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of message types uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of message types uses reflection by design")]
 	public async Task<byte[]> SerializeAsync(
 		string topic,
 		object message,
@@ -89,6 +93,8 @@ internal sealed partial class ConfluentJsonSerializer : IConfluentFormatSerializ
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of message types uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of message types uses reflection by design")]
 	public async ValueTask<int> SerializeToBufferAsync<T>(
 		IBufferWriter<byte> writer,
 		string topic,
@@ -103,6 +109,8 @@ internal sealed partial class ConfluentJsonSerializer : IConfluentFormatSerializ
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of message types uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of message types uses reflection by design")]
 	public async ValueTask<int> SerializeToBufferAsync(
 		IBufferWriter<byte> writer,
 		string topic,

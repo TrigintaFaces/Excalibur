@@ -6,7 +6,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 /// <summary>
 /// Unit tests for ObservabilityOptions configuration.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class ObservabilityOptionsShould : UnitTestBase
 {
@@ -24,7 +24,6 @@ public sealed class ObservabilityOptionsShould : UnitTestBase
 		options.MeterName.ShouldBe(DispatchMetrics.MeterName);
 		options.ServiceName.ShouldBe("Excalibur.Dispatch");
 		options.ServiceVersion.ShouldBe("1.0.0");
-		options.EnableDetailedTiming.ShouldBeFalse();
 		options.IncludeSensitiveData.ShouldBeFalse();
 	}
 
@@ -117,19 +116,6 @@ public sealed class ObservabilityOptionsShould : UnitTestBase
 
 		// Assert
 		options.ServiceVersion.ShouldBe("2.1.0");
-	}
-
-	[Fact]
-	public void EnableDetailedTiming_CanBeEnabled()
-	{
-		// Arrange
-		var options = new ObservabilityOptions();
-
-		// Act
-		options.EnableDetailedTiming = true;
-
-		// Assert
-		options.EnableDetailedTiming.ShouldBeTrue();
 	}
 
 	[Fact]

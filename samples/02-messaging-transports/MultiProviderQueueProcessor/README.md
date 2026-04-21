@@ -94,7 +94,7 @@ MultiProviderQueueProcessor/
 ├── Events/
 │   └── OrderEvents.cs              # Domain events
 ├── Handlers/
-│   └── OrderEventHandlers.cs       # Event handlers
+│   └── OrderHandlers.cs            # Event handlers
 ├── Infrastructure/
 │   ├── DatabaseInitializer.cs      # Schema setup
 │   ├── OrderRepository.cs          # Event-sourced repository
@@ -212,13 +212,13 @@ builder.Services.AddGooglePubSubTransport("google-pubsub", pubsub =>
 ### Event Store Setup
 
 ```csharp
-builder.Services.AddSqlServerEventSourcing(options =>
-{
-    options.ConnectionString = connectionString;
-    options.EventStoreTable = "Events";
-    options.SnapshotStoreTable = "Snapshots";
-    options.OutboxTable = "EventSourcedOutbox";
-});
+builder.Services.AddExcalibur(excalibur => excalibur
+    .AddEventSourcing(es => es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.EventStoreTable = "EventStoreEvents";
+        options.SnapshotStoreTable = "EventStoreSnapshots";
+    })));
 ```
 
 ## Related Packages

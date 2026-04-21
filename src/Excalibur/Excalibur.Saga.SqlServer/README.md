@@ -2,6 +2,16 @@
 
 SQL Server implementation of saga state persistence for the Excalibur framework.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.SqlServer` | Complete | Everything for SQL Server: ES + Outbox + Inbox + Saga + LE + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.SqlServer` for a production-ready SQL Server stack with a single package reference.
+
 ## Installation
 
 ```bash
@@ -21,13 +31,13 @@ dotnet add package Excalibur.Saga.SqlServer
 
 ```csharp
 // Register SQL Server saga store via ISagaBuilder
-services.AddExcaliburSaga(saga =>
+services.AddExcalibur(x => x.AddSagas(saga =>
 {
     saga.UseSqlServer(sql =>
     {
         sql.ConnectionString = connectionString;
     });
-});
+}));
 
 // Or register individually
 services.AddSqlServerSagaStore(sql =>

@@ -96,7 +96,7 @@ Each generated SBOM includes:
 **Metadata:**
 - Generation timestamp
 - Tool information (CycloneDX version)
-- Framework target (.NET 9.0)
+- Framework target (.NET 10.0)
 
 ---
 

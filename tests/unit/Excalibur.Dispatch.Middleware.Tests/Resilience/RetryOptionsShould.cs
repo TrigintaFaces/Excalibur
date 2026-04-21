@@ -6,7 +6,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// <summary>
 /// Unit tests for RetryOptions configuration.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class RetryOptionsShould : UnitTestBase
 {

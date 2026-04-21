@@ -17,7 +17,7 @@ internal static class TypeResolver
 	/// Resolves a type by name using the appropriate method based on runtime mode.
 	/// </summary>
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Conditional compilation ensures AOT compatibility")]
+		Justification = "RuntimeFeature check ensures AOT path avoids reflection")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
 		Justification = "JIT fallback resolves types from loaded assemblies via reflection")]
 	public static Type? ResolveType(string typeName)
@@ -27,54 +27,20 @@ internal static class TypeResolver
 			return null;
 		}
 
-		// Use compile-time conditional for zero overhead
-#if AOT_ENABLED
-		// In AOT mode, only use the registry
-		return TypeResolverRegistry.TryResolveType(typeName, out var type) ? type : null;
-#else
-		// In JIT mode, try registry first, then fall back to loaded assemblies
+		// Try registry first (works in both JIT and AOT)
 		if (TypeResolverRegistry.TryResolveType(typeName, out var type))
 		{
 			return type;
 		}
 
-		return ResolveFromLoadedAssemblies(typeName);
-#endif
-	}
-
-	/// <summary>
-	/// Resolves a type by name using runtime detection.
-	/// </summary>
-	/// <remarks>
-	/// This method uses runtime detection instead of compile-time conditionals, which has a small performance cost but allows for more
-	/// flexible deployment.
-	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Runtime check ensures AOT compatibility")]
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-		Justification = "JIT fallback resolves types from loaded assemblies via reflection")]
-	public static Type? ResolveTypeRuntime(string typeName)
-	{
-		if (string.IsNullOrEmpty(typeName))
+		// AOT path: registry is the only resolution mechanism
+		if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
 		{
 			return null;
 		}
 
-		return AotDetection.Execute(
-			aotPath: () =>
-
-				// In AOT mode, only use the registry
-				TypeResolverRegistry.TryResolveType(typeName, out var type) ? type : null,
-			jitPath: () =>
-			{
-				// In JIT mode, try registry first, then fall back to loaded assemblies
-				if (TypeResolverRegistry.TryResolveType(typeName, out var type))
-				{
-					return type;
-				}
-
-				return ResolveFromLoadedAssemblies(typeName);
-			});
+		// JIT path: fall back to loaded assemblies
+		return ResolveFromLoadedAssemblies(typeName);
 	}
 
 	/// <summary>
@@ -97,6 +63,8 @@ internal static class TypeResolver
 		return type;
 	}
 
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "Assembly.GetType is used as a JIT-only fallback; AOT path returns null before reaching this method")]
 	private static Type? ResolveFromLoadedAssemblies(string typeName)
 	{
 		var lookupName = typeName;

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 public sealed class TelemetryOptions
 {
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to enable OpenTelemetry.
+	/// Gets or sets a value indicating whether to enable OpenTelemetry.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether to enable OpenTelemetry.
@@ -18,7 +18,7 @@ public sealed class TelemetryOptions
 	public bool EnableOpenTelemetry { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to export to Cloud Monitoring.
+	/// Gets or sets a value indicating whether to export to Cloud Monitoring.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether to export to Cloud Monitoring.

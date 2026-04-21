@@ -10,7 +10,7 @@ using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Excalibur.Inbox.InMemory;
 
@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 /// High-throughput stress tests for core messaging components.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Performance")]
+[Trait(TraitNames.Category, TestCategories.Performance)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class HighThroughputStressShould : IDisposable
 {

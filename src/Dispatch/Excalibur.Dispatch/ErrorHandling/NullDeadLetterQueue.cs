@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// </remarks>
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
 	Justification = "Represents a dead letter queue implementation.")]
-public sealed class NullDeadLetterQueue : IDeadLetterQueue
+public sealed class NullDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueueAdmin
 {
 	private NullDeadLetterQueue()
 	{
@@ -51,18 +51,18 @@ public sealed class NullDeadLetterQueue : IDeadLetterQueue
 		Task.FromResult(false);
 
 	/// <inheritdoc />
-	public Task<int> ReplayBatchAsync(DeadLetterQueryFilter filter, CancellationToken cancellationToken) =>
+	public Task<long> GetCountAsync(CancellationToken cancellationToken, DeadLetterQueryFilter? filter = null) =>
+		Task.FromResult(0L);
+
+	/// <inheritdoc />
+	Task<int> IDeadLetterQueueAdmin.ReplayBatchAsync(DeadLetterQueryFilter filter, CancellationToken cancellationToken) =>
 		Task.FromResult(0);
 
 	/// <inheritdoc />
-	public Task<bool> PurgeAsync(Guid entryId, CancellationToken cancellationToken) =>
+	Task<bool> IDeadLetterQueueAdmin.PurgeAsync(Guid entryId, CancellationToken cancellationToken) =>
 		Task.FromResult(false);
 
 	/// <inheritdoc />
-	public Task<int> PurgeOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken) =>
+	Task<int> IDeadLetterQueueAdmin.PurgeOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken) =>
 		Task.FromResult(0);
-
-	/// <inheritdoc />
-	public Task<long> GetCountAsync(CancellationToken cancellationToken, DeadLetterQueryFilter? filter = null) =>
-		Task.FromResult(0L);
 }

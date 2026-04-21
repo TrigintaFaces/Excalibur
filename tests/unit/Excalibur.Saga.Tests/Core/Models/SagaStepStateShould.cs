@@ -71,7 +71,7 @@ public sealed class SagaStepStateShould
 		var state = new SagaStepState();
 
 		// Assert
-		state.ErrorMessage.ShouldBeNull();
+		state.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -191,7 +191,7 @@ public sealed class SagaStepStateShould
 		var state = new SagaStepState { ErrorMessage = "Connection timeout" };
 
 		// Assert
-		state.ErrorMessage.ShouldBe("Connection timeout");
+		state.ErrorMessage!.ShouldBe("Connection timeout");
 	}
 
 	[Fact]
@@ -311,7 +311,7 @@ public sealed class SagaStepStateShould
 		state.Status.ShouldBe(StepStatus.Succeeded);
 		state.StartedAt.ShouldNotBeNull();
 		state.CompletedAt.ShouldNotBeNull();
-		state.ErrorMessage.ShouldBeNull();
+		state.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -335,7 +335,7 @@ public sealed class SagaStepStateShould
 		// Assert
 		state.Status.ShouldBe(StepStatus.Failed);
 		state.Attempts.ShouldBe(3);
-		state.ErrorMessage.ShouldNotBeNull();
+		state.ErrorMessage!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -370,7 +370,7 @@ public sealed class SagaStepStateShould
 
 		// Assert
 		state.Status.ShouldBe(StepStatus.TimedOut);
-		state.ErrorMessage.ShouldContain("timed out");
+		state.ErrorMessage!.ShouldContain("timed out");
 	}
 
 	[Fact]

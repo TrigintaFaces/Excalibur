@@ -54,7 +54,7 @@ public sealed class ProcessingErrorShould
     {
         var error = new ProcessingError();
 
-        error.Exception.ShouldBeNull();
+        error.Exception!.ShouldBeNull();
     }
 
     [Fact]
@@ -74,6 +74,6 @@ public sealed class ProcessingErrorShould
         error.Message.ShouldBe("Processing failed");
         error.Severity.ShouldBe(BatchErrorSeverity.Critical);
         error.MessageId.ShouldBe("msg-42");
-        error.Exception.ShouldBe(ex);
+        error.Exception!.ShouldBe(ex);
     }
 }

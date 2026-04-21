@@ -73,7 +73,7 @@ Protobuf/
 ├── Messages/
 │   └── OrderEvents.cs          # IMessage<T> implemented events
 ├── Handlers/
-│   └── OrderEventHandlers.cs   # Event handlers
+│   └── OrderHandlers.cs   # Event handlers
 ├── Program.cs                  # Demo scenarios
 ├── appsettings.json           # Configuration
 └── README.md                  # This file

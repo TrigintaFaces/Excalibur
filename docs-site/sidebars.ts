@@ -125,6 +125,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'patterns/streaming' },
             { type: 'doc', id: 'patterns/jobs' },
             { type: 'doc', id: 'patterns/data-processing' },
+            { type: 'doc', id: 'patterns/transactions' },
           ],
         },
         {
@@ -176,6 +177,7 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           items: [
             { type: 'doc', id: 'data-access/idb-interface' },
+            { type: 'doc', id: 'data-access/identity-map' },
           ],
         },
         {
@@ -256,6 +258,7 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           items: [
             { type: 'doc', id: 'performance/caching' },
+            { type: 'doc', id: 'performance/ultra-local-dispatch' },
             { type: 'doc', id: 'performance/auto-freeze' },
             { type: 'doc', id: 'performance/messagecontext-best-practices' },
             { type: 'doc', id: 'performance/competitor-comparison' },
@@ -310,7 +313,9 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           items: [
             { type: 'doc', id: 'observability/production-observability' },
+            { type: 'doc', id: 'observability/telemetry-configuration' },
             { type: 'doc', id: 'observability/metrics-reference' },
+            { type: 'doc', id: 'observability/metric-naming-conventions' },
             { type: 'doc', id: 'observability/health-checks' },
             { type: 'doc', id: 'observability/azure-monitor' },
             { type: 'doc', id: 'observability/aws-cloudwatch' },
@@ -375,6 +380,9 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'testing/aggregate-testing' },
             { type: 'doc', id: 'testing/repository-testing' },
             { type: 'doc', id: 'testing/integration-tests' },
+            { type: 'doc', id: 'testing/test-harness' },
+            { type: 'doc', id: 'testing/transport-test-doubles' },
+            { type: 'doc', id: 'testing/shouldly-assertions' },
           ],
         },
       ],
@@ -486,6 +494,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'architecture/vertical-slice-architecture' },
             { type: 'doc', id: 'architecture/messagecontext-design' },
             { type: 'doc', id: 'architecture/messagecontext-items-usage' },
+            { type: 'doc', id: 'architecture/sdk-seam-pattern' },
           ],
         },
         {
@@ -498,8 +507,11 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'advanced/testing' },
             { type: 'doc', id: 'advanced/security' },
             { type: 'doc', id: 'advanced/deployment' },
+            { type: 'doc', id: 'advanced/container-deployment' },
             { type: 'doc', id: 'advanced/source-generators' },
             { type: 'doc', id: 'advanced/native-aot' },
+            { type: 'doc', id: 'advanced/aot-compatibility' },
+            { type: 'doc', id: 'advanced/aot-migration-guide' },
             { type: 'doc', id: 'advanced/viewing-generated-code' },
           ],
         },

@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Runtime.CompilerServices;
 
@@ -34,11 +34,7 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	/// </summary>
 	private Dictionary<Type, object>? _features;
 
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lockObject = new();
-#else
-	private readonly object _lockObject = new();
-#endif
+	private readonly Lock _lockObject = new();
 
 	// Lazy MessageId generation (PERF-5)
 	// volatile ensures cross-thread visibility for lazy-initialized fields
@@ -471,6 +467,22 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	public void Initialize(IServiceProvider requestServices)
 	{
 		ArgumentNullException.ThrowIfNull(requestServices);
+		// PERF: Skip re-assignment if the provider hasn't changed (common case for recycled contexts).
+		if (!ReferenceEquals(_requestServices, requestServices))
+		{
+			_requestServices = requestServices;
+			_defaultServiceProvider = requestServices;
+		}
+	}
+
+	/// <summary>
+	/// Fast initialization path for internal callers that guarantee non-null service provider.
+	/// Skips the null check and volatile write guard for maximum throughput on the recycled context path.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal void InitializeFast(IServiceProvider requestServices)
+	{
+		// PERF: Caller guarantees non-null. Skip ArgumentNullException.ThrowIfNull.
 		// PERF: Skip re-assignment if the provider hasn't changed (common case for recycled contexts).
 		if (!ReferenceEquals(_requestServices, requestServices))
 		{

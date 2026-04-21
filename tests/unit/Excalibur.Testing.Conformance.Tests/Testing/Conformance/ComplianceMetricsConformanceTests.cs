@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
+using Excalibur.Compliance.Monitoring;
 
 using Excalibur.Testing.Conformance;
 
@@ -24,7 +25,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 /// <para>
 /// Key behaviors verified:
 /// <list type="bullet">
-/// <item><description>Meter property returns non-null with name "Excalibur.Dispatch.Compliance"</description></item>
+/// <item><description>Meter property returns non-null with name "Excalibur.Compliance"</description></item>
 /// <item><description>RecordKeyRotation completes successfully</description></item>
 /// <item><description>RecordKeyRotationFailure completes successfully</description></item>
 /// <item><description>UpdateKeysNearingExpiration completes successfully</description></item>

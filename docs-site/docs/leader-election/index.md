@@ -10,7 +10,7 @@ Leader election ensures only one instance in a distributed system performs a spe
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.LeaderElection
@@ -121,50 +121,58 @@ Use the fluent builder pattern to configure leader election with your chosen pro
 using Microsoft.Extensions.DependencyInjection;
 
 // SQL Server with health checks
-services.AddExcaliburLeaderElection(le => le
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
     .UseSqlServer(connectionString, "my-app-leader")
     .WithHealthChecks()
-    .WithFencingTokens());
+    .WithFencingTokens()));
 
-// Postgres
-services.AddExcaliburLeaderElection(le => le
-    .UsePostgres(opts =>
+// Postgres (5 canonical connection overloads)
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UsePostgres(pg =>
     {
-        opts.ConnectionString = "Host=localhost;Database=myapp;";
-        opts.LockKey = 12345;
+        pg.ConnectionString("Host=localhost;Database=myapp;")
+          .LockKey(12345);
     })
-    .WithHealthChecks());
+    .WithHealthChecks()));
 
 // Redis
-services.AddExcaliburLeaderElection(le => le
-    .UseRedis("myapp:leader")
-    .WithHealthChecks());
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UseRedis(redis =>
+    {
+        redis.ConnectionString("localhost:6379")
+             .LockKey("myapp:leader");
+    })
+    .WithHealthChecks()));
 
 // Consul
-services.AddExcaliburLeaderElection(le => le
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
     .UseConsul(opts =>
     {
         opts.ConsulAddress = "http://localhost:8500";
         opts.SessionTTL = TimeSpan.FromSeconds(30);
-    }));
+    })));
 
 // Kubernetes
-services.AddExcaliburLeaderElection(le => le
-    .UseKubernetes());
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UseKubernetes()));
 
 // In-memory (testing/development)
-services.AddExcaliburLeaderElection(le => le
-    .UseInMemory());
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UseInMemory()));
 
 // Configure options via the builder
-services.AddExcaliburLeaderElection(le => le
-    .UseRedis("myapp:leader")
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UseRedis(redis =>
+    {
+        redis.ConnectionString("localhost:6379")
+             .LockKey("myapp:leader");
+    })
     .WithOptions(opts =>
     {
         opts.LeaseDuration = TimeSpan.FromSeconds(30);
         opts.RenewInterval = TimeSpan.FromSeconds(10);
     })
-    .WithHealthChecks());
+    .WithHealthChecks()));
 ```
 
 The builder automatically registers `LeaderElectionOptions` with `ValidateDataAnnotations` and `ValidateOnStart`.
@@ -179,7 +187,7 @@ var options = new LeaderElectionOptions
     LeaseDuration = TimeSpan.FromSeconds(30),
     RenewInterval = TimeSpan.FromSeconds(10)
 };
-services.AddExcaliburLeaderElection(options);
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(options));
 ```
 
 :::note
@@ -191,21 +199,21 @@ The pre-built options overload uses `Options.Create()` directly, which bypasses 
 | Method | Package | Purpose |
 |--------|---------|---------|
 | `UseInMemory()` | `Excalibur.LeaderElection.InMemory` | Testing and development |
-| `UseRedis(lockKey)` | `Excalibur.LeaderElection.Redis` | Redis-based leader election |
+| `UseRedis(Action<IRedisLeaderElectionBuilder>)` | `Excalibur.LeaderElection.Redis` | Redis-based leader election |
 | `UseRedisFactory()` | `Excalibur.LeaderElection.Redis` | Redis factory for multiple elections |
 | `UseSqlServer(conn, lock)` | `Excalibur.LeaderElection.SqlServer` | SQL Server-based leader election |
 | `UseSqlServerFactory(conn)` | `Excalibur.LeaderElection.SqlServer` | SQL Server factory for multiple elections |
-| `UsePostgres(opts)` | `Excalibur.Data.Postgres` | PostgreSQL advisory lock-based leader election |
-| `UsePostgresFactory(opts)` | `Excalibur.Data.Postgres` | PostgreSQL factory for multiple elections |
+| `UsePostgres(Action<IPostgresLeaderElectionBuilder>)` | `Excalibur.LeaderElection.Postgres` | PostgreSQL advisory lock-based leader election |
+| `UsePostgresFactory(opts)` | `Excalibur.LeaderElection.Postgres` | PostgreSQL factory for multiple elections |
 | `UseConsul(opts?)` | `Excalibur.LeaderElection.Consul` | Consul session-based leader election |
 | `UseKubernetes(opts?)` | `Excalibur.LeaderElection.Kubernetes` | Kubernetes Lease-based leader election |
 | `WithHealthChecks()` | `Excalibur.LeaderElection` | Registers health check integration |
 | `WithFencingTokens()` | `Excalibur.LeaderElection` | Registers fencing token middleware |
 | `WithOptions(configure)` | `Excalibur.LeaderElection` | Configures `LeaderElectionOptions` |
 
-### Direct Registration (Legacy)
-
-Provider-specific `Add*LeaderElection` methods are still available for backward compatibility. The builder API above is preferred for new code.
+:::note
+Previous standalone `AddRedisLeaderElection` methods have been removed. Use the builder API shown above for all new registrations.
+:::
 
 ## When to Use Factory vs Single Registration {#factory-vs-single}
 
@@ -217,9 +225,9 @@ Register a single `ILeaderElection` when your application has **one leadership s
 
 ```csharp
 // One leader election for the entire application
-services.AddExcaliburLeaderElection(le => le
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
     .UseSqlServer(connectionString, "my-app-leader")
-    .WithHealthChecks());
+    .WithHealthChecks()));
 ```
 
 Use cases:
@@ -265,8 +273,8 @@ Register `ILeaderElectionFactory` when your application has **multiple independe
 
 ```csharp
 // Factory for creating per-resource elections
-services.AddExcaliburLeaderElection(le => le
-    .UseSqlServerFactory(connectionString));
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UseSqlServerFactory(connectionString)));
 ```
 
 Use cases:
@@ -558,14 +566,14 @@ Uses database locks for coordination:
 dotnet add package Excalibur.LeaderElection.SqlServer
 
 // Configuration
-builder.Services.AddSqlServerLeaderElection(
-    connectionString,
-    "my-app-leader",  // Lock resource name
-    options =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le =>
+{
+    le.UseSqlServer(sql =>
     {
-        options.LeaseDuration = TimeSpan.FromSeconds(30);
-        options.RenewInterval = TimeSpan.FromSeconds(10);
+        sql.ConnectionString(connectionString)
+           .LockResource("my-app-leader");
     });
+}));
 ```
 
 SQL Server implementation features:
@@ -580,22 +588,19 @@ Uses Postgres advisory locks for coordination:
 
 ```csharp
 // Installation
-dotnet add package Excalibur.Data.Postgres
+dotnet add package Excalibur.LeaderElection.Postgres
 
-// Direct registration
-builder.Services.AddPostgresLeaderElection(options =>
-{
-    options.ConnectionString = "Host=localhost;Database=myapp;";
-    options.LockKey = 12345;
-});
-
-// Or via builder API
-builder.Services.AddExcaliburLeaderElection(le => le
-    .UsePostgres(options =>
+// Builder API (recommended — 5 canonical connection overloads)
+builder.Services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UsePostgres(pg =>
     {
-        options.ConnectionString = "Host=localhost;Database=myapp;";
-        options.LockKey = 12345;
-    }));
+        pg.ConnectionString("Host=localhost;Database=myapp;")
+          .LockKey(12345);
+    })));
+
+// Or with NpgsqlDataSource (Azure, custom pooling)
+builder.Services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UsePostgres(pg => pg.DataSource(npgsqlDataSource).LockKey(42))));
 ```
 
 PostgreSQL implementation features:
@@ -612,22 +617,19 @@ PostgreSQL implementation features:
 PostgreSQL supports health-based leader election where unhealthy leaders automatically step down:
 
 ```csharp
-// Register health-based election
-builder.Services.AddPostgresLeaderElection(
-    pgOptions =>
+// Register health-based election with builder API
+builder.Services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UsePostgres(pg =>
     {
-        pgOptions.ConnectionString = "Host=localhost;Database=myapp;";
-        pgOptions.LockKey = 12345;
-    },
-    leOptions =>
+        pg.ConnectionString("Host=localhost;Database=myapp;")
+          .LockKey(12345);
+    })
+    .WithHealthChecks()
+    .WithOptions(opts =>
     {
-        leOptions.LeaseDuration = TimeSpan.FromSeconds(30);
-        leOptions.RenewInterval = TimeSpan.FromSeconds(10);
-    });
-
-// Add health check
-builder.Services.AddHealthChecks()
-    .AddPostgresLeaderElectionHealthCheck();
+        opts.LeaseDuration = TimeSpan.FromSeconds(30);
+        opts.RenewInterval = TimeSpan.FromSeconds(10);
+    })));
 ```
 
 Health-based options:
@@ -649,18 +651,21 @@ Uses Redis for high-performance coordination:
 // Installation
 dotnet add package Excalibur.LeaderElection.Redis
 
-// First register Redis connection
-builder.Services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect("localhost:6379"));
-
-// Configuration
-builder.Services.AddRedisLeaderElection(
-    "myapp:leader",  // Redis lock key
-    options =>
+// Configuration via builder API
+builder.Services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le =>
+{
+    le.UseRedis(redis =>
     {
-        options.LeaseDuration = TimeSpan.FromSeconds(30);
-        options.RenewInterval = TimeSpan.FromSeconds(10);
+        redis.ConnectionString("localhost:6379")
+             .LockKey("myapp:leader")
+             .Database(0);
+    })
+    .WithOptions(opts =>
+    {
+        opts.LeaseDuration = TimeSpan.FromSeconds(30);
+        opts.RenewInterval = TimeSpan.FromSeconds(10);
     });
+}));
 ```
 
 Redis implementation features:
@@ -938,7 +943,10 @@ public class MultiResourceLeaderService : BackgroundService
 A built-in health check is provided in the `Excalibur.LeaderElection` package. Register it with the standard ASP.NET Core health checks builder:
 
 ```csharp
-builder.Services.AddSqlServerLeaderElection(connectionString, "my-resource");
+builder.Services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le =>
+{
+    le.UseSqlServer(sql => sql.ConnectionString(connectionString).LockResource("my-resource"));
+}));
 
 builder.Services.AddHealthChecks()
     .AddLeaderElectionHealthCheck();
@@ -1041,7 +1049,7 @@ public class ProjectionWorker : BackgroundService
     private readonly ILeaderElection _leaderElection;
     private readonly IEventStore _eventStore;
     private readonly ICheckpointStore _checkpointStore;
-    private readonly IEnumerable<IProjectionHandler> _projections;
+    private readonly IProjectionRegistry _projections;
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -1141,18 +1149,25 @@ If a process crashes without releasing the lock, the lease will automatically ex
 Configure appropriate timeouts to prevent split brain:
 
 ```csharp
-builder.Services.AddSqlServerLeaderElection(
-    connectionString,
-    "my-resource",
-    options =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le =>
+{
+    le.UseSqlServer(sql =>
     {
-        // Lease duration must be longer than renewal interval
-        options.LeaseDuration = TimeSpan.FromSeconds(30);
-        options.RenewInterval = TimeSpan.FromSeconds(10);
-
-        // Account for network latency and clock skew
-        // Renewal should happen at least 2-3 times before expiry
+        sql.ConnectionString(connectionString)
+           .LockResource("my-resource");
     });
+}));
+
+// Configure lease timing via options
+builder.Services.Configure<LeaderElectionOptions>(options =>
+{
+    // Lease duration must be longer than renewal interval
+    options.LeaseDuration = TimeSpan.FromSeconds(30);
+    options.RenewInterval = TimeSpan.FromSeconds(10);
+
+    // Account for network latency and clock skew
+    // Renewal should happen at least 2-3 times before expiry
+});
 ```
 
 ## Next Steps

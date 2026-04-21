@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.Firestore;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Firestore")]
-[Trait("Feature", "Configuration")]
+[Trait(TraitNames.Feature, TestFeatures.Configuration)]
 public sealed class FirestoreOptionsShould
 {
 	#region Default Value Tests

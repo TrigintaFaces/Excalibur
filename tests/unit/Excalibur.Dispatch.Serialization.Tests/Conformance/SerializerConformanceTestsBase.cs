@@ -21,8 +21,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.Conformance;
 ///   <item>Name/Version: Properties return non-null, non-empty strings</item>
 /// </list>
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public abstract class SerializerConformanceTestsBase
 {
 	/// <summary>Creates the serializer under test.</summary>

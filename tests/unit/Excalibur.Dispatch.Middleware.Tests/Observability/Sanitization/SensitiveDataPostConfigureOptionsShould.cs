@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Options.Middleware;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Observability.Sanitization;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class SensitiveDataPostConfigureOptionsShould
 {

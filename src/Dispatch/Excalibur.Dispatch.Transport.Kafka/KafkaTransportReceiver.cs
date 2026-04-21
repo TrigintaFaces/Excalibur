@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using System.Collections.Concurrent;
 using System.Text;
 
@@ -204,7 +205,7 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 
 		var contentType = properties.TryGetValue("content-type", out var ct) ? ct as string : null;
 		var messageType = properties.TryGetValue("message-type", out var mt) ? mt as string : null;
-		var correlationId = properties.TryGetValue("correlation-id", out var ci) ? ci as string : null;
+		var correlationId = properties.TryGetValue(OutboxHeaderNames.CorrelationId, out var ci) ? ci as string : null;
 		var messageId = properties.TryGetValue("message-id", out var mi) ? mi as string : null;
 
 		return new TransportReceivedMessage

@@ -37,6 +37,10 @@ public static class ObservabilityServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types")]
 	[RequiresDynamicCode("Configuration binding may require dynamic code generation")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchObservability(
 		this IServiceCollection services,
 		IConfiguration configuration) =>
@@ -52,16 +56,27 @@ public static class ObservabilityServiceCollectionExtensions
 		this IServiceCollection services,
 		Action<ContextObservabilityOptions>? configureOptions = null)
 	{
-		// Configure options
+		// Configure options. The delegate is registered once for DI resolution.
 		var optionsBuilder = services.AddOptions<ContextObservabilityOptions>();
-		if (configureOptions != null)
+		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ContextObservabilityOptions>,
+				ContextObservabilityOptionsValidator>());
+
+		// Read the Enabled flag eagerly to decide whether to wire OTel,
+		// without calling BuildServiceProvider(). This creates a temporary
+		// instance -- the delegate runs once here and once when DI resolves
+		// IOptions<ContextObservabilityOptions>. The delegate MUST be
+		// side-effect-free (pure configuration mapping only).
+		var snapshot = new ContextObservabilityOptions();
+		configureOptions?.Invoke(snapshot);
 
 		// Register core observability services
 		services.TryAddSingleton<IContextFlowTracker, ContextFlowTracker>();
@@ -71,24 +86,20 @@ public static class ObservabilityServiceCollectionExtensions
 
 		// Register PII sanitizer with options + startup warning validator
 		_ = services.AddOptions<TelemetrySanitizerOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<ITelemetrySanitizer, HashingTelemetrySanitizer>();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TelemetrySanitizerOptions>, TelemetrySanitizerOptionsValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TelemetrySanitizerOptions>, TelemetrySanitizerOptionsDataAnnotationsValidator>());
 
 		// Flow IncludeRawPii into all IncludeSensitiveData flags
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<Excalibur.Dispatch.Options.Core.TracingOptions>, SensitiveDataPostConfigureOptions>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<Excalibur.Dispatch.Options.Middleware.AuditLoggingOptions>, SensitiveDataPostConfigureOptions>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions>, SensitiveDataPostConfigureOptions>());
 
-		// Apply options to determine OTel configuration without BuildServiceProvider()
-		var options = new ContextObservabilityOptions();
-		configureOptions?.Invoke(options);
-
 		// Configure OpenTelemetry
-		if (options.Enabled)
+		if (snapshot.Enabled)
 		{
-			ConfigureOpenTelemetry(services, options);
+			ConfigureOpenTelemetry(services, snapshot);
 		}
 
 		return services;
@@ -99,13 +110,12 @@ public static class ObservabilityServiceCollectionExtensions
 	/// </summary>
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder AddContextObservability(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseContextObservability(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
 		builder.Services.TryAddSingleton<ContextObservabilityMiddleware>();
-		_ = builder.Services.AddMiddleware<ContextObservabilityMiddleware>();
-		return builder;
+		return builder.UseMiddleware<ContextObservabilityMiddleware>();
 	}
 
 	[SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
@@ -146,7 +156,12 @@ public static class ObservabilityServiceCollectionExtensions
 	{
 		_ = tracerProviderBuilder
 			.SetResourceBuilder(resourceBuilder)
-			.AddSource("Excalibur.Dispatch.Observability.*")
+			.AddSource("Excalibur.Dispatch")
+			.AddSource("Excalibur.Dispatch.*")
+			.AddSource("Excalibur.Dispatch.BackgroundServices")
+			.AddSource("Excalibur.Data.*")
+			.AddSource("Excalibur.EventSourcing.*")
+			.AddSource("Excalibur.LeaderElection")
 			.AddAspNetCoreInstrumentation(options =>
 			{
 				options.RecordException = true;
@@ -212,20 +227,20 @@ public static class ObservabilityServiceCollectionExtensions
 		IServiceCollection services,
 		ResourceBuilder resourceBuilder,
 		ContextObservabilityOptions options) => _ = services.AddLogging(loggingBuilder => loggingBuilder.AddOpenTelemetry(loggingOptions =>
-													 {
-														 _ = loggingOptions.SetResourceBuilder(resourceBuilder);
-														 loggingOptions.IncludeScopes = true;
-														 loggingOptions.IncludeFormattedMessage = true;
+												 {
+													 _ = loggingOptions.SetResourceBuilder(resourceBuilder);
+													 loggingOptions.IncludeScopes = true;
+													 loggingOptions.IncludeFormattedMessage = true;
 
-														 if (!string.IsNullOrWhiteSpace(options.Export.OtlpEndpoint))
+													 if (!string.IsNullOrWhiteSpace(options.Export.OtlpEndpoint))
+													 {
+														 _ = loggingOptions.AddOtlpExporter(otlpOptions =>
 														 {
-															 _ = loggingOptions.AddOtlpExporter(otlpOptions =>
-															 {
-																 otlpOptions.Endpoint = new Uri(options.Export.OtlpEndpoint);
-																 otlpOptions.Protocol = OtlpExportProtocol.Grpc;
-															 });
-														 }
-													 }));
+															 otlpOptions.Endpoint = new Uri(options.Export.OtlpEndpoint);
+															 otlpOptions.Protocol = OtlpExportProtocol.Grpc;
+														 });
+													 }
+												 }));
 
 	/// <summary>
 	/// Adds compliance-level telemetry sanitization that detects and redacts PII patterns
@@ -257,7 +272,6 @@ public static class ObservabilityServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register the startup validator for custom patterns
@@ -267,8 +281,10 @@ public static class ObservabilityServiceCollectionExtensions
 
 		// Ensure base TelemetrySanitizerOptions are registered (for the inner HashingTelemetrySanitizer)
 		_ = services.AddOptions<TelemetrySanitizerOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TelemetrySanitizerOptions>,
+				TelemetrySanitizerOptionsDataAnnotationsValidator>());
 
 		// Replace the default ITelemetrySanitizer with the compliance-aware one
 		services.RemoveAll<ITelemetrySanitizer>();
@@ -287,8 +303,8 @@ public static class ObservabilityServiceCollectionExtensions
 				telemetryOptions.EnableRequestTrackingTelemetryModule = true;
 				telemetryOptions.EnableDependencyTrackingTelemetryModule = true;
 				telemetryOptions.EnablePerformanceCounterCollectionModule = true;
-				telemetryOptions.EnableEventCounterCollectionModule = true;
-				telemetryOptions.EnableAdaptiveSampling = false; // We want all context flow data
+				// AppInsights SDK v3 removed EnableEventCounterCollectionModule (moved to OTel-native counters)
+				// and EnableAdaptiveSampling (deprecated in favor of OTel sampling). OTel path is canonical.
 			});
 		}
 	}

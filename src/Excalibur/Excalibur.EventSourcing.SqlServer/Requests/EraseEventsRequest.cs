@@ -15,33 +15,38 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// </summary>
 internal sealed class EraseEventsRequest : DataRequestBase<IDbConnection, int>
 {
-	private const string Sql = """
-		UPDATE EventStoreEvents
-		SET EventData = NULL,
-		    EventType = '$erased',
-		    Metadata = @ErasureMetadata
-		WHERE AggregateId = @AggregateId
-		  AND AggregateType = @AggregateType
-		  AND EventType <> '$erased'
-		""";
-
 	public EraseEventsRequest(
 		string aggregateId,
 		string aggregateType,
 		Guid erasureRequestId,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "dbo",
+		string table = "EventStoreEvents")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
+		var qualifiedTable = SqlTableName.Format(schema, table);
 		var erasureMetadata = $"{{\"erased\":true,\"erasureRequestId\":\"{erasureRequestId}\"}}";
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		var sql = $"""
+			UPDATE {qualifiedTable}
+			SET EventData = NULL,
+			    EventType = '$erased',
+			    Metadata = @ErasureMetadata
+			WHERE AggregateId = @AggregateId
+			  AND AggregateType = @AggregateType
+			  AND EventType <> '$erased'
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@ErasureMetadata", erasureMetadata);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);

@@ -5,8 +5,8 @@ using Excalibur.Data.ElasticSearch.Projections;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ProjectionErrorRecordShould
 {
 	[Fact]
@@ -28,7 +28,7 @@ public sealed class ProjectionErrorRecordShould
 		sut.ProjectionType.ShouldBe("OrderProjection");
 		sut.OperationType.ShouldBe("Index");
 		sut.IndexName.ShouldBe("orders");
-		sut.ErrorMessage.ShouldBe("Mapping exception");
+		sut.ErrorMessage!.ShouldBe("Mapping exception");
 	}
 
 	[Fact]

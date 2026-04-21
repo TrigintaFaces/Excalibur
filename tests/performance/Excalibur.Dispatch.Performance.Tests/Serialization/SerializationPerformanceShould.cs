@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 namespace Excalibur.Dispatch.Tests.Serialization;
 
@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 ///     Performance tests for serialization components to ensure optimal throughput and allocation behavior.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Performance")]
+[Trait(TraitNames.Category, TestCategories.Performance)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class SerializationPerformanceShould
 {

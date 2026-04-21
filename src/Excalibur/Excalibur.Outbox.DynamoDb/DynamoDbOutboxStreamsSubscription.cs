@@ -319,9 +319,11 @@ public sealed partial class DynamoDbOutboxStreamsSubscription : IChangeFeedSubsc
 			Payload = item.TryGetValue("payload", out var payload) && !string.IsNullOrEmpty(payload.S)
 				? Convert.FromBase64String(payload.S)
 				: [],
+#pragma warning disable IL2026
 			Headers = item.TryGetValue("headers", out var headers) && !string.IsNullOrEmpty(headers.S)
 				? JsonSerializer.Deserialize<Dictionary<string, string>>(headers.S, JsonOptions)
 				: null,
+#pragma warning restore IL2026
 			AggregateId = item.TryGetValue("aggregateId", out var aggId) ? aggId.S : null,
 			AggregateType = item.TryGetValue("aggregateType", out var aggType) ? aggType.S : null,
 			CorrelationId = item.TryGetValue("correlationId", out var corrId) ? corrId.S : null,

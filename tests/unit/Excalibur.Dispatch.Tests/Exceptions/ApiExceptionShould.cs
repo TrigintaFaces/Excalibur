@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Exceptions;
 /// <summary>
 /// Unit tests for <see cref="ApiException"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class ApiExceptionShould
 {
@@ -52,7 +52,7 @@ public sealed class ApiExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -69,7 +69,7 @@ public sealed class ApiExceptionShould
 		// Assert
 		exception.StatusCode.ShouldBe(statusCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

@@ -10,6 +10,8 @@ Excalibur ships Roslyn analyzers that detect common issues at compile time. Thes
 | [DISP002](./DISP002.md) | Missing AutoRegister Attribute | Info | Handlers |
 | [DISP003](./DISP003.md) | Reflection Without AOT Annotation | Warning | Compatibility |
 | [DISP004](./DISP004.md) | Optimization Hint | Info | Performance |
+| [DISP005](./DISP005.md) | Handler Should Be Sealed | Warning | Handlers |
+| [DISP006](./DISP006.md) | Message Type Missing Dispatch Interface | Warning | Handlers |
 
 ## Installation
 

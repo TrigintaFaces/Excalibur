@@ -1,0 +1,4 @@
+#nullable enable
+Microsoft.Extensions.DependencyInjection.GdprExcaliburBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.GdprExcaliburBuilderExtensions.AddGdprErasure(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
+static Microsoft.Extensions.DependencyInjection.GdprExcaliburBuilderExtensions.AddGdprErasure(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Compliance.ErasureOptions!>? configureOptions = null) -> Excalibur.Hosting.Builders.IExcaliburBuilder!

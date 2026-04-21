@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Diagnostics;
@@ -45,12 +47,12 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	private readonly ICursorMapStore? _cursorMapStore;
 	private readonly IOptions<GlobalStreamProjectionOptions> _options;
 	private readonly ILogger<GlobalStreamProjectionHost<TState>> _logger;
-	private readonly Diagnostics.ProjectionObservability? _observability;
+	private readonly ProjectionObservability? _observability;
 	private readonly ProjectionHealthState? _healthState;
 
+	private readonly Dictionary<string, long> _pendingCursorUpdates = new(StringComparer.Ordinal);
 	private GlobalStreamPosition _currentPosition = GlobalStreamPosition.Start;
 	private long _eventsSinceCheckpoint;
-	private readonly Dictionary<string, long> _pendingCursorUpdates = new(StringComparer.Ordinal);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GlobalStreamProjectionHost{TState}"/> class.
@@ -87,13 +89,17 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 
 		// Resolve internal observability types from DI (optional, never fails)
 		ArgumentNullException.ThrowIfNull(serviceProvider);
-		_observability = serviceProvider.GetService(typeof(Diagnostics.ProjectionObservability))
-			as Diagnostics.ProjectionObservability;
+		_observability = serviceProvider.GetService(typeof(ProjectionObservability))
+			as ProjectionObservability;
 		_healthState = serviceProvider.GetService(typeof(ProjectionHealthState))
 			as ProjectionHealthState;
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Event deserialization is inherently dynamic; projection host requires runtime type resolution.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026",
+		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		var opts = _options.Value;
@@ -145,7 +151,14 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 						LogEventProcessingError(opts.ProjectionName, storedEvent.EventId, ex);
 
 						// Fire-and-forget observability
-						try { _observability?.RecordError(typeof(TState).Name, ex.GetType().Name); } catch { /* swallow */ }
+						try
+						{
+							_observability?.RecordError(typeof(TState).Name, ex.GetType().Name);
+						}
+						catch
+						{
+							/* swallow */
+						}
 
 						// Continue processing other events
 					}
@@ -170,14 +183,14 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
 				{
 					await _checkpointStore.StoreCheckpointAsync(
-						opts.ProjectionName, _currentPosition.Position, stoppingToken)
+							opts.ProjectionName, _currentPosition.Position, stoppingToken)
 						.ConfigureAwait(false);
 
 					// Save cursor map after projection apply (phase ordering, R27.55)
 					if (_cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 					{
 						await _cursorMapStore.SaveCursorMapAsync(
-							opts.ProjectionName, _pendingCursorUpdates, stoppingToken)
+								opts.ProjectionName, _pendingCursorUpdates, stoppingToken)
 							.ConfigureAwait(false);
 						_pendingCursorUpdates.Clear();
 					}
@@ -187,7 +200,14 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				}
 
 				// Report lag as current position (consumers compute actual lag externally)
-				try { _healthState?.AsyncLag = _currentPosition.Position; } catch { /* swallow */ }
+				try
+				{
+					_healthState?.AsyncLag = _currentPosition.Position;
+				}
+				catch
+				{
+					/* swallow */
+				}
 
 				LogBatchProcessed(opts.ProjectionName, events.Count, _currentPosition.Position);
 			}
@@ -210,14 +230,14 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 			try
 			{
 				await _checkpointStore.StoreCheckpointAsync(
-					opts.ProjectionName, _currentPosition.Position, CancellationToken.None)
+						opts.ProjectionName, _currentPosition.Position, CancellationToken.None)
 					.ConfigureAwait(false);
 
 				// Save remaining cursor map entries on shutdown
 				if (_cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 				{
 					await _cursorMapStore.SaveCursorMapAsync(
-						opts.ProjectionName, _pendingCursorUpdates, CancellationToken.None)
+							opts.ProjectionName, _pendingCursorUpdates, CancellationToken.None)
 						.ConfigureAwait(false);
 				}
 
@@ -258,5 +278,5 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 		"Global stream projection host error for {ProjectionName}")]
 	private partial void LogProjectionHostError(string projectionName, Exception ex);
 
-	#endregion
+	#endregion Logging
 }

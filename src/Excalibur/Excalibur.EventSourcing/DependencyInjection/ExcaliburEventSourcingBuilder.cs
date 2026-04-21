@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Implementation;
-using Excalibur.EventSourcing.Outbox;
+
 using Excalibur.EventSourcing.Snapshots;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -35,10 +35,10 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// </para>
 /// <para> <b> Usage: </b>
 /// <code>
-///services.AddExcaliburEventSourcing(builder =&gt; builder
+///services.AddExcalibur(x => x.AddEventSourcing(builder =&gt; builder
 ///.AddRepository&lt;OrderAggregate, Guid&gt;()
 ///.UseIntervalSnapshots(100)
-///.UseSnapshotStrategy&lt;CustomStrategy&gt;());
+///.UseSnapshotStrategy&lt;CustomStrategy&gt;()));
 /// </code>
 /// </para>
 /// </remarks>
@@ -63,6 +63,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	/// </summary>
 	/// <typeparam name="TAggregate"> The aggregate type with string identifier. </typeparam>
 	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a string key. </param>
+	/// <param name="configureOptions"> Optional per-aggregate repository configuration (e.g., outbox staging strategy). </param>
 	/// <returns> The builder for fluent configuration. </returns>
 	/// <remarks>
 	/// <para>
@@ -74,23 +75,36 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	public IEventSourcingBuilder AddRepository<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TAggregate>(
-		Func<string, TAggregate> aggregateFactory)
+		Func<string, TAggregate> aggregateFactory,
+		Action<EventSourcedRepositoryOptions>? configureOptions = null)
 		where TAggregate : class, Domain.Model.IAggregateRoot<string>, Domain.Model.IAggregateSnapshotSupport
 	{
 		ArgumentNullException.ThrowIfNull(aggregateFactory);
 
+		if (configureOptions is not null)
+		{
+			_ = Services.Configure(typeof(TAggregate).Name, configureOptions);
+		}
+
 		Services.TryAddSingleton<IEventSourcedRepository<TAggregate>>(sp =>
-			new EventSourcedRepository<TAggregate>(
+		{
+			var opts = ResolveRepositoryOptions<TAggregate>(sp, configureOptions);
+			return new EventSourcedRepository<TAggregate>(
 				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<IEventSerializer>(),
 				aggregateFactory,
-				sp.GetService<IUpcastingPipeline>(),
-				sp.GetService<ISnapshotManager>(),
-				sp.GetService<ISnapshotStrategy>(),
-				sp.GetService<IOptions<UpcastingOptions>>(),
-				sp.GetService<IEventSourcedOutboxStore>(),
-				sp.GetService<SnapshotVersionManager>(),
-				sp.GetService<IOptions<SnapshotUpgradingOptions>>()));
+				upcastingOptions: sp.GetService<IOptions<UpcastingOptions>>(),
+				snapshotUpgradingOptions: sp.GetService<IOptions<SnapshotUpgradingOptions>>(),
+				autoSnapshotOptions: sp.GetService<IOptionsMonitor<Abstractions.AutoSnapshotOptions>>(),
+				upcastingPipeline: sp.GetService<IUpcastingPipeline>(),
+				snapshotManager: sp.GetService<ISnapshotManager>(),
+				snapshotStrategy: sp.GetService<ISnapshotStrategy>(),
+				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
+				outboxStore: sp.GetService<IOutboxStore>(),
+				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
+				eventNotificationBroker: sp.GetService<IEventNotificationBroker>(),
+				outboxStagingStrategy: opts.Value.OutboxStagingStrategy);
+		});
 
 		return this;
 	}
@@ -101,50 +115,59 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	/// <typeparam name="TAggregate"> The aggregate type. </typeparam>
 	/// <typeparam name="TKey"> The key type for the aggregate. </typeparam>
 	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a key. </param>
+	/// <param name="configureOptions"> Optional per-aggregate repository configuration (e.g., outbox staging strategy). </param>
 	/// <returns> The builder for fluent configuration. </returns>
 	/// <remarks> Use this method for aggregates with non-string keys (e.g., Guid, int). </remarks>
 	[RequiresUnreferencedCode("Repository registration may require types that cannot be statically analyzed.")]
 	public IEventSourcingBuilder AddRepository<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TAggregate, TKey>(
-		Func<TKey, TAggregate> aggregateFactory)
+		Func<TKey, TAggregate> aggregateFactory,
+		Action<EventSourcedRepositoryOptions>? configureOptions = null)
 		where TAggregate : class, Domain.Model.IAggregateRoot<TKey>, Domain.Model.IAggregateSnapshotSupport
 		where TKey : notnull
 	{
 		ArgumentNullException.ThrowIfNull(aggregateFactory);
 
 		Services.TryAddSingleton<IEventSourcedRepository<TAggregate, TKey>>(sp =>
-			new EventSourcedRepository<TAggregate, TKey>(
+		{
+			var opts = ResolveRepositoryOptions<TAggregate>(sp, configureOptions);
+			return new EventSourcedRepository<TAggregate, TKey>(
 				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<IEventSerializer>(),
 				aggregateFactory,
-				sp.GetService<IUpcastingPipeline>(),
-				sp.GetService<ISnapshotManager>(),
-				sp.GetService<ISnapshotStrategy>(),
-				sp.GetService<IOptions<UpcastingOptions>>(),
-				sp.GetService<IEventSourcedOutboxStore>(),
-				sp.GetService<SnapshotVersionManager>(),
-				sp.GetService<IOptions<SnapshotUpgradingOptions>>()));
+				upcastingOptions: sp.GetService<IOptions<UpcastingOptions>>(),
+				snapshotUpgradingOptions: sp.GetService<IOptions<SnapshotUpgradingOptions>>(),
+				autoSnapshotOptions: sp.GetService<IOptionsMonitor<Abstractions.AutoSnapshotOptions>>(),
+				upcastingPipeline: sp.GetService<IUpcastingPipeline>(),
+				snapshotManager: sp.GetService<ISnapshotManager>(),
+				snapshotStrategy: sp.GetService<ISnapshotStrategy>(),
+				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
+				outboxStore: sp.GetService<IOutboxStore>(),
+				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
+				eventNotificationBroker: sp.GetService<IEventNotificationBroker>(),
+				outboxStagingStrategy: opts.Value.OutboxStagingStrategy);
+		});
 
 		return this;
 	}
 
 	/// <summary>
-	/// Registers an event-sourced repository for an aggregate type that implements <see cref="IAggregateRoot{TAggregate, TKey}" /> with static
+	/// Registers an event-sourced repository for an aggregate type that implements <see cref="Domain.Model.IAggregateRoot{TAggregate, TKey}" /> with static
 	/// factory methods.
 	/// </summary>
-	/// <typeparam name="TAggregate"> The aggregate type implementing <see cref="IAggregateRoot{TAggregate, TKey}" />. </typeparam>
+	/// <typeparam name="TAggregate"> The aggregate type implementing <see cref="Domain.Model.IAggregateRoot{TAggregate, TKey}" />. </typeparam>
 	/// <typeparam name="TKey"> The key type for the aggregate. </typeparam>
 	/// <returns> The builder for fluent configuration. </returns>
 	/// <remarks>
 	/// <para>
-	/// This overload automatically uses the <c> static Create(TKey) </c> method from <see cref="IAggregateRoot{TAggregate, TKey}" /> to create
+	/// This overload automatically uses the <c> static Create(TKey) </c> method from <see cref="Domain.Model.IAggregateRoot{TAggregate, TKey}" /> to create
 	/// aggregate instances. No factory function is required.
 	/// </para>
 	/// <para> <b> Usage: </b>
 	/// <code>
-	///services.AddExcaliburEventSourcing(builder =&gt; builder
-	///.AddRepository&lt;OrderAggregate, Guid&gt;());  // Uses OrderAggregate.Create(id)
+	///services.AddExcalibur(x => x.AddEventSourcing(builder =&gt; builder
+	///.AddRepository&lt;OrderAggregate, Guid&gt;()));  // Uses OrderAggregate.Create(id)
 	/// </code>
 	/// </para>
 	/// </remarks>
@@ -158,97 +181,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 		return AddRepository<TAggregate, TKey>(TAggregate.Create);
 	}
 
-	/// <summary>
-	/// Configures a custom snapshot strategy.
-	/// </summary>
-	/// <typeparam name="TStrategy"> The snapshot strategy implementation type. </typeparam>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder AddSnapshotStrategy<
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-	TStrategy>()
-		where TStrategy : class, ISnapshotStrategy
-	{
-		Services.TryAddSingleton<ISnapshotStrategy, TStrategy>();
-		return this;
-	}
-
-	/// <summary>
-	/// Configures an interval-based snapshot strategy.
-	/// </summary>
-	/// <param name="eventInterval"> The number of events between snapshots. Default: 100. </param>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder UseIntervalSnapshots(int eventInterval = 100)
-	{
-		Services.TryAddSingleton<ISnapshotStrategy>(new IntervalSnapshotStrategy(eventInterval));
-		return this;
-	}
-
-	/// <summary>
-	/// Configures a time-based snapshot strategy.
-	/// </summary>
-	/// <param name="timeInterval"> The time interval between snapshots. </param>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder UseTimeBasedSnapshots(TimeSpan timeInterval)
-	{
-		Services.TryAddSingleton<ISnapshotStrategy>(new TimeBasedSnapshotStrategy(timeInterval));
-		return this;
-	}
-
-	/// <summary>
-	/// Configures a size-based snapshot strategy.
-	/// </summary>
-	/// <param name="maxSizeInBytes"> The maximum size in bytes before creating a snapshot. </param>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder UseSizeBasedSnapshots(long maxSizeInBytes)
-	{
-		Services.TryAddSingleton<ISnapshotStrategy>(new SizeBasedSnapshotStrategy(maxSizeInBytes));
-		return this;
-	}
-
-	/// <summary>
-	/// Configures a composite snapshot strategy combining multiple strategies.
-	/// </summary>
-	/// <param name="configure"> Action to configure the composite strategy. </param>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder UseCompositeSnapshotStrategy(Action<CompositeSnapshotStrategyBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-
-		var strategyBuilder = new CompositeSnapshotStrategyBuilder();
-		configure(strategyBuilder);
-		Services.TryAddSingleton(strategyBuilder.Build());
-		return this;
-	}
-
-	/// <summary>
-	/// Configures a no-op snapshot strategy that never creates snapshots.
-	/// </summary>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder UseNoSnapshots()
-	{
-		Services.TryAddSingleton<ISnapshotStrategy>(NoSnapshotStrategy.Instance);
-		return this;
-	}
-
-	/// <summary>
-	/// Configures a custom snapshot manager.
-	/// </summary>
-	/// <typeparam name="TManager"> The snapshot manager implementation type. </typeparam>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder UseSnapshotManager<
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-	TManager>()
-		where TManager : class, ISnapshotManager
-	{
-		Services.TryAddSingleton<ISnapshotManager, TManager>();
-		return this;
-	}
-
-	/// <summary>
-	/// Configures a custom event store implementation.
-	/// </summary>
-	/// <typeparam name="TEventStore"> The event store implementation type. </typeparam>
-	/// <returns> The builder for fluent configuration. </returns>
+	/// <inheritdoc/>
 	public IEventSourcingBuilder UseEventStore<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TEventStore>()
@@ -259,130 +192,28 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	}
 
 	/// <summary>
-	/// Configures a custom event serializer implementation.
+	/// Resolves repository options, merging global defaults with per-aggregate overrides.
 	/// </summary>
-	/// <typeparam name="TSerializer"> The serializer implementation type. </typeparam>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder UseEventSerializer<
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-	TSerializer>()
-		where TSerializer : class, IEventSerializer
+	private static IOptions<EventSourcedRepositoryOptions> ResolveRepositoryOptions<TAggregate>(
+		IServiceProvider sp,
+		Action<EventSourcedRepositoryOptions>? configureOptions)
 	{
-		Services.TryAddSingleton<IEventSerializer, TSerializer>();
-		return this;
-	}
+		// Start from global options if registered
+		var globalOptions = sp.GetService<IOptions<EventSourcedRepositoryOptions>>()?.Value;
+		var options = new EventSourcedRepositoryOptions();
 
-	/// <summary>
-	/// Configures a custom outbox store for event sourcing.
-	/// </summary>
-	/// <typeparam name="TOutboxStore"> The outbox store implementation type. </typeparam>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder UseOutboxStore<
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-	TOutboxStore>()
-		where TOutboxStore : class, IEventSourcedOutboxStore
-	{
-		Services.TryAddSingleton<IEventSourcedOutboxStore, TOutboxStore>();
-		return this;
-	}
-
-	/// <summary>
-	/// Configures the upcasting pipeline for event versioning.
-	/// </summary>
-	/// <param name="configure"> Action to configure the upcasting builder. </param>
-	/// <returns> The builder for fluent configuration. </returns>
-	public IEventSourcingBuilder AddUpcastingPipeline(Action<UpcastingBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = Services.AddMessageUpcasting(configure);
-		return this;
-	}
-
-	/// <summary>
-	/// Registers event store erasure support for GDPR compliance.
-	/// </summary>
-	/// <typeparam name="TMapping">
-	/// The <see cref="Erasure.IAggregateDataSubjectMapping"/> implementation that maps
-	/// data subjects to their aggregates.
-	/// </typeparam>
-	/// <returns>The builder for fluent configuration.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers an <see cref="Dispatch.Compliance.IErasureContributor"/> that delegates
-	/// to <see cref="IEventStoreErasure"/> for event tombstoning and optionally
-	/// <see cref="ISnapshotStore"/> for snapshot deletion.
-	/// </para>
-	/// <para>
-	/// The <see cref="IEventStore"/> registered in DI must also implement
-	/// <see cref="IEventStoreErasure"/>. If it does not, the contributor will fail at
-	/// runtime when erasure is attempted.
-	/// </para>
-	/// </remarks>
-	public IEventSourcingBuilder UseEventStoreErasure<
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-	TMapping>()
-		where TMapping : class, Erasure.IAggregateDataSubjectMapping
-	{
-		Services.TryAddSingleton<Erasure.IAggregateDataSubjectMapping, TMapping>();
-
-		// Register the erasure contributor that bridges GDPR erasure to event sourcing.
-		// The contributor resolves IEventStoreErasure from the IEventStore at runtime.
-		_ = Services.AddSingleton<Dispatch.Compliance.IErasureContributor>(sp =>
+		if (globalOptions is not null)
 		{
-			var eventStore = sp.GetRequiredKeyedService<IEventStore>("default");
-			var erasure = eventStore as IEventStoreErasure
-						  ?? throw new InvalidOperationException(
-							  $"The registered IEventStore ({eventStore.GetType().Name}) does not implement IEventStoreErasure. " +
-							  $"GDPR event store erasure requires an event store that supports the IEventStoreErasure interface.");
-
-			return new Erasure.EventStoreErasureContributor(
-				erasure,
-				sp.GetRequiredService<Erasure.IAggregateDataSubjectMapping>(),
-				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Erasure.EventStoreErasureContributor>>(),
-				sp.GetKeyedService<ISnapshotStore>("default"));
-		});
-
-		return this;
-	}
-
-	/// <summary>
-	/// Configures snapshot upgrading for automatic snapshot version migration.
-	/// </summary>
-	/// <param name="configure"> Action to configure the snapshot upgrading builder. </param>
-	/// <returns> The builder for fluent configuration. </returns>
-	/// <remarks>
-	/// <para>
-	/// Registers the <see cref="SnapshotVersionManager"/> and all configured
-	/// <see cref="ISnapshotUpgrader"/> implementations. When enabled, snapshot data
-	/// is automatically upgraded during aggregate hydration from snapshots.
-	/// </para>
-	/// </remarks>
-	public IEventSourcingBuilder AddSnapshotUpgrading(Action<SnapshotUpgradingBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-
-		var options = new SnapshotUpgradingOptions();
-		var builder = new SnapshotUpgradingBuilder(options);
-		configure(builder);
-
-		_ = Services.AddOptions<SnapshotUpgradingOptions>()
-			.Configure(opt =>
-			{
-				opt.EnableAutoUpgradeOnLoad = options.EnableAutoUpgradeOnLoad;
-				opt.CurrentSnapshotVersion = options.CurrentSnapshotVersion;
-			})
-			.ValidateDataAnnotations()
-			.ValidateOnStart();
-
-		foreach (var upgrader in builder.Upgraders)
-		{
-			_ = Services.AddSingleton(upgrader);
+			options.EnableAutoUpcast = globalOptions.EnableAutoUpcast;
+			options.EnableAutoSnapshotUpgrade = globalOptions.EnableAutoSnapshotUpgrade;
+			options.TargetSnapshotVersion = globalOptions.TargetSnapshotVersion;
+			options.OutboxStagingStrategy = globalOptions.OutboxStagingStrategy;
 		}
 
-		Services.TryAddSingleton<SnapshotVersionManager>();
+		// Apply per-aggregate overrides
+		configureOptions?.Invoke(options);
 
-		return this;
+		return Microsoft.Extensions.Options.Options.Create(options);
 	}
 }
 

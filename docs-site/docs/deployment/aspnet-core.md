@@ -10,7 +10,7 @@ ASP.NET Core is the most common hosting model for Excalibur applications, combin
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -30,6 +30,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es =>
     {
+        es.UseSqlServer(opts => opts.ConnectionString = connectionString);
         es.AddRepository<OrderAggregate, OrderId>();
         es.UseIntervalSnapshots(100);
     });
@@ -40,9 +41,6 @@ builder.Services.AddExcalibur(excalibur =>
         outbox.EnableBackgroundProcessing();
     });
 });
-
-// Add SQL Server event sourcing provider (event store, snapshot store, outbox store)
-builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 // Add controllers or minimal APIs
 builder.Services.AddControllers();
@@ -264,12 +262,12 @@ public class ProjectionBackgroundService : BackgroundService
 ### Dockerfile
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY ["OrderService.csproj", "./"]
 RUN dotnet restore
@@ -333,13 +331,13 @@ app.Lifetime.ApplicationStopping.Register(() =>
 Excalibur uses Dapper and ADO.NET for all SQL operations. Configure retry policies with Polly:
 
 ```csharp
-builder.Services.AddExcaliburOutbox(outbox =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(sql =>
     {
         sql.ConnectionString(connectionString);
     });
-});
+}));
 
 // Add resilience via Polly
 builder.Services.AddResiliencePipeline("sql-retry", pipeline =>
@@ -390,7 +388,7 @@ See [Minimal API Hosting Bridge](./minimal-api-bridge.md) for the full reference
 
 For feature-rich APIs, consider organizing code using **vertical slice architecture** -- group files by feature (Patients, Appointments) instead of by technical layer (Controllers, Services, Repositories). This pairs naturally with Dispatch's one-message-per-operation model.
 
-See [Vertical Slice Architecture](../architecture/vertical-slice-architecture.md) for guidance and a [working healthcare sample](https://github.com/TrigintaFaces/Excalibur/tree/main/samples/12-vertical-slice-api).
+See [Vertical Slice Architecture](../architecture/vertical-slice-architecture.md) for guidance and a [working healthcare sample](https://github.com/TrigintaFaces/Excalibur/tree/main/samples/11-real-world/HealthcareApi).
 
 ## Content Negotiation
 
@@ -398,11 +396,12 @@ Dispatch provides custom ASP.NET Core formatters that bridge `ISerializerRegistr
 
 ```csharp
 // 1. Register serializers
-builder.Services.AddDispatchSerialization(serializers =>
+builder.Services.AddDispatch(dispatch =>
 {
-    serializers.AddSystemTextJson();   // application/json
-    serializers.AddMessagePack();      // application/x-msgpack
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
+// MessagePack for content negotiation (application/x-msgpack)
+builder.Services.AddMessagePackSerializer();
 
 // 2. Add content negotiation formatters
 builder.Services.AddControllers()

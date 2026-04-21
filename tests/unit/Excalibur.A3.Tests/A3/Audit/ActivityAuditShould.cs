@@ -57,7 +57,7 @@ public sealed class ActivityAuditShould
 		audit.UserName.ShouldBe("John Doe");
 		audit.TenantId.ShouldBe("tenant-1");
 		audit.StatusCode.ShouldBe(0);
-		audit.Exception.ShouldBeNull();
+		audit.Exception!.ShouldBeNull();
 		audit.Response.ShouldBeNull();
 	}
 
@@ -187,7 +187,7 @@ public sealed class ActivityAuditShould
 		response.ShouldBe("success");
 		audit.Response.ShouldBe("success");
 		audit.StatusCode.ShouldBe(200);
-		audit.Exception.ShouldBeNull();
+		audit.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -201,7 +201,7 @@ public sealed class ActivityAuditShould
 		await Should.ThrowAsync<InvalidOperationException>(async () =>
 			await audit.DecorateAsync(() => throw expectedException));
 
-		audit.Exception.ShouldBe(expectedException);
+		audit.Exception!.ShouldBe(expectedException);
 		audit.StatusCode.ShouldBe(500);
 	}
 
@@ -216,7 +216,7 @@ public sealed class ActivityAuditShould
 		await Should.ThrowAsync<ApiException>(async () =>
 			await audit.DecorateAsync(() => throw apiException));
 
-		audit.Exception.ShouldBe(apiException);
+		audit.Exception!.ShouldBe(apiException);
 		audit.StatusCode.ShouldBe(404);
 	}
 

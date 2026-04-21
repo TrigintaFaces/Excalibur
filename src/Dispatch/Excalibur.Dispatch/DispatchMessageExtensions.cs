@@ -70,7 +70,8 @@ public static class DispatchMessageExtensions
 		return HasGenericActionInterface(type);
 	}
 
-	private static bool HasGenericActionInterface(Type messageType)
+	private static bool HasGenericActionInterface(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
 	{
 		if (GenericActionInterfaceCache.TryGetValue(messageType, out var cached))
 		{
@@ -86,7 +87,8 @@ public static class DispatchMessageExtensions
 		return result;
 	}
 
-	private static bool CheckGenericActionInterface(Type type)
+	private static bool CheckGenericActionInterface(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
 	{
 		var interfaces = type.GetInterfaces();
 		for (var i = 0; i < interfaces.Length; i++)

@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
 
@@ -22,11 +22,7 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 
 	private readonly ILogger<WeightedRoundRobinLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly ConcurrentDictionary<string, RouteState> _routeStates = new(StringComparer.Ordinal);
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _snapshotLock = new();
-#else
-	private readonly object _snapshotLock = new();
-#endif
+	private readonly Lock _snapshotLock = new();
 	private RouteDefinition[] _weightedRoutesSnapshot = [];
 	private Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
 	private int _currentIndex;
@@ -105,7 +101,7 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 
 	private static bool RoutesUnchanged(
 		IReadOnlyList<RouteDefinition> routes,
-		IReadOnlyDictionary<string, int> routeWeightSnapshot)
+		Dictionary<string, int> routeWeightSnapshot)
 	{
 		if (routes.Count != routeWeightSnapshot.Count)
 		{
@@ -158,11 +154,7 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 
 	private sealed class RouteState
 	{
-#if NET9_0_OR_GREATER
-		private readonly System.Threading.Lock _lock = new();
-#else
-		private readonly object _lock = new();
-#endif
+		private readonly Lock _lock = new();
 		private double _totalLatency;
 
 		public long TotalRequests { get; set; }

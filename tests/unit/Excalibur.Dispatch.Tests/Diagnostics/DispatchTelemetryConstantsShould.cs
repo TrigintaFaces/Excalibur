@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Diagnostics;
 
 namespace Excalibur.Dispatch.Tests.Diagnostics;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchTelemetryConstantsShould
 {
 	[Fact]
@@ -31,7 +31,7 @@ public sealed class DispatchTelemetryConstantsShould
 		DispatchTelemetryConstants.ActivitySources.PoisonMessage.ShouldBe("Excalibur.Dispatch.PoisonMessage");
 		DispatchTelemetryConstants.ActivitySources.PoisonMessageMiddleware.ShouldBe("Excalibur.Dispatch.PoisonMessage.Middleware");
 		DispatchTelemetryConstants.ActivitySources.PoisonMessageCleanup.ShouldBe("Excalibur.Dispatch.PoisonMessage.Cleanup");
-		DispatchTelemetryConstants.ActivitySources.AuditLoggingMiddleware.ShouldBe("Excalibur.Dispatch.AuditLoggingMiddleware");
+		DispatchTelemetryConstants.ActivitySources.AuditLoggingMiddleware.ShouldBe("Excalibur.AuditLoggingMiddleware");
 		DispatchTelemetryConstants.ActivitySources.CircuitBreakerMiddleware.ShouldBe("Excalibur.Dispatch.CircuitBreakerMiddleware");
 		DispatchTelemetryConstants.ActivitySources.RetryMiddleware.ShouldBe("Excalibur.Dispatch.RetryMiddleware");
 		DispatchTelemetryConstants.ActivitySources.UnifiedBatchingMiddleware.ShouldBe("Excalibur.Dispatch.UnifiedBatchingMiddleware");
@@ -86,7 +86,7 @@ public sealed class DispatchTelemetryConstantsShould
 		DispatchTelemetryConstants.Tags.BatchSize.ShouldBe("batch.size");
 		DispatchTelemetryConstants.Tags.IsDuplicate.ShouldBe("message.is_duplicate");
 		DispatchTelemetryConstants.Tags.ErrorType.ShouldBe("error.type");
-		DispatchTelemetryConstants.Tags.ErrorMessage.ShouldBe("error.message");
+		DispatchTelemetryConstants.Tags.ErrorMessage!.ShouldBe("error.message");
 		DispatchTelemetryConstants.Tags.IsRetryable.ShouldBe("error.retryable");
 	}
 
@@ -121,6 +121,9 @@ public sealed class DispatchTelemetryConstantsShould
 	[Fact]
 	public void AllActivitySources_StartWithBaseNamespace()
 	{
+		// Per S806 COMPASS msg 2120: activity-source names track package namespace, not a single fixed prefix.
+		// AuditLoggingMiddleware lives under "Excalibur.AuditLoggingMiddleware" (audit-concern root),
+		// not under "Excalibur.Dispatch.*" (dispatch-concern root). Framework-wide invariant is "Excalibur.*".
 		var sources = new[]
 		{
 			DispatchTelemetryConstants.ActivitySources.Core,
@@ -138,7 +141,7 @@ public sealed class DispatchTelemetryConstantsShould
 
 		foreach (var source in sources)
 		{
-			source.ShouldStartWith(DispatchTelemetryConstants.BaseNamespace);
+			source.ShouldStartWith("Excalibur.");
 		}
 	}
 }

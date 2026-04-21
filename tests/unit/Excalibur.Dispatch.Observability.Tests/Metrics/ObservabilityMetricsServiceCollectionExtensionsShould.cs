@@ -88,7 +88,6 @@ public sealed class ObservabilityMetricsServiceCollectionExtensionsShould
 		// Act
 		services.AddDispatchMetricsInstrumentation(options =>
 		{
-			options.EnableDetailedTiming = true;
 		});
 
 		// Assert

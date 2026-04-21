@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 /// Unit tests for <see cref="DispatchMiddlewareStage"/> enum (canonical version from Abstractions).
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchMiddlewareStageShould
 {
 	[Fact]

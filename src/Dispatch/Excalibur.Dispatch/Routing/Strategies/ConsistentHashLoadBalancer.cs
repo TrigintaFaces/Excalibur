@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Diagnostics;
@@ -22,11 +22,7 @@ internal partial class ConsistentHashLoadBalancer(
 	private static readonly Dictionary<string, int> EmptyRouteWeightSnapshot = new(0, StringComparer.Ordinal);
 
 	private readonly ILogger<ConsistentHashLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _rebuildLock = new();
-#else
-	private readonly object _rebuildLock = new();
-#endif
+	private readonly Lock _rebuildLock = new();
 	private HashRingSnapshot _hashRingSnapshot = HashRingSnapshot.Empty;
 	private Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
 
@@ -114,7 +110,7 @@ internal partial class ConsistentHashLoadBalancer(
 
 	private static bool RoutesUnchanged(
 		IReadOnlyList<RouteDefinition> routes,
-		IReadOnlyDictionary<string, int> routeWeightSnapshot)
+		Dictionary<string, int> routeWeightSnapshot)
 	{
 		if (routes.Count != routeWeightSnapshot.Count)
 		{

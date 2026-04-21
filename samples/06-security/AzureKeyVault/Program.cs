@@ -14,10 +14,11 @@
 // For local development, use Azure CLI authentication (DefaultAzureCredential).
 // For production, use Managed Identity.
 
+#pragma warning disable CA1506 // Sample has high coupling by design
+
 using AzureKeyVaultSample.Services;
 
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,12 +48,28 @@ var host = Host.CreateDefaultBuilder(args)
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-			_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
 		});
 
-		// Add Azure Key Vault credential store
+		// Add Azure Key Vault credential store via builder pattern
 		// This registers ICredentialStore and IWritableCredentialStore
-		_ = services.AddAzureKeyVaultCredentialStore(context.Configuration);
+		_ = services.AddDispatchSecurityAzure(azure =>
+		{
+			var vaultUri = context.Configuration["AzureKeyVault:VaultUri"];
+			if (!string.IsNullOrEmpty(vaultUri))
+			{
+				azure.VaultUri(vaultUri);
+				var prefix = context.Configuration["AzureKeyVault:KeyPrefix"];
+				if (!string.IsNullOrEmpty(prefix))
+				{
+					azure.KeyPrefix(prefix);
+				}
+			}
+			else
+			{
+				// Fallback: bind from configuration section
+				azure.BindConfiguration("AzureKeyVault");
+			}
+		});
 
 		// Register sample services
 		_ = services.AddSingleton<SecretDemoService>();

@@ -30,7 +30,7 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	/// <summary>
 	/// Gets the state store configure callback, if provided.
 	/// </summary>
-	internal Action<ICdcStateStoreBuilder>? StateStoreConfigure { get; private set; }
+	internal Action<ICdcRelationalStateStoreBuilder>? StateStoreConfigure { get; private set; }
 
 	/// <summary>
 	/// Gets the source BindConfiguration section path, if set.
@@ -133,7 +133,7 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	}
 
 	/// <inheritdoc/>
-	public ISqlServerCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure)
+	public ISqlServerCdcBuilder WithStateStore(Action<ICdcRelationalStateStoreBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 
@@ -141,7 +141,11 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Sets a factory function that creates SQL connections for the CDC state store.
+	/// </summary>
+	/// <param name="stateConnectionFactory">A factory function that creates state store SQL connections.</param>
+	/// <returns>The builder for fluent chaining.</returns>
 	public ISqlServerCdcBuilder StateConnectionFactory(Func<IServiceProvider, Func<SqlConnection>> stateConnectionFactory)
 	{
 		ArgumentNullException.ThrowIfNull(stateConnectionFactory);

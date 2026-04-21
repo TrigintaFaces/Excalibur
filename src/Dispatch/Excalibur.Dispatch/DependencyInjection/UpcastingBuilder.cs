@@ -258,7 +258,7 @@ public sealed class UpcastingBuilder
 
 		// Call pipeline.Register<TOld, TNew>(upcaster) via reflection
 		var registerMethod = typeof(IUpcastingPipeline)
-			.GetMethod(nameof(IUpcastingPipeline.Register))
+			.GetMethod(nameof(IUpcastingPipeline.Register))!
 			.MakeGenericMethod(oldType, newType);
 
 		_ = registerMethod.Invoke(pipeline, [upcasterInstance]);

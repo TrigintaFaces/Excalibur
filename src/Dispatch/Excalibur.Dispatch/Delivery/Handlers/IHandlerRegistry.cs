@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Delivery.Handlers;
 
 /// <summary>
@@ -34,7 +36,7 @@ public interface IHandlerRegistry
 	/// handler replacement or modification during application lifecycle. Handler types should implement appropriate interfaces
 	/// (IActionHandler, IEventHandler, etc.) to be compatible with the processing pipeline.
 	/// </remarks>
-	void Register(Type messageType, Type handlerType, bool expectsResponse);
+	void Register(Type messageType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType, bool expectsResponse);
 
 	/// <summary>
 	/// Attempts to retrieve the handler registration information for the specified message type. This method provides efficient handler
@@ -50,7 +52,7 @@ public interface IHandlerRegistry
 	/// processing scenarios. The returned entry contains all metadata needed for handler activation and invocation, including response
 	/// expectations and handler type information.
 	/// </remarks>
-	bool TryGetHandler(Type messageType, out HandlerRegistryEntry entry);
+	bool TryGetHandler(Type messageType, out IHandlerRegistryEntry entry);
 
 	/// <summary>
 	/// Retrieves all handler registrations currently maintained by the registry. This method is primarily used for diagnostics,
@@ -70,5 +72,5 @@ public interface IHandlerRegistry
 	/// </para>
 	/// <para>Changes to the registry after calling this method are not reflected in the returned collection.</para>
 	/// </remarks>
-	IReadOnlyList<HandlerRegistryEntry> GetAll();
+	IReadOnlyList<IHandlerRegistryEntry> GetAll();
 }

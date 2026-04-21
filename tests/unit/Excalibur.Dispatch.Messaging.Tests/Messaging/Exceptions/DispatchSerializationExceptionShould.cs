@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// <summary>
 /// Unit tests for <see cref="DispatchSerializationException"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchSerializationExceptionShould
 {
 	[Fact]
@@ -65,7 +65,7 @@ public sealed class DispatchSerializationExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.ErrorCode.ShouldBe(ErrorCodes.SerializationFailed);
 		exception.StatusCode.ShouldBe(400);
 	}
@@ -100,7 +100,7 @@ public sealed class DispatchSerializationExceptionShould
 		// Assert
 		exception.ErrorCode.ShouldBe(errorCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.StatusCode.ShouldBe(400);
 	}
 
@@ -269,8 +269,8 @@ public sealed class DispatchSerializationExceptionShould
 		};
 
 		// Assert
-		exception.InnerException.ShouldBe(jsonException);
-		exception.InnerException.Message.ShouldContain("position 42");
+		exception.InnerException!.ShouldBe(jsonException);
+		exception.InnerException!.Message.ShouldContain("position 42");
 	}
 
 	[Fact]
@@ -280,7 +280,7 @@ public sealed class DispatchSerializationExceptionShould
 		var exception = new DispatchSerializationException("Error", (Exception?)null);
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 		exception.Message.ShouldBe("Error");
 	}
 

@@ -37,29 +37,32 @@ if [ ! -d ".git/hooks" ]; then
     mkdir -p ".git/hooks"
 fi
 
-# Install pre-commit hook
-SOURCE_HOOK="eng/hooks/pre-commit"
-TARGET_HOOK=".git/hooks/pre-commit"
+install_hook() {
+    local hook_name="$1"
+    local source_hook="eng/hooks/$hook_name"
+    local target_hook=".git/hooks/$hook_name"
 
-if [ -f "$SOURCE_HOOK" ]; then
-    echo -e "${CYAN}Installing pre-commit hook...${NC}"
+    if [ -f "$source_hook" ]; then
+        echo -e "${CYAN}Installing $hook_name hook...${NC}"
 
-    # Check if hook already exists
-    if [ -f "$TARGET_HOOK" ]; then
-        echo -e "${YELLOW}  ⚠ Existing hook found - creating backup${NC}"
-        BACKUP_PATH=".git/hooks/pre-commit.backup.$(date +%Y%m%d-%H%M%S)"
-        cp "$TARGET_HOOK" "$BACKUP_PATH"
-        echo -e "${GRAY}  Backup saved: $BACKUP_PATH${NC}"
+        if [ -f "$target_hook" ]; then
+            echo -e "${YELLOW}  ⚠ Existing hook found - creating backup${NC}"
+            local backup_path=".git/hooks/${hook_name}.backup.$(date +%Y%m%d-%H%M%S)"
+            cp "$target_hook" "$backup_path"
+            echo -e "${GRAY}  Backup saved: $backup_path${NC}"
+        fi
+
+        cp "$source_hook" "$target_hook"
+        chmod +x "$target_hook"
+
+        echo -e "${GREEN}  ✓ $hook_name hook installed${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ WARNING: $source_hook not found - skipping${NC}"
     fi
+}
 
-    # Copy hook and make executable
-    cp "$SOURCE_HOOK" "$TARGET_HOOK"
-    chmod +x "$TARGET_HOOK"
-
-    echo -e "${GREEN}  ✓ pre-commit hook installed${NC}"
-else
-    echo -e "${YELLOW}  ⚠ WARNING: $SOURCE_HOOK not found - skipping${NC}"
-fi
+install_hook pre-commit
+install_hook pre-push
 
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

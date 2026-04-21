@@ -17,7 +17,7 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
-[Trait("Feature", "Resilience")]
+[Trait(TraitNames.Feature, TestFeatures.Resilience)]
 public sealed class DynamoDbRetryPolicyShould
 {
 	private readonly Type _policyType;

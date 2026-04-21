@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// <remarks>
 /// Tests the error severity enumeration values and ordering.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Exceptions")]
 [Trait("Priority", "0")]
 public sealed class ErrorSeverityShould

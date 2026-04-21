@@ -119,7 +119,7 @@ internal sealed class SecurityAuditQueryService
 					.Indices("security-audit-*")
 					.Query(new MatchAllQuery())
 					.Size(maxResults)
-					.Sort(static so => so.Field(static f => f.Timestamp, new FieldSort { Order = SortOrder.Asc })),
+					.Sort(static so => so.Field(static f => f.Field("timestamp").Order(SortOrder.Asc))),
 				cancellationToken).ConfigureAwait(false);
 
 			if (!searchResponse.IsValidResponse)
@@ -244,9 +244,7 @@ internal sealed class SecurityAuditQueryService
 					.Query(query)
 					.Size(searchCriteria.MaxResults)
 					.From(searchCriteria.Skip)
-					.Sort(so => so.Field(
-						new Field("timestamp"),
-						new FieldSort { Order = searchCriteria.SortDescending ? SortOrder.Desc : SortOrder.Asc })),
+					.Sort(so => so.Field(f => f.Field("timestamp").Order(searchCriteria.SortDescending ? SortOrder.Desc : SortOrder.Asc))),
 				cancellationToken).ConfigureAwait(false);
 
 			if (!searchResponse.IsValidResponse)
@@ -424,7 +422,7 @@ internal sealed class SecurityAuditQueryService
 		// Time range filter
 		if (criteria.StartTime.HasValue || criteria.EndTime.HasValue)
 		{
-			var rangeQuery = new DateRangeQuery(new Field("timestamp"));
+			var rangeQuery = new DateRangeQuery("timestamp");
 			if (criteria.StartTime.HasValue)
 			{
 				rangeQuery.Gte = (DateMath)criteria.StartTime.Value.DateTime;
@@ -441,25 +439,25 @@ internal sealed class SecurityAuditQueryService
 		// User ID filter
 		if (!string.IsNullOrEmpty(criteria.UserId))
 		{
-			queries.Add(new TermQuery(new Field("userId")) { Value = criteria.UserId });
+			queries.Add(new TermQuery { Field = "userId", Value = criteria.UserId });
 		}
 
 		// Event type filter
 		if (!string.IsNullOrEmpty(criteria.EventType))
 		{
-			queries.Add(new TermQuery(new Field("eventType")) { Value = criteria.EventType });
+			queries.Add(new TermQuery { Field = "eventType", Value = criteria.EventType });
 		}
 
 		// Severity filter
 		if (!string.IsNullOrEmpty(criteria.Severity))
 		{
-			queries.Add(new TermQuery(new Field("severity")) { Value = criteria.Severity });
+			queries.Add(new TermQuery { Field = "severity", Value = criteria.Severity });
 		}
 
 		// Source IP filter
 		if (!string.IsNullOrEmpty(criteria.SourceIpAddress))
 		{
-			queries.Add(new TermQuery(new Field("sourceIpAddress")) { Value = criteria.SourceIpAddress });
+			queries.Add(new TermQuery { Field = "sourceIpAddress", Value = criteria.SourceIpAddress });
 		}
 
 		return queries.Count switch

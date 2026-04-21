@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 using Shouldly;
 using Xunit;
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Encryption;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class DecryptionExceptionShould
 {
     [Fact]
@@ -36,7 +36,7 @@ public sealed class DecryptionExceptionShould
         var ex = new DecryptionException("outer", inner);
 
         ex.Message.ShouldBe("outer");
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
         ex.ErrorCode.ShouldBe(EncryptionErrorCode.InvalidCiphertext);
     }
 
@@ -55,7 +55,7 @@ public sealed class DecryptionExceptionShould
         var ex = new DecryptionException("msg", inner, EncryptionErrorCode.KeyNotFound);
 
         ex.ErrorCode.ShouldBe(EncryptionErrorCode.KeyNotFound);
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]

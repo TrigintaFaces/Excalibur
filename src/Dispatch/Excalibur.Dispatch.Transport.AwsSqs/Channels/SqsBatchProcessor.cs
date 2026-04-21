@@ -82,7 +82,7 @@ internal sealed class SqsBatchProcessor : IAsyncDisposable
 				MaxNumberOfMessages = 10,
 				WaitTimeSeconds = _options.LongPollingSeconds,
 				VisibilityTimeout = _options.VisibilityTimeout,
-				AttributeNames = ["All"],
+				MessageSystemAttributeNames = ["All"],
 				MessageAttributeNames = ["All"],
 			},
 			_ => { });

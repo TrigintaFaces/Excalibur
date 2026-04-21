@@ -64,7 +64,7 @@
     <value>Message {MessageId} partially delivered: {SuccessCount} succeeded, {FailureCount} failed</value>
   </data>
   <data name="MessageBusOutboxPublisher_MultiTransportRequiresRegistry" xml:space="preserve">
-    <value>Multi-transport publishing requires IMultiTransportOutboxStore and TransportRegistry.</value>
+    <value>Multi-transport publishing requires IMultiTransportOutboxStore and ITransportRegistry.</value>
   </data>
   <data name="MessageBusOutboxPublisher_MultiTransportRequiresStore" xml:space="preserve">
     <value>Multi-transport publishing requires an IMultiTransportOutboxStore implementation.</value>
@@ -181,7 +181,7 @@
     <value>Per-transport publishing requires an IMultiTransportOutboxStore implementation.</value>
   </data>
   <data name="MessageBusOutboxPublisher_PerTransportRequiresRegistry" xml:space="preserve">
-    <value>Per-transport publishing requires a TransportRegistry to be configured.</value>
+    <value>Per-transport publishing requires an ITransportRegistry to be configured.</value>
   </data>
   <data name="MultiTransportMessageBusAdapter_AdapterNotRegistered" xml:space="preserve">
     <value>Adapter '{0}' is not registered.</value>
@@ -325,7 +325,7 @@
     <value>Transport validation failed: No transports are registered. Use a transport-specific method like AddRabbitMQTransport(), AddKafkaTransport(), AddAwsSqsTransport(), etc. to register at least one transport, or set TransportValidationOptions.RequireAtLeastOneTransport = false to disable this check.</value>
   </data>
   <data name="TransportStartupValidator_DefaultTransportMissingFormat" xml:space="preserve">
-    <value>Transport validation failed: {0} transports are registered ({1}) but no default transport is set. Call TransportRegistry.SetDefaultTransport() to designate a default, or set TransportValidationOptions.RequireDefaultTransportWhenMultiple = false to disable this check.</value>
+    <value>Transport validation failed: {0} transports are registered ({1}) but no default transport is set. Call ITransportRegistry.SetDefaultTransport() to designate a default, or set TransportValidationOptions.RequireDefaultTransportWhenMultiple = false to disable this check.</value>
   </data>
   <data name="TransportStartupValidator_ValidationErrorsFormat" xml:space="preserve">
     <value>Transport validation failed with {0} error(s):{1}</value>
@@ -354,19 +354,19 @@
   <data name="MemoryMessageOfT_CannotDeserializeWithoutSerializer" xml:space="preserve">
     <value>Cannot deserialize content without serializer. How to fix: Register a serializer via services.AddDispatch(d => d.UseSerialization()) or ensure ISerializer is available in DI.</value>
   </data>
-<data name="HistogramConfiguration_AtLeastOneBucketBoundaryIsRequired" xml:space="preserve">
+<data name="HistogramOptions_AtLeastOneBucketBoundaryIsRequired" xml:space="preserve">
     <value>At least one bucket boundary is required.</value>
   </data>
-  <data name="HistogramConfiguration_StartMustBePositive" xml:space="preserve">
+  <data name="HistogramOptions_StartMustBePositive" xml:space="preserve">
     <value>Start must be positive.</value>
   </data>
-  <data name="HistogramConfiguration_FactorMustBeGreaterThanOne" xml:space="preserve">
+  <data name="HistogramOptions_FactorMustBeGreaterThanOne" xml:space="preserve">
     <value>Factor must be greater than one.</value>
   </data>
-  <data name="HistogramConfiguration_CountMustBePositive" xml:space="preserve">
+  <data name="HistogramOptions_CountMustBePositive" xml:space="preserve">
     <value>Count must be positive.</value>
   </data>
-  <data name="HistogramConfiguration_WidthMustBePositive" xml:space="preserve">
+  <data name="HistogramOptions_WidthMustBePositive" xml:space="preserve">
     <value>Width must be positive.</value>
   </data>
   <data name="LabeledCounter_MetadataMustBeForCounterType" xml:space="preserve">

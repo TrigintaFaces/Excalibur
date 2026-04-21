@@ -10,11 +10,7 @@ namespace Excalibur.Dispatch.Threading;
 public sealed class KeyedLock : IKeyedLock
 {
 	private readonly Dictionary<string, SemaphoreSlim> _locks = [];
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lockObj = new();
-#else
-	private readonly object _lockObj = new();
-#endif
+	private readonly Lock _lockObj = new();
 
 	/// <summary>
 	/// Acquires a lock for the specified key asynchronously, creating a new semaphore if one doesn't exist.

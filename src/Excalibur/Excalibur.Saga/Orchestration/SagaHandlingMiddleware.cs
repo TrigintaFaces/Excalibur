@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Messaging;
 
 using Excalibur.Saga.Diagnostics;
 
@@ -15,7 +16,7 @@ namespace Excalibur.Saga.Orchestration;
 /// <summary>
 /// Middleware that coordinates saga event handling after the main message handlers execute.
 /// </summary>
-public sealed partial class SagaHandlingMiddleware(SagaCoordinator coordinator, ILogger<SagaHandlingMiddleware> logger)
+public sealed partial class SagaHandlingMiddleware(ISagaCoordinator coordinator, ILogger<SagaHandlingMiddleware> logger)
 	: IDispatchMiddleware
 {
 	/// <summary>

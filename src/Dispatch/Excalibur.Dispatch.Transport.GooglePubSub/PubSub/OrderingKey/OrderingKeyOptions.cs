@@ -26,7 +26,7 @@ public sealed class OrderingKeyOptions
 	public int MaxMessagesPerOrderingKey { get; set; } = 1000;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to automatically remove empty ordering key queues. Default is true.
+	/// Gets or sets a value indicating whether to automatically remove empty ordering key queues. Default is true.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether to automatically remove empty ordering key queues. Default is true.
@@ -42,7 +42,7 @@ public sealed class OrderingKeyOptions
 	public TimeSpan QueueCleanupTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to enable detailed metrics collection. Default is true.
+	/// Gets or sets a value indicating whether to enable detailed metrics collection. Default is true.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether to enable detailed metrics collection. Default is true.
@@ -60,7 +60,7 @@ public sealed class OrderingKeyOptions
 	public TimeSpan MessageStaleTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to enforce strict ordering. When true, a failure in processing a message will block all subsequent messages
+	/// Gets or sets a value indicating whether to enforce strict ordering. When true, a failure in processing a message will block all subsequent messages
 	/// with the same ordering key until resolved. Default is false.
 	/// </summary>
 	/// <value>

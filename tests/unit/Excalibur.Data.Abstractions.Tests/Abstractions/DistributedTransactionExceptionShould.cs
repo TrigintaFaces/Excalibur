@@ -3,7 +3,7 @@ using Excalibur.Data.Abstractions.Transactions;
 namespace Excalibur.Data.Tests.Abstractions;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DistributedTransactionExceptionShould
 {
     [Fact]
@@ -14,7 +14,7 @@ public sealed class DistributedTransactionExceptionShould
 
         // Assert
         exception.Message.ShouldNotBeNullOrEmpty();
-        exception.InnerException.ShouldBeNull();
+        exception.InnerException!.ShouldBeNull();
         exception.TransactionId.ShouldBeNull();
         exception.FailedParticipantIds.ShouldBeEmpty();
     }
@@ -44,7 +44,7 @@ public sealed class DistributedTransactionExceptionShould
 
         // Assert
         exception.Message.ShouldBe(message);
-        exception.InnerException.ShouldBeSameAs(inner);
+        exception.InnerException!.ShouldBeSameAs(inner);
     }
 
     [Fact]

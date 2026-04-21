@@ -3,4 +3,4 @@
 
 
 global using Excalibur.Data;
-global using static Excalibur.Cdc.SqlServer.DatabaseConfigDefaults;
+global using static Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults;

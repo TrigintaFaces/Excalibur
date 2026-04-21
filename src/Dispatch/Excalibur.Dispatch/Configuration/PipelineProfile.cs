@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -15,7 +14,7 @@ namespace Excalibur.Dispatch.Configuration;
 /// <summary>
 /// Represents a pipeline profile with ordered middleware for specific message kinds.
 /// </summary>
-public sealed class PipelineProfile : IPipelineProfile
+public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 {
 	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindCache = new();
@@ -130,7 +129,7 @@ public sealed class PipelineProfile : IPipelineProfile
 	/// <inheritdoc />
 	public IReadOnlyList<Type> GetMiddleware()
 	{
-		var snapshot = System.Threading.Volatile.Read(ref _orderedMiddlewareTypesSnapshot);
+		var snapshot = Volatile.Read(ref _orderedMiddlewareTypesSnapshot);
 		if (snapshot != null)
 		{
 			return snapshot;
@@ -350,7 +349,9 @@ public sealed class PipelineProfile : IPipelineProfile
 		return true;
 	}
 
-	private static bool ImplementsGenericActionInterface(Type messageType)
+	private static bool ImplementsGenericActionInterface(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
+		Type messageType)
 	{
 		var interfaces = messageType.GetInterfaces();
 		for (var i = 0; i < interfaces.Length; i++)
@@ -386,7 +387,7 @@ public sealed class PipelineProfile : IPipelineProfile
 		return applicable.Count == 0 ? [] : applicable;
 	}
 
-	private IReadOnlyList<Type> FilterApplicableMiddleware(
+	private List<Type> FilterApplicableMiddleware(
 		MessageKinds messageKind,
 		IReadOnlySet<DispatchFeatures> enabledFeatures)
 	{
@@ -412,7 +413,7 @@ public sealed class PipelineProfile : IPipelineProfile
 
 	private MiddlewareRegistration[] GetOrderedMiddlewareSnapshot()
 	{
-		var snapshot = System.Threading.Volatile.Read(ref _orderedMiddlewareSnapshot);
+		var snapshot = Volatile.Read(ref _orderedMiddlewareSnapshot);
 		if (snapshot != null)
 		{
 			return snapshot;
@@ -448,8 +449,10 @@ public sealed class PipelineProfile : IPipelineProfile
 
 	private MiddlewareRegistration CreateMiddlewareRegistration(Type middlewareType, int order)
 	{
-		var appliesToAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<AppliesToAttribute>(middlewareType, inherit: true);
-		var excludeKindsAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<ExcludeKindsAttribute>(middlewareType, inherit: true);
+		var appliesToAttribute =
+			System.Reflection.CustomAttributeExtensions.GetCustomAttribute<AppliesToAttribute>(middlewareType, inherit: true);
+		var excludeKindsAttribute =
+			System.Reflection.CustomAttributeExtensions.GetCustomAttribute<ExcludeKindsAttribute>(middlewareType, inherit: true);
 		var requiresFeaturesAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<RequiresFeaturesAttribute>(
 			middlewareType,
 			inherit: true);
@@ -473,7 +476,7 @@ public sealed class PipelineProfile : IPipelineProfile
 		{
 			MiddlewareType = middlewareType,
 			Order = order,
-			RegistrationSequence = System.Threading.Interlocked.Increment(ref _registrationSequence),
+			RegistrationSequence = Interlocked.Increment(ref _registrationSequence),
 			IncludedKinds = appliesToAttribute?.MessageKinds ?? MessageKinds.All,
 			ExcludedKinds = excludeKindsAttribute?.ExcludedKinds ?? MessageKinds.None,
 			RequiredFeatures = requiredFeatureArray,

@@ -49,5 +49,6 @@ public interface IEventSerializer
 	/// </summary>
 	/// <param name="typeName"> The stored type name. </param>
 	/// <returns> The resolved type. </returns>
+	[RequiresUnreferencedCode("Resolving types by name requires type metadata that may be removed during trimming")]
 	Type ResolveType(string typeName);
 }

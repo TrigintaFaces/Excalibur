@@ -29,7 +29,7 @@ public sealed class TransportSecurityExceptionShould
         var ex = new TransportSecurityException("TLS failed", inner);
 
         ex.Message.ShouldBe("TLS failed");
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]

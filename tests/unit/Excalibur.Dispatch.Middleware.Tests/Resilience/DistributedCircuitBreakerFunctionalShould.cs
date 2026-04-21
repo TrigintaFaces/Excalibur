@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Functional tests for <see cref="DistributedCircuitBreaker"/> verifying
 /// state transitions, failure tracking, and recovery behavior.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class DistributedCircuitBreakerFunctionalShould : IAsyncDisposable
 {
 	private readonly MemoryDistributedCache _cache;

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Observability.Metrics;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class ObservabilityMetricsServiceCollectionExtensionsShould
 {

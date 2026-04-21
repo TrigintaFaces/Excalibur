@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Transport.RabbitMQ;
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -38,9 +43,9 @@ public static class RabbitMqStreamServiceCollectionExtensions
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// Registers <see cref="RabbitMqStreamOptions"/> in the DI container with data annotation
-	/// validation and startup validation. The consumer implementation should be registered
-	/// separately as <see cref="IRabbitMqStreamConsumer"/>.
+	/// Registers <see cref="RabbitMqStreamOptions"/> in the DI container with
+	/// <see cref="IValidateOptions{TOptions}"/> validation and startup validation.
+	/// The consumer implementation should be registered separately as <see cref="IRabbitMqStreamConsumer"/>.
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddRabbitMqStreamQueues(
@@ -52,8 +57,40 @@ public static class RabbitMqStreamServiceCollectionExtensions
 
 		_ = services.AddOptions<RabbitMqStreamOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqStreamOptions>, RabbitMqStreamOptionsValidator>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds RabbitMQ stream queue support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RabbitMqStreamOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddRabbitMqStreamQueues(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RabbitMqStreamOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqStreamOptions>, RabbitMqStreamOptionsValidator>());
 
 		return services;
 	}

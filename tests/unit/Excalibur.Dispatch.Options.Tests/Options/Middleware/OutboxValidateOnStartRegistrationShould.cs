@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Tests.Options.Middleware;
 /// side effects in unit tests.
 /// </remarks>
 [Trait("Category", "Unit")]
-[Trait("Component", "Outbox")]
+[Trait(TraitNames.Component, TestComponents.Outbox)]
 public sealed class OutboxValidateOnStartRegistrationShould
 {
 	/// <summary>

@@ -51,11 +51,6 @@ public sealed class ObservabilityOptions
 	public string ServiceVersion { get; set; } = "1.0.0";
 
 	/// <summary>
-	/// Gets or sets a value indicating whether detailed middleware timing is enabled.
-	/// </summary>
-	public bool EnableDetailedTiming { get; set; }
-
-	/// <summary>
 	/// Gets or sets a value indicating whether sensitive data should be included in telemetry.
 	/// </summary>
 	public bool IncludeSensitiveData { get; set; }

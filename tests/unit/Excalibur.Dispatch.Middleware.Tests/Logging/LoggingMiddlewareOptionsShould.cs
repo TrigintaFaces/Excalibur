@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Logging;
 /// <summary>
 /// Unit tests for LoggingMiddlewareOptions configuration.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class LoggingMiddlewareOptionsShould : UnitTestBase
 {

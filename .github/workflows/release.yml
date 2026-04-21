@@ -22,6 +22,7 @@ on:
         type: boolean
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -32,7 +33,7 @@ jobs:
     name: Pre-Release Validation
     runs-on: ubuntu-latest
     env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+      VSTEST_CONNECTION_TIMEOUT: 600
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -73,7 +74,7 @@ jobs:
           echo "✅ Version format is valid"
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -87,6 +88,17 @@ jobs:
           set -euo pipefail
           echo "Disk usage before cleanup:"
           df -h
+
+          # Remove pre-installed tools in parallel (saves ~3 min vs sequential)
+          sudo rm -rf /usr/local/lib/android &              # ~12GB
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &         # ~6GB
+          sudo rm -rf /usr/local/share/powershell &         # ~1.5GB
+          sudo rm -rf /usr/share/swift &                    # ~1.5GB
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.* \
+                      /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.* \
+                      /usr/share/dotnet/shared/Microsoft.NETCore.App/6.* \
+                      /usr/share/dotnet/shared/Microsoft.NETCore.App/7.* &
+          wait
 
           for d in \
             "$RUNNER_TEMP" \
@@ -120,7 +132,7 @@ jobs:
           fi
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -128,10 +140,14 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: |
+          dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
+          dotnet restore eng/ci/shards/ReleaseBlocking.slnf --verbosity quiet
 
-      - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
+      - name: Build release-blocking projects
+        run: |
+          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity minimal
+          dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal
 
       - name: Validate governance release invariants
         shell: pwsh
@@ -197,32 +213,29 @@ jobs:
 
       - name: Upload flaky quarantine report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-flaky-quarantine-report
           path: management/reports/FlakyQuarantineReport
           if-no-files-found: warn
           retention-days: 30
 
-  # Build and package libraries
-  pre-tag-unit-soak:
-    name: Pre-Tag Unit Soak (${{ matrix.os }}, run ${{ matrix.iteration }})
+  # Build once per OS, then soak iterations download pre-built artifacts
+  pre-tag-soak-build:
+    name: Pre-Tag Soak Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: pre-release-validation
-    timeout-minutes: 120
-    env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        iteration: [1, 2, 3]
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -236,6 +249,17 @@ jobs:
           set -euo pipefail
           echo "Disk usage before cleanup:"
           df -h
+
+          # Remove pre-installed tools in parallel (saves ~3 min vs sequential)
+          sudo rm -rf /usr/local/lib/android &              # ~12GB
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &         # ~6GB
+          sudo rm -rf /usr/local/share/powershell &         # ~1.5GB
+          sudo rm -rf /usr/share/swift &                    # ~1.5GB
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.* \
+                      /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.* \
+                      /usr/share/dotnet/shared/Microsoft.NETCore.App/6.* \
+                      /usr/share/dotnet/shared/Microsoft.NETCore.App/7.* &
+          wait
 
           for d in \
             "$RUNNER_TEMP" \
@@ -269,7 +293,7 @@ jobs:
           fi
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -282,6 +306,58 @@ jobs:
       - name: Build release-blocking shard
         run: dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal
 
+      - name: Package build output
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf soak-build-output.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh soak-build-output.tar.gz
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v7
+        with:
+          name: soak-build-${{ matrix.os }}
+          path: soak-build-output.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+  pre-tag-unit-soak:
+    name: Pre-Tag Unit Soak (${{ matrix.os }}, 3 iterations)
+    runs-on: ${{ matrix.os }}
+    needs: [pre-release-validation, pre-tag-soak-build]
+    timeout-minutes: 120
+    env:
+      VSTEST_CONNECTION_TIMEOUT: 600
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Download pre-built soak artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: soak-build-${{ matrix.os }}
+
+      - name: Extract build output
+        shell: bash
+        run: tar -xzf soak-build-output.tar.gz && rm soak-build-output.tar.gz
+
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
+
       - name: Compose pre-tag soak filter
         shell: pwsh
         run: |
@@ -290,14 +366,20 @@ jobs:
           "PRETAG_SOAK_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
           Write-Host "Using pre-tag soak filter with $($filterInfo.count) quarantined exclusions."
 
-      - name: Run unit shard soak iteration
-        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+      - name: "Soak iteration 1 of 3"
+        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-1" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+
+      - name: "Soak iteration 2 of 3"
+        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-2" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+
+      - name: "Soak iteration 3 of 3"
+        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-3" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload soak test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}
+          name: pre-tag-unit-soak-${{ matrix.os }}
           path: "**/pre-tag-unit-soak-*.trx"
           retention-days: 30
 
@@ -315,7 +397,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -323,18 +405,18 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+      - name: Restore shipping projects
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
-      - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
+      - name: Build shipping projects
+        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity minimal
 
       - name: Create release packages
         shell: bash
@@ -391,7 +473,7 @@ jobs:
           Write-Host "`n✅ All packages validated successfully" -ForegroundColor Green
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.os }}
           path: |
@@ -410,7 +492,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -436,7 +518,7 @@ jobs:
           fi
 
       - name: Upload release SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-cyclonedx-sbom
           path: |
@@ -460,7 +542,7 @@ jobs:
           path: packages
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -524,7 +606,7 @@ jobs:
 
       - name: Upload security results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-analysis
           path: security-report.json
@@ -638,7 +720,7 @@ jobs:
 
       - name: Create GitHub Release
         id: create_release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -680,7 +762,7 @@ jobs:
           path: packages
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x

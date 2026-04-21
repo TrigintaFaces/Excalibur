@@ -13,7 +13,7 @@ This sample shows the simplest possible Dispatch setup:
 
 - **Command Handling** - `IDispatchAction<TResult>` with `IActionHandler<TAction, TResult>`
 - **Event Publishing** - `IDispatchEvent` with `IEventHandler<TEvent>`
-- **Validation Middleware** - `AddDispatchValidation()` for pipeline validation
+- **Validation Middleware** - `UseValidation()` for pipeline validation
 - **Handler Discovery** - `AddHandlersFromAssembly()` for automatic registration
 
 ## Running the Sample
@@ -31,7 +31,7 @@ HelloDispatch/
 ├── PingCommand.cs           # Command: IDispatchAction<string>
 ├── PingCommandHandler.cs    # Handler: IActionHandler<PingCommand, string>
 ├── PingEvent.cs             # Event: IDispatchEvent
-└── PingEventConsumer.cs     # Handler: IEventHandler<PingEvent>
+└── PingHandler.cs           # Handler: IEventHandler<PingEvent>
 ```
 
 ## Key Configuration
@@ -44,7 +44,7 @@ services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
 services.AddDispatch(dispatch =>
 {
     _ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    _ = dispatch.AddDispatchValidation();
+    _ = dispatch.UseValidation();
 });
 ```
 
@@ -62,7 +62,7 @@ _ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 ## Message Flow
 
 1. **PingCommand** is dispatched and returns a `string` response ("Pong: Hello")
-2. **PingEvent** is dispatched and handled by `PingEventHandler`
+2. **PingEvent** is dispatched and handled by `PingHandler`
 
 ## Dependencies
 

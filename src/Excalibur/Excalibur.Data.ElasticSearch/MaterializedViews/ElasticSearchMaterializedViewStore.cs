@@ -91,8 +91,10 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 			WriteIndented = false
 		};
 	}
-
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("JSON deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON deserialization might require runtime code generation.")]
 	public async ValueTask<TView?> GetAsync<TView>(
@@ -109,7 +111,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 
 		var documentId = CreateDocumentId(viewName, viewId);
 
-		var response = await _client.GetAsync<MaterializedViewDocument>(
+		var response = await _client!.GetAsync<MaterializedViewDocument>(
 			_options.ViewsIndexName,
 			documentId,
 			cancellationToken).ConfigureAwait(false);
@@ -125,8 +127,10 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 		// Deserialize the view data from JSON string
 		return JsonSerializer.Deserialize<TView>(response.Source.Data, _jsonOptions);
 	}
-
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("JSON serialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization might require runtime code generation.")]
 	public async ValueTask SaveAsync<TView>(
@@ -155,7 +159,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 			UpdatedAt = now
 		};
 
-		var response = await _client.IndexAsync(
+		var response = await _client!.IndexAsync(
 			document,
 			idx => idx
 				.Index(_options.ViewsIndexName)
@@ -187,7 +191,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 		var documentId = CreateDocumentId(viewName, viewId);
 
 		var deleteRequest = new DeleteRequest(_options.ViewsIndexName, new Id(documentId));
-		var response = await _client
+		var response = await _client!
 			.DeleteAsync(deleteRequest, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -207,7 +211,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var response = await _client.GetAsync<MaterializedViewPositionDocument>(
+		var response = await _client!.GetAsync<MaterializedViewPositionDocument>(
 			_options.PositionsIndexName,
 			viewName,
 			cancellationToken).ConfigureAwait(false);
@@ -236,7 +240,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 
 		var document = new MaterializedViewPositionDocument { ViewName = viewName, Position = position, CreatedAt = now, UpdatedAt = now };
 
-		var response = await _client.IndexAsync(
+		var response = await _client!.IndexAsync(
 			document,
 			idx => idx
 				.Index(_options.PositionsIndexName)
@@ -308,7 +312,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 
 	private async Task EnsureViewsIndexExistsAsync(CancellationToken cancellationToken)
 	{
-		var existsResponse = await _client.Indices.ExistsAsync(
+		var existsResponse = await _client!.Indices.ExistsAsync(
 			_options.ViewsIndexName,
 			cancellationToken).ConfigureAwait(false);
 
@@ -344,7 +348,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 
 	private async Task EnsurePositionsIndexExistsAsync(CancellationToken cancellationToken)
 	{
-		var existsResponse = await _client.Indices.ExistsAsync(
+		var existsResponse = await _client!.Indices.ExistsAsync(
 			_options.PositionsIndexName,
 			cancellationToken).ConfigureAwait(false);
 

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Excalibur.Data.Abstractions.CloudNative;
 using Excalibur.Data.Abstractions.Observability;
@@ -123,7 +124,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 		try
 		{
-			var response = await _container.CreateItemAsync(
+			var response = await _container!.CreateItemAsync(
 				document,
 				cosmosPartitionKey,
 				new ItemRequestOptions { EnableContentResponseOnWrite = true },
@@ -180,7 +181,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		var cosmosPartitionKey = new CosmosPartitionKey(partitionKey.Value);
-		var batch = _container.CreateTransactionalBatch(cosmosPartitionKey);
+		var batch = _container!.CreateTransactionalBatch(cosmosPartitionKey);
 
 		foreach (var message in messages)
 		{
@@ -265,7 +266,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			string? continuationToken = null;
 			string? sessionToken = null;
 
-			var iterator = _container.GetItemQueryIterator<OutboxDocument>(query, requestOptions: queryOptions);
+			var iterator = _container!.GetItemQueryIterator<OutboxDocument>(query, requestOptions: queryOptions);
 
 			if (iterator.HasMoreResults)
 			{
@@ -325,7 +326,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		try
 		{
 			// Read the existing document first
-			var readResponse = await _container.ReadItemAsync<OutboxDocument>(
+			var readResponse = await _container!.ReadItemAsync<OutboxDocument>(
 				messageId,
 				cosmosPartitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -340,7 +341,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				document.Ttl = _options.DefaultTimeToLiveSeconds;
 			}
 
-			var replaceResponse = await _container.ReplaceItemAsync(
+			var replaceResponse = await _container!.ReplaceItemAsync(
 				document,
 				messageId,
 				cosmosPartitionKey,
@@ -404,7 +405,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		{
 			try
 			{
-				var response = await _container.ReadItemAsync<OutboxDocument>(
+				var response = await _container!.ReadItemAsync<OutboxDocument>(
 					messageId,
 					cosmosPartitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -419,7 +420,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		}
 
 		// Update all documents in a batch
-		var batch = _container.CreateTransactionalBatch(cosmosPartitionKey);
+		var batch = _container!.CreateTransactionalBatch(cosmosPartitionKey);
 		foreach (var (doc, etag) in documents)
 		{
 			doc.IsPublished = true;
@@ -509,7 +510,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			var deletedCount = 0;
 			double totalRequestCharge = 0;
 
-			var iterator = _container.GetItemQueryIterator<dynamic>(query, requestOptions: queryOptions);
+			var iterator = _container!.GetItemQueryIterator<CleanupDocumentDto>(query, requestOptions: queryOptions);
 
 			while (iterator.HasMoreResults)
 			{
@@ -518,11 +519,10 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 				foreach (var item in response.Resource)
 				{
-					string id = item.id;
 					try
 					{
-						var deleteResponse = await _container.DeleteItemAsync<object>(
-							id,
+						var deleteResponse = await _container!.DeleteItemAsync<object>(
+							item.Id,
 							new CosmosPartitionKey(partitionKey.Value),
 							cancellationToken: cancellationToken).ConfigureAwait(false);
 						totalRequestCharge += deleteResponse.RequestCharge;
@@ -579,7 +579,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		try
 		{
 			subscription = new CosmosDbOutboxChangeFeedSubscription(
-				_container,
+				_container!,
 				options ?? ChangeFeedOptions.Default,
 				_logger);
 
@@ -622,7 +622,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 		try
 		{
-			var readResponse = await _container.ReadItemAsync<OutboxDocument>(
+			var readResponse = await _container!.ReadItemAsync<OutboxDocument>(
 				messageId,
 				cosmosPartitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -631,7 +631,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			document.RetryCount++;
 			document.LastError = errorMessage;
 
-			var replaceResponse = await _container.ReplaceItemAsync(
+			var replaceResponse = await _container!.ReplaceItemAsync(
 				document,
 				messageId,
 				cosmosPartitionKey,
@@ -697,9 +697,11 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			PartitionKey = partitionKey.Value,
 			MessageType = message.MessageType,
 			Payload = Convert.ToBase64String(message.Payload),
+#pragma warning disable IL2026
 			Headers = message.Headers != null
 				? JsonSerializer.Serialize(message.Headers, JsonOptions)
 				: null,
+#pragma warning restore IL2026
 			AggregateId = message.AggregateId,
 			AggregateType = message.AggregateType,
 			CorrelationId = message.CorrelationId,
@@ -717,9 +719,11 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			MessageId = doc.Id,
 			MessageType = doc.MessageType,
 			Payload = Convert.FromBase64String(doc.Payload),
+#pragma warning disable IL2026
 			Headers = !string.IsNullOrEmpty(doc.Headers)
 				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.Headers, JsonOptions)
 				: null,
+#pragma warning restore IL2026
 			AggregateId = doc.AggregateId,
 			AggregateType = doc.AggregateType,
 			CorrelationId = doc.CorrelationId,
@@ -784,5 +788,14 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		public string? LastError { get; set; }
 		public string? ETag { get; set; }
 		public int? Ttl { get; set; }
+	}
+
+	/// <summary>
+	/// Typed DTO for deserializing cleanup query results that return only document IDs.
+	/// </summary>
+	private sealed class CleanupDocumentDto
+	{
+		[JsonPropertyName("id")]
+		public string Id { get; set; } = string.Empty;
 	}
 }

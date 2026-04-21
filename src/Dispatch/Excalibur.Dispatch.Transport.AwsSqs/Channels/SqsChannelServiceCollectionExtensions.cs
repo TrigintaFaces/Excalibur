@@ -9,6 +9,7 @@ using Amazon.SQS.Model;
 
 using Excalibur.Dispatch.Transport.Aws;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -42,9 +43,40 @@ public static class SqsChannelServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds high-throughput SQS channel adapter to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SqsChannelOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddSqsChannelAdapter(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqsChannelOptions>().Bind(configuration);
+
+		_ = services.AddSingleton(static provider =>
+		{
+			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
+			var options = provider.GetRequiredService<IOptions<SqsChannelOptions>>().Value;
+			var logger = provider.GetRequiredService<ILogger<SqsChannelAdapter>>();
+
+			return new SqsChannelAdapter(sqsClient, options, logger);
+		});
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds SQS channel message processor to the service collection.
 	/// </summary>
-	public static IServiceCollection AddSqsChannelProcessor<
+	internal static IServiceCollection AddSqsChannelProcessor<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
 		this IServiceCollection services,
 		Action<SqsProcessorOptions> configureOptions)
@@ -71,9 +103,45 @@ public static class SqsChannelServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds SQS channel message processor to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	internal static IServiceCollection AddSqsChannelProcessor<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		where TProcessor : class, IMessageProcessor<Message>
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqsProcessorOptions>().Bind(configuration);
+		_ = services.AddTransient<IMessageProcessor<Message>, TProcessor>();
+
+		_ = services.AddSingleton(static provider =>
+		{
+			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
+			var channelAdapter = provider.GetRequiredService<SqsChannelAdapter>();
+			var messageProcessor = provider.GetRequiredService<IMessageProcessor<Message>>();
+			var options = provider.GetRequiredService<IOptions<SqsProcessorOptions>>().Value;
+			var logger = provider.GetRequiredService<ILogger<SqsChannelMessageProcessor>>();
+
+			return new SqsChannelMessageProcessor(
+				sqsClient, channelAdapter, messageProcessor, options, logger);
+		});
+
+		_ = services.AddHostedService<SqsChannelProcessorHostedService>();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds SQS batch processor to the service collection.
 	/// </summary>
-	public static IServiceCollection AddSqsBatchProcessor(
+	internal static IServiceCollection AddSqsBatchProcessor(
 		this IServiceCollection services,
 		Action<SqsBatchOptions> configureOptions)
 	{
@@ -92,18 +160,74 @@ public static class SqsChannelServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds SQS batch processor to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	internal static IServiceCollection AddSqsBatchProcessor(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqsBatchOptions>().Bind(configuration);
+
+		_ = services.AddSingleton(static provider =>
+		{
+			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
+			var options = provider.GetRequiredService<IOptions<SqsBatchOptions>>().Value;
+			var logger = provider.GetRequiredService<ILogger<SqsBatchProcessor>>();
+
+			return new SqsBatchProcessor(sqsClient, options, logger);
+		});
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds SQS long polling receiver to the service collection.
 	/// </summary>
-	public static IServiceCollection AddSqsLongPollingReceiver(
+	internal static IServiceCollection AddSqsLongPollingReceiver(
 		this IServiceCollection services,
-		Action<LongPollingOptions> configureOptions)
+		Action<ChannelLongPollingOptions> configureOptions)
 	{
 		_ = services.Configure(configureOptions);
 
 		_ = services.AddSingleton(static provider =>
 		{
 			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
-			var options = provider.GetRequiredService<IOptions<LongPollingOptions>>().Value;
+			var options = provider.GetRequiredService<IOptions<ChannelLongPollingOptions>>().Value;
+			var logger = provider.GetRequiredService<ILogger<ChannelLongPollingReceiver>>();
+
+			return new ChannelLongPollingReceiver(sqsClient, options, logger);
+		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds SQS long polling receiver to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	internal static IServiceCollection AddSqsLongPollingReceiver(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<ChannelLongPollingOptions>().Bind(configuration);
+
+		_ = services.AddSingleton(static provider =>
+		{
+			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
+			var options = provider.GetRequiredService<IOptions<ChannelLongPollingOptions>>().Value;
 			var logger = provider.GetRequiredService<ILogger<ChannelLongPollingReceiver>>();
 
 			return new ChannelLongPollingReceiver(sqsClient, options, logger);
@@ -115,7 +239,7 @@ public static class SqsChannelServiceCollectionExtensions
 	/// <summary>
 	/// Adds complete SQS channel infrastructure with all optimizations.
 	/// </summary>
-	public static IServiceCollection AddSqsChannelInfrastructure<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
+	internal static IServiceCollection AddSqsChannelInfrastructure<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
 		this IServiceCollection services,
 		Action<SqsChannelInfrastructureOptions> configureOptions)
 		where TProcessor : class, IMessageProcessor<Message>

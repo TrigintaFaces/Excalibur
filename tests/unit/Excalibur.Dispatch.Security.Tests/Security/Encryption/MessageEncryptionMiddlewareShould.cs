@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using FakeItEasy;
 
@@ -15,9 +15,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Encryption;
 /// <summary>
 /// Unit tests for <see cref="MessageEncryptionMiddleware"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Encryption")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Encryption)]
 public sealed class MessageEncryptionMiddlewareShould
 {
     private readonly IMessageEncryptionService _encryptionService;

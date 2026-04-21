@@ -10,6 +10,7 @@ using Google.Cloud.PubSub.V1;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -33,10 +34,12 @@ public static class DeadLetterServiceCollectionExtensions
 		// Register options
 		_ = services.AddOptions<DeadLetterOptions>()
 			.Configure(options => configure?.Invoke(options))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
-		// Register core services — shared Transport.Abstractions interface (keyed by transport name)
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeadLetterOptions>, DeadLetterOptionsValidator>());
+
+		// Register core services -- shared Transport.Abstractions interface (keyed by transport name)
 		services.TryAddSingleton<PubSubDeadLetterQueueManager>();
 		services.AddKeyedSingleton<Excalibur.Dispatch.Transport.IDeadLetterQueueManager>("googlepubsub",
 			(sp, _) => sp.GetRequiredService<PubSubDeadLetterQueueManager>());
@@ -100,7 +103,6 @@ public static class DeadLetterServiceCollectionExtensions
 
 				configure?.Invoke(options);
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register detector
@@ -124,7 +126,6 @@ public static class DeadLetterServiceCollectionExtensions
 		// Register options
 		_ = services.AddOptions<PubSubRetryPolicyOptions>()
 			.Configure(options => configure?.Invoke(options))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register manager
@@ -148,7 +149,6 @@ public static class DeadLetterServiceCollectionExtensions
 		// Register options
 		_ = services.AddOptions<DeadLetterAnalyticsOptions>()
 			.Configure(options => configure?.Invoke(options))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register analytics service as hosted service

@@ -5,8 +5,8 @@ using Excalibur.Data.SqlServer.Diagnostics;
 
 namespace Excalibur.Data.Tests.SqlServer.Diagnostics;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CdcTelemetryConstantsShould
 {
 	[Fact]

@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// Tests for <see cref="ConflictException"/> to verify resource conflict
 /// error handling with HTTP 409 status code support.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConflictExceptionShould
 {
 	[Fact]
@@ -140,7 +140,7 @@ public sealed class ConflictExceptionShould
 		var exception = new ConflictException("Conflict occurred", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)

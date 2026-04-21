@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 using FakeItEasy;
 
@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Auditing;
 /// <summary>
 /// Unit tests for <see cref="SecurityEventLogger"/> public class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "Auditing")]
 public sealed class SecurityEventLoggerShould : IAsyncDisposable
 {

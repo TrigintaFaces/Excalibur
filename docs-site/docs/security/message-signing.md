@@ -8,7 +8,7 @@ description: Ensure message integrity and authenticity with HMAC, ECDSA, Ed25519
 
 Excalibur.Dispatch provides message signing to ensure messages haven't been tampered with during transmission. The signing infrastructure supports both symmetric (HMAC) and asymmetric (ECDSA, Ed25519, RSA) algorithms.
 
-**Package:** `Excalibur.Dispatch.Security`
+**Package:** `Excalibur.Security`
 
 ## Architecture
 
@@ -88,25 +88,40 @@ builder.Services.AddAsymmetricSigning(opt =>
 
 ### Full Security Registration
 
-Use `AddDispatchSecurity()` to register signing alongside encryption, rate limiting, and authentication:
+Use `UseSecurity()` on the dispatch builder to register signing alongside encryption, rate limiting, and authentication:
 
 ```csharp
-builder.Services.AddDispatchSecurity(security =>
+builder.Services.AddDispatch(dispatch =>
 {
-    security.Signing.EnableSigning = true;
-    security.Signing.SigningAlgorithm = SigningAlgorithm.ECDSASHA256;
-
-    security.Encryption.EnableEncryption = true;
-    security.Authentication.EnableAuthentication = true;
+    dispatch.UseSecurity(builder.Configuration);
 });
+```
+
+Security options are configured via `IConfiguration` (e.g., `appsettings.json`):
+
+```json
+{
+  "Security": {
+    "Signing": {
+      "EnableSigning": true,
+      "SigningAlgorithm": "ECDSASHA256"
+    },
+    "Encryption": {
+      "EnableEncryption": true
+    },
+    "Authentication": {
+      "EnableAuthentication": true
+    }
+  }
+}
 ```
 
 ## Key Provider
 
 Signing requires an `IKeyProvider` to supply key material. Cloud-specific packages provide implementations:
 
-- **`Excalibur.Dispatch.Security.Azure`** — Azure Key Vault
-- **`Excalibur.Dispatch.Security.Aws`** — AWS KMS
+- **`Excalibur.Security.Azure`** — Azure Key Vault
+- **`Excalibur.Security.Aws`** — AWS KMS
 
 For local development, register a custom `IKeyProvider`:
 

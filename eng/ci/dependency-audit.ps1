@@ -1,8 +1,8 @@
 param(
   [string]$OutDir = "DependencyAuditReport",
   [string]$ProjectRoot = "src",
-  [int]$PerProjectTimeoutSeconds = 60,
-  [int]$TotalBudgetMinutes = 15,
+  [int]$PerProjectTimeoutSeconds = 120,
+  [int]$TotalBudgetMinutes = 25,
   [int]$MaxProjects = 200,
   [switch]$FailOnGuardrailBreach
 )

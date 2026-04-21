@@ -14,9 +14,9 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Implements an adaptive long polling strategy that adjusts wait times based on message flow patterns.
 /// </summary>
-internal sealed class AdaptiveLongPollingStrategy : ILongPollingStrategy, IDisposable
+internal sealed class AdaptiveLongPollingStrategy : ILongPollingStrategy, ILongPollingStrategyAdmin, IDisposable
 {
-	private readonly LongPollingConfiguration _configuration;
+	private readonly LongPollingOptions _configuration;
 	private readonly ConcurrentQueue<ReceiveRecord> _receiveHistory;
 	private readonly SemaphoreSlim _updateLock;
 
@@ -33,10 +33,9 @@ internal sealed class AdaptiveLongPollingStrategy : ILongPollingStrategy, IDispo
 	/// Initializes a new instance of the <see cref="AdaptiveLongPollingStrategy" /> class.
 	/// </summary>
 	/// <param name="configuration"> The long polling configuration. </param>
-	public AdaptiveLongPollingStrategy(LongPollingConfiguration configuration)
+	public AdaptiveLongPollingStrategy(LongPollingOptions configuration)
 	{
 		_configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-		_configuration.Validate();
 
 		_receiveHistory = new ConcurrentQueue<ReceiveRecord>();
 		_updateLock = new SemaphoreSlim(1, 1);
@@ -52,9 +51,9 @@ internal sealed class AdaptiveLongPollingStrategy : ILongPollingStrategy, IDispo
 	/// <inheritdoc />
 	public ValueTask<TimeSpan> CalculateOptimalWaitTimeAsync()
 	{
-		if (!_configuration.EnableAdaptivePolling)
+		if (!_configuration.Adaptive.Enabled)
 		{
-			return new ValueTask<TimeSpan>(_configuration.MaxWaitTime);
+			return new ValueTask<TimeSpan>(_configuration.Polling.MaxWaitTime);
 		}
 
 		// Clean up old history entries
@@ -91,7 +90,7 @@ internal sealed class AdaptiveLongPollingStrategy : ILongPollingStrategy, IDispo
 			});
 
 			// Update load factor if adaptive polling is enabled
-			if (_configuration.EnableAdaptivePolling)
+			if (_configuration.Adaptive.Enabled)
 			{
 				UpdateLoadFactor();
 				_currentWaitTime = CalculateWaitTimeFromLoadFactor(_currentLoadFactor);
@@ -175,7 +174,7 @@ internal sealed class AdaptiveLongPollingStrategy : ILongPollingStrategy, IDispo
 
 	private void UpdateLoadFactor()
 	{
-		var cutoffTime = DateTimeOffset.UtcNow - _configuration.AdaptationWindow;
+		var cutoffTime = DateTimeOffset.UtcNow - _configuration.Adaptive.AdaptationWindow;
 		var recentRecords = _receiveHistory.Where(r => r.Timestamp > cutoffTime).ToList();
 
 		if (recentRecords.Count == 0)
@@ -188,40 +187,40 @@ internal sealed class AdaptiveLongPollingStrategy : ILongPollingStrategy, IDispo
 		var averageMessagesPerReceive = (double)totalMessagesInWindow / recentRecords.Count;
 
 		// Calculate new load factor
-		var newLoadFactor = averageMessagesPerReceive / _configuration.MaxMessagesPerReceive;
+		var newLoadFactor = averageMessagesPerReceive / _configuration.Polling.MaxMessagesPerReceive;
 		newLoadFactor = Math.Min(1.0, Math.Max(0.0, newLoadFactor));
 
 		// Apply exponential smoothing
-		_currentLoadFactor = (_configuration.SmoothingFactor * newLoadFactor) +
-							 ((1 - _configuration.SmoothingFactor) * _currentLoadFactor);
+		_currentLoadFactor = (_configuration.Adaptive.SmoothingFactor * newLoadFactor) +
+							 ((1 - _configuration.Adaptive.SmoothingFactor) * _currentLoadFactor);
 	}
 
 	private TimeSpan CalculateWaitTimeFromLoadFactor(double loadFactor)
 	{
 
-		if (loadFactor >= _configuration.HighLoadThreshold)
+		if (loadFactor >= _configuration.Adaptive.HighLoadThreshold)
 		{
 			// High load: Use minimum wait time for maximum throughput
-			return _configuration.MinWaitTime;
+			return _configuration.Polling.MinWaitTime;
 		}
-		else if (loadFactor <= _configuration.LowLoadThreshold)
+		else if (loadFactor <= _configuration.Adaptive.LowLoadThreshold)
 		{
 			// Low load: Use maximum wait time to reduce API calls
-			return _configuration.MaxWaitTime;
+			return _configuration.Polling.MaxWaitTime;
 		}
 		else
 		{
 			// Medium load: Linear interpolation between min and max
-			var range = _configuration.HighLoadThreshold - _configuration.LowLoadThreshold;
-			var position = (loadFactor - _configuration.LowLoadThreshold) / range;
-			var waitRange = _configuration.MaxWaitTime - _configuration.MinWaitTime;
-			return _configuration.MaxWaitTime - TimeSpan.FromMilliseconds(waitRange.TotalMilliseconds * position);
+			var range = _configuration.Adaptive.HighLoadThreshold - _configuration.Adaptive.LowLoadThreshold;
+			var position = (loadFactor - _configuration.Adaptive.LowLoadThreshold) / range;
+			var waitRange = _configuration.Polling.MaxWaitTime - _configuration.Polling.MinWaitTime;
+			return _configuration.Polling.MaxWaitTime - TimeSpan.FromMilliseconds(waitRange.TotalMilliseconds * position);
 		}
 	}
 
 	private void CleanupHistory()
 	{
-		var cutoffTime = DateTimeOffset.UtcNow - _configuration.AdaptationWindow;
+		var cutoffTime = DateTimeOffset.UtcNow - _configuration.Adaptive.AdaptationWindow;
 
 		// Remove old records
 		while (_receiveHistory.TryPeek(out var record) && record.Timestamp < cutoffTime)

@@ -11,7 +11,7 @@ using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Routing;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,8 +24,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// <remarks>
 /// Sprint 413 - Task T413.1: FinalDispatchHandler tests (69% → 85%).
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FinalDispatchHandlerShould
 {
 	private readonly IMessageBusProvider _busProvider;

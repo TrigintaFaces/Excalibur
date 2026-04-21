@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -71,7 +72,7 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 				WaitTimeSeconds = _waitTimeSeconds,
 				VisibilityTimeout = _visibilityTimeoutSeconds,
 				MessageAttributeNames = ["All"],
-				AttributeNames = ["All"],
+				MessageSystemAttributeNames = ["All"],
 			};
 
 			var response = await _sqsClient.ReceiveMessageAsync(request, cancellationToken)
@@ -255,7 +256,7 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 		}
 
 		var contentType = properties.TryGetValue("content-type", out var ct) ? ct as string : null;
-		var correlationId = properties.TryGetValue("correlation-id", out var cid) ? cid as string : null;
+		var correlationId = properties.TryGetValue(OutboxHeaderNames.CorrelationId, out var cid) ? cid as string : null;
 		var messageType = properties.TryGetValue("message-type", out var mt) ? mt as string : null;
 
 		// Determine delivery count from ApproximateReceiveCount

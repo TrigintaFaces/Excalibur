@@ -38,7 +38,7 @@ public sealed class GoogleCloudFunctionsServiceCollectionExtensionsShould : Unit
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() => GoogleCloudFunctionsServiceCollectionExtensions.AddGoogleCloudFunctionsServerless(null!, _ => { }));
-		Should.Throw<ArgumentNullException>(() => services.AddGoogleCloudFunctionsServerless(null!));
+		Should.Throw<ArgumentNullException>(() => services.AddGoogleCloudFunctionsServerless((Action<ServerlessHostOptions>)null!));
 	}
 
 	[Fact]

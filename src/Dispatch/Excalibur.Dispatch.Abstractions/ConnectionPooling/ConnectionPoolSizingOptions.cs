@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Excalibur.Dispatch.Abstractions;
 
 /// <summary>
@@ -14,6 +16,7 @@ public sealed class ConnectionPoolSizingOptions
 	/// </summary>
 	/// <remarks>The pool will attempt to maintain at least this many connections at all times. Default is 0 (no minimum).</remarks>
 	/// <value>The current <see cref="MinConnections"/> value.</value>
+	[Range(0, int.MaxValue)]
 	public int MinConnections { get; set; }
 
 	/// <summary>
@@ -21,6 +24,7 @@ public sealed class ConnectionPoolSizingOptions
 	/// </summary>
 	/// <remarks>When this limit is reached, further connection requests will wait or fail. Default is 100.</remarks>
 	/// <value>The current <see cref="MaxConnections"/> value.</value>
+	[Range(1, int.MaxValue)]
 	public int MaxConnections { get; set; } = 100;
 
 	/// <summary>
@@ -28,6 +32,7 @@ public sealed class ConnectionPoolSizingOptions
 	/// </summary>
 	/// <remarks>Limits connection reuse to prevent resource degradation. Default is 1000.</remarks>
 	/// <value>The current <see cref="MaxConnectionUseCount"/> value.</value>
+	[Range(1, int.MaxValue)]
 	public int MaxConnectionUseCount { get; set; } = 1000;
 
 	/// <summary>

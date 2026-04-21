@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Observability.Sampling;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Observability.Sampling;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class SamplingStrategyShould
 {

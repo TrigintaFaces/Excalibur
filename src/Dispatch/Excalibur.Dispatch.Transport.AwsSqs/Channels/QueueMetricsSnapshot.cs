@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Snapshot of queue metrics.
 /// </summary>
-public sealed class QueueMetricsSnapshot
+internal sealed class QueueMetricsSnapshot
 {
 	public long MessagesReceived { get; init; }
 

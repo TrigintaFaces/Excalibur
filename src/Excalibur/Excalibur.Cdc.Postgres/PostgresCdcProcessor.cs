@@ -127,12 +127,14 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		var count = 0;
 		var slot = new PgOutputReplicationSlot(_options.ReplicationSlotName);
 
+#pragma warning disable CS0618 // PgOutputReplicationOptions constructor is obsolete in newer Npgsql but no replacement available yet
 		var replicationOptions = new PgOutputReplicationOptions(
 			_options.PublicationName,
 			protocolVersion: 1,
 			binary: _options.Replication.UseBinaryProtocol);
+#pragma warning restore CS0618
 
-		await foreach (var message in _replicationConnection
+		await foreach (var message in _replicationConnection!
 						   .StartReplication(slot, replicationOptions, cancellationToken)
 						   .ConfigureAwait(false))
 		{
@@ -145,7 +147,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			}
 
 			// Update position
-			_replicationConnection.SetReplicationStatus(message.WalEnd);
+			_replicationConnection!.SetReplicationStatus(message.WalEnd);
 			_currentPosition = new PostgresCdcPosition(message.WalEnd);
 
 			if (count >= _options.BatchSize)
@@ -192,7 +194,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		// Acknowledge to Postgres
 		if (_replicationConnection is not null)
 		{
-			_replicationConnection.SetReplicationStatus(position.Lsn);
+			_replicationConnection!.SetReplicationStatus(position.Lsn);
 		}
 
 		LogConfirmed(position.LsnString);
@@ -314,7 +316,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		}.ToString();
 
 		_replicationConnection = new LogicalReplicationConnection(connectionString);
-		await _replicationConnection.Open(cancellationToken).ConfigureAwait(false);
+		await _replicationConnection!.Open(cancellationToken).ConfigureAwait(false);
 
 		// Check if slot exists, create if needed
 		if (_options.Replication.AutoCreateSlot)
@@ -331,7 +333,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		{
 			// Check if slot already exists by trying to create it
 			// CreatePgOutputReplicationSlot will fail if slot exists
-			_ = await _replicationConnection
+			_ = await _replicationConnection!
 				.CreatePgOutputReplicationSlot(
 					_options.ReplicationSlotName,
 					slotSnapshotInitMode: LogicalSlotSnapshotInitMode.NoExport,
@@ -355,17 +357,19 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 		var slot = new PgOutputReplicationSlot(_options.ReplicationSlotName);
 
+#pragma warning disable CS0618 // PgOutputReplicationOptions constructor is obsolete in newer Npgsql but no replacement available yet
 		var replicationOptions = new PgOutputReplicationOptions(
 			_options.PublicationName,
 			protocolVersion: 1,
 			binary: _options.Replication.UseBinaryProtocol);
+#pragma warning restore CS0618
 
 		// Start from confirmed position or beginning
 		var startLsn = _confirmedPosition.IsValid ? _confirmedPosition.Lsn : default;
 
 		var count = 0;
 
-		await foreach (var message in _replicationConnection
+		await foreach (var message in _replicationConnection!
 						   .StartReplication(slot, replicationOptions, cancellationToken, startLsn)
 						   .ConfigureAwait(false))
 		{
@@ -384,7 +388,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			}
 
 			// Update position and acknowledge
-			_replicationConnection.SetReplicationStatus(message.WalEnd);
+			_replicationConnection!.SetReplicationStatus(message.WalEnd);
 			_currentPosition = new PostgresCdcPosition(message.WalEnd);
 		}
 

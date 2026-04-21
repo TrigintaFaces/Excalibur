@@ -5,8 +5,8 @@ using Excalibur.Data.ElasticSearch.Monitoring;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Monitoring;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ElasticsearchMetricsShould : IDisposable
 {
 	private readonly ElasticsearchMetrics _sut;

@@ -54,7 +54,9 @@ public sealed partial class GoogleCloudSchedulerJobProvider(
 				Uri = _options.TargetUrl,
 				HttpMethod = Google.Cloud.Scheduler.V1.HttpMethod.Post,
 				Body = ByteString.CopyFromUtf8(
-					JsonSerializer.Serialize(new { JobType = typeof(TJob).AssemblyQualifiedName, JobName = jobName })),
+					JsonSerializer.Serialize(
+						new JobSchedulePayload { JobType = typeof(TJob).AssemblyQualifiedName!, JobName = jobName },
+						JobsGcfJsonContext.Default.JobSchedulePayload)),
 				Headers = { { "Content-Type", "application/json" } },
 			},
 		};

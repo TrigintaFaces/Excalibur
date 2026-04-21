@@ -189,7 +189,7 @@ The organization determines that the information system is capable of auditing s
 
 **Code Example:**
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 public class UserService
 {
@@ -431,7 +431,7 @@ The information system implements cryptographic mechanisms to prevent unauthoriz
 
 **Code Example:**
 ```csharp
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 services.AddEncryption(encryption => encryption
     .UseKeyManagement<AesGcmEncryptionProvider>("aes-gcm-primary")
@@ -640,7 +640,7 @@ The organization requires the developer of the information system to follow a do
 jobs:
   build:
     - Checkout code
-    - Setup .NET 9.0
+    - Setup .NET 10.0
     - Restore dependencies
     - Build solution
     - Run unit tests

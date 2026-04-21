@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Resilience;
 /// Integration tests for resilience policies including bulkhead and graceful degradation.
 /// These tests verify that policies work correctly under realistic concurrent conditions.
 /// </summary>
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ResiliencePolicyIntegrationShould : IntegrationTestBase
 {
 	#region Bulkhead Policy Tests

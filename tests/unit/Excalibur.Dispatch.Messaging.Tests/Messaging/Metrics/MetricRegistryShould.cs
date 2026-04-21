@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Metrics;
 /// <summary>
 /// Unit tests for <see cref="MetricRegistry"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Metrics")]
 public sealed class MetricRegistryShould : UnitTestBase
 {
@@ -320,7 +320,7 @@ public sealed class MetricRegistryShould : UnitTestBase
 	{
 		// Arrange
 		var registry = new MetricRegistry();
-		var config = new HistogramConfiguration(1, 5, 10, 25, 50, 100);
+		var config = new HistogramOptions(1, 5, 10, 25, 50, 100);
 
 		// Act
 		var histogram = registry.Histogram("configured_histogram", configuration: config);

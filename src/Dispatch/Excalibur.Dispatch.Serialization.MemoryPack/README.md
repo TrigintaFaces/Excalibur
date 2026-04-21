@@ -4,92 +4,31 @@ High-performance MemoryPack binary serialization for Excalibur framework.
 
 ## Purpose
 
-Provides the **default** and fastest binary serialization for:
-- Internal persistence (Outbox, Inbox, Event Store)
+Provides **opt-in** high-performance binary serialization for:
 - Maximum throughput scenarios
 - .NET-to-.NET communication
+- Internal persistence (Outbox, Inbox, Event Store)
 - AOT/NativeAOT deployment
 
 ## Key Features
 
-- **Auto-Registered**: Enabled by default when using `AddDispatch()`
+- **Opt-In**: JSON (System.Text.Json) is the default serializer (ADR-295). Install this package and register explicitly when you need maximum .NET performance.
 - **Serializer ID 1**: Magic byte `0x01` in persisted payloads
 - **Zero-Allocation**: ReadOnlySpan-based deserialization
-- **AOT-Compatible**: Full NativeAOT and trimming support
+- **AOT-Compatible**: Full NativeAOT and trimming support via source generation
+- **No consumer attributes needed**: Consumer event types do NOT need `[MemoryPackable]`. Only the internal envelope wrapper uses MemoryPack attributes.
 
 ## Usage
 
-### Default (Zero Configuration)
+### Registration
 
-MemoryPack is automatically registered and used as the default serializer:
-
-```csharp
-services.AddDispatch();
-// That's it! MemoryPack is auto-registered and set as current.
-```
-
-### Explicit Registration
-
-For clarity or migration scenarios:
+One call does everything -- DI registration, serializer registry entry, and setting MemoryPack as the current serializer:
 
 ```csharp
-services.AddDispatch()
-    .ConfigurePluggableSerialization(config =>
-    {
-        config.RegisterMemoryPack();  // Register (ID: 1)
-        config.UseMemoryPack();       // Set as current
-    });
+services.AddMemoryPackSerializer();
 ```
 
-### Disable Auto-Registration
-
-When you want explicit control:
-
-```csharp
-services.AddDispatch()
-    .ConfigurePluggableSerialization(config =>
-    {
-        config.DisableMemoryPackAutoRegistration();
-        config.RegisterSystemTextJson();
-        config.UseSystemTextJson();
-    });
-```
-
-## Type Requirements
-
-Types must have the `[MemoryPackable]` attribute:
-
-```csharp
-[MemoryPackable]
-public partial class UserCreatedEvent
-{
-    public string UserId { get; set; }
-    public string Name { get; set; }
-    public DateTime CreatedAt { get; set; }
-}
-```
-
-**Important**: The `partial` keyword is required for source generation.
-
-### Constructor Parameters
-
-For immutable types:
-
-```csharp
-[MemoryPackable]
-public partial class OrderPlacedEvent
-{
-    [MemoryPackConstructor]
-    public OrderPlacedEvent(string orderId, decimal total)
-    {
-        OrderId = orderId;
-        Total = total;
-    }
-
-    public string OrderId { get; }
-    public decimal Total { get; }
-}
-```
+That is all you need. JSON is the default serializer; calling `AddMemoryPackSerializer()` opts you into MemoryPack for high-performance binary serialization.
 
 ## Performance Characteristics
 
@@ -111,7 +50,7 @@ Stored Payload: [0x01][MemoryPack binary data...]
                   Magic byte identifies serializer
 ```
 
-## When to Use MemoryPack (Default)
+## When to Use MemoryPack
 
 **Best For:**
 - Internal .NET-to-.NET communication
@@ -121,34 +60,25 @@ Stored Payload: [0x01][MemoryPack binary data...]
 
 **Consider Alternatives When:**
 - Cross-language consumers (use MessagePack - ID: 3)
-- Debugging/human-readable storage (use System.Text.Json - ID: 2)
+- Debugging/human-readable storage (use System.Text.Json - ID: 2, the default)
 - Schema-based contracts (use Protobuf - ID: 4)
 
 ## Migration
 
+### From JSON to MemoryPack
+
+```csharp
+// One call switches new messages to MemoryPack.
+// Old JSON data remains readable via its magic byte.
+services.AddMemoryPackSerializer();
+```
+
 ### From MemoryPack to Another Serializer
 
 ```csharp
-services.AddDispatch()
-    .ConfigurePluggableSerialization(config =>
-    {
-        // MemoryPack (ID: 1) auto-registered - keep for existing data
-        config.RegisterMessagePack();     // Add new serializer
-        config.UseMessagePack();          // Use for new messages
-    });
-```
-
-Old MemoryPack data remains readable; new data uses MessagePack.
-
-### To MemoryPack from Another Serializer
-
-```csharp
-services.AddDispatch()
-    .ConfigurePluggableSerialization(config =>
-    {
-        config.RegisterSystemTextJson(); // Keep for existing data
-        config.UseMemoryPack();          // Switch to MemoryPack
-    });
+// Switch to a different serializer. Old MemoryPack data remains
+// readable because the magic byte tells the system which deserializer to use.
+services.AddMessagePackSerializer();
 ```
 
 ## Package Dependencies
@@ -160,7 +90,7 @@ services.AddDispatch()
 
 **Full NativeAOT support** with source-generated serializers.
 
-Ensure all serializable types have `[MemoryPackable]` attribute with `partial` class declaration.
+The internal envelope types use `[MemoryPackable]` with `partial` class declarations for source generation. Consumer event types do not need any attributes.
 
 ## See Also
 

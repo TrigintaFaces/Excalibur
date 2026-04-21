@@ -10,7 +10,7 @@ Excalibur.Dispatch.Caching integrates caching directly into the dispatch pipelin
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required package:
   ```bash
   dotnet add package Excalibur.Dispatch.Caching
@@ -117,7 +117,7 @@ services.AddDispatchHybridCaching(
 All modes also work through `IDispatchBuilder`:
 
 ```csharp
-builder.AddDispatchCaching()
+dispatch.UseCaching()
     .WithCachingOptions(options =>
     {
         options.Enabled = true;
@@ -261,9 +261,16 @@ dotnet add package Excalibur.Caching
 ```
 
 ```csharp
-// Register projection caching after dispatch caching
-services.AddDispatchCaching(o => o.Enabled = true);
-services.AddExcaliburProjectionCaching();
+// Register projection caching after dispatch caching.
+// AddProjectionCaching(...) is the canonical extension on IEventSourcingBuilder
+// per ADR-321/325 (the pre-unification AddExcaliburProjectionCaching aggregator
+// is internal to Excalibur.Caching).
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.UseCaching(o => o.Enabled = true);
+});
+builder.Services.AddExcalibur(excalibur => excalibur
+    .AddEventSourcing(es => es.AddProjectionCaching()));
 ```
 
 Implement `IProjectionTagResolver<T>` to map domain events to cache tags:
@@ -281,6 +288,50 @@ public class ProductUpdatedTagResolver : IProjectionTagResolver<ProductUpdatedEv
 
 When the projection handler processes `ProductUpdatedEvent`, the `IProjectionCacheInvalidator` automatically invalidates cache entries tagged with the resolved tags.
 
+## Tag Tracking
+
+`HybridCache` (used in Hybrid mode) has native tag-based invalidation support. However, `IMemoryCache` and `IDistributedCache` do not track which cache keys belong to which tags. The `ICacheTagTracker` interface bridges this gap by maintaining key-to-tag mappings so that tag-based invalidation works across all three cache modes.
+
+### ICacheTagTracker
+
+```csharp
+public interface ICacheTagTracker
+{
+    Task RegisterKeyAsync(string key, string[] tags, CancellationToken cancellationToken);
+    Task<HashSet<string>> GetKeysByTagsAsync(string[] tags, CancellationToken cancellationToken);
+    Task UnregisterKeyAsync(string key, CancellationToken cancellationToken);
+}
+```
+
+| Method | Purpose |
+|--------|---------|
+| `RegisterKeyAsync` | Associates a cache key with one or more tags |
+| `GetKeysByTagsAsync` | Returns all cache keys associated with the specified tags |
+| `UnregisterKeyAsync` | Removes tag mappings for a key (called on eviction/expiry) |
+
+### Built-in Implementations
+
+The correct implementation is selected automatically based on `CacheMode` and whether a real `IDistributedCache` is registered:
+
+| Implementation | Selected When | Storage |
+|----------------|---------------|---------|
+| `InMemoryCacheTagTracker` | Memory mode, or Distributed/Hybrid without a real distributed cache | In-process `ConcurrentDictionary`, bounded by `TagTrackerCapacity` |
+| `DistributedCacheTagTracker` | Distributed or Hybrid mode with a real `IDistributedCache` (not `MemoryDistributedCache`) | Stores mappings in the distributed cache alongside cached data |
+
+You do not need to register `ICacheTagTracker` manually -- `AddDispatchCaching()` and `UseCaching()` handle it automatically.
+
+### Capacity Limits
+
+`InMemoryCacheTagTracker` is bounded by `CacheOptions.TagTrackerCapacity` (default: 10,000). When the tracker reaches capacity, new registrations are silently skipped to prevent unbounded memory growth. Increase this value if your application caches more than 10,000 distinct keys with tags:
+
+```csharp
+services.AddDispatchCaching(options =>
+{
+    options.Enabled = true;
+    options.TagTrackerCapacity = 50_000; // Allow up to 50,000 tracked entries
+});
+```
+
 ## Configuration Reference
 
 ### CacheOptions
@@ -290,6 +341,7 @@ When the projection handler processes `ProductUpdatedEvent`, the `IProjectionCac
 | `Enabled` | `bool` | `false` | Must be explicitly enabled |
 | `CacheMode` | `CacheMode` | `Hybrid` | `Memory`, `Distributed`, or `Hybrid` |
 | `DefaultTags` | `string[]` | `[]` | Tags applied to all cached items |
+| `TagTrackerCapacity` | `int` | `10,000` | Max key-to-tag entries tracked by `InMemoryCacheTagTracker`; new registrations are skipped when full |
 | `GlobalPolicy` | `IResultCachePolicy?` | `null` | Cross-cutting cache policy |
 | `CacheKeyBuilder` | `ICacheKeyBuilder?` | `null` | Custom key generation (default: `DefaultCacheKeyBuilder`) |
 
@@ -304,7 +356,7 @@ When the projection handler processes `ProductUpdatedEvent`, the `IProjectionCac
 | `EnableStatistics` | `bool` | `false` | Collect hit/miss/eviction metrics |
 | `EnableCompression` | `bool` | `false` | Compress values in distributed cache |
 
-### DistributedCacheConfiguration (`options.Distributed`)
+### DistributedCacheOptions (`options.Distributed`)
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -425,6 +477,6 @@ When Redis is registered, `CacheHealthMonitor` pings Redis via `IConnectionMulti
 
 ## See Also
 
-- [Built-in Middleware](../middleware/built-in.md) — Overview of all built-in middleware including caching integration
-- [Auto-Freeze](./auto-freeze.md) — Immutable message optimization for improved caching and thread safety
-- [Performance Tuning](../operations/performance-tuning.md) — Operational guidance for tuning Dispatch performance in production
+- [Built-in Middleware](../middleware/built-in.md) -- Overview of all built-in middleware including caching integration
+- [Auto-Freeze](./auto-freeze.md) -- Immutable message optimization for improved caching and thread safety
+- [Performance Tuning](../operations/performance-tuning.md) -- Operational guidance for tuning Dispatch performance in production

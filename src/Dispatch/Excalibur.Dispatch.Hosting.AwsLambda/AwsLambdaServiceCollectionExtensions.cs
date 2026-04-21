@@ -21,7 +21,8 @@ public static class AwsLambdaServiceCollectionExtensions
 	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services is null. </exception>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "AOT-safe: DefaultLambdaJsonSerializer is a TryAdd fallback -- AOT consumers register SourceGeneratorLambdaJsonSerializer first, which takes precedence")]
 	public static IServiceCollection AddAwsLambdaServerless(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -49,9 +50,38 @@ public static class AwsLambdaServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
 		_ = services.AddAwsLambdaServerless();
-		_ = services.Configure(configureOptions);
+		_ = services.AddOptions<ServerlessHostOptions>()
+			.Configure(configureOptions)
+			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds AWS Lambda serverless hosting services to the specified service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection to add services to. </param>
+	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
+	[RequiresUnreferencedCode("IConfiguration binding uses reflection. AOT consumers should use the Action<ServerlessHostOptions> overload instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "AOT-safe: IConfiguration.Bind() requires reflection -- see Action<T> overload as AOT alternative")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "AOT-safe: IConfiguration.Bind() requires dynamic code -- see Action<T> overload as AOT alternative")]
+	public static IServiceCollection AddAwsLambdaServerless(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddAwsLambdaServerless();
+		_ = services.AddOptions<ServerlessHostOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
 
 		return services;
 	}
 }
-

@@ -76,7 +76,7 @@ public static class ExcaliburDispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(assembly);
 
 		var types = assembly.GetTypes()
-			.Where(t => t is { IsAbstract: false, IsInterface: false } && t.GetInterfaces().Any(static i =>
+			.Where(t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false } && t.GetInterfaces().Any(static i =>
 				i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IProjectionTagResolver<>)));
 
 		foreach (var type in types)
@@ -91,32 +91,8 @@ public static class ExcaliburDispatchBuilderExtensions
 		return builder;
 	}
 
-	/// <summary>
-	/// Adds projection cache invalidation services to the dispatch builder.
-	/// </summary>
-	/// <param name="builder">The <see cref="IDispatchBuilder"/> to configure.</param>
-	/// <returns>The configured <see cref="IDispatchBuilder"/>.</returns>
-	/// <remarks>
-	/// <para>
-	/// This method registers the <see cref="IProjectionCacheInvalidator"/> service which enables
-	/// CQRS projection handlers to invalidate cached query results when data changes.
-	/// </para>
-	/// <para>
-	/// <strong>Prerequisites:</strong> This method requires Excalibur.Dispatch.Caching to be configured first
-	/// (via <c>AddDispatchCaching()</c>) as it depends on <c>ICacheInvalidationService</c>.
-	/// </para>
-	/// <example>
-	/// <code>
-	/// builder.AddDispatchCaching()  // Register ICacheInvalidationService first
-	///        .AddProjectionCaching(); // Then add projection caching
-	/// </code>
-	/// </example>
-	/// </remarks>
-	public static IDispatchBuilder AddProjectionCaching(this IDispatchBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		_ = builder.Services.AddExcaliburProjectionCaching();
-		return builder;
-	}
+	// AddProjectionCaching(IDispatchBuilder) was removed per S804 / bd-sdhocq A15:
+	// projection caching is a sub-concern of event sourcing, not dispatch. The canonical
+	// path is now IEventSourcingBuilder.AddProjectionCaching(...) in
+	// Microsoft.Extensions.DependencyInjection.EventSourcingBuilderProjectionCachingExtensions.
 }

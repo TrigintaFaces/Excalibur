@@ -9,7 +9,7 @@ namespace Excalibur.Data.Tests.Core;
 /// Unit tests for PersistenceOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class PersistenceOptionsShould : UnitTestBase
 {
 	[Fact]

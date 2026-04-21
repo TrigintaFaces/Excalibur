@@ -5,8 +5,8 @@ using Excalibur.Outbox.ElasticSearch;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Outbox;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ElasticsearchOutboxOptionsShould
 {
 	[Fact]

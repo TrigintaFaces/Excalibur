@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Exceptions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ExceptionFactoryShould
 {
 	[Fact]
@@ -203,7 +203,7 @@ public sealed class ExceptionFactoryShould
 		var inner = new IOException("disk full");
 		var ex = ExceptionFactory.Wrap(inner, "Failed to persist", "SYS002");
 
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 		ex.Message.ShouldBe("Failed to persist");
 		ex.ErrorCode.ShouldBe("SYS002");
 	}

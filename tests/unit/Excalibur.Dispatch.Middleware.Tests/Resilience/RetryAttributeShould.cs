@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// <summary>
 /// Unit tests for RetryAttribute configuration.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class RetryAttributeShould : UnitTestBase
 {

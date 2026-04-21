@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.EndToEnd;
 /// End-to-end integration tests that dispatch messages through the complete
 /// Excalibur framework pipeline using the real IDispatcher.
 /// </summary>
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 [Trait("Category", "EndToEnd")]
 public sealed class DispatcherEndToEndIntegrationShould : IDisposable
@@ -261,12 +261,9 @@ public sealed class DispatcherEndToEndIntegrationShould : IDisposable
 		var command = new TestCommand { Id = Guid.NewGuid(), Data = "FAIL" };
 		var context = _contextFactory.CreateContext();
 
-		// Act
-		var result = await _dispatcher.DispatchAsync(command, context, CancellationToken.None);
-
-		// Assert
-		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		// Act & Assert - Handler exceptions now propagate directly (Sprint 759)
+		await Should.ThrowAsync<InvalidOperationException>(
+			() => _dispatcher.DispatchAsync(command, context, CancellationToken.None));
 	}
 
 	// Test Messages

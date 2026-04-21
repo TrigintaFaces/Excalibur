@@ -30,7 +30,7 @@ internal static class BenchmarkDispatchServiceCollectionExtensions
 				options.Outbox.BatchSize = 100;
 				options.Outbox.PublishIntervalMs = 1000;
 				options.Outbox.UseInMemoryStorage = true;
-				options.CrossCutting.Observability.EnableContextFlow = false;
+				// Ambient context flow is always enabled (required for DispatchChildAsync and correlation-aware logging)
 			});
 
 			configure?.Invoke(builder);

@@ -27,13 +27,14 @@ public interface IDomainEvent : IDispatchEvent
 
 	/// <summary>
 	/// Gets the identifier of the aggregate that raised this event.
+	/// Set automatically by the framework in <c>AggregateRoot.RaiseEvent</c>.
 	/// </summary>
 	/// <value>The identifier of the aggregate that raised this event.</value>
 	string AggregateId { get; }
 
 	/// <summary>
 	/// Gets the version of the aggregate after this event was applied.
-	/// Used for optimistic concurrency and event ordering.
+	/// Set automatically by the framework in <c>AggregateRoot.RaiseEvent</c>.
 	/// </summary>
 	/// <value>The version of the aggregate after this event was applied.</value>
 	long Version { get; }
@@ -53,8 +54,20 @@ public interface IDomainEvent : IDispatchEvent
 
 	/// <summary>
 	/// Gets optional metadata for cross-cutting concerns.
-	/// Examples: UserId, TenantId, CorrelationId, custom tags.
+	/// Examples: UserId, TenantId, custom tags.
 	/// </summary>
 	/// <value>Optional metadata for cross-cutting concerns.</value>
 	IDictionary<string, object>? Metadata { get; }
+
+	/// <summary>
+	/// Gets the correlation ID for tracking a chain of related operations across services.
+	/// </summary>
+	/// <value>The correlation ID, or <see langword="null"/> if not set.</value>
+	string? CorrelationId => Metadata?.TryGetValue("CorrelationId", out var v) == true ? v?.ToString() : null;
+
+	/// <summary>
+	/// Gets the causation ID identifying the command or event that directly caused this event.
+	/// </summary>
+	/// <value>The causation ID, or <see langword="null"/> if not set.</value>
+	string? CausationId => Metadata?.TryGetValue("CausationId", out var v) == true ? v?.ToString() : null;
 }

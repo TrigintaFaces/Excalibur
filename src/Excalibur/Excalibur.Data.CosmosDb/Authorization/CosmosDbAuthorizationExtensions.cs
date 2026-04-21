@@ -6,6 +6,7 @@ using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.Data.CosmosDb.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +30,11 @@ public static class CosmosDbAuthorizationExtensions
 
 		_ = services.AddOptions<CosmosDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbAuthorizationOptions>, CosmosDbAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IGrantStore, CosmosDbGrantStore>();
 		services.TryAddSingleton<IActivityGroupGrantStore, CosmosDbActivityGroupGrantStore>();
 
@@ -117,8 +121,11 @@ public static class CosmosDbAuthorizationExtensions
 
 		_ = services.AddOptions<CosmosDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbAuthorizationOptions>, CosmosDbAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IGrantStore, CosmosDbGrantStore>();
 
 		return services;
@@ -171,8 +178,11 @@ public static class CosmosDbAuthorizationExtensions
 
 		_ = services.AddOptions<CosmosDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbAuthorizationOptions>, CosmosDbAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IActivityGroupGrantStore, CosmosDbActivityGroupGrantStore>();
 
 		return services;

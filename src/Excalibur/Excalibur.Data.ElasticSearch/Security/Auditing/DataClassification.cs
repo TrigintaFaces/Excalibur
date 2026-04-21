@@ -9,7 +9,7 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// </summary>
 /// <remarks>
 /// Renamed from <c>DataClassification</c> to avoid collision with
-/// <c>Excalibur.Dispatch.Compliance.DataClassification</c>. This enum includes
+/// <c>Excalibur.Compliance.DataClassification</c>. This enum includes
 /// ElasticSearch-specific classifications (PII, PHI) beyond the base 4-level system.
 /// </remarks>
 public enum ElasticSearchDataClassification

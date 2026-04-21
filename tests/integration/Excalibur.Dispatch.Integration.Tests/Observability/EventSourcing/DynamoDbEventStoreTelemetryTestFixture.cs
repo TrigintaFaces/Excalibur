@@ -210,6 +210,20 @@ public sealed class DynamoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 	/// <inheritdoc/>
 	public async Task DisposeAsync()
 	{
-		await _container.DisposeAsync().ConfigureAwait(false);
+		Dispose();
+
+		try
+		{
+			var disposeTask = _container.DisposeAsync().AsTask();
+			var completed = await Task.WhenAny(disposeTask, Task.Delay(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+			if (completed == disposeTask)
+			{
+				await disposeTask.ConfigureAwait(false);
+			}
+		}
+		catch
+		{
+			// Best effort -- allow test host to exit cleanly
+		}
 	}
 }

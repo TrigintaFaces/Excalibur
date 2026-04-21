@@ -36,9 +36,9 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 [IntegrationTest]
 [Collection(ContainerCollections.Postgres)]
 [Trait("Component", "EventStore")]
-[Trait("Provider", "Postgres")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait("Database", "Postgres")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 {
 	private const string TestAggregateType = "TestAggregate";

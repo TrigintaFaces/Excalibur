@@ -10,8 +10,8 @@ using ConfigSecurityOptions = Excalibur.Dispatch.Options.Configuration.SecurityO
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConfigurationOptionsShould
 {
 	// --- DispatchOptions ---
@@ -283,7 +283,6 @@ public sealed class ConfigurationOptionsShould
 		options.Enabled.ShouldBeTrue();
 		options.EnableTracing.ShouldBeTrue();
 		options.EnableMetrics.ShouldBeTrue();
-		options.EnableContextFlow.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -295,14 +294,12 @@ public sealed class ConfigurationOptionsShould
 			Enabled = false,
 			EnableTracing = false,
 			EnableMetrics = false,
-			EnableContextFlow = false,
 		};
 
 		// Assert
 		options.Enabled.ShouldBeFalse();
 		options.EnableTracing.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeFalse();
-		options.EnableContextFlow.ShouldBeFalse();
 	}
 
 	// --- OutboxOptions (Configuration) ---

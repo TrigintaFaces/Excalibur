@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// <remarks>
 /// Tests the default implementation of IMessageContextAccessor.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Messaging")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Messaging)]
 [Trait("Priority", "0")]
 public sealed class MessageContextAccessorShould
 {

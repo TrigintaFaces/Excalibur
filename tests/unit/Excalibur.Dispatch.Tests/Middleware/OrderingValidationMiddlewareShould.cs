@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// Tests for OrderingValidationMiddleware (Sprint 696 T.23).
 /// Verifies sequence number tracking and out-of-order detection.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class OrderingValidationMiddlewareShould
 {
 	private readonly OrderingValidationMiddleware _sut;

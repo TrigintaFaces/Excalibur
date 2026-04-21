@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Security;
 /// <summary>
 /// Unit tests for <see cref="TlsVersion"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class TlsVersionShould
 {
 	[Fact]

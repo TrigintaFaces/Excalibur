@@ -38,7 +38,6 @@ public static class UpcastingServiceCollectionExtensions
 
 		// Register options infrastructure
 		_ = services.AddOptions<UpcastingOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register the pipeline as singleton with deferred configuration

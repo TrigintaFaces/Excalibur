@@ -223,7 +223,7 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 	/// <list type="number">
 	///   <item>
 	///     <b>Our format (internal):</b> Magic byte 1-254 with a registered serializer.
-	///     Uses <see cref="ISerializerRegistry.IsRegistered(byte)"/> to confirm.
+	///     Uses <c>ISerializerRegistry.IsRegistered(byte)</c> to confirm.
 	///   </item>
 	///   <item>
 	///     <b>Confluent Schema Registry:</b> Byte 0x00 followed by 4-byte schema ID.

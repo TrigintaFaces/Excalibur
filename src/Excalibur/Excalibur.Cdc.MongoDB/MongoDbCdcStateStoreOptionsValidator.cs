@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Cdc.MongoDB;
 
-public sealed class MongoDbCdcStateStoreOptionsValidator : IValidateOptions<MongoDbCdcStateStoreOptions>
+internal sealed class MongoDbCdcStateStoreOptionsValidator : IValidateOptions<MongoDbCdcStateStoreOptions>
 {
 	public ValidateOptionsResult Validate(string? name, MongoDbCdcStateStoreOptions options)
 	{

@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Delivery.Handlers;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class HandlerResultShould
 {
 	[Fact]
@@ -14,7 +14,7 @@ public sealed class HandlerResultShould
 		result.HasValue.ShouldBeTrue();
 		result.IsFaulted.ShouldBeFalse();
 		result.Value.ShouldBe(42);
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -25,7 +25,7 @@ public sealed class HandlerResultShould
 
 		result.HasValue.ShouldBeFalse();
 		result.IsFaulted.ShouldBeTrue();
-		result.Exception.ShouldBe(ex);
+		result.Exception!.ShouldBe(ex);
 	}
 
 	[Fact]
@@ -66,7 +66,7 @@ public sealed class HandlerResultShould
 		var result = HandlerResult<string>.FromException(ex);
 
 		result.IsFaulted.ShouldBeTrue();
-		result.Exception.ShouldBe(ex);
+		result.Exception!.ShouldBe(ex);
 	}
 
 	[Fact]
@@ -85,7 +85,7 @@ public sealed class HandlerResultShould
 		HandlerResult<int> result = ex;
 
 		result.IsFaulted.ShouldBeTrue();
-		result.Exception.ShouldBe(ex);
+		result.Exception!.ShouldBe(ex);
 	}
 
 	[Fact]

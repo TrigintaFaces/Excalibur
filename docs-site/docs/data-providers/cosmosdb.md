@@ -10,7 +10,7 @@ The Cosmos DB provider implements `ICloudNativePersistenceProvider` for globally
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An Azure Cosmos DB account and database
 - Familiarity with [data access](../data-access/index.md) and [IDb interface](../data-access/idb-interface.md)
 
@@ -27,36 +27,47 @@ dotnet add package Excalibur.Data.CosmosDb
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-services.AddCosmosDb(options =>
+services.AddExcaliburCosmosDb(cosmos =>
 {
-    options.AccountEndpoint = "https://myaccount.documents.azure.com:443/";
-    options.AccountKey = "<your-auth-key>";
-    options.DatabaseName = "MyDatabase";
+    cosmos.ConnectionString("AccountEndpoint=https://myaccount.documents.azure.com:443/;AccountKey=<your-auth-key>")
+          .DatabaseName("MyDatabase");
 });
 ```
 
-## Registration Options
+## Registration
+
+The builder API (`ICosmosDbDataBuilder`) supports 4 canonical connection overloads:
 
 ```csharp
-// With options callback
-services.AddCosmosDb(options =>
-{
-    options.AccountEndpoint = "https://...";
-    options.AccountKey = "...";
-    options.DatabaseName = "MyDatabase";
-});
+// Connection string
+services.AddExcaliburCosmosDb(cosmos =>
+    cosmos.ConnectionString(connectionString).DatabaseName("MyDatabase"));
 
-// From configuration section
-services.AddCosmosDb(configuration);
-services.AddCosmosDb(configuration, sectionName: "CosmosDb");
+// Existing CosmosClient instance
+services.AddExcaliburCosmosDb(cosmos =>
+    cosmos.Client(existingClient).DatabaseName("MyDatabase"));
+
+// Client factory (for custom configuration)
+services.AddExcaliburCosmosDb(cosmos =>
+    cosmos.ClientFactory(() => new CosmosClient(connectionString, clientOptions))
+          .DatabaseName("MyDatabase"));
+
+// IConfiguration binding
+services.AddExcaliburCosmosDb(cosmos =>
+    cosmos.BindConfiguration("CosmosDb"));
 ```
 
-### Snapshot Store
+All registrations include `ValidateOnStart` for options validation.
+
+### Batch Projection Registration
+
+Register multiple projections sharing the same Cosmos DB account:
 
 ```csharp
-services.AddCosmosDbSnapshotStore(options =>
+services.AddCosmosDbProjections(connectionString, "MyDatabase", projections =>
 {
-    options.ContainerName = "snapshots";
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.ContainerName = "customers");
 });
 ```
 
@@ -65,11 +76,11 @@ services.AddCosmosDbSnapshotStore(options =>
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseCosmosDb(options =>
+    cdc.UseCosmosDb(cosmos =>
     {
-        options.DatabaseName = "MyApp";
-        options.ContainerName = "orders";
-        options.LeaseContainerName = "leases";
+        cosmos.ConnectionString(connectionString)
+              .DatabaseName("MyApp")
+              .ContainerName("orders");
     })
     .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();

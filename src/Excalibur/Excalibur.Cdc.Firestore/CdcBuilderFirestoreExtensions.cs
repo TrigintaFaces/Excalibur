@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Excalibur.Cdc.Firestore;
 
@@ -133,6 +136,10 @@ public static class CdcBuilderFirestoreExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static ICdcBuilder UseFirestore(
 		this ICdcBuilder builder,
 		Action<IFirestoreCdcBuilder> configure)
@@ -159,9 +166,11 @@ public static class CdcBuilderFirestoreExtensions
 		{
 			builder.Services.AddOptions<FirestoreCdcOptions>()
 				.BindConfiguration(firestoreBuilder.SourceBindConfigurationPath)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
+
+		// Register FirestoreDb based on builder connection values
+		RegisterFirestoreClient(builder.Services, firestoreBuilder);
 
 		// Configure state store if WithStateStore was called
 		if (firestoreBuilder.StateStoreConfigure is not null)
@@ -180,11 +189,58 @@ public static class CdcBuilderFirestoreExtensions
 			{
 				builder.Services.AddOptions<FirestoreCdcStateStoreOptions>()
 					.BindConfiguration(stateBuilder.BindConfigurationPath)
-					.ValidateDataAnnotations()
 					.ValidateOnStart();
 			}
 		}
 
 		return builder;
+	}
+
+	private static void RegisterFirestoreClient(
+		Microsoft.Extensions.DependencyInjection.IServiceCollection services,
+		FirestoreCdcBuilder firestoreBuilder)
+	{
+		if (firestoreBuilder.ClientInstance is not null)
+		{
+			var client = firestoreBuilder.ClientInstance;
+			services.TryAddSingleton(client);
+		}
+		else if (firestoreBuilder.ClientFactoryFunc is not null)
+		{
+			var factory = firestoreBuilder.ClientFactoryFunc;
+			services.TryAddSingleton(factory);
+		}
+		else if (firestoreBuilder.EmulatorHostValue is not null)
+		{
+			var emulatorHost = firestoreBuilder.EmulatorHostValue;
+			var projectId = firestoreBuilder.ProjectIdValue ?? "test-project";
+			services.TryAddSingleton(_ =>
+			{
+				System.Environment.SetEnvironmentVariable("FIRESTORE_EMULATOR_HOST", emulatorHost);
+				return Google.Cloud.Firestore.FirestoreDb.Create(projectId);
+			});
+		}
+		else if (firestoreBuilder.ProjectIdValue is not null)
+		{
+			var projectId = firestoreBuilder.ProjectIdValue;
+			var credPath = firestoreBuilder.CredentialsPathValue;
+			var credJson = firestoreBuilder.CredentialsJsonValue;
+
+			services.TryAddSingleton(_ =>
+			{
+				var dbBuilder = new Google.Cloud.Firestore.FirestoreDbBuilder { ProjectId = projectId };
+				if (credJson is not null)
+				{
+					dbBuilder.JsonCredentials = credJson;
+				}
+				else if (credPath is not null)
+				{
+					dbBuilder.CredentialsPath = credPath;
+				}
+
+				return dbBuilder.Build();
+			});
+		}
+		// If no connection values set, FirestoreDb must already be registered in DI
 	}
 }

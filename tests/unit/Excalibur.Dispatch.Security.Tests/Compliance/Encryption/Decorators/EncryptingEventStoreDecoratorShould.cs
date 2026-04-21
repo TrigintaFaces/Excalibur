@@ -13,18 +13,18 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption.Decorators;
 /// Per AD-254-2, these tests verify mixed-mode read support and encryption mode behaviors.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class EncryptingEventStoreDecoratorShould
 {
 	private readonly IEventStore _innerStore;
 	private readonly IEncryptionProviderRegistry _registry;
-	private readonly Dispatch.Compliance.EncryptionOptions _options;
+	private readonly global::Excalibur.Compliance.Configuration.EncryptionOptions _options;
 
 	public EncryptingEventStoreDecoratorShould()
 	{
 		_innerStore = A.Fake<IEventStore>();
 		_registry = A.Fake<IEncryptionProviderRegistry>();
-		_options = new Dispatch.Compliance.EncryptionOptions
+		_options = new global::Excalibur.Compliance.Configuration.EncryptionOptions
 		{
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "EventStore",

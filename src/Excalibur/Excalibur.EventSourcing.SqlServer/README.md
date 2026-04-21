@@ -2,6 +2,17 @@
 
 SQL Server implementation of event sourcing infrastructure for the Excalibur framework.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.SqlServer` | Starter | + Dispatch core + Outbox + Hosting |
+| `Excalibur.SqlServer` | Complete | + Inbox + Saga + Leader Election + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.SqlServer` for a production-ready SQL Server stack with a single package reference.
+
 ## Installation
 
 ```bash
@@ -20,15 +31,22 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 ## Usage
 
 ```csharp
-// Register SQL Server event store with options
+// Recommended: Builder-integrated registration
+services.AddExcalibur(x => x.AddEventSourcing(es =>
+{
+    es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.EventStoreSchema = "events";
+    });
+    es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
+}));
+
+// Alternative: Direct registration
 services.AddSqlServerEventSourcing(options =>
 {
     options.ConnectionString = connectionString;
-    options.EventStoreSchema = "events";
 });
-
-// Or with connection factory for multi-tenant scenarios
-services.AddSqlServerEventSourcing(() => new SqlConnection(connectionString));
 ```
 
 ## Database Schema

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Transport;
@@ -8,7 +10,10 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Messaging;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Transport;
 
@@ -31,7 +36,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </para>
 /// <para> Implements <see cref="ITransportHealthChecker" /> for integration with ASP.NET Core health checks and the <see cref="MultiTransportHealthCheck" />. </para>
 /// </remarks>
-public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITransportAdapterLifecycle, ITransportHealthChecker, ITransportHealthMetrics, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for cron timer adapters.
@@ -112,7 +117,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 
 		if (!IsRunning)
 		{
-			return Task.FromResult<IMessageResult>(Messaging.MessageResult.Failed(new MessageProblemDetails
+			return Task.FromResult<IMessageResult>(MR.Failed(new MessageProblemDetails
 			{
 				Type = "urn:dispatch:transport:not-running",
 				Title = "Transport Not Running",
@@ -125,7 +130,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 
 		if (transportMessage is not CronTimerTriggerMessage message)
 		{
-			return Task.FromResult<IMessageResult>(Messaging.MessageResult.Failed(new MessageProblemDetails
+			return Task.FromResult<IMessageResult>(MR.Failed(new MessageProblemDetails
 			{
 				Type = "urn:dispatch:transport:invalid-message-type",
 				Title = "Invalid Message Type",
@@ -160,6 +165,9 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		}
 
 		LogStarting();
+
+		// Resolve dispatcher from DI for routing triggered messages
+		_dispatcher ??= _serviceProvider.GetRequiredService<IDispatcher>();
 
 		// Parse the cron expression
 		_cronExpression = _cronScheduler.Parse(_options.CronExpression, _options.TimeZone);
@@ -215,16 +223,6 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		_timerTask = null;
 		_timerCts?.Dispose();
 		_timerCts = null;
-	}
-
-	/// <summary>
-	/// Sets the dispatcher to use for routing triggered messages.
-	/// </summary>
-	/// <param name="dispatcher"> The dispatcher instance. </param>
-	/// <remarks> This must be called before messages can be processed. Typically called by the transport infrastructure during setup. </remarks>
-	public void SetDispatcher(IDispatcher dispatcher)
-	{
-		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 	}
 
 	#region ITransportHealthChecker Implementation
@@ -488,6 +486,14 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		}
 	}
 
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "Cron timer transport adapter dispatches trigger messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Cron timer transport adapter dispatches trigger messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
 	private async Task<IMessageResult> ProcessTriggerMessageAsync(
 		CronTimerTriggerMessage message,
 		IDispatcher dispatcher,
@@ -520,7 +526,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
 			_ = Interlocked.Increment(ref _failedTriggers);
 
-			return Messaging.MessageResult.Failed(new MessageProblemDetails
+			return MR.Failed(new MessageProblemDetails
 			{
 				Type = "urn:dispatch:transport:processing-failed",
 				Title = "Message Processing Failed",

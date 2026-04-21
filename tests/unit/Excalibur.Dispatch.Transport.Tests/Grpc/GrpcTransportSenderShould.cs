@@ -10,8 +10,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportSenderShould : IAsyncDisposable
 {
 	private readonly GrpcChannel _channel;

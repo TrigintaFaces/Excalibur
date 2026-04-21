@@ -193,8 +193,11 @@ public sealed class InboxProcessorDeduplicationShould
 	{
 		return Options.Create(new DeliveryInboxOptions
 		{
-			QueueCapacity = 100,
-			ProducerBatchSize = 10,
+			Capacity =
+			{
+				QueueCapacity = 100,
+				ProducerBatchSize = 10,
+			},
 		});
 	}
 }

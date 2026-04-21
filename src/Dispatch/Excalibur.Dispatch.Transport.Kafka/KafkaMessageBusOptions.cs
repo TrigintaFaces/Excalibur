@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Dispatch.Transport.Kafka;
 
@@ -16,6 +17,7 @@ public sealed class KafkaMessageBusOptions
 	/// <value>
 	/// Kafka bootstrap servers connection string.
 	/// </value>
+	[Required]
 	public string? BootstrapServers { get; set; }
 
 	/// <summary>

@@ -11,11 +11,10 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <param name="metricsPrefix"> The prefix for metric names. </param>
 internal sealed class ConnectionMetrics(string metricsPrefix) : IDisposable
 {
-#if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
-#else
-	private readonly object _lock = new();
-#endif
+	// Retain metricsPrefix for future use when wiring to an IMeterFactory-based metrics pipeline.
+	private readonly string _metricsPrefix = metricsPrefix;
+
+	private readonly Lock _lock = new();
 	private long _acquisitions;
 	private long _hits;
 	private long _errors;

@@ -39,7 +39,13 @@ public interface IDispatchMetrics
 	/// <param name="errorType"> The type of error that occurred. </param>
 	/// <param name="retryAttempt"> The retry attempt number. </param>
 	void RecordMessageFailed(string messageType, string errorType, int retryAttempt);
+}
 
+/// <summary>
+/// Provides administrative operations for dispatch metrics.
+/// </summary>
+public interface IDispatchMetricsAdmin
+{
 	/// <summary>
 	/// Updates the active sessions counter.
 	/// </summary>

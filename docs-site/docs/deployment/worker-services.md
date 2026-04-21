@@ -10,7 +10,7 @@ Worker Services are ideal for dedicated background processing tasks like outbox 
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
@@ -40,6 +40,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es =>
     {
+        es.UseSqlServer(opts => opts.ConnectionString = connectionString);
         es.AddRepository<OrderAggregate, OrderId>();
     });
 
@@ -55,9 +56,6 @@ builder.Services.AddExcalibur(excalibur =>
               });
     });
 });
-
-// Add SQL Server event sourcing provider separately
-builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 var host = builder.Build();
 await host.RunAsync();
@@ -106,7 +104,7 @@ Excalibur supports two projection processing modes. Choose based on your consist
 Inline projections run during `SaveAsync()` and guarantee read-after-write consistency without a background worker:
 
 ```csharp
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.AddAggregate<OrderAggregate>(agg => agg.UseSqlServerStore(connectionString));
 
@@ -115,17 +113,17 @@ builder.Services.AddExcaliburEventSourcing(es =>
         .Inline()
         .When<OrderCreated>((proj, e) => { proj.Status = "Created"; proj.CustomerId = e.CustomerId; })
         .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
-});
+}));
 ```
 
-See [Projections -- Inline Projections](../event-sourcing/projections.md#inline-projections-projection-builder-api) for failure handling and recovery.
+See [Projections -- Failure Handling](../event-sourcing/projections.md#failure-handling) for failure handling and recovery.
 
 ### Async Projections (Background Processing)
 
 For eventually-consistent projections, use `GlobalStreamProjectionHost` which processes events via checkpoint-based background polling:
 
 ```csharp
-builder.Services.AddExcaliburEventSourcing(es =>
+builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
     es.AddAggregate<OrderAggregate>(agg => agg.UseSqlServerStore(connectionString));
 
@@ -134,7 +132,7 @@ builder.Services.AddExcaliburEventSourcing(es =>
         .Async()
         .When<OrderCreated>((proj, e) => { proj.Status = "Created"; })
         .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
-});
+}));
 ```
 
 ## CDC Worker
@@ -368,7 +366,7 @@ await host.RunAsync();
 FROM mcr.microsoft.com/dotnet/runtime:8.0 AS base
 WORKDIR /app
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY ["OutboxWorker.csproj", "./"]
 RUN dotnet restore
@@ -444,29 +442,31 @@ builder.Services.AddSqlServerLeaderElection(
     });
 ```
 
-### Partitioned Processing
+### Scaled-Out Processing
 
-For high-volume scenarios:
+For high-volume scenarios, run multiple worker instances with unique processor IDs to prevent duplicate processing:
 
 ```csharp
-public class PartitionedOutboxWorker : BackgroundService
+public class OutboxWorker : BackgroundService
 {
-    private readonly int _partitionCount = 4;
-    private readonly int _partitionId;
+    private readonly IOutboxProcessor _processor;
 
-    public PartitionedOutboxWorker(IConfiguration config)
+    public OutboxWorker(IOutboxProcessor processor, IConfiguration config)
     {
-        _partitionId = int.Parse(config["Worker:PartitionId"] ?? "0");
+        _processor = processor;
+        _processor.Init(config["Worker:ProcessorId"] ?? Environment.MachineName);
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        // Process only messages for this partition
-        var processor = new PartitionedOutboxProcessor(
-            _partitionId,
-            _partitionCount);
-
-        await processor.DispatchPendingMessagesAsync(ct);
+        while (!ct.IsCancellationRequested)
+        {
+            var dispatched = await _processor.DispatchPendingMessagesAsync(ct);
+            if (dispatched == 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            }
+        }
     }
 }
 ```

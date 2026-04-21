@@ -5,9 +5,11 @@
 
 ### New Rules
 
-Rule ID | Category | Severity | Notes
---------|----------|----------|----------
-NS1001  | Naming   | Error    | Namespace depth exceeds maximum (6 or more levels)
-NS1002  | Naming   | Warning  | Namespace depth at acceptable maximum (5 levels)
-NS1004  | Naming   | Warning  | Root namespace does not match assembly name
-NS1005  | Naming   | Warning  | Namespace in .Abstractions project missing .Abstractions suffix
+Rule ID  | Category                       | Severity | Notes
+---------|--------------------------------|----------|-------
+DISP101  | Excalibur.Dispatch.Naming      | Warning  | DI extension class in wrong namespace (should be Microsoft.Extensions.DependencyInjection)
+DISP102  | Excalibur.Dispatch.Naming      | Warning  | Extension class uses interface-style 'I' prefix
+DISP103  | Excalibur.Dispatch.Design      | Warning  | CancellationToken has default value in interface method
+DISP104  | Excalibur.Dispatch.Naming      | Warning  | Namespace contains '.Core.' segment (ADR-075 violation)
+DISP105  | Excalibur.Dispatch.Design      | Warning  | Missing ConfigureAwait(false) in library code
+DISP106  | Excalibur.Dispatch.Design      | Warning  | Blocking call (.Result/.Wait()/.GetResult()) in async method

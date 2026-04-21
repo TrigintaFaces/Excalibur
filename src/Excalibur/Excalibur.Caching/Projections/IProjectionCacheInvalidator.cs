@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
-
 namespace Excalibur.Caching.Projections;
 
 /// <summary>
@@ -22,6 +20,5 @@ public interface IProjectionCacheInvalidator
 	/// <param name="message">The message that triggered the projection.</param>
 	/// <param name="cancellationToken">Token used to cancel the operation.</param>
 	/// <returns>A task that completes when invalidation is finished.</returns>
-	[RequiresDynamicCode("Calls ExtractTags which uses MakeGenericType for resolver lookup")]
 	ValueTask InvalidateCacheAsync(object message, CancellationToken cancellationToken);
 }

@@ -38,7 +38,7 @@ public sealed class AzureFunctionsServiceCollectionExtensionsShould : UnitTestBa
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() => AzureFunctionsServiceCollectionExtensions.AddAzureFunctionsServerless(null!, _ => { }));
-		Should.Throw<ArgumentNullException>(() => services.AddAzureFunctionsServerless(null!));
+		Should.Throw<ArgumentNullException>(() => services.AddAzureFunctionsServerless((Action<ServerlessHostOptions>)null!));
 	}
 
 	[Fact]

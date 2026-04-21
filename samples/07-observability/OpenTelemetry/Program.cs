@@ -23,7 +23,6 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Observability.Metrics;
-using Excalibur.Dispatch.Serialization;
 
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -91,7 +90,6 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
 });
 
 var app = builder.Build();

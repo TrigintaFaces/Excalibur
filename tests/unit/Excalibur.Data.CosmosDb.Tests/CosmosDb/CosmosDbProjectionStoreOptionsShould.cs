@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.CosmosDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "CosmosDb")]
-[Trait("Feature", "Projections")]
+[Trait(TraitNames.Feature, TestFeatures.Projections)]
 public sealed class CosmosDbProjectionStoreOptionsShould
 {
 	#region Default Value Tests

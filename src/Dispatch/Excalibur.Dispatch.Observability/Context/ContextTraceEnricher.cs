@@ -68,7 +68,7 @@ public sealed partial class ContextTraceEnricher(
 			}
 
 			// Add baggage items for cross-service propagation
-			AddBaggageItems(activity, context);
+			AddBaggageItems(context);
 
 			// Link to parent trace if available
 			LinkToParentTrace(activity, context);
@@ -296,10 +296,7 @@ public sealed partial class ContextTraceEnricher(
 		}
 	}
 
-	// R0.8: Unused parameter - required by signature pattern
-#pragma warning disable RCS1163, IDE0060
-
-	private void AddBaggageItems(Activity activity, IMessageContext context)
+	private void AddBaggageItems(IMessageContext context)
 	{
 		// Add standard baggage items
 		if (!string.IsNullOrWhiteSpace(context.CorrelationId))
@@ -334,8 +331,6 @@ public sealed partial class ContextTraceEnricher(
 			_ = Baggage.SetBaggage(key, sanitized);
 		}
 	}
-
-#pragma warning restore RCS1163, IDE0060
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]

@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 /// Tests the filtered middleware invoker that combines applicability evaluation with execution.
 /// Implements requirements R2.4-R2.6.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class FilteredDispatchMiddlewareInvokerShould
 {

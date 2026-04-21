@@ -1,5 +1,6 @@
 ﻿using Company.ExcaliburDdd.Domain.Aggregates;
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.EventSourcing.Abstractions;
 
 namespace Company.ExcaliburDdd.Application.Queries;
@@ -7,7 +8,7 @@ namespace Company.ExcaliburDdd.Application.Queries;
 /// <summary>
 /// Handles <see cref="GetOrderQuery"/> by loading an Order aggregate from the event store.
 /// </summary>
-public sealed class GetOrderQueryHandler : IMessageHandler<GetOrderQuery>
+public sealed class GetOrderQueryHandler : IActionHandler<GetOrderQuery>
 {
     private readonly IEventSourcedRepository<Order, Guid> _orderRepository;
     private readonly ILogger<GetOrderQueryHandler> _logger;
@@ -21,27 +22,18 @@ public sealed class GetOrderQueryHandler : IMessageHandler<GetOrderQuery>
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(GetOrderQuery message, IMessageContext context, CancellationToken cancellationToken)
+    public async Task HandleAsync(GetOrderQuery action, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Loading order {OrderId} from event store", message.OrderId);
+        _logger.LogInformation("Loading order {OrderId} from event store", action.OrderId);
 
-        var order = await _orderRepository.GetByIdAsync(message.OrderId, cancellationToken).ConfigureAwait(false);
+        var order = await _orderRepository.GetByIdAsync(action.OrderId, cancellationToken).ConfigureAwait(false);
 
         if (order is null)
         {
-            _logger.LogWarning("Order {OrderId} not found in event store", message.OrderId);
-            context.SetResult<object?>(null);
+            _logger.LogWarning("Order {OrderId} not found in event store", action.OrderId);
             return;
         }
 
-        var result = new
-        {
-            order.Id,
-            Status = order.Status.ToString(),
-            Items = order.Items.Select(i => new { i.ProductId, i.Quantity }),
-            order.Version
-        };
-
-        context.SetResult(result);
+        _logger.LogInformation("Order {OrderId} loaded at version {Version}", order.Id, order.Version);
     }
 }

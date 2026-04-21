@@ -29,9 +29,13 @@ Excalibur.Saga.DynamoDb.DynamoDbSagaStore.DynamoDbSagaStore(Amazon.DynamoDBv2.IA
 Excalibur.Saga.DynamoDb.DynamoDbSagaStore.DynamoDbSagaStore(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.DynamoDb.DynamoDbSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.DynamoDb.DynamoDbSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer) -> void
 Excalibur.Saga.DynamoDb.DynamoDbSagaStore.LoadAsync<TSagaState>(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaState?>!
 Excalibur.Saga.DynamoDb.DynamoDbSagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Microsoft.Extensions.DependencyInjection.DynamoDbSagaExtensions
 Microsoft.Extensions.DependencyInjection.SagaBuilderDynamoDbExtensions
-static Microsoft.Extensions.DependencyInjection.DynamoDbSagaExtensions.AddDynamoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! serviceUrl, string! tableName = "sagas") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DynamoDbSagaExtensions.AddDynamoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.DynamoDb.DynamoDbSagaOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DynamoDbSagaExtensions.AddDynamoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory, System.Action<Excalibur.Saga.DynamoDb.DynamoDbSagaOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SagaBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.DynamoDb.DynamoDbSagaOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder
+Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder!
+Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder.Client(Amazon.DynamoDBv2.IAmazonDynamoDB! client) -> Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder!
+Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder.ClientFactory(System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory) -> Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder!
+Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder.Region(Amazon.RegionEndpoint! region) -> Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder!
+Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder!
+Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder.TableName(string! tableName) -> Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder!
+Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder.TablePrefix(string! prefix) -> Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.DynamoDb.IDynamoDBSagaBuilder!>! configure) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!

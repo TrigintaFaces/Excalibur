@@ -13,7 +13,7 @@ namespace Excalibur.Data.Persistence;
 /// <summary>
 /// Default implementation of persistence metrics collection.
 /// </summary>
-internal sealed class DefaultPersistenceMetrics : IPersistenceMetrics, IDisposable
+internal sealed class DefaultPersistenceMetrics : IPersistenceMetrics, IPersistenceMetricsAdmin, IDisposable
 {
 	private readonly Counter<long> _queryCounter;
 	private readonly Counter<long> _commandCounter;
@@ -232,11 +232,9 @@ internal sealed class DefaultPersistenceMetrics : IPersistenceMetrics, IDisposab
 
 	/// <inheritdoc />
 	// R0.8: Remove unused parameter - interface contract requires duration and success parameters even though this implementation delegates to RecordRowsAffected
-#pragma warning disable IDE0060
 
 	public void RecordCommand(string commandType, TimeSpan duration, bool success) => RecordRowsAffected(0, commandType, "default");
 
-#pragma warning restore IDE0060
 
 	/// <inheritdoc />
 	public void RecordConnectionOpen(string providerName) => IncrementCustomMetric($"connection_open_{providerName}");

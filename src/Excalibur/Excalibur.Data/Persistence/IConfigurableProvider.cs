@@ -10,8 +10,8 @@ namespace Excalibur.Data.Persistence;
 internal interface IConfigurableProvider
 {
 	/// <summary>
-	/// Configures the provider with the specified configuration.
+	/// Configures the provider with the specified options.
 	/// </summary>
-	/// <param name="configuration"> The provider configuration. </param>
-	void Configure(ProviderConfiguration configuration);
+	/// <param name="options"> The provider options. </param>
+	void Configure(PersistenceProviderOptions options);
 }

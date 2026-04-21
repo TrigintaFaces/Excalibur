@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Compliance;
+using Excalibur.Compliance;
 
 using FakeItEasy;
 
@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Security.Tests.Encryption;
 /// <summary>
 /// Unit tests for <see cref="EncryptionMigrationService"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class EncryptionMigrationServiceShould
 {
 	private readonly IEncryptionProvider _encryptionProvider;
@@ -130,8 +130,8 @@ public sealed class EncryptionMigrationServiceShould
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.MigratedData.ShouldBeNull();
-		result.ErrorMessage.ShouldContain("Decryption failed");
-		_ = result.Exception.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("Decryption failed");
+		_ = result.Exception!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -153,7 +153,7 @@ public sealed class EncryptionMigrationServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Encryption failed");
+		result.ErrorMessage!.ShouldContain("Encryption failed");
 	}
 
 	[Fact]
@@ -618,7 +618,7 @@ public sealed class EncryptionMigrationServiceShould
 		var status = await _sut.GetMigrationStatusAsync(migrationId, CancellationToken.None);
 		_ = status.ShouldNotBeNull();
 		status.State.ShouldBe(MigrationState.Cancelled);
-		status.ErrorMessage.ShouldBe("Migration was cancelled");
+		status.ErrorMessage!.ShouldBe("Migration was cancelled");
 	}
 
 	[Fact]

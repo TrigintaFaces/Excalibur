@@ -114,20 +114,20 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			Size = batchSize,
 			Sort =
 			[
-				SortOptions.Field(new Field("priority"), new FieldSort { Order = SortOrder.Asc }),
-				SortOptions.Field(new Field("createdAt"), new FieldSort { Order = SortOrder.Asc }),
+				new SortOptions { Field = new FieldSort("priority") { Order = SortOrder.Asc } },
+				new SortOptions { Field = new FieldSort("createdAt") { Order = SortOrder.Asc } },
 			],
 			Query = new BoolQuery
 			{
 				Should =
 				[
-					new TermQuery(new Field("status")) { Value = (int)OutboxStatus.Staged },
+					new TermQuery { Field = "status", Value = (int)OutboxStatus.Staged },
 					new BoolQuery
 					{
 						Must =
 						[
-							new TermQuery(new Field("status")) { Value = (int)OutboxStatus.Staged },
-							new DateRangeQuery(new Field("scheduledAt")) { Lte = (DateMath)now.DateTime },
+							new TermQuery { Field = "status", Value = (int)OutboxStatus.Staged },
+							new DateRangeQuery("scheduledAt") { Lte = (DateMath)now.DateTime },
 						],
 					},
 				],
@@ -196,17 +196,17 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	{
 		var mustClauses = new List<Query>
 		{
-			new TermQuery(new Field("status")) { Value = (int)OutboxStatus.Failed },
+			new TermQuery { Field = "status", Value = (int)OutboxStatus.Failed },
 		};
 
 		if (maxRetries > 0)
 		{
-			mustClauses.Add(new NumberRangeQuery(new Field("retryCount")) { Lt = maxRetries });
+			mustClauses.Add(new NumberRangeQuery("retryCount") { Lt = maxRetries });
 		}
 
 		if (olderThan.HasValue)
 		{
-			mustClauses.Add(new DateRangeQuery(new Field("lastAttemptAt")) { Lt = (DateMath)olderThan.Value.DateTime });
+			mustClauses.Add(new DateRangeQuery("lastAttemptAt") { Lt = (DateMath)olderThan.Value.DateTime });
 		}
 
 		var response = await _client.SearchAsync<ElasticsearchOutboxDocument>(s => s
@@ -237,8 +237,8 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 				Must =
 				[
 					new ExistsQuery { Field = new Field("scheduledAt") },
-					new DateRangeQuery(new Field("scheduledAt")) { Lte = (DateMath)scheduledBefore.DateTime },
-					new TermQuery(new Field("status")) { Value = (int)OutboxStatus.Staged },
+					new DateRangeQuery("scheduledAt") { Lte = (DateMath)scheduledBefore.DateTime },
+					new TermQuery { Field = "status", Value = (int)OutboxStatus.Staged },
 				],
 			},
 		};

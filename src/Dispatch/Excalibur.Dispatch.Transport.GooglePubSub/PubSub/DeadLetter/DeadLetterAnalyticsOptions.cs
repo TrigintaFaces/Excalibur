@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 public sealed class DeadLetterAnalyticsOptions
 {
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether the analytics service is enabled.
+	/// Gets or sets a value indicating whether the analytics service is enabled.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether the analytics service is enabled.
@@ -52,7 +52,7 @@ public sealed class DeadLetterAnalyticsOptions
 	public int BatchSize { get; set; } = 10;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to enable detailed logging.
+	/// Gets or sets a value indicating whether to enable detailed logging.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether to enable detailed logging.

@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// <remarks>
 /// Tests the Google Pub/Sub mapping context implementation.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Priority", "0")]
 public sealed class GooglePubSubMappingContextShould
 {

@@ -104,10 +104,12 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 			return null;
 		}
 
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		if (!FirestoreCdcPosition.TryFromBase64(positionData, out var position))
 		{
 			return null;
 		}
+#pragma warning restore IL2026
 
 		return position;
 	}
@@ -126,6 +128,7 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 
 		var docRef = _db.Collection(_collectionName).Document(processorName);
 
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		var data = new Dictionary<string, object>
 		{
 			["processorName"] = processorName,
@@ -133,6 +136,7 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 			["updatedAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
 			["collectionPath"] = position.CollectionPath,
 		};
+#pragma warning restore IL2026
 
 		_ = await docRef.SetAsync(data, SetOptions.Overwrite, cancellationToken).ConfigureAwait(false);
 	}
@@ -160,10 +164,12 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 	{
 		ArgumentNullException.ThrowIfNull(position);
 
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		if (position is not FirestoreCdcPosition firestorePosition)
 		{
 			firestorePosition = FirestoreCdcPosition.FromBase64(position.ToToken());
 		}
+#pragma warning restore IL2026
 
 		return SavePositionAsync(consumerId, firestorePosition, cancellationToken);
 	}
@@ -187,12 +193,14 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 		foreach (var doc in snapshot.Documents)
 		{
 			var positionData = doc.GetValue<string>("positionData");
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 			if (!string.IsNullOrWhiteSpace(positionData) &&
 				FirestoreCdcPosition.TryFromBase64(positionData, out var position) &&
 				position is not null)
 			{
 				yield return (doc.Id, position);
 			}
+#pragma warning restore IL2026
 		}
 	}
 

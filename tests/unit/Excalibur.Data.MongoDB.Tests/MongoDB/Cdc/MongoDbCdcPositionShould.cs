@@ -8,8 +8,8 @@ using MongoDB.Bson;
 
 namespace Excalibur.Data.Tests.MongoDB.Cdc;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MongoDbCdcPositionShould
 {
 	[Fact]

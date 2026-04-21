@@ -278,7 +278,7 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
 		_ = cancellationToken;
-		LogStartingAdapter(_options.QueueUrl.ToString(), _options.ConcurrentPollers);
+		LogStartingAdapter(_options.QueueUrl!.ToString(), _options.ConcurrentPollers);
 
 		// Start polling tasks
 		for (var i = 0; i < _options.ConcurrentPollers; i++)
@@ -397,11 +397,11 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 
 		var request = new ReceiveMessageRequest
 		{
-			QueueUrl = _options.QueueUrl.ToString(),
+			QueueUrl = _options.QueueUrl!.ToString(),
 			MaxNumberOfMessages = 10, // SQS max
 			WaitTimeSeconds = 20, // Max long polling
 			VisibilityTimeout = _options.VisibilityTimeout,
-			AttributeNames = ["All"],
+			MessageSystemAttributeNames = ["All"],
 			MessageAttributeNames = ["All"],
 		};
 
@@ -521,7 +521,7 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 
 		var request = new SendMessageBatchRequest
 		{
-			QueueUrl = _options.QueueUrl.ToString(),
+			QueueUrl = _options.QueueUrl!.ToString(),
 			Entries = [.. entries],
 		};
 

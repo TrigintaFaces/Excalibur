@@ -99,6 +99,6 @@ public sealed class LeaderElectionHealthCheckDepthShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldBe("Leader election health check failed");
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 }

@@ -1,5 +1,10 @@
+global using Excalibur.Cdc;
 global using Excalibur.Data.DynamoDb;
 global using Excalibur.Cdc.DynamoDb;
+global using Excalibur.EventSourcing.DynamoDb;
+global using Excalibur.Inbox.DynamoDb;
+global using Excalibur.Outbox.DynamoDb;
+global using Excalibur.Saga.DynamoDb;
 
 global using FakeItEasy;
 

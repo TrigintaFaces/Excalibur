@@ -62,15 +62,15 @@ public sealed class PipelineScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(PipelineScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
-			_ = dispatch.AddDispatchResilience();
+			_ = dispatch.UseValidation();
+			_ = dispatch.UseResilience();
 		});
 
 		services.AddEventSerializer();
 #pragma warning disable IL2026 // RequiresUnreferencedCode -- test code, not AOT-published
-		services.AddExcaliburEventSourcing(builder =>
+		services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			builder.AddRepository<PipelineOrderAggregate, Guid>(
-				_ => new PipelineOrderAggregate()));
+				_ => new PipelineOrderAggregate())));
 #pragma warning restore IL2026
 		services.AddInMemoryEventStore();
 
@@ -137,15 +137,15 @@ public sealed class PipelineScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(PipelineScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
-			_ = dispatch.AddDispatchResilience();
+			_ = dispatch.UseValidation();
+			_ = dispatch.UseResilience();
 		});
 
 		services.AddEventSerializer();
 #pragma warning disable IL2026
-		services.AddExcaliburEventSourcing(builder =>
+		services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			builder.AddRepository<PipelineOrderAggregate, Guid>(
-				_ => new PipelineOrderAggregate()));
+				_ => new PipelineOrderAggregate())));
 #pragma warning restore IL2026
 		services.AddInMemoryEventStore();
 
@@ -189,14 +189,14 @@ public sealed class PipelineScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(PipelineScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
-			_ = dispatch.AddDispatchResilience();
+			_ = dispatch.UseValidation();
+			_ = dispatch.UseResilience();
 		});
 
 #pragma warning disable IL2026
-		services.AddExcaliburEventSourcing(builder =>
+		services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			builder.AddRepository<PipelineOrderAggregate, Guid>(
-				_ => new PipelineOrderAggregate()));
+				_ => new PipelineOrderAggregate())));
 #pragma warning restore IL2026
 		services.AddInMemoryEventStore();
 

@@ -7,8 +7,8 @@ namespace Excalibur.Data.Tests.DynamoDb.Cdc;
 /// <summary>
 /// Unit tests for <see cref="DynamoDbStreamViewType"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 [Trait("Feature", "DynamoDb")]
 public sealed class DynamoDbStreamViewTypeShould : UnitTestBase
 {

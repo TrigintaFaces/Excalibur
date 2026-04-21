@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Tests for the <see cref="CircuitBreakerPolicy"/> class.
 /// Epic 6 (bd-rj9o): Integration tests for circuit breaker pattern.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class CircuitBreakerPolicyShould
 {

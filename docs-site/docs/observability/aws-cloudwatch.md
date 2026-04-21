@@ -1,4 +1,4 @@
-﻿---
+---
 sidebar_position: 5
 title: AWS CloudWatch Integration
 description: Monitor Dispatch applications with AWS CloudWatch
@@ -10,7 +10,7 @@ Dispatch integrates with AWS CloudWatch for comprehensive monitoring of serverle
 
 ## Before You Start
 
-- **.NET 8.0+** (or .NET 9/10 for latest features)
+- **.NET 10.0**
 - An AWS account with CloudWatch access
 - Familiarity with [production observability](./production-observability.md) and [metrics reference](./metrics-reference.md)
 
@@ -38,19 +38,24 @@ dotnet add package AWS.Distro.OpenTelemetry.AspNetCore
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-builder.Services.AddDispatchObservability(options =>
+builder.Services.AddDispatch(dispatch =>
 {
-    options.Enabled = true;
-    options.ServiceName = "my-dispatch-service";
-    options.ServiceVersion = "1.0.0";
+    dispatch.UseObservability(options =>
+    {
+        options.Enabled = true;
+        options.ServiceName = "my-dispatch-service";
+        options.ServiceVersion = "1.0.0";
+    });
 });
 ```
 
 ### From Configuration
 
 ```csharp
-builder.Services.AddDispatchObservability(
-    builder.Configuration.GetSection("Dispatch:Observability"));
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.UseObservability(builder.Configuration);
+});
 ```
 
 ```json
@@ -114,7 +119,7 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
         tracing
-            .AddSource("Excalibur.Dispatch.Observability.*")
+            .AddSource("Excalibur.Dispatch")
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddAWSInstrumentation()
@@ -140,7 +145,7 @@ builder.Services.AddAwsLambdaServerless(options =>
 // Configure Lambda-specific options
 builder.Services.Configure<AwsLambdaOptions>(options =>
 {
-    options.Runtime = "dotnet8";
+    options.Runtime = "dotnet10";
     options.EnableProvisionedConcurrency = true;
     options.ReservedConcurrency = 100;
 });
@@ -157,8 +162,8 @@ public class AwsLambdaOptions
     // Reserved concurrency limit (null = no limit)
     public int? ReservedConcurrency { get; set; }
 
-    // Lambda runtime (default: "dotnet8")
-    public string Runtime { get; set; } = "dotnet8";
+    // Lambda runtime (default: "dotnet10")
+    public string Runtime { get; set; } = "dotnet10";
 
     // Handler name for deployment
     public string? Handler { get; set; }
@@ -183,7 +188,7 @@ public class Function
         services.AddDispatch(dispatch =>
         {
             dispatch.AddHandlersFromAssembly(typeof(Function).Assembly);
-            dispatch.AddObservability(obs => obs.ServiceName = "order-processor");
+            dispatch.UseObservability(obs => obs.ServiceName = "order-processor");
         });
 
         services.AddAwsLambdaServerless();

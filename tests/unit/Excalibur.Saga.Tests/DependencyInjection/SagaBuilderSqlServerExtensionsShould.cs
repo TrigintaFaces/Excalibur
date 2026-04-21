@@ -32,7 +32,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((ISagaBuilder)null!).UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; }));
+			((ISagaBuilder)null!).UseSqlServer(sql => sql.ConnectionString(TestConnectionString)));
 	}
 
 	[Fact]
@@ -57,7 +57,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		var result = builder.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; });
+		var result = builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -74,7 +74,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; });
+		builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -88,7 +88,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; });
+		builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -102,7 +102,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; });
+		builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -121,10 +121,8 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 
 		// Act & Assert -- configure action with custom schema should be accepted without throwing
 		var result = builder.UseSqlServer(sql =>
-		{
-			sql.ConnectionString = TestConnectionString;
-			sql.SchemaName = "custom";
-		});
+			sql.ConnectionString(TestConnectionString)
+			   .SchemaName("custom"));
 
 		result.ShouldBeSameAs(builder);
 	}
@@ -141,7 +139,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 
 		// Act -- verify chaining with existing saga builder extensions
 		var result = builder
-			.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; })
+			.UseSqlServer(sql => sql.ConnectionString(TestConnectionString))
 			.WithOrchestration()
 			.WithTimeouts();
 

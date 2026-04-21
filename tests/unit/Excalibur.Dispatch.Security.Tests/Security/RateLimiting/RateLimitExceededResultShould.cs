@@ -3,15 +3,15 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Security;
+using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.RateLimiting;
 
 /// <summary>
 /// Unit tests for <see cref="RateLimitExceededResult"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class RateLimitExceededResultShould
 {
 	[Fact]
@@ -71,7 +71,7 @@ public sealed class RateLimitExceededResultShould
 		var result = new RateLimitExceededResult();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -155,7 +155,7 @@ public sealed class RateLimitExceededResultShould
 		result.ErrorMessage = "Rate limit exceeded for tenant-123";
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Rate limit exceeded for tenant-123");
+		result.ErrorMessage!.ShouldBe("Rate limit exceeded for tenant-123");
 	}
 
 	[Fact]
@@ -211,7 +211,7 @@ public sealed class RateLimitExceededResultShould
 		result.RoutingDecision.ShouldBe(routingDecision);
 		result.ValidationResult.ShouldBe("valid");
 		result.AuthorizationResult.ShouldBe("authorized");
-		result.ErrorMessage.ShouldBe("Too many requests");
+		result.ErrorMessage!.ShouldBe("Too many requests");
 		result.CacheHit.ShouldBeFalse();
 		result.RetryAfterMilliseconds.ShouldBe(10000);
 		result.RateLimitKey.ShouldBe("user:12345");

@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// Stress and boundary tests for the consolidated <see cref="MpkSerializer"/>.
 /// Tests edge cases with extreme values and repeated operations.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class MessagePackSerializerStressShould : UnitTestBase
 {
 	#region Boundary Value Tests
