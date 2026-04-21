@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.IndexManagement;
+using Elastic.Clients.Elasticsearch.Mapping;
 
 using Excalibur.Data.ElasticSearch.Exceptions;
 
@@ -18,7 +20,8 @@ namespace Excalibur.Data.ElasticSearch;
 /// This class includes operations for adding, updating, retrieving, deleting, and searching documents, as well as initializing indices
 /// in Elasticsearch.
 /// </remarks>
-public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex, IElasticRepositoryBase<TDocument>, IElasticRepositoryBaseQuery<TDocument>
+public abstract class ElasticRepositoryBase<
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.Interfaces)] TDocument> : IInitializeElasticIndex, IElasticRepositoryBase<TDocument>, IElasticRepositoryBaseQuery<TDocument>
 	where TDocument : class
 {
 	private readonly ElasticsearchClient _client;
@@ -191,6 +194,65 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		if (!exists.IsValidResponse)
 		{
 			_ = await _client.Indices.CreateAsync(createIndexRequest, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// Initializes the Elasticsearch index with mappings derived from the document type.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Uses the three-tier mapping strategy from <see cref="ElasticIndexMappingBuilder"/>:
+	/// </para>
+	/// <list type="number">
+	/// <item>
+	/// <b>Explicit</b>: If <typeparamref name="TDocument"/> implements
+	/// <see cref="IElasticIndexConfiguration{TSelf}"/>, its <c>ConfigureIndex</c> method
+	/// provides full control over field mappings.
+	/// </item>
+	/// <item>
+	/// <b>Inferred</b>: Otherwise, public properties are reflected and mapped to
+	/// appropriate Elasticsearch types (keyword, long, double, date, boolean).
+	/// </item>
+	/// </list>
+	/// <para>
+	/// This method is safe to call multiple times — it is a no-op if the index already exists.
+	/// </para>
+	/// </remarks>
+	/// <param name="numberOfShards">Number of primary shards for the index.</param>
+	/// <param name="numberOfReplicas">Number of replica shards for the index.</param>
+	/// <param name="cancellationToken">The cancellation token to cancel the operation if required.</param>
+	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+	protected async Task InitializeIndexWithMappingsAsync(
+		int numberOfShards = 1,
+		int numberOfReplicas = 1,
+		CancellationToken cancellationToken = default)
+	{
+		var exists = await _client.Indices.ExistsAsync(_indexName, cancellationToken).ConfigureAwait(false);
+
+		if (exists.Exists)
+		{
+			return;
+		}
+
+		// Build mappings using the three-tier strategy
+		var mappingProperties = ElasticIndexMappingBuilder.BuildMappingProperties<TDocument>();
+
+		var createResponse = await _client.Indices
+			.CreateAsync(_indexName, c =>
+			{
+				c.Settings(s => s
+					.NumberOfShards(numberOfShards)
+					.NumberOfReplicas(numberOfReplicas));
+
+				c.Mappings(m => m.Properties(mappingProperties));
+			}, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (!createResponse.IsValidResponse && !createResponse.Acknowledged)
+		{
+			throw new InvalidOperationException(
+				$"Failed to create index '{_indexName}': {createResponse.ApiCallDetails}");
 		}
 	}
 }

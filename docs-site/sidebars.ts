@@ -178,6 +178,7 @@ const sidebars: SidebarsConfig = {
           items: [
             { type: 'doc', id: 'data-access/idb-interface' },
             { type: 'doc', id: 'data-access/identity-map' },
+            { type: 'doc', id: 'data-access/pagination' },
           ],
         },
         {

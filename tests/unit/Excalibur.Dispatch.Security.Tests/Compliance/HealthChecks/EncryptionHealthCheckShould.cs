@@ -69,8 +69,13 @@ public sealed class EncryptionHealthCheckShould
 	[Fact]
 	public async Task ReturnHealthy_WhenEncryptionWorks()
 	{
-		// Arrange
-		var sut = CreateSut();
+		// Arrange — use a generous degraded threshold to avoid CI timing flakiness
+		// (default 100ms can be exceeded under parallel test load even with mocks)
+		var options = new EncryptionHealthCheckOptions
+		{
+			DegradedThreshold = TimeSpan.FromSeconds(5),
+		};
+		var sut = CreateSut(options: options);
 		var context = new HealthCheckContext();
 
 		// Act
@@ -206,8 +211,12 @@ public sealed class EncryptionHealthCheckShould
 	[Fact]
 	public async Task IncludeActiveKeyIdInData()
 	{
-		// Arrange
-		var sut = CreateSut();
+		// Arrange — generous threshold to avoid CI timing flakiness
+		var options = new EncryptionHealthCheckOptions
+		{
+			DegradedThreshold = TimeSpan.FromSeconds(5),
+		};
+		var sut = CreateSut(options: options);
 		var context = new HealthCheckContext();
 
 		// Act
@@ -221,8 +230,12 @@ public sealed class EncryptionHealthCheckShould
 	[Fact]
 	public async Task IncludeProviderNameInData()
 	{
-		// Arrange
-		var sut = CreateSut();
+		// Arrange — generous threshold to avoid CI timing flakiness
+		var options = new EncryptionHealthCheckOptions
+		{
+			DegradedThreshold = TimeSpan.FromSeconds(5),
+		};
+		var sut = CreateSut(options: options);
 		var context = new HealthCheckContext();
 
 		// Act
@@ -235,8 +248,12 @@ public sealed class EncryptionHealthCheckShould
 	[Fact]
 	public async Task ReportHealthToTelemetry()
 	{
-		// Arrange
-		var sut = CreateSut();
+		// Arrange — generous threshold to avoid CI timing flakiness
+		var options = new EncryptionHealthCheckOptions
+		{
+			DegradedThreshold = TimeSpan.FromSeconds(5),
+		};
+		var sut = CreateSut(options: options);
 		var context = new HealthCheckContext();
 
 		// Act

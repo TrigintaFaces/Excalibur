@@ -49,7 +49,7 @@ public sealed class ElasticSearchProjectionRegistrar
 	/// <typeparam name="TProjection">The projection type to store.</typeparam>
 	/// <param name="configureOptions">Optional action to override per-projection options.</param>
 	/// <returns>This registrar for fluent chaining.</returns>
-	public ElasticSearchProjectionRegistrar Add<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>(
+	public ElasticSearchProjectionRegistrar Add<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.Interfaces)] TProjection>(
 		Action<ElasticSearchProjectionStoreOptions>? configureOptions = null)
 		where TProjection : class
 	{

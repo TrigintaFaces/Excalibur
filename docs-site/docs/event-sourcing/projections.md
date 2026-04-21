@@ -566,6 +566,9 @@ services.AddElasticSearchProjections("https://es.example.com:9200", projections 
     projections.Add<OrderSummary>();
     projections.Add<CustomerProfile>(o => o.IndexName = "customers");
 });
+// Tip: Implement IElasticIndexConfiguration<T> on your projection class
+// for explicit field mappings (full-text search, keyword vs text, etc.).
+// See Elasticsearch Provider > Index Field Mappings for details.
 
 // MongoDB
 services.AddMongoDbProjections(mongoConnectionString, "projections", projections =>

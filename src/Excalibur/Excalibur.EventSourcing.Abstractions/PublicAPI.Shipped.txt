@@ -284,3 +284,6 @@ Excalibur.EventSourcing.Abstractions.PagedResult<T>.TotalPages.get -> int
 Excalibur.EventSourcing.Abstractions.PagedResult<T>.this[int index].get -> T!
 abstract Excalibur.EventSourcing.Abstractions.CursorPageRequest<TCursor>.GetCursor() -> TCursor?
 static Excalibur.EventSourcing.Abstractions.QueryOptions.Default.get -> Excalibur.EventSourcing.Abstractions.QueryOptions!
+Excalibur.EventSourcing.Abstractions.CursorEncoder
+static Excalibur.EventSourcing.Abstractions.CursorEncoder.Decode(string? cursor) -> object?[]?
+static Excalibur.EventSourcing.Abstractions.CursorEncoder.Encode(params object?[]! sortValues) -> string!

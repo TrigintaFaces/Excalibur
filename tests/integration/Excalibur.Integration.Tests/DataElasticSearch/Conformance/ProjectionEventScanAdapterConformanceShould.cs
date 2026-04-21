@@ -79,10 +79,11 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IDisposable
 
 		_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);
 
-		// ES 9 may need a brief settling window after refresh before
-		// documents are visible in search results.
+		// ES 9 may need a longer settling window after refresh before
+		// documents are visible in search results — especially in CI where
+		// resource contention can delay near-realtime visibility.
 		IReadOnlyList<ReadEventDocument>? results = null;
-		for (var attempt = 0; attempt < 5; attempt++)
+		for (var attempt = 0; attempt < 10; attempt++)
 		{
 			results = await _adapter
 				.SearchReadsAsync(
@@ -95,7 +96,7 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IDisposable
 				break;
 			}
 
-			await Task.Delay(200, CancellationToken.None).ConfigureAwait(false);
+			await Task.Delay(500, CancellationToken.None).ConfigureAwait(false);
 			_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);
 		}
 
@@ -121,9 +122,10 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IDisposable
 
 		_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);
 
-		// ES 9 may need a brief settling window after refresh.
+		// ES 9 may need a longer settling window after refresh — especially
+		// in CI where resource contention can delay near-realtime visibility.
 		long count = 0;
-		for (var attempt = 0; attempt < 5; attempt++)
+		for (var attempt = 0; attempt < 10; attempt++)
 		{
 			count = await _adapter
 				.GetDocumentCountAsync(_readIndex, ProjectionCountFilter.ReadsByProjectionType, projection, CancellationToken.None)
@@ -134,7 +136,7 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IDisposable
 				break;
 			}
 
-			await Task.Delay(200, CancellationToken.None).ConfigureAwait(false);
+			await Task.Delay(500, CancellationToken.None).ConfigureAwait(false);
 			_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);
 		}
 

@@ -66,13 +66,16 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		// Idempotent: INSERT WHERE NOT EXISTS
+		// Idempotent: INSERT WHERE NOT EXISTS with HOLDLOCK to prevent
+		// concurrent TOCTOU duplicates (two transactions both seeing "no row"
+		// and both inserting). UPDLOCK + HOLDLOCK serializes the check-and-insert
+		// within a single implicit transaction scope.
 		var sql = $@"
 			INSERT INTO {_options.FullyQualifiedTableName}
 				(Id, EventId, AnnotationType, Content, ActorId, CreatedAt, Visibility)
 			SELECT @Id, @EventId, @AnnotationType, @Content, @ActorId, @CreatedAt, @Visibility
 			WHERE NOT EXISTS (
-				SELECT 1 FROM {_options.FullyQualifiedTableName}
+				SELECT 1 FROM {_options.FullyQualifiedTableName} WITH (UPDLOCK, HOLDLOCK)
 				WHERE EventId = @EventId AND AnnotationType = @AnnotationType AND Content = @Content
 			)";
 

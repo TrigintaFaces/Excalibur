@@ -3112,3 +3112,10 @@ virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.Initialize
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.SearchAsync(Elastic.Clients.Elasticsearch.SearchRequestDescriptor<TDocument!> searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.SearchResponse<TDocument!>!>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.UpdateAsync(string! documentId, System.Collections.Generic.Dictionary<string!, object!>! updatedFields, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.ElasticSearchCursorHelper
+static Excalibur.Data.ElasticSearch.ElasticSearchCursorHelper.DecodeCursor(string? cursor) -> System.Collections.Generic.IList<Elastic.Clients.Elasticsearch.FieldValue>?
+static Excalibur.Data.ElasticSearch.ElasticSearchCursorHelper.EncodeCursor(System.Collections.Generic.IReadOnlyCollection<Elastic.Clients.Elasticsearch.FieldValue>! sortValues) -> string!
+static Excalibur.Data.ElasticSearch.ElasticSearchCursorHelper.ToCursorResult<T>(Elastic.Clients.Elasticsearch.SearchResponse<T>! response, int pageSize, bool reverseItems = false) -> Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>!
+Excalibur.Data.ElasticSearch.IElasticIndexConfiguration<TSelf>
+Excalibur.Data.ElasticSearch.IElasticIndexConfiguration<TSelf>.ConfigureIndex() -> Elastic.Clients.Elasticsearch.Mapping.Properties!
+Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.InitializeIndexWithMappingsAsync(int numberOfShards = 1, int numberOfReplicas = 1, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!

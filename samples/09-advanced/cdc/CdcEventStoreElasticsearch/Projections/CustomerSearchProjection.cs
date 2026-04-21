@@ -3,13 +3,18 @@
 
 using System.Text.Json.Serialization;
 
+using Elastic.Clients.Elasticsearch.Mapping;
+
+using Excalibur.Data.ElasticSearch;
+
 namespace CdcEventStoreElasticsearch.Projections;
 
 /// <summary>
 /// Elasticsearch projection for customer search and display.
 /// This read model is optimized for full-text search and filtering.
+/// Implements <see cref="IElasticIndexConfiguration{TSelf}"/> for explicit field mappings.
 /// </summary>
-public sealed class CustomerSearchProjection
+public sealed class CustomerSearchProjection : IElasticIndexConfiguration<CustomerSearchProjection>
 {
 	/// <summary>Gets or sets the unique identifier.</summary>
 	[JsonPropertyName("id")]
@@ -62,6 +67,32 @@ public sealed class CustomerSearchProjection
 	/// <summary>Gets or sets searchable tags for filtering.</summary>
 	[JsonPropertyName("tags")]
 	public List<string> Tags { get; set; } = [];
+
+	/// <inheritdoc />
+	public static Properties ConfigureIndex() => new()
+	{
+		{ "id", new KeywordProperty() },
+		{ "customerId", new KeywordProperty() },
+		{ "externalId", new KeywordProperty() },
+		{ "name", new TextProperty
+			{
+				Fields = new Properties { { "keyword", new KeywordProperty { IgnoreAbove = 256 } } }
+			}
+		},
+		{ "email", new TextProperty
+			{
+				Fields = new Properties { { "keyword", new KeywordProperty { IgnoreAbove = 256 } } }
+			}
+		},
+		{ "phone", new KeywordProperty() },
+		{ "orderCount", new LongNumberProperty() },
+		{ "totalSpent", new DoubleNumberProperty() },
+		{ "tier", new KeywordProperty() },
+		{ "isActive", new BooleanProperty() },
+		{ "createdAt", new DateProperty() },
+		{ "lastUpdatedAt", new DateProperty() },
+		{ "tags", new KeywordProperty() }
+	};
 }
 
 /// <summary>

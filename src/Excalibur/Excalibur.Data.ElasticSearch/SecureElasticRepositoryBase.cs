@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security;
 
 using Elastic.Clients.Elasticsearch;
@@ -28,7 +29,8 @@ namespace Excalibur.Data.ElasticSearch;
 /// <param name="securityOptions"> The security configuration options. </param>
 /// <param name="logger"> The logger for security and operational events. </param>
 /// <exception cref="ArgumentNullException"> Thrown when required dependencies are null. </exception>
-public abstract class SecureElasticRepositoryBase<TEntity>(
+public abstract class SecureElasticRepositoryBase<
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.Interfaces)] TEntity>(
 	ElasticsearchClient client,
 	IElasticsearchFieldEncryptor fieldEncryptor,
 	IElasticsearchSecurityAuditor securityAuditor,

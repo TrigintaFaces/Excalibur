@@ -127,6 +127,193 @@ Manage indices, templates, aliases, and ILM policies:
 - `IIndexOperationsManager` — CRUD operations on indices
 - `IIndexAliasManager` — Manage index aliases
 
+## Index Field Mappings
+
+By default, Elasticsearch uses dynamic mapping to guess field types from the first document indexed. This can produce incorrect types — for example, mapping a numeric string as `long` instead of `keyword`, or missing full-text search capability on name fields.
+
+Excalibur provides a **three-tier mapping strategy** that gives you control over how fields are mapped:
+
+### Tier 1: Explicit Mapping (Recommended)
+
+Implement `IElasticIndexConfiguration<T>` on your document class for full control:
+
+```csharp
+using Elastic.Clients.Elasticsearch.Mapping;
+using Excalibur.Data.ElasticSearch;
+
+public sealed class CustomerSearchProjection : IElasticIndexConfiguration<CustomerSearchProjection>
+{
+    public Guid CustomerId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public decimal TotalSpent { get; set; }
+    public bool IsActive { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public List<string> Tags { get; set; } = [];
+
+    public static Properties ConfigureIndex() => new()
+    {
+        { "customerId", new KeywordProperty() },
+        { "name", new TextProperty
+            {
+                Fields = new Properties
+                {
+                    { "keyword", new KeywordProperty { IgnoreAbove = 256 } }
+                }
+            }
+        },
+        { "email", new TextProperty
+            {
+                Fields = new Properties
+                {
+                    { "keyword", new KeywordProperty { IgnoreAbove = 256 } }
+                }
+            }
+        },
+        { "totalSpent", new DoubleNumberProperty() },
+        { "isActive", new BooleanProperty() },
+        { "createdAt", new DateProperty() },
+        { "tags", new KeywordProperty() }
+    };
+}
+```
+
+Use explicit mapping when you need:
+- Full-text search fields (`TextProperty`) with keyword sub-fields
+- Nested object queries (`NestedProperty`)
+- Custom analyzers or field-specific settings
+
+### Tier 2: Reflection-Inferred Mapping (Good Default)
+
+When `IElasticIndexConfiguration<T>` is not implemented, the framework reflects over public properties and maps them to appropriate Elasticsearch types:
+
+| .NET Type | Elasticsearch Type |
+|---|---|
+| `string`, `Guid`, enums | `keyword` |
+| `int`, `short`, `byte`, `long` (and unsigned variants) | `long` |
+| `float`, `double`, `decimal` | `double` |
+| `DateTime`, `DateTimeOffset`, `DateOnly` | `date` |
+| `bool` | `boolean` |
+| `List<string>`, `string[]`, `IReadOnlyList<string>` | `keyword` |
+| Complex nested types | Skipped (ES dynamic mapping) |
+
+Nullable types are unwrapped — `int?` maps to `long`, `DateTime?` maps to `date`, etc.
+
+This tier is automatic and requires no code changes. It is suitable when all string fields are exact-match (IDs, codes, statuses) and no full-text search is needed.
+
+### Tier 3: Dynamic Mapping (Fallback)
+
+If both explicit and inferred mapping are bypassed, Elasticsearch uses its own dynamic mapping rules. This is not recommended for production — it can produce incorrect types (e.g., mapping `"12345"` as `long` instead of `keyword`).
+
+### Using Mappings with ElasticRepositoryBase
+
+For non-projection documents using `ElasticRepositoryBase<T>`, call `InitializeIndexWithMappingsAsync` in your override:
+
+```csharp
+public class CustomerRepository : ElasticRepositoryBase<CustomerDocument>
+{
+    public CustomerRepository(ElasticsearchClient client)
+        : base(client, "customers") { }
+
+    public override async Task InitializeIndexAsync(CancellationToken cancellationToken)
+    {
+        await InitializeIndexWithMappingsAsync(
+            numberOfShards: 1,
+            numberOfReplicas: 1,
+            cancellationToken).ConfigureAwait(false);
+    }
+}
+```
+
+The projection store (`ElasticSearchProjectionStore<T>`) uses the three-tier strategy automatically during index creation — no additional configuration is needed.
+
+## Cursor-Based Pagination
+
+Excalibur provides cursor-based (keyset) pagination that maps directly to Elasticsearch's `search_after` API — delivering consistent, scalable paging without the performance cliff of deep `from + size` offsets.
+
+### Core Components
+
+| Component | Package | Purpose |
+|---|---|---|
+| `CursorEncoder` | `Excalibur.EventSourcing.Abstractions` | Backend-agnostic Base64url cursor encoding/decoding |
+| `ElasticSearchCursorHelper` | `Excalibur.Data.ElasticSearch` | Converts between `CursorEncoder` primitives and ES `FieldValue` sort values |
+| `CursorPagedResult<T>` | `Excalibur.EventSourcing.Abstractions` | Result type with items, total count, and opaque next-page cursor |
+
+### How It Works
+
+1. **First request** — no cursor, query returns the first page sorted by your chosen fields
+2. **Subsequent requests** — pass the opaque cursor from the previous response; the framework decodes it into `search_after` sort values
+3. **Last page** — `NextCursor` is `null`, `HasMore` is `false`
+
+### Usage in a Controller
+
+```csharp
+[HttpGet("search")]
+public async Task<CursorPagedResult<OrderSearchProjection>> Search(
+    [FromQuery] string? query,
+    [FromQuery] int pageSize = 20,
+    [FromQuery] string? cursor = null,
+    CancellationToken cancellationToken = default)
+{
+    // Decode cursor into ES sort values (null for first page)
+    var searchAfter = ElasticSearchCursorHelper.DecodeCursor(cursor);
+
+    var searchRequest = new SearchRequestDescriptor<OrderSearchProjection>()
+        .Index("orders")
+        .Size(pageSize)
+        .Sort(s => s.Field(f => f.CreatedAt, new FieldSort { Order = SortOrder.Desc }))
+        .Sort(s => s.Field("_id", new FieldSort { Order = SortOrder.Asc }));
+
+    if (searchAfter is not null)
+    {
+        searchRequest.SearchAfter(searchAfter);
+    }
+
+    if (!string.IsNullOrWhiteSpace(query))
+    {
+        searchRequest.Query(q => q.MultiMatch(m => m
+            .Query(query)
+            .Fields(new[] { "customerName", "status" })));
+    }
+
+    var response = await elasticClient.SearchAsync(searchRequest, cancellationToken);
+
+    // Build result with encoded cursor for next page
+    return ElasticSearchCursorHelper.ToCursorResult(response, pageSize);
+}
+```
+
+### Bidirectional Pagination
+
+For previous-page navigation, reverse the sort order and set `reverseItems: true`:
+
+```csharp
+// Previous page: reverse sort, then reverse items back to display order
+var result = ElasticSearchCursorHelper.ToCursorResult(response, pageSize, reverseItems: true);
+```
+
+### Supported Sort Value Types
+
+The `CursorEncoder` handles all common Elasticsearch sort value types:
+
+| Type | Encoding | Round-trip behavior |
+|---|---|---|
+| `string` | JSON string | Exact round-trip |
+| `long`, `int` | JSON number | Decoded as `long` |
+| `double`, `float`, `decimal` | JSON number | Decoded as `long` (if integer) or `double` |
+| `bool` | JSON true/false | Exact round-trip |
+| `null` | JSON null | Exact round-trip |
+| `DateTimeOffset`, `DateTime` | Unix epoch milliseconds | Decoded as `long` |
+| `DateOnly`, `TimeOnly` | ISO 8601 string | Decoded as `string` |
+
+Cursors are Base64url-encoded (URL-safe, no padding) and opaque to consumers — the internal format may change between versions.
+
+### Design Notes
+
+- **Backend-agnostic**: `CursorEncoder` and `CursorPagedResult<T>` live in `Excalibur.EventSourcing.Abstractions` with no Elasticsearch dependency. They work with any store that supports keyset pagination (SQL Server, CosmosDB, etc.).
+- **Corrupt cursors are safe**: Invalid or tampered cursors return `null` from `DecodeCursor`, causing the query to start from the beginning rather than failing.
+- **Always include a tiebreaker sort**: Use `_id` or another unique field as the last sort criterion to ensure deterministic ordering when primary sort values are identical.
+
 ## Audit Sink
 
 A separate package provides an Elasticsearch audit sink for real-time audit event indexing:

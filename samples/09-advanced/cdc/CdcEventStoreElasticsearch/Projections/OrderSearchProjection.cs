@@ -3,13 +3,18 @@
 
 using System.Text.Json.Serialization;
 
+using Elastic.Clients.Elasticsearch.Mapping;
+
+using Excalibur.Data.ElasticSearch;
+
 namespace CdcEventStoreElasticsearch.Projections;
 
 /// <summary>
 /// Elasticsearch projection for order search and display.
 /// This read model is optimized for full-text search and filtering.
+/// Implements <see cref="IElasticIndexConfiguration{TSelf}"/> for explicit field mappings.
 /// </summary>
-public sealed class OrderSearchProjection
+public sealed class OrderSearchProjection : IElasticIndexConfiguration<OrderSearchProjection>
 {
 	/// <summary>Gets or sets the unique identifier.</summary>
 	[JsonPropertyName("id")]
@@ -74,6 +79,31 @@ public sealed class OrderSearchProjection
 	/// <summary>Gets or sets searchable tags for filtering.</summary>
 	[JsonPropertyName("tags")]
 	public List<string> Tags { get; set; } = [];
+
+	/// <inheritdoc />
+	public static Properties ConfigureIndex() => new()
+	{
+		{ "id", new KeywordProperty() },
+		{ "orderId", new KeywordProperty() },
+		{ "externalOrderId", new KeywordProperty() },
+		{ "customerId", new KeywordProperty() },
+		{ "customerExternalId", new KeywordProperty() },
+		{ "customerName", new TextProperty
+			{
+				Fields = new Properties { { "keyword", new KeywordProperty { IgnoreAbove = 256 } } }
+			}
+		},
+		{ "status", new KeywordProperty() },
+		{ "totalAmount", new DoubleNumberProperty() },
+		{ "itemCount", new LongNumberProperty() },
+		{ "orderDate", new DateProperty() },
+		{ "shippedDate", new DateProperty() },
+		{ "deliveredDate", new DateProperty() },
+		{ "createdAt", new DateProperty() },
+		{ "lastUpdatedAt", new DateProperty() },
+		{ "lineItems", new NestedProperty() },
+		{ "tags", new KeywordProperty() }
+	};
 }
 
 /// <summary>

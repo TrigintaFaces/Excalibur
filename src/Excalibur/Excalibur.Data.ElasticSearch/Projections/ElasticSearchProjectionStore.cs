@@ -9,8 +9,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Elastic.Clients.Elasticsearch;
-using
-	Elastic.Clients.Elasticsearch.QueryDsl;
+using Elastic.Clients.Elasticsearch.Mapping;
+using Elastic.Clients.Elasticsearch.QueryDsl;
 using Elastic.Transport;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
@@ -44,7 +44,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
 public sealed partial class ElasticSearchProjectionStore<
-	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection> : IProjectionStore<TProjection>,
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.Interfaces)] TProjection> : IProjectionStore<TProjection>,
 	IAsyncDisposable
 	where TProjection : class
 {
@@ -751,18 +751,31 @@ public sealed partial class ElasticSearchProjectionStore<
 			return;
 		}
 
-		// Create index with dynamic mapping enabled
-		// Field names are serialized as camelCase via JsonPropertyName attributes
-		// Dynamic mapping will create appropriate field types automatically:
-		// - Strings become text with .keyword subfield
-		// - Numbers become long/double
-		// - Dates become date
+		// Build explicit field mappings for the projection type using the three-tier strategy:
+		// 1. Explicit: IElasticIndexConfiguration<TProjection> (consumer-declared, full control)
+		// 2. Inferred: Reflection over public properties (keyword for strings, long/double for numerics, etc.)
+		// 3. Dynamic: Elasticsearch guesses (only for unknown/complex types not covered by tiers 1-2)
+		//
+		// Projections are stored in a wrapper document with envelope fields (projectionId,
+		// projectionType, updatedAt) and the projection data nested under a "data" object.
+		// The envelope fields are always mapped explicitly; the projection fields under
+		// "data" use the tiered strategy.
+		var dataProperties = BuildProjectionDataProperties();
+
 		var createResponse = await _client!.Indices
 			.CreateAsync(_indexName, c => c
 				.Settings(s => s
 					.NumberOfShards(_options.NumberOfShards)
 					.NumberOfReplicas(_options.NumberOfReplicas)
-					.RefreshInterval(_options.RefreshInterval)), cancellationToken)
+					.RefreshInterval(_options.RefreshInterval))
+				.Mappings(m => m
+					.Properties(new Properties
+					{
+						{ "projectionId", new KeywordProperty() },
+						{ "projectionType", new KeywordProperty() },
+						{ "updatedAt", new DateProperty() },
+						{ "data", new ObjectProperty { Properties = dataProperties } }
+					})), cancellationToken)
 			.ConfigureAwait(false);
 
 		if (!createResponse.IsValidResponse && !createResponse.Acknowledged)
@@ -770,6 +783,34 @@ public sealed partial class ElasticSearchProjectionStore<
 			var errorMessage = createResponse.ApiCallDetails?.ToString() ?? "Unknown error";
 			LogIndexCreationFailed(_indexName, errorMessage);
 		}
+	}
+
+	/// <summary>
+	/// Builds the Elasticsearch properties for the projection data sub-object using the
+	/// three-tier mapping strategy from <see cref="ElasticIndexMappingBuilder"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The projection store wraps documents in an envelope with <c>projectionId</c>,
+	/// <c>projectionType</c>, and <c>updatedAt</c> fields. The projection's own properties
+	/// are nested under a <c>data</c> object. This method builds the mappings for the
+	/// <c>data</c> sub-object only.
+	/// </para>
+	/// <para>
+	/// Uses the full three-tier strategy:
+	/// </para>
+	/// <list type="number">
+	/// <item><b>Explicit</b>: If <typeparamref name="TProjection"/> implements
+	/// <see cref="IElasticIndexConfiguration{TSelf}"/>, its <c>ConfigureIndex</c> method
+	/// provides full control.</item>
+	/// <item><b>Inferred</b>: Otherwise, reflects public properties and maps to
+	/// keyword/long/double/date/boolean.</item>
+	/// <item><b>Dynamic</b>: Unknown/complex types fall through to ES dynamic mapping.</item>
+	/// </list>
+	/// </remarks>
+	private static Properties BuildProjectionDataProperties()
+	{
+		return ElasticIndexMappingBuilder.BuildMappingProperties<TProjection>();
 	}
 
 	[LoggerMessage(DataElasticsearchEventId.ProjectionStoreInitialized, LogLevel.Information,

@@ -65,7 +65,7 @@ Install-Package Excalibur.Dispatch.Patterns.ClaimCheck.InMemory
 ```
 
 **Requirements:**
-- .NET 8.0 or later
+- .NET 10.0 or later
 - Excalibur.Dispatch.Patterns (automatically included as dependency)
 
 ---
