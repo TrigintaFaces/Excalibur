@@ -24,13 +24,14 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.Conformance;
 [Trait("Component", "Elasticsearch")]
 [Trait("Database", "Elasticsearch")]
 [Trait("Pattern", "SEAM-PASSTHROUGH")]
-public sealed class ProjectionEventScanAdapterConformanceShould : IDisposable
+public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime, IDisposable
 {
 	private readonly ElasticsearchClient _client;
 	private readonly string _writeIndex;
 	private readonly string _readIndex;
 	private readonly ProjectionEventScanAdapter _adapter;
 	private readonly ProjectionEventIngestAdapter _seed;
+	private readonly ProjectionIndexProvisioningAdapter _provisioning;
 	private bool _disposed;
 
 	public ProjectionEventScanAdapterConformanceShould(ElasticsearchContainerFixture fixture)
@@ -47,7 +48,24 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IDisposable
 
 		_adapter = new ProjectionEventScanAdapter(_client, _writeIndex, _readIndex);
 		_seed = new ProjectionEventIngestAdapter(_client, _writeIndex, _readIndex, checkpointIndex);
+		_provisioning = new ProjectionIndexProvisioningAdapter(_client);
 	}
+
+	/// <summary>
+	/// Pre-create indexes with explicit keyword mappings so that Term queries
+	/// in <see cref="ProjectionEventScanAdapter"/> work correctly.
+	/// Without this, ES auto-creates indexes with dynamic text mapping on first
+	/// document ingest, causing Term queries on eventId/projectionType to miss.
+	/// </summary>
+	public async Task InitializeAsync()
+	{
+		await _provisioning.CreateIndexAsync(_writeIndex, ConsistencyIndexKind.WriteEvents, CancellationToken.None)
+			.ConfigureAwait(false);
+		await _provisioning.CreateIndexAsync(_readIndex, ConsistencyIndexKind.ReadEvents, CancellationToken.None)
+			.ConfigureAwait(false);
+	}
+
+	public Task DisposeAsync() => Task.CompletedTask;
 
 	[Fact]
 	public void Construct_WithNullClient_ThrowsArgumentNullException() =>
