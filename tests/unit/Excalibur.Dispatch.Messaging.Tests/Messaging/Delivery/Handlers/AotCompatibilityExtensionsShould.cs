@@ -105,31 +105,4 @@ public sealed class AotCompatibilityExtensionsShould
 	}
 
 	#endregion
-
-	#region RegisterDiscoveredHandlers Tests
-
-	[Fact]
-	public void RegisterDiscoveredHandlers_ReturnsSameServiceCollection()
-	{
-		var services = new ServiceCollection();
-
-		var result = services.RegisterDiscoveredHandlers(typeof(AotCompatibilityExtensionsShould).Assembly);
-
-		result.ShouldBeSameAs(services);
-	}
-
-	[Fact]
-	public void RegisterDiscoveredHandlers_RegistersHandlerRegistry()
-	{
-		var services = new ServiceCollection();
-
-		services.RegisterDiscoveredHandlers(typeof(AotCompatibilityExtensionsShould).Assembly);
-
-		var provider = services.BuildServiceProvider();
-		var registry = provider.GetService<IHandlerRegistry>();
-
-		registry.ShouldNotBeNull();
-	}
-
-	#endregion
 }

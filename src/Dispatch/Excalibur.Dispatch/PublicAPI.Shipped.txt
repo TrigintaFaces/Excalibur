@@ -605,7 +605,6 @@ Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerAot.HandlerInvokerAot() -> vo
 Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerAot.InvokeAsync(object! handler, Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<object?>!
 Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerAot.InvokeValueTaskAsync(object! handler, Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<object?>
 Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry
-Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryExtensions
 Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>
 Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.Equals(Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult> other) -> bool
 Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.Exception.get -> System.Exception?
@@ -5520,7 +5519,6 @@ static Excalibur.Dispatch.Delivery.DeliveryMessageEnvelopeExtensions.WithStructB
 static Excalibur.Dispatch.Delivery.EventStoreMessage<TAggregateKey>.FromEventStoreMessage(Excalibur.Dispatch.Delivery.EventStoreMessage<string!>! source) -> Excalibur.Dispatch.Delivery.EventStoreMessage<TAggregateKey>!
 static Excalibur.Dispatch.Delivery.Handlers.AotCompatibilityExtensions.ConfigureHandlerInvoker(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Dispatch.Delivery.Handlers.AotCompatibilityExtensions.IsRunningAot() -> bool
-static Excalibur.Dispatch.Delivery.Handlers.AotCompatibilityExtensions.RegisterDiscoveredHandlers(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Dispatch.Delivery.Handlers.FinalDispatchHandler.FreezeResultFactoryCache() -> void
 static Excalibur.Dispatch.Delivery.Handlers.FinalDispatchHandler.IsResultFactoryCacheFrozen.get -> bool
 static Excalibur.Dispatch.Delivery.Handlers.HandlerActivator.FreezeCache() -> void
@@ -5531,7 +5529,6 @@ static Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry.FreezeCache()
 static Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry.IsCacheFrozen.get -> bool
 static Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry.RegisterInvoker<THandler, TMessage, TResult>(System.Func<THandler!, TMessage, System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! invoker) -> void
 static Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry.RegisterInvoker<THandler, TMessage>(System.Func<THandler!, TMessage, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! invoker) -> void
-static Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryExtensions.RegisterHandlersFromAssemblies(this Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry! registry, System.Collections.Generic.IEnumerable<System.Reflection.Assembly!>! assemblies) -> void
 static Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.FromException(System.Exception! exception) -> Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>
 static Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.FromTResult(TResult value) -> Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>
 static Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.implicit operator Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>(System.Exception! exception) -> Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>

@@ -3,7 +3,6 @@
 
 
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -40,32 +39,6 @@ public static class AotCompatibilityExtensions
 			// JIT path: Use compiled invoker for dynamic handler discovery
 			services.TryAddSingleton<IHandlerInvoker, HandlerInvoker>();
 		}
-
-		return services;
-	}
-
-	/// <summary>
-	/// Registers all handlers discovered by the source generator.
-	/// </summary>
-	/// <remarks>
-	/// This method will use the precompiled handler registry when available, falling back to reflection-based discovery for development scenarios.
-	/// </remarks>
-	[RequiresUnreferencedCode("May use reflection for handler discovery in non-AOT scenarios")]
-	public static IServiceCollection RegisterDiscoveredHandlers(
-		this IServiceCollection services,
-		params Assembly[] assemblies)
-	{
-		var registry = new HandlerRegistry();
-		HandlerRegistryBootstrapper.Bootstrap(registry, assemblies);
-
-		// Register all discovered handlers with DI
-		foreach (var entry in registry.GetAll())
-		{
-			services.TryAddScoped(entry.HandlerType);
-		}
-
-		// Register the populated registry
-		services.TryAddSingleton<IHandlerRegistry>(registry);
 
 		return services;
 	}

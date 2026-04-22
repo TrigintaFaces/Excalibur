@@ -113,17 +113,38 @@ public static class DispatchServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Registers dispatch handlers found in the provided assemblies.
+	/// Registers dispatch handlers found in the provided assemblies and/or previously registered
+	/// via <c>AddDiscoveredHandlers()</c> or <c>AddHandlersFromAssembly()</c>.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <param name="assembliesToScan"> Assemblies containing handlers or <c> null </c>. </param>
 	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="services" /> is <c> null </c>. </exception>
+	/// <remarks>
+	/// <para>
+	/// Handler discovery uses a single, explicit, consumer-controlled mechanism:
+	/// </para>
+	/// <list type="number">
+	/// <item><description>
+	/// Handlers registered in the DI container (via <c>AddHandlersFromAssembly</c>,
+	/// <c>AddDiscoveredHandlers</c>, or manual <c>services.AddScoped&lt;IActionHandler&lt;T&gt;, MyHandler&gt;()</c>)
+	/// are discovered by scanning <see cref="IServiceCollection"/> for handler interface descriptors.
+	/// </description></item>
+	/// <item><description>
+	/// If <paramref name="assembliesToScan"/> is provided, those assemblies are scanned via reflection
+	/// and their handler types are registered with the DI container before the scan.
+	/// </description></item>
+	/// </list>
+	/// <para>
+	/// No implicit scanning of <c>AppDomain.CurrentDomain.GetAssemblies()</c> or other magic discovery
+	/// is performed. The consumer controls exactly which handlers are registered.
+	/// </para>
+	/// </remarks>
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 		Justification =
-			"Handler registration uses source generation when USE_SOURCE_GENERATION is defined, falls back to reflection otherwise.")]
+			"Handler registration uses source generation via AddDiscoveredHandlers(), falls back to reflection via AddHandlersFromAssembly().")]
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
@@ -138,12 +159,18 @@ public static class DispatchServiceCollectionExtensions
 
 		var assemblies = assembliesToScan ?? [];
 
+		// Step 1: If assemblies were provided, scan them and register their handlers in DI.
+		// This is the reflection path for consumers using AddDispatch(typeof(Program).Assembly).
+		RegisterMessageHandlers(services, assemblies);
+
+		// Step 2: Build IHandlerRegistry from DI ServiceDescriptors.
+		// This is the single source of truth — it discovers every handler that was registered
+		// via AddDiscoveredHandlers() (AOT), AddHandlersFromAssembly() (reflection), or
+		// manual DI registration. No magic AppDomain scanning.
 		services.TryAddSingleton<IHandlerRegistry>(serviceProvider =>
 		{
 			var registry = new HandlerRegistry();
-			HandlerRegistryBootstrapper.Bootstrap(registry, assemblies);
 
-			// Also register handlers that were manually added to DI
 			var handlerInterfaces = new[]
 			{
 				typeof(IActionHandler<>), typeof(IActionHandler<,>), typeof(IEventHandler<>), typeof(IDocumentHandler<>),
@@ -185,8 +212,6 @@ public static class DispatchServiceCollectionExtensions
 
 			return registry;
 		});
-
-		RegisterMessageHandlers(services, assemblies);
 
 		return services;
 	}

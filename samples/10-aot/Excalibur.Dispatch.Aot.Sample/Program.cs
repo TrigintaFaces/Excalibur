@@ -47,8 +47,8 @@ var services = new ServiceCollection();
 // Add logging (minimal setup for demo)
 services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
 
-// Configure Dispatch with source-generator-discovered handlers
-services.AddDispatch(dispatch => dispatch.AddHandlersFromAssembly(typeof(Program).Assembly));
+// Configure Dispatch with source-generator-discovered handlers (AOT-safe, zero reflection)
+services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
 
 // Register InMemory transport (zero native dependencies, AOT-safe)
 services.AddInMemoryTransport("demo");

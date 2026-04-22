@@ -29,8 +29,7 @@
     <!-- Delivery types -->
     <type fullname="Excalibur.Dispatch.Messaging.MessageContext" preserve="all" />
 
-    <!-- Generated registries -->
-    <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerRegistry" preserve="all" />
+    <!-- Generated AOT support types (invoker, metadata, activator) -->
     <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerInvoker" preserve="all" />
     <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerMetadata" preserve="all" />
     <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerActivator" preserve="all" />

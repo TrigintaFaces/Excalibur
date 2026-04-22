@@ -92,15 +92,16 @@ public sealed class AotAnnotationsAndTrimmerRootsShould
 	}
 
 	[Fact]
-	public void TrimmerRoots_ShouldPreservePrecompiledHandlerRegistry()
+	public void TrimmerRoots_ShouldNotPreservePrecompiledHandlerRegistry()
 	{
-		// PrecompiledHandlerRegistry should be preserved for AOT
+		// PrecompiledHandlerRegistry is no longer consumed at runtime — the bootstrapper was removed.
+		// Handler registration is now consumer-controlled via AddDiscoveredHandlers() or AddHandlersFromAssembly().
 		var doc = LoadTrimmerRoots();
 		var typeNames = doc.Descendants("type")
 			.Select(t => t.Attribute("fullname")?.Value)
 			.ToList();
 
-		typeNames.ShouldContain("Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerRegistry");
+		typeNames.ShouldNotContain("Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerRegistry");
 	}
 
 	[Fact]
