@@ -332,7 +332,7 @@ public sealed class DispatcherShould
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await _sut.DispatchAsync<IDispatchMessage>(null!, context, CancellationToken.None));
+			async () => await _sut.DispatchAsync((IDispatchMessage)null!, context, CancellationToken.None));
 	}
 
 	/// <summary>

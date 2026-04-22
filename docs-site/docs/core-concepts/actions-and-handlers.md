@@ -216,8 +216,8 @@ public class OrderService
         CancellationToken cancellationToken)
     {
         var action = new GetOrderAction(orderId);
-        var result = await _dispatcher.DispatchAsync<GetOrderAction, Order>(
-            action, cancellationToken);
+        // TResponse (Order) is inferred from IDispatchAction<Order>
+        var result = await _dispatcher.DispatchAsync(action, cancellationToken);
 
         return result.ReturnValue;
     }

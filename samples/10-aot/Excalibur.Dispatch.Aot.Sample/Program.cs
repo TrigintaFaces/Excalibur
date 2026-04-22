@@ -90,9 +90,10 @@ var json = JsonSerializer.Serialize(createOrder, AppJsonSerializerContext.Defaul
 Console.WriteLine($"  {json}");
 Console.WriteLine();
 
-// Dispatch the command via the pipeline (AOT-safe via source-generated interceptors)
-var context = contextFactory?.CreateContext() ?? new MessageContext();
-var result = await dispatcher.DispatchAsync<CreateOrderCommand, Guid>(createOrder, context, cancellationToken: default)
+// Dispatch the command via the pipeline.
+// TResponse (Guid) is inferred from CreateOrderCommand : IDispatchAction<Guid> — no explicit type args needed.
+// Context is auto-created from the ambient context or IMessageContextFactory.
+var result = await dispatcher.DispatchAsync(createOrder, cancellationToken: default)
 	.ConfigureAwait(false);
 var orderId = result.ReturnValue;
 Console.WriteLine($"Order created: {orderId}");
@@ -124,6 +125,8 @@ GetOrderHandler.AddOrder(new OrderDto
 
 var query = new GetOrderQuery { OrderId = orderId };
 var queryContext = contextFactory?.CreateContext() ?? new MessageContext();
+// With-context dispatch requires explicit type parameters (C# overload resolution picks
+// the generic TMessage overload over IDispatchAction<TResponse> when both have 3 params).
 var queryResult = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(query, queryContext, cancellationToken: default)
 	.ConfigureAwait(false);
 var order = queryResult.ReturnValue;

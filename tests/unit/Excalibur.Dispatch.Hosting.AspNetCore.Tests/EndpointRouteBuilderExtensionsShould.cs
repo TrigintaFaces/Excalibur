@@ -439,6 +439,23 @@ public sealed class EndpointRouteBuilderExtensionsShould : UnitTestBase
 			return Task.FromResult(MessageResult.Success(default(TResponse)!));
 		}
 
+		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+			IDispatchAction<TResponse> message,
+			CancellationToken cancellationToken)
+		{
+			LastDispatchCancellationToken = cancellationToken;
+			return Task.FromResult(MessageResult.Success(default(TResponse)!));
+		}
+
+		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+			IDispatchAction<TResponse> message,
+			IMessageContext context,
+			CancellationToken cancellationToken)
+		{
+			LastDispatchCancellationToken = cancellationToken;
+			return Task.FromResult(MessageResult.Success(default(TResponse)!));
+		}
+
 		public IAsyncEnumerable<TOutput> DispatchStreamingAsync<TDocument, TOutput>(
 			TDocument document,
 			IMessageContext context,

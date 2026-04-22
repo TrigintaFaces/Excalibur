@@ -76,6 +76,46 @@ public interface IDispatcher
 		CancellationToken cancellationToken)
 #pragma warning restore RS0026
 		where TMessage : IDispatchAction<TResponse>;
+
+	/// <summary>
+	/// Dispatches an action and infers <typeparamref name="TResponse"/> from the
+	/// <see cref="IDispatchAction{TResponse}"/> parameter type, eliminating the need
+	/// for explicit type arguments at the call site.
+	/// </summary>
+	/// <typeparam name="TResponse">The response type, inferred from the action's interface.</typeparam>
+	/// <param name="message">The action to dispatch.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The result including the typed response value.</returns>
+	/// <remarks>
+	/// <para>
+	/// This overload enables clean call sites:
+	/// <code>
+	/// // Instead of: dispatcher.DispatchAsync&lt;CreateOrderCommand, Guid&gt;(command, context, ct)
+	/// var result = await dispatcher.DispatchAsync(command, ct);
+	/// </code>
+	/// </para>
+	/// <para>
+	/// Context is created automatically using the ambient context or a new context
+	/// from <c>IMessageContextFactory</c>.
+	/// </para>
+	/// </remarks>
+	Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+		IDispatchAction<TResponse> message,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Dispatches an action with an explicit context and infers <typeparamref name="TResponse"/>
+	/// from the <see cref="IDispatchAction{TResponse}"/> parameter type.
+	/// </summary>
+	/// <typeparam name="TResponse">The response type, inferred from the action's interface.</typeparam>
+	/// <param name="message">The action to dispatch.</param>
+	/// <param name="context">Context for the dispatch operation.</param>
+	/// <param name="cancellationToken">Token used to cancel the operation.</param>
+	/// <returns>The result including the typed response value.</returns>
+	Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+		IDispatchAction<TResponse> message,
+		IMessageContext context,
+		CancellationToken cancellationToken);
 }
 
 /// <summary>

@@ -436,6 +436,19 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			where TMessage : IDispatchAction<TResponse> =>
 			holder.GetOrThrow().DispatchAsync<TMessage, TResponse>(message, context, cancellationToken);
 
+		/// <inheritdoc />
+		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+			IDispatchAction<TResponse> message,
+			CancellationToken cancellationToken) =>
+			holder.GetOrThrow().DispatchAsync(message, cancellationToken);
+
+		/// <inheritdoc />
+		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+			IDispatchAction<TResponse> message,
+			IMessageContext context,
+			CancellationToken cancellationToken) =>
+			holder.GetOrThrow().DispatchAsync(message, context, cancellationToken);
+
 		public IAsyncEnumerable<TOutput> DispatchStreamingAsync<TDocument, TOutput>(
 			TDocument document,
 			IMessageContext context,

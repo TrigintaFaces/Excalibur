@@ -3223,3 +3223,5 @@ Excalibur.Dispatch.Abstractions.OutboxStagingStrategy.Auto = 0 -> Excalibur.Disp
 Excalibur.Dispatch.Abstractions.OutboxStagingStrategy.Transactional = 1 -> Excalibur.Dispatch.Abstractions.OutboxStagingStrategy
 Excalibur.Dispatch.Abstractions.OutboxStagingStrategy.EventuallyConsistent = 2 -> Excalibur.Dispatch.Abstractions.OutboxStagingStrategy
 Excalibur.Dispatch.Abstractions.OutboxStagingStrategy.Deferred = 3 -> Excalibur.Dispatch.Abstractions.OutboxStagingStrategy
+Excalibur.Dispatch.Abstractions.IDispatcher.DispatchAsync<TResponse>(Excalibur.Dispatch.Abstractions.IDispatchAction<TResponse>! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult<TResponse>!>!
+Excalibur.Dispatch.Abstractions.IDispatcher.DispatchAsync<TResponse>(Excalibur.Dispatch.Abstractions.IDispatchAction<TResponse>! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult<TResponse>!>!

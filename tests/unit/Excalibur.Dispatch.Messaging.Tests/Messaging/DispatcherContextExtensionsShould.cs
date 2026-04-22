@@ -583,6 +583,199 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 
 	#endregion
 
+	#region TResponse Inference Convenience Overloads (Layer 1 - Reflection Fallback)
+
+	/// <summary>
+	/// Verifies that the TResponse-inferring DispatchAsync convenience overload delegates to the
+	/// fully-typed DispatchAsync&lt;TMessage, TResponse&gt; via the cached delegate.
+	/// </summary>
+	[Fact]
+	public async Task DispatchAsync_InferredTResponse_Should_Dispatch_Correctly()
+	{
+		// Arrange
+		var message = new TestCreateOrderCommand { OrderName = "Test" };
+		var expectedResult = MessageResult.Success(Guid.NewGuid());
+
+		_ = A.CallTo(() => _dispatcher.DispatchAsync<TestCreateOrderCommand, Guid>(
+				A<TestCreateOrderCommand>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(expectedResult);
+
+		// Configure dispatcher to return null ServiceProvider so fallback path is used
+		_ = A.CallTo(() => _dispatcher.ServiceProvider).Returns(null);
+		MessageContextHolder.Current = new MessageContext();
+
+		// Act — call the convenience overload explicitly to bypass overload resolution ambiguity
+		// (In production, source-generated overloads win; in tests we call the fallback directly)
+IDispatchAction<Guid> action = message;
+		var result = await DispatcherContextExtensions.DispatchAsync(_dispatcher, action, CancellationToken.None);
+
+		// Assert
+		result.ShouldBe(expectedResult);
+	}
+
+	/// <summary>
+	/// Verifies that the TResponse-inferring DispatchAsync with explicit context delegates correctly.
+	/// </summary>
+	[Fact]
+	public async Task DispatchAsync_InferredTResponse_WithContext_Should_Dispatch_Correctly()
+	{
+		// Arrange
+		var message = new TestCreateOrderCommand { OrderName = "Test" };
+		var context = new MessageContext { CorrelationId = "test-correlation" };
+		var expectedResult = MessageResult.Success(Guid.NewGuid());
+
+		_ = A.CallTo(() => _dispatcher.DispatchAsync<TestCreateOrderCommand, Guid>(
+				A<TestCreateOrderCommand>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(expectedResult);
+
+		// Act
+IDispatchAction<Guid> action = message;
+		var result = await DispatcherContextExtensions.DispatchAsync(_dispatcher, action, context, CancellationToken.None);
+
+		// Assert
+		result.ShouldBe(expectedResult);
+	}
+
+	/// <summary>
+	/// Verifies that the TResponse-inferring DispatchChildAsync convenience overload works correctly.
+	/// </summary>
+	[Fact]
+	public async Task DispatchChildAsync_InferredTResponse_Should_Dispatch_Correctly()
+	{
+		// Arrange
+		var message = new TestCreateOrderCommand { OrderName = "Child" };
+		var serviceProvider = A.Fake<IServiceProvider>();
+		var parentContext = new MessageContext
+		{
+			MessageId = "parent-id",
+			CorrelationId = "correlation-child",
+		};
+		parentContext.Initialize(serviceProvider);
+		var expectedResult = MessageResult.Success(Guid.NewGuid());
+
+		_ = A.CallTo(() => _dispatcher.DispatchAsync<TestCreateOrderCommand, Guid>(
+				A<TestCreateOrderCommand>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(expectedResult);
+
+		MessageContextHolder.Current = parentContext;
+
+		// Act
+IDispatchAction<Guid> action = message;
+		var result = await DispatcherContextExtensions.DispatchChildAsync(_dispatcher, action, CancellationToken.None);
+
+		// Assert
+		result.ShouldBe(expectedResult);
+	}
+
+	/// <summary>
+	/// Verifies that DispatchAsync with inferred TResponse throws when dispatcher is null.
+	/// </summary>
+	[Fact]
+	public async Task DispatchAsync_InferredTResponse_Should_Throw_When_Dispatcher_Is_Null()
+	{
+		IDispatcher? nullDispatcher = null;
+		IDispatchAction<Guid> message = new TestCreateOrderCommand();
+
+var exception = await Should.ThrowAsync<ArgumentNullException>(
+			async () => await DispatcherContextExtensions.DispatchAsync(nullDispatcher!, message, CancellationToken.None));
+
+		exception.ParamName.ShouldBe("dispatcher");
+	}
+
+	/// <summary>
+	/// Verifies that DispatchAsync with context and inferred TResponse throws when context is null.
+	/// </summary>
+	[Fact]
+	public async Task DispatchAsync_InferredTResponse_WithContext_Should_Throw_When_Context_Is_Null()
+	{
+		IDispatchAction<Guid> message = new TestCreateOrderCommand();
+
+var exception = await Should.ThrowAsync<ArgumentNullException>(
+			async () => await DispatcherContextExtensions.DispatchAsync(
+				_dispatcher, message, (IMessageContext)null!, CancellationToken.None));
+
+		exception.ParamName.ShouldBe("context");
+	}
+
+	/// <summary>
+	/// Verifies that DispatchChildAsync with inferred TResponse throws when dispatcher is null.
+	/// </summary>
+	[Fact]
+	public async Task DispatchChildAsync_InferredTResponse_Should_Throw_When_Dispatcher_Is_Null()
+	{
+		IDispatcher? nullDispatcher = null;
+		IDispatchAction<Guid> message = new TestCreateOrderCommand();
+		MessageContextHolder.Current = new MessageContext();
+
+var exception = await Should.ThrowAsync<ArgumentNullException>(
+			async () => await DispatcherContextExtensions.DispatchChildAsync(nullDispatcher!, message, CancellationToken.None));
+
+		exception.ParamName.ShouldBe("dispatcher");
+	}
+
+	/// <summary>
+	/// Verifies that the cached delegate approach returns the correct response type.
+	/// </summary>
+	[Fact]
+	public async Task DispatchAsync_InferredTResponse_Should_Return_Correct_Response_Type()
+	{
+		// Arrange — use int response to verify different type
+		var message = new TestGetCountQuery();
+		var expectedResult = MessageResult.Success(42);
+
+		_ = A.CallTo(() => _dispatcher.DispatchAsync<TestGetCountQuery, int>(
+				A<TestGetCountQuery>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(expectedResult);
+
+		_ = A.CallTo(() => _dispatcher.ServiceProvider).Returns(null);
+		MessageContextHolder.Current = new MessageContext();
+
+		// Act
+IDispatchAction<int> action = message;
+		var result = await DispatcherContextExtensions.DispatchAsync(_dispatcher, action, CancellationToken.None);
+
+		// Assert
+		result.ReturnValue.ShouldBe(42);
+	}
+
+	/// <summary>
+	/// Verifies that calling the convenience overload multiple times uses the cached delegate
+	/// (no exceptions on second call).
+	/// </summary>
+	[Fact]
+	public async Task DispatchAsync_InferredTResponse_Should_Cache_Delegate_Across_Calls()
+	{
+		// Arrange
+		var message1 = new TestCreateOrderCommand { OrderName = "First" };
+		var message2 = new TestCreateOrderCommand { OrderName = "Second" };
+
+		_ = A.CallTo(() => _dispatcher.DispatchAsync<TestCreateOrderCommand, Guid>(
+				A<TestCreateOrderCommand>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(MessageResult.Success(Guid.NewGuid()));
+
+		_ = A.CallTo(() => _dispatcher.ServiceProvider).Returns(null);
+		MessageContextHolder.Current = new MessageContext();
+
+		// Act — two successive calls should both succeed (delegate cached on first)
+IDispatchAction<Guid> action1 = message1;
+		IDispatchAction<Guid> action2 = message2;
+		var result1 = await DispatcherContextExtensions.DispatchAsync(_dispatcher, action1, CancellationToken.None);
+		var result2 = await DispatcherContextExtensions.DispatchAsync(_dispatcher, action2, CancellationToken.None);
+
+		// Assert
+		result1.Succeeded.ShouldBeTrue();
+		result2.Succeeded.ShouldBeTrue();
+	}
+
+	#endregion
+
+	private sealed record TestCreateOrderCommand : IDispatchAction<Guid>
+	{
+		public string? OrderName { get; init; }
+	}
+
+	private sealed record TestGetCountQuery : IDispatchAction<int>;
+
 	private sealed record LocalActionMessage : IDispatchAction;
 
 	private sealed record LocalQueryMessage : IDispatchAction<int>
@@ -613,6 +806,23 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 			IMessageContext context,
 			CancellationToken cancellationToken)
 			where TMessage : IDispatchAction<TResponse>
+		{
+			ContextDispatchCalls++;
+			return Task.FromResult<IMessageResult<TResponse>>(MessageResult.Success(default(TResponse)!));
+		}
+
+		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+			IDispatchAction<TResponse> message,
+			CancellationToken cancellationToken)
+		{
+			ContextDispatchCalls++;
+			return Task.FromResult<IMessageResult<TResponse>>(MessageResult.Success(default(TResponse)!));
+		}
+
+		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+			IDispatchAction<TResponse> message,
+			IMessageContext context,
+			CancellationToken cancellationToken)
 		{
 			ContextDispatchCalls++;
 			return Task.FromResult<IMessageResult<TResponse>>(MessageResult.Success(default(TResponse)!));

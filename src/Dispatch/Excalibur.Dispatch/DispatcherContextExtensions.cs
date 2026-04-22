@@ -31,7 +31,7 @@ public static class DispatcherContextExtensions
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="dispatcher" /> is null.</exception>
 	/// <remarks>
 	/// When called from within a handler (where an ambient context exists), this method reuses the current
-	/// context. For top-level dispatches, a new context is created. Use <see cref="DispatchChildAsync{TMessage}" />
+	/// context. For top-level dispatches, a new context is created. Use <see cref="DispatchChildAsync{TMessage}(IDispatcher, TMessage, CancellationToken)" />
 	/// when dispatching from within a handler to properly propagate causation and correlation identifiers.
 	/// </remarks>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
@@ -54,7 +54,7 @@ public static class DispatcherContextExtensions
 			return DispatchUltraLocalAsync(directLocalDispatcher, localAction, cancellationToken);
 		}
 
-		var context = MessageContextHolder.Current ?? CreateContext(dispatcher);
+		var context = GetOrCreateContext(dispatcher);
 		return dispatcher.DispatchAsync(message, context, cancellationToken);
 	}
 
@@ -97,7 +97,7 @@ public static class DispatcherContextExtensions
 				cancellationToken);
 		}
 
-		var context = MessageContextHolder.Current ?? CreateContext(dispatcher);
+		var context = GetOrCreateContext(dispatcher);
 		return dispatcher.DispatchAsync<TMessage, TResponse>(message, context, cancellationToken);
 	}
 
@@ -199,13 +199,159 @@ public static class DispatcherContextExtensions
 	}
 
 	/// <summary>
+	/// Dispatches an action with an inferred response type. The compiler infers <typeparamref name="TResponse"/>
+	/// from the <see cref="IDispatchAction{TResponse}"/> parameter, eliminating the need for explicit
+	/// type arguments at the call site.
+	/// </summary>
+	/// <typeparam name="TResponse">The response type, inferred from the action's interface.</typeparam>
+	/// <param name="dispatcher">The dispatcher instance.</param>
+	/// <param name="message">The action to dispatch. Must implement <see cref="IDispatchAction{TResponse}"/>.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>A task representing the dispatch result with the typed response.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="dispatcher"/> is null.</exception>
+	/// <remarks>
+	/// <para>
+	/// This overload enables clean call sites without explicit type parameters:
+	/// <code>
+	/// // Instead of: dispatcher.DispatchAsync&lt;CreateOrderCommand, Guid&gt;(command, ct)
+	/// var result = await dispatcher.DispatchAsync(command, ct);
+	/// </code>
+	/// </para>
+	/// <para>
+	/// <b>Performance:</b> The first call per concrete message type incurs a one-time reflection
+	/// cost to build a cached delegate. Subsequent calls use the cached delegate with near-zero
+	/// overhead. When the <c>Excalibur.Dispatch.SourceGenerators</c> package is referenced, the
+	/// source generator emits concrete typed overloads that shadow this method via C# overload
+	/// resolution, providing zero-reflection dispatch with full AOT compatibility.
+	/// </para>
+	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+		this IDispatcher dispatcher,
+		IDispatchAction<TResponse> message,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(dispatcher);
+
+		var invoker = TypedDispatchDelegateCache<TResponse>.GetDispatchDelegate(message.GetType());
+		return invoker(dispatcher, message, cancellationToken);
+	}
+
+	/// <summary>
+	/// Dispatches an action with an inferred response type using an explicit message context.
+	/// The compiler infers <typeparamref name="TResponse"/> from the <see cref="IDispatchAction{TResponse}"/>
+	/// parameter.
+	/// </summary>
+	/// <typeparam name="TResponse">The response type, inferred from the action's interface.</typeparam>
+	/// <param name="dispatcher">The dispatcher instance.</param>
+	/// <param name="message">The action to dispatch. Must implement <see cref="IDispatchAction{TResponse}"/>.</param>
+	/// <param name="context">The message context for the dispatch operation.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>A task representing the dispatch result with the typed response.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="dispatcher"/> or <paramref name="context"/> is null.</exception>
+	/// <remarks>
+	/// <para>
+	/// This overload enables clean call sites with explicit context without type parameters:
+	/// <code>
+	/// var result = await dispatcher.DispatchAsync(command, context, ct);
+	/// </code>
+	/// </para>
+	/// <para>
+	/// <b>Performance:</b> Same caching behavior as the context-free overload. See
+	/// <see cref="DispatchAsync{TResponse}(IDispatcher, IDispatchAction{TResponse}, CancellationToken)"/>
+	/// for details.
+	/// </para>
+	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+		this IDispatcher dispatcher,
+		IDispatchAction<TResponse> message,
+		IMessageContext context,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(dispatcher);
+		ArgumentNullException.ThrowIfNull(context);
+
+		var invoker = TypedDispatchDelegateCache<TResponse>.GetDispatchWithContextDelegate(message.GetType());
+		return invoker(dispatcher, message, context, cancellationToken);
+	}
+
+	/// <summary>
+	/// Dispatches an action with an inferred response type using a child context derived from the
+	/// current ambient context. The compiler infers <typeparamref name="TResponse"/> from the
+	/// <see cref="IDispatchAction{TResponse}"/> parameter.
+	/// </summary>
+	/// <typeparam name="TResponse">The response type, inferred from the action's interface.</typeparam>
+	/// <param name="dispatcher">The dispatcher instance.</param>
+	/// <param name="message">The action to dispatch. Must implement <see cref="IDispatchAction{TResponse}"/>.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>A task representing the dispatch result with the typed response.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="dispatcher"/> is null.</exception>
+	/// <exception cref="InvalidOperationException">Thrown when there is no active ambient context.</exception>
+	/// <remarks>
+	/// <para>
+	/// This overload enables clean call sites for child dispatch without type parameters:
+	/// <code>
+	/// // Inside a handler — dispatches with proper causation chain
+	/// var result = await dispatcher.DispatchChildAsync(subCommand, ct);
+	/// </code>
+	/// </para>
+	/// <para>
+	/// <b>Performance:</b> Same caching behavior as the context-free overload. See
+	/// <see cref="DispatchAsync{TResponse}(IDispatcher, IDispatchAction{TResponse}, CancellationToken)"/>
+	/// for details.
+	/// </para>
+	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static Task<IMessageResult<TResponse>> DispatchChildAsync<TResponse>(
+		this IDispatcher dispatcher,
+		IDispatchAction<TResponse> message,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(dispatcher);
+
+		var invoker = TypedDispatchDelegateCache<TResponse>.GetDispatchChildDelegate(message.GetType());
+		return invoker(dispatcher, message, cancellationToken);
+	}
+
+	/// <summary>
+	/// Gets the current ambient context or creates a new one using the factory from the
+	/// dispatcher's service provider, falling back to a new <see cref="MessageContext"/>.
+	/// </summary>
+	/// <param name="dispatcher">The dispatcher to get the service provider from.</param>
+	/// <returns>The ambient context or a newly created context instance.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal static IMessageContext GetOrCreateContext(IDispatcher dispatcher)
+	{
+		return MessageContextHolder.Current ?? CreateContextCore(dispatcher);
+	}
+
+	/// <summary>
 	/// Creates a new message context using the factory from the dispatcher's service provider,
 	/// or falls back to a new MessageContext if no factory is available.
 	/// </summary>
 	/// <param name="dispatcher">The dispatcher to get the service provider from.</param>
 	/// <returns>A new message context instance.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static IMessageContext CreateContext(IDispatcher dispatcher)
+	private static IMessageContext CreateContextCore(IDispatcher dispatcher)
 	{
 		var factory = ContextFactoryCache.GetValue(
 			dispatcher,

@@ -189,7 +189,7 @@ public sealed class DispatcherShould
         var context = new MessageContext();
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.DispatchAsync<IDispatchMessage>(null!, context, CancellationToken.None));
+            () => sut.DispatchAsync((IDispatchMessage)null!, context, CancellationToken.None));
     }
 
     [Fact]

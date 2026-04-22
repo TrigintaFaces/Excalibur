@@ -137,9 +137,8 @@ public class OrderController : ControllerBase
     {
         var action = new GetOrderAction(orderId);
 
-        // Context-less dispatch for queries too
-        var result = await _dispatcher.DispatchAsync<GetOrderAction, Order>(
-            action, cancellationToken);
+        // TResponse (Order) is inferred from IDispatchAction<Order>
+        var result = await _dispatcher.DispatchAsync(action, cancellationToken);
 
         if (result.IsSuccess)
             return Ok(result.ReturnValue);
@@ -170,8 +169,8 @@ app.MapPost("/greet", async (
 {
     var action = new GreetAction(request.Name);
 
-    // Simple dispatch - no context needed!
-    var result = await dispatcher.DispatchAsync<GreetAction, string>(action, ct);
+    // Simple dispatch - no context or type parameters needed!
+    var result = await dispatcher.DispatchAsync(action, ct);
 
     return result.IsSuccess ? Results.Ok(result.ReturnValue) : Results.BadRequest();
 });

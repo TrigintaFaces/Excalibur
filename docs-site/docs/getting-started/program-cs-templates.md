@@ -45,8 +45,8 @@ app.MapPost("/greet", async (GreetAction action, IDispatcher dispatcher, Cancell
 // Query endpoint (with return value)
 app.MapGet("/greet/{name}", async (string name, IDispatcher dispatcher, CancellationToken ct) =>
 {
-    var result = await dispatcher.DispatchAsync<GetGreetingQuery, string>(
-        new GetGreetingQuery(name), ct);
+    // TResponse (string) inferred from IDispatchAction<string>
+    var result = await dispatcher.DispatchAsync(new GetGreetingQuery(name), ct);
     return result.IsSuccess ? Results.Ok(result.ReturnValue) : Results.NotFound();
 });
 
@@ -121,8 +121,7 @@ var app = builder.Build();
 // Create a counter
 app.MapPost("/counters", async (IDispatcher dispatcher, CancellationToken ct) =>
 {
-    var result = await dispatcher.DispatchAsync<CreateCounterAction, Guid>(
-        new CreateCounterAction(), ct);
+    var result = await dispatcher.DispatchAsync(new CreateCounterAction(), ct);
     return result.IsSuccess
         ? Results.Created($"/counters/{result.ReturnValue}", new { Id = result.ReturnValue })
         : Results.BadRequest(result.ErrorMessage);
@@ -326,8 +325,7 @@ var app = builder.Build();
 // Write side: commands go through aggregate
 app.MapPost("/todos", async (CreateTodoRequest req, IDispatcher dispatcher, CancellationToken ct) =>
 {
-    var result = await dispatcher.DispatchAsync<CreateTodoAction, Guid>(
-        new CreateTodoAction(req.Title), ct);
+    var result = await dispatcher.DispatchAsync(new CreateTodoAction(req.Title), ct);
     return result.IsSuccess
         ? Results.Created($"/todos/{result.ReturnValue}", new { Id = result.ReturnValue })
         : Results.BadRequest(result.ErrorMessage);

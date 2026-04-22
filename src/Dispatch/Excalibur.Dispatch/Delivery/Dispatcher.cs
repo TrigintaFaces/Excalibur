@@ -546,6 +546,43 @@ internal sealed class Dispatcher(
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+		IDispatchAction<TResponse> message,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(message);
+
+		var context = DispatcherContextExtensions.GetOrCreateContext(this);
+		var invoker = TypedDispatchDelegateCache<TResponse>.GetDispatchWithContextDelegate(message.GetType());
+		return invoker(this, message, context, cancellationToken);
+	}
+
+	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
+		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+	public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
+		IDispatchAction<TResponse> message,
+		IMessageContext context,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(message);
+		ArgumentNullException.ThrowIfNull(context);
+
+		var invoker = TypedDispatchDelegateCache<TResponse>.GetDispatchWithContextDelegate(message.GetType());
+		return invoker(this, message, context, cancellationToken);
+	}
+
+	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
 	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]

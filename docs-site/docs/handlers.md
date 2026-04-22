@@ -173,8 +173,8 @@ public class OrderService
     {
         var action = new GetOrderAction(orderId);
 
-        // Context-less dispatch - Dispatch creates context automatically
-        var result = await _dispatcher.DispatchAsync<GetOrderAction, Order>(action, ct);
+        // TResponse inferred from IDispatchAction<Order> - no type args needed
+        var result = await _dispatcher.DispatchAsync(action, ct);
 
         if (result.IsSuccess)
             return result.ReturnValue;
