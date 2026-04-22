@@ -9,7 +9,7 @@
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="Diagnostics\OpenApi\problem-details.openapi.yaml" Pack="true" PackagePath="contentFiles\any\any\Diagnostics\OpenApi\" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Diagnostics\OpenApi\problem-details.openapi.yaml" LogicalName="Excalibur.Hosting.Web.problem-details.openapi.yaml" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Asp.Versioning.Mvc" />

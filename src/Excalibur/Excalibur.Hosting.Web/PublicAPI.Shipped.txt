@@ -12,7 +12,8 @@ Excalibur.Hosting.Web.Diagnostics.SwaggerGenOptionsExtensions
 Excalibur.Hosting.Web.HttpContextExtensions
 Microsoft.AspNetCore.Builder.ExcaliburWebHostApplicationExtensions
 Microsoft.Extensions.DependencyInjection.ExcaliburWebServiceCollectionExtensions
-static Excalibur.Hosting.Web.Diagnostics.ProblemDetailsOpenApi.GetYamlPath() -> string!
+static Excalibur.Hosting.Web.Diagnostics.ProblemDetailsOpenApi.GetYaml() -> string!
+static Excalibur.Hosting.Web.Diagnostics.ProblemDetailsOpenApi.GetYamlStream() -> System.IO.Stream!
 static Excalibur.Hosting.Web.Diagnostics.SwaggerGenOptionsExtensions.AddProblemDetailsSchema(this Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenOptions! options) -> void
 static Excalibur.Hosting.Web.HttpContextExtensions.CorrelationId(this Microsoft.AspNetCore.Http.HttpContext! context) -> System.Guid
 static Excalibur.Hosting.Web.HttpContextExtensions.ETag(this Microsoft.AspNetCore.Http.HttpContext! context) -> string?

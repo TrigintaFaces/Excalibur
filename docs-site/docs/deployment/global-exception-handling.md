@@ -167,10 +167,14 @@ This registers a standardized `ProblemDetails` schema in your OpenAPI specificat
 
 ### OpenAPI YAML Schema
 
-A reusable OpenAPI 3.1 schema file is included at `openapi/problem-details.openapi.yaml` in the package output. Access it programmatically:
+A reusable OpenAPI 3.1 schema is embedded in the `Excalibur.Hosting.Web` assembly. Access it programmatically:
 
 ```csharp
-var yamlPath = ProblemDetailsOpenApi.GetYamlPath();
+// Get the YAML content as a string
+string yaml = ProblemDetailsOpenApi.GetYaml();
+
+// Or get a stream for efficient processing
+using var stream = ProblemDetailsOpenApi.GetYamlStream();
 ```
 
 ## Structured Logging
