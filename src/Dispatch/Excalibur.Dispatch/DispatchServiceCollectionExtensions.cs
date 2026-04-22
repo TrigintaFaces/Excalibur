@@ -201,14 +201,23 @@ public static class DispatchServiceCollectionExtensions
 			}
 
 			var registryEntries = registry.GetAll();
-			var handlerTypes = registryEntries
-				.Select(static entry => entry.HandlerType)
-				.Distinct()
-				.ToArray();
 
-			HandlerActivator.PreWarmCache(handlerTypes);
-			HandlerActivator.PreBindResolutionModes(serviceProvider, handlerTypes);
-			HandlerInvoker.PreWarmGeneratedInvokerCache(registryEntries);
+			// Only pre-warm reflection-based caches in JIT mode.
+			// In AOT, source-generated dispatchers (PrecompiledHandlerInvoker,
+			// SourceGeneratedHandlerActivator) use direct static calls and bypass
+			// these caches entirely. Calling them in AOT would fail because
+			// BuildInvoker uses GetMethod/Expression.Compile which are unavailable.
+			if (System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+			{
+				var handlerTypes = registryEntries
+					.Select(static entry => entry.HandlerType)
+					.Distinct()
+					.ToArray();
+
+				HandlerActivator.PreWarmCache(handlerTypes);
+				HandlerActivator.PreBindResolutionModes(serviceProvider, handlerTypes);
+				HandlerInvoker.PreWarmGeneratedInvokerCache(registryEntries);
+			}
 
 			return registry;
 		});

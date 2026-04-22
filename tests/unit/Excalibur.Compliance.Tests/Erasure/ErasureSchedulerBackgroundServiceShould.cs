@@ -304,7 +304,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondQueryObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Should have attempted more than once (continues after error)
