@@ -10,12 +10,6 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 public sealed class DatabaseOptionsDefaultsShould
 {
 	[Fact]
-	public void DefaultBatchTimeIntervalTo5000()
-	{
-		DatabaseOptionsDefaults.CdcDefaultBatchTimeInterval.ShouldBe(5000);
-	}
-
-	[Fact]
 	public void DefaultQueueSizeTo1000()
 	{
 		DatabaseOptionsDefaults.CdcDefaultQueueSize.ShouldBe(1000);

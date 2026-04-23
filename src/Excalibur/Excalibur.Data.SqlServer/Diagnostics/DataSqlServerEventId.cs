@@ -292,6 +292,18 @@ public static class DataSqlServerEventId
 	/// <summary>CDC checkpoint skipped for failed event to prevent data loss.</summary>
 	public const int CdcCheckpointSkipped = 100742;
 
+	/// <summary>CDC stale position detected in producer loop.</summary>
+	public const int CdcStalePositionDetected = 100743;
+
+	/// <summary>CDC stale position recovery attempt.</summary>
+	public const int CdcRecoveryAttempt = 100744;
+
+	/// <summary>CDC stale position recovery succeeded.</summary>
+	public const int CdcRecoverySucceeded = 100745;
+
+	/// <summary>CDC stale position recovery exhausted all attempts.</summary>
+	public const int CdcRecoveryExhausted = 100746;
+
 	// ========================================
 	// 100750-100759: Data Change Event Processor
 	// ========================================
@@ -304,6 +316,15 @@ public static class DataSqlServerEventId
 
 	/// <summary>Data change event error.</summary>
 	public const int DataChangeEventError = 100752;
+
+	/// <summary>No event mapper registered for auto-mapping change type.</summary>
+	public const int AutoMappingNoMapper = 100753;
+
+	/// <summary>Mapped event does not implement IDispatchMessage.</summary>
+	public const int AutoMappingNotDispatchable = 100754;
+
+	/// <summary>CDC event mapping failed during auto-mapping.</summary>
+	public const int AutoMappingFailed = 100755;
 
 	// ========================================
 	// 100760-100779: Transaction Scope (Root)
@@ -689,4 +710,149 @@ public static class DataSqlServerEventId
 
 	/// <summary>SQL Server operation retry.</summary>
 	public const int SqlServerOperationRetry = 100900;
+
+	// ========================================
+	// 100910-100929: CdcProcessor Orchestration & Lifecycle
+	// ========================================
+
+	/// <summary>CDC orchestrator starting a new processing run.</summary>
+	public const int CdcOrchestratorRunStarting = 100910;
+
+	/// <summary>CDC orchestrator disposing asynchronously.</summary>
+	public const int CdcOrchestratorDisposingAsync = 100911;
+
+	/// <summary>CDC orchestrator consumer not completed during disposal.</summary>
+	public const int CdcOrchestratorConsumerNotCompleted = 100912;
+
+	/// <summary>CDC orchestrator consumer timed out during disposal.</summary>
+	public const int CdcOrchestratorConsumerTimeout = 100913;
+
+	/// <summary>CDC orchestrator error during async disposal.</summary>
+	public const int CdcOrchestratorDisposeError = 100914;
+
+	/// <summary>CDC orchestrator disposing synchronously.</summary>
+	public const int CdcOrchestratorDisposingSync = 100915;
+
+	/// <summary>CDC orchestrator consumer not completed during sync disposal.</summary>
+	public const int CdcOrchestratorConsumerNotCompletedSync = 100916;
+
+	/// <summary>CDC producer canceled by cancellation token.</summary>
+	public const int CdcProducerCanceled = 100917;
+
+	/// <summary>SQL error in CDC producer loop.</summary>
+	public const int CdcProducerSqlError = 100918;
+
+	/// <summary>Unexpected error in CDC producer loop.</summary>
+	public const int CdcProducerUnexpectedError = 100919;
+
+	/// <summary>CDC producer completed execution and channel marked complete.</summary>
+	public const int CdcProducerCompleted = 100920;
+
+	/// <summary>Application stopping — CDC processor shutting down.</summary>
+	public const int CdcApplicationStopping = 100921;
+
+	/// <summary>CDC producer cancellation requested during shutdown.</summary>
+	public const int CdcProducerCancellationRequested = 100922;
+
+	/// <summary>Waiting for CDC consumer to finish remaining work.</summary>
+	public const int CdcWaitingForConsumer = 100923;
+
+	/// <summary>Error while disposing CDC processor on application shutdown.</summary>
+	public const int CdcDisposeShutdownError = 100924;
+
+	// ========================================
+	// 100930-100949: CdcChangeDetector (Producer)
+	// ========================================
+
+	/// <summary>CDC producer loop started with table tracking state.</summary>
+	public const int CdcDetectorProducerStarted = 100930;
+
+	/// <summary>CDC producer found no more records and is exiting.</summary>
+	public const int CdcDetectorNoMoreRecords = 100931;
+
+	/// <summary>CDC producer canceled in change detector.</summary>
+	public const int CdcDetectorProducerCanceled = 100932;
+
+	/// <summary>SQL error in CDC change detector producer loop.</summary>
+	public const int CdcDetectorSqlError = 100933;
+
+	/// <summary>Unexpected error in CDC change detector producer loop.</summary>
+	public const int CdcDetectorUnexpectedError = 100934;
+
+	/// <summary>CDC change detector producer completed.</summary>
+	public const int CdcDetectorProducerCompleted = 100935;
+
+	/// <summary>CDC rows successfully enqueued for processing.</summary>
+	public const int CdcDetectorRowsEnqueued = 100936;
+
+	/// <summary>No CDC changes found for table, advancing LSN.</summary>
+	public const int CdcDetectorNoChanges = 100937;
+
+	/// <summary>Unmatched update before/after pairs detected at end of LSN.</summary>
+	public const int CdcDetectorUnmatchedUpdates = 100938;
+
+	/// <summary>Fetching CDC changes from database.</summary>
+	public const int CdcDetectorFetchingChanges = 100939;
+
+	/// <summary>Unknown CDC operation code encountered.</summary>
+	public const int CdcDetectorUnknownOperation = 100940;
+
+	/// <summary>CDC table enqueued with LSN tracking info.</summary>
+	public const int CdcDetectorTableEnqueued = 100941;
+
+	// ========================================
+	// 100950-100969: CdcChangeApplier (Consumer)
+	// ========================================
+
+	/// <summary>CDC consumer loop started.</summary>
+	public const int CdcConsumerStarted = 100950;
+
+	/// <summary>CDC consumer loop exit due to disposal request.</summary>
+	public const int CdcConsumerDisposalRequested = 100951;
+
+	/// <summary>CDC consumer exiting gracefully — no more records.</summary>
+	public const int CdcConsumerNoMoreRecords = 100952;
+
+	/// <summary>CDC consumer waiting for producer to provide data.</summary>
+	public const int CdcConsumerWaitingForProducer = 100953;
+
+	/// <summary>CDC consumer attempting to dequeue messages.</summary>
+	public const int CdcConsumerDequeueAttempt = 100954;
+
+	/// <summary>CDC consumer dequeued a batch of messages.</summary>
+	public const int CdcConsumerDequeued = 100955;
+
+	/// <summary>CDC consumer processing a batch of records.</summary>
+	public const int CdcConsumerProcessingBatch = 100956;
+
+	/// <summary>CDC consumer finished processing a batch.</summary>
+	public const int CdcConsumerProcessedBatch = 100957;
+
+	/// <summary>CDC consumer canceled by cancellation token.</summary>
+	public const int CdcConsumerCanceled = 100958;
+
+	/// <summary>Error in CDC consumer loop.</summary>
+	public const int CdcConsumerError = 100959;
+
+	/// <summary>CDC consumer completed all processing.</summary>
+	public const int CdcConsumerCompleted = 100960;
+
+	/// <summary>Unhandled exception during CDC event processing.</summary>
+	public const int CdcConsumerUnhandledException = 100961;
+
+	// ========================================
+	// 100970-100979: CdcCheckpointManager
+	// ========================================
+
+	/// <summary>CDC checkpoint state updated for table.</summary>
+	public const int CdcCheckpointStateUpdated = 100970;
+
+	/// <summary>CDC checkpoint LSN removed for table.</summary>
+	public const int CdcCheckpointLsnRemoved = 100971;
+
+	/// <summary>CDC checkpoint LSN updated for table.</summary>
+	public const int CdcCheckpointLsnUpdated = 100972;
+
+	/// <summary>CDC checkpoint LSN inserted for table.</summary>
+	public const int CdcCheckpointLsnInserted = 100973;
 }

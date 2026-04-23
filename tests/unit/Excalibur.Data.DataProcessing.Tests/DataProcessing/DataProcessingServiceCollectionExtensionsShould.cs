@@ -26,8 +26,6 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 			=> Task.FromResult(0L);
 
 		public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-
-		public void Dispose() { }
 	}
 
 	private sealed class TestRecordHandler : IRecordHandler<string>
@@ -44,13 +42,13 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 		// Act
 		services.AddDataProcessor<TestProcessor>();
 
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(TestProcessor) &&
-			sd.Lifetime == ServiceLifetime.Scoped);
+		// Assert — only IDataProcessor registration (no redundant concrete type registration)
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(IDataProcessor) &&
 			sd.Lifetime == ServiceLifetime.Scoped);
+		services.ShouldNotContain(sd =>
+			sd.ServiceType == typeof(TestProcessor),
+			"Concrete processor type should not be registered separately — resolve via IDataProcessor only");
 	}
 
 	[Fact]
@@ -123,13 +121,13 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 		// Act
 		services.AddDataProcessor<TestProcessor>(config);
 
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(TestProcessor) &&
-			sd.Lifetime == ServiceLifetime.Scoped);
+		// Assert — only IDataProcessor registration (no redundant concrete type registration)
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(IDataProcessor) &&
 			sd.Lifetime == ServiceLifetime.Scoped);
+		services.ShouldNotContain(sd =>
+			sd.ServiceType == typeof(TestProcessor),
+			"Concrete processor type should not be registered separately — resolve via IDataProcessor only");
 	}
 
 	[Fact]

@@ -67,6 +67,19 @@ public sealed class DataChangeEvent
 	{
 		ArgumentNullException.ThrowIfNull(change);
 
+		var changes = new DataChange[change.Changes.Count];
+		var i = 0;
+		foreach (var data in change.Changes)
+		{
+			changes[i++] = new DataChange
+			{
+				ColumnName = data.Key,
+				OldValue = data.Value != DBNull.Value ? data.Value : null,
+				NewValue = null,
+				DataType = change.DataTypes[data.Key],
+			};
+		}
+
 		return new DataChangeEvent
 		{
 			Lsn = change.Lsn,
@@ -74,16 +87,7 @@ public sealed class DataChangeEvent
 			CommitTime = change.CommitTime,
 			TableName = change.TableName,
 			ChangeType = DataChangeType.Delete,
-			Changes =
-			[
-				.. change.Changes.Select(data => new DataChange
-				{
-					ColumnName = data.Key,
-					OldValue = data.Value != DBNull.Value ? data.Value : null,
-					NewValue = null,
-					DataType = change.DataTypes[data.Key],
-				}),
-			],
+			Changes = changes,
 		};
 	}
 
@@ -97,6 +101,19 @@ public sealed class DataChangeEvent
 	{
 		ArgumentNullException.ThrowIfNull(change);
 
+		var changes = new DataChange[change.Changes.Count];
+		var i = 0;
+		foreach (var data in change.Changes)
+		{
+			changes[i++] = new DataChange
+			{
+				ColumnName = data.Key,
+				OldValue = null,
+				NewValue = data.Value != DBNull.Value ? data.Value : null,
+				DataType = change.DataTypes[data.Key],
+			};
+		}
+
 		return new DataChangeEvent
 		{
 			Lsn = change.Lsn,
@@ -104,16 +121,7 @@ public sealed class DataChangeEvent
 			CommitTime = change.CommitTime,
 			TableName = change.TableName,
 			ChangeType = DataChangeType.Insert,
-			Changes =
-			[
-				.. change.Changes.Select(data => new DataChange
-				{
-					ColumnName = data.Key,
-					OldValue = null,
-					NewValue = data.Value != DBNull.Value ? data.Value : null,
-					DataType = change.DataTypes[data.Key],
-				}),
-			],
+			Changes = changes,
 		};
 	}
 
@@ -131,14 +139,16 @@ public sealed class DataChangeEvent
 		ArgumentNullException.ThrowIfNull(beforeChange);
 		ArgumentNullException.ThrowIfNull(afterChange);
 
-		var dataChanges = beforeChange.Changes.Select(data =>
+		var changes = new DataChange[beforeChange.Changes.Count];
+		var i = 0;
+		foreach (var data in beforeChange.Changes)
 		{
 			var columnName = data.Key;
 			var dataType = beforeChange.DataTypes[columnName];
 			var oldValue = data.Value != DBNull.Value ? data.Value : null;
 			var newValue = afterChange.Changes.TryGetValue(columnName, out var newVal) && newVal != DBNull.Value ? newVal : null;
-			return new DataChange { ColumnName = columnName, OldValue = oldValue, NewValue = newValue, DataType = dataType };
-		});
+			changes[i++] = new DataChange { ColumnName = columnName, OldValue = oldValue, NewValue = newValue, DataType = dataType };
+		}
 
 		return new DataChangeEvent
 		{
@@ -147,7 +157,7 @@ public sealed class DataChangeEvent
 			CommitTime = beforeChange.CommitTime,
 			TableName = beforeChange.TableName,
 			ChangeType = DataChangeType.Update,
-			Changes = [.. dataChanges],
+			Changes = changes,
 		};
 	}
 }

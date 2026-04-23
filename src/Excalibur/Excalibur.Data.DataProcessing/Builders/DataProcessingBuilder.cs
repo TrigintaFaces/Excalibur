@@ -61,7 +61,6 @@ internal sealed class DataProcessingBuilder : IDataProcessingBuilder
 	public IDataProcessingBuilder AddProcessor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>()
 		where TProcessor : class, IDataProcessor
 	{
-		Services.AddScoped<TProcessor>();
 		Services.AddScoped<IDataProcessor, TProcessor>();
 		return this;
 	}
@@ -71,8 +70,6 @@ internal sealed class DataProcessingBuilder : IDataProcessingBuilder
 		where THandler : class, IRecordHandler<TRecord>
 	{
 		Services.AddScoped<IRecordHandler<TRecord>, THandler>();
-		DataProcessingServiceCollectionExtensions.RecordHandlerFactories.TryAdd(
-			typeof(TRecord), sp => sp.GetRequiredService<THandler>());
 		return this;
 	}
 

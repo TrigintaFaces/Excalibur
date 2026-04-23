@@ -381,7 +381,7 @@ public interface IRecordHandler<in TRecord>
 | Connection management | Use `Func<IDbConnection>` factories with keyed services for multi-database |
 | Batch sizes | Set `ProducerBatchSize` and `ConsumerBatchSize` at or below `QueueSize` (validated at startup) |
 | Timeouts | Keep `DispatcherTimeoutMilliseconds` at 1000ms or above; default 60s is suitable for most cases |
-| Error handling | Implement retry logic in `IRecordHandler<T>.ProcessAsync`; `MaxAttempts` controls task-level retries |
+| Error handling | Orchestration DB calls are automatically retried when `Excalibur.Data.SqlServer` is registered; implement domain-level retry in `IRecordHandler<T>.ProcessAsync`; `MaxAttempts` controls task-level retries |
 
 ## Background Processing
 
@@ -489,14 +489,85 @@ An `IValidateOptions<DataProcessingHostedServiceOptions>` validator enforces at 
 | `DrainTimeout` must exceed `PollingInterval` | Ensures the drain window covers at least one full cycle |
 | `UnhealthyThreshold` must be >= 1 | At least one error before marking unhealthy |
 
-### Health Tracking
+### Health Checks
 
-The hosted service tracks health state internally:
-- **Healthy** on startup and after each successful processing cycle
-- **Unhealthy** after `UnhealthyThreshold` consecutive errors
-- **Error counter resets** to zero on any successful cycle
+The data processing subsystem integrates with ASP.NET Core health checks via a 3-tier model:
 
-Access health state programmatically by resolving the `DataProcessingHostedService` from DI (it exposes `IsHealthy`, `ConsecutiveErrors`, and `LastSuccessfulProcessing` properties).
+| Status | Condition |
+|--------|-----------|
+| **Healthy** | Service is running and processing within normal intervals |
+| **Degraded** | No activity for longer than `DegradedInactivityTimeout` (default 5 minutes) |
+| **Unhealthy** | Service stopped, or no activity for longer than `UnhealthyInactivityTimeout` (default 10 minutes) |
+
+Register the health check:
+
+```csharp
+builder.Services.AddHealthChecks()
+    .AddDataProcessingHealthCheck();
+
+// Or with custom options:
+builder.Services.AddHealthChecks()
+    .AddDataProcessingHealthCheck(
+        name: "data_processing",
+        failureStatus: HealthStatus.Degraded,
+        tags: new[] { "ready" });
+
+// Configure inactivity thresholds:
+builder.Services.Configure<DataProcessingHealthCheckOptions>(options =>
+{
+    options.DegradedInactivityTimeout = TimeSpan.FromMinutes(3);
+    options.UnhealthyInactivityTimeout = TimeSpan.FromMinutes(8);
+});
+```
+
+The health check reports diagnostic data including `IsRunning`, `TotalProcessed`, `TotalFailed`, `TotalCycles`, `LastActivityTime`, and `InactivitySeconds`.
+
+:::tip Internal Tracking
+The hosted service also tracks basic health state internally (`IsHealthy`, `ConsecutiveErrors`, `LastSuccessfulProcessing`) and marks itself unhealthy after `UnhealthyThreshold` consecutive errors. The `IHealthCheck` integration is the recommended approach for production monitoring.
+:::
+
+### Resilience
+
+When `Excalibur.Data.SqlServer` (or another provider that registers `IDataAccessPolicyFactory`) is present, all orchestration database operations are automatically wrapped in a comprehensive resilience policy:
+
+- **Retry** — 3 attempts with exponential backoff and jitter for transient SQL failures (timeouts, deadlocks, connection resets, Azure SQL throttling)
+- **Circuit breaker** — Opens after sustained failure (50% failure rate over 60 seconds, minimum 5 requests) and stays open for 30 seconds before allowing probe requests
+
+This covers all five orchestration DB operations: task insertion, pending task selection, attempt count updates, completed count checkpoints, and task deletion.
+
+When no `IDataAccessPolicyFactory` is registered (e.g., when using a non-SQL Server backend without a Polly provider), operations execute directly without retry or circuit breaker wrapping.
+
+```csharp
+// Resilience is automatic when SqlServer is registered:
+builder.Services.AddExcaliburDataSqlServer(options =>
+{
+    options.ConnectionString = connectionString;
+});
+
+// IDataAccessPolicyFactory is now available — DataProcessing
+// automatically discovers and uses it for all DB operations.
+builder.Services.AddDataProcessing(dp =>
+{
+    dp.ConnectionFactory(() => new SqlConnection(connectionString))
+      .AddProcessor<OrderProcessor>()
+      .EnableBackgroundProcessing();
+});
+```
+
+### Database Restore Survivability
+
+The data processing pipeline is designed to survive database unavailability and data replacement (e.g., restoring from a production backup):
+
+**During database unavailability (restore in progress):**
+- All DB operations are guarded with try-catch — the processing loop continues without crashing
+- Attempt count and delete operations log failures but don't propagate exceptions
+- The resilience policy (when registered) retries transient failures before surfacing errors
+- The health check transitions to Degraded, then Unhealthy based on inactivity duration
+
+**After data replacement (restored from backup):**
+- **Stale task detection** — Each completed-count checkpoint verifies the task row still exists (checks rows affected). If the row was replaced or deleted during a restore, the checkpoint returns 0 rows and the processor aborts that task cleanly
+- **Consecutive failure threshold** — If a processor encounters 5 consecutive record-level failures (e.g., foreign key violations from mismatched data), it breaks out of the current batch instead of burning through the entire queue
+- **Idempotent re-processing** — Tasks that fail to be deleted after completion are re-selected on the next poll; processors should handle re-processing idempotently via the `completedCount` resume parameter
 
 ### Configuration via appsettings.json
 
@@ -536,7 +607,12 @@ builder.Services.AddRecordHandler<OrderRecordHandler, OrderRecord>();
 builder.Services.EnableDataProcessingBackgroundService(
     builder.Configuration, "DataProcessingService");
 
+// 4. Register health check (optional but recommended)
+builder.Services.AddHealthChecks()
+    .AddDataProcessingHealthCheck();
+
 var app = builder.Build();
+app.MapHealthChecks("/health");
 app.Run();
 ```
 
@@ -547,7 +623,7 @@ app.Run();
 | Scheduling | Cron expressions, complex schedules | Fixed polling interval |
 | Dependencies | Requires `Excalibur.Jobs` + Quartz.NET | Built-in, no extra packages |
 | Concurrency control | Job disallow concurrent execution | Single hosted service instance |
-| Health monitoring | Via Quartz job listeners | Built-in `IsHealthy` / `UnhealthyThreshold` |
+| Health monitoring | Via Quartz job listeners | Built-in `IHealthCheck` with Healthy/Degraded/Unhealthy tiers |
 | Graceful shutdown | Quartz scheduler shutdown | `DrainTimeout` with linked cancellation |
 | Best for | Complex schedules, multi-job orchestration | Simple polling, minimal dependencies |
 

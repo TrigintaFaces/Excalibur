@@ -12,7 +12,6 @@ namespace Excalibur.Cdc.SqlServer;
 public sealed class DatabaseOptions : IDatabaseOptions
 {
 	private readonly string[] _captureInstances = CdcDefaultCaptureInstances;
-	private readonly int _batchTimeInterval = CdcDefaultBatchTimeInterval;
 	private readonly int _queueSize = CdcDefaultQueueSize;
 	private readonly int _producerBatchSize = CdcDefaultProducerBatchSize;
 	private readonly int _consumerBatchSize = CdcDefaultConsumerBatchSize;
@@ -30,11 +29,9 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	public required string StateConnectionIdentifier { get; init; }
 
 	/// <inheritdoc />
-	[Required]
 	public bool StopOnMissingTableHandler { get; init; } = CdcDefaultStopOnMissingTableHandler;
 
 	/// <inheritdoc />
-	[Required]
 	public string[] CaptureInstances
 	{
 		get => _captureInstances;
@@ -46,19 +43,6 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	}
 
 	/// <inheritdoc />
-	[Required]
-	public int BatchTimeInterval
-	{
-		get => _batchTimeInterval;
-		init
-		{
-			ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0, nameof(BatchTimeInterval));
-			_batchTimeInterval = value;
-		}
-	}
-
-	/// <inheritdoc />
-	[Required]
 	public int QueueSize
 	{
 		get => _queueSize;
@@ -70,7 +54,6 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	}
 
 	/// <inheritdoc />
-	[Required]
 	public int ProducerBatchSize
 	{
 		get => _producerBatchSize;
@@ -82,7 +65,6 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	}
 
 	/// <inheritdoc />
-	[Required]
 	public int ConsumerBatchSize
 	{
 		get => _consumerBatchSize;

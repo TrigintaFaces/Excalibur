@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Buffers;
 using System.Threading.Channels;
 
 using Excalibur.Domain;
@@ -20,7 +21,6 @@ namespace Excalibur.Data.DataProcessing;
 public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
 {
 	private readonly Channel<TRecord> _dataQueue;
-	private readonly int _queueSize;
 
 	private readonly DataProcessingOptions _configuration;
 
@@ -65,7 +65,6 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 		_configuration = configuration.Value;
 		_serviceProvider = serviceProvider;
 		_logger = logger;
-		_queueSize = _configuration.QueueSize;
 		_dataQueue = Channel.CreateBounded<TRecord>(new BoundedChannelOptions(_configuration.QueueSize)
 		{
 			FullMode = BoundedChannelFullMode.Wait,
@@ -84,8 +83,6 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	}
 
 	private CancellationToken ProducerCancellationToken => _producerCancellationTokenSource.Token;
-
-	private bool ShouldWaitForProducer => !_producerStopped && !(_producerTask?.IsCompleted ?? true) && _dataQueue.Reader.Count == 0;
 
 	/// <inheritdoc />
 	public virtual async Task<long> RunAsync(
@@ -130,15 +127,6 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	}
 
 	/// <summary>
-	/// Disposes the data processor.
-	/// </summary>
-	public void Dispose()
-	{
-		Dispose(disposing: true);
-		GC.SuppressFinalize(this);
-	}
-
-	/// <summary>
 	/// Disposes of resources used by the DataProcessor.
 	/// </summary>
 	protected virtual async ValueTask DisposeCoreAsync()
@@ -154,6 +142,27 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 		{
 			await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
 
+			// Wait for the producer task to complete before disposing resources
+			if (_producerTask is { IsCompleted: false })
+			{
+				try
+				{
+					await _producerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
+				}
+				catch (TimeoutException)
+				{
+					// Producer did not complete in time — proceed with disposal
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected — producer was cancelled
+				}
+				catch (Exception ex)
+				{
+					LogDisposeAsyncError(ex);
+				}
+			}
+
 			if (_consumerTask is { IsCompleted: false })
 			{
 				LogConsumerNotCompletedAsync();
@@ -165,16 +174,14 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 				{
 					LogConsumerTimeoutAsync();
 				}
-			}
-
-			if (_producerTask is not null)
-			{
-				await SafeDisposeAsync(_producerTask).ConfigureAwait(false);
-			}
-
-			if (_consumerTask is not null)
-			{
-				await SafeDisposeAsync(_consumerTask).ConfigureAwait(false);
+				catch (OperationCanceledException)
+				{
+					// Expected — consumer was cancelled
+				}
+				catch (Exception ex)
+				{
+					LogDisposeAsyncError(ex);
+				}
 			}
 
 			_ = _dataQueue.Writer.TryComplete();
@@ -191,64 +198,16 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	}
 
 	/// <summary>
-	/// Disposes of resources used by the DataProcessor.
+	/// Dequeues a batch of records from the channel into a pooled buffer.
+	/// The caller MUST return the buffer via <see cref="ArrayPool{T}.Shared"/> after processing.
 	/// </summary>
-	/// <param name="disposing">
-	/// True to dispose both managed and unmanaged resources; false to dispose only unmanaged resources.
-	/// </param>
-	protected virtual void Dispose(bool disposing)
-	{
-		if (!disposing || Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
-		{
-			return;
-		}
-
-		LogDisposeSync();
-
-		_producerCancellationTokenSource.Cancel();
-
-		if (_consumerTask is { IsCompleted: false })
-		{
-			LogConsumerNotCompletedSync();
-			var completed = ((IAsyncResult)_consumerTask).AsyncWaitHandle.WaitOne(TimeSpan.FromMinutes(5));
-			if (!completed)
-			{
-				LogConsumerTimeoutSync();
-			}
-		}
-
-		_producerCancellationTokenSource.Dispose();
-
-		_producerTask?.Dispose();
-		_consumerTask?.Dispose();
-		_ = _dataQueue.Writer.TryComplete();
-		_orderedEventProcessor.Dispose();
-	}
-
-	private static async ValueTask SafeDisposeAsync(object resource)
-	{
-		switch (resource)
-		{
-			case IAsyncDisposable resourceAsyncDisposable:
-				await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
-				break;
-
-			case IDisposable disposable:
-				disposable.Dispose();
-				break;
-		}
-	}
-
-	/// <summary>
-	/// Helper method to dequeue a batch of records from a Channel.
-	/// </summary>
-	private static async ValueTask<TRecord[]> DequeueBatchFromChannelAsync(
+	/// <returns>A tuple of the rented buffer and the actual count of items read.</returns>
+	private static async ValueTask<(TRecord[] Buffer, int Count)> DequeueBatchFromChannelAsync(
 		ChannelReader<TRecord> reader,
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		// Performance optimization: AD-250-3 - use array directly instead of List
-		var batch = new TRecord[batchSize];
+		var batch = ArrayPool<TRecord>.Shared.Rent(batchSize);
 		var count = 0;
 
 		// Read immediately available items
@@ -257,10 +216,10 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 			batch[count++] = record;
 		}
 
-		// If we got items, return them (trimmed to actual count)
+		// If we got items, return them
 		if (count > 0)
 		{
-			return count == batchSize ? batch : batch[..count];
+			return (batch, count);
 		}
 
 		// Otherwise, wait for at least one item
@@ -272,7 +231,13 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 			}
 		}
 
-		return count == 0 ? [] : count == batchSize ? batch : batch[..count];
+		if (count == 0)
+		{
+			ArrayPool<TRecord>.Shared.Return(batch, clearArray: true);
+			return ([], 0);
+		}
+
+		return (batch, count);
 	}
 
 	private async Task ProducerLoopAsync(CancellationToken cancellationToken)
@@ -284,16 +249,9 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 
 			while (!combinedToken.IsCancellationRequested)
 			{
-				var availableSlots = Math.Max(0, _queueSize - _dataQueue.Reader.Count);
-				if (availableSlots < 1)
-				{
-					await Task.Delay(10, combinedToken).ConfigureAwait(false);
-					continue;
-				}
-
-				var batchSize = Math.Min(_configuration.ProducerBatchSize, availableSlots);
+				var batchSize = _configuration.ProducerBatchSize;
 				// Performance optimization: AD-250-3 - avoid ToList() when IEnumerable is sufficient
-				var fetchedRecords = await FetchBatchAsync(_skipCount, batchSize, combinedToken).ConfigureAwait(false);
+				var fetchedRecords = await FetchBatchAsync(Interlocked.Read(ref _skipCount), batchSize, combinedToken).ConfigureAwait(false);
 				var batch = fetchedRecords as IReadOnlyCollection<TRecord> ?? fetchedRecords.ToList();
 
 				if (batch.Count == 0)
@@ -313,6 +271,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 
 				foreach (var record in batch)
 				{
+					// WriteAsync applies backpressure when the bounded channel is full
 					await _dataQueue.Writer.WriteAsync(record, combinedToken).ConfigureAwait(false);
 				}
 
@@ -352,6 +311,13 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 		}
 	}
 
+	/// <summary>
+	/// Maximum number of consecutive per-record failures before the consumer aborts the
+	/// current batch. Prevents burning through an entire batch when the database is
+	/// unavailable or a systemic error is occurring.
+	/// </summary>
+	private const int MaxConsecutiveRecordFailures = 5;
+
 	private async Task<long> ConsumerLoopAsync(long completedCount, UpdateCompletedCount updateCompletedCount,
 		CancellationToken cancellationToken)
 	{
@@ -381,68 +347,107 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 					break;
 				}
 
-				if (ShouldWaitForProducer)
+				// DequeueBatchFromChannelAsync uses WaitToReadAsync internally,
+				// which efficiently blocks until data is available — no busy-wait needed.
+				var (batch, batchCount) = await DequeueBatchFromChannelAsync(
+					_dataQueue.Reader, _configuration.ConsumerBatchSize, cancellationToken)
+					.ConfigureAwait(false);
+
+				if (batchCount == 0)
 				{
-					if (_logger.IsEnabled(LogLevel.Information))
-					{
-						LogQueueEmptyWaiting();
-					}
-
-					var waitTime = 10;
-					for (var i = 0; i < 10; i++)
-					{
-						await Task.Delay(waitTime, cancellationToken).ConfigureAwait(false);
-						waitTime = Math.Min(waitTime * 2, 100);
-					}
-
-					continue;
+					// Channel completed with no more data
+					break;
 				}
 
-				var batch = await DequeueBatchFromChannelAsync(_dataQueue.Reader, _configuration.ConsumerBatchSize, cancellationToken)
-					.ConfigureAwait(false);
 				if (_logger.IsEnabled(LogLevel.Information))
 				{
-					LogProcessingBatch(batch.Length);
+					LogProcessingBatch(batchCount);
 				}
 
-				foreach (var record in batch)
+				try
 				{
-					if (record is null)
-					{
-						continue;
-					}
+					var batchSuccessCount = 0;
+					var consecutiveFailures = 0;
 
-					try
+					for (var i = 0; i < batchCount; i++)
 					{
-						// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
-						// processed sequentially.
-						await _orderedEventProcessor
-							.ProcessAsync(async () => await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false), cancellationToken)
-							.ConfigureAwait(false);
-
-						var updatedTotal = Interlocked.Increment(ref _processedTotal);
-						await updateCompletedCount(updatedTotal, cancellationToken).ConfigureAwait(false);
-					}
-					catch (Exception ex)
-					{
-						if (_logger.IsEnabled(LogLevel.Error))
+						// Check for cancellation between records — critical for stale-task
+						// detection where the task-scoped CTS fires after a checkpoint
+						// returns 0 affected rows (e.g., after a database restore).
+						if (cancellationToken.IsCancellationRequested)
 						{
-							LogProcessingRecordError("unknown", typeof(TRecord).Name, ex);
+							if (_logger.IsEnabled(LogLevel.Warning))
+							{
+								LogConsumerAbortedStaleTask();
+							}
+
+							break;
+						}
+
+						var record = batch[i];
+						if (record is null)
+						{
+							continue;
+						}
+
+						try
+						{
+							// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
+							// processed sequentially.
+							await _orderedEventProcessor
+								.ProcessAsync(async () => await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false), cancellationToken)
+								.ConfigureAwait(false);
+
+							// Checkpoint to the database BEFORE incrementing in-memory counters.
+							// If the checkpoint fails, the in-memory state stays consistent with
+							// the persisted state — on restart, processing resumes from the last
+							// successfully persisted CompletedCount.
+							await updateCompletedCount(Interlocked.Read(ref _processedTotal) + 1, cancellationToken).ConfigureAwait(false);
+
+							_ = Interlocked.Increment(ref _processedTotal);
+							batchSuccessCount++;
+							consecutiveFailures = 0;
+						}
+						catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+						{
+							// Task-scoped or host-scoped cancellation — exit the inner loop.
+							// The outer while-loop or the catch block will handle it.
+							break;
+						}
+						catch (Exception ex)
+						{
+							var recordId = record.ToString() ?? record.GetHashCode().ToString();
+
+							if (_logger.IsEnabled(LogLevel.Error))
+							{
+								LogProcessingRecordError(recordId, typeof(TRecord).Name, ex);
+							}
+
+							consecutiveFailures++;
+							if (consecutiveFailures >= MaxConsecutiveRecordFailures)
+							{
+								LogConsecutiveFailureThresholdExceeded(consecutiveFailures);
+								break;
+							}
+						}
+						finally
+						{
+							if (record is IDisposable disposable)
+							{
+								disposable.Dispose();
+							}
 						}
 					}
-					finally
+
+					totalProcessedCount += batchSuccessCount;
+					if (_logger.IsEnabled(LogLevel.Debug))
 					{
-						if (record is IDisposable disposable)
-						{
-							disposable.Dispose();
-						}
+						LogCompletedBatch(batchCount);
 					}
 				}
-
-				totalProcessedCount += batch.Length;
-				if (_logger.IsEnabled(LogLevel.Debug))
+				finally
 				{
-					LogCompletedBatch(batch.Length);
+					ArrayPool<TRecord>.Shared.Return(batch, clearArray: true);
 				}
 			}
 
@@ -451,7 +456,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 				LogCompletedProcessing(totalProcessedCount);
 			}
 		}
-		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			if (_logger.IsEnabled(LogLevel.Debug))
 			{
@@ -477,18 +482,9 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 
 		using var scope = _serviceProvider.CreateScope();
 
-		// Use cached factory delegate if available (registered via AddRecordHandler<T,R>()),
-		// fall back to GetService for assembly-scanned handlers.
-		IRecordHandler<TRecord>? handler;
-		if (DataProcessingServiceCollectionExtensions.RecordHandlerFactories
-			.TryGetValue(typeof(TRecord), out var factory))
-		{
-			handler = (IRecordHandler<TRecord>)factory(scope.ServiceProvider);
-		}
-		else
-		{
-			handler = scope.ServiceProvider.GetService<IRecordHandler<TRecord>>();
-		}
+		// Resolve handler via DI — both explicit AddRecordHandler<T,R>() and
+		// assembly-scanned handlers register as IRecordHandler<TRecord>.
+		var handler = scope.ServiceProvider.GetService<IRecordHandler<TRecord>>();
 
 		if (handler is null)
 		{

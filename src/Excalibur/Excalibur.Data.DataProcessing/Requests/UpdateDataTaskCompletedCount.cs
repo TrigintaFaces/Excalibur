@@ -13,7 +13,7 @@ namespace Excalibur.Data.DataProcessing.Requests;
 /// <summary>
 /// Represents a data request to update the completed count for a data task in the data processing system.
 /// </summary>
-public sealed class UpdateDataTaskCompletedCount : DataRequest<int>
+internal sealed class UpdateDataTaskCompletedCount : DataRequest<int>
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="UpdateDataTaskCompletedCount"/> class.

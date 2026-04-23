@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.SqlServer.Diagnostics;
 using Excalibur.Dispatch.Abstractions;
 
 using Microsoft.Extensions.Logging;
@@ -97,12 +98,12 @@ internal sealed partial class AutoMappingDataChangeHandler : IDataChangeHandler
 		return result;
 	}
 
-	[LoggerMessage(2400, LogLevel.Debug, "No event mapper registered for table '{TableName}' change type '{ChangeType}' -- skipping auto-mapping")]
+	[LoggerMessage(DataSqlServerEventId.AutoMappingNoMapper, LogLevel.Debug, "No event mapper registered for table '{TableName}' change type '{ChangeType}' -- skipping auto-mapping")]
 	private static partial void LogNoMapperForChangeType(ILogger logger, string tableName, CdcChangeType changeType);
 
-	[LoggerMessage(2401, LogLevel.Warning, "Mapped event for table '{TableName}' (type '{EventTypeName}') does not implement IDispatchMessage -- event will not be dispatched")]
+	[LoggerMessage(DataSqlServerEventId.AutoMappingNotDispatchable, LogLevel.Warning, "Mapped event for table '{TableName}' (type '{EventTypeName}') does not implement IDispatchMessage -- event will not be dispatched")]
 	private static partial void LogMappedEventNotDispatchable(ILogger logger, string tableName, string eventTypeName);
 
-	[LoggerMessage(2402, LogLevel.Error, "CDC event mapping failed for table '{TableName}' change type '{ChangeType}'")]
+	[LoggerMessage(DataSqlServerEventId.AutoMappingFailed, LogLevel.Error, "CDC event mapping failed for table '{TableName}' change type '{ChangeType}'")]
 	private static partial void LogMappingFailed(ILogger logger, string tableName, CdcChangeType changeType, Exception ex);
 }

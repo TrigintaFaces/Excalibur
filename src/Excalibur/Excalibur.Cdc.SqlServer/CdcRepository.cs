@@ -19,17 +19,23 @@ namespace Excalibur.Cdc.SqlServer;
 public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 {
 	private readonly IDbConnection _connection;
+	private readonly int _commandTimeoutSeconds;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CdcRepository" /> class using a provided database connection.
 	/// </summary>
 	/// <param name="connection"> The database connection to use for CDC queries. </param>
+	/// <param name="commandTimeoutSeconds">
+	/// The command timeout in seconds for database operations.
+	/// Defaults to <see cref="DbTimeouts.RegularTimeoutSeconds"/> (60s).
+	/// </param>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="connection" /> is null. </exception>
-	public CdcRepository(IDbConnection connection)
+	public CdcRepository(IDbConnection connection, int commandTimeoutSeconds = DbTimeouts.RegularTimeoutSeconds)
 	{
 		ArgumentNullException.ThrowIfNull(connection);
 
 		_connection = connection;
+		_commandTimeoutSeconds = commandTimeoutSeconds;
 	}
 
 	/// <summary>
@@ -42,6 +48,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		ArgumentNullException.ThrowIfNull(db);
 
 		_connection = db.Connection;
+		_commandTimeoutSeconds = DbTimeouts.RegularTimeoutSeconds;
 	}
 
 	/// <inheritdoc />
@@ -55,7 +62,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		var command = new CommandDefinition(
 			CommandText,
 			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			commandTimeout: _commandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		return await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
@@ -82,7 +89,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		var command = new CommandDefinition(
 			commandText,
 			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			commandTimeout: _commandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		return await _connection.Ready().QuerySingleOrDefaultAsync<byte[]?>(command).ConfigureAwait(false);
@@ -99,7 +106,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		var command = new CommandDefinition(
 			CommandText,
 			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			commandTimeout: _commandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		return await _connection.Ready().QuerySingleOrDefaultAsync<DateTime?>(command).ConfigureAwait(false);
@@ -117,7 +124,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		var command = new CommandDefinition(
 			CommandText,
 			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			commandTimeout: _commandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		return await _connection.Ready().QuerySingleAsync<byte[]?>(command).ConfigureAwait(false);
@@ -138,7 +145,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		var command = new CommandDefinition(
 			CommandText,
 			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			commandTimeout: _commandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		return await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
@@ -151,7 +158,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 
 		var command = new CommandDefinition(
 			CommandText,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			commandTimeout: _commandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		return await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
@@ -183,7 +190,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 			var command = new CommandDefinition(
 				commandText,
 				parameters: parameters,
-				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+				commandTimeout: _commandTimeoutSeconds,
 				cancellationToken: cancellationToken);
 
 			var exists = await _connection.Ready().ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
@@ -269,7 +276,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		var command = new CommandDefinition(
 			commandText,
 			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			commandTimeout: _commandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 		var reader = (DbDataReader)await _connection.Ready().ExecuteReaderAsync(command).ConfigureAwait(false);
 		var resultList = new List<CdcRow>();

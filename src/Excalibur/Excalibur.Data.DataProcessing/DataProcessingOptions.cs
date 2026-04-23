@@ -3,6 +3,8 @@
 
 using System.ComponentModel.DataAnnotations;
 
+using Excalibur.Data.Abstractions.Validation;
+
 namespace Excalibur.Data.DataProcessing;
 
 /// <summary>
@@ -29,6 +31,7 @@ public sealed class DataProcessingOptions
 		init
 		{
 			ArgumentException.ThrowIfNullOrWhiteSpace(value, nameof(SchemaName));
+			SqlIdentifierValidator.ThrowIfInvalid(value, nameof(SchemaName));
 
 			_schemaName = value;
 		}
@@ -45,6 +48,7 @@ public sealed class DataProcessingOptions
 		init
 		{
 			ArgumentException.ThrowIfNullOrWhiteSpace(value, nameof(TableName));
+			SqlIdentifierValidator.ThrowIfInvalid(value, nameof(TableName));
 
 			_tableName = value;
 		}
@@ -90,10 +94,10 @@ public sealed class DataProcessingOptions
 	}
 
 	/// <summary>
-	/// Gets the maximum queue size for the in-memory queue. Defaults to 500 if not provided.
+	/// Gets the maximum queue size for the in-memory bounded channel. Defaults to 5000 if not provided.
 	/// </summary>
 	/// <value>
-	/// The maximum queue size for the in-memory queue. Defaults to 5000 if not provided.
+	/// The maximum queue size for the in-memory bounded channel. Defaults to 5000 if not provided.
 	/// </value>
 	[Range(1, int.MaxValue)]
 	public int QueueSize

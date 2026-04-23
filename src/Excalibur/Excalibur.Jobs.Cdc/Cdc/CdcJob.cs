@@ -214,7 +214,10 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 		var cdcConnection = _connectionFactory(dbConfig.DatabaseConnectionIdentifier);
 		var storeConnection = _connectionFactory(dbConfig.StateConnectionIdentifier);
 
-		var processor = _factory.Create(dbConfig, cdcConnection, storeConnection);
+		// CdcRepository wraps the CDC connection and owns its disposal.
+		// The factory expects a CdcRepository, not a raw SqlConnection.
+		var cdcRepository = new CdcRepository(cdcConnection);
+		var processor = _factory.Create(dbConfig, cdcRepository, storeConnection);
 
 		try
 		{
@@ -230,7 +233,8 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 		finally
 		{
 			await processor.DisposeAsync().ConfigureAwait(false);
-			await cdcConnection.DisposeAsync().ConfigureAwait(false);
+			// CdcRepository.DisposeAsync disposes the underlying cdcConnection
+			await cdcRepository.DisposeAsync().ConfigureAwait(false);
 			await storeConnection.DisposeAsync().ConfigureAwait(false);
 		}
 	}

@@ -11,7 +11,7 @@ namespace Excalibur.Data.DataProcessing.Requests;
 /// <summary>
 /// Represents a data request to select pending data tasks from the data processing system.
 /// </summary>
-public sealed class SelectPendingDataTasks : DataRequest<IEnumerable<DataTaskRequest>>
+internal sealed class SelectPendingDataTasks : DataRequest<IEnumerable<DataTaskRequest>>
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SelectPendingDataTasks"/> class.

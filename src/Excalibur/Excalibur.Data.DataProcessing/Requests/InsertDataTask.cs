@@ -13,7 +13,7 @@ namespace Excalibur.Data.DataProcessing.Requests;
 /// <summary>
 /// Represents a data request to insert a new data task into the data processing system.
 /// </summary>
-public sealed class InsertDataTask : DataRequest<int>
+internal sealed class InsertDataTask : DataRequest<int>
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InsertDataTask" /> class.

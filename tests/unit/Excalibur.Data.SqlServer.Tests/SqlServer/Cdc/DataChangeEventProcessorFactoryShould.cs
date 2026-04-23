@@ -54,12 +54,12 @@ public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 		Should.Throw<ArgumentNullException>(() =>
 			factory.Create(
 				null!,
-				new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true"),
+				new CdcRepository(new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")),
 				new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")));
 	}
 
 	[Fact]
-	public void Create_ThrowsArgumentNullException_WhenCdcConnectionIsNull()
+	public void Create_ThrowsArgumentNullException_WhenCdcRepositoryIsNull()
 	{
 		var factory = CreateFactory();
 		var dbConfig = A.Fake<IDatabaseOptions>();
@@ -80,7 +80,7 @@ public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 		Should.Throw<ArgumentNullException>(() =>
 			factory.Create(
 				dbConfig,
-				new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true"),
+				new CdcRepository(new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")),
 				null!));
 	}
 
@@ -106,7 +106,7 @@ public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 
 		var result = factory.Create(
 			dbConfig,
-			new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true"),
+			new CdcRepository(new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")),
 			new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true"));
 
 		result.ShouldNotBeNull();

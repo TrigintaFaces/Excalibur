@@ -56,14 +56,6 @@ public interface IDatabaseOptions
 	string[] CaptureInstances { get; }
 
 	/// <summary>
-	/// Gets the batch time interval (in milliseconds) for processing changes.
-	/// </summary>
-	/// <value>
-	/// The batch time interval (in milliseconds) for processing changes.
-	/// </value>
-	int BatchTimeInterval { get; }
-
-	/// <summary>
 	/// Gets the size of the in-memory data queue.
 	/// </summary>
 	/// <value>

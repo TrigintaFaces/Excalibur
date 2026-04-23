@@ -39,6 +39,7 @@ internal sealed partial class DataProcessingHostedService : BackgroundService
 {
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<DataProcessingHostedServiceOptions> _options;
+	private readonly DataProcessingHealthState? _healthState;
 	private readonly ILogger<DataProcessingHostedService> _logger;
 
 	private volatile bool _isHealthy;
@@ -70,14 +71,17 @@ internal sealed partial class DataProcessingHostedService : BackgroundService
 	/// <param name="scopeFactory">The service scope factory for resolving scoped dependencies.</param>
 	/// <param name="options">The hosted service options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="healthState">Optional shared health state for health check integration.</param>
 	public DataProcessingHostedService(
 		IServiceScopeFactory scopeFactory,
 		IOptions<DataProcessingHostedServiceOptions> options,
-		ILogger<DataProcessingHostedService> logger)
+		ILogger<DataProcessingHostedService> logger,
+		DataProcessingHealthState? healthState = null)
 	{
 		_scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_healthState = healthState;
 	}
 
 	/// <inheritdoc/>
@@ -108,6 +112,7 @@ internal sealed partial class DataProcessingHostedService : BackgroundService
 		}
 
 		_isHealthy = true;
+		_healthState?.MarkStarted();
 		LogBackgroundServiceStarting(_options.Value.PollingInterval);
 
 		while (!stoppingToken.IsCancellationRequested)
@@ -122,9 +127,11 @@ internal sealed partial class DataProcessingHostedService : BackgroundService
 				var orchestrationManager = scope.ServiceProvider.GetRequiredService<IDataOrchestrationManager>();
 				await orchestrationManager.ProcessDataTasksAsync(stoppingToken).ConfigureAwait(false);
 
-				_consecutiveErrors = 0;
+				Interlocked.Exchange(ref _consecutiveErrors, 0);
 				_isHealthy = true;
 				Interlocked.Exchange(ref _lastSuccessfulProcessingTicks, DateTimeOffset.UtcNow.UtcTicks);
+
+				_healthState?.RecordCycle(succeeded: true);
 
 				LogProcessedTasks(stopwatch.Elapsed.TotalMilliseconds);
 			}
@@ -134,11 +141,13 @@ internal sealed partial class DataProcessingHostedService : BackgroundService
 			}
 			catch (Exception ex)
 			{
-				_consecutiveErrors++;
-				if (_consecutiveErrors >= _options.Value.UnhealthyThreshold)
+				var errors = Interlocked.Increment(ref _consecutiveErrors);
+				if (errors >= _options.Value.UnhealthyThreshold)
 				{
 					_isHealthy = false;
 				}
+
+				_healthState?.RecordCycle(succeeded: false);
 
 				LogBackgroundServiceError(ex);
 			}
@@ -154,6 +163,7 @@ internal sealed partial class DataProcessingHostedService : BackgroundService
 		}
 
 		_isHealthy = false;
+		_healthState?.MarkStopped();
 		LogBackgroundServiceStopped();
 	}
 

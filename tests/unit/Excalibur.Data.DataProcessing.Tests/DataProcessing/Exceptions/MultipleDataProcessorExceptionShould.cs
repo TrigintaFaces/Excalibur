@@ -17,8 +17,8 @@ public sealed class MultipleDataProcessorExceptionShould : UnitTestBase
 	[Fact]
 	public void CreateWithRecordType_SetsRecordType()
 	{
-		// Arrange & Act — use named parameter to avoid matching (string message) overload
-		var ex = new MultipleDataProcessorException(recordType: "OrderRecord");
+		// Arrange & Act
+		var ex = new MultipleDataProcessorException("OrderRecord", innerException: null);
 
 		// Assert
 		ex.RecordType.ShouldBe("OrderRecord");
@@ -30,20 +30,9 @@ public sealed class MultipleDataProcessorExceptionShould : UnitTestBase
 	public void CreateWithCustomStatusCode()
 	{
 		// Arrange & Act
-		var ex = new MultipleDataProcessorException(recordType: "OrderRecord", statusCode: 409);
+		var ex = new MultipleDataProcessorException("OrderRecord", statusCode: 409);
 
 		// Assert
-		ex.RecordType.ShouldBe("OrderRecord");
-	}
-
-	[Fact]
-	public void CreateWithCustomMessage()
-	{
-		// Arrange & Act
-		var ex = new MultipleDataProcessorException(recordType: "OrderRecord", message: "Custom error");
-
-		// Assert
-		ex.Message.ShouldBe("Custom error");
 		ex.RecordType.ShouldBe("OrderRecord");
 	}
 
@@ -54,7 +43,7 @@ public sealed class MultipleDataProcessorExceptionShould : UnitTestBase
 		var inner = new InvalidOperationException("inner");
 
 		// Act
-		var ex = new MultipleDataProcessorException(recordType: "OrderRecord", innerException: inner);
+		var ex = new MultipleDataProcessorException("OrderRecord", inner);
 
 		// Assert
 		ex.InnerException!.ShouldBeSameAs(inner);
@@ -77,8 +66,8 @@ public sealed class MultipleDataProcessorExceptionShould : UnitTestBase
 	[Fact]
 	public void MessageContainsGuidance_AboutSingleRegistration()
 	{
-		// Arrange & Act — use named parameter to avoid matching (string message) overload
-		var ex = new MultipleDataProcessorException(recordType: "OrderRecord");
+		// Arrange & Act
+		var ex = new MultipleDataProcessorException("OrderRecord", innerException: null);
 
 		// Assert
 		ex.Message.ShouldContain("only one handler");
@@ -95,23 +84,13 @@ public sealed class MultipleDataProcessorExceptionShould : UnitTestBase
 	}
 
 	[Fact]
-	public void CreateWithStringMessage()
-	{
-		// Arrange & Act
-		var ex = new MultipleDataProcessorException("test message");
-
-		// Assert
-		ex.Message.ShouldBe("test message");
-	}
-
-	[Fact]
-	public void CreateWithStringMessageAndInnerException()
+	public void CreateWithStatusCodeMessageAndInnerException()
 	{
 		// Arrange
 		var inner = new InvalidOperationException("inner");
 
 		// Act
-		var ex = new MultipleDataProcessorException("test message", inner);
+		var ex = new MultipleDataProcessorException(500, "test message", inner);
 
 		// Assert
 		ex.Message.ShouldBe("test message");

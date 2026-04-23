@@ -17,8 +17,8 @@ public sealed class MissingDataProcessorExceptionShould : UnitTestBase
 	[Fact]
 	public void CreateWithRecordType_SetsRecordType()
 	{
-		// Arrange & Act — use named parameter to avoid matching (string message) overload
-		var ex = new MissingDataProcessorException(recordType: "OrderRecord");
+		// Arrange & Act
+		var ex = new MissingDataProcessorException("OrderRecord", innerException: null);
 
 		// Assert
 		ex.RecordType.ShouldBe("OrderRecord");
@@ -30,20 +30,9 @@ public sealed class MissingDataProcessorExceptionShould : UnitTestBase
 	public void CreateWithCustomStatusCode()
 	{
 		// Arrange & Act
-		var ex = new MissingDataProcessorException(recordType: "OrderRecord", statusCode: 404);
+		var ex = new MissingDataProcessorException("OrderRecord", statusCode: 404);
 
 		// Assert
-		ex.RecordType.ShouldBe("OrderRecord");
-	}
-
-	[Fact]
-	public void CreateWithCustomMessage()
-	{
-		// Arrange & Act
-		var ex = new MissingDataProcessorException(recordType: "OrderRecord", message: "Custom error");
-
-		// Assert
-		ex.Message.ShouldBe("Custom error");
 		ex.RecordType.ShouldBe("OrderRecord");
 	}
 
@@ -54,7 +43,7 @@ public sealed class MissingDataProcessorExceptionShould : UnitTestBase
 		var inner = new InvalidOperationException("inner");
 
 		// Act
-		var ex = new MissingDataProcessorException(recordType: "OrderRecord", innerException: inner);
+		var ex = new MissingDataProcessorException("OrderRecord", inner);
 
 		// Assert
 		ex.InnerException!.ShouldBeSameAs(inner);
@@ -85,23 +74,13 @@ public sealed class MissingDataProcessorExceptionShould : UnitTestBase
 	}
 
 	[Fact]
-	public void CreateWithStringMessage()
-	{
-		// Arrange & Act
-		var ex = new MissingDataProcessorException("test message");
-
-		// Assert
-		ex.Message.ShouldBe("test message");
-	}
-
-	[Fact]
-	public void CreateWithStringMessageAndInnerException()
+	public void CreateWithStatusCodeMessageAndInnerException()
 	{
 		// Arrange
 		var inner = new InvalidOperationException("inner");
 
 		// Act
-		var ex = new MissingDataProcessorException("test message", inner);
+		var ex = new MissingDataProcessorException(500, "test message", inner);
 
 		// Assert
 		ex.Message.ShouldBe("test message");

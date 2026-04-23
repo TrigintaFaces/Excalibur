@@ -31,6 +31,15 @@ public static class DataProcessingEventId
 	/// <summary>UpdateCompletedCount did not match any rows.</summary>
 	public const int UpdateCompletedCountMismatch = 107002;
 
+	/// <summary>Data task row no longer exists — stale task detected (e.g., DB restore).</summary>
+	public const int DataTaskStale = 107003;
+
+	/// <summary>Failed to update attempt count (database may be unavailable).</summary>
+	public const int UpdateAttemptsFailed = 107004;
+
+	/// <summary>Failed to delete completed task row (database may be unavailable).</summary>
+	public const int DeleteTaskFailed = 107005;
+
 	// ========================================
 	// 107100-107199: Data Processor Core
 	// ========================================
@@ -92,6 +101,12 @@ public static class DataProcessingEventId
 
 	/// <summary>No handler found for record type.</summary>
 	public const int NoHandlerFound = 107209;
+
+	/// <summary>Consecutive record failures exceeded threshold — aborting batch.</summary>
+	public const int ConsecutiveFailureThresholdExceeded = 107210;
+
+	/// <summary>Consumer aborted due to task-scoped cancellation (stale task).</summary>
+	public const int ConsumerAbortedStaleTask = 107211;
 
 	// ========================================
 	// 107300-107399: Data Processor Producer

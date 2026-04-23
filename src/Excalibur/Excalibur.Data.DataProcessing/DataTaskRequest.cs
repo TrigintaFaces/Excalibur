@@ -30,10 +30,10 @@ public sealed class DataTaskRequest
 	public string RecordType { get; init; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets the number of attempts made to process the data task.
+	/// Gets the number of attempts made to process the data task.
 	/// </summary>
 	/// <value> An integer representing the count of processing attempts. </value>
-	public int Attempts { get; set; }
+	public int Attempts { get; init; }
 
 	/// <summary>
 	/// Gets the maximum number of processing attempts allowed for the data task.
@@ -44,6 +44,6 @@ public sealed class DataTaskRequest
 	/// <summary>
 	/// Gets the total number of records completed in this data task.
 	/// </summary>
-	/// <value> An integer representing the count of completed records. </value>
-	public int CompletedCount { get; init; }
+	/// <value> A long representing the count of completed records. </value>
+	public long CompletedCount { get; init; }
 }

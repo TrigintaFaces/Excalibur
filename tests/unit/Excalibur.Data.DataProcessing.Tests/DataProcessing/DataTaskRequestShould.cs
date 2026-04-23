@@ -60,16 +60,13 @@ public sealed class DataTaskRequestShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AllowMutatingAttempts()
+	public void SetAttemptsViaInitializer()
 	{
-		// Arrange
-		var request = new DataTaskRequest { Attempts = 0 };
-
-		// Act
-		request.Attempts++;
+		// Arrange & Act
+		var request = new DataTaskRequest { Attempts = 5 };
 
 		// Assert
-		request.Attempts.ShouldBe(1);
+		request.Attempts.ShouldBe(5);
 	}
 
 	[Fact]

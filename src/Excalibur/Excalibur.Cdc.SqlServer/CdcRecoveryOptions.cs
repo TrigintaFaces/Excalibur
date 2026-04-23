@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.ComponentModel.DataAnnotations;
+
 namespace Excalibur.Cdc.SqlServer;
 
 /// <summary>
@@ -83,6 +84,35 @@ public sealed class CdcRecoveryOptions
 	/// Default is <see langword="true"/>.
 	/// </value>
 	public bool EnableStructuredLogging { get; set; } = true;
+
+	/// <summary>
+	/// Creates a <see cref="CdcRecoveryOptions"/> from the recovery-related properties of <see cref="CdcOptions"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This factory eliminates the need to manually copy each recovery property when bridging
+	/// from the user-facing <see cref="CdcOptions"/> (in <c>Excalibur.Cdc</c>) to the
+	/// provider-specific <see cref="CdcRecoveryOptions"/> (in <c>Excalibur.Cdc.SqlServer</c>).
+	/// If a new recovery property is added to <see cref="CdcOptions"/>, it only needs to be
+	/// added here rather than at every bridge site.
+	/// </para>
+	/// </remarks>
+	/// <param name="cdcOptions">The CDC options containing recovery configuration.</param>
+	/// <returns>A new <see cref="CdcRecoveryOptions"/> with properties copied from the source.</returns>
+	/// <exception cref="ArgumentNullException">Thrown if <paramref name="cdcOptions"/> is <c>null</c>.</exception>
+	public static CdcRecoveryOptions FromCdcOptions(CdcOptions cdcOptions)
+	{
+		ArgumentNullException.ThrowIfNull(cdcOptions);
+
+		return new CdcRecoveryOptions
+		{
+			RecoveryStrategy = cdcOptions.RecoveryStrategy,
+			OnPositionReset = cdcOptions.OnPositionReset,
+			MaxRecoveryAttempts = cdcOptions.MaxRecoveryAttempts,
+			RecoveryAttemptDelay = cdcOptions.RecoveryAttemptDelay,
+			EnableStructuredLogging = cdcOptions.EnableStructuredLogging,
+		};
+	}
 
 	/// <summary>
 	/// Validates the options and throws if the configuration is invalid.

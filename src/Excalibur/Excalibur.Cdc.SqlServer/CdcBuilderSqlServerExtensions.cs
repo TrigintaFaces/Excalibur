@@ -352,6 +352,8 @@ public static class CdcBuilderSqlServerExtensions
 		}
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+		Justification = "CDC DI registration method requires coordination across many types; this is the single composition root for SQL Server CDC.")]
 	private static void RegisterCdcServices(
 		ICdcBuilder builder,
 		SqlServerCdcOptions sqlOptions,
@@ -368,20 +370,56 @@ public static class CdcBuilderSqlServerExtensions
 		builder.Services.TryAddSingleton<IDataAccessPolicyFactory, SqlDataAccessPolicyFactory>();
 
 		// Auto-register IDatabaseOptions when configured via the builder.
+		// Uses a factory so CaptureInstances derives from CdcOptions.TrackedTables
+		// at resolution time — after IPostConfigureOptions (BindTrackedTables, etc.)
+		// have merged config-driven tables. This makes TrackedTables the single source
+		// of truth for which capture instances are polled.
 		// TryAdd ensures manual registration still takes precedence.
 		if (sqlOptions.HasDatabaseConfig)
 		{
-			builder.Services.TryAddSingleton<IDatabaseOptions>(new DatabaseOptions
+			// Capture builder values for the closure (these don't change after configure).
+			var capturedDbName = sqlOptions.DatabaseName!;
+			var capturedDbConnId = sqlOptions.DatabaseConnectionIdentifier
+				?? $"cdc-{capturedDbName}";
+			var capturedStateConnId = sqlOptions.StateConnectionIdentifier
+				?? $"state-{capturedDbName}";
+			var capturedStopOnMissing = sqlOptions.StopOnMissingTableHandler;
+			var capturedBuilderInstances = sqlOptions.CaptureInstances;
+			var capturedBatchSize = sqlOptions.BatchSize;
+
+			builder.Services.TryAddSingleton<IDatabaseOptions>(sp =>
 			{
-				DatabaseName = sqlOptions.DatabaseName!,
-				DatabaseConnectionIdentifier = sqlOptions.DatabaseConnectionIdentifier
-					?? $"cdc-{sqlOptions.DatabaseName}",
-				StateConnectionIdentifier = sqlOptions.StateConnectionIdentifier
-					?? $"state-{sqlOptions.DatabaseName}",
-				CaptureInstances = sqlOptions.CaptureInstances ?? [],
-				StopOnMissingTableHandler = sqlOptions.StopOnMissingTableHandler
+				var cdcOptions = sp.GetRequiredService<IOptions<CdcOptions>>().Value;
+				var captureInstances = DeriveCaptureInstances(
+					cdcOptions.TrackedTables, capturedBuilderInstances);
+
+				// Bridge recovery options from CdcOptions (user-facing config in base package)
+				// to CdcRecoveryOptions (runtime config in SqlServer package).
+				// Uses FromCdcOptions factory so new recovery properties are bridged in one place.
+				var recoveryOptions = CdcRecoveryOptions.FromCdcOptions(cdcOptions);
+
+				return new DatabaseOptions
+				{
+					DatabaseName = capturedDbName,
+					DatabaseConnectionIdentifier = capturedDbConnId,
+					StateConnectionIdentifier = capturedStateConnId,
+					CaptureInstances = captureInstances,
+					StopOnMissingTableHandler = capturedStopOnMissing,
+					// Bridge SqlServerCdcOptions.BatchSize → ProducerBatchSize
+					ProducerBatchSize = capturedBatchSize,
+					RecoveryOptions = recoveryOptions,
+				};
 			});
 		}
+
+		// Bridge SqlServerCdcOptions.PollingInterval → CdcProcessingOptions.PollingInterval
+		// so the hosted service uses the interval configured via .PollingInterval() on the builder.
+		var capturedCommandTimeoutSeconds = (int)sqlOptions.CommandTimeout.TotalSeconds;
+		var capturedPollingInterval = sqlOptions.PollingInterval;
+		_ = builder.Services.PostConfigure<Excalibur.Cdc.Processing.CdcProcessingOptions>(opt =>
+		{
+			opt.PollingInterval = capturedPollingInterval;
+		});
 
 		// Register SQL Server CDC state store with factory
 		// Uses state factory when WithStateStore was called, source factory otherwise (backward compat)
@@ -393,26 +431,24 @@ public static class CdcBuilderSqlServerExtensions
 			return new CdcStateStore(factory(), stateStoreOptions);
 		});
 
-		// Register CDC repository with source factory (always reads from source)
-		builder.Services.TryAddSingleton<ICdcRepository>(sp =>
+		// Register a single CdcRepository instance shared by both ICdcRepository and ICdcRepositoryLsnMapping.
+		// Previously each interface got its own instance, wasting a SQL connection.
+		builder.Services.TryAddSingleton(sp =>
 		{
 			var factory = sourceConnectionFactory(sp);
-			return new CdcRepository(factory());
+			return new CdcRepository(factory(), capturedCommandTimeoutSeconds);
 		});
 
-		builder.Services.TryAddSingleton<ICdcRepositoryLsnMapping>(sp =>
-		{
-			var factory = sourceConnectionFactory(sp);
-			return new CdcRepository(factory());
-		});
+		builder.Services.TryAddSingleton<ICdcRepository>(sp => sp.GetRequiredService<CdcRepository>());
+		builder.Services.TryAddSingleton<ICdcRepositoryLsnMapping>(sp => sp.GetRequiredService<CdcRepository>());
 
 		// Register SQL Server CDC processor with dual factories
 		builder.Services.TryAddSingleton<ICdcProcessor>(sp =>
 		{
-			var sourceFactory = sourceConnectionFactory(sp);
 			var effectiveStateFactory = stateConnectionFactory ?? sourceConnectionFactory;
 			var stateFactory = effectiveStateFactory(sp);
 
+			var cdcRepository = sp.GetRequiredService<CdcRepository>();
 			var stateStoreOptions = sp.GetRequiredService<IOptions<SqlServerCdcStateStoreOptions>>();
 			var appLifetime = sp.GetRequiredService<IHostApplicationLifetime>();
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
@@ -423,26 +459,28 @@ public static class CdcBuilderSqlServerExtensions
 									 "IDatabaseOptions is required for CdcProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
-			var cdcConnection = sourceFactory();
 			var stateStoreConnection = stateFactory();
+
+			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions>>();
 
 			return new CdcProcessor(
 				appLifetime,
 				databaseConfig,
-				cdcConnection,
+				cdcRepository,
 				stateStoreConnection,
 				stateStoreOptions,
 				policyFactory,
-				logger);
+				logger,
+				fatalErrorOptions);
 		});
 
 		// Register DataChangeEventProcessor for background processing adapter
 		builder.Services.TryAddSingleton<IDataChangeEventProcessor>(sp =>
 		{
-			var sourceFactory = sourceConnectionFactory(sp);
 			var effectiveStateFactory = stateConnectionFactory ?? sourceConnectionFactory;
 			var stateFactory = effectiveStateFactory(sp);
 
+			var cdcRepository = sp.GetRequiredService<CdcRepository>();
 			var stateStoreOptions = sp.GetRequiredService<IOptions<SqlServerCdcStateStoreOptions>>();
 			var appLifetime = sp.GetRequiredService<IHostApplicationLifetime>();
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
@@ -453,23 +491,75 @@ public static class CdcBuilderSqlServerExtensions
 									 "IDatabaseOptions is required for DataChangeEventProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
-			var cdcConnection = sourceFactory();
 			var stateStoreConnection = stateFactory();
+
+			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions>>();
 
 			return new DataChangeEventProcessor(
 				appLifetime,
 				databaseConfig,
-				cdcConnection,
+				cdcRepository,
 				stateStoreConnection,
 				stateStoreOptions,
 				sp,
 				policyFactory,
-				logger);
+				logger,
+				fatalErrorOptions);
 		});
 
 		// Register ICdcBackgroundProcessor adapter for the hosted service
 		builder.Services.TryAddSingleton<ICdcBackgroundProcessor>(sp =>
 			new SqlServerCdcBackgroundProcessorAdapter(
 				sp.GetRequiredService<IDataChangeEventProcessor>()));
+	}
+
+	/// <summary>
+	/// Derives the SQL Server capture instance names from <see cref="CdcOptions.TrackedTables"/>,
+	/// merging any legacy builder-configured instances.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <see cref="CdcOptions.TrackedTables"/> is the single source of truth for which tables
+	/// are polled. This method converts each entry to a capture instance name:
+	/// <list type="bullet">
+	/// <item>If <see cref="CdcTableTrackingOptions.CaptureInstance"/> is set, use it (explicit override).</item>
+	/// <item>Otherwise, use <see cref="CdcTableTrackingOptions.TableName"/> (the repository normalizes
+	/// <c>dbo.Orders</c> → <c>dbo_Orders</c> via <c>NormalizeCaptureInstanceForSql</c>).</item>
+	/// </list>
+	/// </para>
+	/// <para>
+	/// Builder-configured <c>CaptureInstances</c> (from the fluent <c>.CaptureInstances("x")</c> API)
+	/// are merged as a fallback for backward compatibility. Duplicates are skipped (case-insensitive).
+	/// </para>
+	/// </remarks>
+	private static string[] DeriveCaptureInstances(
+		List<CdcTableTrackingOptions> trackedTables,
+		string[]? builderInstances)
+	{
+		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		// TrackedTables is the primary source of truth.
+		foreach (var table in trackedTables)
+		{
+			var instance = table.CaptureInstance ?? table.TableName;
+			if (!string.IsNullOrEmpty(instance))
+			{
+				_ = set.Add(instance);
+			}
+		}
+
+		// Builder-configured CaptureInstances as fallback (backward compat).
+		if (builderInstances is { Length: > 0 })
+		{
+			foreach (var instance in builderInstances)
+			{
+				if (!string.IsNullOrEmpty(instance))
+				{
+					_ = set.Add(instance);
+				}
+			}
+		}
+
+		return [.. set];
 	}
 }

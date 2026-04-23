@@ -44,7 +44,7 @@ internal sealed class DataProcessorRegistry : IDataProcessorRegistry
 
 			if (!_factories.TryAdd(recordType, sp => (IDataProcessor)sp.GetRequiredService(processorType)))
 			{
-				throw new MultipleDataProcessorException(recordType);
+				throw new MultipleDataProcessorException(recordType, innerException: null);
 			}
 		}
 	}
@@ -64,6 +64,6 @@ internal sealed class DataProcessorRegistry : IDataProcessorRegistry
 			return factory;
 		}
 
-		throw new MissingDataProcessorException(recordType);
+		throw new MissingDataProcessorException(recordType, innerException: null);
 	}
 }

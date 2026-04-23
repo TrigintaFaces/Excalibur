@@ -29,11 +29,11 @@ public abstract partial class DataProcessor<TRecord>
 	private partial void LogDisposeAsyncError(Exception ex);
 
 	[LoggerMessage(DataProcessingEventId.DisposeSync, LogLevel.Information,
-		"Disposing OutboxManager resources synchronously.")]
+		"Disposing DataProcessor resources synchronously.")]
 	private partial void LogDisposeSync();
 
 	[LoggerMessage(DataProcessingEventId.ConsumerNotCompletedSync, LogLevel.Warning,
-		"Disposing OutboxManager but Consumer has not completed.")]
+		"Disposing DataProcessor but Consumer has not completed.")]
 	private partial void LogConsumerNotCompletedSync();
 
 	[LoggerMessage(DataProcessingEventId.ConsumerTimeoutSync, LogLevel.Warning,
@@ -46,7 +46,7 @@ public abstract partial class DataProcessor<TRecord>
 
 	// Consumer methods (107200-107209)
 	[LoggerMessage(DataProcessingEventId.ConsumerDisposalRequested, LogLevel.Warning,
-		"ConsumerLoop: disposal requested, exit Excalibur.Data.")]
+		"ConsumerLoop: disposal requested, exiting DataProcessor.")]
 	private partial void LogConsumerDisposalRequested();
 
 	[LoggerMessage(DataProcessingEventId.NoMoreRecordsConsumerExit, LogLevel.Information,
@@ -54,7 +54,7 @@ public abstract partial class DataProcessor<TRecord>
 	private partial void LogNoMoreRecordsConsumerExit();
 
 	[LoggerMessage(DataProcessingEventId.QueueEmptyWaiting, LogLevel.Information,
-		"DataProcessor Queue is empty. Waiting for examples.AdvancedSample.Producer...")]
+		"DataProcessor queue is empty. Waiting for producer to enqueue records.")]
 	private partial void LogQueueEmptyWaiting();
 
 	[LoggerMessage(DataProcessingEventId.ProcessingBatch, LogLevel.Information,
@@ -84,6 +84,15 @@ public abstract partial class DataProcessor<TRecord>
 	[LoggerMessage(DataProcessingEventId.NoHandlerFound, LogLevel.Error,
 		"No handler found for {RecordType}. Skipping record.")]
 	private partial void LogNoHandlerFound(string recordType);
+
+	[LoggerMessage(DataProcessingEventId.ConsecutiveFailureThresholdExceeded, LogLevel.Error,
+		"Aborting batch: {ConsecutiveFailures} consecutive record failures exceeded threshold. " +
+		"Database may be unavailable or a systemic error is occurring.")]
+	private partial void LogConsecutiveFailureThresholdExceeded(int consecutiveFailures);
+
+	[LoggerMessage(DataProcessingEventId.ConsumerAbortedStaleTask, LogLevel.Warning,
+		"Consumer aborted: task-scoped cancellation detected (stale task or database restore).")]
+	private partial void LogConsumerAbortedStaleTask();
 
 	// Producer methods (107300-107308)
 	[LoggerMessage(DataProcessingEventId.NoMoreRecordsProducerExit, LogLevel.Information,

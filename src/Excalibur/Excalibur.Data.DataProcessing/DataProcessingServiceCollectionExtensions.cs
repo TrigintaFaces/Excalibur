@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Excalibur.Data.DataProcessing;
+using Excalibur.Data.DataProcessing.Diagnostics;
 using Excalibur.Data.DataProcessing.Processing;
 
 using Microsoft.Extensions.Configuration;
@@ -22,13 +23,6 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class DataProcessingServiceCollectionExtensions
 {
 	/// <summary>
-	/// Cached record handler factory delegates, keyed by record type.
-	/// Populated at <c>AddRecordHandler&lt;THandler, TRecord&gt;</c> registration time.
-	/// </summary>
-	internal static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, Func<IServiceProvider, object>>
-		RecordHandlerFactories = new();
-
-	/// <summary>
 	/// Registers a data processor implementation with the dependency injection container.
 	/// </summary>
 	/// <typeparam name="TProcessor">The data processor type to register.</typeparam>
@@ -43,7 +37,6 @@ public static class DataProcessingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		services.AddScoped<TProcessor>();
 		services.AddScoped<IDataProcessor, TProcessor>();
 
 		return services;
@@ -86,7 +79,6 @@ public static class DataProcessingServiceCollectionExtensions
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
-		services.AddScoped<TProcessor>();
 		services.AddScoped<IDataProcessor, TProcessor>();
 
 		return services;
@@ -135,7 +127,6 @@ public static class DataProcessingServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
 
-		services.AddScoped<TProcessor>();
 		services.AddScoped<IDataProcessor, TProcessor>();
 
 		return services;
@@ -158,7 +149,6 @@ public static class DataProcessingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		services.AddScoped<IRecordHandler<TRecord>, THandler>();
-		RecordHandlerFactories.TryAdd(typeof(TRecord), sp => sp.GetRequiredService<THandler>());
 
 		return services;
 	}
@@ -202,7 +192,6 @@ public static class DataProcessingServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
 		services.AddScoped<IRecordHandler<TRecord>, THandler>();
-		RecordHandlerFactories.TryAdd(typeof(TRecord), sp => sp.GetRequiredService<THandler>());
 
 		return services;
 	}
@@ -252,7 +241,6 @@ public static class DataProcessingServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
 
 		services.AddScoped<IRecordHandler<TRecord>, THandler>();
-		RecordHandlerFactories.TryAdd(typeof(TRecord), sp => sp.GetRequiredService<THandler>());
 
 		return services;
 	}
@@ -348,6 +336,7 @@ public static class DataProcessingServiceCollectionExtensions
 			services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<IValidateOptions<DataProcessingHostedServiceOptions>,
 					DataProcessingHostedServiceOptionsValidator>());
+			services.TryAddSingleton<DataProcessingHealthState>();
 			services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<IHostedService, DataProcessingHostedService>());
 		}
@@ -400,7 +389,6 @@ public static class DataProcessingServiceCollectionExtensions
 
 		foreach (var processorType in DataProcessorDiscovery.DiscoverProcessors(handlerAssemblies))
 		{
-			_ = services.AddScoped(processorType);
 			_ = services.AddScoped(typeof(IDataProcessor), processorType);
 		}
 
@@ -476,6 +464,8 @@ public static class DataProcessingServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingHostedServiceOptions>,
 				DataProcessingHostedServiceOptionsValidator>());
 
+		services.TryAddSingleton<DataProcessingHealthState>();
+
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, DataProcessingHostedService>());
 
@@ -524,6 +514,8 @@ public static class DataProcessingServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingHostedServiceOptions>,
 				DataProcessingHostedServiceOptionsValidator>());
+
+		services.TryAddSingleton<DataProcessingHealthState>();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, DataProcessingHostedService>());

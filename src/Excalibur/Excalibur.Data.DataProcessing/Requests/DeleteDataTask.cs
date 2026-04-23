@@ -13,7 +13,7 @@ namespace Excalibur.Data.DataProcessing.Requests;
 /// <summary>
 /// Represents a data request to delete a data task from the data processing system.
 /// </summary>
-public sealed class DeleteDataTask : DataRequest<int>
+internal sealed class DeleteDataTask : DataRequest<int>
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DeleteDataTask" /> class.

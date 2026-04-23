@@ -39,6 +39,26 @@ flowchart LR
     end
 ```
 
+## Two Processing Patterns
+
+Excalibur CDC provides two ways to process database changes. Choose the one that fits your scenario:
+
+| | Auto-Mapped | Manual Handler |
+|---|---|---|
+| **Register tables** | `TrackTable()` with mapper, or `BindTrackedTables()` + code mappings | `.CaptureInstances()`, `BindTrackedTables()`, or `TrackTable()` without mapper |
+| **Map changes** | Framework creates typed events via `ICdcEventMapper<T>` | You write an `IDataChangeHandler` and process raw `DataChangeEvent` |
+| **Dispatch** | Framework dispatches via `IDispatcher` automatically | You decide what to do (dispatch, index, cache, etc.) |
+| **Best for** | Domain event pipelines, CQRS projections | Search indexing, cache invalidation, custom integrations |
+| **Config-driven** | Yes — tables from `appsettings.json` via `BindTrackedTables` | Yes — tables from `appsettings.json` via `BindTrackedTables` |
+
+Both patterns use the same CDC processor under the hood. The difference is **who handles the changes**: the framework (auto-mapped) or your code (manual handler).
+
+All three table registration methods — `TrackTable()`, `BindTrackedTables()`, and `.CaptureInstances()` — feed into the same capture instance list that the processor polls. `BindTrackedTables()` works with either pattern: tables from config can be handled by auto-mapping (if event mappers are configured in code) or by your own `IDataChangeHandler` implementations.
+
+:::tip Composing Both Patterns
+You can use both patterns in the same processor. For example, auto-map `dbo.Orders` with `TrackTable()` while processing `dbo.AuditLog` via a manual `IDataChangeHandler` registered through `BindTrackedTables()` or `.CaptureInstances()`.
+:::
+
 ## Quick Start
 
 ### Enable CDC on Database
@@ -55,41 +75,82 @@ EXEC sys.sp_cdc_enable_table
     @supports_net_changes = 1;
 ```
 
-### Configure CDC Processor
+### Auto-Mapped Quick Start (Recommended)
+
+Use `TrackTable` with `ICdcEventMapper<T>` to have the framework create typed events and dispatch them automatically:
 
 ```csharp
-using Excalibur.Cdc;
-
-// Register CDC processor with fluent builder
 services.AddCdcProcessor(cdc =>
 {
     cdc.UseSqlServer(sql =>
     {
         sql.ConnectionString(connectionString)
-           .SchemaName("Cdc")
-           .StateTableName("CdcProcessingState")
-           .PollingInterval(TimeSpan.FromSeconds(5))
-           .BatchSize(100)
-           .DatabaseName("OrdersDb")                   // Auto-registers IDatabaseOptions
-           .CaptureInstances("dbo_Orders", "dbo_Customers")
-           .StopOnMissingTableHandler(false);           // Skip unknown tables in production
+           .DatabaseName("OrdersDb");
     })
     .TrackTable("dbo.Orders", table =>
     {
-        table.MapInsert<OrderCreatedEvent>()
-             .MapUpdate<OrderUpdatedEvent>()
-             .MapDelete<OrderDeletedEvent>();
+        table.MapInsert<OrderCreatedEvent, OrderCreatedMapper>()
+             .MapUpdate<OrderUpdatedEvent, OrderUpdatedMapper>()
+             .MapDelete<OrderDeletedEvent, OrderDeletedMapper>();
     })
     .EnableBackgroundProcessing();
 });
 ```
 
+The processor derives which CDC capture instances to poll from the tracked tables. `"dbo.Orders"` is automatically normalized to the SQL Server capture instance `dbo_Orders`. If your capture instance has a custom name (e.g., `dbo_Orders_v2`), set it explicitly:
+
+```csharp
+.TrackTable("dbo.Orders", table =>
+{
+    table.CaptureInstance("dbo_Orders_v2")   // Override the default
+         .MapInsert<OrderCreatedEvent, OrderCreatedMapper>();
+})
+```
+
+### Manual Handler Quick Start
+
+Use `.CaptureInstances()` when you want full control over change processing via your own `IDataChangeHandler`:
+
+```csharp
+// 1. Register the processor with capture instances
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql =>
+    {
+        sql.ConnectionString(connectionString)
+           .DatabaseName("OrdersDb")
+           .CaptureInstances("dbo_Orders", "dbo_Customers");
+    })
+    .EnableBackgroundProcessing();
+});
+
+// 2. Register your handlers
+services.AddDataChangeHandlersFromAssembly(typeof(Program).Assembly);
+```
+
+```csharp
+// 3. Implement IDataChangeHandler
+public class OrderCdcHandler : IDataChangeHandler
+{
+    public string[] TableNames => ["dbo_Orders"];
+
+    public async Task HandleAsync(DataChangeEvent changeEvent, CancellationToken ct)
+    {
+        // You control what happens with the change
+        var orderId = changeEvent.GetNewValue<Guid>("OrderId");
+        await _searchIndex.IndexAsync(orderId, changeEvent, ct);
+    }
+}
+```
+
 ## Table Tracking with Event Mapping
 
-The fluent builder API supports two approaches for mapping database changes to domain events:
+`TrackTable` registers a table for auto-mapped processing. The framework creates typed domain events from CDC column data and dispatches them via `IDispatcher`.
 
-1. **Auto-mapping with `ICdcEventMapper`** (recommended) — provide a mapper class that creates typed events from column data. The framework handles dispatch via `IDispatcher`.
-2. **Manual `IDataChangeHandler`** — implement the handler interface directly for full control over change processing.
+Two sub-patterns are available:
+
+1. **`ICdcEventMapper<T>` (recommended)** — provide a mapper class that creates typed events from column data. The framework handles dispatch.
+2. **Metadata-only** — register event type metadata without a mapper. You still need a manual `IDataChangeHandler` to process changes.
 
 ### Auto-Mapping with ICdcEventMapper (Recommended)
 
@@ -182,9 +243,9 @@ services.AddCdcProcessor(cdc =>
 });
 ```
 
-## Low-Level Handler Interface
+## Manual Handler Pattern
 
-For advanced scenarios requiring custom processing logic, implement `IDataChangeHandler`:
+When you need full control over change processing — for search indexing, cache invalidation, or custom integrations — implement `IDataChangeHandler` directly. Tables can come from `.CaptureInstances()` on the SQL builder, `BindTrackedTables()` from config, or `TrackTable()` without event mappers:
 
 ```csharp
 using Excalibur.Cdc.SqlServer;
@@ -453,7 +514,7 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `DatabaseName(string)` | Database name; auto-registers `IDatabaseOptions` | -- |
 | `DatabaseConnectionIdentifier(string)` | Identifier for CDC source connection | `cdc-{DatabaseName}` |
 | `StateConnectionIdentifier(string)` | Identifier for state store connection | `state-{DatabaseName}` |
-| `CaptureInstances(params string[])` | CDC capture instances to process | -- |
+| `CaptureInstances(params string[])` | CDC capture instances to poll (for manual `IDataChangeHandler` pattern; auto-mapped tables via `TrackTable`/`BindTrackedTables` are derived automatically) | -- |
 | `StopOnMissingTableHandler(bool)` | Stop processing on missing handler | `true` |
 | `ConnectionStringName(string)` | Resolve connection from `IConfiguration.GetConnectionString()` | -- |
 | `ConnectionFactory(Func<IServiceProvider, Func<SqlConnection>>)` | DI-integrated source connection factory | -- |
@@ -462,7 +523,7 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `BindConfiguration(string)` | Bind source options from `IConfiguration` section | -- |
 
 :::tip Auto-Registration of IDatabaseOptions
-When you call `DatabaseName()`, the builder automatically registers an `IDatabaseOptions` singleton with sensible defaults for connection identifiers. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseOptions` registration takes precedence.
+When you call `DatabaseName()`, the builder automatically registers an `IDatabaseOptions` factory with sensible defaults for connection identifiers. The factory derives `CaptureInstances` at runtime from all registered sources — `TrackTable()`, `BindTrackedTables()`, and `.CaptureInstances()` — so config-driven tables are included automatically. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseOptions` registration takes precedence.
 :::
 
 ### Connection Factory
@@ -723,7 +784,7 @@ services.AddCdcProcessor(cdc =>
 
 ## Config-Driven Table Binding
 
-Instead of (or in addition to) registering tables in code, you can declare tracked tables in `appsettings.json` and bind them with `BindTrackedTables`:
+Instead of (or in addition to) registering tables in code, you can declare tracked tables in `appsettings.json` and bind them with `BindTrackedTables`. This is the recommended approach for **per-environment configuration** — different environments can track different tables or use different capture instances without code changes.
 
 ```json
 {
@@ -736,16 +797,44 @@ Instead of (or in addition to) registering tables in code, you can declare track
 }
 ```
 
+| Property | Required | Description |
+|----------|----------|-------------|
+| `TableName` | Yes | Fully qualified table name (e.g., `"dbo.Orders"`). Used for handler routing and as the default capture instance name. |
+| `CaptureInstance` | No | Explicit SQL Server capture instance name. When omitted, `TableName` is normalized (e.g., `dbo.Orders` becomes `dbo_Orders`). Use this when your capture instance has a custom name like `dbo_Orders_v2`. |
+
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+    cdc.UseSqlServer(sql => sql
+        .ConnectionString(connectionString)
+        .DatabaseName("OrdersDb"))
        .BindTrackedTables("Cdc:Tables")
        .EnableBackgroundProcessing();
 });
 ```
 
+The processor derives which CDC capture instances to poll from these config entries. In the example above, the processor polls `dbo_Orders_v2` (explicit) and `dbo_Customers` (derived from `TableName`).
+
+Config-bound tables work with both processing patterns:
+- **Auto-mapped**: Combine with `TrackTable()` in code to provide event mappers for config-bound tables. Code-registered tables take precedence over config duplicates.
+- **Manual handler**: Register `IDataChangeHandler` implementations whose `TableNames` match the config entries. No event mappers needed.
+
 Config-bound tables merge additively with code-registered tables. Duplicate table names (case-insensitive) are skipped — code-registered tables always take precedence. Event mappings cannot be expressed in configuration and remain code-only via `TrackTable()`.
+
+:::tip Per-Environment Configuration
+Use `appsettings.{Environment}.json` to vary tracked tables by environment:
+```json
+// appsettings.Development.json
+{ "Cdc": { "Tables": [{ "TableName": "dbo.Orders" }] } }
+
+// appsettings.Production.json
+{ "Cdc": { "Tables": [
+    { "TableName": "dbo.Orders", "CaptureInstance": "dbo_Orders_v3" },
+    { "TableName": "dbo.Customers" },
+    { "TableName": "dbo.Payments" }
+] } }
+```
+:::
 
 ### Combining Code and Config
 
@@ -1007,6 +1096,36 @@ services.AddCdcProcessor(cdc =>
        .EnableBackgroundProcessing();
 });
 ```
+
+## Resilience
+
+### Transient Fault Handling
+
+When `Excalibur.Data.SqlServer` (or another provider that registers `IDataAccessPolicyFactory`) is present, the CDC processor automatically wraps all database operations in a comprehensive resilience policy:
+
+- **Retry** — 3 attempts with exponential backoff and jitter for transient SQL failures (timeouts, deadlocks, connection resets, Azure SQL throttling)
+- **Circuit breaker** — Opens after sustained failure (50% failure rate over 60 seconds, minimum 5 requests) and stays open for 30 seconds
+
+This covers change detection queries, checkpoint updates, and event handler execution — all DB operations in the CDC pipeline are protected.
+
+```csharp
+// Resilience is automatic — IDataAccessPolicyFactory is injected
+// into CdcProcessor, CdcChangeDetector, and CdcChangeApplier.
+// No additional configuration is required beyond registering the
+// SQL Server data access provider:
+builder.Services.AddExcaliburDataSqlServer(options =>
+{
+    options.ConnectionString = connectionString;
+});
+```
+
+### Database Restore Survivability
+
+The CDC processor is designed to handle database unavailability during restores and data replacement from backup:
+
+- **Checkpoint ordering** — Checkpoints advance only after successful event processing. If the database becomes unavailable mid-batch, the checkpoint stays at the last successfully processed position
+- **Stale position recovery** — When a restored database has different CDC LSN ranges, the configurable recovery strategy (see [Stale Position Recovery](#stale-position-recovery)) handles the mismatch automatically
+- **Guarded operations** — Checkpoint updates and state store writes are wrapped in try-catch with logging, preventing the processing loop from crashing during transient DB unavailability
 
 ## Monitoring
 

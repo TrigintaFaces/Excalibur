@@ -12,12 +12,12 @@ namespace Excalibur.Cdc.SqlServer;
 public interface IDataChangeEventProcessorFactory
 {
 	/// <summary>
-	/// Creates a new instance of <see cref="IDataChangeEventProcessor" /> using the specified database configuration and raw SQL connections.
+	/// Creates a new instance of <see cref="IDataChangeEventProcessor" /> using the specified database configuration and connections.
 	/// </summary>
 	/// <param name="dbConfig"> The database configuration containing details for the CDC process. </param>
-	/// <param name="cdcConnection"> The raw SQL connection for reading CDC changes. </param>
+	/// <param name="cdcRepository"> The CDC repository for querying change data. </param>
 	/// <param name="stateStoreConnection"> The raw SQL connection for storing CDC state information. </param>
 	/// <returns> An instance of <see cref="IDataChangeEventProcessor" /> configured with the provided inputs. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if any of the parameters are <c> null </c>. </exception>
-	IDataChangeEventProcessor Create(IDatabaseOptions dbConfig, SqlConnection cdcConnection, SqlConnection stateStoreConnection);
+	IDataChangeEventProcessor Create(IDatabaseOptions dbConfig, CdcRepository cdcRepository, SqlConnection stateStoreConnection);
 }

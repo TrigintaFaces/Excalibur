@@ -19,6 +19,21 @@ public sealed partial class DataOrchestrationManager
 	private partial void LogProcessingDataTaskError(string recordType, int attempts, Exception ex);
 
 	[LoggerMessage(DataProcessingEventId.UpdateCompletedCountMismatch, LogLevel.Warning,
-		"UpdateCompletedCount did not match any rows for DataTaskId {DataTaskId}")]
+		"UpdateCompletedCount did not match any rows for DataTaskId {DataTaskId}. " +
+		"Task row may have been deleted or database may have been restored.")]
 	private partial void LogUpdateCompletedCountMismatch(Guid dataTaskId);
+
+	[LoggerMessage(DataProcessingEventId.DataTaskStale, LogLevel.Warning,
+		"Data task {DataTaskId} for {RecordType} is stale — task row no longer exists. " +
+		"Processing aborted. This typically occurs after a database restore.")]
+	private partial void LogDataTaskStale(Guid dataTaskId, string recordType);
+
+	[LoggerMessage(DataProcessingEventId.UpdateAttemptsFailed, LogLevel.Error,
+		"Failed to update attempt count for data task {DataTaskId}. Database may be unavailable.")]
+	private partial void LogUpdateAttemptsFailed(Guid dataTaskId, Exception ex);
+
+	[LoggerMessage(DataProcessingEventId.DeleteTaskFailed, LogLevel.Error,
+		"Failed to delete completed data task {DataTaskId}. " +
+		"Task will be re-processed on next poll but should be idempotent.")]
+	private partial void LogDeleteTaskFailed(Guid dataTaskId, Exception ex);
 }

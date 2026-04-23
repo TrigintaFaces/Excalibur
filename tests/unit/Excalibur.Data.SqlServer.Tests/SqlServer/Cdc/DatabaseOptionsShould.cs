@@ -53,19 +53,6 @@ public sealed class DatabaseConfigShould
 	}
 
 	[Fact]
-	public void HaveDefaultBatchTimeInterval()
-	{
-		var config = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn"
-		};
-
-		config.BatchTimeInterval.ShouldBe(DatabaseOptionsDefaults.CdcDefaultBatchTimeInterval);
-	}
-
-	[Fact]
 	public void HaveDefaultQueueSize()
 	{
 		var config = new DatabaseOptions
@@ -127,18 +114,6 @@ public sealed class DatabaseConfigShould
 			DatabaseConnectionIdentifier = "db-conn",
 			StateConnectionIdentifier = "state-conn",
 			CaptureInstances = null!
-		});
-	}
-
-	[Fact]
-	public void ThrowWhenBatchTimeIntervalIsZero()
-	{
-		Should.Throw<ArgumentOutOfRangeException>(() => new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn",
-			BatchTimeInterval = 0
 		});
 	}
 

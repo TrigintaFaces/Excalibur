@@ -10,11 +10,6 @@ namespace Excalibur.Cdc.SqlServer;
 public static class DatabaseOptionsDefaults
 {
 	/// <summary>
-	/// Default batch time interval for CDC operations in milliseconds.
-	/// </summary>
-	public const int CdcDefaultBatchTimeInterval = 5000;
-
-	/// <summary>
 	/// Default queue size for CDC operations.
 	/// </summary>
 	public const int CdcDefaultQueueSize = 1000;

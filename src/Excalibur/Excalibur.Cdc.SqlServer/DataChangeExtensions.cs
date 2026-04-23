@@ -34,7 +34,15 @@ public static class DataChangeExtensions
 		var isNullable = Nullable.GetUnderlyingType(targetType) != null || !targetType.IsValueType;
 
 		// Find the change by column name
-		var change = changes.FirstOrDefault(c => c.ColumnName.Equals(columnName, StringComparison.OrdinalIgnoreCase));
+		DataChange? change = null;
+		foreach (var c in changes)
+		{
+			if (c.ColumnName.Equals(columnName, StringComparison.OrdinalIgnoreCase))
+			{
+				change = c;
+				break;
+			}
+		}
 
 		// If change is not found or its NewValue is null, handle it
 		if (change?.NewValue == null)
@@ -58,7 +66,7 @@ public static class DataChangeExtensions
 					return value;
 
 				default:
-					var convertedValue = Convert.ChangeType(change.NewValue, underlyingType, CultureInfo.CurrentCulture);
+					var convertedValue = Convert.ChangeType(change.NewValue, underlyingType, CultureInfo.InvariantCulture);
 					return (T)convertedValue;
 			}
 		}
@@ -94,7 +102,15 @@ public static class DataChangeExtensions
 		var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
 		var isNullable = Nullable.GetUnderlyingType(targetType) != null || !targetType.IsValueType;
 
-		var change = changes.FirstOrDefault(c => c.ColumnName.Equals(columnName, StringComparison.OrdinalIgnoreCase));
+		DataChange? change = null;
+		foreach (var c in changes)
+		{
+			if (c.ColumnName.Equals(columnName, StringComparison.OrdinalIgnoreCase))
+			{
+				change = c;
+				break;
+			}
+		}
 
 		if (change?.OldValue == null)
 		{
@@ -115,7 +131,7 @@ public static class DataChangeExtensions
 					return value;
 
 				default:
-					var convertedValue = Convert.ChangeType(change.OldValue, underlyingType, CultureInfo.CurrentCulture);
+					var convertedValue = Convert.ChangeType(change.OldValue, underlyingType, CultureInfo.InvariantCulture);
 					return (T)convertedValue;
 			}
 		}

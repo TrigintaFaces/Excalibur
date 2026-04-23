@@ -14,52 +14,62 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
 /// <summary>
 /// Behavior tests for core CDC processing internals in <see cref="CdcProcessor"/>.
+/// Tests exercise subsystems (<see cref="CdcChangeDetector"/>, <see cref="CdcCheckpointManager"/>)
+/// via the composed instances inside CdcProcessor.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
 [Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcProcessorBehaviorShould : UnitTestBase
 {
-	private static readonly Type ChangeProcessingStateType = typeof(CdcProcessor)
+	private static readonly Type ChangeProcessingStateType = typeof(CdcChangeDetector)
 		.GetNestedType("ChangeProcessingState", BindingFlags.NonPublic)
 		?? throw new InvalidOperationException("Expected nested ChangeProcessingState type.");
 
-	private static readonly MethodInfo ProcessCdcRecordMethod = typeof(CdcProcessor)
+	// Methods on CdcChangeDetector (accessed via _changeDetector field)
+	private static readonly MethodInfo ProcessCdcRecordMethod = typeof(CdcChangeDetector)
 		.GetMethod("ProcessCdcRecord", BindingFlags.NonPublic | BindingFlags.Instance)
 		?? throw new InvalidOperationException("Expected private ProcessCdcRecord method.");
 
-	private static readonly MethodInfo MatchPendingUpdatesMethod = typeof(CdcProcessor)
+	private static readonly MethodInfo MatchPendingUpdatesMethod = typeof(CdcChangeDetector)
 		.GetMethod("MatchPendingUpdates", BindingFlags.NonPublic | BindingFlags.Static)
 		?? throw new InvalidOperationException("Expected private MatchPendingUpdates method.");
 
-	private static readonly MethodInfo ValidateUnmatchedUpdatesMethod = typeof(CdcProcessor)
+	private static readonly MethodInfo ValidateUnmatchedUpdatesMethod = typeof(CdcChangeDetector)
 		.GetMethod("ValidateUnmatchedUpdates", BindingFlags.NonPublic | BindingFlags.Instance)
 		?? throw new InvalidOperationException("Expected private ValidateUnmatchedUpdates method.");
 
-	private static readonly MethodInfo UpdateLsnTrackingMethod = typeof(CdcProcessor)
+	// Methods on CdcCheckpointManager (accessed via _checkpointManager field)
+	private static readonly MethodInfo UpdateLsnTrackingMethod = typeof(CdcCheckpointManager)
 		.GetMethod("UpdateLsnTracking", BindingFlags.NonPublic | BindingFlags.Instance)
-		?? throw new InvalidOperationException("Expected private UpdateLsnTracking method.");
+		?? throw new InvalidOperationException("Expected internal UpdateLsnTracking method.");
 
-	private static readonly MethodInfo UpdateLsnAfterProcessingMethod = typeof(CdcProcessor)
+	private static readonly MethodInfo UpdateLsnAfterProcessingMethod = typeof(CdcCheckpointManager)
 		.GetMethod("UpdateLsnAfterProcessing", BindingFlags.NonPublic | BindingFlags.Instance)
-		?? throw new InvalidOperationException("Expected private UpdateLsnAfterProcessing method.");
+		?? throw new InvalidOperationException("Expected internal UpdateLsnAfterProcessing method.");
 
-	private static readonly MethodInfo GetNextLsnMethod = typeof(CdcProcessor)
+	private static readonly MethodInfo GetNextLsnMethod = typeof(CdcCheckpointManager)
 		.GetMethod("GetNextLsn", BindingFlags.NonPublic | BindingFlags.Instance)
-		?? throw new InvalidOperationException("Expected private GetNextLsn method.");
+		?? throw new InvalidOperationException("Expected internal GetNextLsn method.");
 
-	private static readonly MethodInfo IsEmptyLsnMethod = typeof(CdcProcessor)
+	private static readonly MethodInfo IsEmptyLsnMethod = typeof(CdcCheckpointManager)
 		.GetMethod("IsEmptyLsn", BindingFlags.NonPublic | BindingFlags.Static)
 		?? throw new InvalidOperationException("Expected private IsEmptyLsn method.");
 
-	private static readonly MethodInfo ByteArrayToHexMethod = typeof(CdcProcessor)
-		.GetMethod("ByteArrayToHex", BindingFlags.NonPublic | BindingFlags.Static)
-		?? throw new InvalidOperationException("Expected private ByteArrayToHex method.");
+	// Fields on CdcProcessor to extract composed subsystems
+	private static readonly FieldInfo ChangeDetectorField = typeof(CdcProcessor)
+		.GetField("_changeDetector", BindingFlags.NonPublic | BindingFlags.Instance)
+		?? throw new InvalidOperationException("Expected _changeDetector field on CdcProcessor.");
+
+	private static readonly FieldInfo CheckpointManagerField = typeof(CdcProcessor)
+		.GetField("_checkpointManager", BindingFlags.NonPublic | BindingFlags.Instance)
+		?? throw new InvalidOperationException("Expected _checkpointManager field on CdcProcessor.");
 
 	[Fact]
 	public void ProcessCdcRecord_CreateInsertDeleteAndMatchedUpdateEvents()
 	{
 		using var processor = CreateProcessor();
+		var detector = GetChangeDetector(processor);
 		var state = CreateChangeProcessingState(lsn: [0x10], sequenceValue: [0x01]);
 		var events = new List<DataChangeEvent>();
 
@@ -68,10 +78,10 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 		var updateBefore = CreateRow([0x10], [0x03], CdcOperationCodes.UpdateBefore, 3, "Pending");
 		var updateAfter = CreateRow([0x10], [0x03], CdcOperationCodes.UpdateAfter, 3, "Completed");
 
-		Invoke(ProcessCdcRecordMethod, processor, insert, events, state);
-		Invoke(ProcessCdcRecordMethod, processor, delete, events, state);
-		Invoke(ProcessCdcRecordMethod, processor, updateBefore, events, state);
-		Invoke(ProcessCdcRecordMethod, processor, updateAfter, events, state);
+		Invoke(ProcessCdcRecordMethod, detector, insert, events, state);
+		Invoke(ProcessCdcRecordMethod, detector, delete, events, state);
+		Invoke(ProcessCdcRecordMethod, detector, updateBefore, events, state);
+		Invoke(ProcessCdcRecordMethod, detector, updateAfter, events, state);
 
 		events.Count.ShouldBe(3);
 		events[0].ChangeType.ShouldBe(DataChangeType.Insert);
@@ -89,17 +99,18 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 	public void ProcessCdcRecord_MatchesUpdateWhenAfterArrivesBeforeBefore()
 	{
 		using var processor = CreateProcessor();
+		var detector = GetChangeDetector(processor);
 		var state = CreateChangeProcessingState(lsn: [0x20], sequenceValue: [0x07]);
 		var events = new List<DataChangeEvent>();
 
 		var updateAfter = CreateRow([0x20], [0x07], CdcOperationCodes.UpdateAfter, 7, "After");
 		var updateBefore = CreateRow([0x20], [0x07], CdcOperationCodes.UpdateBefore, 7, "Before");
 
-		Invoke(ProcessCdcRecordMethod, processor, updateAfter, events, state);
+		Invoke(ProcessCdcRecordMethod, detector, updateAfter, events, state);
 		events.ShouldBeEmpty();
 		GetPendingUpdateAfter(state).Count.ShouldBe(1);
 
-		Invoke(ProcessCdcRecordMethod, processor, updateBefore, events, state);
+		Invoke(ProcessCdcRecordMethod, detector, updateBefore, events, state);
 		events.Count.ShouldBe(1);
 		events[0].ChangeType.ShouldBe(DataChangeType.Update);
 		var statusChange = events[0].Changes.Single(change => change.ColumnName == "Status");
@@ -113,11 +124,12 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 	public void ProcessCdcRecord_UnknownOperation_DoesNotEmitEvents()
 	{
 		using var processor = CreateProcessor();
+		var detector = GetChangeDetector(processor);
 		var state = CreateChangeProcessingState(lsn: [0x30], sequenceValue: [0x09]);
 		var events = new List<DataChangeEvent>();
 		var unknown = CreateRow([0x30], [0x09], CdcOperationCodes.Unknown, 9, "Ignored");
 
-		Invoke(ProcessCdcRecordMethod, processor, unknown, events, state);
+		Invoke(ProcessCdcRecordMethod, detector, unknown, events, state);
 
 		events.ShouldBeEmpty();
 		GetPendingUpdateBefore(state).ShouldBeEmpty();
@@ -147,13 +159,14 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 	public void ValidateUnmatchedUpdates_ThrowsWhenPendingUpdatePairsRemain()
 	{
 		using var processor = CreateProcessor();
+		var detector = GetChangeDetector(processor);
 		var state = CreateChangeProcessingState(lsn: [0x50], sequenceValue: [0x0B]);
 		var pendingBefore = GetPendingUpdateBefore(state);
 		var seq = new byte[] { 0x0B };
 		pendingBefore[seq] = CreateRow([0x50], seq, CdcOperationCodes.UpdateBefore, 12, "Unmatched");
 
 		var exception = Should.Throw<UnmatchedUpdateRecordsException>(() =>
-			Invoke(ValidateUnmatchedUpdatesMethod, processor, state));
+			Invoke(ValidateUnmatchedUpdatesMethod, detector, state));
 
 		exception.Lsn.SequenceEqual(new byte[] { 0x50 }).ShouldBeTrue();
 	}
@@ -162,40 +175,42 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 	public void UpdateLsnTracking_MaintainsMinHeapOrderingAndRemoval()
 	{
 		using var processor = CreateProcessor();
+		var checkpointMgr = GetCheckpointManager(processor);
 		var tableA = "dbo_orders";
 		var tableB = "sales_invoices";
 		var lsn1 = new byte[] { 0x01 };
 		var lsn2 = new byte[] { 0x02 };
 		var lsn3 = new byte[] { 0x03 };
 
-		Invoke(UpdateLsnTrackingMethod, processor, tableA, lsn2, null);
-		Invoke(UpdateLsnTrackingMethod, processor, tableB, lsn1, null);
-		GetNextLsn(processor).ShouldBe(lsn1);
+		Invoke(UpdateLsnTrackingMethod, checkpointMgr, tableA, lsn2, null);
+		Invoke(UpdateLsnTrackingMethod, checkpointMgr, tableB, lsn1, null);
+		GetNextLsn(checkpointMgr).ShouldBe(lsn1);
 
 		// Ensure older LSN does not regress an existing table position.
-		Invoke(UpdateLsnTrackingMethod, processor, tableA, lsn1, null);
-		GetNextLsn(processor).ShouldBe(lsn1);
+		Invoke(UpdateLsnTrackingMethod, checkpointMgr, tableA, lsn1, null);
+		GetNextLsn(checkpointMgr).ShouldBe(lsn1);
 
-		Invoke(UpdateLsnTrackingMethod, processor, tableA, lsn3, null);
-		Invoke(UpdateLsnTrackingMethod, processor, tableB, null, null);
-		GetNextLsn(processor).ShouldBe(lsn3);
+		Invoke(UpdateLsnTrackingMethod, checkpointMgr, tableA, lsn3, null);
+		Invoke(UpdateLsnTrackingMethod, checkpointMgr, tableB, null, null);
+		GetNextLsn(checkpointMgr).ShouldBe(lsn3);
 	}
 
 	[Fact]
 	public void UpdateLsnAfterProcessing_AdvancesOrRemovesTrackingBasedOnMaxLsn()
 	{
 		using var processor = CreateProcessor();
+		var checkpointMgr = GetCheckpointManager(processor);
 		var table = "dbo_shipments";
 		var current = new byte[] { 0x10 };
 		var next = new byte[] { 0x20 };
 		var max = new byte[] { 0x30 };
 
-		Invoke(UpdateLsnTrackingMethod, processor, table, current, null);
-		Invoke(UpdateLsnAfterProcessingMethod, processor, table, next, max);
-		GetNextLsn(processor).ShouldBe(next);
+		Invoke(UpdateLsnTrackingMethod, checkpointMgr, table, current, null);
+		Invoke(UpdateLsnAfterProcessingMethod, checkpointMgr, table, next, max);
+		GetNextLsn(checkpointMgr).ShouldBe(next);
 
-		Invoke(UpdateLsnAfterProcessingMethod, processor, table, max, max);
-		GetNextLsn(processor).ShouldBeNull();
+		Invoke(UpdateLsnAfterProcessingMethod, checkpointMgr, table, max, max);
+		GetNextLsn(checkpointMgr).ShouldBeNull();
 	}
 
 	[Fact]
@@ -206,7 +221,7 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 
 		((bool)InvokeStatic(IsEmptyLsnMethod, allZero)!).ShouldBeTrue();
 		((bool)InvokeStatic(IsEmptyLsnMethod, nonZero)!).ShouldBeFalse();
-		((string)InvokeStatic(ByteArrayToHexMethod, new byte[] { 0x12, 0xAB })!).ShouldBe("0x12AB");
+		CdcChangeDetector.ByteArrayToHex([0x12, 0xAB]).ShouldBe("0x12AB");
 	}
 
 	private static CdcProcessor CreateProcessor()
@@ -231,12 +246,20 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 		return new CdcProcessor(
 			appLifetime,
 			dbConfig,
-			new SqlConnection("Server=localhost;Database=master;Encrypt=false;TrustServerCertificate=true"),
+			new CdcRepository(new SqlConnection("Server=localhost;Database=master;Encrypt=false;TrustServerCertificate=true")),
 			new SqlConnection("Server=localhost;Database=master;Encrypt=false;TrustServerCertificate=true"),
 			stateStoreOptions: null,
 			policyFactory,
 			logger);
 	}
+
+	private static object GetChangeDetector(CdcProcessor processor) =>
+		ChangeDetectorField.GetValue(processor)
+		?? throw new InvalidOperationException("_changeDetector field was null.");
+
+	private static object GetCheckpointManager(CdcProcessor processor) =>
+		CheckpointManagerField.GetValue(processor)
+		?? throw new InvalidOperationException("_checkpointManager field was null.");
 
 	private static object CreateChangeProcessingState(byte[] lsn, byte[]? sequenceValue)
 	{
@@ -260,8 +283,8 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 	private static Dictionary<byte[], CdcRow> GetPendingUpdateAfter(object state) =>
 		(Dictionary<byte[], CdcRow>)GetProperty(state, "PendingUpdateAfter");
 
-	private static byte[]? GetNextLsn(CdcProcessor processor) =>
-		(byte[]?)Invoke(GetNextLsnMethod, processor);
+	private static byte[]? GetNextLsn(object checkpointManager) =>
+		(byte[]?)Invoke(GetNextLsnMethod, checkpointManager);
 
 	private static CdcRow CreateRow(byte[] lsn, byte[] seqVal, CdcOperationCodes operationCode, int id, string status) =>
 		new()

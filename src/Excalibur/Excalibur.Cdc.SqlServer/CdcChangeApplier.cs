@@ -226,51 +226,51 @@ internal sealed partial class CdcChangeApplier
 	}
 
 	// Source-generated logging methods
-	[LoggerMessage(DataSqlServerEventId.CdcCleanupStarted, LogLevel.Information,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerStarted, LogLevel.Information,
 		"CDC Consumer loop started...")]
 	private partial void LogConsumerLoopStarted();
 
-	[LoggerMessage(DataSqlServerEventId.CdcCleanupCompleted, LogLevel.Warning,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerDisposalRequested, LogLevel.Warning,
 		"ConsumerLoop: disposal requested, exit Excalibur.Data.")]
 	private partial void LogDisposalRequested();
 
-	[LoggerMessage(DataSqlServerEventId.CdcCleanupError, LogLevel.Information,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerNoMoreRecords, LogLevel.Information,
 		"No more CDC records. Consumer is exiting gracefully.")]
 	private partial void LogNoMoreRecordsConsumer();
 
-	[LoggerMessage(DataSqlServerEventId.CdcHandlerInvoked, LogLevel.Information,
-		"CDC Queue is empty. Waiting for examples.AdvancedSample.Producer...")]
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerWaitingForProducer, LogLevel.Information,
+		"CDC Queue is empty. Waiting for producer...")]
 	private partial void LogWaitingForProducer();
 
-	[LoggerMessage(DataSqlServerEventId.CdcHandlerError, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerDequeueAttempt, LogLevel.Debug,
 		"Attempting to dequeue CDC messages...")]
 	private partial void LogAttemptingDequeue();
 
-	[LoggerMessage(DataSqlServerEventId.CdcPartitionProcessed, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerDequeued, LogLevel.Debug,
 		"Dequeued {BatchSize} messages in {ElapsedMs}ms")]
 	private partial void LogDequeuedMessages(int batchSize, double elapsedMs);
 
-	[LoggerMessage(DataSqlServerEventId.CdcPartitionError, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerProcessingBatch, LogLevel.Debug,
 		"Processing batch of {BatchSize} CDC records")]
 	private partial void LogProcessingBatch(int batchSize);
 
-	[LoggerMessage(DataSqlServerEventId.CdcCheckpointCreated, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerProcessedBatch, LogLevel.Debug,
 		"Processed {BatchSize} CDC records in {ElapsedMs}ms")]
 	private partial void LogProcessedBatch(int batchSize, double elapsedMs);
 
-	[LoggerMessage(DataSqlServerEventId.CdcCheckpointRestored, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerCanceled, LogLevel.Debug,
 		"Consumer canceled")]
 	private partial void LogConsumerCanceled();
 
-	[LoggerMessage(DataSqlServerEventId.CdcCheckpointError, LogLevel.Error,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerError, LogLevel.Error,
 		"Error in ConsumerLoop")]
 	private partial void LogErrorInConsumer(Exception ex);
 
-	[LoggerMessage(DataSqlServerEventId.CdcRetryAttempted, LogLevel.Information,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerCompleted, LogLevel.Information,
 		"Completed CDC processing, total events processed: {TotalEvents}")]
 	private partial void LogCompletedProcessing(int totalEvents);
 
-	[LoggerMessage(DataSqlServerEventId.CdcMaxRetriesExceeded, LogLevel.Critical,
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerUnhandledException, LogLevel.Critical,
 		"Unhandled exception occurred while processing change event for table '{TableName}', LSN {Lsn}, SeqVal {SeqVal}.")]
 	private partial void LogUnhandledException(string tableName, string lsn, string seqVal, Exception ex);
 

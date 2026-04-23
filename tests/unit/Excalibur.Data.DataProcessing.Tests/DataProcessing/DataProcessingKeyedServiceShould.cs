@@ -118,13 +118,13 @@ public sealed class DataProcessingKeyedServiceShould : UnitTestBase
 		// Act
 		services.AddDataProcessor<TestProcessor>(config, "DP");
 
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(TestProcessor) &&
-			sd.Lifetime == ServiceLifetime.Scoped);
+		// Assert — only IDataProcessor registration (no redundant concrete type registration)
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(IDataProcessor) &&
 			sd.Lifetime == ServiceLifetime.Scoped);
+		services.ShouldNotContain(sd =>
+			sd.ServiceType == typeof(TestProcessor),
+			"Concrete processor type should not be registered separately — resolve via IDataProcessor only");
 	}
 
 	[Fact]

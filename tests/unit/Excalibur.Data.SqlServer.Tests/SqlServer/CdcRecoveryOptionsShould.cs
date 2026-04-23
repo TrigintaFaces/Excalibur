@@ -228,6 +228,76 @@ public sealed class CdcRecoveryOptionsShould : UnitTestBase
 		options.Validate();
 	}
 
+	#region FromCdcOptions Factory Tests
+
+	[Fact]
+	public void FromCdcOptions_ThrowsArgumentNullException_WhenCdcOptionsIsNull()
+	{
+		Should.Throw<ArgumentNullException>(() =>
+			CdcRecoveryOptions.FromCdcOptions(null!));
+	}
+
+	[Fact]
+	public void FromCdcOptions_CopiesDefaultValues()
+	{
+		// Arrange
+		var cdcOptions = new CdcOptions();
+
+		// Act
+		var result = CdcRecoveryOptions.FromCdcOptions(cdcOptions);
+
+		// Assert — all recovery-related properties should match CdcOptions defaults
+		result.RecoveryStrategy.ShouldBe(StalePositionRecoveryStrategy.FallbackToEarliest);
+		result.OnPositionReset.ShouldBeNull();
+		result.MaxRecoveryAttempts.ShouldBe(3);
+		result.RecoveryAttemptDelay.ShouldBe(TimeSpan.FromSeconds(1));
+		result.EnableStructuredLogging.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void FromCdcOptions_CopiesCustomValues()
+	{
+		// Arrange
+		CdcPositionResetHandler callback = (args, ct) => Task.CompletedTask;
+		var cdcOptions = new CdcOptions
+		{
+			RecoveryStrategy = StalePositionRecoveryStrategy.InvokeCallback,
+			OnPositionReset = callback,
+			MaxRecoveryAttempts = 7,
+			RecoveryAttemptDelay = TimeSpan.FromSeconds(5),
+			EnableStructuredLogging = false,
+		};
+
+		// Act
+		var result = CdcRecoveryOptions.FromCdcOptions(cdcOptions);
+
+		// Assert — all custom values propagated
+		result.RecoveryStrategy.ShouldBe(StalePositionRecoveryStrategy.InvokeCallback);
+		result.OnPositionReset.ShouldBeSameAs(callback);
+		result.MaxRecoveryAttempts.ShouldBe(7);
+		result.RecoveryAttemptDelay.ShouldBe(TimeSpan.FromSeconds(5));
+		result.EnableStructuredLogging.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void FromCdcOptions_ResultPassesValidation()
+	{
+		// Arrange
+		var cdcOptions = new CdcOptions
+		{
+			RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToLatest,
+			MaxRecoveryAttempts = 1,
+		};
+
+		// Act
+		var result = CdcRecoveryOptions.FromCdcOptions(cdcOptions);
+
+		// Assert — should not throw
+		result.Validate();
+	}
+
+	#endregion
+
 	private static CdcPositionResetEventArgs CreateTestEventArgs()
 	{
 		return new CdcPositionResetEventArgs

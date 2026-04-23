@@ -20,8 +20,6 @@ namespace Excalibur.Cdc.SqlServer;
 /// </summary>
 public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 {
-	private readonly IDatabaseOptions _dbConfig;
-
 	private readonly IServiceProvider _serviceProvider;
 
 	private readonly ILogger<DataChangeEventProcessor> _logger;
@@ -35,7 +33,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	/// tasks that need to respond to application lifecycle events.
 	/// </param>
 	/// <param name="dbConfig"> The database configuration for the CDC processor. </param>
-	/// <param name="cdcConnection"> The SQL connection for interacting with CDC data. </param>
+	/// <param name="cdcRepository"> The CDC repository for querying change data. </param>
 	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
 	/// <param name="stateStoreOptions"> The CDC state store options. </param>
 	/// <param name="serviceProvider"> The service provider for dependency injection. </param>
@@ -48,20 +46,18 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	public DataChangeEventProcessor(
 			IHostApplicationLifetime appLifetime,
 			IDatabaseOptions dbConfig,
-			SqlConnection cdcConnection,
+			CdcRepository cdcRepository,
 			SqlConnection stateStoreConnection,
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IServiceProvider serviceProvider,
 			IDataAccessPolicyFactory policyFactory,
 			ILogger<DataChangeEventProcessor> logger,
 			IOptions<CdcFatalErrorOptions>? fatalErrorOptions = null)
-			: base(appLifetime, dbConfig, cdcConnection, stateStoreConnection, stateStoreOptions, policyFactory, logger, fatalErrorOptions)
+			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, logger, fatalErrorOptions)
 	{
-		ArgumentNullException.ThrowIfNull(dbConfig);
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_dbConfig = dbConfig;
 		_serviceProvider = serviceProvider;
 		_logger = logger;
 	}
@@ -77,44 +73,31 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			cancellationToken);
 
 	/// <summary>
-	/// Lazy-initialized, frozen table-to-handler-type map. Caches handler TYPES (not instances)
-	/// so that fresh handler instances are resolved from each scoped ServiceProvider,
-	/// avoiding references to disposed services from previous scopes.
+	/// Lazy-initialized, frozen table-to-handler map. Caches handler instances resolved from
+	/// the root <see cref="IServiceProvider"/>. Handlers should be registered as singletons;
+	/// if scoped behavior is needed, inject <see cref="IServiceScopeFactory"/>
+	/// into the handler implementation.
 	/// </summary>
-	private volatile FrozenDictionary<string, Type>? _handlerTypeMap;
+	private volatile FrozenDictionary<string, IDataChangeHandler>? _handlerMap;
 
-	private IDataChangeHandler GetHandler(IServiceProvider serviceProvider, string tableName)
+	private IDataChangeHandler GetHandler(string tableName)
 	{
-		if (string.IsNullOrWhiteSpace(tableName))
-		{
-			throw new ArgumentNullException(nameof(tableName));
-		}
+		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
-		var map = _handlerTypeMap ??= BuildHandlerTypeMap(serviceProvider);
+		var map = _handlerMap ??= BuildHandlerMap(_serviceProvider);
 
-		if (!map.TryGetValue(tableName, out var handlerType))
+		if (!map.TryGetValue(tableName, out var handler))
 		{
 			throw new CdcMissingTableHandlerException(tableName);
 		}
 
-		// Resolve a fresh handler instance from the current scope to avoid
-		// holding references to disposed scoped services.
-		var handlers = serviceProvider.GetServices<IDataChangeHandler>();
-		foreach (var handler in handlers)
-		{
-			if (handler.GetType() == handlerType)
-			{
-				return handler;
-			}
-		}
-
-		throw new CdcMissingTableHandlerException(tableName);
+		return handler;
 	}
 
-	private static FrozenDictionary<string, Type> BuildHandlerTypeMap(IServiceProvider serviceProvider)
+	private static FrozenDictionary<string, IDataChangeHandler> BuildHandlerMap(IServiceProvider serviceProvider)
 	{
 		var handlers = serviceProvider.GetServices<IDataChangeHandler>();
-		var dict = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase);
+		var dict = new Dictionary<string, IDataChangeHandler>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var handler in handlers)
 		{
@@ -125,7 +108,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 					throw new CdcMultipleTableHandlerException(tableName);
 				}
 
-				dict[tableName] = handler.GetType();
+				dict[tableName] = handler;
 			}
 		}
 
@@ -147,8 +130,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 
 		try
 		{
-			using var scope = _serviceProvider.CreateScope();
-			var handler = GetHandler(scope.ServiceProvider, changeEvent.TableName);
+			var handler = GetHandler(changeEvent.TableName);
 
 			await handler.HandleAsync(changeEvent, cancellationToken).ConfigureAwait(false);
 

@@ -161,7 +161,7 @@ internal sealed partial class CdcCheckpointManager
 		_tracking.Clear();
 	}
 
-	private void UpdateLsnTracking(string tableName, byte[]? lsn, byte[]? seqVal)
+	internal void UpdateLsnTracking(string tableName, byte[]? lsn, byte[]? seqVal)
 	{
 		lock (_minHeapLock)
 		{
@@ -195,19 +195,19 @@ internal sealed partial class CdcCheckpointManager
 	private static bool IsEmptyLsn(IEnumerable<byte> lsn) => lsn.All(static b => b == 0);
 
 	// Source-generated logging methods
-	[LoggerMessage(DataSqlServerEventId.CdcConfigurationLoaded, LogLevel.Information,
+	[LoggerMessage(DataSqlServerEventId.CdcCheckpointStateUpdated, LogLevel.Information,
 		"Updated state for {TableName}")]
 	private partial void LogUpdatedState(string tableName);
 
-	[LoggerMessage(DataSqlServerEventId.CdcConfigurationError, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcCheckpointLsnRemoved, LogLevel.Debug,
 		"Removed LSN for table {TableName}")]
 	private partial void LogRemovedLsn(string tableName);
 
-	[LoggerMessage(DataSqlServerEventId.CdcConnectionEstablished, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcCheckpointLsnUpdated, LogLevel.Debug,
 		"Updated LSN for table {TableName}: {Lsn}")]
 	private partial void LogUpdatedLsn(string tableName, string lsn);
 
-	[LoggerMessage(DataSqlServerEventId.CdcConnectionError, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcCheckpointLsnInserted, LogLevel.Debug,
 		"Inserted new LSN for table {TableName}: {Lsn}")]
 	private partial void LogInsertedLsn(string tableName, string lsn);
 }

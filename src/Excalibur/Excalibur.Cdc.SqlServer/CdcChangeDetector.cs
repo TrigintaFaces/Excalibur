@@ -48,6 +48,7 @@ internal sealed partial class CdcChangeDetector
 
 	/// <summary>
 	/// Runs the producer loop, fetching CDC changes from the database and writing them to the channel.
+	/// Manages the channel writer lifecycle (completes it in the finally block).
 	/// </summary>
 	internal async Task ProducerLoopAsync(
 		byte[]? lowestStartLsn,
@@ -57,30 +58,8 @@ internal sealed partial class CdcChangeDetector
 	{
 		try
 		{
-			var currentGlobalLsn = lowestStartLsn;
-			var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
-
-			LogProducerLoopStarted(_checkpointManager.TrackingCount);
-
-			while (currentGlobalLsn != null && currentGlobalLsn.CompareLsn(maxLsn) <= 0)
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-
-				foreach (var tableName in _checkpointManager.TrackedTables)
-				{
-					var tableTracking = _checkpointManager.GetTracking(tableName);
-					if (tableTracking is not null &&
-						tableTracking.Lsn.CompareLsn(currentGlobalLsn) == 0)
-					{
-						await EnqueueTableChangesAsync(tableName, tableTracking.Lsn, tableTracking.SequenceValue, maxLsn, writer, queueSize, cancellationToken)
-							.ConfigureAwait(false);
-					}
-				}
-
-				currentGlobalLsn = _checkpointManager.GetNextLsn();
-			}
-
-			LogNoMoreRecordsProducer();
+			await ProducerLoopCoreAsync(lowestStartLsn, writer, queueSize, cancellationToken)
+				.ConfigureAwait(false);
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
@@ -101,6 +80,42 @@ internal sealed partial class CdcChangeDetector
 			writer.Complete();
 			LogProducerCompleted();
 		}
+	}
+
+	/// <summary>
+	/// Core producer iteration logic without exception handling or channel lifecycle management.
+	/// Used by <see cref="ProducerLoopAsync"/> and by <c>CdcProcessor</c> (which wraps with stale-position recovery).
+	/// </summary>
+	internal async Task ProducerLoopCoreAsync(
+		byte[]? lowestStartLsn,
+		ChannelWriter<DataChangeEvent> writer,
+		int queueSize,
+		CancellationToken cancellationToken)
+	{
+		var currentGlobalLsn = lowestStartLsn;
+		var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
+
+		LogProducerLoopStarted(_checkpointManager.TrackingCount);
+
+		while (currentGlobalLsn != null && currentGlobalLsn.CompareLsn(maxLsn) <= 0)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			foreach (var tableName in _checkpointManager.TrackedTables)
+			{
+				var tableTracking = _checkpointManager.GetTracking(tableName);
+				if (tableTracking is not null &&
+					tableTracking.Lsn.CompareLsn(currentGlobalLsn) == 0)
+				{
+					await EnqueueTableChangesAsync(tableName, tableTracking.Lsn, tableTracking.SequenceValue, maxLsn, writer, queueSize, cancellationToken)
+						.ConfigureAwait(false);
+				}
+			}
+
+			currentGlobalLsn = _checkpointManager.GetNextLsn();
+		}
+
+		LogNoMoreRecordsProducer();
 	}
 
 	private async Task EnqueueTableChangesAsync(
@@ -324,51 +339,51 @@ internal sealed partial class CdcChangeDetector
 	}
 
 	// Source-generated logging methods
-	[LoggerMessage(DataSqlServerEventId.CdcProcessorStopped, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorProducerStarted, LogLevel.Debug,
 		"Producer loop started with tracking state for {TableCount} tables")]
 	private partial void LogProducerLoopStarted(int tableCount);
 
-	[LoggerMessage(DataSqlServerEventId.CdcProcessorError, LogLevel.Information,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorNoMoreRecords, LogLevel.Information,
 		"No more CDC records. Producer exiting.")]
 	private partial void LogNoMoreRecordsProducer();
 
-	[LoggerMessage(DataSqlServerEventId.CdcTableRegistered, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorProducerCanceled, LogLevel.Debug,
 		"CdcProcessor Producer canceled")]
 	private partial void LogProducerCanceled();
 
-	[LoggerMessage(DataSqlServerEventId.CdcTableUnregistered, LogLevel.Error,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorSqlError, LogLevel.Error,
 		"SQL error in CdcProcessor ProducerLoop")]
 	private partial void LogSqlErrorInProducer(Exception ex);
 
-	[LoggerMessage(DataSqlServerEventId.CdcLsnUpdated, LogLevel.Error,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorUnexpectedError, LogLevel.Error,
 		"Unexpected Error in CdcProcessor ProducerLoop")]
 	private partial void LogUnexpectedErrorInProducer(Exception ex);
 
-	[LoggerMessage(DataSqlServerEventId.CdcLsnRetrieved, LogLevel.Information,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorProducerCompleted, LogLevel.Information,
 		"CDC Producer has completed execution. Channel marked as complete.")]
 	private partial void LogProducerCompleted();
 
-	[LoggerMessage(DataSqlServerEventId.CdcLsnError, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorRowsEnqueued, LogLevel.Debug,
 		"Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}, advancing LSN.")]
 	private partial void LogSuccessfullyEnqueued(int enqueuedRowCount, string tableName);
 
-	[LoggerMessage(DataSqlServerEventId.CdcEnabledOnTable, LogLevel.Information,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorNoChanges, LogLevel.Information,
 		"No changes found for {TableName}, advancing LSN.")]
 	private partial void LogNoChangesFound(string tableName);
 
-	[LoggerMessage(DataSqlServerEventId.CdcDisabledOnTable, LogLevel.Error,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorUnmatchedUpdates, LogLevel.Error,
 		"Unmatched UpdateBefore/UpdateAfter pairs detected at the end of LSN processing:{NewLine}{UnmatchedUpdates}")]
 	private partial void LogUnmatchedUpdatePairs(string newLine, string unmatchedUpdates);
 
-	[LoggerMessage(DataSqlServerEventId.CdcValidationStarted, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorFetchingChanges, LogLevel.Debug,
 		"Fetching CDC changes: {TableName} - LSN {Lsn}, SeqVal {SeqVal}")]
 	private partial void LogFetchingCdcChanges(string tableName, string lsn, string seqVal);
 
-	[LoggerMessage(DataSqlServerEventId.CdcValidationCompleted, LogLevel.Warning,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorUnknownOperation, LogLevel.Warning,
 		"Unknown operation {OperationCode} at Position {Position}, SequenceValue {SequenceValue}")]
 	private partial void LogUnknownOperationCode(CdcOperationCodes operationCode, byte[] position, byte[] sequenceValue);
 
-	[LoggerMessage(DataSqlServerEventId.CdcValidationError, LogLevel.Debug,
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorTableEnqueued, LogLevel.Debug,
 		"Table {CaptureInstance} enqueued: currentLSN={CurrentLsn}, nextLSN={NextLsn}, maxLSN={MaxLsn}")]
 	private partial void LogTableEnqueuedDetails(string captureInstance, string currentLsn, string nextLsn, string maxLsn);
 }

@@ -329,15 +329,65 @@ groups:
           summary: "CDC position is invalid"
 ```
 
+## Database Restore Handling
+
+When a database is restored from a backup (common in development/staging environments), the CDC processor handles two scenarios automatically:
+
+### During the Restore (Database Unavailable)
+
+The CDC processor survives database unavailability without crashing:
+
+- All DB operations are wrapped in a resilience policy (retry with exponential backoff + circuit breaker) via `IDataAccessPolicyFactory`
+- Checkpoint updates and state store writes are guarded with try-catch — failures are logged but don't terminate the processing loop
+- The circuit breaker opens after sustained failure, reducing load on the recovering database
+- The health check transitions through Degraded → Unhealthy as inactivity duration increases
+
+**No operator intervention required** — the processor automatically resumes when the database comes back online.
+
+### After the Restore (Data Replaced)
+
+A restored database may have different CDC LSN ranges than what the processor has checkpointed:
+
+| Scenario | What Happens | Resolution |
+|----------|-------------|------------|
+| Checkpoint LSN is within the restored range | Processing resumes normally | Automatic |
+| Checkpoint LSN is outside the restored range (stale) | `CdcStalePositionException` is raised | Handled by recovery strategy |
+| CDC tables were not restored | No change data available | Re-enable CDC on restored database |
+
+Configure a recovery strategy to handle stale positions automatically:
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+       .WithRecovery(recovery =>
+       {
+           // FallbackToEarliest: resume from earliest available position
+           // (may reprocess some events — handlers should be idempotent)
+           recovery.Strategy(StalePositionRecoveryStrategy.FallbackToEarliest)
+                   .MaxAttempts(5)
+                   .AttemptDelay(TimeSpan.FromSeconds(30));
+       })
+       .EnableBackgroundProcessing();
+});
+```
+
+:::warning Development Environments
+In environments where databases are frequently restored from production backups, use `FallbackToEarliest` or `FallbackToLatest` instead of the default `Throw` strategy. Ensure your event handlers are idempotent to safely handle reprocessed events.
+:::
+
 ## Prevention Best Practices
 
 | Practice | Benefit |
 |----------|---------|
 | Enable automatic recovery | Reduces manual intervention |
+| Register `IDataAccessPolicyFactory` | Automatic retry and circuit breaker for all DB operations |
 | Set adequate log retention | Prevents truncation issues |
 | Monitor CDC lag | Early warning of problems |
 | Regular position validation | Detect issues before impact |
 | Checkpoint frequently | Faster recovery |
+| Make event handlers idempotent | Safe reprocessing after restore or recovery |
 | Test recovery procedures | Confidence in recovery |
 
 ## Quick Reference

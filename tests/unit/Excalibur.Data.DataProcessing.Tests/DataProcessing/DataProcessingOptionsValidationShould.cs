@@ -80,7 +80,7 @@ public sealed class DataProcessingOptionsValidationShould : UnitTestBase
 		// Arrange & Act
 		var config = new DataProcessingOptions
 		{
-			TableName = "Custom.Table",
+			TableName = "CustomTable",
 			DispatcherTimeoutMilliseconds = 1,
 			MaxAttempts = 1,
 			QueueSize = 1,
@@ -89,7 +89,7 @@ public sealed class DataProcessingOptionsValidationShould : UnitTestBase
 		};
 
 		// Assert — minimum valid values accepted
-		config.TableName.ShouldBe("Custom.Table");
+		config.TableName.ShouldBe("CustomTable");
 		config.DispatcherTimeoutMilliseconds.ShouldBe(1);
 		config.MaxAttempts.ShouldBe(1);
 		config.QueueSize.ShouldBe(1);

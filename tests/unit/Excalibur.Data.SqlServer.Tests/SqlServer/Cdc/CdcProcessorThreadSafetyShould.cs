@@ -42,12 +42,12 @@ public sealed class CdcProcessorThreadSafetyShould : UnitTestBase
 	[Fact]
 	public void UseConcurrentDictionaryForTracking()
 	{
-		// Arrange
-		var field = typeof(CdcProcessor)
+		// Arrange — _tracking lives in CdcCheckpointManager (composed by CdcProcessor)
+		var field = typeof(CdcCheckpointManager)
 			.GetField("_tracking", BindingFlags.NonPublic | BindingFlags.Instance);
 
 		// Assert
-		field.ShouldNotBeNull("CdcProcessor should have _tracking field");
+		field.ShouldNotBeNull("CdcCheckpointManager should have _tracking field");
 
 		// Verify it's a ConcurrentDictionary (with string key)
 		field.FieldType.IsGenericType.ShouldBeTrue();

@@ -46,33 +46,35 @@ public sealed class DataChangeEventProcessorFactory : IDataChangeEventProcessorF
 	}
 
 	/// <summary>
-	/// Creates an instance of <see cref="DataChangeEventProcessor" /> using <see cref="SqlConnection" /> instances.
+	/// Creates an instance of <see cref="DataChangeEventProcessor" />.
 	/// </summary>
 	/// <param name="dbConfig"> The database configuration used for CDC processing. </param>
-	/// <param name="cdcConnection"> The SQL connection for interacting with CDC data. </param>
+	/// <param name="cdcRepository"> The CDC repository for querying change data. </param>
 	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
 	/// <returns> A configured <see cref="IDataChangeEventProcessor" /> instance. </returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="dbConfig" />, <paramref name="cdcConnection" />, or <paramref name="stateStoreConnection" /> is <c>
+	/// Thrown if <paramref name="dbConfig" />, <paramref name="cdcRepository" />, or <paramref name="stateStoreConnection" /> is <c>
 	/// null </c>.
 	/// </exception>
-	public IDataChangeEventProcessor Create(IDatabaseOptions dbConfig, SqlConnection cdcConnection, SqlConnection stateStoreConnection)
+	public IDataChangeEventProcessor Create(IDatabaseOptions dbConfig, CdcRepository cdcRepository, SqlConnection stateStoreConnection)
 	{
 		ArgumentNullException.ThrowIfNull(dbConfig);
-		ArgumentNullException.ThrowIfNull(cdcConnection);
+		ArgumentNullException.ThrowIfNull(cdcRepository);
 		ArgumentNullException.ThrowIfNull(stateStoreConnection);
 
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 		var stateStoreOptions = _serviceProvider.GetService<IOptions<SqlServerCdcStateStoreOptions>>();
+		var fatalErrorOptions = _serviceProvider.GetService<IOptions<CdcFatalErrorOptions>>();
 
 		return new DataChangeEventProcessor(
 				_appLifetime,
 				dbConfig,
-				cdcConnection,
+				cdcRepository,
 				stateStoreConnection,
 				stateStoreOptions,
 				_serviceProvider,
 				_policyFactory,
-				logger);
+				logger,
+				fatalErrorOptions);
 	}
 }

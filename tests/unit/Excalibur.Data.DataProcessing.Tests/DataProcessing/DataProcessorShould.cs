@@ -17,13 +17,23 @@ namespace Excalibur.Data.Tests.DataProcessing;
 public sealed class DataProcessorShould : UnitTestBase
 {
 	private readonly IHostApplicationLifetime _fakeLifetime = A.Fake<IHostApplicationLifetime>();
-	private readonly IServiceProvider _fakeServiceProvider = A.Fake<IServiceProvider>();
+	private readonly IServiceProvider _fakeServiceProvider;
 
 	private readonly CancellationTokenSource _stoppingCts = new();
 
 	public DataProcessorShould()
 	{
 		A.CallTo(() => _fakeLifetime.ApplicationStopping).Returns(_stoppingCts.Token);
+
+		// Set up a real service provider with a handler so ProcessRecordAsync can resolve it
+		var services = new ServiceCollection();
+		services.AddScoped<IRecordHandler<string>, NoOpStringHandler>();
+		_fakeServiceProvider = services.BuildServiceProvider();
+	}
+
+	private sealed class NoOpStringHandler : IRecordHandler<string>
+	{
+		public Task ProcessAsync(string record, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
 	protected override void Dispose(bool disposing)
@@ -31,6 +41,7 @@ public sealed class DataProcessorShould : UnitTestBase
 		if (disposing)
 		{
 			_stoppingCts.Dispose();
+			(_fakeServiceProvider as IDisposable)?.Dispose();
 		}
 
 		base.Dispose(disposing);
@@ -153,19 +164,6 @@ public sealed class DataProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Dispose_IsIdempotent()
-	{
-		// Arrange
-		var processor = CreateProcessor([]);
-
-		// Act — dispose twice
-		processor.Dispose();
-		processor.Dispose();
-
-		// Assert — no exception
-	}
-
-	[Fact]
 	public async Task RunAsync_HandlesEmptyBatch()
 	{
 		// Arrange
@@ -183,7 +181,7 @@ public sealed class DataProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ImplementIDataProcessor()
+	public async Task ImplementIDataProcessor()
 	{
 		// Arrange
 		var processor = CreateProcessor([]);
@@ -192,9 +190,8 @@ public sealed class DataProcessorShould : UnitTestBase
 		processor.ShouldBeAssignableTo<IDataProcessor>();
 		processor.ShouldBeAssignableTo<IRecordFetcher<string>>();
 		processor.ShouldBeAssignableTo<IAsyncDisposable>();
-		processor.ShouldBeAssignableTo<IDisposable>();
 
-		processor.Dispose();
+		await processor.DisposeAsync().ConfigureAwait(false);
 	}
 
 	private TestDataProcessor CreateProcessor(string[] records)
