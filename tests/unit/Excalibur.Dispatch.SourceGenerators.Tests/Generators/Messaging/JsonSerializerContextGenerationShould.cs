@@ -84,9 +84,9 @@ public sealed class JsonSerializerContextGenerationShould
 	[Fact]
 	public void ExpectedOutput_IncludesNamespaceDeclaration()
 	{
-		// Generated code lives in Excalibur.Dispatch.Serialization namespace
-		var ns = "Excalibur.Dispatch.Serialization";
-		ns.ShouldBe("Excalibur.Dispatch.Serialization");
+		// Generated code lives in Excalibur.Dispatch.Generated namespace (consumer-side, not framework namespace)
+		var ns = "Excalibur.Dispatch.Generated";
+		ns.ShouldBe("Excalibur.Dispatch.Generated");
 	}
 
 	#endregion

@@ -130,7 +130,7 @@ public sealed class JsonSerializationSourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("using System.Text.Json.Serialization;");
 		_ = sb.AppendLine("using System.Collections.Generic;");
 		_ = sb.AppendLine();
-		_ = sb.AppendLine("namespace Excalibur.Dispatch.Serialization;");
+		_ = sb.AppendLine("namespace Excalibur.Dispatch.Generated;");
 		_ = sb.AppendLine();
 
 		_ = sb.AppendLine("/// <summary>");
@@ -167,7 +167,7 @@ public sealed class JsonSerializationSourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("using System.Collections.Immutable;");
 		_ = sb.AppendLine("using System.Text.Json.Serialization.Metadata;");
 		_ = sb.AppendLine();
-		_ = sb.AppendLine("namespace Excalibur.Dispatch.Serialization;");
+		_ = sb.AppendLine("namespace Excalibur.Dispatch.Generated;");
 		_ = sb.AppendLine();
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Provides a compile-time registry of discovered message types for AOT JSON serialization.");

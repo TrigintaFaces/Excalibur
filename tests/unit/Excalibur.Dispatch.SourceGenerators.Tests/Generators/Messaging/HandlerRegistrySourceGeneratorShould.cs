@@ -47,30 +47,17 @@ public sealed class HandlerRegistrySourceGeneratorShould
 
 	#endregion
 
-	#region Generated Output Pattern Tests (6 tests)
+	#region Generated Output Pattern Tests (5 tests)
 
 	[Fact]
 	public void ExpectedOutput_GeneratesPrecompiledHandlerRegistry()
 	{
-		// The generator should produce PrecompiledHandlerRegistry class
-		// Expected pattern: public static class PrecompiledHandlerRegistry
-		// This test documents the expected behavior
+		// The generator should produce PrecompiledHandlerRegistry class in Excalibur.Dispatch.Generated namespace
+		// Expected pattern: internal static class PrecompiledHandlerRegistry
 
 		// The generator targets handler interfaces
 		var handlerInterfaces = new[] { "IActionHandler", "IEventHandler", "IDocumentHandler" };
 		handlerInterfaces.ShouldContain("IActionHandler");
-	}
-
-	[Fact]
-	public void ExpectedOutput_GeneratesPrecompiledHandlerInvoker()
-	{
-		// The generator should produce PrecompiledHandlerInvoker class
-		// Expected pattern: public static class PrecompiledHandlerInvoker
-
-		// The invoker uses switch expressions for AOT compatibility
-		// Pattern: (handler, message) switch { (HandlerType h, MessageType m) => ... }
-		var expectedPattern = "switch";
-		expectedPattern.ShouldBe("switch");
 	}
 
 	[Fact]
@@ -85,15 +72,14 @@ public sealed class HandlerRegistrySourceGeneratorShould
 	}
 
 	[Fact]
-	public void ExpectedOutput_GeneratesPrecompiledHandlerActivator()
+	public void ExpectedOutput_GeneratesHandlerActivatorRegistrations()
 	{
-		// The generator should produce PrecompiledHandlerActivator class
-		// Expected pattern: public static class PrecompiledHandlerActivator
-		// With SetContext method for IMessageContext property injection
+		// The generator should produce GeneratedHandlerActivatorRegistrations class
+		// Using [ModuleInitializer] + HandlerActivatorRegistry.RegisterContextSetter<T>()
+		// for AOT-safe cross-assembly context setter registration
 
-		// Uses switch statement for type-specific context setting
-		var expectedPattern = "SetContext";
-		expectedPattern.ShouldBe("SetContext");
+		var expectedPattern = "RegisterContextSetter";
+		expectedPattern.ShouldBe("RegisterContextSetter");
 	}
 
 	[Fact]

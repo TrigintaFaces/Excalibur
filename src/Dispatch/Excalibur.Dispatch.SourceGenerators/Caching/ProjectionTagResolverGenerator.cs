@@ -138,15 +138,29 @@ public sealed class ProjectionTagResolverGenerator : IIncrementalGenerator
 		_ = sb.AppendLine();
 		_ = sb.AppendLine(" public static IEnumerable<string> GetProjectionTags(object message, IServiceProvider serviceProvider)");
 		_ = sb.AppendLine(" {");
-		_ = sb.AppendLine(" var messageType = message.GetType();");
-		_ = sb.AppendLine(" var resolver = GetResolver(messageType, serviceProvider);");
-		_ = sb.AppendLine(" if (resolver == null) return Enumerable.Empty<string>();");
+		_ = sb.AppendLine(" if (message == null) return Enumerable.Empty<string>();");
 		_ = sb.AppendLine();
-		_ = sb.AppendLine(" var getTagsMethod = resolver.GetType().GetMethod(\"GetTags\");");
-		_ = sb.AppendLine(" if (getTagsMethod == null) return Enumerable.Empty<string>();");
-		_ = sb.AppendLine();
-		_ = sb.AppendLine(
-			" return (IEnumerable<string>)getTagsMethod.Invoke(resolver, new[] { message }) ?? Enumerable.Empty<string>();");
+		_ = sb.AppendLine(" return message switch");
+		_ = sb.AppendLine(" {");
+
+		foreach (var (resolverType, messageType) in resolvers)
+		{
+			var resolverFullName = GetFullTypeName(resolverType);
+			var messageFullName = GetFullTypeName(messageType);
+
+			if (HasParameterlessConstructor(resolverType))
+			{
+				_ = sb.AppendLine($" {messageFullName} m => new {resolverFullName}().GetTags(m),");
+			}
+			else
+			{
+				_ = sb.AppendLine($" {messageFullName} m => (({resolverFullName})(serviceProvider.GetService(typeof({resolverFullName}))");
+				_ = sb.AppendLine($" ?? throw new InvalidOperationException(\"Could not resolve {resolverFullName}\"))).GetTags(m),");
+			}
+		}
+
+		_ = sb.AppendLine(" _ => Enumerable.Empty<string>()");
+		_ = sb.AppendLine(" };");
 		_ = sb.AppendLine(" }");
 		_ = sb.AppendLine(" }");
 		_ = sb.AppendLine("}");

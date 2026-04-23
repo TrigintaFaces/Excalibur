@@ -1,1 +1,7 @@
 #nullable enable
+Excalibur.Dispatch.Delivery.Handlers.HandlerActivatorRegistry
+Excalibur.Dispatch.Delivery.Handlers.ResultFactoryRegistry
+static Excalibur.Dispatch.Delivery.Handlers.HandlerActivatorRegistry.HasContextSetter(System.Type! handlerType) -> bool
+static Excalibur.Dispatch.Delivery.Handlers.HandlerActivatorRegistry.RegisterContextSetter<THandler>(System.Action<THandler!, Excalibur.Dispatch.Abstractions.IMessageContext!>! setter) -> void
+static Excalibur.Dispatch.Delivery.Handlers.HandlerActivatorRegistry.TryGetContextSetter(System.Type! handlerType, out System.Action<object!, Excalibur.Dispatch.Abstractions.IMessageContext!>? setter) -> bool
+static Excalibur.Dispatch.Delivery.Handlers.ResultFactoryRegistry.RegisterFactory<T>() -> void

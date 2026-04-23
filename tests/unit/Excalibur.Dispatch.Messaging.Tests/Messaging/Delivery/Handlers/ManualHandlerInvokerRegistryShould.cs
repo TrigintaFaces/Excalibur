@@ -294,6 +294,108 @@ public sealed class ManualHandlerInvokerRegistryShould : IDisposable
 
 	#endregion
 
+	#region TryGetRegisteredInvoker Tests
+
+	[Fact]
+	public void TryGetRegisteredInvoker_ForRegisteredHandler_ReturnsTrueAndInvoker()
+	{
+		// Arrange
+		Func<TestHandler, TestMessage, CancellationToken, Task> invoker =
+			(handler, message, ct) => handler.HandleAsync(message, ct);
+		HandlerInvokerRegistry.RegisterInvoker(invoker);
+
+		// Act
+		var found = HandlerInvokerRegistry.TryGetRegisteredInvoker(
+			typeof(TestHandler), out var retrievedInvoker);
+
+		// Assert
+		found.ShouldBeTrue();
+		retrievedInvoker.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void TryGetRegisteredInvoker_ForUnregisteredHandler_ReturnsFalse()
+	{
+		// Act — no registration for UnregisteredHandler
+		var found = HandlerInvokerRegistry.TryGetRegisteredInvoker(
+			typeof(UnregisteredHandler), out var retrievedInvoker);
+
+		// Assert
+		found.ShouldBeFalse();
+		retrievedInvoker.ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task TryGetRegisteredInvoker_ReturnsInvoker_ThatExecutesCorrectly()
+	{
+		// Arrange
+		Func<TestHandlerWithResult, TestResultMessage, CancellationToken, Task<string>> invoker =
+			(handler, message, ct) => handler.HandleAsync(message, ct);
+		HandlerInvokerRegistry.RegisterInvoker(invoker);
+
+		var handler = new TestHandlerWithResult();
+		var message = new TestResultMessage { Input = "hello" };
+
+		// Act
+		HandlerInvokerRegistry.TryGetRegisteredInvoker(
+			typeof(TestHandlerWithResult), out var retrievedInvoker);
+		var result = await retrievedInvoker!(handler, message, CancellationToken.None);
+
+		// Assert
+		result.ShouldBe("Result: hello");
+		handler.WasInvoked.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void TryGetRegisteredInvoker_AfterFreeze_ReturnsFromFrozenCache()
+	{
+		// Arrange
+		Func<TestHandler, TestMessage, CancellationToken, Task> invoker =
+			(handler, message, ct) => handler.HandleAsync(message, ct);
+		HandlerInvokerRegistry.RegisterInvoker(invoker);
+		HandlerInvokerRegistry.FreezeCache();
+
+		// Act
+		var found = HandlerInvokerRegistry.TryGetRegisteredInvoker(
+			typeof(TestHandler), out var retrievedInvoker);
+
+		// Assert
+		found.ShouldBeTrue();
+		retrievedInvoker.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void TryGetRegisteredInvoker_AfterFreeze_ForUnregisteredHandler_ReturnsFalse()
+	{
+		// Arrange
+		HandlerInvokerRegistry.FreezeCache();
+
+		// Act
+		var found = HandlerInvokerRegistry.TryGetRegisteredInvoker(
+			typeof(UnregisteredHandler), out _);
+
+		// Assert
+		found.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void TryGetRegisteredInvoker_DoesNotFallBackToReflection()
+	{
+		// TryGetRegisteredInvoker should only return explicitly registered invokers,
+		// NOT fall back to CreateInvoker (which uses MethodInfo.Invoke).
+		// GetInvoker DOES fall back — TryGetRegisteredInvoker must NOT.
+
+		// Act — no registration, just a type with HandleAsync
+		var found = HandlerInvokerRegistry.TryGetRegisteredInvoker(
+			typeof(TestHandler), out var invoker);
+
+		// Assert — unlike GetInvoker, this returns false
+		found.ShouldBeFalse();
+		invoker.ShouldBeNull();
+	}
+
+	#endregion
+
 	#region Error Handling Tests
 
 	[Fact]
@@ -305,6 +407,18 @@ public sealed class ManualHandlerInvokerRegistryShould : IDisposable
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
 			HandlerInvokerRegistry.GetInvoker(typeWithoutHandleAsync));
+	}
+
+	#endregion
+
+	#region Additional Test Types
+
+	private sealed class UnregisteredHandler
+	{
+		public Task HandleAsync(TestMessage message, CancellationToken cancellationToken)
+		{
+			return Task.CompletedTask;
+		}
 	}
 
 	#endregion

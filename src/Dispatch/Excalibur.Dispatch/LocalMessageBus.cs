@@ -1446,7 +1446,7 @@ internal sealed partial class LocalMessageBus(
 	[RequiresUnreferencedCode("Uses Assembly.GetType and reflection to discover precompiled direct action dispatch providers.")]
 	private static void TryAddPrecompiledDirectProvider(Assembly assembly, ICollection<PrecompiledDirectProvider> providers)
 	{
-		const string typeName = "Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectActionDispatch";
+		const string typeName = "Excalibur.Dispatch.Generated.PrecompiledDirectActionDispatch";
 
 		Type? dispatchType;
 		try

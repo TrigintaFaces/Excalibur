@@ -29,11 +29,10 @@
     <!-- Delivery types -->
     <type fullname="Excalibur.Dispatch.Messaging.MessageContext" preserve="all" />
 
-    <!-- Generated AOT support types (invoker, metadata, activator) -->
-    <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerInvoker" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerMetadata" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerActivator" preserve="all" />
+    <!-- Framework-side AOT registries (populated by source-generated [ModuleInitializer] code) -->
     <type fullname="Excalibur.Dispatch.Delivery.Handlers.ResultFactoryRegistry" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.Handlers.HandlerActivatorRegistry" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry" preserve="all" />
 
     <!-- JSON serialization context -->
     <type fullname="Excalibur.Dispatch.Serialization.DispatchJsonContext" preserve="all" />

@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **AOT pre-warm guard**: skip reflection-based `HandlerActivator`/`HandlerInvoker` cache pre-warm when `RuntimeFeature.IsDynamicCodeSupported` is `false`; prevents `PlatformNotSupportedException` in native AOT deployments
 - **Flaky CI**: `ErasureSchedulerBackgroundServiceShould.Continue_after_processing_error` timeout increased from 5s to 10s to match peer background-service tests under full-suite CI load
 
+### Removed
+
+- **5 dead source generators** deleted: `HandlerActivationGenerator`, `HandlerInvocationGenerator`, `MessageFactorySourceGenerator`, `MessageTypeRegistrySourceGenerator`, `ZeroAllocationHandlerInvokerGenerator` — all were unused/superseded by `HandlerRegistrySourceGenerator` and `HandlerInvokerSourceGenerator`
+- **Handler infrastructure simplified** (-1,626 lines): extracted `HandlerActivatorRegistry` and `ResultFactoryRegistry` with thread-safe public APIs for AOT source-gen integration; `HandlerInvoker`/`HandlerActivator` internals consolidated
+
 ### Changed
 
 - **Money value object: ISO 4217 currency separation** (`bd-j8q8e` P1-3). `Money` constructor now accepts `string currencyCode` (ISO 4217 — "USD", "EUR", "GBP") as the primary identifier. Previous `cultureName` parameter is removed — culture is a display concern handled by `ToString(CultureInfo)`. Follows the pattern used by `java.util.Currency` + `NumberFormat` and NodaMoney. Multi-currency applications can now correctly represent currency identity independent of user locale. Breaking API change; consumers update from `new Money(100, "en-US")` to `new Money(100, "USD")`. `MoneyTypeHandler` and `NullableMoneyTypeHandler` (SqlServer) updated accordingly.

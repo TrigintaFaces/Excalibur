@@ -234,21 +234,26 @@ public sealed class HandlerInvokerShould : IDisposable
 	[Fact]
 	public async Task Prefer_Precompiled_Generated_Invoker_When_Available()
 	{
+		// Register a synthetic invoker via the public HandlerInvokerRegistry API
+		// (the same path source-generated [ModuleInitializer] code uses).
+		HandlerInvoker.ClearCache();
+		HandlerInvokerRegistry.ClearCache();
+		_ = Interlocked.Exchange(ref s_syntheticPrecompiledInvocations, 0);
+
+		HandlerInvokerRegistry.RegisterInvoker<PrecompiledPathHandler, PrecompiledPathMessage, int>(
+			(handler, message, ct) =>
+			{
+				_ = Interlocked.Increment(ref s_syntheticPrecompiledInvocations);
+				return Task.FromResult(777);
+			});
+
 		var handler = new PrecompiledPathHandler();
 		var message = new PrecompiledPathMessage();
-		object? result = null;
-		var usedSyntheticInvoker = false;
 
-		// Global precompiled caches are reset on assembly-load notifications; retry with a
-		// bounded loop to avoid transient misses while still asserting the precompiled path works.
-		for (var attempt = 0; attempt < 5 && !usedSyntheticInvoker; attempt++)
-		{
-			ConfigureSyntheticPrecompiledProvider();
-			result = await _invoker.InvokeAsync(handler, message, CancellationToken.None);
-			usedSyntheticInvoker = result is 777 && Volatile.Read(ref s_syntheticPrecompiledInvocations) == 1;
-		}
+		var result = await _invoker.InvokeAsync(handler, message, CancellationToken.None);
 
-		usedSyntheticInvoker.ShouldBeTrue();
+		// The registered invoker (returns 777) should be preferred over
+		// the expression-compiled invoker (which would return 13).
 		result.ShouldBe(777);
 		Volatile.Read(ref s_syntheticPrecompiledInvocations).ShouldBe(1);
 	}
@@ -258,47 +263,6 @@ public sealed class HandlerInvokerShould : IDisposable
 	#region Test Fixtures
 
 	private static int s_syntheticPrecompiledInvocations;
-
-	private static void ConfigureSyntheticPrecompiledProvider()
-	{
-		HandlerInvoker.ClearCache();
-		_ = Interlocked.Exchange(ref s_syntheticPrecompiledInvocations, 0);
-
-		var invokerType = typeof(HandlerInvoker);
-		var invokeDelegateType = invokerType.GetNestedType("PrecompiledInvokerDelegate", BindingFlags.NonPublic);
-		var cachedInvokerType = invokerType.GetNestedType("CachedPrecompiledInvoker", BindingFlags.NonPublic);
-		invokeDelegateType.ShouldNotBeNull();
-		cachedInvokerType.ShouldNotBeNull();
-
-		var invokeMethod = typeof(HandlerInvokerShould).GetMethod(nameof(SyntheticInvoke), BindingFlags.Static | BindingFlags.NonPublic);
-		invokeMethod.ShouldNotBeNull();
-
-		var invokeDelegate = Delegate.CreateDelegate(invokeDelegateType!, invokeMethod!);
-		var cachedInvoker = Activator.CreateInstance(
-			cachedInvokerType!,
-			BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-			binder: null,
-			[invokeDelegate],
-			culture: null);
-		cachedInvoker.ShouldNotBeNull();
-
-		var cacheField = invokerType.GetField("_precompiledInvokerCache", BindingFlags.Static | BindingFlags.NonPublic);
-		cacheField.ShouldNotBeNull();
-
-		var precompiledCache = cacheField!.GetValue(null);
-		precompiledCache.ShouldNotBeNull();
-		_ = precompiledCache!.GetType().GetMethod("Clear", BindingFlags.Instance | BindingFlags.Public)?.Invoke(precompiledCache, null);
-		var tryAddMethod = precompiledCache.GetType().GetMethod("TryAdd", BindingFlags.Instance | BindingFlags.Public);
-		tryAddMethod.ShouldNotBeNull();
-		var key = (typeof(PrecompiledPathHandler), typeof(PrecompiledPathMessage));
-		_ = tryAddMethod!.Invoke(precompiledCache, [key, cachedInvoker]);
-	}
-
-	private static Task<object?> SyntheticInvoke(object handler, IDispatchMessage message, CancellationToken cancellationToken)
-	{
-		_ = Interlocked.Increment(ref s_syntheticPrecompiledInvocations);
-		return Task.FromResult<object?>(777);
-	}
 
 	private sealed class TestMessage : IDispatchMessage
 	{

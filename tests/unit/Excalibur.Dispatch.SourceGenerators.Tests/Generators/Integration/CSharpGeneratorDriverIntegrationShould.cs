@@ -236,7 +236,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	}
 
 	[Fact]
-	public void HandlerRegistry_GeneratesHandlerActivator()
+	public void HandlerRegistry_GeneratesHandlerActivatorRegistrations()
 	{
 		const string source = """
 			using System;
@@ -259,7 +259,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 		var result = RunGenerator<HandlerRegistrySourceGenerator>(source);
 
 		var generatedFiles = result.GeneratedTrees.Select(t => System.IO.Path.GetFileName(t.FilePath)).ToList();
-		generatedFiles.ShouldContain("PrecompiledHandlerActivator.g.cs");
+		generatedFiles.ShouldContain("GeneratedHandlerActivatorRegistrations.g.cs");
 	}
 
 	[Fact]
@@ -313,7 +313,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 		var result = RunGenerator<HandlerRegistrySourceGenerator>(source);
 
 		var generatedFiles = result.GeneratedTrees.Select(t => System.IO.Path.GetFileName(t.FilePath)).ToList();
-		generatedFiles.ShouldContain("PrecompiledHandlerInvoker.g.cs");
+		// PrecompiledHandlerInvoker was deleted — handler invocation is now via HandlerInvokerRegistry + module init
+		generatedFiles.ShouldNotContain("PrecompiledHandlerInvoker.g.cs");
 	}
 
 	[Fact]
@@ -556,7 +557,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	}
 
 	[Fact]
-	public void ResultFactory_WithActionHandler_ContainsExtractReturnValue()
+	public void ResultFactory_WithActionHandler_ContainsRegisterFactory()
 	{
 		const string source = """
 			using System;
@@ -583,7 +584,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 		factorySource.ShouldNotBeNull();
 
 		var text = factorySource.GetText().ToString();
-		text.ShouldContain("ExtractReturnValue");
+		text.ShouldContain("RegisterFactory");
 	}
 
 	[Fact]

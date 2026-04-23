@@ -26,11 +26,8 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 [RequiresDynamicCode("Uses expression compilation which requires runtime code generation")]
 public sealed class HandlerActivator : IHandlerActivator
 {
-	private static volatile bool _precompiledAvailable;
-	private static volatile bool _precompiledChecked;
 	private static readonly Type[] NoFactoryArgumentTypes = [];
 	private static readonly object[] NoFactoryArguments = [];
-	private static readonly ConcurrentDictionary<Type, bool> _precompiledContextSupportCache = new();
 
 	/// <summary>
 	/// Cache of compiled context setters keyed by handler type.
@@ -61,7 +58,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	/// <remarks>
 	/// This method uses cached compiled delegates instead of reflection.
 	/// Property setters are compiled once at first access and cached for subsequent calls.
-	/// In AOT scenarios, use the source-generated PrecompiledHandlerActivator instead.
+	/// In AOT scenarios, the source generator registers context setters into <see cref="HandlerActivatorRegistry"/>.
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
 	public object ActivateHandler(
@@ -362,15 +359,13 @@ public sealed class HandlerActivator : IHandlerActivator
 		Type handlerType,
 		Action<object, IMessageContext>? fallbackSetter)
 	{
-		return SupportsPrecompiledContext(handlerType)
-			? ApplyPrecompiledContext
-			: fallbackSetter;
-	}
+		// Prefer AOT-safe registry-based context setter over expression-compiled fallback.
+		if (HandlerActivatorRegistry.TryGetContextSetter(handlerType, out var registrySetter) && registrySetter is not null)
+		{
+			return registrySetter;
+		}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void ApplyPrecompiledContext(object handler, IMessageContext context)
-	{
-		PrecompiledHandlerActivator.SetContext(handler, context);
+		return fallbackSetter;
 	}
 
 	/// <summary>
@@ -558,54 +553,6 @@ public sealed class HandlerActivator : IHandlerActivator
 		_ = modeCache.TryAdd(handlerType, mode);
 	}
 
-	/// <summary>
-	/// Determines whether precompiled context setter support exists for the specified handler.
-	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "PrecompiledHandlerActivator is generated at compile time and is AOT-safe")]
-	private static bool SupportsPrecompiledContext(Type handlerType)
-	{
-		lock (_cacheLock)
-		{
-			if (!_precompiledChecked)
-			{
-				try
-				{
-					// Probe generated type availability once.
-					_ = PrecompiledHandlerActivator.HasContextProperty(handlerType);
-					_precompiledAvailable = true;
-				}
-				catch (TypeLoadException)
-				{
-					_precompiledAvailable = false;
-				}
-
-				_precompiledChecked = true;
-			}
-
-			if (!_precompiledAvailable)
-			{
-				return false;
-			}
-
-			if (_precompiledContextSupportCache.TryGetValue(handlerType, out var supported))
-			{
-				return supported;
-			}
-
-			try
-			{
-				supported = PrecompiledHandlerActivator.HasContextProperty(handlerType);
-			}
-			catch (InvalidOperationException)
-			{
-				supported = false;
-			}
-
-			_precompiledContextSupportCache[handlerType] = supported;
-			return supported;
-		}
-	}
 
 	/// <summary>
 	/// Clears all activator caches. Intended for tests and benchmark setup.
@@ -618,13 +565,10 @@ public sealed class HandlerActivator : IHandlerActivator
 			_activationPlanCache.Clear();
 			_registeredActivationPlanCache.Clear();
 			_factoryActivationPlanCache.Clear();
-			_precompiledContextSupportCache.Clear();
 			_frozenSetterCache = null;
 			_frozenActivationPlanCache = null;
 			_frozenRegisteredActivationPlanCache = null;
 			_frozenFactoryActivationPlanCache = null;
-			_precompiledChecked = false;
-			_precompiledAvailable = false;
 			_serviceResolutionModesByProvider = new ConditionalWeakTable<IServiceProvider, ConcurrentDictionary<Type, ServiceResolutionMode>>();
 		}
 	}

@@ -127,6 +127,30 @@ public static partial class HandlerInvokerRegistry
 		return _warmupCache!.GetOrAdd(handlerType, CreateInvoker);
 	}
 
+	/// <summary>
+	/// Gets a registered invoker only if one was explicitly registered via <see cref="RegisterInvoker{THandler, TMessage}"/>.
+	/// Does NOT fall back to reflection-based <see cref="CreateInvoker"/>. Returns <c>false</c> if no
+	/// source-generated invoker is available for the handler type.
+	/// </summary>
+	/// <remarks>
+	/// Use this method when the caller has its own fallback (e.g., expression-compiled invokers in
+	/// <see cref="HandlerInvoker"/>). <see cref="GetInvoker"/> always returns non-null because it
+	/// falls back to <see cref="CreateInvoker"/> which uses <c>MethodInfo.Invoke</c> — that fallback
+	/// doesn't handle <c>ValueTask</c>/<c>ValueTask&lt;T&gt;</c> and wraps exceptions in
+	/// <see cref="System.Reflection.TargetInvocationException"/>.
+	/// </remarks>
+	internal static bool TryGetRegisteredInvoker(
+		Type handlerType,
+		[NotNullWhen(true)] out Func<object, IDispatchMessage, CancellationToken, Task<object?>>? invoker)
+	{
+		if (_isFrozen)
+		{
+			return _frozenCache!.TryGetValue(handlerType, out invoker);
+		}
+
+		return _warmupCache!.TryGetValue(handlerType, out invoker);
+	}
+
 	[RequiresUnreferencedCode("Uses reflection to create handler invokers")]
 	[RequiresDynamicCode("Uses reflection to invoke handler methods at runtime")]
 	private static Func<object, IDispatchMessage, CancellationToken, Task<object?>> CreateInvoker(Type handlerType)

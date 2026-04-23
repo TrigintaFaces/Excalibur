@@ -40,9 +40,6 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	/// </summary>
 	private delegate ValueTask<object?> InvokerFunc(object handler, IDispatchMessage message, CancellationToken cancellationToken);
 
-	private delegate Task<object?> PrecompiledInvokerDelegate(object handler, IDispatchMessage message, CancellationToken cancellationToken);
-	private delegate bool PrecompiledCanHandleDelegate(Type handlerType, Type messageType);
-
 	/// <summary>
 	/// Warmup cache for thread-safe population during startup (PERF-13/PERF-14).
 	/// Null after freeze is called.
@@ -60,11 +57,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	/// </summary>
 	private static volatile bool _isFrozen;
 
-	private static readonly Lock PrecompiledProviderLock = new();
-	private static PrecompiledInvokerProvider[] _precompiledProviders = [];
-	private static readonly ConcurrentDictionary<(Type HandlerType, Type MessageType), CachedPrecompiledInvoker> _precompiledInvokerCache = new();
 	private static readonly ConcurrentDictionary<(Type HandlerType, Type MessageType), InvokerFunc> _knownInvokerCache = new();
-	private static volatile bool _precompiledProvidersInitialized;
 	private static readonly ValueTask<object?> NullResultValueTask = new(result: null);
 
 	// PERF: ThreadStatic one-element cache for the most recent invoker lookup.
@@ -73,20 +66,6 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	[ThreadStatic] private static Type? s_cachedHandlerType;
 	[ThreadStatic] private static Type? s_cachedMessageType;
 	[ThreadStatic] private static InvokerFunc? s_cachedInvoker;
-
-	static HandlerInvoker()
-	{
-		AppDomain.CurrentDomain.AssemblyLoad += static (_, _) =>
-		{
-			lock (PrecompiledProviderLock)
-			{
-				_precompiledProvidersInitialized = false;
-				_precompiledProviders = [];
-				_precompiledInvokerCache.Clear();
-				_knownInvokerCache.Clear();
-			}
-		};
-	}
 
 	/// <summary>
 	/// Invokes a handler using runtime-compiled delegates.
@@ -128,10 +107,10 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 			return knownInvoker(handler, message, cancellationToken);
 		}
 
-		// Generated invokers are the default fast path when available.
-		if (TryUsePrecompiledInvoker(handlerType, messageType, handler, message, cancellationToken, out var precompiledResult))
+		// Source-generated invokers via HandlerInvokerRegistry are the default fast path when available.
+		if (TryUseRegisteredInvoker(handlerType, handler, message, cancellationToken, out var registeredResult))
 		{
-			return precompiledResult;
+			return registeredResult;
 		}
 
 		// Fall back to runtime compilation for handlers not known at compile time.
@@ -156,148 +135,30 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	}
 
 	/// <summary>
-	/// Attempts to use the precompiled handler invoker if available.
+	/// Attempts to use a source-generated handler invoker from <see cref="HandlerInvokerRegistry"/> if available.
 	/// </summary>
-	[SuppressMessage("Style", "RCS1163:Unused parameter",
-		Justification = "CancellationToken parameter required for async pattern consistency")]
-	private static bool TryUsePrecompiledInvoker(
+	/// <remarks>
+	/// Uses <see cref="HandlerInvokerRegistry.TryGetRegisteredInvoker"/> which only returns invokers
+	/// explicitly registered via <c>RegisterInvoker&lt;T&gt;</c> (source-generated module initializers).
+	/// Does NOT use the registry's reflection fallback, since <see cref="BuildInvoker"/> handles
+	/// all return types (<c>Task</c>, <c>Task&lt;T&gt;</c>, <c>ValueTask</c>, <c>ValueTask&lt;T&gt;</c>)
+	/// and properly propagates exceptions without <see cref="System.Reflection.TargetInvocationException"/> wrapping.
+	/// </remarks>
+	private static bool TryUseRegisteredInvoker(
 		Type handlerType,
-		Type messageType,
 		object handler,
 		IDispatchMessage message,
 		CancellationToken cancellationToken,
 		out ValueTask<object?> result)
 	{
-		var cacheKey = (handlerType, messageType);
-		var cachedInvoker = GetOrResolvePrecompiledInvoker(cacheKey);
-
-		if (!cachedInvoker.HasInvoker || cachedInvoker.Invoke is null)
+		if (!HandlerInvokerRegistry.TryGetRegisteredInvoker(handlerType, out var registryInvoker))
 		{
 			result = default;
 			return false;
 		}
 
-		try
-		{
-			result = new ValueTask<object?>(cachedInvoker.Invoke(handler, message, cancellationToken));
-			return true;
-		}
-		catch (InvalidOperationException)
-		{
-			_precompiledInvokerCache[cacheKey] = CachedPrecompiledInvoker.NotFound;
-		}
-
-		result = default;
-		return false;
-	}
-
-	private static CachedPrecompiledInvoker GetOrResolvePrecompiledInvoker((Type HandlerType, Type MessageType) cacheKey)
-	{
-		if (_precompiledInvokerCache.TryGetValue(cacheKey, out var cached))
-		{
-			return cached;
-		}
-
-		var resolved = ResolvePrecompiledInvoker(cacheKey.HandlerType, cacheKey.MessageType);
-		_ = _precompiledInvokerCache.TryAdd(cacheKey, resolved);
-		return resolved;
-	}
-
-	private static CachedPrecompiledInvoker ResolvePrecompiledInvoker(Type handlerType, Type messageType)
-	{
-		var providers = GetPrecompiledProviders();
-		for (var index = 0; index < providers.Length; index++)
-		{
-			var provider = providers[index];
-			try
-			{
-				if (provider.CanHandle(handlerType, messageType))
-				{
-					return new CachedPrecompiledInvoker(provider.Invoke);
-				}
-			}
-			catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
-			{
-				// Ignore broken providers and continue with remaining generated registries.
-			}
-		}
-
-		return CachedPrecompiledInvoker.NotFound;
-	}
-
-	private static PrecompiledInvokerProvider[] GetPrecompiledProviders()
-	{
-		if (_precompiledProvidersInitialized)
-		{
-			return _precompiledProviders;
-		}
-
-		lock (PrecompiledProviderLock)
-		{
-			if (_precompiledProvidersInitialized)
-			{
-				return _precompiledProviders;
-			}
-
-			var providers = new List<PrecompiledInvokerProvider>();
-			var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-			for (var index = 0; index < assemblies.Length; index++)
-			{
-				TryAddPrecompiledProvider(assemblies[index], providers);
-			}
-
-			_precompiledProviders = [.. providers];
-			_precompiledProvidersInitialized = true;
-			return _precompiledProviders;
-		}
-	}
-
-	private static void TryAddPrecompiledProvider(Assembly assembly, ICollection<PrecompiledInvokerProvider> providers)
-	{
-		const string typeName = "Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerInvoker";
-
-		Type? invokerType;
-		try
-		{
-			invokerType = assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
-		}
-		catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
-		{
-			return;
-		}
-
-		if (invokerType is null)
-		{
-			return;
-		}
-
-		var canHandleMethod = invokerType.GetMethod(
-			"CanHandle",
-			BindingFlags.Public | BindingFlags.Static,
-			binder: null,
-			[typeof(Type), typeof(Type)],
-			modifiers: null);
-		var invokeMethod = invokerType.GetMethod(
-			"InvokeAsync",
-			BindingFlags.Public | BindingFlags.Static,
-			binder: null,
-			[typeof(object), typeof(IDispatchMessage), typeof(CancellationToken)],
-			modifiers: null);
-
-		if (canHandleMethod is null || invokeMethod is null)
-		{
-			return;
-		}
-
-		try
-		{
-			var canHandle = canHandleMethod.CreateDelegate<PrecompiledCanHandleDelegate>();
-			var invoke = invokeMethod.CreateDelegate<PrecompiledInvokerDelegate>();
-			providers.Add(new PrecompiledInvokerProvider(canHandle, invoke));
-		}
-		catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
-		{
-		}
+		result = new ValueTask<object?>(registryInvoker(handler, message, cancellationToken));
+		return true;
 	}
 
 	/// <summary>
@@ -530,7 +391,6 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	{
 		ArgumentNullException.ThrowIfNull(entries);
 
-		_ = GetPrecompiledProviders();
 		foreach (var entry in entries)
 		{
 			var cacheKey = (entry.HandlerType, entry.MessageType);
@@ -538,22 +398,18 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 				cacheKey,
 				static key =>
 				{
-					var cachedPrecompiled = _precompiledInvokerCache.GetOrAdd(
-						key,
-						static resolveKey => ResolvePrecompiledInvoker(resolveKey.HandlerType, resolveKey.MessageType));
+					// Try source-generated invoker first (explicitly registered, AOT-safe)
+					if (HandlerInvokerRegistry.TryGetRegisteredInvoker(key.HandlerType, out var registryInvoker))
+					{
+						var captured = registryInvoker;
+						return (handler, message, ct) =>
+							new ValueTask<object?>(captured(handler, message, ct));
+					}
 
-					return cachedPrecompiled.HasInvoker && cachedPrecompiled.Invoke is not null
-						? CreatePrecompiledInvoker(cachedPrecompiled.Invoke)
-						: BuildInvoker(key.HandlerType, key.MessageType);
+					// Fall back to expression-compiled invoker (handles ValueTask, proper exception propagation)
+					return BuildInvoker(key.HandlerType, key.MessageType);
 				});
 		}
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static InvokerFunc CreatePrecompiledInvoker(PrecompiledInvokerDelegate precompiledInvoker)
-	{
-		return (handler, message, cancellationToken) =>
-			new ValueTask<object?>(precompiledInvoker(handler, message, cancellationToken));
 	}
 
 	/// <summary>
@@ -600,21 +456,8 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		_frozenCache = null;
 		_warmupCache = new();
 		_knownInvokerCache.Clear();
-		_precompiledProvidersInitialized = false;
-		_precompiledProviders = [];
-		_precompiledInvokerCache.Clear();
 		s_cachedHandlerType = null;
 		s_cachedMessageType = null;
 		s_cachedInvoker = null;
-	}
-
-	private readonly record struct PrecompiledInvokerProvider(
-		PrecompiledCanHandleDelegate CanHandle,
-		PrecompiledInvokerDelegate Invoke);
-
-	private readonly record struct CachedPrecompiledInvoker(PrecompiledInvokerDelegate? Invoke)
-	{
-		public static CachedPrecompiledInvoker NotFound { get; } = new(null);
-		public bool HasInvoker => Invoke is not null;
 	}
 }
