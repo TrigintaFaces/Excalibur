@@ -311,9 +311,19 @@ public sealed class ObservabilityValidationShould : IDisposable
 			// Recovery might not happen - that's acceptable behavior
 		}
 
-		// Assert - Verify error was logged (the primary observability assertion)
-		var logEntries = _loggerProvider.GetLogEntries();
-		var errorLogs = logEntries.Where(e => e.LogLevel >= LogLevel.Error).ToList();
+		// Assert - Verify error was logged (the primary observability assertion).
+		// The error batch runs on a background Task.Factory.StartNew thread, so poll
+		// for the log entry rather than assuming it exists immediately.
+		List<ObservabilityLogEntry> errorLogs = [];
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				errorLogs = _loggerProvider.GetLogEntries()
+					.Where(e => e.LogLevel >= LogLevel.Error)
+					.ToList();
+				return errorLogs.Count > 0;
+			},
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 
 		errorLogs.ShouldNotBeEmpty("Error should be logged for observability");
 
