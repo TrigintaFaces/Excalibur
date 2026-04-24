@@ -92,6 +92,11 @@ internal sealed class CdcBuilder : ICdcBuilder, ICdcBuilderDiscovery
 	}
 
 	/// <summary>
+	/// Gets the configuration section path for processing options binding, if set.
+	/// </summary>
+	internal string? ProcessingConfigSectionPath { get; private set; }
+
+	/// <summary>
 	/// Gets the configuration section path for tracked tables binding, if set.
 	/// </summary>
 	internal string? TrackedTablesConfigSectionPath { get; private set; }
@@ -112,6 +117,20 @@ internal sealed class CdcBuilder : ICdcBuilder, ICdcBuilderDiscovery
 		}
 
 		TrackedTablesConfigSectionPath = configSectionPath;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ICdcBuilder BindProcessingConfiguration(string sectionPath)
+	{
+		ArgumentNullException.ThrowIfNull(sectionPath);
+
+		if (string.IsNullOrWhiteSpace(sectionPath))
+		{
+			throw new ArgumentException("Configuration section path cannot be empty or whitespace.", nameof(sectionPath));
+		}
+
+		ProcessingConfigSectionPath = sectionPath;
 		return this;
 	}
 

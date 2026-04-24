@@ -29,6 +29,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 		public ICdcBuilder WithRecovery(Action<ICdcRecoveryBuilder> configure) => this;
 		public ICdcBuilder EnableBackgroundProcessing(bool enable = true) => this;
 		public ICdcBuilder BindTrackedTables(string configSectionPath) => this;
+		public ICdcBuilder BindProcessingConfiguration(string sectionPath) => this;
 		public ICdcBuilder TrackTablesFromHandlers() => this;
 	}
 

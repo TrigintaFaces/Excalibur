@@ -109,39 +109,36 @@ public sealed class DataOrchestrationManagerWorkflowShould : UnitTestBase
 
 		var manager = CreateManager();
 
-		// Act & Assert — should respect cancellation.
-		// The method calls ResiliencePolicy.ExecuteAsync which wraps the DB call.
-		// With a fake connection, the Dapper extension will fail, but cancellation
-		// should be checked first or propagated through the pipeline.
-		// Note: The actual behavior depends on whether Polly checks the token first
-		// or the connection.Ready() call fails first. Either is acceptable for
-		// verifying the cancellation flow is wired correctly.
+		// Act & Assert — with a pre-cancelled token, the method must either:
+		// 1. Throw OperationCanceledException (cancellation propagated), or
+		// 2. Throw OperationFailedException wrapping InvalidOperationException
+		//    (Dapper rejects fake IDbConnection before token check), or
+		// 3. Complete without error (empty task list short-circuit)
+		// It must NOT hang indefinitely or throw unexpected exception types.
 		try
 		{
 			await manager.ProcessDataTasksAsync(cts.Token).ConfigureAwait(false);
+			// Completed without error — valid if task list is empty
 		}
 		catch (OperationCanceledException)
 		{
-			// Expected — cancellation propagated correctly
-			return;
+			// Expected — cancellation propagated correctly through Polly/Dapper
 		}
-		catch (Exception)
+		catch (Excalibur.Data.Abstractions.OperationFailedException ex)
+			when (ex.InnerException is InvalidOperationException)
 		{
-			// The Dapper connection may fail before cancellation check —
-			// this is acceptable since we're testing unit boundaries, not
-			// the full Dapper pipeline. The important thing is the method
-			// doesn't hang indefinitely.
-			return;
+			// Acceptable — Dapper's connection.Ready() rejects the fake IDbConnection
+			// before the cancellation token is checked. The Data.Abstractions layer
+			// wraps this as OperationFailedException. This is a unit test boundary
+			// limitation (no real ADO.NET connection).
 		}
-
-		// If we reach here, the method completed without error on a cancelled token
-		// (e.g., empty task list), which is also valid.
 	}
 
 	[Fact]
-	public void AddDataTaskForRecordTypeAsync_CallsConnectionFactory()
+	public void NotCallConnectionFactory_AtConstructionTime()
 	{
-		// Arrange — verify the connection factory is called when adding a task
+		// Arrange — verify the connection factory is NOT called at construction
+		// (connection-per-operation pattern: factory is only called when an operation runs)
 		var factoryCalled = false;
 		Func<IDbConnection> trackingFactory = () =>
 		{
@@ -152,14 +149,15 @@ public sealed class DataOrchestrationManagerWorkflowShould : UnitTestBase
 		var services = new ServiceCollection();
 		var sp = services.BuildServiceProvider();
 
-		var manager = new DataOrchestrationManager(
+		// Act — construct manager
+		_ = new DataOrchestrationManager(
 			trackingFactory,
 			_fakeRegistry,
 			sp,
 			Microsoft.Extensions.Options.Options.Create(new DataProcessingOptions()),
 			_fakeLogger);
 
-		// Assert — factory not called at construction time (connection-per-operation pattern)
+		// Assert — factory should NOT be called during construction
 		factoryCalled.ShouldBeFalse();
 	}
 

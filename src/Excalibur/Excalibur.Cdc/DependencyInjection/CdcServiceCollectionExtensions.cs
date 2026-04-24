@@ -171,8 +171,14 @@ public static class CdcServiceCollectionExtensions
 		// (e.g., UseSqlServer, UsePostgres) — the hosted service resolves it at runtime.
 		if (options.EnableBackgroundProcessing)
 		{
-			_ = services.AddOptions<CdcProcessingOptions>()
-				.ValidateOnStart();
+			var optionsBuilder = services.AddOptions<CdcProcessingOptions>();
+
+			if (builder.ProcessingConfigSectionPath is not null)
+			{
+				_ = optionsBuilder.BindConfiguration(builder.ProcessingConfigSectionPath);
+			}
+
+			_ = optionsBuilder.ValidateOnStart();
 			services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<IValidateOptions<CdcProcessingOptions>, CdcProcessingOptionsValidator>());
 			services.TryAddEnumerable(

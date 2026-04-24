@@ -169,4 +169,30 @@ public interface ICdcBuilder
 	/// </code>
 	/// </example>
 	ICdcBuilder EnableBackgroundProcessing(bool enable = true);
+
+	/// <summary>
+	/// Binds <see cref="Processing.CdcProcessingOptions"/> to the specified configuration section path.
+	/// </summary>
+	/// <param name="sectionPath">The configuration section path (e.g., <c>"Cdc:Processing"</c>).</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="sectionPath"/> is null.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="sectionPath"/> is empty or whitespace.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// When specified, the <see cref="Processing.CdcProcessingOptions"/> will be bound to the given
+	/// configuration section, allowing runtime control via <c>appsettings.json</c> or any
+	/// <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> source.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// cdc.EnableBackgroundProcessing()
+	///    .BindProcessingConfiguration("Cdc:Processing");
+	/// </code>
+	/// </example>
+	ICdcBuilder BindProcessingConfiguration(string sectionPath);
 }

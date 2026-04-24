@@ -112,6 +112,7 @@ Excalibur.Cdc.Diagnostics.CdcHealthState.TotalProcessed.get -> long
 Excalibur.Cdc.Diagnostics.CdcProcessingEventId
 Excalibur.Cdc.Diagnostics.CdcTags
 Excalibur.Cdc.ICdcBuilder
+Excalibur.Cdc.ICdcBuilder.BindProcessingConfiguration(string! sectionPath) -> Excalibur.Cdc.ICdcBuilder!
 Excalibur.Cdc.ICdcBuilder.EnableBackgroundProcessing(bool enable = true) -> Excalibur.Cdc.ICdcBuilder!
 Excalibur.Cdc.ICdcBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Excalibur.Cdc.ICdcBuilder.TrackTable(string! tableName, System.Action<Excalibur.Cdc.ICdcTableBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
