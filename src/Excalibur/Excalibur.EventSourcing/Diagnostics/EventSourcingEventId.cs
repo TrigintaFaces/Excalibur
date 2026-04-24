@@ -196,6 +196,37 @@ public static class EventSourcingEventId
 	/// <summary>Error processing individual event during projection rebuild.</summary>
 	public const int ProjectionRebuildEventError = 113105;
 
+	/// <summary>Projection rebuild state persisted to store.</summary>
+	public const int ProjectionRebuildPersisted = 113106;
+
+	/// <summary>Projection rebuild completed but no IProjectionStore registered for persistence.</summary>
+	public const int ProjectionRebuildNoStore = 113107;
+
+	// ========================================
+	// 113200-113299: Async Projection Processing Host
+	// ========================================
+
+	/// <summary>Async projection processing host started.</summary>
+	public const int AsyncProjectionHostStarted = 113200;
+
+	/// <summary>Async projection processing host stopped.</summary>
+	public const int AsyncProjectionHostStopped = 113201;
+
+	/// <summary>Async projection processing batch completed.</summary>
+	public const int AsyncProjectionBatchProcessed = 113202;
+
+	/// <summary>Async projection processing checkpoint saved.</summary>
+	public const int AsyncProjectionCheckpointSaved = 113203;
+
+	/// <summary>Error processing event in async projection host.</summary>
+	public const int AsyncProjectionEventError = 113204;
+
+	/// <summary>Async projection processing host error.</summary>
+	public const int AsyncProjectionHostError = 113205;
+
+	/// <summary>No IGlobalStreamQuery registered; async projection processing cannot start.</summary>
+	public const int AsyncProjectionNoGlobalStreamQuery = 113206;
+
 	// ========================================
 	// 114000-114099: Upcasting Core
 	// ========================================

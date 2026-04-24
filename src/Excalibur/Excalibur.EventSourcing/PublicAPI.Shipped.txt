@@ -553,6 +553,13 @@ const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateReposito
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateSaved = 111002 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateStateReconstructed = 111103 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateVersionChecked = 111005 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionBatchProcessed = 113202 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionCheckpointSaved = 113203 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionEventError = 113204 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostError = 113205 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostStarted = 113200 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostStopped = 113201 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionNoGlobalStreamQuery = 113206 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreAppendingEvents = 114300 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreConcurrencyConflict = 114302 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreEventsAppended = 114301 -> int
@@ -609,6 +616,8 @@ const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionEventPr
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionManagerCreated = 113000 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildEventError = 113105 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuilt = 113100 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildNoStore = 113107 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildPersisted = 113106 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStarted = 113001 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStopped = 113002 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackCompleted = 114406 -> int
@@ -694,6 +703,7 @@ override Excalibur.EventSourcing.Snapshots.Security.EncryptingSnapshotStore.Save
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.AddSnapshotStrategy<TStrategy>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.AddSnapshotUpgrading(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.AddUpcastingPipeline(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.Dispatch.Versioning.UpcastingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.EnableProjectionProcessing(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Projections.GlobalStreamProjectionOptions!>? configure = null) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseCompositeSnapshotStrategy(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.DependencyInjection.CompositeSnapshotStrategyBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseEventSerializer<TSerializer>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseEventStoreErasure<TMapping>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

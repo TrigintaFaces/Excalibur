@@ -19,9 +19,10 @@ public sealed class GlobalStreamProjectionOptions
 
 	/// <summary>
 	/// Gets or sets the name of the projection for checkpoint tracking.
+	/// Each projection host instance MUST have a unique name to avoid checkpoint collisions.
 	/// </summary>
-	/// <value>The projection name. Default is "GlobalStreamProjection".</value>
-	public string ProjectionName { get; set; } = "GlobalStreamProjection";
+	/// <value>The projection name. Default is "AsyncProjectionProcessingHost".</value>
+	public string ProjectionName { get; set; } = "AsyncProjectionProcessingHost";
 
 	/// <summary>
 	/// Gets or sets the maximum number of events to read per batch.

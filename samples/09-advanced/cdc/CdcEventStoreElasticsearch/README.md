@@ -133,18 +133,17 @@ cd scripts
     "EventStore": "Server=localhost,1434;Database=EventStore;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True"
   },
   "Elasticsearch": {
-    "Uri": "http://localhost:9200"
+    "NodeUris": [ "http://localhost:9200" ],
+    "ConnectionPoolType": "Sniffing"
   },
   "CdcPolling": {
     "PollingInterval": "00:00:05",
     "BatchSize": 100,
-    "StartImmediately": true,
-    "InitialDelay": "00:00:02"
-  },
-  "Projections": {
-    "PollingInterval": "00:00:01",
-    "BatchSize": 100,
-    "RebuildOnStartup": false
+    "CaptureInstances": [
+      "dbo_LegacyCustomers",
+      "dbo_LegacyOrders",
+      "dbo_LegacyOrderItems"
+    ]
   }
 }
 ```

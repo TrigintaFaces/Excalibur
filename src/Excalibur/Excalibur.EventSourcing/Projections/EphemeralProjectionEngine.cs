@@ -16,10 +16,16 @@ namespace Excalibur.EventSourcing.Projections;
 /// </summary>
 internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 {
+	private static readonly JsonSerializerOptions DefaultJsonOptions = new()
+	{
+		PropertyNameCaseInsensitive = true,
+	};
+
 	private readonly IEventStore _eventStore;
 	private readonly IEventSerializer _eventSerializer;
 	private readonly IProjectionRegistry _registry;
 	private readonly IDistributedCache? _cache;
+	private readonly JsonSerializerOptions _jsonOptions;
 	private readonly ILogger<EphemeralProjectionEngine> _logger;
 
 	public EphemeralProjectionEngine(
@@ -27,7 +33,8 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 		IEventSerializer eventSerializer,
 		IProjectionRegistry registry,
 		ILogger<EphemeralProjectionEngine> logger,
-		IDistributedCache? cache = null)
+		IDistributedCache? cache = null,
+		JsonSerializerOptions? jsonOptions = null)
 	{
 		ArgumentNullException.ThrowIfNull(eventStore);
 		ArgumentNullException.ThrowIfNull(eventSerializer);
@@ -39,6 +46,7 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 		_registry = registry;
 		_logger = logger;
 		_cache = cache;
+		_jsonOptions = jsonOptions ?? DefaultJsonOptions;
 	}
 
 	/// <inheritdoc />
@@ -67,7 +75,7 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 			var cached = await _cache.GetAsync(cacheKey, cancellationToken).ConfigureAwait(false);
 			if (cached is not null)
 			{
-				var deserialized = JsonSerializer.Deserialize<TProjection>(cached);
+				var deserialized = JsonSerializer.Deserialize<TProjection>(cached, _jsonOptions);
 				if (deserialized is not null)
 				{
 					return deserialized;
@@ -90,6 +98,15 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 		{
 			var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
 			var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
+
+			if (domainEvent is null)
+			{
+				_logger.LogWarning(
+					"Skipping event {EventId} ({EventType}) during ephemeral build — deserialization returned null.",
+					storedEvent.EventId, storedEvent.EventType);
+				continue;
+			}
+
 			multiStreamProjection.Apply(projection, domainEvent);
 		}
 
@@ -97,7 +114,7 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 		if (_cache is not null && registration.CacheTtl.HasValue)
 		{
 			var cacheKey = $"ephemeral:{typeof(TProjection).Name}:{aggregateId}";
-			var serialized = JsonSerializer.SerializeToUtf8Bytes(projection);
+			var serialized = JsonSerializer.SerializeToUtf8Bytes(projection, _jsonOptions);
 			var options = new DistributedCacheEntryOptions
 			{
 				AbsoluteExpirationRelativeToNow = registration.CacheTtl.Value,

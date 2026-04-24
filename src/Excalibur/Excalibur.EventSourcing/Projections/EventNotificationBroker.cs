@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
@@ -29,6 +31,11 @@ namespace Excalibur.EventSourcing.Projections;
 /// </remarks>
 internal sealed class EventNotificationBroker : IEventNotificationBroker
 {
+	// Cache MakeGenericType + GetMethod results to avoid repeated reflection per notification.
+	// Bounded to prevent unbounded growth from event type proliferation.
+	private static readonly ConcurrentDictionary<Type, (Type InterfaceType, System.Reflection.MethodInfo Method)> HandlerMethodCache = new();
+	private const int MaxCacheSize = 1024;
+
 	private readonly InlineProjectionProcessor _processor;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly IOptions<EventNotificationOptions> _options;
@@ -86,7 +93,8 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 			.ConfigureAwait(false);
 
 		// Phase 2: Notification handlers (sequential, after ALL projections complete -- R27.8)
-		await InvokeNotificationHandlersAsync(events, context, cancellationToken)
+		// Respects the same FailurePolicy as projections for consistency.
+		await InvokeNotificationHandlersAsync(events, context, opts.FailurePolicy, cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -95,12 +103,13 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 	private async Task InvokeNotificationHandlersAsync(
 		IReadOnlyList<IDomainEvent> events,
 		EventNotificationContext context,
+		NotificationFailurePolicy failurePolicy,
 		CancellationToken cancellationToken)
 	{
 		foreach (var @event in events)
 		{
 			var eventType = @event.GetType();
-			var handlerInterfaceType = typeof(IEventNotificationHandler<>).MakeGenericType(eventType);
+			var (handlerInterfaceType, method) = ResolveHandlerMethod(eventType);
 
 			// Resolve all handlers for this event type
 			var handlers = _serviceProvider.GetServices(handlerInterfaceType);
@@ -113,25 +122,65 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 
 				try
 				{
-					// Invoke HandleAsync via the interface method
-					var method = handlerInterfaceType.GetMethod("HandleAsync")!;
 					var task = (Task)method.Invoke(handler, [@event, context, cancellationToken])!;
 					await task.ConfigureAwait(false);
 				}
+				catch (TargetInvocationException tie) when (tie.InnerException is not null)
+				{
+					// Unwrap reflection wrapper to surface the real exception
+					HandleNotificationError(tie.InnerException, handler, eventType, context, failurePolicy);
+				}
 #pragma warning disable CA1031 // Catch general exceptions -- handlers should not crash the notification pipeline
-				catch (Exception ex)
+				catch (Exception ex) when (ex is not TargetInvocationException)
 #pragma warning restore CA1031
 				{
-					_logger.LogError(
-						ex,
-						"Event notification handler '{HandlerType}' failed for event '{EventType}' " +
-						"on aggregate {AggregateType}/{AggregateId}.",
-						handler.GetType().Name,
-						eventType.Name,
-						context.AggregateType,
-						context.AggregateId);
+					HandleNotificationError(ex, handler, eventType, context, failurePolicy);
 				}
 			}
+		}
+	}
+
+	[RequiresDynamicCode("Uses Type.MakeGenericType to construct IEventNotificationHandler<TEvent>.")]
+	[RequiresUnreferencedCode("Uses Type.GetMethod to resolve HandleAsync on notification handlers.")]
+	private static (Type InterfaceType, MethodInfo Method) ResolveHandlerMethod(Type eventType)
+	{
+		if (HandlerMethodCache.TryGetValue(eventType, out var cached))
+		{
+			return cached;
+		}
+
+		var interfaceType = typeof(IEventNotificationHandler<>).MakeGenericType(eventType);
+		var method = interfaceType.GetMethod("HandleAsync")!;
+		var entry = (interfaceType, method);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (HandlerMethodCache.Count < MaxCacheSize)
+		{
+			HandlerMethodCache.TryAdd(eventType, entry);
+		}
+
+		return entry;
+	}
+
+	private void HandleNotificationError(
+		Exception ex,
+		object handler,
+		Type eventType,
+		EventNotificationContext context,
+		NotificationFailurePolicy failurePolicy)
+	{
+		_logger.LogError(
+			ex,
+			"Event notification handler '{HandlerType}' failed for event '{EventType}' " +
+			"on aggregate {AggregateType}/{AggregateId}.",
+			handler.GetType().Name,
+			eventType.Name,
+			context.AggregateType,
+			context.AggregateId);
+
+		if (failurePolicy == NotificationFailurePolicy.Propagate)
+		{
+			System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(ex);
 		}
 	}
 }

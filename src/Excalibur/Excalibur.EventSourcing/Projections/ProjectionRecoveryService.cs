@@ -49,10 +49,12 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
 	public async Task ReapplyAsync<TProjection>(
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken)
 		where TProjection : class, new()
 	{
 		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
+		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
 
 		var registration = _registry.GetRegistration(typeof(TProjection))
 			?? throw new InvalidOperationException(
@@ -62,12 +64,10 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 		var projection = (MultiStreamProjection<TProjection>)registration.Projection;
 		var store = _serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
 
-		// Load all events for this aggregate
-		// We need the aggregate type from the registration -- for now, use the aggregate ID
-		// The caller knows the aggregate type context from the InlineProjectionException
+		// Load all events for this aggregate using the caller-provided aggregate type
 		var storedEvents = await _eventStore.LoadAsync(
 			aggregateId,
-			string.Empty, // aggregate type is not stored in registration; events are loaded by ID
+			aggregateType,
 			cancellationToken).ConfigureAwait(false);
 
 		// Create fresh projection state

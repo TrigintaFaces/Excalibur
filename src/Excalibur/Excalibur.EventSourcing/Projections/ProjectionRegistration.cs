@@ -58,8 +58,9 @@ internal sealed class ProjectionRegistration
 	internal object Projection { get; }
 
 	/// <summary>
-	/// Gets the pre-bound delegate for inline projection processing.
-	/// Null for non-inline projections.
+	/// Gets the pre-bound delegate for applying events to this projection.
+	/// Set for both <see cref="ProjectionMode.Inline"/> and <see cref="ProjectionMode.Async"/>
+	/// modes. Null only for <see cref="ProjectionMode.Ephemeral"/> projections.
 	/// </summary>
 	internal InlineApplyDelegate? InlineApply { get; }
 

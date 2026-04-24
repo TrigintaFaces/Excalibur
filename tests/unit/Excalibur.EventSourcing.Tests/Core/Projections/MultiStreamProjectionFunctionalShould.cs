@@ -11,9 +11,8 @@ using Xunit;
 namespace Excalibur.EventSourcing.Tests.Core.Projections;
 
 /// <summary>
-/// Functional tests for <see cref="MultiStreamProjection{TProjection}"/> and
-/// <see cref="MultiStreamProjectionBuilder{TProjection}"/> covering event routing,
-/// handler registration, and projection state updates.
+/// Functional tests for <see cref="MultiStreamProjection{TProjection}"/> covering
+/// event routing, handler registration, and projection state updates.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "EventSourcing")]
@@ -62,24 +61,29 @@ public sealed class MultiStreamProjectionFunctionalShould
 
 	#endregion
 
+	private static MultiStreamProjection<OrderSummary> CreateProjectionWithHandlers()
+	{
+		var projection = new MultiStreamProjection<OrderSummary>();
+		projection.AddHandler<OrderPlacedEvent>((state, evt) =>
+		{
+			state.TotalOrders++;
+			state.TotalRevenue += evt.Amount;
+			state.LastCustomerName = evt.CustomerName;
+		});
+		projection.AddHandler<OrderCancelledEvent>((state, _) =>
+		{
+			state.TotalOrders--;
+		});
+		return projection;
+	}
+
 	[Fact]
-	public void Builder_ShouldBuildProjectionWithStreamsAndHandlers()
+	public void TrackHandledEventTypesFromRegisteredHandlers()
 	{
 		// Arrange & Act
-		var projection = new MultiStreamProjectionBuilder<OrderSummary>()
-			.FromStream("orders-stream")
-			.FromStream("inventory-stream")
-			.FromCategory("orders")
-			.When<OrderPlacedEvent>((state, evt) => state.TotalOrders++)
-			.When<OrderCancelledEvent>((state, evt) => state.TotalOrders--)
-			.Build();
+		var projection = CreateProjectionWithHandlers();
 
 		// Assert
-		projection.Streams.Count.ShouldBe(2);
-		projection.Streams.ShouldContain("orders-stream");
-		projection.Streams.ShouldContain("inventory-stream");
-		projection.Categories.Count.ShouldBe(1);
-		projection.Categories.ShouldContain("orders");
 		projection.HandledEventTypes.Count.ShouldBe(2);
 		projection.HandledEventTypes.ShouldContain(typeof(OrderPlacedEvent));
 		projection.HandledEventTypes.ShouldContain(typeof(OrderCancelledEvent));
@@ -89,15 +93,7 @@ public sealed class MultiStreamProjectionFunctionalShould
 	public void Apply_ShouldInvokeMatchingHandler()
 	{
 		// Arrange
-		var projection = new MultiStreamProjectionBuilder<OrderSummary>()
-			.When<OrderPlacedEvent>((state, evt) =>
-			{
-				state.TotalOrders++;
-				state.TotalRevenue += evt.Amount;
-				state.LastCustomerName = evt.CustomerName;
-			})
-			.Build();
-
+		var projection = CreateProjectionWithHandlers();
 		var state = new OrderSummary();
 		var evt = new OrderPlacedEvent { CustomerName = "Alice", Amount = 99.99m };
 
@@ -115,9 +111,8 @@ public sealed class MultiStreamProjectionFunctionalShould
 	public void Apply_ShouldReturnFalseForUnhandledEventType()
 	{
 		// Arrange
-		var projection = new MultiStreamProjectionBuilder<OrderSummary>()
-			.When<OrderPlacedEvent>((state, evt) => state.TotalOrders++)
-			.Build();
+		var projection = new MultiStreamProjection<OrderSummary>();
+		projection.AddHandler<OrderPlacedEvent>((state, _) => state.TotalOrders++);
 
 		var state = new OrderSummary();
 		var evt = new UnhandledEvent();
@@ -134,18 +129,7 @@ public sealed class MultiStreamProjectionFunctionalShould
 	public void Apply_MultipleEvents_ShouldAccumulateState()
 	{
 		// Arrange
-		var projection = new MultiStreamProjectionBuilder<OrderSummary>()
-			.When<OrderPlacedEvent>((state, evt) =>
-			{
-				state.TotalOrders++;
-				state.TotalRevenue += evt.Amount;
-			})
-			.When<OrderCancelledEvent>((state, evt) =>
-			{
-				state.TotalOrders--;
-			})
-			.Build();
-
+		var projection = CreateProjectionWithHandlers();
 		var state = new OrderSummary();
 
 		// Act
@@ -161,9 +145,8 @@ public sealed class MultiStreamProjectionFunctionalShould
 	[Fact]
 	public void Apply_ShouldThrowOnNullProjection()
 	{
-		var projection = new MultiStreamProjectionBuilder<OrderSummary>()
-			.When<OrderPlacedEvent>((state, evt) => { })
-			.Build();
+		var projection = new MultiStreamProjection<OrderSummary>();
+		projection.AddHandler<OrderPlacedEvent>((state, _) => { });
 
 		Should.Throw<ArgumentNullException>(() =>
 			projection.Apply(null!, new OrderPlacedEvent()));
@@ -172,33 +155,10 @@ public sealed class MultiStreamProjectionFunctionalShould
 	[Fact]
 	public void Apply_ShouldThrowOnNullEvent()
 	{
-		var projection = new MultiStreamProjectionBuilder<OrderSummary>()
-			.When<OrderPlacedEvent>((state, evt) => { })
-			.Build();
+		var projection = new MultiStreamProjection<OrderSummary>();
+		projection.AddHandler<OrderPlacedEvent>((state, _) => { });
 
 		Should.Throw<ArgumentNullException>(() =>
 			projection.Apply(new OrderSummary(), null!));
-	}
-
-	[Fact]
-	public void Builder_FromStream_ShouldThrowOnEmptyStreamId()
-	{
-		Should.Throw<ArgumentException>(() =>
-			new MultiStreamProjectionBuilder<OrderSummary>().FromStream(""));
-	}
-
-	[Fact]
-	public void Builder_FromCategory_ShouldThrowOnEmptyCategory()
-	{
-		Should.Throw<ArgumentException>(() =>
-			new MultiStreamProjectionBuilder<OrderSummary>().FromCategory(""));
-	}
-
-	[Fact]
-	public void Builder_When_ShouldThrowOnNullHandler()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			new MultiStreamProjectionBuilder<OrderSummary>()
-				.When<OrderPlacedEvent>(null!));
 	}
 }

@@ -171,28 +171,6 @@ public enum PageNavigation
 }
 ```
 
-### CursorPageRequest&lt;TCursor&gt;
-
-An abstract base for cursor page requests that pairs a page size, navigation direction, and cursor:
-
-```csharp
-public class OrderPageRequest : CursorPageRequest<string>
-{
-    private readonly string? _cursor;
-
-    public OrderPageRequest(int pageSize, PageNavigation navigation, string? cursor = null)
-        : base(pageSize, navigation)
-    {
-        _cursor = cursor;
-    }
-
-    protected override string? GetCursor() => _cursor;
-}
-
-// Usage
-var (pageSize, navigation, cursor) = new OrderPageRequest(25, PageNavigation.Next, "eyJ...");
-```
-
 ---
 
 ## Elasticsearch Integration

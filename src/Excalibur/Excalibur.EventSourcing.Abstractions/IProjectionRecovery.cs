@@ -25,10 +25,12 @@ public interface IProjectionRecovery
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type to recover.</typeparam>
 	/// <param name="aggregateId">The aggregate identifier whose projection failed.</param>
+	/// <param name="aggregateType">The aggregate type name (required for event store stream lookup).</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous recovery operation.</returns>
 	Task ReapplyAsync<TProjection>(
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken)
 		where TProjection : class, new();
 }

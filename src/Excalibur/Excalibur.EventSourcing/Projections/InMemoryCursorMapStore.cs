@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using Excalibur.EventSourcing.Abstractions;
 
 namespace Excalibur.EventSourcing.Projections;
@@ -18,7 +19,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// </remarks>
 internal sealed class InMemoryCursorMapStore : ICursorMapStore
 {
-	private readonly ConcurrentDictionary<string, Dictionary<string, long>> _cursors = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<string, ReadOnlyDictionary<string, long>> _cursors = new(StringComparer.Ordinal);
 
 	/// <inheritdoc />
 	public Task<IReadOnlyDictionary<string, long>> GetCursorMapAsync(
@@ -28,8 +29,8 @@ internal sealed class InMemoryCursorMapStore : ICursorMapStore
 		ArgumentException.ThrowIfNullOrEmpty(projectionName);
 
 		IReadOnlyDictionary<string, long> result = _cursors.TryGetValue(projectionName, out var map)
-			? new Dictionary<string, long>(map)
-			: new Dictionary<string, long>();
+			? map
+			: ReadOnlyDictionary<string, long>.Empty;
 
 		return Task.FromResult(result);
 	}
@@ -43,8 +44,9 @@ internal sealed class InMemoryCursorMapStore : ICursorMapStore
 		ArgumentException.ThrowIfNullOrEmpty(projectionName);
 		ArgumentNullException.ThrowIfNull(cursorMap);
 
-		// Atomic replace: copy the incoming map
-		_cursors[projectionName] = new Dictionary<string, long>(cursorMap);
+		// Atomic replace: store an immutable snapshot
+		_cursors[projectionName] = new ReadOnlyDictionary<string, long>(
+			new Dictionary<string, long>(cursorMap));
 
 		return Task.CompletedTask;
 	}

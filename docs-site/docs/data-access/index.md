@@ -22,6 +22,7 @@ Excalibur provides data access abstractions that work alongside event sourcing a
 | Topic | Description |
 |-------|-------------|
 | [IDb Interface](idb-interface.md) | Database connection abstraction with Dapper |
+| [IDataRequest](data-request.md) | Encapsulated queries, DataRequest base class, and IDataRequestResolver |
 
 ## Key Abstractions
 

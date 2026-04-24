@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ElasticIndexMappingBuilder`** + **`IElasticIndexConfiguration`** (in `Excalibur.Data.ElasticSearch`): fluent builder for ES index mappings with per-field type/analyzer/subfield configuration; decouples projection definitions from raw Elastic SDK mapping DSL.
 - **`ElasticSearchCursorHelper`** (in `Excalibur.Data.ElasticSearch`): opinionated cursor helper for ES-backed paginated queries; pairs with `CursorEncoder` for end-to-end cursor pagination.
 - **`docs-site/docs/data-access/pagination.md`**: consumer guide for cursor-vs-offset pagination, including ES-specific recipes.
+- **`AsyncProjectionProcessingHost`** -- background hosted service for continuous projection processing with cursor tracking, batch processing, and graceful shutdown
+- **`SqlServerGlobalStreamQuery`** -- SQL Server implementation for global stream projection queries
+- **`docs-site/docs/data-access/data-request.md`**: consumer guide for IDataRequest usage patterns
 - **Typed dispatch** -- `IDispatcher.DispatchAsync<TResponse>(IDispatchAction<TResponse>)` overloads that infer `TResponse` from the action parameter type, eliminating explicit dual type arguments at the call site. Includes context-free, explicit-context, and `DispatchChildAsync` variants. Backed by `TypedDispatchDelegateCache` for zero-alloc hot-path dispatch.
 - **`DispatchActionExtensionGenerator`** source generator -- emits per-action strongly-typed extension methods when `EnableTypedDispatchExtensions()` is opted in via `DispatchBuilder`.
 - **`HandlerRegistrySourceGenerator`** -- source-generated `AddDiscoveredHandlers()` extension for fully AOT-safe handler registration. Zero reflection, replaces `HandlerRegistryBootstrapper` and `HandlerRegistryExtensions`.
@@ -35,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Projection system rework**: `EventNotificationBroker` enhanced with reflection caching and improved observability; `ProjectionRebuildService` batch rebuild support added; `IProjectionBuilder` simplified; `InMemoryProjectionRegistry` and `InMemoryCursorMapStore` hardened
 - **CDC SqlServer decomposition**: monolithic `CdcProcessor` decomposed into focused collaborators (`CdcChangeDetector`, `CdcChangeApplier`, `CdcCheckpointManager`, `CdcRepository`). `DataChangeEvent`/`DataChangeExtensions` hardened, `CdcRecoveryOptions` validation added, dead `DatabaseOptions`/`IDatabaseOptions` removed. PublicAPI baselines updated.
 - **DataProcessing quality hardening**: `DataProcessor`/`DataOrchestrationManager` hardened with structured logging, `CancellationToken` propagation, disposal guards. Added `DataProcessingHealthCheck` + `DataProcessingHealthState` health-check infrastructure. Exception types improved with serialization support. Dapper SQL requests updated.
 - **AOT suppression baseline refreshed** after source-generator, handler, CDC, and data-processing infrastructure changes
@@ -42,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Dead projection code removed**: `CursorPageRequest` (relocated to cursor pagination), `DirtyCheckingMode`, `IMultiStreamProjectionBuilder`, `MultiStreamProjectionBuilder` -- superseded by simplified projection builder API
 - **5 dead source generators** deleted: `HandlerActivationGenerator`, `HandlerInvocationGenerator`, `MessageFactorySourceGenerator`, `MessageTypeRegistrySourceGenerator`, `ZeroAllocationHandlerInvokerGenerator` — all were unused/superseded by `HandlerRegistrySourceGenerator` and `HandlerInvokerSourceGenerator`
 - **Handler infrastructure simplified** (-1,626 lines): extracted `HandlerActivatorRegistry` and `ResultFactoryRegistry` with thread-safe public APIs for AOT source-gen integration; `HandlerInvoker`/`HandlerActivator` internals consolidated
 

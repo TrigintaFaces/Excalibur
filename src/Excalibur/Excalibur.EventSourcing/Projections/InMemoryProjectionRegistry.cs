@@ -24,13 +24,31 @@ internal sealed class InMemoryProjectionRegistry : IProjectionRegistry
 	/// <inheritdoc />
 	public IReadOnlyList<ProjectionRegistration> GetAll()
 	{
-		return _registrations.Values.ToList();
+		// Avoid LINQ allocation — manual list copy
+		var values = _registrations.Values;
+		var result = new List<ProjectionRegistration>(values.Count);
+		foreach (var registration in values)
+		{
+			result.Add(registration);
+		}
+
+		return result;
 	}
 
 	/// <inheritdoc />
 	public IReadOnlyList<ProjectionRegistration> GetByMode(ProjectionMode mode)
 	{
-		return _registrations.Values.Where(r => r.Mode == mode).ToList();
+		// Avoid LINQ allocation on hot path — called every SaveAsync for inline projections
+		var result = new List<ProjectionRegistration>();
+		foreach (var registration in _registrations.Values)
+		{
+			if (registration.Mode == mode)
+			{
+				result.Add(registration);
+			}
+		}
+
+		return result;
 	}
 
 	/// <inheritdoc />

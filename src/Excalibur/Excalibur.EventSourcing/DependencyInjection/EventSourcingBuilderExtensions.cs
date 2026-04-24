@@ -6,10 +6,13 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Snapshots;
+using Excalibur.EventSourcing.Subscriptions;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
 using ISnapshotManager = Excalibur.EventSourcing.Abstractions.ISnapshotManager;
@@ -243,6 +246,73 @@ public static class EventSourcingBuilderExtensions
 				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Erasure.EventStoreErasureContributor>>(),
 				sp.GetKeyedService<ISnapshotStore>("default"));
 		});
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Enables background processing for <see cref="ProjectionMode.Async"/> projections.
+	/// </summary>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="configure">
+	/// Optional action to configure <see cref="GlobalStreamProjectionOptions"/> (polling interval, batch size, checkpoint interval).
+	/// When omitted, defaults apply: 1 second idle polling, 500 batch size, 100 checkpoint interval.
+	/// </param>
+	/// <returns>The builder for fluent configuration.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is the projection-side equivalent of CDC's <c>EnableBackgroundProcessing()</c>.
+	/// It registers a hosted service that polls the global event stream via
+	/// <see cref="Queries.IGlobalStreamQuery"/> and dispatches events to all projections
+	/// registered with <c>.Async()</c> mode.
+	/// </para>
+	/// <para>
+	/// Requires an <see cref="Queries.IGlobalStreamQuery"/> implementation to be registered
+	/// by the event store provider (e.g., <c>UseSqlServer()</c>). If none is registered,
+	/// the host logs a warning and exits gracefully.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =>
+	/// {
+	///     es.UseSqlServer(sql => sql.ConnectionString(connStr));
+	///
+	///     es.AddProjection&lt;OrderSummary&gt;(p => p
+	///         .Async()
+	///         .When&lt;OrderCreated&gt;((proj, e) => { proj.Total++; }));
+	///
+	///     // Start the background host that processes async projections
+	///     es.EnableProjectionProcessing(opts =>
+	///     {
+	///         opts.IdlePollingInterval = TimeSpan.FromSeconds(2);
+	///         opts.BatchSize = 200;
+	///     });
+	/// }));
+	/// </code>
+	/// </example>
+	public static IEventSourcingBuilder EnableProjectionProcessing(
+		this IEventSourcingBuilder builder,
+		Action<GlobalStreamProjectionOptions>? configure = null)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		// Configure options (consumer overrides or defaults)
+		var optionsBuilder = builder.Services.AddOptions<GlobalStreamProjectionOptions>();
+		if (configure is not null)
+		{
+			_ = optionsBuilder.Configure(configure);
+		}
+
+		_ = optionsBuilder.ValidateOnStart();
+
+		// Register in-memory checkpoint store as fallback (providers like SqlServer
+		// can register a durable implementation that takes precedence via TryAdd).
+		builder.Services.TryAddSingleton<ISubscriptionCheckpointStore, InMemorySubscriptionCheckpointStore>();
+
+		// Register the background service
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AsyncProjectionProcessingHost>());
 
 		return builder;
 	}

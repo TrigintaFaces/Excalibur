@@ -17,10 +17,10 @@ public sealed class GlobalStreamProjectionOptionsShould
 	}
 
 	[Fact]
-	public void DefaultProjectionNameToGlobalStreamProjection()
+	public void DefaultProjectionNameToAsyncProjectionProcessingHost()
 	{
 		var sut = new GlobalStreamProjectionOptions();
-		sut.ProjectionName.ShouldBe("GlobalStreamProjection");
+		sut.ProjectionName.ShouldBe("AsyncProjectionProcessingHost");
 	}
 
 	[Fact]

@@ -443,7 +443,43 @@ builder.AddProjection<OrderSearchIndex>(p => p
     .When<OrderPlaced>((proj, e) => { /* index update */ }));
 ```
 
-Async projections are processed by `GlobalStreamProjectionHost` using checkpoint-based delivery. For CDC-based processing, see [CDC Pattern](../patterns/cdc.md).
+### Enabling the Background Host
+
+Async projections require a background host to poll the global event stream and dispatch events. Register it with `EnableProjectionProcessing()`:
+
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
+{
+    builder.UseSqlServer(sql => sql.ConnectionString(connStr));
+
+    builder.AddProjection<OrderSearchIndex>(p => p
+        .Async()
+        .When<OrderPlaced>((proj, e) => { /* index update */ }));
+
+    // Start the background host that processes async projections
+    builder.EnableProjectionProcessing(opts =>
+    {
+        opts.IdlePollingInterval = TimeSpan.FromSeconds(2);
+        opts.BatchSize = 200;
+    });
+}));
+```
+
+`EnableProjectionProcessing()` registers:
+- A hosted service (`AsyncProjectionProcessingHost`) that polls the global stream via `IGlobalStreamQuery`
+- An in-memory checkpoint store as fallback (providers like SQL Server register durable implementations that take precedence)
+- `ValidateOnStart` for `GlobalStreamProjectionOptions`
+
+If no `IGlobalStreamQuery` implementation is registered (e.g., the event store provider doesn't support it), the host logs a warning and exits gracefully.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `IdlePollingInterval` | 1 second | Delay between polls when no new events are found |
+| `BatchSize` | 500 | Maximum events read per batch |
+| `CheckpointInterval` | 100 | Events between checkpoint saves |
+| `ProjectionName` | `"AsyncProjectionProcessingHost"` | Unique name for checkpoint tracking (must differ per host instance) |
+
+Async projections are processed by `AsyncProjectionProcessingHost` using checkpoint-based delivery. For CDC-based processing, see [CDC Pattern](../patterns/cdc.md).
 
 ### Parallel Catch-Up
 
@@ -652,7 +688,8 @@ catch (InlineProjectionException ex)
 {
     // Events ARE committed -- recover the projection only
     var recovery = serviceProvider.GetRequiredService<IProjectionRecovery>();
-    await recovery.ReapplyAsync<OrderSummary>(ex.AggregateId, cancellationToken);
+    await recovery.ReapplyAsync<OrderSummary>(
+        ex.AggregateId, nameof(OrderAggregate), cancellationToken);
 }
 ```
 
@@ -988,7 +1025,8 @@ try { await repository.SaveAsync(order, ct); }
 catch (InlineProjectionException ex)
 {
     var recovery = sp.GetRequiredService<IProjectionRecovery>();
-    await recovery.ReapplyAsync<OrderSummary>(ex.AggregateId, ct);
+    await recovery.ReapplyAsync<OrderSummary>(
+        ex.AggregateId, nameof(OrderAggregate), ct);
 }
 ```
 
@@ -1030,7 +1068,7 @@ if (existing?.LastProcessedVersion >= @event.Version) return;
 | **Idempotency** | Make all projection handlers safe to replay |
 | **Denormalization** | Don't be afraid to duplicate data for query optimization |
 | **Mode selection** | Inline for immediate consistency, async for eventual, ephemeral for ad-hoc |
-| **Failure recovery** | Use `IProjectionRecovery.ReapplyAsync<T>()`, never retry `SaveAsync` |
+| **Failure recovery** | Use `IProjectionRecovery.ReapplyAsync<T>(aggregateId, aggregateType, ct)`, never retry `SaveAsync` |
 | **Monitoring** | Use projection observability metrics and health checks |
 | **Indexing** | Index read model tables for your query patterns |
 

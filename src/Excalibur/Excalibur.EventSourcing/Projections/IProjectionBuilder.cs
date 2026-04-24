@@ -172,34 +172,6 @@ public interface IProjectionBuilder<TProjection>
 	IProjectionBuilder<TProjection> WhenDeleted(Func<string, CancellationToken, Task> deleteAction);
 
 	/// <summary>
-	/// Registers an identity resolver for the specified event type.
-	/// When processing an event of this type, the projection instance is loaded
-	/// and stored using the resolved identity instead of the aggregate ID.
-	/// This enables projections keyed by event data (e.g., order ID, tenant, category).
-	/// </summary>
-	/// <typeparam name="TEvent">The domain event type to extract the identity from.</typeparam>
-	/// <param name="resolver">
-	/// A function that extracts the projection identity from the event.
-	/// Must return a non-null, non-empty string.
-	/// </param>
-	/// <returns>This builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// If no identity resolver is provided, <c>IDomainEvent.AggregateId</c> is used (default).
-	/// </para>
-	/// <code>
-	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
-	///     .Inline()
-	///     .IdentityFrom&lt;OrderPlaced&gt;(e => e.OrderId.ToString())
-	///     .When&lt;OrderPlaced&gt;((proj, e) => { /* ... */ }));
-	/// </code>
-	/// </remarks>
-#pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
-	IProjectionBuilder<TProjection> IdentityFrom<TEvent>(Func<TEvent, string> resolver)
-		where TEvent : IDomainEvent;
-#pragma warning restore RS0016
-
-	/// <summary>
 	/// Overrides the default DI-resolved <see cref="Excalibur.EventSourcing.Abstractions.IProjectionStore{TProjection}"/>
 	/// with a specific store implementation type. The store is resolved from DI by its concrete type.
 	/// </summary>

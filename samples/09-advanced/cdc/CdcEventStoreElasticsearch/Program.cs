@@ -154,6 +154,13 @@ builder.Services
 // CDC Processing (Fluent Builder Pattern)
 // ============================================================================
 
+// Bind CDC polling settings from appsettings.json so operators can tune without recompiling.
+var cdcPollingSection = builder.Configuration.GetSection("CdcPolling");
+var cdcPollingInterval = cdcPollingSection.GetValue<TimeSpan?>("PollingInterval") ?? TimeSpan.FromSeconds(5);
+var cdcBatchSize = cdcPollingSection.GetValue<int?>("BatchSize") ?? 100;
+var cdcCaptureInstances = cdcPollingSection.GetSection("CaptureInstances").Get<string[]>()
+							?? ["dbo_LegacyCustomers", "dbo_LegacyOrders", "dbo_LegacyOrderItems"];
+
 // Logger for CDC recovery callback (assigned after app.Build())
 ILogger? cdcRecoveryLogger = null;
 
@@ -164,10 +171,10 @@ builder.Services.AddCdcProcessor(cdc =>
 		{
 			sql.ConnectionString(cdcSourceConnectionString)
 				.DatabaseName("LegacyDb")
-				.CaptureInstances("dbo_LegacyCustomers", "dbo_LegacyOrders", "dbo_LegacyOrderItems")
+				.CaptureInstances(cdcCaptureInstances)
 				.StopOnMissingTableHandler(false)
-				.PollingInterval(TimeSpan.FromSeconds(5))
-				.BatchSize(100);
+				.PollingInterval(cdcPollingInterval)
+				.BatchSize(cdcBatchSize);
 		})
 		.WithRecovery(recovery =>
 		{

@@ -34,6 +34,10 @@ public static class SqlServerProjectionStoreExtensions
 
 		_ = services.Configure(configureOptions);
 
+		// Register validator for ValidateOnStart (P1-3 fix)
+		services.TryAddSingleton<IValidateOptions<SqlServerProjectionStoreOptions>, SqlServerProjectionStoreOptionsValidator>();
+		_ = services.AddOptions<SqlServerProjectionStoreOptions>().ValidateOnStart();
+
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<SqlServerProjectionStoreOptions>>();

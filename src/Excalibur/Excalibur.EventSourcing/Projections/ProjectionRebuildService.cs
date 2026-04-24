@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -160,6 +161,21 @@ public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 				}
 			}
 
+			// Persist the rebuilt state via the projection store (P0 fix: previously discarded)
+			var store = _serviceProvider.GetService(typeof(IProjectionStore<TProjection>))
+				as IProjectionStore<TProjection>;
+
+			if (store is not null)
+			{
+				await store.UpsertAsync(projectionName, state, cancellationToken)
+					.ConfigureAwait(false);
+				LogRebuildPersisted(projectionName);
+			}
+			else
+			{
+				LogNoProjectionStoreRegistered(projectionName);
+			}
+
 			_statuses[projectionName] = new ProjectionRebuildStatus(
 				projectionName,
 				ProjectionRebuildState.Completed,
@@ -228,6 +244,15 @@ public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 	[LoggerMessage(EventSourcingEventId.ProjectionRebuildEventError, LogLevel.Error,
 		"Error processing event {EventId} during rebuild of projection {ProjectionName}")]
 	private partial void LogEventProcessingError(string projectionName, string eventId, Exception ex);
+
+	[LoggerMessage(EventSourcingEventId.ProjectionRebuildPersisted, LogLevel.Information,
+		"Projection rebuild persisted for {ProjectionName}")]
+	private partial void LogRebuildPersisted(string projectionName);
+
+	[LoggerMessage(EventSourcingEventId.ProjectionRebuildNoStore, LogLevel.Warning,
+		"No IProjectionStore<{ProjectionName}> registered. Rebuilt state was not persisted. " +
+		"Register a projection store to persist rebuild results.")]
+	private partial void LogNoProjectionStoreRegistered(string projectionName);
 
 	#endregion
 }

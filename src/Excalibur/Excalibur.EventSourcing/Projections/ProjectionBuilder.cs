@@ -196,15 +196,6 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	}
 
 	/// <inheritdoc />
-	public IProjectionBuilder<TProjection> IdentityFrom<TEvent>(Func<TEvent, string> resolver)
-		where TEvent : IDomainEvent
-	{
-		ArgumentNullException.ThrowIfNull(resolver);
-		_projection.AddKeySelector(resolver);
-		return this;
-	}
-
-	/// <inheritdoc />
 	public IProjectionBuilder<TProjection> WithStore<TStore>()
 		where TStore : class, IProjectionStore<TProjection>
 	{
@@ -265,8 +256,10 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	{
 		ArgumentNullException.ThrowIfNull(registry);
 
-		// Capture the generic type in a delegate at registration time (AOT-safe, no MakeGenericMethod)
-		var inlineApply = _mode == ProjectionMode.Inline
+		// Capture the generic type in a delegate at registration time (AOT-safe, no MakeGenericMethod).
+		// Both Inline and Async modes need apply delegates: Inline runs during SaveAsync,
+		// Async runs via the background AsyncProjectionProcessingHost.
+		var inlineApply = _mode is ProjectionMode.Inline or ProjectionMode.Async
 			? CreateInlineApplyDelegate()
 			: null;
 

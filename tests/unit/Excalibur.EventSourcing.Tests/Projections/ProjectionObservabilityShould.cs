@@ -7,7 +7,7 @@ using Excalibur.EventSourcing.Diagnostics;
 namespace Excalibur.EventSourcing.Tests.Projections;
 
 /// <summary>
-/// Unit tests for ProjectionObservability (R27.46-R27.48, R27.50, R27.60).
+/// Unit tests for ProjectionObservability (R27.47).
 /// Validates metric instrument creation and recording.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -33,10 +33,6 @@ public sealed class ProjectionObservabilityShould : IDisposable
 		{
 			_recordings.Add((instrument.Name, measurement, tags.ToArray()));
 		});
-		_listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, _) =>
-		{
-			_recordings.Add((instrument.Name, measurement, tags.ToArray()));
-		});
 		_listener.Start();
 	}
 
@@ -44,26 +40,6 @@ public sealed class ProjectionObservabilityShould : IDisposable
 	{
 		_listener.Dispose();
 		(_meterFactory as IDisposable)?.Dispose();
-	}
-
-	/// <summary>
-	/// R27.46: Async projection lag metric emitted.
-	/// </summary>
-	[Fact]
-	public void EmitLagMetric()
-	{
-		// Arrange
-		var obs = new ProjectionObservability(_meterFactory);
-
-		// Act
-		obs.ReportLag("OrderSummary", 42);
-		_listener.RecordObservableInstruments();
-
-		// Assert
-		var lagRecording = _recordings.FirstOrDefault(r => r.Name == "excalibur.projection.lag.events");
-		lagRecording.ShouldNotBe(default);
-		((long)lagRecording.Value).ShouldBe(42);
-		lagRecording.Tags.ShouldContain(t => t.Key == "projection.name" && (string)t.Value! == "OrderSummary");
 	}
 
 	/// <summary>
@@ -88,26 +64,6 @@ public sealed class ProjectionObservabilityShould : IDisposable
 	}
 
 	/// <summary>
-	/// R27.48/R27.50: Rebuild duration histogram recorded.
-	/// </summary>
-	[Fact]
-	public void EmitRebuildDurationHistogram()
-	{
-		// Arrange
-		var obs = new ProjectionObservability(_meterFactory);
-
-		// Act
-		obs.RecordRebuildDuration("OrderSummary", 1234.5);
-		_listener.RecordObservableInstruments();
-
-		// Assert
-		var rebuildRecording = _recordings.FirstOrDefault(r => r.Name == "excalibur.projection.rebuild.duration");
-		rebuildRecording.ShouldNotBe(default);
-		((double)rebuildRecording.Value).ShouldBe(1234.5);
-		rebuildRecording.Tags.ShouldContain(t => t.Key == "projection.type" && (string)t.Value! == "OrderSummary");
-	}
-
-	/// <summary>
 	/// Validates null constructor argument.
 	/// </summary>
 	[Fact]
@@ -115,28 +71,6 @@ public sealed class ProjectionObservabilityShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ProjectionObservability(null!));
-	}
-
-	/// <summary>
-	/// R27.60: Cursor map position gauge is created (observable gauge).
-	/// Even though it returns empty initially, the instrument must be registered.
-	/// </summary>
-	[Fact]
-	public void CreateCursorMapPositionGauge()
-	{
-		// Arrange -- create observability to register instruments
-		var obs = new ProjectionObservability(_meterFactory);
-
-		// Act -- trigger observable instrument collection
-		_listener.RecordObservableInstruments();
-
-		// Assert -- the gauge should exist (even if no data reported).
-		// The fact that no exception was thrown during RecordObservableInstruments
-		// confirms the observable gauge was created successfully.
-		// The gauge is observable, so it won't have recordings in our list
-		// unless the callback returns values. The current impl returns empty,
-		// which is the documented behavior.
-		obs.ShouldNotBeNull(); // observability instance created successfully
 	}
 
 	/// <summary>

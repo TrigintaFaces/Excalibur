@@ -1024,7 +1024,7 @@
     },
     {
       "warningId": "IL3050",
-      "justification": "JSON serialization of scheduled message payloads requires dynamic code — external Azure Logic Apps API",
+      "justification": "JSON serialization of scheduled message payloads requires dynamic code \u00e2\u20ac\u201d external Azure Logic Apps API",
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/Scheduling/AzureLogicAppsScheduler.cs",
       "line": 324
     },
@@ -1114,13 +1114,13 @@
     },
     {
       "warningId": "IL2026",
-      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type \u00e2\u20ac\u201d concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
       "line": 111
     },
     {
       "warningId": "IL3050",
-      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type \u00e2\u20ac\u201d concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
       "line": 113
     },
@@ -5166,25 +5166,37 @@
       "warningId": "IL3050",
       "justification": "Ephemeral projections use JSON serialization and event deserialization which are inherently dynamic.",
       "file": "src/Excalibur/Excalibur.EventSourcing/Projections/EphemeralProjectionEngine.cs",
-      "line": 45
+      "line": 53
     },
     {
       "warningId": "IL2026",
       "justification": "Ephemeral projections require type metadata for JSON and event deserialization; consumers must preserve types.",
       "file": "src/Excalibur/Excalibur.EventSourcing/Projections/EphemeralProjectionEngine.cs",
-      "line": 47
+      "line": 55
+    },
+    {
+      "warningId": "IL3050",
+      "justification": "Event deserialization is inherently dynamic; projection host requires runtime type resolution.",
+      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/AsyncProjectionProcessingHost.cs",
+      "line": 214
+    },
+    {
+      "warningId": "IL2026",
+      "justification": "Event deserialization requires type metadata; consumers must preserve event types.",
+      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/AsyncProjectionProcessingHost.cs",
+      "line": 216
     },
     {
       "warningId": "IL3050",
       "justification": "MakeGenericType is used to resolve event notification handlers. Register handlers explicitly for AOT scenarios.",
       "file": "src/Excalibur/Excalibur.EventSourcing/Projections/EventNotificationBroker.cs",
-      "line": 64
+      "line": 71
     },
     {
       "warningId": "IL2026",
       "justification": "Handler types are preserved through DI registration.",
       "file": "src/Excalibur/Excalibur.EventSourcing/Projections/EventNotificationBroker.cs",
-      "line": 66
+      "line": 73
     },
     {
       "warningId": "IL3050",
@@ -5214,13 +5226,13 @@
       "warningId": "IL2026",
       "justification": "Event deserialization during rebuild uses IEventSerializer which consumers configure with preserved types.",
       "file": "src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionRebuildService.cs",
-      "line": 55
+      "line": 56
     },
     {
       "warningId": "IL3050",
       "justification": "Event deserialization during rebuild uses IEventSerializer which consumers configure.",
       "file": "src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionRebuildService.cs",
-      "line": 57
+      "line": 58
     },
     {
       "warningId": "IL3050",

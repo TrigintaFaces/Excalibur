@@ -62,7 +62,7 @@ public sealed class ProjectionRecoveryServiceShould
 		var service = CreateService();
 
 		// Act
-		await service.ReapplyAsync<OrderSummary>("order-1", CancellationToken.None);
+		await service.ReapplyAsync<OrderSummary>("order-1", "Order", CancellationToken.None);
 
 		// Assert
 		var recovered = _projectionStore.Get("order-1");
@@ -100,7 +100,7 @@ public sealed class ProjectionRecoveryServiceShould
 		var service = CreateService();
 
 		// Act
-		await service.ReapplyAsync<OrderSummary>("order-1", CancellationToken.None);
+		await service.ReapplyAsync<OrderSummary>("order-1", "Order", CancellationToken.None);
 
 		// Assert -- fresh state, not accumulated on old state
 		var recovered = _projectionStore.Get("order-1");
@@ -117,7 +117,7 @@ public sealed class ProjectionRecoveryServiceShould
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
-			service.ReapplyAsync<OrderSummary>("order-1", CancellationToken.None));
+			service.ReapplyAsync<OrderSummary>("order-1", "Order", CancellationToken.None));
 
 		ex.Message.ShouldContain("OrderSummary");
 		ex.Message.ShouldContain("AddProjection");
@@ -128,7 +128,7 @@ public sealed class ProjectionRecoveryServiceShould
 	{
 		var service = CreateService();
 		await Should.ThrowAsync<ArgumentException>(() =>
-			service.ReapplyAsync<OrderSummary>(null!, CancellationToken.None));
+			service.ReapplyAsync<OrderSummary>(null!, "Order", CancellationToken.None));
 	}
 
 	[Fact]
@@ -136,7 +136,23 @@ public sealed class ProjectionRecoveryServiceShould
 	{
 		var service = CreateService();
 		await Should.ThrowAsync<ArgumentException>(() =>
-			service.ReapplyAsync<OrderSummary>("", CancellationToken.None));
+			service.ReapplyAsync<OrderSummary>("", "Order", CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task ThrowOnNullAggregateType()
+	{
+		var service = CreateService();
+		await Should.ThrowAsync<ArgumentException>(() =>
+			service.ReapplyAsync<OrderSummary>("order-1", null!, CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task ThrowOnEmptyAggregateType()
+	{
+		var service = CreateService();
+		await Should.ThrowAsync<ArgumentException>(() =>
+			service.ReapplyAsync<OrderSummary>("order-1", "", CancellationToken.None));
 	}
 
 	[Fact]
@@ -191,7 +207,7 @@ public sealed class ProjectionRecoveryServiceShould
 		var service = CreateService();
 
 		// Act
-		await service.ReapplyAsync<OrderSummary>("order-1", CancellationToken.None);
+		await service.ReapplyAsync<OrderSummary>("order-1", "Order", CancellationToken.None);
 
 		// Assert
 		var recovered = _projectionStore.Get("order-1");

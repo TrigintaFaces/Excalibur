@@ -25,7 +25,7 @@ public sealed class ProjectionBuilderShould
 		var registration = _registry.GetRegistration(typeof(OrderSummary));
 		registration.ShouldNotBeNull();
 		registration.Mode.ShouldBe(ProjectionMode.Async);
-		registration.InlineApply.ShouldBeNull(); // no inline delegate for async mode
+		registration.InlineApply.ShouldNotBeNull(); // async mode now has apply delegate for AsyncProjectionProcessingHost
 	}
 
 	[Fact]
@@ -343,28 +343,28 @@ public sealed class ProjectionBuilderShould
 		result.ShouldBeSameAs(builder);
 	}
 
-	// --- IdentityFrom tests ---
+	// --- KeyedBy identity tests (formerly IdentityFrom — removed as duplicate of KeyedBy) ---
 
 	[Fact]
-	public void SetIdentityResolver()
+	public void SetKeyedByIdentityResolver()
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 
 		// Act
 		builder.Inline();
-		builder.IdentityFrom<TestOrderPlaced>(e => $"custom-{e.AggregateId}");
+		builder.KeyedBy<TestOrderPlaced>(e => $"custom-{e.AggregateId}");
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
-		// Assert -- IdentityFrom uses the same mechanism as KeyedBy internally
+		// Assert -- KeyedBy sets the key selector for projection identity resolution
 		var registration = _registry.GetRegistration(typeof(OrderSummary));
 		registration.ShouldNotBeNull();
 		registration.InlineApply.ShouldNotBeNull();
 	}
 
 	[Fact]
-	public async Task IdentityFromResolvesProjectionIdFromEvent()
+	public async Task KeyedByResolvesProjectionIdFromEvent()
 	{
 		// Arrange
 		var store = new InMemoryProjectionStore<OrderSummary>();
@@ -374,7 +374,7 @@ public sealed class ProjectionBuilderShould
 
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 		builder.Inline();
-		builder.IdentityFrom<TestOrderPlaced>(e => $"order-{e.Amount}");
+		builder.KeyedBy<TestOrderPlaced>(e => $"order-{e.Amount}");
 		builder.When<TestOrderPlaced>((proj, e) =>
 		{
 			proj.Total = e.Amount;
@@ -392,28 +392,28 @@ public sealed class ProjectionBuilderShould
 		// Act
 		await registration.InlineApply!(events, context, services, CancellationToken.None);
 
-		// Assert -- stored under identity-resolved key, not aggregate ID
+		// Assert -- stored under key-resolved ID, not aggregate ID
 		store.Get("order-42").ShouldNotBeNull();
 		store.Get("order-42")!.Total.ShouldBe(42m);
 		store.Get("agg-1").ShouldBeNull(); // not stored under aggregate ID
 	}
 
 	[Fact]
-	public void ThrowOnNullIdentityResolver()
+	public void ThrowOnNullKeyedBySelector()
 	{
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 		Should.Throw<ArgumentNullException>(() =>
-			builder.IdentityFrom<TestOrderPlaced>(null!));
+			builder.KeyedBy<TestOrderPlaced>(null!));
 	}
 
 	[Fact]
-	public void ReturnBuilderForFluentChainingWithIdentityFrom()
+	public void ReturnBuilderForFluentChainingWithKeyedBy()
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 
 		// Act
-		var result = builder.IdentityFrom<TestOrderPlaced>(e => e.AggregateId);
+		var result = builder.KeyedBy<TestOrderPlaced>(e => e.AggregateId);
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -553,7 +553,7 @@ public sealed class ProjectionBuilderShould
 		// Act -- all 4 new methods + existing ones in a single fluent chain
 		var result = builder
 			.Inline()
-			.IdentityFrom<TestOrderPlaced>(e => e.AggregateId)
+			.KeyedBy<TestOrderPlaced>(e => e.AggregateId)
 			.WithStore<InMemoryProjectionStore<OrderSummary>>()
 			.WithOptions(o => o.WarningThreshold = TimeSpan.FromMilliseconds(50))
 			.WhenDeleted((id, ct) => Task.CompletedTask)

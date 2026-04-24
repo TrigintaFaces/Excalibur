@@ -157,7 +157,9 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 	{
 		ArgumentNullException.ThrowIfNull(registry);
 
-		var inlineApply = _mode == ProjectionMode.Inline
+		// Both Inline and Async modes need apply delegates: Inline runs during SaveAsync,
+		// Async runs via the background AsyncProjectionProcessingHost.
+		var inlineApply = _mode is ProjectionMode.Inline or ProjectionMode.Async
 			? CreateImmutableInlineApplyDelegate()
 			: null;
 

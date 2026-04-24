@@ -274,6 +274,10 @@ public static class EventNotificationServiceCollectionExtensions
 		// Observability: metrics, health state, health check
 		builder.Services.TryAddSingleton<ProjectionHealthState>();
 		builder.Services.TryAddSingleton<Excalibur.EventSourcing.Diagnostics.ProjectionObservability>();
+
+		// Register health check options with defaults (consumers can override via Configure<ProjectionHealthCheckOptions>)
+		_ = builder.Services.AddOptions<Excalibur.EventSourcing.Health.ProjectionHealthCheckOptions>().ValidateOnStart();
+
 		builder.Services.AddHealthChecks()
 			.AddCheck<Excalibur.EventSourcing.Health.ProjectionHealthCheck>("projections");
 

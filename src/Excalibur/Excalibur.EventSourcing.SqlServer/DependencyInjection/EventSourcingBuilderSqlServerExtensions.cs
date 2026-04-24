@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 
 using Microsoft.Data.SqlClient;
@@ -207,6 +208,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 		// Register stores using resolved connection factory
 		RegisterEventStore(builder.Services, connectionFactory, options.EventStoreSchema, options.EventStoreTable);
 		RegisterSnapshotStore(builder.Services, connectionFactory, options.SnapshotStoreSchema, options.SnapshotStoreTable);
+		RegisterGlobalStreamQuery(builder.Services, connectionFactory);
 
 		// Register health checks if enabled and connection string is available
 		if (options.HealthChecks.RegisterHealthChecks && !string.IsNullOrWhiteSpace(options.ConnectionString))
@@ -261,5 +263,18 @@ public static class EventSourcingBuilderSqlServerExtensions
 		});
 
 		SqlServerEventSourcingServiceCollectionExtensions.RegisterSnapshotStoreTelemetryWrapper(services);
+	}
+
+	private static void RegisterGlobalStreamQuery(
+		IServiceCollection services,
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactory)
+	{
+		services.TryAddSingleton<IGlobalStreamQuery>(sp =>
+		{
+			var factory = connectionFactory(sp);
+			return new SqlServerGlobalStreamQuery(
+				factory,
+				sp.GetRequiredService<IOptions<SqlServerEventSourcingOptions>>());
+		});
 	}
 }

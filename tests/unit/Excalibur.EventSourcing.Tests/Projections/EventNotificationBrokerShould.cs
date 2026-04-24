@@ -137,9 +137,11 @@ public sealed class EventNotificationBrokerShould
 	}
 
 	[Fact]
-	public async Task NotCrashWhenHandlerThrows()
+	public async Task NotCrashWhenHandlerThrowsAndPolicyIsLogAndContinue()
 	{
-		// Arrange -- handler throws but broker should catch and log
+		// Arrange -- handler throws but broker should catch and log with LogAndContinue policy
+		_options.FailurePolicy = NotificationFailurePolicy.LogAndContinue;
+
 		var services = new ServiceCollection();
 		services.AddSingleton<IProjectionStore<OrderSummary>>(_projectionStore);
 		var handler = new DelegatingNotificationHandler<TestOrderPlaced>((_, _, _) =>
@@ -154,6 +156,29 @@ public sealed class EventNotificationBrokerShould
 			new List<IDomainEvent> { new TestOrderPlaced() },
 			CreateContext(),
 			CancellationToken.None);
+	}
+
+	[Fact]
+	public async Task PropagateHandlerExceptionWhenPolicyIsPropagate()
+	{
+		// Arrange -- default policy is Propagate, handler exception should surface
+		var services = new ServiceCollection();
+		services.AddSingleton<IProjectionStore<OrderSummary>>(_projectionStore);
+		var handler = new DelegatingNotificationHandler<TestOrderPlaced>((_, _, _) =>
+			throw new InvalidOperationException("handler boom"));
+		services.AddSingleton<IEventNotificationHandler<TestOrderPlaced>>(handler);
+		var sp = services.BuildServiceProvider();
+
+		var broker = CreateBroker(sp);
+
+		// Act & Assert -- Propagate policy surfaces the handler exception
+		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
+			broker.NotifyAsync(
+				new List<IDomainEvent> { new TestOrderPlaced() },
+				CreateContext(),
+				CancellationToken.None));
+
+		ex.Message.ShouldBe("handler boom");
 	}
 
 	[Fact]

@@ -39,6 +39,12 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	[GeneratedRegex(@"^[a-zA-Z0-9_]+$")]
 	private static partial Regex ValidTableNameRegex();
 
+	private static readonly JsonSerializerOptions DefaultJsonOptions = new()
+	{
+		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+		WriteIndented = false
+	};
+
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly string _tableName;
 	private readonly ILogger<SqlServerProjectionStore<TProjection>> _logger;
@@ -90,11 +96,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		}
 
 		_tableName = resolvedName;
-		_jsonOptions = jsonOptions ?? new JsonSerializerOptions
-		{
-			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-			WriteIndented = false
-		};
+		_jsonOptions = jsonOptions ?? DefaultJsonOptions;
 	}
 	/// <inheritdoc/>
 	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
@@ -249,6 +251,9 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		return () => new SqlConnection(connectionString);
 	}
 
+	[GeneratedRegex(@"^[a-zA-Z][a-zA-Z0-9_]*$")]
+	private static partial Regex ValidPropertyNameRegex();
+
 	private static (string WhereClause, DynamicParameters Parameters) BuildWhereClause(
 		IDictionary<string, object>? filters)
 	{
@@ -265,6 +270,16 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		foreach (var (key, value) in filters)
 		{
 			var parsed = FilterParser.Parse(key);
+
+			// Validate property name to prevent SQL injection via JSON path
+			if (!ValidPropertyNameRegex().IsMatch(parsed.PropertyName))
+			{
+				throw new ArgumentException(
+					$"Filter property name '{parsed.PropertyName}' contains invalid characters. " +
+					"Only alphanumeric characters and underscores are allowed, starting with a letter.",
+					nameof(filters));
+			}
+
 			var paramName = $"@p{paramIndex++}";
 
 			// For JSON data, we need to use JSON_VALUE to extract the property
@@ -335,6 +350,15 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		if (options?.OrderBy is null)
 		{
 			return "ORDER BY Id"; // Default ordering for consistent pagination
+		}
+
+		// Validate OrderBy property name to prevent SQL injection via JSON path
+		if (!ValidPropertyNameRegex().IsMatch(options.OrderBy))
+		{
+			throw new ArgumentException(
+				$"OrderBy property name '{options.OrderBy}' contains invalid characters. " +
+				"Only alphanumeric characters and underscores are allowed, starting with a letter.",
+				nameof(options));
 		}
 
 		var jsonPath = $"$.{char.ToLowerInvariant(options.OrderBy[0])}{options.OrderBy[1..]}";

@@ -12,47 +12,21 @@ namespace Excalibur.EventSourcing.Projections;
 /// <typeparam name="TProjection">The projection state type.</typeparam>
 /// <remarks>
 /// <para>
-/// This is the result of building a <see cref="IMultiStreamProjectionBuilder{TProjection}"/>.
-/// It contains the stream sources, event handlers, and can apply events to a projection instance.
+/// Built internally by <see cref="ProjectionBuilder{TProjection}"/> during projection registration.
+/// Contains event handlers and can apply events to a projection instance.
 /// </para>
 /// </remarks>
 internal sealed class MultiStreamProjection<TProjection>
 	where TProjection : class, new()
 {
 	private readonly Dictionary<Type, ProjectionHandlerEntry> _handlers = [];
-	private readonly List<string> _streams = [];
-	private readonly List<string> _categories = [];
 	private readonly Dictionary<Type, Func<IDomainEvent, string>> _keySelectors = [];
-
-	/// <summary>
-	/// Gets the stream identifiers this projection sources events from.
-	/// </summary>
-	/// <value>The source stream identifiers.</value>
-	public IReadOnlyList<string> Streams => _streams;
-
-	/// <summary>
-	/// Gets the category names this projection sources events from.
-	/// </summary>
-	/// <value>The source category names.</value>
-	public IReadOnlyList<string> Categories => _categories;
 
 	/// <summary>
 	/// Gets the event types this projection handles.
 	/// </summary>
 	/// <value>The handled event types.</value>
 	public IReadOnlyCollection<Type> HandledEventTypes => _handlers.Keys;
-
-	/// <summary>
-	/// Adds a stream source.
-	/// </summary>
-	/// <param name="streamId">The stream identifier.</param>
-	internal void AddStream(string streamId) => _streams.Add(streamId);
-
-	/// <summary>
-	/// Adds a category source.
-	/// </summary>
-	/// <param name="category">The category name.</param>
-	internal void AddCategory(string category) => _categories.Add(category);
 
 	/// <summary>
 	/// Registers a synchronous event handler.

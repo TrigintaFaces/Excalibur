@@ -31,25 +31,21 @@ public sealed class MultiStreamConcreteTestEvent : IDomainEvent
 public sealed class MultiStreamProjectionShould
 {
 	[Fact]
-	public void StartWithEmptyStreamsAndCategories()
+	public void StartWithEmptyHandledEventTypes()
 	{
 		// Act
 		var projection = new MultiStreamProjection<MultiStreamTestState>();
 
 		// Assert
-		projection.Streams.ShouldBeEmpty();
-		projection.Categories.ShouldBeEmpty();
 		projection.HandledEventTypes.ShouldBeEmpty();
 	}
 
 	[Fact]
-	public void ApplyEventWhenHandlerRegisteredViaBuilder()
+	public void ApplyEventWhenHandlerRegistered()
 	{
-		// Arrange - use builder to add handler (AddHandler is internal)
-		var builder = new MultiStreamProjectionBuilder<MultiStreamTestState>();
-		var projection = builder
-			.When<MultiStreamConcreteTestEvent>((state, _) => state.Counter++)
-			.Build();
+		// Arrange - use internal AddHandler directly (InternalsVisibleTo)
+		var projection = new MultiStreamProjection<MultiStreamTestState>();
+		projection.AddHandler<MultiStreamConcreteTestEvent>((state, _) => state.Counter++);
 
 		var state = new MultiStreamTestState();
 		var evt = new MultiStreamConcreteTestEvent();
@@ -101,13 +97,11 @@ public sealed class MultiStreamProjectionShould
 	}
 
 	[Fact]
-	public void TrackHandledEventTypesViaBuilder()
+	public void TrackHandledEventTypes()
 	{
-		// Arrange - use builder to add handler (AddHandler is internal)
-		var builder = new MultiStreamProjectionBuilder<MultiStreamTestState>();
-		var projection = builder
-			.When<MultiStreamConcreteTestEvent>((_, _) => { })
-			.Build();
+		// Arrange - use internal AddHandler directly (InternalsVisibleTo)
+		var projection = new MultiStreamProjection<MultiStreamTestState>();
+		projection.AddHandler<MultiStreamConcreteTestEvent>((_, _) => { });
 
 		// Assert
 		projection.HandledEventTypes.ShouldContain(typeof(MultiStreamConcreteTestEvent));
