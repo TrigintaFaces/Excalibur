@@ -35,13 +35,24 @@ public sealed class ProjectionRebuildServiceShould
 	public async Task ReturnIdleStatusWhenNoRebuildHasRun()
 	{
 		// Act
-		var status = await _sut.GetStatusAsync(CancellationToken.None);
+		var status = await _sut.GetStatusAsync<ProjectionRebuildTestState>(CancellationToken.None);
 
 		// Assert
 		status.ShouldNotBeNull();
 		status.State.ShouldBe(ProjectionRebuildState.Idle);
-		status.ProjectionName.ShouldBe("None");
+		status.ProjectionName.ShouldBe("ProjectionRebuildTestState");
 		status.Progress.ShouldBe(0);
+	}
+
+	[Fact]
+	public async Task ReturnEmptyListWhenNoRebuildsHaveRun()
+	{
+		// Act
+		var statuses = await _sut.GetAllStatusesAsync(CancellationToken.None);
+
+		// Assert
+		statuses.ShouldNotBeNull();
+		statuses.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -55,7 +66,7 @@ public sealed class ProjectionRebuildServiceShould
 		await _sut.RebuildAsync<ProjectionRebuildTestState>(CancellationToken.None);
 
 		// Assert
-		var status = await _sut.GetStatusAsync(CancellationToken.None);
+		var status = await _sut.GetStatusAsync<ProjectionRebuildTestState>(CancellationToken.None);
 		status.State.ShouldBe(ProjectionRebuildState.Failed);
 		status.ProjectionName.ShouldBe("ProjectionRebuildTestState");
 	}
@@ -74,7 +85,7 @@ public sealed class ProjectionRebuildServiceShould
 		await _sut.RebuildAsync<ProjectionRebuildTestState>(CancellationToken.None);
 
 		// Assert
-		var status = await _sut.GetStatusAsync(CancellationToken.None);
+		var status = await _sut.GetStatusAsync<ProjectionRebuildTestState>(CancellationToken.None);
 		status.State.ShouldBe(ProjectionRebuildState.Failed);
 	}
 
@@ -95,7 +106,7 @@ public sealed class ProjectionRebuildServiceShould
 		await _sut.RebuildAsync<ProjectionRebuildTestState>(CancellationToken.None);
 
 		// Assert
-		var status = await _sut.GetStatusAsync(CancellationToken.None);
+		var status = await _sut.GetStatusAsync<ProjectionRebuildTestState>(CancellationToken.None);
 		status.State.ShouldBe(ProjectionRebuildState.Completed);
 		status.Progress.ShouldBe(100);
 	}
@@ -131,7 +142,7 @@ public sealed class ProjectionRebuildServiceShould
 		await _sut.RebuildAsync<ProjectionRebuildTestState>(CancellationToken.None);
 
 		// Assert
-		var status = await _sut.GetStatusAsync(CancellationToken.None);
+		var status = await _sut.GetStatusAsync<ProjectionRebuildTestState>(CancellationToken.None);
 		status.State.ShouldBe(ProjectionRebuildState.Completed);
 		status.Progress.ShouldBe(100);
 		status.LastRebuiltAt.ShouldNotBeNull();

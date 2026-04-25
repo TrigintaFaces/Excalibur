@@ -145,10 +145,14 @@ public static class MaterializedViewsBuilderExtensions
 		var options = new MaterializedViewHealthCheckOptions();
 		configure(options);
 
-		_ = builder.Services.AddHealthChecks()
-			.AddCheck<MaterializedViewHealthCheck>(
-				options.Name,
-				tags: options.Tags);
+		if (!builder.Services.Any(d => d.ServiceType == typeof(MaterializedViewHealthCheck)))
+		{
+			builder.Services.AddSingleton<MaterializedViewHealthCheck>();
+			_ = builder.Services.AddHealthChecks()
+				.AddCheck<MaterializedViewHealthCheck>(
+					options.Name,
+					tags: options.Tags);
+		}
 
 		return builder;
 	}

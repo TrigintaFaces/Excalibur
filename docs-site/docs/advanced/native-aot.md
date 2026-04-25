@@ -60,8 +60,8 @@ public class CreateOrderHandler : IActionHandler<CreateOrderCommand>
 ```csharp
 var services = new ServiceCollection();
 
-services.AddDispatch(dispatch =>
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly));
+// AOT-safe: source-generated handler registration (zero reflection)
+services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
 
 // Register source-generated DI services
 services.AddGeneratedServices();

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`ICdcBuilder.BindProcessingConfiguration(string sectionPath)`** -- allows binding `CdcProcessingOptions` to an `IConfiguration` section (e.g., `appsettings.json`) via the CDC builder fluent API
+- **`WithProjectionHealthChecks()`** -- opt-in projection health check registration (previously auto-registered by `UseEventNotification()`)
+- **`IProjectionRebuildService.GetStatusAsync<TProjection>()`** -- type-safe per-projection rebuild status query
+- **`IProjectionRebuildService.GetAllStatusesAsync()`** -- bulk rebuild status monitoring
+
+### Changed
+
+- **`ProjectionRebuildService`** narrowed from `public sealed` to `internal sealed` — consumers use `IProjectionRebuildService` interface via DI
+- **Projection health checks** are now opt-in via `WithProjectionHealthChecks()` instead of auto-registered — reduces overhead for consumers who don't need health monitoring
+
 - **AddDispatchInstrumentation()** unified OTel entry point -- registers all 18 meters + 26 ActivitySources in one call, with auto-wire via `AddDispatchPipeline()`
 - **Excalibur.Dispatch.Analyzers** package with 6 diagnostic rules (DISP101-DISP106): DI namespace enforcement, extension class naming, CancellationToken interface conventions, namespace segment validation, ConfigureAwait enforcement, blocking call detection
 - **Templates CI workflow** validating all 8 `dotnet new` templates produce buildable projects

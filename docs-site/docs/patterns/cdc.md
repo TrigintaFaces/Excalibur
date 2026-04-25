@@ -916,7 +916,9 @@ services.AddCdcProcessor(cdc =>
     .BindTrackedTables("Cdc:Tables")
     // Remaining tables from registered handlers
     .TrackTablesFromHandlers()
-    .EnableBackgroundProcessing();
+    .EnableBackgroundProcessing()
+    // Bind processing options from config
+    .BindProcessingConfiguration("Cdc:Processing");
 });
 ```
 
@@ -1254,6 +1256,7 @@ services.Configure<CdcProcessingOptions>(options =>
     options.PollingInterval = TimeSpan.FromSeconds(10); // Default: 5 seconds
     options.Enabled = true;                             // Default: true
     options.DrainTimeoutSeconds = 60;                   // Default: 30
+    options.UnhealthyThreshold = 5;                     // Default: 5
 });
 ```
 
@@ -1262,6 +1265,36 @@ services.Configure<CdcProcessingOptions>(options =>
 | `PollingInterval` | 5 seconds | Interval between processing cycles |
 | `Enabled` | `true` | Set to `false` to disable without removing registration |
 | `DrainTimeoutSeconds` | 30 | Seconds to wait for in-flight processing on shutdown |
+| `UnhealthyThreshold` | 5 | Consecutive failures before health check reports unhealthy |
+
+#### Configuration Binding (Recommended)
+
+Use `BindProcessingConfiguration` to bind processing options from `appsettings.json` instead of hardcoding values:
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+       .EnableBackgroundProcessing()
+       .BindProcessingConfiguration("Cdc:Processing");
+});
+```
+
+```json
+{
+  "Cdc": {
+    "Processing": {
+      "Enabled": false,
+      "PollingInterval": "00:00:10",
+      "DrainTimeoutSeconds": 30,
+      "UnhealthyThreshold": 5
+    }
+  }
+}
+```
+
+This uses `OptionsBuilder<CdcProcessingOptions>.BindConfiguration()` with `ValidateDataAnnotations` and `ValidateOnStart` for fail-fast startup validation.
 
 You can also configure processing inline via the SQL Server builder:
 

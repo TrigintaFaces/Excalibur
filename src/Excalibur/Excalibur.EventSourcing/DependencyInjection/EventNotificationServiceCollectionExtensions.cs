@@ -271,15 +271,9 @@ public static class EventNotificationServiceCollectionExtensions
 			ServiceDescriptor.Singleton<Options.IValidateOptions<EventNotificationOptions>, EventNotificationOptionsValidator>());
 		builder.UseProjectionRecovery();
 
-		// Observability: metrics, health state, health check
+		// Observability: metrics, health state
 		builder.Services.TryAddSingleton<ProjectionHealthState>();
 		builder.Services.TryAddSingleton<Excalibur.EventSourcing.Diagnostics.ProjectionObservability>();
-
-		// Register health check options with defaults (consumers can override via Configure<ProjectionHealthCheckOptions>)
-		_ = builder.Services.AddOptions<Excalibur.EventSourcing.Health.ProjectionHealthCheckOptions>().ValidateOnStart();
-
-		builder.Services.AddHealthChecks()
-			.AddCheck<Excalibur.EventSourcing.Health.ProjectionHealthCheck>("projections");
 
 		builder.Services.TryAddSingleton<IEphemeralProjectionEngine>(sp =>
 			new EphemeralProjectionEngine(
@@ -287,7 +281,47 @@ public static class EventNotificationServiceCollectionExtensions
 				sp.GetRequiredService<Excalibur.Dispatch.Abstractions.IEventSerializer>(),
 				sp.GetRequiredService<IProjectionRegistry>(),
 				sp.GetRequiredService<Logging.ILogger<EphemeralProjectionEngine>>(),
-				sp.GetService<Caching.Distributed.IDistributedCache>()));
+				sp.GetService<Caching.Distributed.IDistributedCache>(),
+				sp.GetService<System.Text.Json.JsonSerializerOptions>()));
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Adds a health check for inline projections.
+	/// </summary>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Registers a health check named <c>"projections"</c> that monitors projection lag
+	/// and error state. This is opt-in — projections work without health checks.
+	/// </para>
+	/// <para>
+	/// To customize thresholds, configure <see cref="Excalibur.EventSourcing.Health.ProjectionHealthCheckOptions"/>
+	/// via the options pattern.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// builder.Services.AddEventSourcing(es =>
+	/// {
+	///     es.AddProjection&lt;OrderSummary&gt;()
+	///       .WithProjectionHealthChecks();
+	/// });
+	/// </code>
+	/// </example>
+	public static IEventSourcingBuilder WithProjectionHealthChecks(this IEventSourcingBuilder builder)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		if (!builder.Services.Any(d => d.ServiceType == typeof(Excalibur.EventSourcing.Health.ProjectionHealthCheck)))
+		{
+			_ = builder.Services.AddOptions<Excalibur.EventSourcing.Health.ProjectionHealthCheckOptions>().ValidateOnStart();
+			builder.Services.AddSingleton<Excalibur.EventSourcing.Health.ProjectionHealthCheck>();
+			builder.Services.AddHealthChecks()
+				.AddCheck<Excalibur.EventSourcing.Health.ProjectionHealthCheck>("projections");
+		}
 
 		return builder;
 	}

@@ -256,7 +256,8 @@ Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WithOptions(
 Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>
 Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>.Configure(Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>! builder) -> void
 Excalibur.EventSourcing.Projections.IProjectionRebuildService
-Excalibur.EventSourcing.Projections.IProjectionRebuildService.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!
+Excalibur.EventSourcing.Projections.IProjectionRebuildService.GetAllStatusesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!>!
+Excalibur.EventSourcing.Projections.IProjectionRebuildService.GetStatusAsync<TProjection>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!
 Excalibur.EventSourcing.Projections.IProjectionRebuildService.RebuildAsync<TProjection>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Projections.ProjectionOptions
 Excalibur.EventSourcing.Projections.ProjectionOptions.ProjectionOptions() -> void
@@ -272,10 +273,7 @@ Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.MaxParallelism.set 
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.ProjectionRebuildOptions() -> void
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.RebuildOnStartup.get -> bool
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.RebuildOnStartup.set -> void
-Excalibur.EventSourcing.Projections.ProjectionRebuildService
-Excalibur.EventSourcing.Projections.ProjectionRebuildService.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!
-Excalibur.EventSourcing.Projections.ProjectionRebuildService.ProjectionRebuildService(System.IServiceProvider! serviceProvider, Excalibur.Dispatch.Abstractions.IEventSerializer! eventSerializer, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Projections.ProjectionRebuildOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Projections.ProjectionRebuildService!>! logger) -> void
-Excalibur.EventSourcing.Projections.ProjectionRebuildService.RebuildAsync<TProjection>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+
 Excalibur.EventSourcing.Projections.ProjectionRebuildState
 Excalibur.EventSourcing.Projections.ProjectionRebuildState.Completed = 2 -> Excalibur.EventSourcing.Projections.ProjectionRebuildState
 Excalibur.EventSourcing.Projections.ProjectionRebuildState.Failed = 3 -> Excalibur.EventSourcing.Projections.ProjectionRebuildState
@@ -559,6 +557,7 @@ const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionEv
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostError = 113205 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostStarted = 113200 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostStopped = 113201 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionDispatchError = 113207 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionNoGlobalStreamQuery = 113206 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreAppendingEvents = 114300 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreConcurrencyConflict = 114302 -> int
@@ -742,6 +741,7 @@ static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollecti
 static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddProjectionsFromAssembly(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.UseEventNotification(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.UseProjectionRecovery(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.WithProjectionHealthChecks(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingExcaliburBuilderExtensions.AddEventSourcing(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingExcaliburBuilderExtensions.AddEventSourcing(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!>! configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions.AddEventSourcingInstrumentation(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!

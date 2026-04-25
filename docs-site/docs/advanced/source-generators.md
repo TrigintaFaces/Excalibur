@@ -43,9 +43,9 @@ The `Excalibur.Dispatch.SourceGenerators` package includes:
 
 | Generator | Purpose | Output File |
 |-----------|---------|-------------|
-| [`HandlerRegistrySourceGenerator`](#handlerregistrysourcegenerator) | Discovers, registers, and resolves handlers (AOT factory) | `PrecompiledHandlerRegistry.g.cs` |
-| [`HandlerActivationGenerator`](#handleractivationgenerator) | AOT-compatible handler activation | `SourceGeneratedHandlerActivator.g.cs` |
-| [`HandlerInvocationGenerator`](#handlerinvocationgenerator) | Zero-reflection handler invocation | `SourceGeneratedHandlerInvoker.g.cs` |
+| [`HandlerRegistrySourceGenerator`](#handlerregistrysourcegenerator) | Discovers, registers, and resolves handlers; generates `AddDiscoveredHandlers()` | `PrecompiledHandlerRegistry.g.cs`, `GeneratedHandlerRegistrationExtensions.g.cs` |
+| [`DispatchActionExtensionGenerator`](#dispatchactionextensiongenerator) | Typed dispatch with `TResponse` inference | `DispatchActionExtensions.g.cs` |
+| [`HandlerInvokerSourceGenerator`](#handlerinvokersourcegenerator) | AOT-compatible handler invocation via interceptors | `HandlerInvokerInterceptors.g.cs` |
 | [`MessageTypeSourceGenerator`](#messagetypesourcegenerator) | Message type metadata | `PrecompiledHandlerMetadata.g.cs` |
 | [`StaticPipelineGenerator`](#staticpipelinegenerator) | Static middleware pipelines | `StaticPipelines.g.cs` |
 | [`MiddlewareDecompositionAnalyzer`](#middlewaredecompositionanalyzer) | Middleware analysis | `MiddlewareDecomposition.g.cs` |
@@ -113,78 +113,54 @@ public static class PrecompiledHandlerRegistry
 }
 ```
 
-`ResolveHandlerType` and `CreateHandler` were added in Sprint 521 to support Native AOT compilation. Under `#if AOT_ENABLED`, `HandlerRegistryBootstrapper` uses these methods instead of reflection-based fallbacks. See [Native AOT](./native-aot.md) for details.
+The generator also emits a `GeneratedHandlerRegistrationExtensions` class with an `AddDiscoveredHandlers()` extension method on `IDispatchBuilder`. This is the **preferred AOT-safe registration path** — zero reflection, zero assembly scanning:
+
+```csharp
+services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
+```
+
+`AddDiscoveredHandlers()` replaces the reflection-based `AddHandlersFromAssembly()` for AOT scenarios. The reflection fallback remains available for JIT-compiled applications. See [Native AOT](./native-aot.md) for details.
 
 **Diagnostic:** `HND001` - Reports handler discovery count during compilation.
 
 ---
 
-### HandlerActivationGenerator
+### DispatchActionExtensionGenerator
 
-Generates AOT-compatible handler activation code that sets `IMessageContext` properties without reflection.
+Generates typed extension methods for `IDispatcher` dispatch operations, enabling `TResponse` type inference without explicit type arguments.
 
-**Input Requirements:**
-- Public, non-abstract class implementing a handler interface
-- Optional `IMessageContext` property with public/internal setter
+For each concrete type implementing `IDispatchAction<TResponse>`, the generator emits extension methods with the concrete message type as the parameter. C# overload resolution prefers these generated overloads because the concrete parameter type is more specific than `IDispatchAction<TResponse>`.
 
 **Generated Output:**
 
 ```csharp
-// SourceGeneratedHandlerActivator.g.cs
-public sealed class SourceGeneratedHandlerActivator : IHandlerActivator
+// DispatchActionExtensions.g.cs
+public static class DispatchActionExtensions
 {
-    public object ActivateHandler(Type handlerType, IMessageContext context, IServiceProvider provider)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Task<IMessageResult<OrderDto>> DispatchAsync(
+        this IDispatcher dispatcher,
+        GetOrderQuery action,
+        IMessageContext? context = null,
+        CancellationToken cancellationToken = default)
     {
-        var handler = provider.GetRequiredService(handlerType);
-        SetHandlerContext(handler, context);
-        return handler;
-    }
-
-    private static void SetHandlerContext(object handler, IMessageContext context)
-    {
-        switch (handler)
-        {
-            case CreateOrderHandler typedHandler:
-                typedHandler.Context = context;
-                break;
-            // ... other handlers with context properties
-        }
-    }
-}
-```
-
-**Use Case:** Handlers that need access to `IMessageContext` without constructor injection.
-
----
-
-### HandlerInvocationGenerator
-
-Generates type-safe handler invocation code that eliminates virtual dispatch overhead.
-
-**Generated Output:**
-
-```csharp
-// SourceGeneratedHandlerInvoker.g.cs
-public sealed class SourceGeneratedHandlerInvoker : IHandlerInvoker
-{
-    public Task<object?> InvokeAsync(object handler, IDispatchMessage message, CancellationToken ct)
-    {
-        return handler switch
-        {
-            CreateOrderHandler h when message is CreateOrderCommand m =>
-                ConvertTaskOfTToTaskOfObject(h.HandleAsync(m, ct)),
-            GetOrderHandler h when message is GetOrderQuery m =>
-                ConvertTaskOfTToTaskOfObject(h.HandleAsync(m, ct)),
-            _ => throw new InvalidOperationException(...)
-        };
+        return dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(action, context, cancellationToken);
     }
 }
 ```
 
 **Benefits:**
-- No reflection at runtime
-- Direct method calls via pattern matching
-- Proper async handling with result type coercion
+- No explicit `<TMessage, TResponse>` type arguments needed at call sites
+- Full compile-time type safety for response types
+- Zero overhead — `[AggressiveInlining]` forwarders to existing dispatch methods
+
+---
+
+### HandlerInvokerSourceGenerator
+
+Generates AOT-compatible handler invocation interceptors that eliminate reflection in handler dispatch.
+
+**Diagnostic:** Reports handler invoker interception count during compilation.
 
 ---
 
@@ -595,7 +571,7 @@ Tests use **semantic assertions** (verify generated files exist, output contains
 
 | Generator | Integration Tests | Focus |
 |-----------|------------------|-------|
-| HandlerRegistrySourceGenerator | 8 | ResolveHandlerType, CreateHandler, multiple handlers, empty set |
+| HandlerRegistrySourceGenerator | 8 | ResolveHandlerType, CreateHandler, AddDiscoveredHandlers, multiple handlers |
 | JsonSerializationSourceGenerator | 8 | MessageTypeMetadata, type filtering, abstract/generic exclusion |
 | MessageResultExtractorGenerator | 7 | ResultFactoryRegistry, factory methods, ExtractReturnValue |
 | ServiceRegistrationSourceGenerator | 7 | AutoRegister, AllInterfaces, SRG002 diagnostic |

@@ -25,7 +25,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// and projection application to registered <see cref="MultiStreamProjection{TProjection}"/> instances.
 /// </para>
 /// </remarks>
-public sealed partial class ProjectionRebuildService : IProjectionRebuildService
+internal sealed partial class ProjectionRebuildService : IProjectionRebuildService
 {
 	private readonly IServiceProvider _serviceProvider;
 	private readonly IEventSerializer _eventSerializer;
@@ -202,17 +202,27 @@ public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 	}
 
 	/// <inheritdoc />
-	public Task<ProjectionRebuildStatus> GetStatusAsync(CancellationToken cancellationToken)
+	public Task<ProjectionRebuildStatus> GetStatusAsync<TProjection>(CancellationToken cancellationToken)
+		where TProjection : class
 	{
-		// Return the most recent status, or Idle if none
-		var statuses = _statuses.Values;
-		var latest = statuses.OrderByDescending(s => s.LastRebuiltAt).FirstOrDefault();
+		var projectionName = typeof(TProjection).Name;
 
-		return Task.FromResult(latest ?? new ProjectionRebuildStatus(
-			"None",
-			ProjectionRebuildState.Idle,
-			Progress: 0,
-			LastRebuiltAt: null));
+		var status = _statuses.TryGetValue(projectionName, out var found)
+			? found
+			: new ProjectionRebuildStatus(
+				projectionName,
+				ProjectionRebuildState.Idle,
+				Progress: 0,
+				LastRebuiltAt: null);
+
+		return Task.FromResult(status);
+	}
+
+	/// <inheritdoc />
+	public Task<IReadOnlyList<ProjectionRebuildStatus>> GetAllStatusesAsync(CancellationToken cancellationToken)
+	{
+		IReadOnlyList<ProjectionRebuildStatus> result = [.. _statuses.Values];
+		return Task.FromResult(result);
 	}
 
 	#region Logging

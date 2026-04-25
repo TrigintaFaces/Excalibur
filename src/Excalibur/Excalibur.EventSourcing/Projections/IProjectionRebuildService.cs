@@ -19,7 +19,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// <para>
 /// The rebuild process replays all events through the projection handlers,
 /// replacing the existing projection state. Use <see cref="GetStatusAsync"/>
-/// to monitor progress.
+/// or <see cref="GetAllStatusesAsync"/> to monitor progress.
 /// </para>
 /// </remarks>
 public interface IProjectionRebuildService
@@ -34,9 +34,20 @@ public interface IProjectionRebuildService
 		where TProjection : class, new();
 
 	/// <summary>
-	/// Gets the current status of the projection rebuild.
+	/// Gets the current rebuild status for a specific projection type.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection type to query.</typeparam>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>The rebuild status for the specified projection, or a status with
+	/// <see cref="ProjectionRebuildState.Idle"/> if no rebuild has been initiated for this type.</returns>
+	Task<ProjectionRebuildStatus> GetStatusAsync<TProjection>(CancellationToken cancellationToken)
+		where TProjection : class;
+
+	/// <summary>
+	/// Gets the current rebuild status for all projections that have been rebuilt
+	/// or are currently rebuilding.
 	/// </summary>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The current rebuild status, or a status with <see cref="ProjectionRebuildState.Idle"/> if no rebuild is active.</returns>
-	Task<ProjectionRebuildStatus> GetStatusAsync(CancellationToken cancellationToken);
+	/// <returns>A read-only collection of rebuild statuses. Empty if no rebuilds have been initiated.</returns>
+	Task<IReadOnlyList<ProjectionRebuildStatus>> GetAllStatusesAsync(CancellationToken cancellationToken);
 }

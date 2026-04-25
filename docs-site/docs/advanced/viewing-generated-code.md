@@ -39,8 +39,9 @@ obj/
         └── GeneratedFiles/
             └── Excalibur.Dispatch.SourceGenerators/
                 ├── PrecompiledHandlerRegistry.g.cs
-                ├── SourceGeneratedHandlerActivator.g.cs
-                ├── SourceGeneratedHandlerInvoker.g.cs
+                ├── GeneratedHandlerRegistrationExtensions.g.cs
+                ├── DispatchActionExtensions.g.cs
+                ├── HandlerInvokerInterceptors.g.cs
                 └── ...
 ```
 
@@ -149,9 +150,9 @@ Dispatch generators use consistent naming:
 
 | Generator | Output File | Description |
 |-----------|-------------|-------------|
-| HandlerRegistrySourceGenerator | `PrecompiledHandlerRegistry.g.cs` | Handler registrations |
-| HandlerActivationGenerator | `SourceGeneratedHandlerActivator.g.cs` | Handler activation |
-| HandlerInvocationGenerator | `SourceGeneratedHandlerInvoker.g.cs` | Handler invocation |
+| HandlerRegistrySourceGenerator | `PrecompiledHandlerRegistry.g.cs`, `GeneratedHandlerRegistrationExtensions.g.cs` | Handler registrations + `AddDiscoveredHandlers()` |
+| DispatchActionExtensionGenerator | `DispatchActionExtensions.g.cs` | Typed dispatch with `TResponse` inference |
+| HandlerInvokerSourceGenerator | `HandlerInvokerInterceptors.g.cs` | Handler invocation interceptors |
 | MessageTypeSourceGenerator | `PrecompiledHandlerMetadata.g.cs` | Handler metadata |
 | StaticPipelineGenerator | `StaticPipelines.g.cs` | Static pipelines |
 | MiddlewareDecompositionAnalyzer | `MiddlewareDecomposition.g.cs` | Middleware analysis |

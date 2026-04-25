@@ -278,13 +278,13 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 			catch (Exception ex)
 #pragma warning restore CA1031
 			{
-				var projectionType = registrations[j].ProjectionType.Name;
-				LogAsyncProjectionEventError(projectionType, ex);
+				var projectionName = registrations[j].ProjectionType.Name;
+				LogAsyncProjectionDispatchError(projectionName, ex);
 
 				try
 				{
-					_healthState?.RecordInlineError(projectionType);
-					_observability?.RecordError(projectionType, ex.GetType().Name);
+					_healthState?.RecordInlineError(projectionName);
+					_observability?.RecordError(projectionName, ex.GetType().Name);
 				}
 				catch
 				{
@@ -325,6 +325,10 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionEventError, LogLevel.Error,
 		"Error processing event {EventId} in async projection host.")]
 	private partial void LogAsyncProjectionEventError(string eventId, Exception ex);
+
+	[LoggerMessage(EventSourcingEventId.AsyncProjectionDispatchError, LogLevel.Error,
+		"Error dispatching events to async projection {ProjectionName}.")]
+	private partial void LogAsyncProjectionDispatchError(string projectionName, Exception ex);
 
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionHostError, LogLevel.Error,
 		"Async projection processing host encountered an error.")]

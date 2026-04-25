@@ -525,7 +525,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_services.AddSingleton(fakeQuery);
 		var sp = _services.BuildServiceProvider();
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(800));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
 		{
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
@@ -534,13 +534,12 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		try
+		// Poll until we see at least 2 apply calls (first throws, second succeeds)
+		// instead of relying on a flat delay which is flaky under CI load.
+		var deadline = DateTime.UtcNow.AddSeconds(4);
+		while (Volatile.Read(ref applyCallCount) < 2 && DateTime.UtcNow < deadline)
 		{
-			await Task.Delay(900, cts.Token).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException)
-		{
-			// expected
+			await Task.Delay(50).ConfigureAwait(false);
 		}
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);

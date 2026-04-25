@@ -100,7 +100,7 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		await sut.RebuildAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		var status = await sut.GetStatusAsync(CancellationToken.None).ConfigureAwait(false);
+		var status = await sut.GetStatusAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
 		status.State.ShouldBe(ProjectionRebuildState.Completed);
 	}
 
@@ -134,7 +134,7 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		await sut.RebuildAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert — completed successfully (found projection via registry)
-		var status = await sut.GetStatusAsync(CancellationToken.None).ConfigureAwait(false);
+		var status = await sut.GetStatusAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
 		status.State.ShouldBe(ProjectionRebuildState.Completed);
 	}
 
@@ -179,7 +179,7 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		await sut.RebuildAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert — completed with the good event applied, bad event skipped
-		var status = await sut.GetStatusAsync(CancellationToken.None).ConfigureAwait(false);
+		var status = await sut.GetStatusAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
 		status.State.ShouldBe(ProjectionRebuildState.Completed);
 
 		var persisted = await store.GetByIdAsync("RebuildTestState", CancellationToken.None).ConfigureAwait(false);

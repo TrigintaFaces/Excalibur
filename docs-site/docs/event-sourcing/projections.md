@@ -1001,7 +1001,15 @@ All metrics use the shared `Excalibur.EventSourcing.Projections` Meter via `IMet
 
 ### Health Check
 
-The built-in `ProjectionHealthCheck` is automatically registered as `"projections"`:
+The `ProjectionHealthCheck` is available as an opt-in extension. Call `WithProjectionHealthChecks()` to register the `"projections"` health check:
+
+```csharp
+builder.Services.AddEventSourcing(es =>
+{
+    es.AddProjection<OrderSummary>()
+      .WithProjectionHealthChecks();
+});
+```
 
 - **Healthy:** No inline errors in window AND async lag below thresholds
 - **Degraded:** Inline error within last 5 minutes, or lag > 100 events

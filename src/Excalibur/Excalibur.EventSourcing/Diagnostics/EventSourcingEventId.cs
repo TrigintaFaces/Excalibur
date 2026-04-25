@@ -227,6 +227,9 @@ public static class EventSourcingEventId
 	/// <summary>No IGlobalStreamQuery registered; async projection processing cannot start.</summary>
 	public const int AsyncProjectionNoGlobalStreamQuery = 113206;
 
+	/// <summary>Error dispatching events to async projection.</summary>
+	public const int AsyncProjectionDispatchError = 113207;
+
 	// ========================================
 	// 114000-114099: Upcasting Core
 	// ========================================

@@ -18,7 +18,7 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ### Performance Optimizations
 
-- **Ultra-local dispatch: 33.3 ns / 24 B** -- 1.3x faster than MediatR with 6.3x less memory
+- **Ultra-local dispatch: ~35 ns / 24 B** -- 1.28x faster than MediatR with 6.3x less memory
 - **Zero-allocation handler internals** -- handler invocation (6.0 ns) and handler activation (24.4 ns) allocate 0 B
 - **LightMode opt-in** -- `UseLightMode = true` disables correlation ID generation for maximum throughput
 - **CI performance gate** -- MediatR parity threshold enforced on every PR, preventing performance regressions

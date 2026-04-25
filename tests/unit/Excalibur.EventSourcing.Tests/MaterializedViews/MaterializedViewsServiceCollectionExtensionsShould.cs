@@ -433,6 +433,27 @@ public sealed class MaterializedViewsServiceCollectionExtensionsShould
 			}));
 	}
 
+	[Fact]
+	public void WithHealthChecks_NotDuplicateRegistrations_WhenCalledMultipleTimes()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act — call WithHealthChecks twice
+		services.AddMaterializedViews(builder =>
+		{
+			builder.WithHealthChecks();
+			builder.WithHealthChecks();
+		});
+
+		// Assert — MaterializedViewHealthCheck should be registered exactly once
+		var descriptors = services.Where(d =>
+			d.ServiceType == typeof(MaterializedViewHealthCheck) &&
+			d.Lifetime == ServiceLifetime.Singleton).ToList();
+
+		descriptors.Count.ShouldBe(1);
+	}
+
 	#endregion
 
 	#region Metrics Registration Tests
