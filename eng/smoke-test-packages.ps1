@@ -109,10 +109,14 @@ function Invoke-PackPhase {
     # (Avoids building entire solution which may have missing example projects)
     $packedCount = 0
     foreach ($packageName in $Script:DispatchPackages) {
+        # Search both src/Dispatch/ and src/Excalibur/ (some packages moved in S806)
         $projectPath = Join-Path $Script:RepoRoot "src/Dispatch/$packageName/$packageName.csproj"
+        if (-not (Test-Path $projectPath)) {
+            $projectPath = Join-Path $Script:RepoRoot "src/Excalibur/$packageName/$packageName.csproj"
+        }
 
         if (-not (Test-Path $projectPath)) {
-            Write-Verbose "Project not found, skipping: $projectPath"
+            Write-Verbose "Project not found in src/Dispatch/ or src/Excalibur/, skipping: $packageName"
             continue
         }
 
@@ -121,7 +125,7 @@ function Invoke-PackPhase {
         $buildResult = & dotnet build $projectPath `
             --configuration Release `
             --verbosity quiet `
-            "-p:Version=$Script:SmokeTestVersion" `
+            "-p:MinVerVersionOverride=$Script:SmokeTestVersion" `
             2>&1
 
         if ($LASTEXITCODE -ne 0) {
@@ -140,7 +144,7 @@ function Invoke-PackPhase {
             --no-build `
             --output $Script:PackagesDir `
             --verbosity quiet `
-            "-p:Version=$Script:SmokeTestVersion" `
+            "-p:MinVerVersionOverride=$Script:SmokeTestVersion" `
             "-p:ContinuousIntegrationBuild=false" `
             2>&1
 
