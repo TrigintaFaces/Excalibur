@@ -11,6 +11,7 @@ using Excalibur.EventSourcing.Subscriptions;
 using Excalibur.EventSourcing.Tests.Projections;
 
 using Microsoft.Extensions.Hosting;
+using Tests.Shared.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -269,20 +270,17 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			CheckpointInterval = 100, // won't reach threshold in this test
 		};
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var host = CreateHost(sp, fakeSerializer, options);
 
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		try
-		{
-			await Task.Delay(600, cts.Token).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException)
-		{
-			// expected
-		}
+		// Poll until apply is invoked — avoids fragile fixed-delay timing on CI runners.
+		await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref applyInvoked) > 0,
+			TimeSpan.FromSeconds(4),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -339,20 +337,17 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		};
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var host = CreateHost(sp, fakeSerializer, options);
 
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		try
-		{
-			await Task.Delay(600, cts.Token).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException)
-		{
-			// expected
-		}
+		// Poll until both aggregate groups have been applied — avoids fragile fixed-delay timing on CI runners.
+		await WaitHelpers.WaitUntilAsync(
+			() => applyCallContexts.Count >= 2,
+			TimeSpan.FromSeconds(4),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -456,7 +451,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_services.AddSingleton(fakeQuery);
 		var sp = _services.BuildServiceProvider();
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
 		{
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
@@ -465,14 +460,11 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		try
-		{
-			await Task.Delay(600, cts.Token).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException)
-		{
-			// expected
-		}
+		// Poll until the good event is applied — avoids fragile fixed-delay timing on CI runners.
+		await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref appliedCount) >= 1,
+			TimeSpan.FromSeconds(4),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
