@@ -6,7 +6,7 @@
     <Description>ASP.NET Core web-host integration for Excalibur applications, including HTTP pipeline and endpoint composition support.</Description>
     <PackageTags>excalibur;hosting;web;aspnetcore;aot</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Diagnostics\OpenApi\problem-details.openapi.yaml" LogicalName="Excalibur.Hosting.Web.problem-details.openapi.yaml" />

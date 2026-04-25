@@ -6,7 +6,7 @@
     <Description>ElasticSearch provider implementation for Excalibur data access layer.</Description>
     <PackageTags>excalibur;data;elasticsearch;elastic;search;indexing</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Elastic.Clients.Elasticsearch" />

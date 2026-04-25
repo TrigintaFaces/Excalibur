@@ -23,7 +23,7 @@ public sealed class DataProcessingBuilderShould : UnitTestBase
 
 	private sealed class TestDbConnection : DbConnection
 	{
-		public override string ConnectionString { get; set; } = "";
+		public override string? ConnectionString { get; set; } = "";
 		public override string Database => "TestDb";
 		public override string DataSource => "localhost";
 		public override string ServerVersion => "1.0";

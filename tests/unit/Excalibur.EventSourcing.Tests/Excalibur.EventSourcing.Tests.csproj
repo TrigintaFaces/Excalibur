@@ -8,7 +8,7 @@
     <RootNamespace>Excalibur.EventSourcing.Tests</RootNamespace>
     <AssemblyName>Excalibur.EventSourcing.Tests</AssemblyName>
     <!-- Carried from EventSourcing.SqlServer.Tests and DynamoDb.Tests -->
-    <NoWarn>MA0038;CA1707;CA1849;CA2000;CA2201;CA2213;xUnit1030</NoWarn>
+    <NoWarn>$(NoWarn);MA0038;CA2201;CA2213</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->

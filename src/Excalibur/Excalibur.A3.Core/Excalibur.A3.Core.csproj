@@ -7,7 +7,7 @@
     <Description>Lightweight A3 authorization core: in-memory stores, grant management, and authorization evaluation without the full Excalibur stack.</Description>
     <PackageTags>excalibur;authorization;grants;security;lightweight</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.A3" />

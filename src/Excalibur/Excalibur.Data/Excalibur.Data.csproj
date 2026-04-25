@@ -7,7 +7,7 @@
     <Description>Data access layer implementation for Excalibur with repository patterns, unit of work, and data abstractions. Provides concrete implementations for data persistence.</Description>
     <PackageTags>excalibur;data;repository;unit-of-work;persistence;dapper</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Ben.Demystifier" />

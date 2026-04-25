@@ -170,7 +170,7 @@ public sealed class EphemeralProjectionEngineExtendedShould
 			.Returns(new TestOrderPlaced { Amount = 50m });
 		A.CallTo(() => _serializer.DeserializeEvent(
 				A<byte[]>.That.Matches(b => b.Length > 0 && b[0] == 2), typeof(TestOrderPlaced)))
-			.Returns(null); // deserialization returns null
+			.Returns((IDomainEvent?)null); // deserialization returns null
 
 		A.CallTo(() => _eventStore.LoadAsync("order-1", "Order", A<CancellationToken>._))
 			.Returns(new List<StoredEvent>

@@ -5,7 +5,7 @@
     <PackageId>Excalibur.Dispatch.SqlServer</PackageId>
     <Description>Experience metapackage bundling Excalibur.Dispatch with SQL Server event sourcing, outbox, and web hosting. Provides a single AddDispatchWithSqlServer() call for the common SQL Server scenario.</Description>
     <PackageTags>excalibur;dispatch;sqlserver;event-sourcing;outbox;metapackage</PackageTags>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>

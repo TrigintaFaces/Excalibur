@@ -8,7 +8,7 @@
     <Description>Core abstractions and interfaces for serverless hosting integration in the Excalibur framework.</Description>
     <PackageTags>excalibur;serverless;hosting;abstractions;interfaces;lambda;functions;aot</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>

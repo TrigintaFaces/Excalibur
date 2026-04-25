@@ -6,7 +6,7 @@
     <Description>Core hosting infrastructure for Excalibur applications, including bootstrap and lifecycle integration for web and worker hosts.</Description>
     <PackageTags>excalibur;hosting;services;configuration;aot</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>

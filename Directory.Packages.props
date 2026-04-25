@@ -221,6 +221,8 @@
 		<PackageVersion Include="Google.Cloud.Monitoring.V3" Version="3.16.0" />
 		<PackageVersion Include="Google.Api.Gax.Grpc" Version="4.13.1" />
 		<PackageVersion Include="Google.Apis.Auth" Version="1.73.0" />
+		<!-- Versioning (Polly pattern: git-tag-driven, sets all 4 version properties) -->
+		<PackageVersion Include="MinVer" Version="6.0.0" />
 		<!-- Resilience / Misc -->
 		<PackageVersion Include="Polly.RateLimiting" Version="8.6.6" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" />
@@ -246,7 +248,7 @@
 		<PackageVersion Include="MongoDB.Driver" Version="2.25.0" />
 		<PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.5.0" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.XUnit" Version="1.1.2" />
-		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.3" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
 		<PackageVersion Include="Azure.ResourceManager" Version="1.14.0" />
 		<PackageVersion Include="Azure.ResourceManager.ServiceBus" Version="1.1.0" />
 		<PackageVersion Include="Azure.ResourceManager.Logic" Version="1.2.0-beta.1" />

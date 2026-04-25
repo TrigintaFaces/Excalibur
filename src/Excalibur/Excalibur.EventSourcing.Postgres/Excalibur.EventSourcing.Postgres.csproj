@@ -5,7 +5,7 @@
     <PackageId>Excalibur.EventSourcing.Postgres</PackageId>
     <Description>Postgres implementations for Excalibur event sourcing, including event store, snapshot store, and outbox store.</Description>
     <PackageTags>excalibur;event-sourcing;postgres;eventstore;snapshots;outbox;ddd;cqrs</PackageTags>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>

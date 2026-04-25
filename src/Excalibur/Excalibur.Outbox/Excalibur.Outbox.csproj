@@ -5,7 +5,7 @@
     <PackageId>Excalibur.Outbox</PackageId>
     <Description>Transactional outbox pattern implementation for Excalibur, providing reliable message delivery with at-least-once semantics.</Description>
     <PackageTags>excalibur;outbox;transactional-outbox;messaging;reliable-delivery</PackageTags>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>

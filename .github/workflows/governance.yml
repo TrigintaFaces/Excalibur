@@ -80,7 +80,7 @@ jobs:
       - name: Validate nuspec dependency graph (blocking)
         shell: pwsh
         run: |
-          ./eng/ci/validate-nuspec-dependencies.ps1 -SolutionFilter eng/ci/shards/ShippingOnly.slnf -OutDir management/reports/PackageDependencyReport -Version "0.1.0-ci-${{ github.run_number }}" -Enforce:$true
+          ./eng/ci/validate-nuspec-dependencies.ps1 -SolutionFilter eng/ci/shards/ShippingOnly.slnf -OutDir management/reports/PackageDependencyReport -Version "0.0.0-ci-${{ github.run_number }}" -Enforce:$true
 
       - name: Upload dependency graph report
         if: always()
@@ -112,7 +112,7 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Packing Dispatch projects to local feed..."
-          ./eng/pack-local.ps1 -Version "0.1.0-ci-${{ github.run_number }}" -NoBuild
+          ./eng/pack-local.ps1 -Version "0.0.0-ci-${{ github.run_number }}" -NoBuild
           Write-Host "Packages created in artifacts/_packages/"
 
       - name: Clear NuGet cache (avoid stale packages)
@@ -126,8 +126,8 @@ jobs:
           find src/Excalibur -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
             dotnet restore "$proj" \
               -p:UsePackageReferences=true \
-              -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
-              -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }}
+              -p:DispatchPackageVersion=0.0.0-ci-${{ github.run_number }} \
+              -p:ExcaliburPackageVersion=0.0.0-ci-${{ github.run_number }}
           done
 
       - name: Build Excalibur with PackageReference mode
@@ -138,8 +138,8 @@ jobs:
               --configuration Release \
               --no-restore \
               -p:UsePackageReferences=true \
-              -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
-              -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }}
+              -p:DispatchPackageVersion=0.0.0-ci-${{ github.run_number }} \
+              -p:ExcaliburPackageVersion=0.0.0-ci-${{ github.run_number }}
           done
 
       - name: Validate sample builds against packages
@@ -149,15 +149,15 @@ jobs:
             --configuration Release \
             --no-restore \
             -p:UsePackageReferences=true \
-            -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
-            -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }} || true
+            -p:DispatchPackageVersion=0.0.0-ci-${{ github.run_number }} \
+            -p:ExcaliburPackageVersion=0.0.0-ci-${{ github.run_number }} || true
 
       - name: Package composition summary
         if: always()
         run: |
           echo "## Package Composition Validation (T2.4)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Package Version:** 0.1.0-ci-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Package Version:** 0.0.0-ci-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Validation Steps" >> $GITHUB_STEP_SUMMARY
           echo "1. Packed Dispatch projects to local feed" >> $GITHUB_STEP_SUMMARY

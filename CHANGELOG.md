@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Versioning: GitVersion → MinVer migration** -- Package versioning now uses [MinVer](https://github.com/adamralph/minver) 6.0.0 (Polly pattern) instead of GitVersion. Versions are computed from git tags (`v3.0.0-alpha.N`); commits after a tag auto-increment the pre-release identifier. Local dev defaults to `3.0.0-alpha.0`. Release workflow updated to pass `MinVerVersionOverride` for `workflow_dispatch` builds. `GitVersion.yml` removed. SourceGenerators project carries an explicit MinVer reference (opts out of CPM).
+- **Release workflow hardened** -- `release.yml` build step now passes `MinVerVersionOverride` to ensure correct version in both build and pack phases; removed redundant `AssemblyVersion`/`FileVersion`/`InformationalVersion` overrides from `dotnet pack` (MinVer sets all four version properties during build)
+
 ### Added
 
 - **`ICdcBuilder.BindProcessingConfiguration(string sectionPath)`** -- allows binding `CdcProcessingOptions` to an `IConfiguration` section (e.g., `appsettings.json`) via the CDC builder fluent API

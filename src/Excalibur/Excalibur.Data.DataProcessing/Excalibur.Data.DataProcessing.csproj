@@ -6,7 +6,7 @@
     <Description>Data processing orchestration and management for the Excalibur framework.</Description>
     <PackageTags>excalibur;data;processing;orchestration;etl</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.Tests" />

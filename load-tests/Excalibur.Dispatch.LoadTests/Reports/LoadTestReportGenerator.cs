@@ -275,7 +275,7 @@ public class LoadTestReportGenerator
 			? (scenario.OkCount * 100.0 / scenario.RequestCount)
 			: 0;
 
-		_ = sb.AppendLine($"    <section class=\"scenario\">");
+		_ = sb.AppendLine("    <section class=\"scenario\">");
 		_ = sb.AppendLine($"        <h2>📊 Scenario: {scenario.Name}</h2>");
 
 		// Key metrics

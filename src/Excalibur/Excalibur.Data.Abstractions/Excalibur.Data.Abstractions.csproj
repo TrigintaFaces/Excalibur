@@ -9,7 +9,7 @@
     <Description>Core abstractions for the Excalibur data persistence layer, supporting multiple database providers.</Description>
     <PackageTags>excalibur;data;abstractions;persistence;dapper</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- Include README.md in NuGet package -->
   <ItemGroup>

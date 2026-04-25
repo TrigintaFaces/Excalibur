@@ -10,7 +10,8 @@
     Sprint 328 T2.4: Package Composition Validation (AD-328-1)
 
 .PARAMETER Version
-    Package version. Defaults to 0.1.0-local.
+    Package version override. Defaults to 0.0.0-local.
+    Passed to MinVer as MinVerVersionOverride so build + pack produce consistent metadata.
 
 .PARAMETER SkipBuild
     Skip the Dispatch build step (use if already built).
@@ -30,7 +31,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "0.1.0-local",
+    [string]$Version = "0.0.0-local",
     [switch]$SkipBuild,
     [switch]$SkipSample
 )

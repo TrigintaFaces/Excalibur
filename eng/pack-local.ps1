@@ -11,7 +11,8 @@
        UsePackageReferences=true is set
 
 .PARAMETER Version
-    Package version. Defaults to 0.1.0-local.
+    Package version override. Defaults to 0.0.0-local.
+    Passed to MinVer as MinVerVersionOverride so build + pack produce consistent metadata.
 
 .PARAMETER NoBuild
     Skip build step (use if already built).
@@ -31,7 +32,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "0.1.0-local",
+    [string]$Version = "0.0.0-local",
     [switch]$NoBuild,
     [switch]$Clean
 )
@@ -76,7 +77,8 @@ if (-not $NoBuild) {
         }
 
         Write-Host "  Building $ShippingSolutionFilter..." -ForegroundColor Gray
-        dotnet build $ShippingSolutionFilter -c Release --no-restore --verbosity quiet
+        dotnet build $ShippingSolutionFilter -c Release --no-restore --verbosity quiet `
+            -p:MinVerVersionOverride=$Version
         if ($LASTEXITCODE -ne 0) {
             throw "Build failed for $ShippingSolutionFilter with exit code $LASTEXITCODE"
         }
@@ -103,7 +105,7 @@ foreach ($proj in $DispatchProjects) {
         dotnet pack $proj.FullName `
             -o $LocalFeed `
             -c Release `
-            -p:Version=$Version `
+            -p:MinVerVersionOverride=$Version `
             --no-build `
             --no-restore
 
@@ -132,7 +134,7 @@ foreach ($proj in $ExcaliburProjects) {
         dotnet pack $proj.FullName `
             -o $LocalFeed `
             -c Release `
-            -p:Version=$Version `
+            -p:MinVerVersionOverride=$Version `
             --no-build `
             --no-restore
 
@@ -161,7 +163,7 @@ foreach ($proj in $MetapackageProjects) {
         dotnet pack $proj.FullName `
             -o $LocalFeed `
             -c Release `
-            -p:Version=$Version `
+            -p:MinVerVersionOverride=$Version `
             --no-build `
             --no-restore
 

@@ -7,7 +7,7 @@
     <Description>SQL Server implementation of the saga pattern for Excalibur, providing durable saga state persistence with optimistic concurrency control using SQL Server as the backing store.</Description>
     <PackageTags>excalibur;saga;process-manager;workflow;distributed-transactions;sqlserver;dapper</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>

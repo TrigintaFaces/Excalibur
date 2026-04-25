@@ -7,7 +7,7 @@
     <Description>Authorization, Authentication, and Audit (A3) services for the Excalibur framework.</Description>
     <PackageTags>excalibur;authorization;authentication;audit;security</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Tests" />

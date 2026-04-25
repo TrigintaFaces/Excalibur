@@ -6,7 +6,7 @@
     <Description>Postgres Change Data Capture (CDC) implementation for Excalibur, using logical replication with pgoutput protocol for real-time row-level change detection.</Description>
     <PackageTags>excalibur;cdc;change-data-capture;postgres;logical-replication;pgoutput</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql" />

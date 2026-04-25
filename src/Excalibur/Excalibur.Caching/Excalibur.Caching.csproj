@@ -8,7 +8,7 @@
     <PackageTags>excalibur;caching;adaptive-ttl;performance</PackageTags>
     <!-- AOT: NOT compatible. Adaptive TTL strategies use Expression.Compile for dynamic cache policy evaluation. -->
     <IsAotCompatible>false</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- Added Excalibur.Dispatch.Caching reference for ICacheInvalidationService.
        Added Excalibur.EventSourcing reference (S804 bd-sdhocq A15) to host the

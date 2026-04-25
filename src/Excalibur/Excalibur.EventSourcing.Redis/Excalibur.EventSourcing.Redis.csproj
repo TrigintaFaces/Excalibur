@@ -6,7 +6,7 @@
     <Description>Redis implementations for Excalibur event sourcing using Redis Streams for event storage and Redis Hash for snapshots.</Description>
     <PackageTags>excalibur;event-sourcing;redis;streams;eventstore;snapshots;ddd;cqrs</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.Redis.Tests" />

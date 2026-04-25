@@ -5,7 +5,7 @@
     <Description>Testing utilities for Excalibur event-sourced aggregates. Provides a fluent Given-When-Then API for aggregate testing.</Description>
     <PackageTags>testing;event-sourcing;ddd;aggregates;bdd;given-when-then</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- Excalibur internal references (always ProjectReference) -->
   <ItemGroup>

@@ -5,7 +5,7 @@
     <PackageId>Excalibur.Dispatch.Postgres</PackageId>
     <Description>Experience metapackage bundling Excalibur.Dispatch with PostgreSQL event sourcing, outbox, and web hosting. Provides a single AddDispatchWithPostgres() call for the common PostgreSQL scenario.</Description>
     <PackageTags>excalibur;dispatch;postgres;postgresql;event-sourcing;outbox;metapackage</PackageTags>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>

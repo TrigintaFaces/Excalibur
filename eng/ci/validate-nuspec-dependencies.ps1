@@ -12,7 +12,7 @@
 param(
     [string]$SolutionFilter = "eng/ci/shards/ShippingOnly.slnf",
     [string]$OutDir = "management/reports/PackageDependencyReport",
-    [string]$Version = "0.1.0-ci-validation",
+    [string]$Version = "0.0.0-ci-validation",
     [switch]$Enforce = $true
 )
 
@@ -66,8 +66,8 @@ while ($packAttempts -lt $maxPackAttempts -and -not $packSucceeded) {
         --configuration Release `
         --verbosity minimal `
         --output $packagesDir `
+        -p:MinVerVersionOverride=$Version `
         -p:PackageVersion=$Version `
-        -p:Version=$Version `
         -p:DispatchPackageVersion=$Version `
         -p:ExcaliburPackageVersion=$Version `
         -p:RestoreDisableParallel=true

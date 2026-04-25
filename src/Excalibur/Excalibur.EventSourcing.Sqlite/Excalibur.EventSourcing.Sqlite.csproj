@@ -5,7 +5,7 @@
     <PackageId>Excalibur.EventSourcing.Sqlite</PackageId>
     <Description>SQLite implementations for Excalibur event sourcing. Lightweight event store and snapshot store for local development, testing, and embedded scenarios. Zero Docker dependency.</Description>
     <PackageTags>excalibur;event-sourcing;sqlite;eventstore;snapshots;ddd;cqrs;local-dev;testing</PackageTags>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>

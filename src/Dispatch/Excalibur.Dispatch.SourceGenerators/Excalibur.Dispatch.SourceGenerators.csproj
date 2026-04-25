@@ -35,6 +35,15 @@
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup>
+    <!-- MinVer: version from git tags. Explicit version because this project opts out of CPM. -->
+    <PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all" />
+  </ItemGroup>
+  <PropertyGroup>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerMinimumMajorMinor>3.0</MinVerMinimumMajorMinor>
+    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
     <PackageReference Remove="Microsoft.SourceLink.GitHub" />
     <PackageReference Remove="Microsoft.CodeAnalysis.Analyzers" />
     <PackageReference Remove="Microsoft.CodeAnalysis.NetAnalyzers" />

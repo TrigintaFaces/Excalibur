@@ -10,7 +10,7 @@
          AOT path uses ISagaDispatchRegistry/ISagaTypeRegistry/ISagaContextFactory (source-gen safe).
          JIT path uses MakeGenericMethod (reflection). Both paths are properly annotated. -->
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>

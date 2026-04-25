@@ -6,7 +6,7 @@
     <Description>Postgres implementation of the inbox pattern for Excalibur, providing idempotent message processing using Postgres as the backing store.</Description>
     <PackageTags>excalibur;inbox;idempotent;messaging;postgres;dapper</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />

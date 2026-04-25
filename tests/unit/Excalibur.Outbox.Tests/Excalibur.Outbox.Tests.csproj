@@ -8,7 +8,7 @@
     <RootNamespace>Excalibur.Outbox.Tests</RootNamespace>
     <AssemblyName>Excalibur.Outbox.Tests</AssemblyName>
     <!-- Carried from Excalibur.Outbox.Tests and Outbox.SqlServer.Tests -->
-    <NoWarn>MA0038;CA1707;CA2000;CA2201;CA1506</NoWarn>
+    <NoWarn>$(NoWarn);MA0038;CA2201</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->

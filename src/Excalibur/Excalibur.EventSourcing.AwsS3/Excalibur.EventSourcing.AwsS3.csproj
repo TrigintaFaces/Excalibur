@@ -5,7 +5,7 @@
     <PackageId>Excalibur.EventSourcing.AwsS3</PackageId>
     <Description>AWS S3 cold event store provider for Excalibur tiered event storage.</Description>
     <PackageTags>excalibur;event-sourcing;aws;s3;cold-storage;tiered;archive</PackageTags>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>

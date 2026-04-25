@@ -5,7 +5,7 @@
     <PackageId>Excalibur.Cdc</PackageId>
     <Description>Change Data Capture (CDC) abstractions for Excalibur, providing fluent builder configuration for table change tracking.</Description>
     <PackageTags>excalibur;cdc;change-data-capture;event-sourcing;data-capture</PackageTags>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>

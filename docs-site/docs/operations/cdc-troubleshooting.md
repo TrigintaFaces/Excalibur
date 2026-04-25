@@ -229,10 +229,10 @@ public class CdcPositionValidator
 
 ## Projection Rebuild
 
-When CDC recovery requires projection rebuild:
+When CDC recovery requires projection rebuild, inject `IProjectionRebuildService` from the framework:
 
 ```csharp
-public class ProjectionRebuildService
+public class CdcProjectionRecoveryHandler
 {
     public async Task RebuildAsync(
         string projectionName,

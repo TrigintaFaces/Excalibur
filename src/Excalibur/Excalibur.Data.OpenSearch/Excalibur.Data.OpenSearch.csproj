@@ -9,7 +9,7 @@
     <IsAotCompatible>false</IsAotCompatible>
     <!-- PublicAPI baseline populated in Sprint 739 (A.10) -->
     <!-- NoWarn RS0016/RS0017 removed: baseline being populated -->
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="OpenSearch.Client" />

@@ -7,7 +7,7 @@
     <Description>IExcaliburBuilder bridge extensions for the Excalibur compliance (GDPR) subsystem. Provides single-composition-root wiring via AddExcalibur(excalibur =&gt; excalibur.AddGdprErasure(...)).</Description>
     <PackageTags>excalibur;hosting;compliance;gdpr;bridge</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />

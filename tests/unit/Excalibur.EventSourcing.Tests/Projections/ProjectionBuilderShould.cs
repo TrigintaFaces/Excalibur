@@ -251,14 +251,8 @@ public sealed class ProjectionBuilderShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		var deleteCalled = false;
-
 		// Act
-		builder.WhenDeleted((id, ct) =>
-		{
-			deleteCalled = true;
-			return Task.CompletedTask;
-		});
+		builder.WhenDeleted((id, ct) => Task.CompletedTask);
 		builder.Inline();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();

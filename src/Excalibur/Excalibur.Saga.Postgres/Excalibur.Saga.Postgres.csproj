@@ -7,7 +7,7 @@
     <PackageTags>excalibur;saga;persistence;postgres;postgresql;jsonb;state-management</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <PropertyGroup>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>

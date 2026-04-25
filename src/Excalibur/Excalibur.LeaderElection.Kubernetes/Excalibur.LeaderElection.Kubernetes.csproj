@@ -7,7 +7,7 @@
     <!-- AOT: NOT compatible. KubernetesClient uses reflection for API object deserialization. -->
     <IsAotCompatible>false</IsAotCompatible>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <PropertyGroup>
     <PackageId>Excalibur.LeaderElection.Kubernetes</PackageId>

@@ -74,8 +74,15 @@
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 
 		<!-- Package Metadata - R0.4 Requirement -->
-		<!-- Version set via -p:Version=X.Y.Z at build time; fallback for local development -->
-		<Version Condition="'$(Version)' == ''">0.1.0-local</Version>
+		<!-- Version computed by MinVer from git tags (Polly pattern).
+		     Tag format: v3.0.0-alpha.178 → PackageVersion 3.0.0-alpha.178
+		     Commits after tag auto-increment: 3.0.0-alpha.179, .180, etc.
+		     Local dev with no tags: 3.0.0-alpha.0
+		     Release: git tag v3.0.0 → 3.0.0
+		     CI override still works: -p:MinVerVersionOverride=X.Y.Z -->
+		<MinVerTagPrefix>v</MinVerTagPrefix>
+		<MinVerMinimumMajorMinor>3.0</MinVerMinimumMajorMinor>
+		<MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
 		<Authors>The Excalibur Project Contributors</Authors>
 		<Product>Excalibur</Product>
 		<Copyright>Copyright (c) 2026 The Excalibur Project</Copyright>
@@ -104,6 +111,12 @@
 	</PropertyGroup>
 	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\README.md')">
 		<None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="/" Visible="false" />
+	</ItemGroup>
+
+	<!-- MinVer: git-tag-driven versioning for shipping packages (Polly pattern).
+	     Excluded from projects that opt out of CPM (e.g., SourceGenerators which pins Roslyn SDK). -->
+	<ItemGroup Condition="'$(IsPackable)' != 'false' And '$(ManagePackageVersionsCentrally)' != 'false'">
+		<PackageReference Include="MinVer" PrivateAssets="all" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true'">

@@ -132,7 +132,7 @@ var preconfiguredBuilder = Host.CreateApplicationBuilder(args);
 var connectionSettings = new ConnectionSettings(new Uri("http://localhost:9200"))
     .DefaultIndex("custom-index")
     .RequestTimeout(TimeSpan.FromSeconds(45))
-    .DefaultFieldNameInferrer(name => name.ToLowerInvariant());
+    .DefaultFieldNameInferrer(name => name.ToUpperInvariant());
 #pragma warning restore CA2000
 
 var preconfiguredClient = new OpenSearchClient(connectionSettings);

@@ -5,7 +5,7 @@
     <PackageId>Excalibur.EventSourcing.AzureBlob</PackageId>
     <Description>Azure Blob Storage cold event store provider for Excalibur tiered event storage.</Description>
     <PackageTags>excalibur;event-sourcing;azure;blob-storage;cold-storage;tiered;archive</PackageTags>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>

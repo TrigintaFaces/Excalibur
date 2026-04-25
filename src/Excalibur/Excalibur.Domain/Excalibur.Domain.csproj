@@ -7,7 +7,7 @@
     <Description>Domain-driven design primitives for Excalibur, including entities, aggregates, value objects, domain events, and domain rules.</Description>
     <PackageTags>excalibur;domain;ddd;entities;value-objects;aggregates;primitives</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>
