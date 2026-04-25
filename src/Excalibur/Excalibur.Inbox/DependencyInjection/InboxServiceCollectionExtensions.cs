@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Inbox.DependencyInjection;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -44,8 +47,16 @@ public static class InboxServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
+		// bd-x6rg45: fail loud at host start if the consumer forgot to pick an inbox store.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, InboxPrerequisiteValidator>());
+
 		var builder = new InboxBuilder(services);
 		configure(builder);
+
+		// Non-keyed IInboxStore convenience alias: forwards to keyed "default" so consumers
+		// can inject IInboxStore directly without [FromKeyedServices("default")].
+		services.TryAddSingleton<IInboxStore>(sp =>
+			sp.GetRequiredKeyedService<IInboxStore>("default"));
 
 		return services;
 	}

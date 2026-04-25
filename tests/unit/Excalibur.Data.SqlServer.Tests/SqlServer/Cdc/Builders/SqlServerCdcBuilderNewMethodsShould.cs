@@ -5,6 +5,7 @@ using Excalibur.Cdc;
 using Excalibur.Cdc.SqlServer;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc.Builders;
 
@@ -269,10 +270,10 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		dbConfig.StopOnMissingTableHandler.ShouldBeFalse();
 	}
 
-	// --- Without DatabaseName, IDatabaseOptions should NOT be registered ---
+	// --- Without DatabaseName, IDatabaseOptions resolution should throw ---
 
 	[Fact]
-	public void NoDatabaseName_DoesNotRegisterIDatabaseConfig()
+	public void NoDatabaseName_ThrowsOnResolution()
 	{
 		var services = new ServiceCollection();
 
@@ -282,8 +283,61 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .SchemaName("cdc")
 				   .BatchSize(50)));
 
-		services.ShouldNotContain(sd =>
-			sd.ServiceType == typeof(IDatabaseOptions));
+		var provider = services.BuildServiceProvider();
+		var ex = Should.Throw<InvalidOperationException>(() =>
+			provider.GetRequiredService<IDatabaseOptions>());
+		ex.Message.ShouldContain("DatabaseName is required");
+	}
+
+	// --- BindConfiguration provides DatabaseName at resolution time ---
+
+	[Fact]
+	public void BindConfiguration_ResolvesDatabaseNameFromConfig()
+	{
+		var config = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Cdc:CdcSource:ConnectionString"] = TestConnectionString,
+				["Cdc:CdcSource:DatabaseName"] = "ConfigBoundDb",
+			})
+			.Build();
+
+		var services = new ServiceCollection();
+		services.AddSingleton<IConfiguration>(config);
+
+		services.AddCdcProcessor(builder =>
+			builder.UseSqlServer(sql =>
+				sql.BindConfiguration("Cdc:CdcSource")));
+
+		var provider = services.BuildServiceProvider();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
+		dbConfig.DatabaseName.ShouldBe("ConfigBoundDb");
+		dbConfig.DatabaseConnectionIdentifier.ShouldBe("cdc-ConfigBoundDb");
+		dbConfig.StateConnectionIdentifier.ShouldBe("state-ConfigBoundDb");
+	}
+
+	[Fact]
+	public void FluentDatabaseName_TakesPrecedenceOverBindConfiguration()
+	{
+		var config = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Cdc:CdcSource:ConnectionString"] = TestConnectionString,
+				["Cdc:CdcSource:DatabaseName"] = "ConfigDb",
+			})
+			.Build();
+
+		var services = new ServiceCollection();
+		services.AddSingleton<IConfiguration>(config);
+
+		services.AddCdcProcessor(builder =>
+			builder.UseSqlServer(sql =>
+				sql.BindConfiguration("Cdc:CdcSource")
+				   .DatabaseName("FluentDb")));
+
+		var provider = services.BuildServiceProvider();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
+		dbConfig.DatabaseName.ShouldBe("FluentDb");
 	}
 
 	// --- Connection factory overload also supports new methods ---

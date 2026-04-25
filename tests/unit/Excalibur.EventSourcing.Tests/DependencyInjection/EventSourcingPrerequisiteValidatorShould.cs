@@ -41,11 +41,11 @@ public sealed class EventSourcingPrerequisiteValidatorShould
 	}
 
 	[Fact]
-	public async Task Succeed_WhenIEventStoreIsRegistered()
+	public async Task Succeed_WhenKeyedIEventStoreIsRegistered()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddExcalibur(x => x.AddEventSourcing());
-		services.AddSingleton(A.Fake<IEventStore>());
+		services.AddKeyedSingleton<IEventStore>("default", (_, _) => A.Fake<IEventStore>());
 
 		using var provider = services.BuildServiceProvider(validateScopes: false);
 		var validator = provider.GetServices<IHostedService>()
@@ -53,6 +53,40 @@ public sealed class EventSourcingPrerequisiteValidatorShould
 			.Single();
 
 		await validator.StartAsync(CancellationToken.None);
+	}
+
+	[Fact]
+	public async Task ResolveNonKeyedIEventStore_WhenKeyedDefaultIsRegistered()
+	{
+		// The non-keyed IEventStore convenience alias forwards to keyed "default",
+		// so consumers can inject IEventStore directly without [FromKeyedServices].
+		var fakeStore = A.Fake<IEventStore>();
+		var services = new ServiceCollection();
+		_ = services.AddExcalibur(x => x.AddEventSourcing());
+		services.AddKeyedSingleton<IEventStore>("default", (_, _) => fakeStore);
+
+		using var provider = services.BuildServiceProvider(validateScopes: false);
+		var resolved = provider.GetService<IEventStore>();
+
+		resolved.ShouldNotBeNull("Non-keyed IEventStore alias should forward to keyed 'default'.");
+		resolved.ShouldBeSameAs(fakeStore);
+	}
+
+	[Fact]
+	public async Task ResolveNonKeyedISnapshotStore_WhenKeyedDefaultIsRegistered()
+	{
+		// The non-keyed ISnapshotStore convenience alias forwards to keyed "default",
+		// so consumers can inject ISnapshotStore directly without [FromKeyedServices].
+		var fakeStore = A.Fake<ISnapshotStore>();
+		var services = new ServiceCollection();
+		_ = services.AddExcalibur(x => x.AddEventSourcing());
+		services.AddKeyedSingleton<ISnapshotStore>("default", (_, _) => fakeStore);
+
+		using var provider = services.BuildServiceProvider(validateScopes: false);
+		var resolved = provider.GetService<ISnapshotStore>();
+
+		resolved.ShouldNotBeNull("Non-keyed ISnapshotStore alias should forward to keyed 'default'.");
+		resolved.ShouldBeSameAs(fakeStore);
 	}
 
 	[Fact]

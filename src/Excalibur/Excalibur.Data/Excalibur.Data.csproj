@@ -44,6 +44,10 @@
       <DependentUpon>ErrorMessages.resx</DependentUpon>
     </Compile>
   </ItemGroup>
+  <!-- Enable testing of internal types -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.Tests" />
+  </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />

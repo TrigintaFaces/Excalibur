@@ -201,6 +201,18 @@ public static class OutboxServiceCollectionExtensions
 
 		// bd-x6rg45: fail loud at host start if the consumer forgot to pick an outbox store.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, OutboxPrerequisiteValidator>());
+
+		// Non-keyed IOutboxStore convenience alias: forwards to keyed "default" so consumers
+		// can inject IOutboxStore directly without [FromKeyedServices("default")].
+		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.IOutboxStore>(sp =>
+			sp.GetRequiredKeyedService<Excalibur.Dispatch.Abstractions.IOutboxStore>("default"));
+
+		// Non-keyed IOutboxStoreAdmin convenience alias. Some providers (Elasticsearch) register
+		// this as a separate keyed service; others implement it on the same class as IOutboxStore.
+		// Try keyed "default" first, then fall back to casting the IOutboxStore.
+		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.IOutboxStoreAdmin>(sp =>
+			sp.GetKeyedService<Excalibur.Dispatch.Abstractions.IOutboxStoreAdmin>("default")
+			?? (Excalibur.Dispatch.Abstractions.IOutboxStoreAdmin)sp.GetRequiredKeyedService<Excalibur.Dispatch.Abstractions.IOutboxStore>("default"));
 	}
 
 	/// <summary>

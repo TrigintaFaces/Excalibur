@@ -369,43 +369,51 @@ public static class CdcBuilderSqlServerExtensions
 		// TryAdd semantics. [bd-20ft0e FIX 1]
 		builder.Services.TryAddSingleton<IDataAccessPolicyFactory, SqlDataAccessPolicyFactory>();
 
-		// Auto-register IDatabaseOptions when configured via the builder.
+		// Auto-register IDatabaseOptions from SqlServerCdcOptions at resolution time.
 		// Uses a factory so CaptureInstances derives from CdcOptions.TrackedTables
 		// at resolution time — after IPostConfigureOptions (BindTrackedTables, etc.)
 		// have merged config-driven tables. This makes TrackedTables the single source
 		// of truth for which capture instances are polled.
+		//
+		// DatabaseName may come from either the fluent builder (.DatabaseName("X"))
+		// or from BindConfiguration — both populate SqlServerCdcOptions.DatabaseName.
+		// We resolve it at DI resolution time so config-bound values are available.
 		// TryAdd ensures manual registration still takes precedence.
-		if (sqlOptions.HasDatabaseConfig)
 		{
-			// Capture builder values for the closure (these don't change after configure).
-			var capturedDbName = sqlOptions.DatabaseName!;
-			var capturedDbConnId = sqlOptions.DatabaseConnectionIdentifier
-				?? $"cdc-{capturedDbName}";
-			var capturedStateConnId = sqlOptions.StateConnectionIdentifier
-				?? $"state-{capturedDbName}";
+			// Capture builder-time overrides (may be null if using BindConfiguration).
+			var capturedBuilderDbName = sqlOptions.DatabaseName;
+			var capturedBuilderDbConnId = sqlOptions.DatabaseConnectionIdentifier;
+			var capturedBuilderStateConnId = sqlOptions.StateConnectionIdentifier;
 			var capturedStopOnMissing = sqlOptions.StopOnMissingTableHandler;
 			var capturedBuilderInstances = sqlOptions.CaptureInstances;
 			var capturedBatchSize = sqlOptions.BatchSize;
 
 			builder.Services.TryAddSingleton<IDatabaseOptions>(sp =>
 			{
+				var resolvedOptions = sp.GetRequiredService<IOptions<SqlServerCdcOptions>>().Value;
+
+				// Prefer builder-set value, fall back to config-bound value.
+				var dbName = capturedBuilderDbName ?? resolvedOptions.DatabaseName
+					?? throw new InvalidOperationException(
+						"DatabaseName is required for IDatabaseOptions. Set it via .DatabaseName() on the builder " +
+						"or include it in the configuration section bound via .BindConfiguration().");
+
+				var dbConnId = capturedBuilderDbConnId ?? $"cdc-{dbName}";
+				var stateConnId = capturedBuilderStateConnId ?? $"state-{dbName}";
+
 				var cdcOptions = sp.GetRequiredService<IOptions<CdcOptions>>().Value;
 				var captureInstances = DeriveCaptureInstances(
 					cdcOptions.TrackedTables, capturedBuilderInstances);
 
-				// Bridge recovery options from CdcOptions (user-facing config in base package)
-				// to CdcRecoveryOptions (runtime config in SqlServer package).
-				// Uses FromCdcOptions factory so new recovery properties are bridged in one place.
 				var recoveryOptions = CdcRecoveryOptions.FromCdcOptions(cdcOptions);
 
 				return new DatabaseOptions
 				{
-					DatabaseName = capturedDbName,
-					DatabaseConnectionIdentifier = capturedDbConnId,
-					StateConnectionIdentifier = capturedStateConnId,
+					DatabaseName = dbName,
+					DatabaseConnectionIdentifier = dbConnId,
+					StateConnectionIdentifier = stateConnId,
 					CaptureInstances = captureInstances,
 					StopOnMissingTableHandler = capturedStopOnMissing,
-					// Bridge SqlServerCdcOptions.BatchSize → ProducerBatchSize
 					ProducerBatchSize = capturedBatchSize,
 					RecoveryOptions = recoveryOptions,
 				};

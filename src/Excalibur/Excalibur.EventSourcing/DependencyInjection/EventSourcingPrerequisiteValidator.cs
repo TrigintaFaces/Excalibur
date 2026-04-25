@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing.Abstractions;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Excalibur.EventSourcing.DependencyInjection;
@@ -20,7 +21,7 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// places the probe in the host's startup pipeline ahead of any domain workload.
 /// </para>
 /// <para>
-/// AOT-safe: the probe uses <c>IServiceProvider.GetService(typeof(IEventStore))</c>
+/// AOT-safe: the probe uses <c>IServiceProvider.GetKeyedService&lt;IEventStore&gt;("default")</c>
 /// — no reflection, no assembly scanning.
 /// </para>
 /// </remarks>
@@ -35,7 +36,10 @@ internal sealed class EventSourcingPrerequisiteValidator : IHostedService
 
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
-		if (_services.GetService(typeof(IEventStore)) is null)
+		// All providers register IEventStore as a keyed singleton (key = "default").
+		// A non-keyed forwarding alias is also registered by AddExcaliburEventSourcing(),
+		// but it depends on the keyed "default" — so we check keyed first.
+		if (_services.GetKeyedService<IEventStore>("default") is null)
 		{
 			throw new InvalidOperationException(
 				"Excalibur event sourcing is missing the required IEventStore implementation. " +

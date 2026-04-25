@@ -63,6 +63,11 @@ public static class SagaServiceCollectionExtensions
 		// bd-x6rg45: fail loud at host start if the consumer forgot to pick a state store.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, SagaPrerequisiteValidator>());
 
+		// Non-keyed ISagaStore convenience alias: forwards to keyed "default" so consumers
+		// can inject ISagaStore directly without [FromKeyedServices("default")].
+		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.Messaging.ISagaStore>(sp =>
+			sp.GetRequiredKeyedService<Excalibur.Dispatch.Abstractions.Messaging.ISagaStore>("default"));
+
 		return services;
 	}
 

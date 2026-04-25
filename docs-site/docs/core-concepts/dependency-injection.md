@@ -248,6 +248,45 @@ public class OrderHandler
 }
 ```
 
+:::tip Non-keyed aliases for core stores
+Excalibur subsystem packages (EventSourcing, Outbox, Inbox, Saga, LeaderElection, Persistence) register their primary stores as keyed singletons under `"default"`. **Non-keyed convenience aliases are registered automatically**, so you can inject `IEventStore`, `IOutboxStore`, `ISagaStore`, etc. directly — no `[FromKeyedServices]` attribute required:
+
+```csharp
+// Just inject the store directly — the non-keyed alias forwards to keyed "default"
+public class OrderService(IEventStore eventStore, IOutboxStore outboxStore)
+{
+    // ...
+}
+```
+
+Use `[FromKeyedServices("key")]` only when you register multiple named implementations of the same interface.
+:::
+
+## Startup Prerequisite Validation
+
+Every Excalibur subsystem registers an internal `IHostedService` prerequisite validator that runs during `IHost.StartAsync`. If you call an `Add*` method (e.g., `AddEventSourcing(...)`) without selecting a concrete provider (e.g., `.UseSqlServer(...)`), the host fails immediately with an actionable error message instead of failing later at first use:
+
+```
+Excalibur event sourcing is missing the required IEventStore implementation.
+Call a provider extension inside AddEventSourcing(...) — for example
+es => es.UseSqlServer(sql => sql.ConnectionString(...)),
+es => es.UsePostgres(...), or es => es.UseCosmosDb(...)
+— before host startup.
+```
+
+Prerequisite validators are registered for:
+
+| Subsystem | Required Interface | Add Method |
+|---|---|---|
+| Event Sourcing | `IEventStore` | `AddEventSourcing(...)` |
+| Outbox | `IOutboxStore` | `AddOutbox(...)` |
+| Inbox | `IInboxStore` | `AddInbox(...)` |
+| Saga | `ISagaStore` | `AddSagas(...)` |
+| Leader Election | `ILeaderElection` | `AddLeaderElection(...)` |
+| Persistence | `IPersistenceProvider` | `AddPersistence(...)` |
+
+These validators are AOT-safe (no reflection) and invisible to consumers — they are registered transparently by each subsystem's DI extension.
+
 ## Transport and Cross-Cutting Registration
 
 The `AddDispatch()` builder also supports transport and cross-cutting concern registration through extension methods:

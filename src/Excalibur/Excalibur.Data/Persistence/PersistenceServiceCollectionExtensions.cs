@@ -58,6 +58,14 @@ public static class PersistenceServiceCollectionExtensions
 		// Validate configuration
 		_ = services.AddHostedService<PersistenceConfigurationValidator>();
 
+		// bd-x6rg45: fail loud at host start if the consumer forgot to pick a persistence provider.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, PersistencePrerequisiteValidator>());
+
+		// Non-keyed IPersistenceProvider convenience alias: forwards to keyed "default" so consumers
+		// can inject IPersistenceProvider directly without [FromKeyedServices("default")].
+		services.TryAddSingleton<IPersistenceProvider>(sp =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("default"));
+
 		return services;
 	}
 

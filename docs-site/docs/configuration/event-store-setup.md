@@ -52,9 +52,10 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 }));
 
 // This registers:
-// - IEventStore (SqlServerEventStore)
-// - ISnapshotStore (SqlServerSnapshotStore)
+// - IEventStore + ISnapshotStore (SqlServerEventStore / SqlServerSnapshotStore)
+// - Non-keyed aliases (inject IEventStore directly, no [FromKeyedServices] needed)
 // - ValidateOnStart (catches missing connection at startup)
+// - Prerequisite validator (fails fast if you forget to call a .UseXxx() provider)
 // Outbox is registered separately via services.AddExcalibur(x => x.AddOutbox(...))
 ```
 

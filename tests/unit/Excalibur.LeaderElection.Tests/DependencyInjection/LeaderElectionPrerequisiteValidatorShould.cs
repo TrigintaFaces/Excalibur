@@ -42,21 +42,56 @@ public sealed class LeaderElectionPrerequisiteValidatorShould
 	}
 
 	[Fact]
-	public async Task Succeed_WhenILeaderElectionIsRegistered()
+	public async Task Succeed_WhenKeyedILeaderElectionIsRegistered()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddExcalibur(x => x.AddLeaderElection(_ => { }));
 
-		// Supply a consumer ILeaderElection fake — the validator should now pass.
-		services.AddSingleton(A.Fake<ILeaderElection>());
+		// Supply a keyed ILeaderElection fake — the validator checks keyed "default".
+		services.AddKeyedSingleton<ILeaderElection>("default", (_, _) => A.Fake<ILeaderElection>());
 
-		using var provider = services.BuildServiceProvider(validateScopes: false);
+		// ILeaderElection : IAsyncDisposable — use DisposeAsync to avoid Castle proxy error.
+		await using var provider = services.BuildServiceProvider(validateScopes: false);
 		var validator = provider.GetServices<IHostedService>()
 			.OfType<LeaderElectionPrerequisiteValidator>()
 			.Single();
 
 		await validator.StartAsync(CancellationToken.None);
 		// Reaching here without exception IS the success assertion.
+	}
+
+	[Fact]
+	public async Task ResolveNonKeyedILeaderElection_WhenKeyedDefaultIsRegistered()
+	{
+		// The non-keyed ILeaderElection convenience alias forwards to keyed "default",
+		// so consumers can inject ILeaderElection directly without [FromKeyedServices].
+		var fakeLE = A.Fake<ILeaderElection>();
+		var services = new ServiceCollection();
+		_ = services.AddExcalibur(x => x.AddLeaderElection(_ => { }));
+		services.AddKeyedSingleton<ILeaderElection>("default", (_, _) => fakeLE);
+
+		// ILeaderElection : IAsyncDisposable — use DisposeAsync to avoid Castle proxy error.
+		await using var provider = services.BuildServiceProvider(validateScopes: false);
+		var resolved = provider.GetService<ILeaderElection>();
+
+		resolved.ShouldNotBeNull("Non-keyed ILeaderElection alias should forward to keyed 'default'.");
+		resolved.ShouldBeSameAs(fakeLE);
+	}
+
+	[Fact]
+	public async Task ResolveNonKeyedILeaderElectionFactory_WhenKeyedDefaultIsRegistered()
+	{
+		// The non-keyed ILeaderElectionFactory convenience alias forwards to keyed "default".
+		var fakeLEF = A.Fake<ILeaderElectionFactory>();
+		var services = new ServiceCollection();
+		_ = services.AddExcalibur(x => x.AddLeaderElection(_ => { }));
+		services.AddKeyedSingleton<ILeaderElectionFactory>("default", (_, _) => fakeLEF);
+
+		using var provider = services.BuildServiceProvider(validateScopes: false);
+		var resolved = provider.GetService<ILeaderElectionFactory>();
+
+		resolved.ShouldNotBeNull("Non-keyed ILeaderElectionFactory alias should forward to keyed 'default'.");
+		resolved.ShouldBeSameAs(fakeLEF);
 	}
 
 	[Fact]

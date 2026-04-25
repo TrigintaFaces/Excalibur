@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`WithProjectionHealthChecks()`** -- opt-in projection health check registration (previously auto-registered by `UseEventNotification()`)
 - **`IProjectionRebuildService.GetStatusAsync<TProjection>()`** -- type-safe per-projection rebuild status query
 - **`IProjectionRebuildService.GetAllStatusesAsync()`** -- bulk rebuild status monitoring
+- **`PersistencePrerequisiteValidator`** + **`InboxPrerequisiteValidator`** -- fail-loud-at-host-start probes for missing persistence/inbox provider registrations
+- **Non-keyed DI forwarding aliases** across 6 subsystems (EventSourcing, LeaderElection, Outbox, Saga, Inbox, Persistence) -- consumers can inject stores directly without `[FromKeyedServices]`
 
 ### Changed
 

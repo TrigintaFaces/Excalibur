@@ -45,6 +45,13 @@ internal static class LeaderElectionBuilderServiceCollectionExtensions
 		// double-register the validator.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LeaderElectionPrerequisiteValidator>());
 
+		// Non-keyed convenience aliases: forward to keyed "default" so consumers
+		// can inject ILeaderElection / ILeaderElectionFactory directly without [FromKeyedServices("default")].
+		services.TryAddSingleton<ILeaderElection>(sp =>
+			sp.GetRequiredKeyedService<ILeaderElection>("default"));
+		services.TryAddSingleton<ILeaderElectionFactory>(sp =>
+			sp.GetRequiredKeyedService<ILeaderElectionFactory>("default"));
+
 		var builder = new LeaderElectionBuilder(services);
 		configure(builder);
 

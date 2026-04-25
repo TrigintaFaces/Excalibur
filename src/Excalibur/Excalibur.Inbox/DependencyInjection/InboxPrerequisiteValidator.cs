@@ -6,43 +6,43 @@ using Excalibur.Dispatch.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace Excalibur.Outbox.DependencyInjection;
+namespace Excalibur.Inbox.DependencyInjection;
 
 /// <summary>
 /// Startup-time prerequisite validator that fails loud at <see cref="IHost.StartAsync"/>
-/// if the consumer called <c>AddOutbox(...)</c> without registering a concrete
-/// <see cref="IOutboxStore"/> provider (e.g., by omitting <c>.UseSqlServer(...)</c>,
-/// <c>.UsePostgres(...)</c>, <c>.UseMongoDB(...)</c>, or a consumer-supplied store).
+/// if the consumer called <c>AddInbox(...)</c> without registering a concrete
+/// <see cref="IInboxStore"/> provider (e.g., by omitting <c>.UseSqlServer(...)</c>,
+/// <c>.UsePostgres(...)</c>, <c>.UseInMemory()</c>, or a consumer-supplied store).
 /// </summary>
 /// <remarks>
 /// <para>
 /// Per S809 bd-x6rg45 + COMPASS msg 2189: minimal-wiring validators must fail at host
-/// start, not at first message enqueue. Registering this as an <see cref="IHostedService"/>
+/// start, not at first message deduplication. Registering this as an <see cref="IHostedService"/>
 /// places the probe in the host's startup pipeline ahead of any domain workload.
 /// </para>
 /// <para>
-/// AOT-safe: the probe uses <c>IServiceProvider.GetKeyedService&lt;IOutboxStore&gt;("default")</c>
+/// AOT-safe: the probe uses <c>IServiceProvider.GetKeyedService&lt;IInboxStore&gt;("default")</c>
 /// — no reflection, no assembly scanning.
 /// </para>
 /// </remarks>
-internal sealed class OutboxPrerequisiteValidator : IHostedService
+internal sealed class InboxPrerequisiteValidator : IHostedService
 {
 	private readonly IServiceProvider _services;
 
-	public OutboxPrerequisiteValidator(IServiceProvider services)
+	public InboxPrerequisiteValidator(IServiceProvider services)
 	{
 		_services = services ?? throw new ArgumentNullException(nameof(services));
 	}
 
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
-		if (_services.GetKeyedService<IOutboxStore>("default") is null)
+		if (_services.GetKeyedService<IInboxStore>("default") is null)
 		{
 			throw new InvalidOperationException(
-				"Excalibur outbox is missing the required IOutboxStore implementation. " +
-				"Call a provider extension inside AddOutbox(...) — for example " +
-				"o => o.UseSqlServer(sql => sql.ConnectionString(...)), " +
-				"o => o.UsePostgres(...), or o => o.UseMongoDB(...) — before host startup.");
+				"Excalibur inbox is missing the required IInboxStore implementation. " +
+				"Call a provider extension inside AddInbox(...) — for example " +
+				"i => i.UseSqlServer(sql => sql.ConnectionString(...)), " +
+				"i => i.UsePostgres(...), or i => i.UseInMemory() — before host startup.");
 		}
 
 		return Task.CompletedTask;

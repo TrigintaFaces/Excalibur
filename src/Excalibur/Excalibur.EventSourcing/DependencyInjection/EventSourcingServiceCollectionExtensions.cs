@@ -45,6 +45,15 @@ public static class EventSourcingServiceCollectionExtensions
 		// bd-x6rg45: fail loud at host start if the consumer forgot to pick an event store.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, EventSourcingPrerequisiteValidator>());
 
+		// Non-keyed convenience aliases: forward to keyed "default" so consumers
+		// can inject IEventStore / ISnapshotStore directly without [FromKeyedServices("default")].
+		// All providers register their store as keyed "default" via TryAddKeyedSingleton,
+		// so these single forwarding registrations work for all providers.
+		services.TryAddSingleton<IEventStore>(sp =>
+			sp.GetRequiredKeyedService<IEventStore>("default"));
+		services.TryAddSingleton<ISnapshotStore>(sp =>
+			sp.GetRequiredKeyedService<ISnapshotStore>("default"));
+
 		return services;
 	}
 

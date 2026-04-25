@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Excalibur.Dispatch.LeaderElection.DependencyInjection;
@@ -18,7 +19,7 @@ namespace Excalibur.Dispatch.LeaderElection.DependencyInjection;
 /// places the probe in the host's startup pipeline ahead of any domain workload.
 /// </para>
 /// <para>
-/// AOT-safe: the probe uses <c>IServiceProvider.GetService(typeof(ILeaderElection))</c>
+/// AOT-safe: the probe uses <c>IServiceProvider.GetKeyedService&lt;ILeaderElection&gt;("default")</c>
 /// — no reflection, no assembly scanning.
 /// </para>
 /// </remarks>
@@ -33,7 +34,7 @@ internal sealed class LeaderElectionPrerequisiteValidator : IHostedService
 
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
-		if (_services.GetService(typeof(ILeaderElection)) is null)
+		if (_services.GetKeyedService<ILeaderElection>("default") is null)
 		{
 			throw new InvalidOperationException(
 				"Excalibur leader election is missing its required ILeaderElection implementation. " +

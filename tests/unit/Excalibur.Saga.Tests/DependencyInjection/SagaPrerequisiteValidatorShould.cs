@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.DependencyInjection;
 
@@ -52,6 +53,23 @@ public sealed class SagaPrerequisiteValidatorShould
 			.Single();
 
 		await validator.StartAsync(CancellationToken.None);
+	}
+
+	[Fact]
+	public async Task ResolveNonKeyedISagaStore_WhenKeyedDefaultIsRegistered()
+	{
+		// The non-keyed ISagaStore convenience alias forwards to keyed "default",
+		// so consumers can inject ISagaStore directly without [FromKeyedServices].
+		var fakeStore = A.Fake<ISagaStore>();
+		var services = new ServiceCollection();
+		_ = services.AddExcalibur(x => x.AddSagas());
+		services.AddKeyedSingleton<ISagaStore>("default", (_, _) => fakeStore);
+
+		using var provider = services.BuildServiceProvider(validateScopes: false);
+		var resolved = provider.GetService<ISagaStore>();
+
+		resolved.ShouldNotBeNull("Non-keyed ISagaStore alias should forward to keyed 'default'.");
+		resolved.ShouldBeSameAs(fakeStore);
 	}
 
 	[Fact]

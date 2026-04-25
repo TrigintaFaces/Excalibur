@@ -1107,7 +1107,8 @@
         "type": "Project",
         "dependencies": {
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )"
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
+          "Microsoft.Extensions.Hosting.Abstractions": "[10.0.7, )"
         }
       },
       "excalibur.inbox.inmemory": {

@@ -16,6 +16,12 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ## April 2026 — Performance + Container Deployment + AOT Epic Complete
 
+### DI Improvements
+
+- **Startup prerequisite validators** -- Six subsystems (EventSourcing, Outbox, Inbox, Saga, LeaderElection, Persistence) now fail-fast at `IHost.StartAsync` with actionable error messages when a consumer calls `Add*()` without registering a concrete provider. No more cryptic failures at first use.
+- **Non-keyed convenience aliases** -- All subsystem packages register non-keyed forwarding aliases to their keyed `"default"` singletons. Consumers can inject `IEventStore`, `IOutboxStore`, `ISagaStore`, `IInboxStore`, `ILeaderElection`, `ILeaderElectionFactory`, `ISnapshotStore`, `IOutboxStoreAdmin`, and `IPersistenceProvider` directly without `[FromKeyedServices("default")]`.
+- **CDC SqlServer deferred DatabaseName** -- `BindConfiguration` now populates `DatabaseName` at DI resolution time, so `DatabaseName` no longer requires the fluent `.DatabaseName("X")` call when it is present in the configuration section.
+
 ### Performance Optimizations
 
 - **Ultra-local dispatch: ~35 ns / 24 B** -- 1.28x faster than MediatR with 6.3x less memory

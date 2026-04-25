@@ -40,11 +40,11 @@ public sealed class OutboxPrerequisiteValidatorShould
 	}
 
 	[Fact]
-	public async Task Succeed_WhenIOutboxStoreIsRegistered()
+	public async Task Succeed_WhenKeyedIOutboxStoreIsRegistered()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddExcalibur(x => x.AddOutbox(_ => { }));
-		services.AddSingleton(A.Fake<IOutboxStore>());
+		services.AddKeyedSingleton<IOutboxStore>("default", (_, _) => A.Fake<IOutboxStore>());
 
 		using var provider = services.BuildServiceProvider(validateScopes: false);
 		var validator = provider.GetServices<IHostedService>()
@@ -52,6 +52,59 @@ public sealed class OutboxPrerequisiteValidatorShould
 			.Single();
 
 		await validator.StartAsync(CancellationToken.None);
+	}
+
+	[Fact]
+	public async Task ResolveNonKeyedIOutboxStore_WhenKeyedDefaultIsRegistered()
+	{
+		// The non-keyed IOutboxStore convenience alias forwards to keyed "default",
+		// so consumers can inject IOutboxStore directly without [FromKeyedServices].
+		var fakeStore = A.Fake<IOutboxStore>();
+		var services = new ServiceCollection();
+		_ = services.AddExcalibur(x => x.AddOutbox(_ => { }));
+		services.AddKeyedSingleton<IOutboxStore>("default", (_, _) => fakeStore);
+
+		using var provider = services.BuildServiceProvider(validateScopes: false);
+		var resolved = provider.GetService<IOutboxStore>();
+
+		resolved.ShouldNotBeNull("Non-keyed IOutboxStore alias should forward to keyed 'default'.");
+		resolved.ShouldBeSameAs(fakeStore);
+	}
+
+	[Fact]
+	public async Task ResolveNonKeyedIOutboxStoreAdmin_WhenKeyedDefaultIsRegistered()
+	{
+		// When a provider (e.g. Elasticsearch) registers IOutboxStoreAdmin as keyed "default",
+		// the non-keyed alias should forward to it.
+		var fakeAdmin = A.Fake<IOutboxStoreAdmin>();
+		var fakeStore = A.Fake<IOutboxStore>();
+		var services = new ServiceCollection();
+		_ = services.AddExcalibur(x => x.AddOutbox(_ => { }));
+		services.AddKeyedSingleton<IOutboxStore>("default", (_, _) => fakeStore);
+		services.AddKeyedSingleton<IOutboxStoreAdmin>("default", (_, _) => fakeAdmin);
+
+		using var provider = services.BuildServiceProvider(validateScopes: false);
+		var resolved = provider.GetService<IOutboxStoreAdmin>();
+
+		resolved.ShouldNotBeNull("Non-keyed IOutboxStoreAdmin alias should forward to keyed 'default'.");
+		resolved.ShouldBeSameAs(fakeAdmin);
+	}
+
+	[Fact]
+	public async Task ResolveNonKeyedIOutboxStoreAdmin_ViaCastFromIOutboxStore()
+	{
+		// When no separate IOutboxStoreAdmin keyed registration exists (most providers),
+		// the forwarding falls back to casting from the keyed IOutboxStore.
+		var fakeStore = A.Fake<IOutboxStore>(x => x.Implements<IOutboxStoreAdmin>());
+		var services = new ServiceCollection();
+		_ = services.AddExcalibur(x => x.AddOutbox(_ => { }));
+		services.AddKeyedSingleton<IOutboxStore>("default", (_, _) => fakeStore);
+
+		using var provider = services.BuildServiceProvider(validateScopes: false);
+		var resolved = provider.GetService<IOutboxStoreAdmin>();
+
+		resolved.ShouldNotBeNull("Non-keyed IOutboxStoreAdmin should fall back to casting from IOutboxStore.");
+		resolved.ShouldBeSameAs(fakeStore);
 	}
 
 	[Fact]

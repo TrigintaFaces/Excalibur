@@ -44,6 +44,13 @@ internal static class LeaderElectionServiceCollectionExtensions
 			.Configure(configure)
 			.ValidateOnStart();
 
+		// Non-keyed convenience aliases: forward to keyed "default" so consumers
+		// can inject ILeaderElection / ILeaderElectionFactory directly without [FromKeyedServices("default")].
+		services.TryAddSingleton<ILeaderElection>(sp =>
+			sp.GetRequiredKeyedService<ILeaderElection>("default"));
+		services.TryAddSingleton<ILeaderElectionFactory>(sp =>
+			sp.GetRequiredKeyedService<ILeaderElectionFactory>("default"));
+
 		return services;
 	}
 
