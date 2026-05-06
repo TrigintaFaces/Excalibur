@@ -50,8 +50,11 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 	}
 
+	// CA2000: Callers always use 'await using var connection = CreateConnection()' — disposal is guaranteed.
+#pragma warning disable CA2000
 	private SqlConnection CreateConnection() =>
-		_connectionFactory?.Invoke() ?? CreateConnection();
+		_connectionFactory?.Invoke() ?? new SqlConnection(_options.ConnectionString);
+#pragma warning restore CA2000
 
 	/// <inheritdoc/>
 	public async ValueTask<string?> ResolveAsync(

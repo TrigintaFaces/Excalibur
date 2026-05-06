@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **SqlServerIdentityMapStore.CreateConnection() infinite recursion** -- `_connectionFactory?.Invoke() ?? CreateConnection()` called itself when no explicit connection factory was registered (i.e., `ConnectionString()` or `BindConfiguration()` paths), causing `StackOverflowException` on every database operation. Fixed to fall back to `new SqlConnection(_options.ConnectionString)`.
 - **Pre-publish audit: 18 runtime bug fixes across 11 packages**
   - **DI forwarding registration** -- `DataProcessingBuilder.AddProcessor<T>()` now registers concrete type so `DataProcessorRegistry` can resolve processors by concrete type (fixes `InvalidOperationException: No service for type`)
   - **SecurityEventLogger hard-cast** -- replaced unsafe `(SecurityEventLogger)sp.GetRequiredService<ISecurityEventLogger>()` with forwarding pattern (fixes `InvalidCastException` when consumers provide custom `ISecurityEventLogger`)
