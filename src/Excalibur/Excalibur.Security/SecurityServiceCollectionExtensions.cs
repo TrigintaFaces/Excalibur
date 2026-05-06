@@ -72,12 +72,17 @@ public static class SecurityServiceCollectionExtensions
 		// - Excalibur.Security.Aws.AddAwsSecretsManagerCredentialStore()
 		// Use those packages for cloud-specific credential management.
 
-		// Add HashiCorp Vault if configured
+		// Add HashiCorp Vault if configured — uses AddSingleton (not TryAdd) because
+		// ICredentialStore is a multi-registration: multiple stores coexist.
+		// Guard against double-registration when AddSecureCredentialManagement is called twice.
 		var vaultUrl = configuration["Vault:Url"];
 		if (!string.IsNullOrEmpty(vaultUrl))
 		{
-			services.TryAddSingleton<ICredentialStore, HashiCorpVaultCredentialStore>();
-			services.TryAddSingleton<IWritableCredentialStore, HashiCorpVaultCredentialStore>();
+			if (!services.Any(sd => sd.ImplementationType == typeof(HashiCorpVaultCredentialStore)))
+			{
+				_ = services.AddSingleton<ICredentialStore, HashiCorpVaultCredentialStore>();
+				_ = services.AddSingleton<IWritableCredentialStore, HashiCorpVaultCredentialStore>();
+			}
 		}
 
 		// Register the main credential provider

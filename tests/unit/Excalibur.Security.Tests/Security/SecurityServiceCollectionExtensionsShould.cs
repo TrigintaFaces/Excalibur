@@ -257,9 +257,9 @@ public sealed class SecurityServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddSecureCredentialManagement_IsIdempotent()
+	public void AddSecureCredentialManagement_IsIdempotent_WithoutVault()
 	{
-		// Arrange — calling twice must not duplicate credential stores (Bug #8)
+		// Arrange — calling twice without Vault must not duplicate base credential stores (Bug #8)
 		var services = new ServiceCollection();
 		var configuration = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>())
@@ -269,7 +269,7 @@ public sealed class SecurityServiceCollectionExtensionsShould
 		services.AddSecureCredentialManagement(configuration);
 		services.AddSecureCredentialManagement(configuration);
 
-		// Assert — exactly one ICredentialStore registration
+		// Assert — exactly one ICredentialStore registration (EnvironmentVariable only)
 		var storeDescriptors = services
 			.Where(d => d.ServiceType == typeof(ICredentialStore))
 			.ToList();
@@ -282,5 +282,36 @@ public sealed class SecurityServiceCollectionExtensionsShould
 			.ToList();
 		providerDescriptors.Count.ShouldBe(1,
 			"TryAddSingleton must prevent duplicate ISecureCredentialProvider registrations");
+	}
+
+	[Fact]
+	public void AddSecureCredentialManagement_IsIdempotent_WithVault()
+	{
+		// Arrange — calling twice with Vault configured must not duplicate Vault stores
+		var services = new ServiceCollection();
+		var configuration = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Vault:Url"] = "https://vault.example.com:8200",
+			})
+			.Build();
+
+		// Act
+		services.AddSecureCredentialManagement(configuration);
+		services.AddSecureCredentialManagement(configuration);
+
+		// Assert — ICredentialStore: 1 EnvironmentVariable + 1 Vault = 2 total (multi-registration)
+		var storeDescriptors = services
+			.Where(d => d.ServiceType == typeof(ICredentialStore))
+			.ToList();
+		storeDescriptors.Count.ShouldBe(2,
+			"ICredentialStore is multi-registration (env var + Vault), but duplicate calls must not create more");
+
+		// Assert — exactly one IWritableCredentialStore (Vault only)
+		var writableDescriptors = services
+			.Where(d => d.ServiceType == typeof(IWritableCredentialStore))
+			.ToList();
+		writableDescriptors.Count.ShouldBe(1,
+			"Duplicate calls must not double-register IWritableCredentialStore");
 	}
 }
