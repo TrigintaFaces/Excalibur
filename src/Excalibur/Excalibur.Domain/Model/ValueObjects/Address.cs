@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Text.Json.Serialization;
+
 namespace Excalibur.Domain.Model.ValueObjects;
 
 /// <summary>
@@ -15,6 +17,7 @@ namespace Excalibur.Domain.Model.ValueObjects;
 /// <param name="state"> The state or province. </param>
 /// <param name="country"> The country. </param>
 /// <param name="postalCode"> The postal or ZIP code. </param>
+[method: JsonConstructor]
 public sealed class Address(string street, string city, string state, string country, string postalCode) : ValueObjectBase
 {
 	/// <summary>

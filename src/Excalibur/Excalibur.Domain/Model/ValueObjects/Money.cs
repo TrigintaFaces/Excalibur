@@ -3,6 +3,7 @@
 
 using System.Globalization;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Excalibur.Domain.Model.ValueObjects;
 
@@ -38,6 +39,21 @@ public sealed class Money : ValueObjectBase
 
 	private static readonly CompositeFormat InvalidFormatFormat =
 			CompositeFormat.Parse(Resources.Money_InvalidFormat);
+
+	/// <summary>
+	/// JSON deserialization constructor. Handles all property combinations including
+	/// nullable <see cref="Denomination"/> and computed <see cref="UnitCount"/>.
+	/// </summary>
+	[JsonConstructor]
+	private Money(decimal amount, string currencyCode, decimal? denomination, int unitCount)
+	{
+		Amount = amount;
+		CurrencyCode = (currencyCode ?? DefaultCurrencyCode).ToUpperInvariant();
+		Denomination = denomination;
+		UnitCount = denomination is not null and not 0
+			? (int)(amount / denomination.Value)
+			: unitCount;
+	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="Money" /> class.
