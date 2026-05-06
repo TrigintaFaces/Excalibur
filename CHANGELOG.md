@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pre-publish audit: 18 runtime bug fixes across 11 packages**
+  - **DI forwarding registration** -- `DataProcessingBuilder.AddProcessor<T>()` now registers concrete type so `DataProcessorRegistry` can resolve processors by concrete type (fixes `InvalidOperationException: No service for type`)
+  - **SecurityEventLogger hard-cast** -- replaced unsafe `(SecurityEventLogger)sp.GetRequiredService<ISecurityEventLogger>()` with forwarding pattern (fixes `InvalidCastException` when consumers provide custom `ISecurityEventLogger`)
+  - **Idempotent DI registrations** -- converted `AddSingleton`/`AddScoped` → `TryAddSingleton`/`TryAddScoped` across Security, Observability, GooglePubSub, Compliance, and Serverless packages to prevent duplicate registrations on repeated calls
+  - **Serializer double-dispose** -- added `_disposed` guard to `DispatchJsonSerializer`, `CompositeAotJsonSerializer`, and `AotJsonSerializer` (`ThreadLocal<T>.Dispose()` throws `ObjectDisposedException` on double-dispose)
+  - **CreateScope → CreateAsyncScope** -- `ColdStartOptimizerBase` and new `DispatchTestHarness.CreateAsyncScope()` (missed in prior sweep)
+  - **IAsyncDisposable** -- added to `MultiRegionKeyProvider` (replaces spin-wait), `LongPollingOptimizer`, `StreamHealthMonitor` (fixes disposal race), `CloudMonitoringExporter` (added `_disposed` guard)
+  - **Load balancer thread-safety** -- `WeightedRoundRobinLoadBalancer` counters now use `Interlocked.Increment`; both load balancers add `volatile` to snapshot fields for correct double-checked locking
+  - **CachingMiddleware** -- explicit null check on `DeserializeCachedValue` return (was `null!`); swallowed `ICachePolicy` exceptions now logged via `LogWarning`
 - **CreateScope → CreateAsyncScope** across 12 framework services -- `DataProcessingHostedService`, `DataProcessor<T>`, `SagaTimeoutDeliveryService`, `QuartzJobAdapter`, `OutboxProcessor`, `InboxProcessor`, `PoisonMessageHandler`, `SnapshotCreationJob`, `ProjectionRebuildJob`, `OutboxProcessorJob`, ElasticSearch/OpenSearch `HostExtensions`, and `JitAccessExpiryService` now use `CreateAsyncScope()` to correctly dispose services implementing `IAsyncDisposable` (fixes `InvalidOperationException` when processors inherit from `DataProcessor<T>`)
 - **dependency-review-action@v5 → v4** -- CI security workflow referenced non-existent action version
 - **Nullability test fixes** -- `DataProcessingBuilderShould` CS8764 (`DbConnection.ConnectionString` override) and `EphemeralProjectionEngineExtendedShould` CS8620 (FakeItEasy `Returns` type inference)

@@ -289,6 +289,36 @@ public sealed class LongPollingOptimizerShould : IDisposable
 		health.EfficiencyScore.ShouldBe(1.0); // 1 - 0.0 (default EmptyReceiveRate)
 	}
 
+	[Fact]
+	public async Task ImplementIAsyncDisposable()
+	{
+		// Assert — LongPollingOptimizer now implements IAsyncDisposable (Bug #14)
+		_optimizer.ShouldBeAssignableTo<IAsyncDisposable>();
+
+		// Act & Assert — DisposeAsync should not throw
+		await _optimizer.DisposeAsync().ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task DisposeAsyncShouldNotThrowOnDoubleCall()
+	{
+		// Act & Assert — second DisposeAsync must be a no-op
+		await _optimizer.DisposeAsync().ConfigureAwait(false);
+		await _optimizer.DisposeAsync().ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task ThrowObjectDisposedExceptionAfterDisposeAsync()
+	{
+		// Arrange
+		await _optimizer.DisposeAsync().ConfigureAwait(false);
+
+		// Act & Assert
+		await Should.ThrowAsync<ObjectDisposedException>(
+			() => _optimizer.ReceiveMessagesAsync("https://example.com/queue", CancellationToken.None))
+			.ConfigureAwait(false);
+	}
+
 	public void Dispose()
 	{
 		_optimizer.Dispose();

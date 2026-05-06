@@ -255,3 +255,4 @@ static Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.
 static Microsoft.Extensions.DependencyInjection.DispatchTestingServiceCollectionExtensions.AddDispatchTesting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! destination = "test-destination", string! source = "test-source") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Dispatch.Testing.Polling.WaitHelpers.DefaultPollInterval -> System.TimeSpan
 virtual Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.CreatePairedReceiverAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportReceiver?>!
+Excalibur.Dispatch.Testing.DispatchTestHarness.CreateAsyncScope() -> Microsoft.Extensions.DependencyInjection.AsyncServiceScope

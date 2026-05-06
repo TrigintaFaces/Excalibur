@@ -29,6 +29,7 @@ internal sealed class CloudMonitoringExporter : IDisposable
 	private readonly Dictionary<string, GoogleApi.MetricDescriptor> _metricDescriptors;
 	private readonly MeterListener? _meterListener;
 	private readonly Lock _lock = new();
+	private volatile bool _disposed;
 
 	/// <summary>
 	/// Buffered metric points for batch export.
@@ -104,11 +105,17 @@ internal sealed class CloudMonitoringExporter : IDisposable
 	/// <inheritdoc />
 	public void Dispose()
 	{
-		_exportTimer?.Dispose();
+		if (_disposed)
+		{
+			return;
+		}
 
-		// Export any remaining metrics
+		_disposed = true;
+
+		// Export any remaining metrics before disposing resources
 		ExportMetrics(state: null);
 
+		_exportTimer?.Dispose();
 		_meterListener?.Dispose();
 	}
 

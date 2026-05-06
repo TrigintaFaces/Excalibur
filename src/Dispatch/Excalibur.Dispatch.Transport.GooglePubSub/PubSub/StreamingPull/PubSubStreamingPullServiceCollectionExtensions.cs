@@ -44,12 +44,12 @@ public static class PubSubStreamingPullServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<StreamingPullOptions>, StreamingPullOptionsValidator>());
 
 		// Register core services
-		_ = services.AddSingleton<StreamHealthMonitor>();
-		_ = services.AddSingleton<StreamingPullTelemetry>();
-		_ = services.AddTransient<MessageStreamProcessor>();
+		services.TryAddSingleton<StreamHealthMonitor>();
+		services.TryAddSingleton<StreamingPullTelemetry>();
+		services.TryAddTransient<MessageStreamProcessor>();
 
 		// Register factory for creating streaming pull managers
-		_ = services.AddSingleton<IStreamingPullManagerFactory, StreamingPullManagerFactory>();
+		services.TryAddSingleton<IStreamingPullManagerFactory, StreamingPullManagerFactory>();
 
 		return services;
 	}
@@ -75,12 +75,12 @@ public static class PubSubStreamingPullServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<StreamingPullOptions>, StreamingPullOptionsValidator>());
 
 		// Register core services
-		_ = services.AddSingleton<StreamHealthMonitor>();
-		_ = services.AddSingleton<StreamingPullTelemetry>();
-		_ = services.AddTransient<MessageStreamProcessor>();
+		services.TryAddSingleton<StreamHealthMonitor>();
+		services.TryAddSingleton<StreamingPullTelemetry>();
+		services.TryAddTransient<MessageStreamProcessor>();
 
 		// Register factory for creating streaming pull managers
-		_ = services.AddSingleton<IStreamingPullManagerFactory, StreamingPullManagerFactory>();
+		services.TryAddSingleton<IStreamingPullManagerFactory, StreamingPullManagerFactory>();
 
 		return services;
 	}

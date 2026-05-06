@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Orchestrates long polling optimization for multiple SQS queues.
 /// </summary>
-internal sealed partial class LongPollingOptimizer : IDisposable
+internal sealed partial class LongPollingOptimizer : IDisposable, IAsyncDisposable
 {
 	private readonly ILongPollingReceiver _receiver;
 	private readonly ILongPollingStrategy _strategy;
@@ -195,6 +195,27 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 	}
 
 	/// <inheritdoc />
+	public async ValueTask DisposeAsync()
+	{
+		if (_isDisposed)
+		{
+			return;
+		}
+
+		_isDisposed = true;
+		await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
+
+		if (_coalescingTimer is not null)
+		{
+			await _coalescingTimer.DisposeAsync().ConfigureAwait(false);
+		}
+
+		_receiver?.Dispose();
+		_coalescingLock.Dispose();
+		_shutdownTokenSource.Dispose();
+	}
+
+	/// <inheritdoc />
 	public void Dispose()
 	{
 		if (_isDisposed)
@@ -207,8 +228,8 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 
 		_coalescingTimer?.Dispose();
 		_receiver?.Dispose();
-		_coalescingLock?.Dispose();
-		_shutdownTokenSource?.Dispose();
+		_coalescingLock.Dispose();
+		_shutdownTokenSource.Dispose();
 	}
 
 	private async Task ProcessCoalescedRequestsAsync()

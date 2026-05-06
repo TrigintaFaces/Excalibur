@@ -374,4 +374,33 @@ public sealed class LoadBalancerStrategiesShould
 		// Act & Assert - should not throw (no-op for consistent hash)
 		balancer.UpdateMetrics(route, true, TimeSpan.FromMilliseconds(50));
 	}
+
+	[Fact]
+	public async Task WeightedRoundRobin_UpdateMetrics_ConcurrentAccess_DoesNotCorrupt()
+	{
+		// Arrange — the Interlocked fix (Bug #9) prevents lost-update races
+		// on TotalRequests / SuccessfulRequests counters
+		var balancer = new WeightedRoundRobinLoadBalancer(NullLogger<WeightedRoundRobinLoadBalancer>.Instance);
+		var route = new RouteDefinition { RouteId = "concurrent-route" };
+		const int threadCount = 8;
+		const int iterationsPerThread = 500;
+		var barrier = new Barrier(threadCount);
+
+		// Act — hammer UpdateMetrics from multiple threads
+		var tasks = Enumerable.Range(0, threadCount).Select(_ => Task.Run(() =>
+		{
+			barrier.SignalAndWait();
+			for (var i = 0; i < iterationsPerThread; i++)
+			{
+				balancer.UpdateMetrics(route, i % 2 == 0, TimeSpan.FromMilliseconds(i % 50));
+			}
+		})).ToArray();
+
+		await Task.WhenAll(tasks).ConfigureAwait(false);
+
+		// Assert — no exceptions and route is still selectable after concurrent hammering
+		var routes = new List<RouteDefinition> { route };
+		var selected = balancer.SelectRoute(routes, new RoutingContext());
+		selected.ShouldBe(route);
+	}
 }

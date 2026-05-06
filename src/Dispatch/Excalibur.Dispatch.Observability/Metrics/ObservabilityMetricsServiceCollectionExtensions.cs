@@ -27,8 +27,8 @@ public static class ObservabilityMetricsServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.AddSingleton<DispatchMetrics>();
-		_ = services.AddSingleton<IDispatchMetrics>(static provider => provider.GetRequiredService<DispatchMetrics>());
+		services.TryAddSingleton<DispatchMetrics>();
+		services.TryAddSingleton<IDispatchMetrics>(static provider => provider.GetRequiredService<DispatchMetrics>());
 		_ = services.AddOptions<ObservabilityOptions>()
 			.Configure(static _ => { })
 			.ValidateOnStart();
@@ -49,8 +49,8 @@ public static class ObservabilityMetricsServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.AddSingleton<CircuitBreakerMetrics>();
-		_ = services.AddSingleton<ICircuitBreakerMetrics>(static provider => provider.GetRequiredService<CircuitBreakerMetrics>());
+		services.TryAddSingleton<CircuitBreakerMetrics>();
+		services.TryAddSingleton<ICircuitBreakerMetrics>(static provider => provider.GetRequiredService<CircuitBreakerMetrics>());
 
 		return services;
 	}
@@ -65,8 +65,8 @@ public static class ObservabilityMetricsServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.AddSingleton<DeadLetterQueueMetrics>();
-		_ = services.AddSingleton<IDeadLetterQueueMetrics>(static provider => provider.GetRequiredService<DeadLetterQueueMetrics>());
+		services.TryAddSingleton<DeadLetterQueueMetrics>();
+		services.TryAddSingleton<IDeadLetterQueueMetrics>(static provider => provider.GetRequiredService<DeadLetterQueueMetrics>());
 
 		return services;
 	}

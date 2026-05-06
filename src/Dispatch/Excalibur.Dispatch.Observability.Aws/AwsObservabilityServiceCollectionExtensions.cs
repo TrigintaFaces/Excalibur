@@ -37,7 +37,7 @@ public static class AwsObservabilityServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<AwsObservabilityOptions>, AwsObservabilityOptionsValidator>());
 
-		_ = services.AddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
+		services.TryAddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
 
 		return services;
 	}
@@ -68,7 +68,7 @@ public static class AwsObservabilityServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<AwsObservabilityOptions>, AwsObservabilityOptionsValidator>());
 
-		_ = services.AddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
+		services.TryAddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
 
 		return services;
 	}

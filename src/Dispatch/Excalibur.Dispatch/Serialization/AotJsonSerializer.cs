@@ -24,6 +24,7 @@ public sealed class AotJsonSerializer : IDisposable
 	private readonly JsonSerializerContext context;
 
 	private readonly ThreadLocal<ArrayBufferWriter<byte>> _threadLocalBufferWriter;
+	private volatile bool _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AotJsonSerializer" /> class.
@@ -117,6 +118,13 @@ public sealed class AotJsonSerializer : IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
 		if (_threadLocalBufferWriter.IsValueCreated)
 		{
 			foreach (var bw in _threadLocalBufferWriter.Values)

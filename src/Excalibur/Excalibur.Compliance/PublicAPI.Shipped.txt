@@ -934,3 +934,4 @@ static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.
 static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ContinuousMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ReportStore<TStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Compliance.Soc2.Validators.BaseControlValidator.RunTestAsync(string! controlId, Excalibur.Compliance.ControlTestParameters! parameters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ControlTestResult!>!
+Excalibur.Compliance.Encryption.MultiRegionKeyProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask

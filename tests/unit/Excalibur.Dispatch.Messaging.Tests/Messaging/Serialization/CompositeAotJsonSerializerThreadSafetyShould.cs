@@ -87,4 +87,28 @@ public sealed class CompositeAotJsonSerializerThreadSafetyShould : UnitTestBase
 		// Assert
 		serializer.ShouldBeAssignableTo<IDisposable>();
 	}
+
+	[Fact]
+	public void NotThrowOnDoubleDispose()
+	{
+		// Arrange — the volatile _disposed guard must prevent ObjectDisposedException
+		// from ThreadLocal<T>.Dispose() being called twice (Bug #4)
+		var serializer = new CompositeAotJsonSerializer(CoreMessageJsonContext.Instance);
+		_ = serializer.Serialize("trigger-buffer-creation");
+
+		// Act & Assert — second dispose must be a no-op
+		serializer.Dispose();
+		Should.NotThrow(() => serializer.Dispose());
+	}
+
+	[Fact]
+	public void HaveVolatileDisposedField()
+	{
+		// Assert — the _disposed field must be volatile to ensure visibility across threads
+		var field = typeof(CompositeAotJsonSerializer)
+			.GetField("_disposed", BindingFlags.NonPublic | BindingFlags.Instance);
+
+		field.ShouldNotBeNull("CompositeAotJsonSerializer should have a _disposed field");
+		field.FieldType.ShouldBe(typeof(bool));
+	}
 }

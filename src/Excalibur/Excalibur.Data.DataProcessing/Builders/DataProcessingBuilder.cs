@@ -61,7 +61,10 @@ internal sealed class DataProcessingBuilder : IDataProcessingBuilder
 	public IDataProcessingBuilder AddProcessor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>()
 		where TProcessor : class, IDataProcessor
 	{
-		Services.AddScoped<IDataProcessor, TProcessor>();
+		// Register the concrete type so DataProcessorRegistry can resolve by concrete type
+		// within a scope, then forward the interface registration to the same scoped instance.
+		Services.AddScoped<TProcessor>();
+		Services.AddScoped<IDataProcessor, TProcessor>(sp => sp.GetRequiredService<TProcessor>());
 		return this;
 	}
 

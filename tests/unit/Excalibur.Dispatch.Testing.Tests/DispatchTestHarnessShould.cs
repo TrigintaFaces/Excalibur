@@ -272,6 +272,86 @@ public sealed class DispatchTestHarnessShould
 	}
 
 	[Fact]
+	public void CreateAsyncScopeReturnsNewScope()
+	{
+		// Arrange — the new CreateAsyncScope public API (Bug #2 fix)
+		var harness = new DispatchTestHarness();
+
+		// Act
+		var scope = harness.CreateAsyncScope();
+
+		// Assert
+		scope.ServiceProvider.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void CreateAsyncScopeTriggersBuilt()
+	{
+		// Arrange
+		var harness = new DispatchTestHarness();
+
+		// Act
+		var scope = harness.CreateAsyncScope();
+
+		// Assert — after CreateAsyncScope, the harness is built
+		var dispatcher = harness.Dispatcher;
+		dispatcher.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public async Task CreateAsyncScopeProvidesScopedServiceIsolation()
+	{
+		// Arrange
+		var harness = new DispatchTestHarness()
+			.ConfigureServices(services =>
+				services.AddScoped<IScopedTestService, ScopedTestService>());
+
+		// Act
+		await using var scope1 = harness.CreateAsyncScope();
+		await using var scope2 = harness.CreateAsyncScope();
+
+		var svc1 = scope1.ServiceProvider.GetRequiredService<IScopedTestService>();
+		var svc2 = scope2.ServiceProvider.GetRequiredService<IScopedTestService>();
+
+		// Assert — different scopes must provide different instances
+		svc1.ShouldNotBeSameAs(svc2);
+	}
+
+	[Fact]
+	public async Task CreateAsyncScopeDisposesAsyncDisposableServices()
+	{
+		// Arrange — this is the critical scenario: IAsyncDisposable services within
+		// a scope must be disposed via DisposeAsync, not Dispose. Using CreateScope()
+		// would throw InvalidOperationException; CreateAsyncScope() handles this.
+		var harness = new DispatchTestHarness()
+			.ConfigureServices(services =>
+				services.AddScoped<IAsyncDisposableService, AsyncDisposableService>());
+
+		AsyncDisposableService instance;
+
+		// Act
+		{
+			await using var scope = harness.CreateAsyncScope();
+			instance = (AsyncDisposableService)scope.ServiceProvider
+				.GetRequiredService<IAsyncDisposableService>();
+			instance.IsDisposed.ShouldBeFalse();
+		}
+
+		// Assert — the service should have been async-disposed when the scope ended
+		instance.IsDisposed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task ThrowOnCreateAsyncScopeAfterDispose()
+	{
+		var harness = new DispatchTestHarness();
+		await harness.DisposeAsync();
+
+		Should.Throw<ObjectDisposedException>(() =>
+			harness.CreateAsyncScope());
+	}
+
+	[Fact]
 	public void ResolveDispatcherFromScope()
 	{
 		var harness = new DispatchTestHarness();
@@ -299,5 +379,21 @@ public sealed class DispatchTestHarnessShould
 	private sealed class ScopedTestService : IScopedTestService
 	{
 		public Guid InstanceId { get; } = Guid.NewGuid();
+	}
+
+	private interface IAsyncDisposableService
+	{
+		bool IsDisposed { get; }
+	}
+
+	private sealed class AsyncDisposableService : IAsyncDisposableService, IAsyncDisposable
+	{
+		public bool IsDisposed { get; private set; }
+
+		public ValueTask DisposeAsync()
+		{
+			IsDisposed = true;
+			return ValueTask.CompletedTask;
+		}
 	}
 }

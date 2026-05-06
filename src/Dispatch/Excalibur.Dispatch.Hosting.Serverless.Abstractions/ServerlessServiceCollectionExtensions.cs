@@ -29,7 +29,7 @@ public static class ServerlessServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		// Register core services
-		_ = services.AddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
+		services.TryAddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
 
 		// Register validator
 		services.TryAddEnumerable(
@@ -63,7 +63,7 @@ public static class ServerlessServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		// Register core services
-		_ = services.AddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
+		services.TryAddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
 
 		// Register validator
 		services.TryAddEnumerable(

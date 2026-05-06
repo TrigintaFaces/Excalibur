@@ -133,6 +133,10 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 	/// <returns>A new service scope. The caller is responsible for disposing the scope.</returns>
 	/// <remarks>
 	/// <para>
+	/// Prefer <see cref="CreateAsyncScope"/> for new code — it returns an <see cref="AsyncServiceScope"/>
+	/// that correctly disposes <see cref="IAsyncDisposable"/> services.
+	/// </para>
+	/// <para>
 	/// Use scopes to verify that scoped services are properly isolated between operations.
 	/// Each scope gets its own instances of scoped services, while singleton services are shared.
 	/// </para>
@@ -155,6 +159,34 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 	{
 		EnsureBuilt();
 		return _serviceProvider!.CreateScope();
+	}
+
+	/// <summary>
+	/// Creates a new <see cref="AsyncServiceScope"/> for resolving scoped services with proper
+	/// async disposal support. Preferred over <see cref="CreateScope"/> for services that
+	/// implement <see cref="IAsyncDisposable"/>.
+	/// </summary>
+	/// <returns>A new async service scope. The caller is responsible for disposing the scope.</returns>
+	/// <remarks>
+	/// <para>
+	/// Example:
+	/// <code>
+	/// await using var harness = new DispatchTestHarness()
+	///     .ConfigureServices(s => s.AddScoped&lt;IMyScopedService, MyScopedService&gt;());
+	///
+	/// await using var scope1 = harness.CreateAsyncScope();
+	/// await using var scope2 = harness.CreateAsyncScope();
+	///
+	/// var svc1 = scope1.ServiceProvider.GetRequiredService&lt;IMyScopedService&gt;();
+	/// var svc2 = scope2.ServiceProvider.GetRequiredService&lt;IMyScopedService&gt;();
+	/// svc1.ShouldNotBeSameAs(svc2); // Different instances per scope
+	/// </code>
+	/// </para>
+	/// </remarks>
+	public AsyncServiceScope CreateAsyncScope()
+	{
+		EnsureBuilt();
+		return _serviceProvider!.CreateAsyncScope();
 	}
 
 	/// <inheritdoc />

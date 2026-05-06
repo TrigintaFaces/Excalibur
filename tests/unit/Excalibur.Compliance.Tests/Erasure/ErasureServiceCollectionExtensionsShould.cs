@@ -206,4 +206,46 @@ public sealed class ErasureServiceCollectionExtensionsShould
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddGdprErasureFromConfiguration((Action<ErasureOptions>)null!));
 	}
+
+	[Fact]
+	public void RegisterErasureSchedulerIdempotently()
+	{
+		// Arrange — calling AddErasureScheduler twice must not duplicate
+		// the hosted service registration (Bug #18)
+		var services = new ServiceCollection();
+
+		// Act
+		services.AddErasureScheduler();
+		services.AddErasureScheduler();
+
+		// Assert — exactly one ErasureSchedulerBackgroundService instance
+		var bgServiceDescriptors = services
+			.Where(d => d.ServiceType == typeof(ErasureSchedulerBackgroundService))
+			.ToList();
+		bgServiceDescriptors.Count.ShouldBe(1, "Duplicate AddErasureScheduler calls must not double-register the background service");
+
+		// Assert — exactly one IHostedService forwarding registration for it
+		var hostedServiceDescriptors = services
+			.Where(d => d.ServiceType == typeof(IHostedService) && d.ImplementationFactory is not null)
+			.ToList();
+		hostedServiceDescriptors.Count.ShouldBe(1, "Duplicate AddErasureScheduler calls must not create duplicate IHostedService entries");
+	}
+
+	[Fact]
+	public void RegisterLegalHoldExpirationIdempotently()
+	{
+		// Arrange — calling AddLegalHoldExpiration twice must not duplicate
+		// the hosted service registration (Bug #18)
+		var services = new ServiceCollection();
+
+		// Act
+		services.AddLegalHoldExpiration();
+		services.AddLegalHoldExpiration();
+
+		// Assert — exactly one LegalHoldExpirationService instance
+		var bgServiceDescriptors = services
+			.Where(d => d.ServiceType == typeof(LegalHoldExpirationService))
+			.ToList();
+		bgServiceDescriptors.Count.ShouldBe(1, "Duplicate AddLegalHoldExpiration calls must not double-register the background service");
+	}
 }

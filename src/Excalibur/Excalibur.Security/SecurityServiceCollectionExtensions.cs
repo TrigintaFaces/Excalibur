@@ -64,8 +64,8 @@ public static class SecurityServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		// Register credential stores
-		_ = services.AddSingleton<ICredentialStore, EnvironmentVariableCredentialStore>();
+		// Register credential stores (TryAdd = idempotent on repeated calls)
+		services.TryAddSingleton<ICredentialStore, EnvironmentVariableCredentialStore>();
 
 		// Note: Azure Key Vault and AWS Secrets Manager credential stores have been moved to:
 		// - Excalibur.Security.Azure.AddAzureKeyVaultCredentialStore()
@@ -76,12 +76,12 @@ public static class SecurityServiceCollectionExtensions
 		var vaultUrl = configuration["Vault:Url"];
 		if (!string.IsNullOrEmpty(vaultUrl))
 		{
-			_ = services.AddSingleton<ICredentialStore, HashiCorpVaultCredentialStore>();
-			_ = services.AddSingleton<IWritableCredentialStore, HashiCorpVaultCredentialStore>();
+			services.TryAddSingleton<ICredentialStore, HashiCorpVaultCredentialStore>();
+			services.TryAddSingleton<IWritableCredentialStore, HashiCorpVaultCredentialStore>();
 		}
 
 		// Register the main credential provider
-		_ = services.AddSingleton<ISecureCredentialProvider, SecureCredentialProvider>();
+		services.TryAddSingleton<ISecureCredentialProvider, SecureCredentialProvider>();
 
 		return services;
 	}
@@ -140,19 +140,29 @@ public static class SecurityServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		// Register security event logger
-		_ = services.AddSingleton<ISecurityEventLogger, SecurityEventLogger>();
-		_ = services.AddHostedService(static sp => (SecurityEventLogger)sp.GetRequiredService<ISecurityEventLogger>());
+		// Register security event logger using forwarding pattern to avoid hard-cast
+		services.TryAddSingleton<SecurityEventLogger>();
+		services.TryAddSingleton<ISecurityEventLogger>(static sp => sp.GetRequiredService<SecurityEventLogger>());
+		_ = services.AddHostedService(static sp => sp.GetRequiredService<SecurityEventLogger>());
 
-		// Register event store based on configuration
+		// Register event store based on configuration (TryAdd = idempotent on repeated calls)
 		var storeType = configuration["Security:Auditing:StoreType"];
-		_ = (storeType?.ToUpperInvariant()) switch
+		switch (storeType?.ToUpperInvariant())
 		{
-			"SQL" => services.AddSingleton<ISecurityEventStore, SqlSecurityEventStore>(),
-			"ELASTICSEARCH" => services.AddSingleton<ISecurityEventStore, ElasticsearchSecurityEventStore>(),
-			"FILE" => services.AddSingleton<ISecurityEventStore, FileSecurityEventStore>(),
-			_ => services.AddSingleton<ISecurityEventStore, InMemorySecurityEventStore>(), // Default to in-memory for development
-		};
+			case "SQL":
+				services.TryAddSingleton<ISecurityEventStore, SqlSecurityEventStore>();
+				break;
+			case "ELASTICSEARCH":
+				services.TryAddSingleton<ISecurityEventStore, ElasticsearchSecurityEventStore>();
+				break;
+			case "FILE":
+				services.TryAddSingleton<ISecurityEventStore, FileSecurityEventStore>();
+				break;
+			default:
+				services.TryAddSingleton<ISecurityEventStore, InMemorySecurityEventStore>(); // Default to in-memory for development
+				break;
+		}
+
 		return services;
 	}
 

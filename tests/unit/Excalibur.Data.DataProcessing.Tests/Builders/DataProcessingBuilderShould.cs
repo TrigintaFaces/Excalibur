@@ -170,10 +170,59 @@ public sealed class DataProcessingBuilderShould : UnitTestBase
 		// Act
 		builder.AddProcessor<TestProcessor>();
 
-		// Assert
+		// Assert — concrete type registered so DataProcessorRegistry can resolve by concrete type
+		services.ShouldContain(sd =>
+			sd.ServiceType == typeof(TestProcessor) &&
+			sd.ImplementationType == typeof(TestProcessor));
+
+		// Assert — IDataProcessor forwarding registration (uses factory delegate)
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(IDataProcessor) &&
-			sd.ImplementationType == typeof(TestProcessor));
+			sd.ImplementationFactory != null);
+	}
+
+	[Fact]
+	public async Task AddProcessor_ResolveSameInstanceWithinScope()
+	{
+		// Arrange — the forwarding registration pattern guarantees that resolving
+		// by concrete type and by IDataProcessor within the same scope yields the
+		// same instance. This is the key invariant that DataProcessorRegistry depends on.
+		var services = new ServiceCollection();
+		var builder = new DataProcessingBuilder(services);
+		builder.AddProcessor<TestProcessor>();
+		var sp = services.BuildServiceProvider();
+
+		// Act — resolve both ways within the same scope
+		await using var scope = sp.CreateAsyncScope();
+		var byConcreteType = scope.ServiceProvider.GetRequiredService<TestProcessor>();
+		var byInterface = scope.ServiceProvider.GetServices<IDataProcessor>()
+			.OfType<TestProcessor>()
+			.Single();
+
+		// Assert — must be the exact same instance (not double-constructed)
+		byInterface.ShouldBeSameAs(byConcreteType,
+			"Forwarding registration must resolve to the same scoped instance");
+	}
+
+	[Fact]
+	public void AddProcessor_RegisterWithScopedLifetime()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		var builder = new DataProcessingBuilder(services);
+
+		// Act
+		builder.AddProcessor<TestProcessor>();
+
+		// Assert — concrete type registration must be Scoped
+		services.ShouldContain(sd =>
+			sd.ServiceType == typeof(TestProcessor) &&
+			sd.Lifetime == ServiceLifetime.Scoped);
+
+		// Assert — interface forwarding must also be Scoped
+		services.ShouldContain(sd =>
+			sd.ServiceType == typeof(IDataProcessor) &&
+			sd.Lifetime == ServiceLifetime.Scoped);
 	}
 
 	// --- AddRecordHandler ---

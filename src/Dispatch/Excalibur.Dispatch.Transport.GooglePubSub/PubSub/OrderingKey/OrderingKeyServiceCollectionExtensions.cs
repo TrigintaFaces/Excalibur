@@ -40,7 +40,7 @@ public static class OrderingKeyServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<OrderingKeyOptions>, OrderingKeyOptionsValidator>());
 
 		// Register the processor
-		_ = services.AddSingleton<IOrderingKeyProcessor, OrderingKeyProcessor>();
+		services.TryAddSingleton<IOrderingKeyProcessor, OrderingKeyProcessor>();
 
 		return services;
 	}
@@ -63,7 +63,7 @@ public static class OrderingKeyServiceCollectionExtensions
 		_ = services.Configure<OrderingKeyOptions>(configuration);
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<OrderingKeyOptions>, OrderingKeyOptionsValidator>());
-		_ = services.AddSingleton<IOrderingKeyProcessor, OrderingKeyProcessor>();
+		services.TryAddSingleton<IOrderingKeyProcessor, OrderingKeyProcessor>();
 
 		return services;
 	}

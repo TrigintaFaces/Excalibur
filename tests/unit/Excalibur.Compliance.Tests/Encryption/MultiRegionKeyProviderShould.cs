@@ -398,6 +398,82 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		options.FailoverCooldown.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
+	[Fact]
+	public async Task ImplementIAsyncDisposable()
+	{
+		// Assert — MultiRegionKeyProvider now implements IAsyncDisposable (Bug #11)
+		_sut.ShouldBeAssignableTo<IAsyncDisposable>();
+
+		// Act & Assert — DisposeAsync should not throw
+		await _sut.DisposeAsync().ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task DisposeAsyncDisposesProviders()
+	{
+		// Arrange — create providers that implement IAsyncDisposable
+		var primary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>().Implements<IAsyncDisposable>());
+		var secondary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>().Implements<IAsyncDisposable>());
+
+		A.CallTo(() => ((IKeyManagementAdmin)primary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
+		A.CallTo(() => ((IKeyManagementAdmin)secondary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
+
+		var sut = new MultiRegionKeyProvider(
+			primary, secondary, _options, NullLogger<MultiRegionKeyProvider>.Instance);
+
+		// Act
+		await sut.DisposeAsync().ConfigureAwait(false);
+
+		// Assert — both providers should have been async-disposed
+		A.CallTo(() => ((IAsyncDisposable)primary).DisposeAsync()).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IAsyncDisposable)secondary).DisposeAsync()).MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task DisposeAsyncFallsBackToSyncDisposeForNonAsyncProviders()
+	{
+		// Arrange — create providers that implement IDisposable but NOT IAsyncDisposable
+		var primary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>().Implements<IDisposable>());
+		var secondary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>().Implements<IDisposable>());
+
+		A.CallTo(() => ((IKeyManagementAdmin)primary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
+		A.CallTo(() => ((IKeyManagementAdmin)secondary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
+
+		var sut = new MultiRegionKeyProvider(
+			primary, secondary, _options, NullLogger<MultiRegionKeyProvider>.Instance);
+
+		// Act
+		await sut.DisposeAsync().ConfigureAwait(false);
+
+		// Assert — both providers should have been sync-disposed as fallback
+		A.CallTo(() => ((IDisposable)primary).Dispose()).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IDisposable)secondary).Dispose()).MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task AllowDoubleDisposeAsync()
+	{
+		// Act & Assert — second DisposeAsync must be a no-op
+		await _sut.DisposeAsync().ConfigureAwait(false);
+		await _sut.DisposeAsync().ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task ThrowOnOperationsAfterDisposeAsync()
+	{
+		// Arrange
+		await _sut.DisposeAsync().ConfigureAwait(false);
+
+		// Act & Assert
+		await Should.ThrowAsync<ObjectDisposedException>(
+			() => _sut.GetKeyAsync("k1", CancellationToken.None))
+			.ConfigureAwait(false);
+	}
+
 	public void Dispose()
 	{
 		_sut.Dispose();

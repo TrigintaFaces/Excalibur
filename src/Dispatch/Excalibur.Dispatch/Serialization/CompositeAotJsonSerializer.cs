@@ -27,6 +27,7 @@ public sealed class CompositeAotJsonSerializer : IDisposable
 	private readonly ConcurrentDictionary<Type, JsonSerializerContext> typeContextCache;
 
 	private readonly ThreadLocal<ArrayBufferWriter<byte>> _threadLocalBufferWriter;
+	private volatile bool _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CompositeAotJsonSerializer" /> class.
@@ -139,6 +140,13 @@ public sealed class CompositeAotJsonSerializer : IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
 		if (_threadLocalBufferWriter.IsValueCreated)
 		{
 			foreach (var bw in _threadLocalBufferWriter.Values)

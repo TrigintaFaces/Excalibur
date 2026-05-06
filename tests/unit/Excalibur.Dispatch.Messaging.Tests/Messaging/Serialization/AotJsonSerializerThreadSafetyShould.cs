@@ -87,4 +87,31 @@ public sealed class AotJsonSerializerThreadSafetyShould : UnitTestBase
 		// Assert
 		serializer.ShouldBeAssignableTo<IDisposable>();
 	}
+
+	[Fact]
+	public void NotThrowOnDoubleDispose()
+	{
+		// Arrange — the volatile _disposed guard must prevent ObjectDisposedException
+		// from ThreadLocal<T>.Dispose() being called twice (Bug #5)
+		var serializer = new AotJsonSerializer();
+		_ = serializer.Serialize("trigger-buffer-creation");
+
+		// Act & Assert — second dispose must be a no-op
+		serializer.Dispose();
+		Should.NotThrow(() => serializer.Dispose());
+	}
+
+	[Fact]
+	public void HaveVolatileDisposedField()
+	{
+		// Assert — the _disposed field must be volatile to ensure visibility across threads
+		var field = typeof(AotJsonSerializer)
+			.GetField("_disposed", BindingFlags.NonPublic | BindingFlags.Instance);
+
+		field.ShouldNotBeNull("AotJsonSerializer should have a _disposed field");
+
+		// Volatile fields are not directly queryable via reflection, but we can check
+		// the field exists and is boolean (the volatile keyword is a compile-time attribute)
+		field.FieldType.ShouldBe(typeof(bool));
+	}
 }

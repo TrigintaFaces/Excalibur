@@ -9,6 +9,7 @@ using Excalibur.Security;
 using Excalibur.Security.Abstractions;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -42,7 +43,7 @@ public static class Argon2ServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
-		_ = services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
+		services.TryAddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
 
 		return services;
 	}
@@ -64,7 +65,7 @@ public static class Argon2ServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		_ = services.Configure<Argon2Options>(configuration.GetSection(Argon2Options.SectionName));
-		_ = services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
+		services.TryAddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
 
 		return services;
 	}

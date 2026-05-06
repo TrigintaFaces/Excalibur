@@ -23,8 +23,8 @@ internal partial class ConsistentHashLoadBalancer(
 
 	private readonly ILogger<ConsistentHashLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly Lock _rebuildLock = new();
-	private HashRingSnapshot _hashRingSnapshot = HashRingSnapshot.Empty;
-	private Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
+	private volatile HashRingSnapshot _hashRingSnapshot = HashRingSnapshot.Empty;
+	private volatile Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
 
 	/// <inheritdoc />
 	public RouteDefinition SelectRoute(IReadOnlyList<RouteDefinition> routes, RoutingContext context)

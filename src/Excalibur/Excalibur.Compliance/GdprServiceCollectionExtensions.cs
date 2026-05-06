@@ -309,8 +309,12 @@ public static class GdprServiceCollectionExtensions
 		}
 
 		services.TryAddScoped<IRetentionEnforcementService, RetentionEnforcementService>();
-		_ = services.AddSingleton<RetentionEnforcementBackgroundService>();
-		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RetentionEnforcementBackgroundService>());
+		if (!services.Any(sd => sd.ServiceType == typeof(RetentionEnforcementBackgroundService)))
+		{
+			_ = services.AddSingleton<RetentionEnforcementBackgroundService>();
+			_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RetentionEnforcementBackgroundService>());
+		}
+
 		return services;
 	}
 
@@ -336,8 +340,12 @@ public static class GdprServiceCollectionExtensions
 			.ValidateOnStart();
 
 		services.TryAddScoped<IRetentionEnforcementService, RetentionEnforcementService>();
-		_ = services.AddSingleton<RetentionEnforcementBackgroundService>();
-		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RetentionEnforcementBackgroundService>());
+		if (!services.Any(sd => sd.ServiceType == typeof(RetentionEnforcementBackgroundService)))
+		{
+			_ = services.AddSingleton<RetentionEnforcementBackgroundService>();
+			_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RetentionEnforcementBackgroundService>());
+		}
+
 		return services;
 	}
 

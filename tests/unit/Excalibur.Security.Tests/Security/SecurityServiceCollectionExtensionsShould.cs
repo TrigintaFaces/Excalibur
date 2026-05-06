@@ -4,6 +4,7 @@ using Excalibur.Security;
 using Excalibur.Security.Abstractions;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace Excalibur.Tests.Security;
 
@@ -138,5 +139,148 @@ public sealed class SecurityServiceCollectionExtensionsShould
 
 		// Assert
 		result.ShouldBeSameAs(services);
+	}
+
+	[Fact]
+	public void AddPasswordHasher_IsIdempotent()
+	{
+		// Arrange — calling AddPasswordHasher twice must not double-register (Bug #8)
+		var services = new ServiceCollection();
+
+		// Act
+		services.AddPasswordHasher();
+		services.AddPasswordHasher();
+
+		// Assert — exactly one IPasswordHasher registration
+		var descriptors = services
+			.Where(d => d.ServiceType == typeof(IPasswordHasher))
+			.ToList();
+		descriptors.Count.ShouldBe(1,
+			"TryAddSingleton must prevent duplicate IPasswordHasher registrations");
+	}
+
+	[Fact]
+	public void AddSecurityAuditing_RegistersSecurityEventLoggerWithForwardingPattern()
+	{
+		// Arrange — the forwarding pattern fix (Bug #6): concrete type registered,
+		// then ISecurityEventLogger forwards via factory delegate
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var configuration = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Security:Auditing:StoreType"] = "MEMORY",
+			})
+			.Build();
+
+		// Act
+		services.AddSecurityAuditing(configuration);
+
+		// Assert — ISecurityEventLogger uses a forwarding factory (not direct ImplementationType)
+		var interfaceDescriptor = services
+			.FirstOrDefault(d => d.ServiceType == typeof(ISecurityEventLogger));
+		interfaceDescriptor.ShouldNotBeNull();
+		interfaceDescriptor.ImplementationFactory.ShouldNotBeNull(
+			"ISecurityEventLogger should use a forwarding factory to resolve from concrete type");
+	}
+
+	[Fact]
+	public void AddSecurityAuditing_ResolvesSecurityEventLoggerFromContainer()
+	{
+		// Arrange — verify the forwarding pattern actually resolves at runtime (Bug #6)
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var configuration = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Security:Auditing:StoreType"] = "MEMORY",
+			})
+			.Build();
+
+		// Act
+		services.AddSecurityAuditing(configuration);
+		var provider = services.BuildServiceProvider();
+
+		// Assert — resolving ISecurityEventLogger should succeed
+		var logger = provider.GetService<ISecurityEventLogger>();
+		logger.ShouldNotBeNull("ISecurityEventLogger should resolve from the forwarding registration");
+	}
+
+	[Fact]
+	public void AddSecurityAuditing_IsIdempotent()
+	{
+		// Arrange — calling twice must not duplicate hosted services (Bug #7)
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var configuration = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Security:Auditing:StoreType"] = "MEMORY",
+			})
+			.Build();
+
+		// Act
+		services.AddSecurityAuditing(configuration);
+		services.AddSecurityAuditing(configuration);
+
+		// Assert — exactly one ISecurityEventLogger forwarding
+		var interfaceDescriptors = services
+			.Where(d => d.ServiceType == typeof(ISecurityEventLogger))
+			.ToList();
+		interfaceDescriptors.Count.ShouldBe(1,
+			"TryAddSingleton must prevent duplicate ISecurityEventLogger registrations");
+	}
+
+	[Fact]
+	public void AddSecurityAuditing_EventStoreIsIdempotent()
+	{
+		// Arrange — calling twice must not duplicate event store registrations (Bug #8)
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var configuration = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Security:Auditing:StoreType"] = "SQL",
+			})
+			.Build();
+
+		// Act
+		services.AddSecurityAuditing(configuration);
+		services.AddSecurityAuditing(configuration);
+
+		// Assert — exactly one ISecurityEventStore registration
+		var storeDescriptors = services
+			.Where(d => d.ServiceType == typeof(ISecurityEventStore))
+			.ToList();
+		storeDescriptors.Count.ShouldBe(1,
+			"TryAddSingleton must prevent duplicate ISecurityEventStore registrations");
+	}
+
+	[Fact]
+	public void AddSecureCredentialManagement_IsIdempotent()
+	{
+		// Arrange — calling twice must not duplicate credential stores (Bug #8)
+		var services = new ServiceCollection();
+		var configuration = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>())
+			.Build();
+
+		// Act
+		services.AddSecureCredentialManagement(configuration);
+		services.AddSecureCredentialManagement(configuration);
+
+		// Assert — exactly one ICredentialStore registration
+		var storeDescriptors = services
+			.Where(d => d.ServiceType == typeof(ICredentialStore))
+			.ToList();
+		storeDescriptors.Count.ShouldBe(1,
+			"TryAddSingleton must prevent duplicate ICredentialStore registrations");
+
+		// Assert — exactly one ISecureCredentialProvider registration
+		var providerDescriptors = services
+			.Where(d => d.ServiceType == typeof(ISecureCredentialProvider))
+			.ToList();
+		providerDescriptors.Count.ShouldBe(1,
+			"TryAddSingleton must prevent duplicate ISecureCredentialProvider registrations");
 	}
 }

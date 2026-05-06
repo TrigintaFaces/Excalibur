@@ -31,7 +31,7 @@ public sealed class UnhealthyStreamEventArgs(string streamId) : EventArgs
 /// <summary>
 /// Monitors the health of streaming pull connections and manages reconnection.
 /// </summary>
-internal sealed partial class StreamHealthMonitor : IDisposable
+internal sealed partial class StreamHealthMonitor : IDisposable, IAsyncDisposable
 {
 	private readonly ILogger<StreamHealthMonitor> _logger;
 	private readonly StreamingPullOptions _options;
@@ -247,6 +247,35 @@ internal sealed partial class StreamHealthMonitor : IDisposable
 	/// </summary>
 	/// <param name="streamId"> The stream identifier. </param>
 	public void RemoveStream(string streamId) => _ = _streamHealth.TryRemove(streamId, out _);
+
+	/// <summary>
+	/// Asynchronously disposes the health monitor, waiting for any in-flight health check to complete.
+	/// </summary>
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+		_healthCheckTimer?.Dispose();
+
+		// Wait for any in-flight health check to finish before disposing the semaphore
+		try
+		{
+			await _checkSemaphore.WaitAsync().ConfigureAwait(false);
+			_checkSemaphore.Release();
+		}
+		catch (ObjectDisposedException)
+		{
+			// Already disposed by a concurrent path
+		}
+
+		_checkSemaphore.Dispose();
+		_streamHealth.Clear();
+		GC.SuppressFinalize(this);
+	}
 
 	/// <summary>
 	/// Disposes the health monitor.

@@ -23,8 +23,8 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 	private readonly ILogger<WeightedRoundRobinLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly ConcurrentDictionary<string, RouteState> _routeStates = new(StringComparer.Ordinal);
 	private readonly Lock _snapshotLock = new();
-	private RouteDefinition[] _weightedRoutesSnapshot = [];
-	private Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
+	private volatile RouteDefinition[] _weightedRoutesSnapshot = [];
+	private volatile Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
 	private int _currentIndex;
 
 	/// <inheritdoc />
@@ -66,10 +66,10 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 
 		var state = _routeStates.GetOrAdd(route.RouteId, static _ => new RouteState());
 
-		state.TotalRequests++;
+		state.IncrementTotalRequests();
 		if (success)
 		{
-			state.SuccessfulRequests++;
+			state.IncrementSuccessfulRequests();
 		}
 
 		state.UpdateLatency(latency);
@@ -155,20 +155,27 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 	private sealed class RouteState
 	{
 		private readonly Lock _lock = new();
+		private long _totalRequests;
+		private long _successfulRequests;
 		private double _totalLatency;
 
-		public long TotalRequests { get; set; }
+		public long TotalRequests => Interlocked.Read(ref _totalRequests);
 
-		public long SuccessfulRequests { get; set; }
+		public long SuccessfulRequests => Interlocked.Read(ref _successfulRequests);
 
 		public double AverageLatency { get; private set; }
+
+		public void IncrementTotalRequests() => Interlocked.Increment(ref _totalRequests);
+
+		public void IncrementSuccessfulRequests() => Interlocked.Increment(ref _successfulRequests);
 
 		public void UpdateLatency(TimeSpan latency)
 		{
 			lock (_lock)
 			{
 				_totalLatency += latency.TotalMilliseconds;
-				AverageLatency = _totalLatency / TotalRequests;
+				var total = Interlocked.Read(ref _totalRequests);
+				AverageLatency = total > 0 ? _totalLatency / total : 0;
 			}
 		}
 	}

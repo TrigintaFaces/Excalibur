@@ -55,7 +55,7 @@ public abstract partial class ColdStartOptimizerBase : IColdStartOptimizer
 		LogWarmingUpServices(PlatformName);
 
 		// 1. DI Container Pre-initialization
-		WarmupSingletonServices();
+		await WarmupSingletonServicesAsync().ConfigureAwait(false);
 
 		// 2. Platform-specific SDK warmup
 		await WarmupPlatformSdkAsync().ConfigureAwait(false);
@@ -81,7 +81,7 @@ public abstract partial class ColdStartOptimizerBase : IColdStartOptimizer
 	/// <summary>
 	/// Pre-initializes singleton services from the DI container.
 	/// </summary>
-	private void WarmupSingletonServices()
+	private async Task WarmupSingletonServicesAsync()
 	{
 		LogSingletonWarmupStarting();
 
@@ -91,7 +91,7 @@ public abstract partial class ColdStartOptimizerBase : IColdStartOptimizer
 
 			if (scopeFactory is not null)
 			{
-				using var scope = scopeFactory.CreateScope();
+				await using var scope = scopeFactory.CreateAsyncScope();
 				_ = scope.ServiceProvider.GetService<ILoggerFactory>();
 			}
 			else

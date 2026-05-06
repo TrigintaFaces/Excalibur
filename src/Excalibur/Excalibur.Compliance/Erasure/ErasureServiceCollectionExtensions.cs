@@ -203,8 +203,11 @@ public static class ErasureServiceCollectionExtensions
 			services.TryAddSingleton(Options.Options.Create(new ErasureSchedulerOptions()));
 		}
 
-		_ = services.AddSingleton<ErasureSchedulerBackgroundService>();
-		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ErasureSchedulerBackgroundService>());
+		if (!services.Any(sd => sd.ServiceType == typeof(ErasureSchedulerBackgroundService)))
+		{
+			_ = services.AddSingleton<ErasureSchedulerBackgroundService>();
+			_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ErasureSchedulerBackgroundService>());
+		}
 
 		return services;
 	}
@@ -227,8 +230,11 @@ public static class ErasureServiceCollectionExtensions
 
 		_ = services.AddOptions<ErasureSchedulerOptions>().Bind(configuration);
 
-		_ = services.AddSingleton<ErasureSchedulerBackgroundService>();
-		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ErasureSchedulerBackgroundService>());
+		if (!services.Any(sd => sd.ServiceType == typeof(ErasureSchedulerBackgroundService)))
+		{
+			_ = services.AddSingleton<ErasureSchedulerBackgroundService>();
+			_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ErasureSchedulerBackgroundService>());
+		}
 
 		return services;
 	}
@@ -256,8 +262,11 @@ public static class ErasureServiceCollectionExtensions
 			services.TryAddSingleton(Options.Options.Create(new LegalHoldExpirationOptions()));
 		}
 
-		_ = services.AddSingleton<LegalHoldExpirationService>();
-		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<LegalHoldExpirationService>());
+		if (!services.Any(sd => sd.ServiceType == typeof(LegalHoldExpirationService)))
+		{
+			_ = services.AddSingleton<LegalHoldExpirationService>();
+			_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<LegalHoldExpirationService>());
+		}
 
 		return services;
 	}
@@ -280,8 +289,11 @@ public static class ErasureServiceCollectionExtensions
 
 		_ = services.AddOptions<LegalHoldExpirationOptions>().Bind(configuration);
 
-		_ = services.AddSingleton<LegalHoldExpirationService>();
-		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<LegalHoldExpirationService>());
+		if (!services.Any(sd => sd.ServiceType == typeof(LegalHoldExpirationService)))
+		{
+			_ = services.AddSingleton<LegalHoldExpirationService>();
+			_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<LegalHoldExpirationService>());
+		}
 
 		return services;
 	}

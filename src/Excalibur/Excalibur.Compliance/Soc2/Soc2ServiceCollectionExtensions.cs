@@ -238,14 +238,14 @@ public static class Soc2ServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<Soc2Options>, Soc2OptionsValidator>());
 
 		// Register core services
-		_ = services.AddScoped<ISoc2ComplianceService, Soc2ComplianceService>();
-		_ = services.AddScoped<IControlValidationService, ControlValidationService>();
+		services.TryAddScoped<ISoc2ComplianceService, Soc2ComplianceService>();
+		services.TryAddScoped<IControlValidationService, ControlValidationService>();
 
 		// Register report generation services
-		_ = services.AddScoped<ISoc2ReportGenerator, Soc2ReportGenerator>();
+		services.TryAddScoped<ISoc2ReportGenerator, Soc2ReportGenerator>();
 
 		// Register export services
-		_ = services.AddScoped<ISoc2ReportExporter, Soc2ReportExporter>();
+		services.TryAddScoped<ISoc2ReportExporter, Soc2ReportExporter>();
 	}
 
 	private static void RegisterBuiltInValidators(IServiceCollection services)

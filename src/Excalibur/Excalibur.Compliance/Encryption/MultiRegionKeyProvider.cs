@@ -32,7 +32,7 @@ namespace Excalibur.Compliance.Encryption;
 ///   <item><description>HashiCorp Vault: Enterprise with replication or OSS with manual sync</description></item>
 /// </list>
 /// </remarks>
-public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IKeyManagementAdmin, IMultiRegionHealthMonitor
+public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IKeyManagementAdmin, IMultiRegionHealthMonitor, IAsyncDisposable
 {
 	private static readonly Meter Meter = new("Excalibur.Compliance.MultiRegion", "1.0.0");
 
@@ -330,6 +330,55 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 	}
 
 	/// <inheritdoc />
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		await _healthCheckCts.CancelAsync().ConfigureAwait(false);
+
+		if (_healthCheckTask is not null && !_healthCheckTask.IsCompleted)
+		{
+			try
+			{
+				await _healthCheckTask.ConfigureAwait(false);
+			}
+			catch (OperationCanceledException)
+			{
+				// Expected during shutdown
+			}
+		}
+
+		_healthCheckCts.Dispose();
+		_failoverLock.Dispose();
+
+		// Dispose providers if they are disposable (prefer async)
+		if (_primaryProvider is IAsyncDisposable primaryAsync)
+		{
+			await primaryAsync.DisposeAsync().ConfigureAwait(false);
+		}
+		else
+		{
+			(_primaryProvider as IDisposable)?.Dispose();
+		}
+
+		if (_secondaryProvider is IAsyncDisposable secondaryAsync)
+		{
+			await secondaryAsync.DisposeAsync().ConfigureAwait(false);
+		}
+		else
+		{
+			(_secondaryProvider as IDisposable)?.Dispose();
+		}
+
+		LogDisposed();
+	}
+
+	/// <inheritdoc />
 	public void Dispose()
 	{
 		if (_disposed)
@@ -341,8 +390,8 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 
 		_healthCheckCts.Cancel();
 
-		// Best-effort wait for background loop to observe cancellation without blocking with Task.Wait.
-		if (!_healthCheckTask.IsCompleted)
+		// Best-effort spin-wait for background loop -- prefer DisposeAsync for proper await
+		if (_healthCheckTask is not null && !_healthCheckTask.IsCompleted)
 		{
 			var wait = ValueStopwatch.StartNew();
 			var spinner = new SpinWait();

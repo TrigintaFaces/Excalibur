@@ -133,5 +133,18 @@ public sealed class DispatchJsonSerializerShould : IDisposable
 		result.ShouldBe(42);
 	}
 
+	[Fact]
+	public void NotThrowOnDoubleDispose()
+	{
+		// Arrange — the volatile _disposed guard must prevent ObjectDisposedException
+		// from ThreadLocal<T>.Dispose() being called twice (Bug #3)
+		var serializer = new DispatchJsonSerializer();
+		_ = serializer.Serialize("trigger-buffer-creation");
+
+		// Act & Assert — second dispose must be a no-op
+		serializer.Dispose();
+		Should.NotThrow(() => serializer.Dispose());
+	}
+
 	public void Dispose() => _sut.Dispose();
 }

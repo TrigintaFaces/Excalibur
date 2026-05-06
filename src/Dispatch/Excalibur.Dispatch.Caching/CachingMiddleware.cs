@@ -281,7 +281,13 @@ internal sealed class CachingMiddleware(
 			}
 		}
 
-		return cachedValue!;
+		if (cachedValue is null)
+		{
+			throw new InvalidOperationException(
+				$"Failed to deserialize cached value for type '{cachedResult.TypeName}'.");
+		}
+
+		return cachedValue;
 	}
 
 	/// <summary>
@@ -745,7 +751,9 @@ internal sealed class CachingMiddleware(
 				catch (Exception ex) when (ex is not OperationCanceledException)
 				{
 					// Policy threw, fall back to global policy
-					_ = ex;
+					logger.LogWarning(ex,
+						"Cache policy evaluation failed for message type {MessageType}, falling back to global policy",
+						message.GetType().Name);
 				}
 			}
 
@@ -772,7 +780,9 @@ internal sealed class CachingMiddleware(
 				catch (Exception ex)
 				{
 					// Policy threw, fall back to the global policy
-					_ = ex;
+					logger.LogWarning(ex,
+						"Cache policy evaluation failed for message type {MessageType}, falling back to global policy",
+						message.GetType().Name);
 				}
 			}
 		}

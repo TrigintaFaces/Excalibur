@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Compliance;
+using Excalibur.Compliance.Retention;
 using Excalibur.Compliance.Erasure;
 using Excalibur.Compliance.Stores.MongoDb;
 using Excalibur.Compliance.Stores.Postgres;
@@ -316,5 +317,24 @@ public sealed class GdprServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddMongoDbComplianceStore((Action<MongoDbComplianceOptions>)null!));
+	}
+
+	[Fact]
+	public void RegisterRetentionEnforcementIdempotently()
+	{
+		// Arrange — calling AddRetentionEnforcement twice must not duplicate
+		// the hosted service registration (Bug #18)
+		var services = new ServiceCollection();
+
+		// Act
+		services.AddRetentionEnforcement();
+		services.AddRetentionEnforcement();
+
+		// Assert — exactly one RetentionEnforcementBackgroundService
+		var bgServiceDescriptors = services
+			.Where(d => d.ServiceType == typeof(RetentionEnforcementBackgroundService))
+			.ToList();
+		bgServiceDescriptors.Count.ShouldBe(1,
+			"Duplicate AddRetentionEnforcement calls must not double-register the background service");
 	}
 }

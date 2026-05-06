@@ -33,6 +33,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 	private readonly IUtf8JsonWriterPool _writerPool;
 	private readonly IPooledBufferService _bufferManager;
 	private readonly ThreadLocal<ArrayBufferWriter<byte>> _threadLocalBufferWriter;
+	private volatile bool _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DispatchJsonSerializer" /> class.
@@ -527,6 +528,13 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
 		if (_threadLocalBufferWriter.IsValueCreated)
 		{
 			foreach (var bufferWriter in _threadLocalBufferWriter.Values)
