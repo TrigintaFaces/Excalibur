@@ -27,7 +27,7 @@ public sealed class OutboxProcessorJob(
 	{
 		OutboxProcessorJobLog.JobStarting(_logger);
 
-		using var scope = _scopeFactory.CreateScope();
+		await using var scope = _scopeFactory.CreateAsyncScope();
 		var outbox = scope.ServiceProvider.GetService<IOutboxDispatcher>();
 
 		if (outbox == null)

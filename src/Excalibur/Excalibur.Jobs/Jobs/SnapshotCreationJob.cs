@@ -85,7 +85,7 @@ public abstract class SnapshotCreationJob<TAggregate, TKey>(
 	{
 		SnapshotCreationJobLog.JobStarting(_logger, typeof(TAggregate).Name);
 
-		using var scope = _scopeFactory.CreateScope();
+		await using var scope = _scopeFactory.CreateAsyncScope();
 		var repository = scope.ServiceProvider.GetService<IEventSourcedRepository<TAggregate, TKey>>();
 		var snapshotManager = scope.ServiceProvider.GetService<ISnapshotManager>();
 

@@ -22,7 +22,7 @@ public static class HostExtensions
 	{
 		ArgumentNullException.ThrowIfNull(host);
 
-		using var scope = host.Services.CreateScope();
+		await using var scope = host.Services.CreateAsyncScope();
 		var indexInitializer = scope.ServiceProvider.GetRequiredService<IIndexInitializer>();
 		await indexInitializer.InitializeIndexesAsync().ConfigureAwait(false);
 	}

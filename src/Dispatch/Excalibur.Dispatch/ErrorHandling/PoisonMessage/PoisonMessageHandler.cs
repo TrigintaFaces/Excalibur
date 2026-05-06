@@ -195,7 +195,7 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 				["UserId"] = metadata?.UserId,
 			};
 
-			using var scope = _serviceProvider.CreateScope();
+			await using var scope = _serviceProvider.CreateAsyncScope();
 			var context = DispatchContextInitializer.CreateFromMetadata(metaDict);
 			context.MessageId = deadLetterMessage.MessageId;
 			context.Items["IsReplay"] = true;

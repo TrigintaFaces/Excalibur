@@ -215,7 +215,9 @@ The pre-built options overload uses `Options.Create()` directly, which bypasses 
 Previous standalone `AddRedisLeaderElection` methods have been removed. Use the builder API shown above for all new registrations.
 :::
 
-## When to Use Factory vs Single Registration {#factory-vs-single}
+<div id="factory-vs-single" />
+
+## When to Use Factory vs Single Registration
 
 Excalibur offers two ways to register leader election: a **single registration** (`ILeaderElection`) and a **factory** (`ILeaderElectionFactory`). Choose based on how many independent leadership scopes your application needs.
 
@@ -890,7 +892,7 @@ public class LeadershipAwareProcessor : BackgroundService
 
 ### Multiple Leader Elections
 
-Use the factory for multiple independent elections. See [When to Use Factory vs Single](#factory-vs-single) above for guidance on choosing between single registration and factory.
+Use the factory for multiple independent elections. See [When to Use Factory vs Single](#when-to-use-factory-vs-single-registration) above for guidance on choosing between single registration and factory.
 
 ```csharp
 // Register factory for multiple lock resources

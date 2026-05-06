@@ -852,7 +852,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 				["ContractVersion"] = meta.ContractVersion,
 			};
 
-		using var scope = _serviceProvider.CreateScope();
+		await using var scope = _serviceProvider.CreateAsyncScope();
 		var context = DispatchContextInitializer.CreateFromMetadata(metaDict);
 		context.MessageId = storedMessage.ExternalMessageId;
 		context.GetOrCreateIdentityFeature().ExternalId = storedMessage.ExternalMessageId;

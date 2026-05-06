@@ -480,7 +480,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	{
 		ArgumentNullException.ThrowIfNull(record);
 
-		using var scope = _serviceProvider.CreateScope();
+		await using var scope = _serviceProvider.CreateAsyncScope();
 
 		// Resolve handler via DI — both explicit AddRecordHandler<T,R>() and
 		// assembly-scanned handlers register as IRecordHandler<TRecord>.

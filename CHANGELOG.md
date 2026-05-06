@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CreateScope → CreateAsyncScope** across 12 framework services -- `DataProcessingHostedService`, `DataProcessor<T>`, `SagaTimeoutDeliveryService`, `QuartzJobAdapter`, `OutboxProcessor`, `InboxProcessor`, `PoisonMessageHandler`, `SnapshotCreationJob`, `ProjectionRebuildJob`, `OutboxProcessorJob`, ElasticSearch/OpenSearch `HostExtensions`, and `JitAccessExpiryService` now use `CreateAsyncScope()` to correctly dispose services implementing `IAsyncDisposable` (fixes `InvalidOperationException` when processors inherit from `DataProcessor<T>`)
+- **dependency-review-action@v5 → v4** -- CI security workflow referenced non-existent action version
+- **Nullability test fixes** -- `DataProcessingBuilderShould` CS8764 (`DbConnection.ConnectionString` override) and `EphemeralProjectionEngineExtendedShould` CS8620 (FakeItEasy `Returns` type inference)
+- **Docusaurus MDX v3 parse errors** -- 4 docs files using `{#custom-id}` heading syntax converted to `<div id="..." />` anchors
+- **23 npm vulnerabilities resolved** -- upgraded Docusaurus 3.9→3.10 (added `@docusaurus/faster`), overrode `minimatch@10.2.5` and `serialize-javascript@7.0.5`
+
 ### Changed
 
 - **Versioning: GitVersion → MinVer migration** -- Package versioning now uses [MinVer](https://github.com/adamralph/minver) 6.0.0 (Polly pattern) instead of GitVersion. Versions are computed from git tags (`v3.0.0-alpha.N`); commits after a tag auto-increment the pre-release identifier. Local dev defaults to `3.0.0-alpha.0`. Release workflow updated to pass `MinVerVersionOverride` for `workflow_dispatch` builds. `GitVersion.yml` removed. SourceGenerators project carries an explicit MinVer reference (opts out of CPM).

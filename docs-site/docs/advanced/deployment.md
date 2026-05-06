@@ -410,7 +410,7 @@ Resources:
 
 ---
 
-## Native AOT {#native-aot}
+## Native AOT
 
 Dispatch supports Native AOT compilation for serverless and edge deployment scenarios. AOT-compiled applications start faster and have smaller memory footprints.
 

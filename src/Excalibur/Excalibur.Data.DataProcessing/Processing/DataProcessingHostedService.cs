@@ -123,7 +123,7 @@ internal sealed partial class DataProcessingHostedService : BackgroundService
 
 				// IDataOrchestrationManager is scoped (depends on scoped IDataProcessorRegistry).
 				// Create a fresh scope per polling cycle to avoid captive dependency.
-				using var scope = _scopeFactory.CreateScope();
+				await using var scope = _scopeFactory.CreateAsyncScope();
 				var orchestrationManager = scope.ServiceProvider.GetRequiredService<IDataOrchestrationManager>();
 				await orchestrationManager.ProcessDataTasksAsync(stoppingToken).ConfigureAwait(false);
 

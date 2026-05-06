@@ -181,7 +181,9 @@ The `Db` base class:
 - Implements `IDisposable` to close and dispose the connection
 - Handles null-guard validation
 
-## Data Processing Multi-Database {#data-processing-multi-database}
+<div id="data-processing-multi-database" />
+
+## Data Processing Multi-Database
 
 Data processing uses a different multi-database strategy than the typed `IDb` interfaces above. Instead of marker interfaces, data processing relies on **per-processor `Func<IDbConnection>` injection** using keyed services.
 

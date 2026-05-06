@@ -189,7 +189,7 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 			}
 
 			// Dispatch via saga handling infrastructure using scoped dispatcher
-			using var scope = _serviceProvider.CreateScope();
+			await using var scope = _serviceProvider.CreateAsyncScope();
 			var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
 
 			var context = new MessageContext(dispatchMessage, scope.ServiceProvider)

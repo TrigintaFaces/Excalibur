@@ -16,7 +16,9 @@ Excalibur provides comprehensive compliance features for enterprise regulatory r
 
 **Visual learner?** Check out the [Navigation Guide](navigation-guide.md) with flowcharts, diagrams, and timelines for all frameworks.
 
-### 📋 Certification Checklists {#compliance-checklists}
+<div id="compliance-checklists" />
+
+### Certification Checklists
 
 Step-by-step guides for achieving compliance certification:
 
@@ -27,7 +29,9 @@ Step-by-step guides for achieving compliance certification:
 | **[SOC 2](checklists/soc2.md)** | SaaS, cloud, MSP businesses | Trust Services Criteria | 3-18 months |
 | **[HIPAA](checklists/hipaa.md)** | Healthcare data (PHI) | Security + Privacy Rules | 6-12 months |
 
-### 🔧 Framework Features {#framework-capabilities}
+<div id="framework-capabilities" />
+
+### Framework Features
 
 Core compliance capabilities provided by Excalibur.Dispatch:
 
@@ -205,7 +209,9 @@ public class PatientService
 - **Documentation:** System Security Plans (SSP), Records of Processing Activities (RoPA)
 - **Infrastructure:** TLS configuration, key management, backup/recovery
 
-## Evidence Automation {#evidence-automation}
+<div id="evidence-automation" />
+
+## Evidence Automation
 
 Automated scripts for collecting compliance evidence from CI/CD pipelines:
 

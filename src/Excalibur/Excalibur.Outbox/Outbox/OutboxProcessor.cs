@@ -1020,7 +1020,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					$"{ErrorConstants.FailedToDeserializeMessageMetadata}: {message.MessageId}");
 			}
 
-			using var scope = _serviceProvider.CreateScope();
+			await using var scope = _serviceProvider.CreateAsyncScope();
 
 			var metaDictionary = new Dictionary<string, string?>
 				(StringComparer.Ordinal)

@@ -30,7 +30,7 @@ internal sealed partial class JitAccessExpiryService(
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		// Resolve ProvisioningOptions to check EnableJitAccess
-		using var initScope = scopeFactory.CreateScope();
+		await using var initScope = scopeFactory.CreateAsyncScope();
 		var provisioningOptions = initScope.ServiceProvider.GetService<IOptions<ProvisioningOptions>>();
 		if (provisioningOptions?.Value.EnableJitAccess != true)
 		{

@@ -328,11 +328,11 @@ gantt
 
 **Developers:**
 1. Start: [Quick Start Guide](quick-start.md)
-2. Reference: [Framework Capabilities](index.md#framework-capabilities)
+2. Reference: [Framework Capabilities](index.md#framework-features)
 3. Code Examples: Individual checklists (fedramp.md, gdpr.md, soc2.md, hipaa.md)
 
 **Compliance Officers:**
-1. Start: [Compliance Checklists](index.md#compliance-checklists)
+1. Start: [Compliance Checklists](index.md#certification-checklists)
 2. Evidence: [Evidence Automation](index.md#evidence-automation)
 3. Timeline: [Certification Roadmap](#5-certification-timeline)
 
@@ -368,7 +368,7 @@ gantt
 → `eng/compliance/collect-evidence.*`
 
 **"I need to understand what the framework provides"**
-→ [Framework Capabilities](index.md#framework-capabilities)
+→ [Framework Capabilities](index.md#framework-features)
 
 **"I need help choosing"**
 → [User Journey Diagram](#1-user-journey---choosing-your-path)

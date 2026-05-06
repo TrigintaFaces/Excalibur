@@ -43,7 +43,7 @@ public sealed class ProjectionRebuildJob(
 	{
 		ProjectionRebuildJobLog.JobStarting(_logger);
 
-		using var scope = _scopeFactory.CreateScope();
+		await using var scope = _scopeFactory.CreateAsyncScope();
 		var processor = scope.ServiceProvider.GetService<IMaterializedViewProcessor>();
 
 		if (processor is null)

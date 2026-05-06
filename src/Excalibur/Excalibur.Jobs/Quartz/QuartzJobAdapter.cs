@@ -54,7 +54,7 @@ public sealed partial class QuartzJobAdapter(
 				context.JobDetail.Key));
 		}
 
-		using var scope = _scopeFactory.CreateScope();
+		await using var scope = _scopeFactory.CreateAsyncScope();
 		var job = scope.ServiceProvider.GetService(jobType);
 
 		if (job == null)

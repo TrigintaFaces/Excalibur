@@ -27,7 +27,7 @@ public static class HostExtensions
     {
         ArgumentNullException.ThrowIfNull(host);
 
-        using var scope = host.Services.CreateScope();
+        await using var scope = host.Services.CreateAsyncScope();
         var client = scope.ServiceProvider.GetRequiredService<OpenSearchClient>();
         var logger = scope.ServiceProvider.GetService<ILogger<OpenSearchClient>>();
 

@@ -251,7 +251,7 @@ jobs:
         if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true'
         timeout-minutes: 3
         continue-on-error: true
-        uses: actions/dependency-review-action@v5
+        uses: actions/dependency-review-action@v4
         with:
           repo-token: ${{ github.token }}
           fail-on-severity: high
@@ -269,7 +269,7 @@ jobs:
         if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
         timeout-minutes: 3
         continue-on-error: true
-        uses: actions/dependency-review-action@v5
+        uses: actions/dependency-review-action@v4
         with:
           repo-token: ${{ github.token }}
           fail-on-severity: high
