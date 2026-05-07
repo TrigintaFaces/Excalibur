@@ -569,28 +569,28 @@
       "excalibur.a3": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.A3.Core": "[0.1.0-local, )",
-          "Excalibur.Application": "[0.1.0-local, )",
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.EventSourcing": "[0.1.0-local, )",
-          "Excalibur.Outbox": "[0.1.0-local, )",
+          "Excalibur.A3.Core": "[1.0.0, )",
+          "Excalibur.Application": "[1.0.0, )",
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.EventSourcing": "[1.0.0, )",
+          "Excalibur.Outbox": "[1.0.0, )",
           "Microsoft.Extensions.Http": "[10.0.7, )"
         }
       },
       "excalibur.a3.abstractions": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )"
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
         }
       },
       "excalibur.a3.core": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.A3.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Domain": "[0.1.0-local, )",
+          "Excalibur.A3.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Domain": "[1.0.0, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.7, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.7, )"
         }
@@ -598,9 +598,9 @@
       "excalibur.application": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Data": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Data": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "FluentValidation": "[12.1.1, )",
           "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
           "IdentityModel": "[7.0.0, )",
@@ -611,9 +611,9 @@
       "excalibur.caching": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Caching": "[0.1.0-local, )",
-          "Excalibur.EventSourcing": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Caching": "[1.0.0, )",
+          "Excalibur.EventSourcing": "[1.0.0, )",
           "Microsoft.Extensions.Caching.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
@@ -623,9 +623,9 @@
       "excalibur.cdc": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Hosting": "[0.1.0-local, )",
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Hosting": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.7, )",
@@ -639,8 +639,8 @@
         "type": "Project",
         "dependencies": {
           "Dapper": "[2.1.72, )",
-          "Excalibur.Compliance.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Compliance.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.Caching.Memory": "[10.0.7, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
@@ -658,7 +658,7 @@
       "excalibur.compliance.abstractions": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )"
         }
       },
@@ -667,11 +667,11 @@
         "dependencies": {
           "Ben.Demystifier": "[0.4.1, )",
           "Dapper": "[2.1.72, )",
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Patterns": "[0.1.0-local, )",
-          "Excalibur.Domain": "[0.1.0-local, )",
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Patterns": "[1.0.0, )",
+          "Excalibur.Domain": "[1.0.0, )",
           "JsonNet.ContractResolvers": "[2.0.0, )",
           "Microsoft.ApplicationInsights": "[3.1.0, )",
           "Microsoft.Extensions.Caching.Abstractions": "[10.0.7, )",
@@ -686,8 +686,8 @@
         "type": "Project",
         "dependencies": {
           "Dapper": "[2.1.72, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Domain": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Domain": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
@@ -697,11 +697,11 @@
       "excalibur.data.inmemory": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.EventSourcing": "[0.1.0-local, )",
-          "Excalibur.Outbox": "[0.1.0-local, )",
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.EventSourcing": "[1.0.0, )",
+          "Excalibur.Outbox": "[1.0.0, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.7, )",
@@ -713,12 +713,12 @@
         "dependencies": {
           "AspNetCore.HealthChecks.SqlServer": "[9.0.0, )",
           "Dapper": "[2.1.72, )",
-          "Excalibur.A3.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Cdc": "[0.1.0-local, )",
-          "Excalibur.Data": "[0.1.0-local, )",
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.A3.Abstractions": "[1.0.0, )",
+          "Excalibur.Cdc": "[1.0.0, )",
+          "Excalibur.Data": "[1.0.0, )",
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[7.0.0, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.7, )",
@@ -732,7 +732,7 @@
         "dependencies": {
           "CloudNative.CloudEvents.SystemTextJson": "[2.8.0, )",
           "Cronos": "[0.12.0, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Medo.Uuid7": "[3.2.0, )",
           "Microsoft.AspNetCore.Authorization": "[10.0.7, )",
           "Microsoft.Extensions.DependencyInjection": "[10.0.7, )",
@@ -759,8 +759,8 @@
       "excalibur.dispatch.caching": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.Caching.Hybrid": "[10.5.0, )",
           "Microsoft.Extensions.Caching.Memory": "[10.0.7, )",
           "Microsoft.Extensions.Caching.StackExchangeRedis": "[10.0.7, )",
@@ -774,7 +774,7 @@
       "excalibur.dispatch.leaderelection.abstractions": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Options": "[10.0.7, )"
@@ -784,9 +784,9 @@
         "type": "Project",
         "dependencies": {
           "BenchmarkDotNet": "[0.15.8, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Transport.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Transport.Abstractions": "[1.0.0, )",
           "MemoryPack": "[1.21.4, )",
           "Microsoft.Extensions.Caching.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
@@ -802,16 +802,16 @@
       "excalibur.dispatch.serialization.memorypack": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "MemoryPack": "[1.21.4, )"
         }
       },
       "excalibur.dispatch.transport.abstractions": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.7, )",
@@ -823,7 +823,7 @@
         "type": "Project",
         "dependencies": {
           "Ben.Demystifier": "[0.4.1, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Medo.Uuid7": "[3.2.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.DependencyInjection": "[10.0.7, )",
@@ -834,11 +834,11 @@
       "excalibur.eventsourcing": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Compliance": "[0.1.0-local, )",
-          "Excalibur.Compliance.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.EventSourcing.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Hosting": "[0.1.0-local, )",
+          "Excalibur.Compliance": "[1.0.0, )",
+          "Excalibur.Compliance.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.EventSourcing.Abstractions": "[1.0.0, )",
+          "Excalibur.Hosting": "[1.0.0, )",
           "Microsoft.Extensions.Configuration.Binder": "[10.0.7, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
@@ -855,15 +855,15 @@
       "excalibur.eventsourcing.abstractions": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Domain": "[0.1.0-local, )"
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Domain": "[1.0.0, )"
         }
       },
       "excalibur.eventsourcing.inmemory": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.EventSourcing": "[0.1.0-local, )",
+          "Excalibur.EventSourcing": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.7, )"
         }
@@ -873,10 +873,10 @@
         "dependencies": {
           "AspNetCore.HealthChecks.SqlServer": "[9.0.0, )",
           "Dapper": "[2.1.72, )",
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Serialization.MemoryPack": "[0.1.0-local, )",
-          "Excalibur.EventSourcing": "[0.1.0-local, )",
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Serialization.MemoryPack": "[1.0.0, )",
+          "Excalibur.EventSourcing": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[7.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
@@ -886,9 +886,9 @@
       "excalibur.hosting": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Application": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Application": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.Configuration": "[10.0.7, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
           "Microsoft.Extensions.Hosting": "[10.0.7, )",
@@ -899,7 +899,7 @@
       "excalibur.inbox": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.7, )"
         }
@@ -908,9 +908,9 @@
         "type": "Project",
         "dependencies": {
           "Dapper": "[2.1.72, )",
-          "Excalibur.Data.SqlServer": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Inbox": "[0.1.0-local, )",
+          "Excalibur.Data.SqlServer": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Inbox": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Options": "[10.0.7, )",
@@ -920,9 +920,9 @@
       "excalibur.leaderelection": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.LeaderElection.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Hosting": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.LeaderElection.Abstractions": "[1.0.0, )",
+          "Excalibur.Hosting": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.7, )",
@@ -935,8 +935,8 @@
       "excalibur.leaderelection.inmemory": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch.LeaderElection.Abstractions": "[0.1.0-local, )",
-          "Excalibur.LeaderElection": "[0.1.0-local, )",
+          "Excalibur.Dispatch.LeaderElection.Abstractions": "[1.0.0, )",
+          "Excalibur.LeaderElection": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Options": "[10.0.7, )",
@@ -946,8 +946,8 @@
       "excalibur.leaderelection.sqlserver": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Dispatch.LeaderElection.Abstractions": "[0.1.0-local, )",
-          "Excalibur.LeaderElection": "[0.1.0-local, )",
+          "Excalibur.Dispatch.LeaderElection.Abstractions": "[1.0.0, )",
+          "Excalibur.LeaderElection": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[7.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
@@ -958,10 +958,10 @@
       "excalibur.outbox": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Hosting": "[0.1.0-local, )",
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Hosting": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.7, )",
@@ -975,11 +975,11 @@
         "type": "Project",
         "dependencies": {
           "Dapper": "[2.1.72, )",
-          "Excalibur.Data": "[0.1.0-local, )",
-          "Excalibur.Data.SqlServer": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Inbox.SqlServer": "[0.1.0-local, )",
-          "Excalibur.Outbox": "[0.1.0-local, )",
+          "Excalibur.Data": "[1.0.0, )",
+          "Excalibur.Data.SqlServer": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Inbox.SqlServer": "[1.0.0, )",
+          "Excalibur.Outbox": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[7.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.7, )",
@@ -991,10 +991,10 @@
       "excalibur.saga": {
         "type": "Project",
         "dependencies": {
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Hosting": "[0.1.0-local, )",
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Hosting": "[1.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Options": "[10.0.7, )",
@@ -1006,9 +1006,9 @@
         "type": "Project",
         "dependencies": {
           "Dapper": "[2.1.72, )",
-          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Saga": "[0.1.0-local, )",
+          "Excalibur.Data.Abstractions": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Saga": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[7.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
@@ -1522,9 +1522,9 @@
       },
       "Snappier": {
         "type": "CentralTransitive",
-        "requested": "[1.3.0, )",
-        "resolved": "1.3.0",
-        "contentHash": "yYANMXm5MUiF9jzsOI7WH5Cj1HYzcWEIEVI2Ljq8N7hS/zwLCBx+GoGeyc7aJFAvpRcbSIbdNaelVomHqd6UDQ=="
+        "requested": "[1.3.1, )",
+        "resolved": "1.3.1",
+        "contentHash": "DOdDQiO8YZ5rBtVLY+6CmR1yp9WYoJRgEEktPBrR0tEj9QO2djA/zv0O3DX0OZpEAfosbY8pytQ9tQUogwQsEA=="
       },
       "StackExchange.Redis": {
         "type": "CentralTransitive",

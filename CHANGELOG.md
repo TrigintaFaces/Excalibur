@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **DataProcessing: cursor-based paging replaces offset-based paging** -- `IRecordFetcher<T>.FetchBatchAsync` now accepts `string? cursor` (opaque token) instead of `long skip`, returning `CursorFetchResult<TRecord>` with the next cursor. `IDataProcessor.RunAsync` accepts a `string? processedCursor` for crash-safe resume. Dual-cursor tracking separates transient fetch position from durable processed checkpoint. SQL schema adds `FetchCursor`/`ProcessedCursor` columns with `COALESCE` preservation. **Breaking change** — all `DataProcessor<T>` implementations must update their `FetchBatchAsync` override signature.
 
+### Security
+
+- **Snappier 1.3.0 → 1.3.1** ([GHSA-pggp-6c3x-2xmx](https://github.com/advisories/GHSA-pggp-6c3x-2xmx)) -- Infinite-loop vulnerability in `SnappyStream` decompression; 15 bytes of malformed framed-format data can freeze a thread. Transitive dependency via MemoryPack affecting 55 packages. Resolved by bumping `Directory.Packages.props`.
+
 ### Fixed
 
 - **Money value object STJ deserialization** -- `Money` had two parameterized constructors with no `[JsonConstructor]`, causing `NotSupportedException` during System.Text.Json deserialization (e.g., in ElasticSearch projections). Added private `[JsonConstructor]` constructor. Also added defensive `[JsonConstructor]` to `Address` to prevent the same issue if a second constructor is ever added.
