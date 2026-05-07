@@ -32,17 +32,17 @@ BEGIN
         [RecordType]      NVARCHAR(256)       NOT NULL,
         [Attempts]        INT                 NOT NULL DEFAULT 0,
         [MaxAttempts]     INT                 NOT NULL DEFAULT 3,
-        [CompletedCount]  INT                 NOT NULL DEFAULT 0,
+        [CompletedCount]  BIGINT              NOT NULL DEFAULT 0,
         [FetchCursor]     NVARCHAR(512)       NULL,
         [ProcessedCursor] NVARCHAR(512)       NULL,
 
         CONSTRAINT [PK_DataTaskRequests] PRIMARY KEY CLUSTERED ([DataTaskId])
     );
 
-    -- Index for the polling query (SELECT ... WHERE Attempts < MaxAttempts ORDER BY CreatedAt)
+    -- Covering index for the polling query (SELECT ... WHERE Attempts < MaxAttempts ORDER BY CreatedAt)
     CREATE NONCLUSTERED INDEX [IX_DataTaskRequests_Pending]
-        ON [DataProcessor].[DataTaskRequests] ([Attempts], [MaxAttempts])
-        INCLUDE ([DataTaskId], [CreatedAt], [RecordType], [CompletedCount], [FetchCursor], [ProcessedCursor])
-        WHERE [Attempts] < [MaxAttempts];
+        ON [DataProcessor].[DataTaskRequests] ([CreatedAt])
+        INCLUDE ([DataTaskId], [RecordType], [Attempts], [MaxAttempts],
+                 [CompletedCount], [FetchCursor], [ProcessedCursor]);
 END
 GO

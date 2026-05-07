@@ -20,7 +20,24 @@ namespace Excalibur.Data.DataProcessing;
 /// <typeparam name="TRecord"> The type of records being processed. </typeparam>
 public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
 {
-	private readonly Channel<TRecord> _dataQueue;
+	/// <summary>
+	/// Wraps a record with page-boundary metadata for cursor persistence.
+	/// The last record enqueued from each producer page is tagged with
+	/// <see cref="IsPageBoundary"/> = <see langword="true"/> and carries the page's
+	/// <see cref="PageCursor"/> value. When the consumer finishes processing
+	/// that record, it persists the cursor — establishing a durable checkpoint
+	/// at page granularity.
+	/// </summary>
+	private readonly struct PagedRecord
+	{
+		public required TRecord Record { get; init; }
+
+		public bool IsPageBoundary { get; init; }
+
+		public string? PageCursor { get; init; }
+	}
+
+	private readonly Channel<PagedRecord> _dataQueue;
 
 	private readonly DataProcessingOptions _configuration;
 
@@ -69,7 +86,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 		_configuration = configuration.Value;
 		_serviceProvider = serviceProvider;
 		_logger = logger;
-		_dataQueue = Channel.CreateBounded<TRecord>(new BoundedChannelOptions(_configuration.QueueSize)
+		_dataQueue = Channel.CreateBounded<PagedRecord>(new BoundedChannelOptions(_configuration.QueueSize)
 		{
 			FullMode = BoundedChannelFullMode.Wait,
 			SingleReader = true,  // Only ConsumerLoopAsync reads from the channel
@@ -210,12 +227,12 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	/// The caller MUST return the buffer via <see cref="ArrayPool{T}.Shared"/> after processing.
 	/// </summary>
 	/// <returns>A tuple of the rented buffer and the actual count of items read.</returns>
-	private static async ValueTask<(TRecord[] Buffer, int Count)> DequeueBatchFromChannelAsync(
-		ChannelReader<TRecord> reader,
+	private static async ValueTask<(PagedRecord[] Buffer, int Count)> DequeueBatchFromChannelAsync(
+		ChannelReader<PagedRecord> reader,
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		var batch = ArrayPool<TRecord>.Shared.Rent(batchSize);
+		var batch = ArrayPool<PagedRecord>.Shared.Rent(batchSize);
 		var count = 0;
 
 		// Read immediately available items
@@ -241,7 +258,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 
 		if (count == 0)
 		{
-			ArrayPool<TRecord>.Shared.Return(batch, clearArray: true);
+			ArrayPool<PagedRecord>.Shared.Return(batch, clearArray: true);
 			return ([], 0);
 		}
 
@@ -275,10 +292,18 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 					LogEnqueuingRecords(result.Records.Count);
 				}
 
-				foreach (var record in result.Records)
+				for (var i = 0; i < result.Records.Count; i++)
 				{
+					var isLast = i == result.Records.Count - 1;
+					var paged = new PagedRecord
+					{
+						Record = result.Records[i],
+						IsPageBoundary = isLast,
+						PageCursor = isLast ? result.NextCursor : null,
+					};
+
 					// WriteAsync applies backpressure when the bounded channel is full
-					await _dataQueue.Writer.WriteAsync(record, combinedToken).ConfigureAwait(false);
+					await _dataQueue.Writer.WriteAsync(paged, combinedToken).ConfigureAwait(false);
 				}
 
 				// Advance the fetch cursor to the next page position.
@@ -404,8 +429,8 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 							break;
 						}
 
-						var record = batch[i];
-						if (record is null)
+						var paged = batch[i];
+						if (paged.Record is null)
 						{
 							continue;
 						}
@@ -415,17 +440,17 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 							// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
 							// processed sequentially.
 							await _orderedEventProcessor
-								.ProcessAsync(async () => await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false), cancellationToken)
+								.ProcessAsync(async () => await ProcessRecordAsync(paged.Record, cancellationToken).ConfigureAwait(false), cancellationToken)
 								.ConfigureAwait(false);
 
 							// Checkpoint to the database BEFORE incrementing in-memory counters.
 							// If the checkpoint fails, the in-memory state stays consistent with
 							// the persisted state — on restart, processing resumes from the last
 							// successfully persisted CompletedCount/ProcessedCursor.
-							// Pass null for processedCursor: the cursor advances at page
-							// granularity, not per-record. The SQL UPDATE uses COALESCE to
-							// preserve the existing cursor when null is passed.
-							await updateCompletedCount(Interlocked.Read(ref _processedTotal) + 1, null, cancellationToken).ConfigureAwait(false);
+							// When this record is a page boundary, persist the cursor alongside the count.
+							// For mid-page records, pass null — COALESCE in SQL preserves the existing cursor.
+							var cursorToCheckpoint = paged.IsPageBoundary ? paged.PageCursor : null;
+							await updateCompletedCount(Interlocked.Read(ref _processedTotal) + 1, cursorToCheckpoint, cancellationToken).ConfigureAwait(false);
 
 							_ = Interlocked.Increment(ref _processedTotal);
 							batchSuccessCount++;
@@ -439,7 +464,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 						}
 						catch (Exception ex)
 						{
-							var recordId = record.ToString() ?? record.GetHashCode().ToString();
+							var recordId = paged.Record.ToString() ?? paged.Record.GetHashCode().ToString();
 
 							if (_logger.IsEnabled(LogLevel.Error))
 							{
@@ -455,7 +480,11 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 						}
 						finally
 						{
-							if (record is IDisposable disposable)
+							if (paged.Record is IAsyncDisposable asyncDisposable)
+							{
+								await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+							}
+							else if (paged.Record is IDisposable disposable)
 							{
 								disposable.Dispose();
 							}
@@ -470,7 +499,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 				}
 				finally
 				{
-					ArrayPool<TRecord>.Shared.Return(batch, clearArray: true);
+					ArrayPool<PagedRecord>.Shared.Return(batch, clearArray: true);
 				}
 			}
 

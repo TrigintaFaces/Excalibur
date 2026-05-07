@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **DataProcessing: ProcessedCursor never persisted** -- The consumer loop passed `null` for `processedCursor` on every checkpoint, so `COALESCE` in SQL always preserved the existing `NULL` value. Introduced internal `PagedRecord` struct that tags the last record per producer page with the page cursor; consumer now persists the cursor at page-boundary checkpoints, enabling correct crash-recovery resume.
+- **DataProcessing: DDL CompletedCount INT → BIGINT** -- Column type mismatched the `long` in C# (`DataTaskRequest.CompletedCount`), risking overflow at ~2.1B records. Fixed in docs-site DDL and sample setup script.
+- **DataProcessing: invalid filtered index in DDL** -- `WHERE [Attempts] < [MaxAttempts]` uses column-to-column comparison, which SQL Server filtered indexes do not support. Replaced with a covering index keyed on `[CreatedAt]` (the polling query's ORDER BY column).
+- **DataProcessing: IAsyncDisposable record disposal** -- Consumer now prefers `IAsyncDisposable.DisposeAsync()` over `IDisposable.Dispose()` for record cleanup, consistent with framework-wide async disposal pattern.
 - **Money value object STJ deserialization** -- `Money` had two parameterized constructors with no `[JsonConstructor]`, causing `NotSupportedException` during System.Text.Json deserialization (e.g., in ElasticSearch projections). Added private `[JsonConstructor]` constructor. Also added defensive `[JsonConstructor]` to `Address` to prevent the same issue if a second constructor is ever added.
 - **SqlServerIdentityMapStore.CreateConnection() infinite recursion** -- `_connectionFactory?.Invoke() ?? CreateConnection()` called itself when no explicit connection factory was registered (i.e., `ConnectionString()` or `BindConfiguration()` paths), causing `StackOverflowException` on every database operation. Fixed to fall back to `new SqlConnection(_options.ConnectionString)`.
 - **Pre-publish audit: 18 runtime bug fixes across 11 packages**
