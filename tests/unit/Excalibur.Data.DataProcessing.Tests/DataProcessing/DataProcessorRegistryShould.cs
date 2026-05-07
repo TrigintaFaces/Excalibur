@@ -17,7 +17,7 @@ public sealed class DataProcessorRegistryShould : UnitTestBase
 	[DataTaskRecordType("TestRecord")]
 	private sealed class TestProcessor : IDataProcessor
 	{
-		public Task<long> RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
+		public Task<long> RunAsync(long completedCount, string? processedCursor, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
 			=> Task.FromResult(0L);
 
 		public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -28,7 +28,7 @@ public sealed class DataProcessorRegistryShould : UnitTestBase
 	[DataTaskRecordType("AnotherRecord")]
 	private sealed class AnotherProcessor : IDataProcessor
 	{
-		public Task<long> RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
+		public Task<long> RunAsync(long completedCount, string? processedCursor, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
 			=> Task.FromResult(0L);
 
 		public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -39,7 +39,7 @@ public sealed class DataProcessorRegistryShould : UnitTestBase
 	[DataTaskRecordType("TestRecord")]
 	private sealed class DuplicateProcessor : IDataProcessor
 	{
-		public Task<long> RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
+		public Task<long> RunAsync(long completedCount, string? processedCursor, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
 			=> Task.FromResult(0L);
 
 		public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -49,7 +49,7 @@ public sealed class DataProcessorRegistryShould : UnitTestBase
 
 	private sealed class NoAttributeProcessor : IDataProcessor
 	{
-		public Task<long> RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
+		public Task<long> RunAsync(long completedCount, string? processedCursor, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
 			=> Task.FromResult(0L);
 
 		public ValueTask DisposeAsync() => ValueTask.CompletedTask;

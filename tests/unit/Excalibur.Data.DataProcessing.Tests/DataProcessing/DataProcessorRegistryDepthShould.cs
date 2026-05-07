@@ -136,7 +136,7 @@ public sealed class DataProcessorRegistryDepthShould
 	[DataTaskRecordType("orders")]
 	private sealed class TestOrderProcessor : IDataProcessor
 	{
-		public Task<long> RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
+		public Task<long> RunAsync(long completedCount, string? processedCursor, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
 			=> Task.FromResult(0L);
 
 		public void Dispose() { }
@@ -146,7 +146,7 @@ public sealed class DataProcessorRegistryDepthShould
 	[DataTaskRecordType("invoices")]
 	private sealed class TestInvoiceProcessor : IDataProcessor
 	{
-		public Task<long> RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
+		public Task<long> RunAsync(long completedCount, string? processedCursor, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
 			=> Task.FromResult(0L);
 
 		public void Dispose() { }

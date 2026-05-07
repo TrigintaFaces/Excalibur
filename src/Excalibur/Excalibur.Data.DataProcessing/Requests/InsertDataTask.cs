@@ -34,9 +34,9 @@ internal sealed class InsertDataTask : DataRequest<int>
 
 		var sql = $"""
 		INSERT INTO {configuration.QualifiedTableName}
-		           (DataTaskId, CreatedAt, RecordType, Attempts, MaxAttempts)
+		           (DataTaskId, CreatedAt, RecordType, Attempts, MaxAttempts, FetchCursor, ProcessedCursor)
 		           VALUES
-		           (@DataTaskId, @CreatedAt, @RecordType, @Attempts, @MaxAttempts)
+		           (@DataTaskId, @CreatedAt, @RecordType, @Attempts, @MaxAttempts, NULL, NULL)
 		""";
 
 		var parameters = new DynamicParameters();

@@ -198,8 +198,9 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		// Act
 		_ = await _middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert — use activity created by this test, not stray activities from parallel tests
-		var activity = _capturedActivities.Skip(countBefore).FirstOrDefault();
+		// Assert — filter by OperationName to avoid picking up stray activities from parallel tests
+		var activity = _capturedActivities.Skip(countBefore)
+			.FirstOrDefault(a => a.OperationName == "dispatch.TestMessage");
 		_ = activity.ShouldNotBeNull();
 		activity.GetTagItem("message.type").ShouldBe("TestMessage");
 	}
@@ -212,13 +213,15 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		var context = A.Fake<IMessageContext>();
 		_ = A.CallTo(() => context.MessageId).Returns("my-message-id");
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Success());
+		var expectedOpName = $"dispatch.{message.GetType().Name}";
 		var countBefore = _capturedActivities.Count;
 
 		// Act
 		_ = await _middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert — use activity created by this test, not stray activities from parallel tests
-		var activity = _capturedActivities.Skip(countBefore).FirstOrDefault();
+		// Assert — filter by OperationName to avoid picking up stray activities from parallel tests
+		var activity = _capturedActivities.Skip(countBefore)
+			.FirstOrDefault(a => a.OperationName == expectedOpName);
 		_ = activity.ShouldNotBeNull();
 		activity.GetTagItem("message.id").ShouldBe("my-message-id");
 	}
@@ -230,13 +233,15 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Success());
+		var expectedOpName = $"dispatch.{message.GetType().Name}";
 		var countBefore = _capturedActivities.Count;
 
 		// Act
 		_ = await _middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert — use activity created by this test, not stray activities from parallel tests
-		var activity = _capturedActivities.Skip(countBefore).FirstOrDefault();
+		// Assert — filter by OperationName to avoid picking up stray activities from parallel tests
+		var activity = _capturedActivities.Skip(countBefore)
+			.FirstOrDefault(a => a.OperationName == expectedOpName);
 		_ = activity.ShouldNotBeNull();
 		activity.GetTagItem("dispatch.operation").ShouldBe("handle");
 	}
@@ -248,13 +253,15 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Success());
+		var expectedOpName = $"dispatch.{message.GetType().Name}";
 		var countBefore = _capturedActivities.Count;
 
 		// Act
 		_ = await _middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert — use activity created by this test, not stray activities from parallel tests
-		var activity = _capturedActivities.Skip(countBefore).FirstOrDefault();
+		// Assert — filter by OperationName to avoid picking up stray activities from parallel tests
+		var activity = _capturedActivities.Skip(countBefore)
+			.FirstOrDefault(a => a.OperationName == expectedOpName);
 		_ = activity.ShouldNotBeNull();
 		activity.GetTagItem("dispatch.status").ShouldBe("success");
 		activity.Status.ShouldBe(ActivityStatusCode.Ok);
@@ -268,13 +275,15 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		var context = A.Fake<IMessageContext>();
 		var problemDetails = new MessageProblemDetails { Title = "Error", Status = 500, Detail = "Test error" };
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Failed(problemDetails));
+		var expectedOpName = $"dispatch.{message.GetType().Name}";
 		var countBefore = _capturedActivities.Count;
 
 		// Act
 		_ = await _middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert — use activity created by this test, not stray activities from parallel tests
-		var activity = _capturedActivities.Skip(countBefore).FirstOrDefault();
+		// Assert — filter by OperationName to avoid picking up stray activities from parallel tests
+		var activity = _capturedActivities.Skip(countBefore)
+			.FirstOrDefault(a => a.OperationName == expectedOpName);
 		_ = activity.ShouldNotBeNull();
 		activity.GetTagItem("dispatch.status").ShouldBe("failed");
 		activity.Status.ShouldBe(ActivityStatusCode.Error);
@@ -287,6 +296,7 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 		DispatchRequestDelegate next = (_, _, _) => throw new InvalidOperationException("Test");
+		var expectedOpName = $"dispatch.{message.GetType().Name}";
 		var countBefore = _capturedActivities.Count;
 
 		// Act
@@ -299,8 +309,9 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 			// Expected
 		}
 
-		// Assert — use activity created by this test, not stray activities from parallel tests
-		var activity = _capturedActivities.Skip(countBefore).FirstOrDefault();
+		// Assert — filter by OperationName to avoid picking up stray activities from parallel tests
+		var activity = _capturedActivities.Skip(countBefore)
+			.FirstOrDefault(a => a.OperationName == expectedOpName);
 		_ = activity.ShouldNotBeNull();
 		activity.GetTagItem("dispatch.status").ShouldBe("exception");
 		activity.Status.ShouldBe(ActivityStatusCode.Error);

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.DataProcessing;
+
 using Microsoft.Data.SqlClient;
 
 namespace CdcAntiCorruption.Backfill;
@@ -46,12 +48,12 @@ public sealed class SqlLegacyCustomerSnapshotSource : ILegacyCustomerSnapshotSou
 	}
 
 	/// <inheritdoc />
-	public async Task<IEnumerable<LegacyCustomerSnapshot>> FetchBatchAsync(
-		long skip,
+	public async Task<CursorFetchResult<LegacyCustomerSnapshot>> FetchBatchAsync(
+		string? cursor,
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		var request = new FetchLegacyCustomerSnapshotsRequest(skip, batchSize, cancellationToken);
+		var request = new FetchLegacyCustomerSnapshotsRequest(cursor, batchSize, cancellationToken);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Globalization;
+
 using Excalibur.Data.DataProcessing;
 
 using Microsoft.Extensions.Hosting;
@@ -56,6 +58,7 @@ public sealed class OrderBatchHandler : IRecordHandler<OrderBatchRecord>
 
 /// <summary>
 /// Data processor that pages order rows in batches and hands them off to record handlers.
+/// Uses cursor-based pagination for crash-safe resume.
 /// </summary>
 [DataTaskRecordType("OrderBatchRecord")]
 public sealed class OrderBatchProcessor : DataProcessor<OrderBatchRecord>
@@ -80,12 +83,19 @@ public sealed class OrderBatchProcessor : DataProcessor<OrderBatchRecord>
 	}
 
 	/// <inheritdoc />
-	public override Task<IEnumerable<OrderBatchRecord>> FetchBatchAsync(
-		long skip,
+	public override Task<CursorFetchResult<OrderBatchRecord>> FetchBatchAsync(
+		string? cursor,
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		var batch = SampleOrders.Skip((int)skip).Take(batchSize);
-		return Task.FromResult(batch);
+		var skip = cursor is null ? 0 : int.Parse(cursor, CultureInfo.InvariantCulture);
+		var batch = SampleOrders.Skip(skip).Take(batchSize).ToList();
+
+		var nextPosition = skip + batch.Count;
+		var nextCursor = batch.Count > 0 && nextPosition < SampleOrders.Count
+			? nextPosition.ToString(CultureInfo.InvariantCulture)
+			: null;
+
+		return Task.FromResult(new CursorFetchResult<OrderBatchRecord>(batch, nextCursor));
 	}
 }

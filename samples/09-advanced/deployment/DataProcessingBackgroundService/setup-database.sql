@@ -27,12 +27,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[DataProc
 BEGIN
     CREATE TABLE [DataProcessor].[DataTaskRequests]
     (
-        [DataTaskId]    UNIQUEIDENTIFIER    NOT NULL,
-        [CreatedAt]     DATETIMEOFFSET      NOT NULL,
-        [RecordType]    NVARCHAR(256)       NOT NULL,
-        [Attempts]      INT                 NOT NULL DEFAULT 0,
-        [MaxAttempts]   INT                 NOT NULL DEFAULT 3,
-        [CompletedCount] INT               NOT NULL DEFAULT 0,
+        [DataTaskId]      UNIQUEIDENTIFIER    NOT NULL,
+        [CreatedAt]       DATETIMEOFFSET      NOT NULL,
+        [RecordType]      NVARCHAR(256)       NOT NULL,
+        [Attempts]        INT                 NOT NULL DEFAULT 0,
+        [MaxAttempts]     INT                 NOT NULL DEFAULT 3,
+        [CompletedCount]  INT                 NOT NULL DEFAULT 0,
+        [FetchCursor]     NVARCHAR(512)       NULL,
+        [ProcessedCursor] NVARCHAR(512)       NULL,
 
         CONSTRAINT [PK_DataTaskRequests] PRIMARY KEY CLUSTERED ([DataTaskId])
     );
@@ -40,7 +42,7 @@ BEGIN
     -- Index for the polling query (SELECT ... WHERE Attempts < MaxAttempts ORDER BY CreatedAt)
     CREATE NONCLUSTERED INDEX [IX_DataTaskRequests_Pending]
         ON [DataProcessor].[DataTaskRequests] ([Attempts], [MaxAttempts])
-        INCLUDE ([DataTaskId], [CreatedAt], [RecordType], [CompletedCount])
+        INCLUDE ([DataTaskId], [CreatedAt], [RecordType], [CompletedCount], [FetchCursor], [ProcessedCursor])
         WHERE [Attempts] < [MaxAttempts];
 END
 GO

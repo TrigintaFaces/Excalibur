@@ -27,7 +27,8 @@ internal sealed class SelectPendingDataTasks : DataRequest<IEnumerable<DataTaskR
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		var sql = $"""
-		SELECT DataTaskId, CreatedAt, RecordType, Attempts, MaxAttempts, CompletedCount
+		SELECT DataTaskId, CreatedAt, RecordType, Attempts, MaxAttempts,
+		       CompletedCount, FetchCursor, ProcessedCursor
 		           FROM
 		           {configuration.QualifiedTableName}
 		           WHERE

@@ -22,7 +22,7 @@ public sealed class DataProcessingKeyedServiceShould : UnitTestBase
 	[DataTaskRecordType("KeyedTestRecord")]
 	private sealed class TestProcessor : IDataProcessor
 	{
-		public Task<long> RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
+		public Task<long> RunAsync(long completedCount, string? processedCursor, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
 			=> Task.FromResult(0L);
 
 		public ValueTask DisposeAsync() => ValueTask.CompletedTask;

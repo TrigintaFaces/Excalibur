@@ -45,4 +45,18 @@ public sealed class SelectPendingDataTasksShould
 
 		request.Command.CommandText.ShouldContain("Attempts < MaxAttempts");
 	}
+
+	[Fact]
+	public void HaveCommandWithCursorColumns()
+	{
+		// Arrange
+		var config = new DataProcessingOptions();
+
+		// Act
+		var request = new SelectPendingDataTasks(config, 30, CancellationToken.None);
+
+		// Assert — SQL must select both cursor columns for crash recovery
+		request.Command.CommandText.ShouldContain("FetchCursor");
+		request.Command.CommandText.ShouldContain("ProcessedCursor");
+	}
 }

@@ -333,13 +333,13 @@ public class CustomerMigrationProcessor : DataProcessor<CustomerRecord>
         _connectionFactory = connectionFactory;
     }
 
-    public override async Task<IEnumerable<CustomerRecord>> FetchBatchAsync(
-        long skip, int batchSize, CancellationToken cancellationToken)
+    public override async Task<CursorFetchResult<CustomerRecord>> FetchBatchAsync(
+        string? cursor, int batchSize, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory();
         // Query customers database
         return await connection.Ready().ResolveAsync(
-            new SelectCustomerBatch(skip, batchSize, cancellationToken));
+            new SelectCustomerBatch(cursor, batchSize, cancellationToken));
     }
 }
 ```
@@ -360,13 +360,13 @@ public class InventorySnapshotProcessor : DataProcessor<InventoryRecord>
         _connectionFactory = connectionFactory;
     }
 
-    public override async Task<IEnumerable<InventoryRecord>> FetchBatchAsync(
-        long skip, int batchSize, CancellationToken cancellationToken)
+    public override async Task<CursorFetchResult<InventoryRecord>> FetchBatchAsync(
+        string? cursor, int batchSize, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory();
         // Query inventory database
         return await connection.Ready().ResolveAsync(
-            new SelectInventoryBatch(skip, batchSize, cancellationToken));
+            new SelectInventoryBatch(cursor, batchSize, cancellationToken));
     }
 }
 ```
@@ -440,12 +440,12 @@ public class CustomerMigrationProcessor : DataProcessor<CustomerRecord>
         _factory = factory;
     }
 
-    public override async Task<IEnumerable<CustomerRecord>> FetchBatchAsync(
-        long skip, int batchSize, CancellationToken cancellationToken)
+    public override async Task<CursorFetchResult<CustomerRecord>> FetchBatchAsync(
+        string? cursor, int batchSize, CancellationToken cancellationToken)
     {
         using var connection = _factory.Create();
         return await connection.Ready().ResolveAsync(
-            new SelectCustomerBatch(skip, batchSize, cancellationToken));
+            new SelectCustomerBatch(cursor, batchSize, cancellationToken));
     }
 }
 ```

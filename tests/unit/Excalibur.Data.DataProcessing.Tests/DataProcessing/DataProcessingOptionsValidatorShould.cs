@@ -302,6 +302,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 	{
 		public Task<long> RunAsync(
 			long completedCount,
+			string? processedCursor,
 			UpdateCompletedCount updateCompletedCount,
 			CancellationToken cancellationToken)
 			=> Task.FromResult(0L);

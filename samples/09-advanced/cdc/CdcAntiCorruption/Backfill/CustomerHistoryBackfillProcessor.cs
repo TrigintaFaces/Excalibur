@@ -32,8 +32,8 @@ public sealed class CustomerHistoryBackfillProcessor : DataProcessor<LegacyCusto
 	}
 
 	/// <inheritdoc />
-	public override Task<IEnumerable<LegacyCustomerSnapshot>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken)
+	public override Task<CursorFetchResult<LegacyCustomerSnapshot>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken)
 	{
-		return _snapshotSource.FetchBatchAsync(skip, batchSize, cancellationToken);
+		return _snapshotSource.FetchBatchAsync(cursor, batchSize, cancellationToken);
 	}
 }

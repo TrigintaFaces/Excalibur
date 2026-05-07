@@ -32,7 +32,11 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 
 	private readonly OrderedEventProcessor _orderedEventProcessor = new();
 
-	private long _skipCount;
+	/// <summary>
+	/// The current fetch cursor — advances at page granularity after each batch is enqueued.
+	/// On crash recovery this resets to the last durably persisted <c>ProcessedCursor</c>.
+	/// </summary>
+	private volatile string? _fetchCursor;
 
 	private long _processedTotal;
 
@@ -87,12 +91,16 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	/// <inheritdoc />
 	public virtual async Task<long> RunAsync(
 		long completedCount,
+		string? processedCursor,
 		UpdateCompletedCount updateCompletedCount,
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-		_ = Interlocked.Exchange(ref _skipCount, completedCount);
+		// On startup / crash recovery, the fetch cursor resets to the last durably
+		// persisted processed cursor so we never skip records that were fetched but
+		// not yet processed.
+		_fetchCursor = processedCursor;
 		_ = Interlocked.Exchange(ref _processedTotal, completedCount);
 
 		_producerTask = Task.Factory.StartNew(
@@ -115,7 +123,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	}
 
 	/// <inheritdoc />
-	public abstract Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
+	public abstract Task<CursorFetchResult<TRecord>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Asynchronously disposes the data processor.
@@ -250,11 +258,9 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 			while (!combinedToken.IsCancellationRequested)
 			{
 				var batchSize = _configuration.ProducerBatchSize;
-				// Performance optimization: AD-250-3 - avoid ToList() when IEnumerable is sufficient
-				var fetchedRecords = await FetchBatchAsync(Interlocked.Read(ref _skipCount), batchSize, combinedToken).ConfigureAwait(false);
-				var batch = fetchedRecords as IReadOnlyCollection<TRecord> ?? fetchedRecords.ToList();
+				var result = await FetchBatchAsync(_fetchCursor, batchSize, combinedToken).ConfigureAwait(false);
 
-				if (batch.Count == 0)
+				if (result.Records.Count == 0)
 				{
 					if (_logger.IsEnabled(LogLevel.Information))
 					{
@@ -266,20 +272,34 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 
 				if (_logger.IsEnabled(LogLevel.Information))
 				{
-					LogEnqueuingRecords(batch.Count);
+					LogEnqueuingRecords(result.Records.Count);
 				}
 
-				foreach (var record in batch)
+				foreach (var record in result.Records)
 				{
 					// WriteAsync applies backpressure when the bounded channel is full
 					await _dataQueue.Writer.WriteAsync(record, combinedToken).ConfigureAwait(false);
 				}
 
-				_ = Interlocked.Add(ref _skipCount, batch.Count);
+				// Advance the fetch cursor to the next page position.
+				// This is a volatile write — visible to the consumer but NOT persisted.
+				// On crash, _fetchCursor resets to the last durable ProcessedCursor.
+				_fetchCursor = result.NextCursor;
 
 				if (_logger.IsEnabled(LogLevel.Information))
 				{
-					LogSuccessfullyEnqueued(batch.Count);
+					LogSuccessfullyEnqueued(result.Records.Count);
+				}
+
+				// A null NextCursor means the data source has no more pages.
+				if (result.NextCursor is null)
+				{
+					if (_logger.IsEnabled(LogLevel.Information))
+					{
+						LogNoMoreRecordsProducerExit();
+					}
+
+					break;
 				}
 			}
 		}
@@ -401,8 +421,11 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 							// Checkpoint to the database BEFORE incrementing in-memory counters.
 							// If the checkpoint fails, the in-memory state stays consistent with
 							// the persisted state — on restart, processing resumes from the last
-							// successfully persisted CompletedCount.
-							await updateCompletedCount(Interlocked.Read(ref _processedTotal) + 1, cancellationToken).ConfigureAwait(false);
+							// successfully persisted CompletedCount/ProcessedCursor.
+							// Pass null for processedCursor: the cursor advances at page
+							// granularity, not per-record. The SQL UPDATE uses COALESCE to
+							// preserve the existing cursor when null is passed.
+							await updateCompletedCount(Interlocked.Read(ref _processedTotal) + 1, null, cancellationToken).ConfigureAwait(false);
 
 							_ = Interlocked.Increment(ref _processedTotal);
 							batchSuccessCount++;

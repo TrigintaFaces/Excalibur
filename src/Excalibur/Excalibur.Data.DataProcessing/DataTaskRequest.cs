@@ -46,4 +46,18 @@ public sealed class DataTaskRequest
 	/// </summary>
 	/// <value> A long representing the count of completed records. </value>
 	public long CompletedCount { get; init; }
+
+	/// <summary>
+	/// Gets the opaque cursor identifying the highest position that the producer has
+	/// queried up to. This is a transient bookmark — it is NOT durable across crashes.
+	/// </summary>
+	/// <value> The fetch cursor string, or <see langword="null"/> if fetching has not started. </value>
+	public string? FetchCursor { get; init; }
+
+	/// <summary>
+	/// Gets the opaque cursor identifying the last position that was durably processed.
+	/// On crash recovery, the fetch cursor resets to this value so no records are skipped.
+	/// </summary>
+	/// <value> The processed cursor string, or <see langword="null"/> if processing has not started. </value>
+	public string? ProcessedCursor { get; init; }
 }

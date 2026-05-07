@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Globalization;
+
+using Excalibur.Data.DataProcessing;
+
 namespace CdcAntiCorruption.Backfill;
 
 /// <summary>
@@ -37,20 +41,24 @@ public sealed class InMemoryLegacyCustomerSnapshotSource : ILegacyCustomerSnapsh
 	];
 
 	/// <inheritdoc />
-	public Task<IEnumerable<LegacyCustomerSnapshot>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken)
+	public Task<CursorFetchResult<LegacyCustomerSnapshot>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
-
-		ArgumentOutOfRangeException.ThrowIfNegative(skip);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
+
+		var skip = cursor is null ? 0 : int.Parse(cursor, CultureInfo.InvariantCulture);
 
 		if (skip >= Snapshots.Count)
 		{
-			return Task.FromResult<IEnumerable<LegacyCustomerSnapshot>>([]);
+			return Task.FromResult(new CursorFetchResult<LegacyCustomerSnapshot>([], null));
 		}
 
-		var startIndex = (int)Math.Min(skip, int.MaxValue);
-		var result = Snapshots.Skip(startIndex).Take(batchSize).ToArray();
-		return Task.FromResult<IEnumerable<LegacyCustomerSnapshot>>(result);
+		var batch = Snapshots.Skip(skip).Take(batchSize).ToList();
+		var nextPosition = skip + batch.Count;
+		var nextCursor = batch.Count > 0 && nextPosition < Snapshots.Count
+			? nextPosition.ToString(CultureInfo.InvariantCulture)
+			: null;
+
+		return Task.FromResult(new CursorFetchResult<LegacyCustomerSnapshot>(batch, nextCursor));
 	}
 }

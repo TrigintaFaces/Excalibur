@@ -5,19 +5,25 @@
 namespace Excalibur.Data.DataProcessing;
 
 /// <summary>
-/// Defines a contract for fetching records asynchronously.
+/// Defines a contract for fetching records asynchronously using cursor-based pagination.
 /// </summary>
 /// <typeparam name="TRecord"> The type of the records being fetched. </typeparam>
 public interface IRecordFetcher<TRecord>
 {
 	/// <summary>
-	/// Fetches all records asynchronously, starting from the specified position.
+	/// Fetches the next batch of records starting from the position identified by <paramref name="cursor"/>.
 	/// </summary>
-	/// <param name="skip">
-	/// The number of records to skip before starting the fetch. Useful for resuming operations or implementing paging.
+	/// <param name="cursor">
+	/// An opaque cursor token indicating where to resume fetching, or <see langword="null"/>
+	/// to start from the beginning. The value is produced by the previous call's
+	/// <see cref="CursorFetchResult{TRecord}.NextCursor"/>.
 	/// </param>
-	/// <param name="batchSize"> The number of records to fetch in this batch. </param>
+	/// <param name="batchSize"> The maximum number of records to fetch in this batch. </param>
 	/// <param name="cancellationToken"> A token that can be used to cancel the operation. </param>
-	/// <returns> An asynchronous enumerable of records of type <typeparamref name="TRecord" />. </returns>
-	Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
+	/// <returns>
+	/// A <see cref="CursorFetchResult{TRecord}"/> containing the fetched records and
+	/// a cursor to the next page, or <see langword="null"/> <see cref="CursorFetchResult{TRecord}.NextCursor"/>
+	/// when no more data is available.
+	/// </returns>
+	Task<CursorFetchResult<TRecord>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken);
 }

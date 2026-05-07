@@ -75,12 +75,12 @@ Excalibur.Data.DataProcessing.IDataProcessingBuilder.ConnectionFactory(System.Fu
 Excalibur.Data.DataProcessing.IDataProcessingBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<System.Data.IDbConnection!>!>! connectionFactory) -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
 Excalibur.Data.DataProcessing.IDataProcessingBuilder.EnableBackgroundProcessing(System.Action<Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions!>? configure = null) -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
 Excalibur.Data.DataProcessing.IDataProcessor
-Excalibur.Data.DataProcessing.IDataProcessor.RunAsync(long completedCount, Excalibur.Data.DataProcessing.UpdateCompletedCount! updateCompletedCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.Data.DataProcessing.IDataProcessor.RunAsync(long completedCount, string? processedCursor, Excalibur.Data.DataProcessing.UpdateCompletedCount! updateCompletedCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Data.DataProcessing.IDataProcessorRegistry
 Excalibur.Data.DataProcessing.IDataProcessorRegistry.GetFactory(string! recordType) -> System.Func<System.IServiceProvider!, Excalibur.Data.DataProcessing.IDataProcessor!>!
 Excalibur.Data.DataProcessing.IDataProcessorRegistry.TryGetFactory(string! recordType, out System.Func<System.IServiceProvider!, Excalibur.Data.DataProcessing.IDataProcessor!>! processor) -> bool
 Excalibur.Data.DataProcessing.IRecordFetcher<TRecord>
-Excalibur.Data.DataProcessing.IRecordFetcher<TRecord>.FetchBatchAsync(long skip, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<TRecord>!>!
+Excalibur.Data.DataProcessing.IRecordFetcher<TRecord>.FetchBatchAsync(string? cursor, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>!>!
 Excalibur.Data.DataProcessing.IRecordHandler<TRecord>
 Excalibur.Data.DataProcessing.IRecordHandler<TRecord>.ProcessAsync(TRecord record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions
@@ -95,9 +95,19 @@ Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.Poll
 Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.UnhealthyThreshold.get -> int
 Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.UnhealthyThreshold.set -> void
 Excalibur.Data.DataProcessing.UpdateCompletedCount
+Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>
+Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>.CursorFetchResult(System.Collections.Generic.IReadOnlyList<TRecord>! Records, string? NextCursor) -> void
+Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>.NextCursor.get -> string?
+Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>.NextCursor.init -> void
+Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>.Records.get -> System.Collections.Generic.IReadOnlyList<TRecord>!
+Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>.Records.init -> void
+Excalibur.Data.DataProcessing.DataTaskRequest.FetchCursor.get -> string?
+Excalibur.Data.DataProcessing.DataTaskRequest.FetchCursor.init -> void
+Excalibur.Data.DataProcessing.DataTaskRequest.ProcessedCursor.get -> string?
+Excalibur.Data.DataProcessing.DataTaskRequest.ProcessedCursor.init -> void
 Microsoft.Extensions.DependencyInjection.DataProcessingExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions
-abstract Excalibur.Data.DataProcessing.DataProcessor<TRecord>.FetchBatchAsync(long skip, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<TRecord>!>!
+abstract Excalibur.Data.DataProcessing.DataProcessor<TRecord>.FetchBatchAsync(string? cursor, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>!>!
 const Excalibur.Data.DataProcessing.DataProcessingKeys.OrchestrationConnection = "Excalibur.DataProcessing.Orchestration" -> string!
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultConsumerBatchSize = 10 -> int
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultDispatcherTimeout = 60000 -> int
@@ -161,7 +171,7 @@ static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionE
 static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.EnableDataProcessingBackgroundService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionPath) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.EnableDataProcessingBackgroundService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
-virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.RunAsync(long completedCount, Excalibur.Data.DataProcessing.UpdateCompletedCount! updateCompletedCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.RunAsync(long completedCount, string? processedCursor, Excalibur.Data.DataProcessing.UpdateCompletedCount! updateCompletedCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Data.DataProcessing.Diagnostics.DataProcessingHealthCheckOptions
 Excalibur.Data.DataProcessing.Diagnostics.DataProcessingHealthCheckOptions.DataProcessingHealthCheckOptions() -> void
 Excalibur.Data.DataProcessing.Diagnostics.DataProcessingHealthCheckOptions.DegradedInactivityTimeout.get -> System.TimeSpan

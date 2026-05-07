@@ -67,12 +67,12 @@ public class CustomerProcessor : DataProcessor<CustomerRecord>
         _connectionFactory = connectionFactory;
     }
 
-    public override async Task<IEnumerable<CustomerRecord>> FetchBatchAsync(
-        long skip, int batchSize, CancellationToken cancellationToken)
+    public override async Task<CursorFetchResult<CustomerRecord>> FetchBatchAsync(
+        string? cursor, int batchSize, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory();
         return await connection.Ready().ResolveAsync(
-            new SelectCustomerBatch(skip, batchSize, cancellationToken));
+            new SelectCustomerBatch(cursor, batchSize, cancellationToken));
     }
 }
 ```
@@ -231,22 +231,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.objects
 BEGIN
     CREATE TABLE [DataProcessor].[DataTaskRequests]
     (
-        [DataTaskId]     UNIQUEIDENTIFIER  NOT NULL,
-        [CreatedAt]      DATETIMEOFFSET    NOT NULL,
-        [RecordType]     NVARCHAR(256)     NOT NULL,
-        [Attempts]       INT               NOT NULL DEFAULT 0,
-        [MaxAttempts]    INT               NOT NULL DEFAULT 3,
-        [CompletedCount] INT               NOT NULL DEFAULT 0,
+        [DataTaskId]      UNIQUEIDENTIFIER  NOT NULL,
+        [CreatedAt]       DATETIMEOFFSET    NOT NULL,
+        [RecordType]      NVARCHAR(256)     NOT NULL,
+        [Attempts]        INT               NOT NULL DEFAULT 0,
+        [MaxAttempts]     INT               NOT NULL DEFAULT 3,
+        [CompletedCount]  INT               NOT NULL DEFAULT 0,
+        [FetchCursor]     NVARCHAR(512)     NULL,
+        [ProcessedCursor] NVARCHAR(512)     NULL,
 
         CONSTRAINT [PK_DataTaskRequests] PRIMARY KEY CLUSTERED ([DataTaskId])
     );
 
-    -- Index for the polling query (WHERE Attempts < MaxAttempts ORDER BY CreatedAt)
-    -- Note: filtered indexes cannot reference other columns, so we use a
-    -- covering index with CreatedAt for ORDER BY efficiency instead.
+    -- Filtered index for the polling query (SELECT ... WHERE Attempts < MaxAttempts ORDER BY CreatedAt)
     CREATE NONCLUSTERED INDEX [IX_DataTaskRequests_Pending]
-        ON [DataProcessor].[DataTaskRequests] ([CreatedAt])
-        INCLUDE ([DataTaskId], [RecordType], [Attempts], [MaxAttempts], [CompletedCount]);
+        ON [DataProcessor].[DataTaskRequests] ([Attempts], [MaxAttempts])
+        INCLUDE ([DataTaskId], [CreatedAt], [RecordType], [CompletedCount], [FetchCursor], [ProcessedCursor])
+        WHERE [Attempts] < [MaxAttempts];
 END
 GO
 ```
@@ -313,12 +314,12 @@ public class CustomerProcessor : DataProcessor<CustomerRecord>
         _connectionFactory = connectionFactory;
     }
 
-    public override async Task<IEnumerable<CustomerRecord>> FetchBatchAsync(
-        long skip, int batchSize, CancellationToken cancellationToken)
+    public override async Task<CursorFetchResult<CustomerRecord>> FetchBatchAsync(
+        string? cursor, int batchSize, CancellationToken cancellationToken)
     {
         using var connection = _connectionFactory();
         return await connection.Ready().ResolveAsync(
-            new SelectCustomerBatch(skip, batchSize, cancellationToken));
+            new SelectCustomerBatch(cursor, batchSize, cancellationToken));
     }
 }
 ```
@@ -336,6 +337,7 @@ public interface IDataProcessor : IAsyncDisposable, IDisposable
 {
     Task<long> RunAsync(
         long completedCount,
+        string? processedCursor,
         UpdateCompletedCount updateCompletedCount,
         CancellationToken cancellationToken);
 }
@@ -349,17 +351,57 @@ Abstract base class providing the producer-consumer pipeline. You implement `Fet
 public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
 {
     // You implement this:
-    public abstract Task<IEnumerable<TRecord>> FetchBatchAsync(
-        long skip, int batchSize, CancellationToken cancellationToken);
+    public abstract Task<CursorFetchResult<TRecord>> FetchBatchAsync(
+        string? cursor, int batchSize, CancellationToken cancellationToken);
 }
 ```
 
 The base class handles:
 - Channel-based producer-consumer coordination
 - Batch sizing (configurable via `DataProcessingOptions`)
-- Progress tracking (via `UpdateCompletedCount` delegate)
+- Cursor-based progress tracking (via `UpdateCompletedCount` delegate with opaque cursor tokens)
+- Crash-safe resume (on restart, fetch cursor resets to last durable `ProcessedCursor`)
 - Graceful shutdown on application stop
 - Logging via `[LoggerMessage]` source generation
+
+### IRecordFetcher\<TRecord\>
+
+Defines cursor-based batch fetching. `DataProcessor<TRecord>` implements this interface — you provide the implementation via `FetchBatchAsync`:
+
+```csharp
+public interface IRecordFetcher<TRecord>
+{
+    Task<CursorFetchResult<TRecord>> FetchBatchAsync(
+        string? cursor, int batchSize, CancellationToken cancellationToken);
+}
+```
+
+The `cursor` parameter is an opaque token produced by the previous call's `NextCursor`. Pass `null` to start from the beginning. Your implementation defines the cursor format (e.g., a primary key, timestamp, or composite value).
+
+### CursorFetchResult\<TRecord\>
+
+Returned by `FetchBatchAsync` to carry a page of records and the cursor to the next page:
+
+```csharp
+public sealed record CursorFetchResult<TRecord>(
+    IReadOnlyList<TRecord> Records,
+    string? NextCursor);
+```
+
+- **`Records`** — the records in this page.
+- **`NextCursor`** — an opaque cursor pointing to the start of the next page, or `null` if there are no more pages. An empty `Records` collection with a non-null cursor is valid (the page was empty but more data may follow).
+
+### UpdateCompletedCount
+
+Delegate used by the orchestration layer to checkpoint progress:
+
+```csharp
+public delegate Task UpdateCompletedCount(
+    long complete, string? processedCursor, CancellationToken cancellationToken);
+```
+
+- **`complete`** — the running total of processed records.
+- **`processedCursor`** — the cursor of the last fully processed page boundary, or `null` for per-record count-only checkpoints (the SQL layer uses `COALESCE` to preserve the existing cursor when `null` is passed).
 
 ### IRecordHandler\<TRecord\>
 
@@ -567,7 +609,7 @@ The data processing pipeline is designed to survive database unavailability and 
 **After data replacement (restored from backup):**
 - **Stale task detection** — Each completed-count checkpoint verifies the task row still exists (checks rows affected). If the row was replaced or deleted during a restore, the checkpoint returns 0 rows and the processor aborts that task cleanly
 - **Consecutive failure threshold** — If a processor encounters 5 consecutive record-level failures (e.g., foreign key violations from mismatched data), it breaks out of the current batch instead of burning through the entire queue
-- **Idempotent re-processing** — Tasks that fail to be deleted after completion are re-selected on the next poll; processors should handle re-processing idempotently via the `completedCount` resume parameter
+- **Idempotent re-processing** — Tasks that fail to be deleted after completion are re-selected on the next poll; processors should handle re-processing idempotently via the `completedCount` and `processedCursor` resume parameters
 
 ### Configuration via appsettings.json
 

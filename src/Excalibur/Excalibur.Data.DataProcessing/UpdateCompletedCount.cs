@@ -5,9 +5,13 @@
 namespace Excalibur.Data.DataProcessing;
 
 /// <summary>
-/// A delegate for updating the count of completed records during data processing.
+/// A delegate for updating the count of completed records and the processed cursor during data processing.
 /// </summary>
 /// <param name="complete"> The current number of completed records. </param>
+/// <param name="processedCursor">
+/// The opaque cursor pointing to the last fully processed page boundary,
+/// or <see langword="null"/> when checkpointing within a page (count-only update).
+/// </param>
 /// <param name="cancellationToken"> A token to signal cancellation. </param>
 /// <returns> A task that represents the asynchronous operation. </returns>
-public delegate Task UpdateCompletedCount(long complete, CancellationToken cancellationToken);
+public delegate Task UpdateCompletedCount(long complete, string? processedCursor, CancellationToken cancellationToken);

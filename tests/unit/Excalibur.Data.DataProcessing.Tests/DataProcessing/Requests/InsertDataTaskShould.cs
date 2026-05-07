@@ -36,4 +36,18 @@ public sealed class InsertDataTaskShould
 		request.Command.CommandText.ShouldContain("INSERT INTO");
 		request.Command.CommandText.ShouldContain(config.TableName);
 	}
+
+	[Fact]
+	public void HaveCommandWithCursorColumns()
+	{
+		// Arrange
+		var config = new DataProcessingOptions();
+
+		// Act
+		var request = new InsertDataTask(Guid.NewGuid(), "RecordType", config, 30, CancellationToken.None);
+
+		// Assert — INSERT must include both cursor columns initialized to NULL
+		request.Command.CommandText.ShouldContain("FetchCursor");
+		request.Command.CommandText.ShouldContain("ProcessedCursor");
+	}
 }

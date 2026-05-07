@@ -143,7 +143,8 @@ static async Task DemonstrateCdcHistoryReplayAsync(IServiceProvider services, IL
 	{
 		var replayed = await processor.RunAsync(
 			completedCount: 0,
-			updateCompletedCount: static (_, _) => Task.CompletedTask,
+			processedCursor: null,
+			updateCompletedCount: static (_, _, _) => Task.CompletedTask,
 			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		logger.LogInformation("Replayed {ReplayedCount} historical records to close missing CDC history", replayed);

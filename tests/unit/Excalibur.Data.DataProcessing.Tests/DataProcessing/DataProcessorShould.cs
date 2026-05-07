@@ -102,7 +102,8 @@ public sealed class DataProcessorShould : UnitTestBase
 		// Act
 		var result = await processor.RunAsync(
 			0,
-			(count, ct) =>
+			null,
+			(count, cursor, ct) =>
 			{
 				completedCounts.Add(count);
 				return Task.CompletedTask;
@@ -126,7 +127,8 @@ public sealed class DataProcessorShould : UnitTestBase
 		// Act
 		var result = await processor.RunAsync(
 			completedCount,
-			(count, ct) =>
+			null,
+			(count, cursor, ct) =>
 			{
 				processedValues.Add(count);
 				return Task.CompletedTask;
@@ -147,7 +149,59 @@ public sealed class DataProcessorShould : UnitTestBase
 
 		// Act & Assert
 		await Should.ThrowAsync<ObjectDisposedException>(
-			() => processor.RunAsync(0, (_, _) => Task.CompletedTask, CancellationToken.None)).ConfigureAwait(false);
+			() => processor.RunAsync(0, null, (_, _, _) => Task.CompletedTask, CancellationToken.None)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task RunAsync_ResumesFromProcessedCursor_OnCrashRecovery()
+	{
+		// Arrange — 5 records, cursor "2" means start from the 3rd record
+		var allRecords = new[] { "skip1", "skip2", "process1", "process2", "process3" };
+		var processor = CreateProcessor(allRecords);
+		var completedCounts = new List<long>();
+
+		// Act — pass processedCursor="2" to simulate crash recovery
+		var result = await processor.RunAsync(
+			2,
+			"2",
+			(count, cursor, ct) =>
+			{
+				completedCounts.Add(count);
+				return Task.CompletedTask;
+			},
+			CancellationToken.None).ConfigureAwait(false);
+
+		// Assert — should process only records after cursor position 2
+		result.ShouldBeGreaterThanOrEqualTo(2);
+		// The first checkpoint should be 3 (completedCount=2, then increment to 3)
+		completedCounts.ShouldNotBeEmpty();
+		completedCounts.First().ShouldBe(3);
+		await processor.DisposeAsync().ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task RunAsync_PassesNullCursorToDelegate_ForPerRecordCheckpoints()
+	{
+		// Arrange — the consumer passes null cursor on per-record checkpoints
+		var records = new[] { "record1", "record2" };
+		var processor = CreateProcessor(records);
+		var cursorValues = new List<string?>();
+
+		// Act
+		await processor.RunAsync(
+			0,
+			null,
+			(count, cursor, ct) =>
+			{
+				cursorValues.Add(cursor);
+				return Task.CompletedTask;
+			},
+			CancellationToken.None).ConfigureAwait(false);
+
+		// Assert — all per-record checkpoints should pass null cursor
+		cursorValues.ShouldNotBeEmpty();
+		cursorValues.ShouldAllBe(c => c == null);
+		await processor.DisposeAsync().ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -172,7 +226,8 @@ public sealed class DataProcessorShould : UnitTestBase
 		// Act
 		var result = await processor.RunAsync(
 			0,
-			(_, _) => Task.CompletedTask,
+			null,
+			(_, _, _) => Task.CompletedTask,
 			CancellationToken.None).ConfigureAwait(false);
 
 		// Assert — no records = producer exits immediately
@@ -229,13 +284,19 @@ public sealed class DataProcessorShould : UnitTestBase
 			_records = records ?? [];
 		}
 
-		public override Task<IEnumerable<string>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken)
+		public override Task<CursorFetchResult<string>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken)
 		{
-			var result = _records
-				.Skip((int)skip)
-				.Take(batchSize);
+			var skip = cursor is null ? 0 : int.Parse(cursor, System.Globalization.CultureInfo.InvariantCulture);
+			var batch = _records
+				.Skip(skip)
+				.Take(batchSize)
+				.ToList();
 
-			return Task.FromResult(result);
+			var nextCursor = batch.Count > 0 && skip + batch.Count < _records.Length
+				? (skip + batch.Count).ToString(System.Globalization.CultureInfo.InvariantCulture)
+				: null;
+
+			return Task.FromResult(new CursorFetchResult<string>(batch, nextCursor));
 		}
 	}
 }

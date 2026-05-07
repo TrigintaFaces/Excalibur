@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Globalization;
+
 using DataProcessingBackgroundService.Data;
 
 using Excalibur.Data.DataProcessing;
@@ -11,7 +13,7 @@ namespace DataProcessingBackgroundService.Processing;
 
 /// <summary>
 /// Data processor for order records. Fetches order batches from the database
-/// and feeds them into the producer/consumer pipeline.
+/// and feeds them into the producer/consumer pipeline using cursor-based pagination.
 /// </summary>
 [DataTaskRecordType("OrderRecord")]
 public sealed class OrderDataProcessor : DataProcessor<OrderRecord>
@@ -39,18 +41,30 @@ public sealed class OrderDataProcessor : DataProcessor<OrderRecord>
 		_logger = logger;
 	}
 
-	public override Task<IEnumerable<OrderRecord>> FetchBatchAsync(
-		long skip,
+	public override Task<CursorFetchResult<OrderRecord>> FetchBatchAsync(
+		string? cursor,
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		// Simulate fetching a batch from the database with skip/take
+		// Parse the cursor to determine where to resume. The cursor is an opaque
+		// string — here we use a simple integer offset, but in production you'd
+		// typically use a database primary key or timestamp.
+		var skip = cursor is null ? 0 : int.Parse(cursor, CultureInfo.InvariantCulture);
+
 		var batch = SampleOrders
-			.Skip((int)skip)
-			.Take(batchSize);
+			.Skip(skip)
+			.Take(batchSize)
+			.ToList();
 
-		_logger.LogDebug("Fetched batch: skip={Skip}, batchSize={BatchSize}", skip, batchSize);
+		// Produce the next cursor — null signals "no more data".
+		var nextPosition = skip + batch.Count;
+		var nextCursor = batch.Count > 0 && nextPosition < SampleOrders.Count
+			? nextPosition.ToString(CultureInfo.InvariantCulture)
+			: null;
 
-		return Task.FromResult(batch);
+		_logger.LogDebug("Fetched batch: cursor={Cursor}, batchSize={BatchSize}, returned={Count}",
+			cursor, batchSize, batch.Count);
+
+		return Task.FromResult(new CursorFetchResult<OrderRecord>(batch, nextCursor));
 	}
 }

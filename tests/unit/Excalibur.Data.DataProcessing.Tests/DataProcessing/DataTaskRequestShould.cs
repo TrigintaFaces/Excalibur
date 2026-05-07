@@ -79,4 +79,39 @@ public sealed class DataTaskRequestShould : UnitTestBase
 		// Assert
 		request1.DataTaskId.ShouldNotBe(request2.DataTaskId);
 	}
+
+	[Fact]
+	public void HaveNullDefaultForFetchCursor()
+	{
+		// Arrange & Act
+		var request = new DataTaskRequest();
+
+		// Assert
+		request.FetchCursor.ShouldBeNull();
+	}
+
+	[Fact]
+	public void HaveNullDefaultForProcessedCursor()
+	{
+		// Arrange & Act
+		var request = new DataTaskRequest();
+
+		// Assert
+		request.ProcessedCursor.ShouldBeNull();
+	}
+
+	[Fact]
+	public void AllowSettingCursorProperties_ViaInit()
+	{
+		// Arrange & Act
+		var request = new DataTaskRequest
+		{
+			FetchCursor = "cursor-page-5",
+			ProcessedCursor = "cursor-page-3",
+		};
+
+		// Assert
+		request.FetchCursor.ShouldBe("cursor-page-5");
+		request.ProcessedCursor.ShouldBe("cursor-page-3");
+	}
 }

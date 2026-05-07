@@ -174,8 +174,9 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 
 				_ = await dataProcessor.RunAsync(
 					request.CompletedCount,
-					(complete, ct) =>
-						UpdateCompletedCountAsync(request.DataTaskId, complete, taskScopedCts, ct),
+					request.ProcessedCursor,
+					(complete, processedCursor, ct) =>
+						UpdateCompletedCountAsync(request.DataTaskId, complete, processedCursor, taskScopedCts, ct),
 					taskScopedCts.Token).ConfigureAwait(false);
 
 				await TryDeleteRequestAsync(request.DataTaskId, cancellationToken).ConfigureAwait(false);
@@ -232,13 +233,14 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 	}
 
 	/// <summary>
-	/// Updates the completed count and signals the processor to abort if the task row
-	/// no longer exists (0 rows affected). This detects database restores and manual
-	/// deletions, preventing the processor from doing wasted work against orphaned state.
+	/// Updates the completed count and processed cursor, and signals the processor to abort
+	/// if the task row no longer exists (0 rows affected). This detects database restores and
+	/// manual deletions, preventing the processor from doing wasted work against orphaned state.
 	/// </summary>
 	private async Task UpdateCompletedCountAsync(
 		Guid dataTaskId,
 		long complete,
+		string? processedCursor,
 		CancellationTokenSource taskScopedCts,
 		CancellationToken cancellationToken)
 	{
@@ -248,6 +250,7 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 			var req = new UpdateDataTaskCompletedCount(
 				dataTaskId,
 				complete,
+				processedCursor,
 				_configuration.Value,
 				DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken);

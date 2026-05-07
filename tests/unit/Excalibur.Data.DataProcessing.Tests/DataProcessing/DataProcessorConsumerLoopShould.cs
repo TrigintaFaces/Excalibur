@@ -51,7 +51,8 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		// Act
 		var result = await processor.RunAsync(
 			0,
-			(count, ct) =>
+			null,
+			(count, cursor, ct) =>
 			{
 				completedCounts.Add(count);
 				return Task.CompletedTask;
@@ -82,7 +83,8 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		// Act
 		var result = await processor.RunAsync(
 			0,
-			(count, ct) =>
+			null,
+			(count, cursor, ct) =>
 			{
 				completedCounts.Add(count);
 				return Task.CompletedTask;
@@ -113,7 +115,8 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		// Act
 		var result = await processor.RunAsync(
 			0,
-			(count, ct) =>
+			null,
+			(count, cursor, ct) =>
 			{
 				Interlocked.Increment(ref processedCount);
 				return Task.CompletedTask;
@@ -139,7 +142,8 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		// Act
 		var result = await processor.RunAsync(
 			0,
-			(count, ct) =>
+			null,
+			(count, cursor, ct) =>
 			{
 				completedCounts.Add(count);
 				return Task.CompletedTask;
@@ -170,7 +174,8 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		// Act
 		await processor.RunAsync(
 			0,
-			(_, _) => Task.CompletedTask,
+			null,
+			(_, _, _) => Task.CompletedTask,
 			CancellationToken.None).ConfigureAwait(false);
 
 		// Assert — both records should have been disposed
@@ -196,7 +201,8 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		using var taskCts = new CancellationTokenSource();
 		var result = await processor.RunAsync(
 			0,
-			async (count, ct) =>
+			null,
+			async (count, cursor, ct) =>
 			{
 				callCount++;
 				if (callCount >= 2)
@@ -303,13 +309,19 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 			_records = records ?? [];
 		}
 
-		public override Task<IEnumerable<string>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken)
+		public override Task<CursorFetchResult<string>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken)
 		{
-			var result = _records
-				.Skip((int)skip)
-				.Take(batchSize);
+			var skip = cursor is null ? 0 : int.Parse(cursor, System.Globalization.CultureInfo.InvariantCulture);
+			var batch = _records
+				.Skip(skip)
+				.Take(batchSize)
+				.ToList();
 
-			return Task.FromResult(result);
+			var nextCursor = batch.Count > 0 && skip + batch.Count < _records.Length
+				? (skip + batch.Count).ToString(System.Globalization.CultureInfo.InvariantCulture)
+				: null;
+
+			return Task.FromResult(new CursorFetchResult<string>(batch, nextCursor));
 		}
 	}
 
@@ -345,13 +357,19 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 			_records = records ?? [];
 		}
 
-		public override Task<IEnumerable<DisposableRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken)
+		public override Task<CursorFetchResult<DisposableRecord>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken)
 		{
-			var result = _records
-				.Skip((int)skip)
-				.Take(batchSize);
+			var skip = cursor is null ? 0 : int.Parse(cursor, System.Globalization.CultureInfo.InvariantCulture);
+			var batch = _records
+				.Skip(skip)
+				.Take(batchSize)
+				.ToList();
 
-			return Task.FromResult(result);
+			var nextCursor = batch.Count > 0 && skip + batch.Count < _records.Length
+				? (skip + batch.Count).ToString(System.Globalization.CultureInfo.InvariantCulture)
+				: null;
+
+			return Task.FromResult(new CursorFetchResult<DisposableRecord>(batch, nextCursor));
 		}
 	}
 }
