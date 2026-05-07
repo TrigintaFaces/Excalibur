@@ -173,7 +173,7 @@ It is generated from project files; licenses remain with their respective owners
 | Serilog.Sinks.Debug | 3.0.0 |
 | Serilog.Sinks.File | 7.0.0 |
 | Shouldly | 4.3.0 |
-| Snappier | 1.3.0 |
+| Snappier | 1.3.1 |
 | StackExchange.Redis | 2.12.14 |
 | Swashbuckle.AspNetCore.SwaggerGen | 6.8.0 |
 | System.Collections.Immutable | 9.0.9 |
