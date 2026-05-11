@@ -70,28 +70,6 @@ public interface IErasureService
 	Task<ErasureCertificate> GenerateCertificateAsync(
 		Guid requestId,
 		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Executes a scheduled erasure request by deleting encryption keys.
-	/// </summary>
-	/// <param name="requestId">The erasure request tracking ID.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>Execution result with details of keys deleted.</returns>
-	/// <remarks>
-	/// <para>
-	/// This method is typically called by the scheduler background service when
-	/// the grace period has expired. It performs:
-	/// </para>
-	/// <list type="bullet">
-	/// <item><description>Validation that the request is in Scheduled status</description></item>
-	/// <item><description>Re-verification of legal holds</description></item>
-	/// <item><description>Cryptographic key deletion via KMS</description></item>
-	/// <item><description>Recording of completion status</description></item>
-	/// </list>
-	/// </remarks>
-	Task<ErasureExecutionResult> ExecuteAsync(
-		Guid requestId,
-		CancellationToken cancellationToken);
 }
 
 /// <summary>

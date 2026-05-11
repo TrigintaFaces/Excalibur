@@ -12,6 +12,7 @@ public interface ISystemLoadMonitor
 	/// <summary>
 	/// Gets the current system load as a value between 0.0 and 1.0.
 	/// </summary>
+	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns> The current system load. </returns>
-	Task<double> GetCurrentLoadAsync();
+	Task<double> GetCurrentLoadAsync(CancellationToken cancellationToken);
 }

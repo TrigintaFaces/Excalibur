@@ -267,5 +267,5 @@ internal sealed class TestSystemLoadMonitor : ISystemLoadMonitor
 
 	public void SetLoad(double load) => _load = load;
 
-	public Task<double> GetCurrentLoadAsync() => Task.FromResult(_load);
+	public Task<double> GetCurrentLoadAsync(CancellationToken cancellationToken) => Task.FromResult(_load);
 }

@@ -60,7 +60,7 @@ public sealed class AdaptiveTtlCacheOTelShould : IAsyncDisposable
 		_listener.Start();
 
 		// Default mocks
-		A.CallTo(() => _fakeLoadMonitor.GetCurrentLoadAsync()).Returns(0.5);
+		A.CallTo(() => _fakeLoadMonitor.GetCurrentLoadAsync(A<CancellationToken>._)).Returns(0.5);
 		A.CallTo(() => _fakeStrategy.CalculateTtl(A<AdaptiveTtlContext>._)).Returns(TimeSpan.FromMinutes(5));
 	}
 

@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **DataProcessing: cursor-based paging replaces offset-based paging** -- `IRecordFetcher<T>.FetchBatchAsync` now accepts `string? cursor` (opaque token) instead of `long skip`, returning `CursorFetchResult<TRecord>` with the next cursor. `IDataProcessor.RunAsync` accepts a `string? processedCursor` for crash-safe resume. Dual-cursor tracking separates transient fetch position from durable processed checkpoint. SQL schema adds `FetchCursor`/`ProcessedCursor` columns with `COALESCE` preservation. **Breaking change** — all `DataProcessor<T>` implementations must update their `FetchBatchAsync` override signature.
 
+- **IErasureService ISP split** -- `ExecuteAsync` removed from the public `IErasureService` interface (now 4 methods). Execution is handled internally by `ErasureSchedulerBackgroundService` via new `internal IErasureExecutor`. Consumers submit requests via `RequestErasureAsync` and monitor via `GetStatusAsync`. **Breaking change** if calling `IErasureService.ExecuteAsync` directly (use the background scheduler instead).
+- **ISystemLoadMonitor CancellationToken** -- `GetCurrentLoadAsync()` now requires a `CancellationToken` parameter per .NET convention. **Breaking change** for `ISystemLoadMonitor` implementors.
+
+### Fixed
+
+- **ContextFlowMetrics null safety (P0)** -- 13 counter/histogram fields in `ContextFlowMetrics` used `null!` initialization. Added null-conditional operators (`?.`) to prevent `NullReferenceException` if meter instrument creation fails.
+- **MongoDbTenantEventStoreResolver MongoClient leak** -- Cached tenant event stores held undisposed `MongoClient` instances (leaking connection pools since MongoDB.Driver 3.x makes `MongoClient` `IDisposable`). Resolver now implements `IAsyncDisposable` with proper `_clientCache` tracking and ordered disposal.
+
+### Documentation
+
+- **CDC SqlServer XML doc improvements** -- Added XML documentation to `ICdcRepository`, `IDatabaseOptions`, and `DataChangeEventProcessor` in `Excalibur.Cdc.SqlServer`. No behavioral changes.
+
 ### Security
 
 - **Snappier 1.3.0 → 1.3.1** ([GHSA-pggp-6c3x-2xmx](https://github.com/advisories/GHSA-pggp-6c3x-2xmx)) -- Infinite-loop vulnerability in `SnappyStream` decompression; 15 bytes of malformed framed-format data can freeze a thread. Transitive dependency via MemoryPack affecting 55 packages. Resolved by bumping `Directory.Packages.props`.

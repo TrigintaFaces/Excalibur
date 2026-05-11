@@ -343,7 +343,7 @@ public static class ErasureServiceCollectionExtensions
 			sp.GetRequiredService<InMemoryKeyManagementProvider>());
 
 		// Register core service with factory to resolve optional dependencies
-		services.TryAddScoped<IErasureService>(sp => new ErasureService(
+		services.TryAddScoped<ErasureService>(sp => new ErasureService(
 			sp.GetRequiredService<IErasureStore>(),
 			sp.GetRequiredService<IKeyManagementAdmin>(),
 			sp.GetRequiredService<IOptions<ErasureOptions>>(),
@@ -351,5 +351,8 @@ public static class ErasureServiceCollectionExtensions
 			sp.GetService<ILegalHoldService>(),
 			sp.GetService<IDataInventoryService>(),
 			sp.GetServices<IErasureContributor>()));
+
+		services.TryAddScoped<IErasureService>(static sp => sp.GetRequiredService<ErasureService>());
+		services.TryAddScoped<IErasureExecutor>(static sp => sp.GetRequiredService<ErasureService>());
 	}
 }

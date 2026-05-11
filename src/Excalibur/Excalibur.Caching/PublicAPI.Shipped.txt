@@ -109,7 +109,7 @@ Excalibur.Caching.AdaptiveTtl.IAdaptiveTtlStrategy.CalculateTtl(Excalibur.Cachin
 Excalibur.Caching.AdaptiveTtl.IAdaptiveTtlStrategy.GetMetrics() -> Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics!
 Excalibur.Caching.AdaptiveTtl.IAdaptiveTtlStrategy.UpdateStrategy(Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback! feedback) -> void
 Excalibur.Caching.AdaptiveTtl.ISystemLoadMonitor
-Excalibur.Caching.AdaptiveTtl.ISystemLoadMonitor.GetCurrentLoadAsync() -> System.Threading.Tasks.Task<double>!
+Excalibur.Caching.AdaptiveTtl.ISystemLoadMonitor.GetCurrentLoadAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<double>!
 Excalibur.Caching.AdaptiveTtl.RuleBasedAdaptiveTtlStrategy
 Excalibur.Caching.AdaptiveTtl.RuleBasedAdaptiveTtlStrategy.CalculateTtl(Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext! context) -> System.TimeSpan
 Excalibur.Caching.AdaptiveTtl.RuleBasedAdaptiveTtlStrategy.GetMetrics() -> Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics!

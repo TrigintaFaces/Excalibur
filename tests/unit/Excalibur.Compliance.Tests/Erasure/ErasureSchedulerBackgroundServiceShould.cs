@@ -67,7 +67,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 	public async Task Process_scheduled_erasures_when_enabled()
 	{
 		var erasureStore = A.Fake<IErasureStore>();
-		var erasureService = A.Fake<IErasureService>();
+		var erasureExecutor = A.Fake<IErasureExecutor>();
 		var queryStore = A.Fake<IErasureQueryStore>();
 		var queryObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -81,7 +81,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 				return Task.FromResult<IReadOnlyList<ErasureStatus>>([]);
 			});
 
-		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureService);
+		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureExecutor);
 
 		var options = new ErasureSchedulerOptions
 		{
@@ -110,7 +110,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 	{
 		var requestId = Guid.NewGuid();
 		var erasureStore = A.Fake<IErasureStore>();
-		var erasureService = A.Fake<IErasureService>();
+		var erasureExecutor = A.Fake<IErasureExecutor>();
 		var queryStore = A.Fake<IErasureQueryStore>();
 		var executionObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -123,11 +123,11 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 				Task.FromResult<IReadOnlyList<ErasureStatus>>([scheduledRequest]),
 				Task.FromResult<IReadOnlyList<ErasureStatus>>([]));
 
-		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))
+		A.CallTo(() => erasureExecutor.ExecuteAsync(requestId, A<CancellationToken>._))
 			.Invokes(() => executionObserved.TrySetResult(true))
 			.Returns(ErasureExecutionResult.Succeeded(3, 42));
 
-		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureService);
+		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureExecutor);
 
 		var options = new ErasureSchedulerOptions
 		{
@@ -147,7 +147,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))
+		A.CallTo(() => erasureExecutor.ExecuteAsync(requestId, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -156,7 +156,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 	{
 		var requestId = Guid.NewGuid();
 		var erasureStore = A.Fake<IErasureStore>();
-		var erasureService = A.Fake<IErasureService>();
+		var erasureExecutor = A.Fake<IErasureExecutor>();
 		var queryStore = A.Fake<IErasureQueryStore>();
 		var failedStatusUpdated = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -174,10 +174,10 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 				Task.FromResult<IReadOnlyList<ErasureStatus>>([scheduledRequest]),
 				Task.FromResult<IReadOnlyList<ErasureStatus>>([]));
 
-		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))
+		A.CallTo(() => erasureExecutor.ExecuteAsync(requestId, A<CancellationToken>._))
 			.Returns(ErasureExecutionResult.Failed("Key not found"));
 
-		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureService);
+		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureExecutor);
 
 		var options = new ErasureSchedulerOptions
 		{
@@ -209,7 +209,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 	{
 		var requestId = Guid.NewGuid();
 		var erasureStore = A.Fake<IErasureStore>();
-		var erasureService = A.Fake<IErasureService>();
+		var erasureExecutor = A.Fake<IErasureExecutor>();
 		var queryStore = A.Fake<IErasureQueryStore>();
 		var failedStatusUpdated = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -227,10 +227,10 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 				Task.FromResult<IReadOnlyList<ErasureStatus>>([scheduledRequest]),
 				Task.FromResult<IReadOnlyList<ErasureStatus>>([]));
 
-		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))
+		A.CallTo(() => erasureExecutor.ExecuteAsync(requestId, A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("KMS unavailable"));
 
-		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureService);
+		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureExecutor);
 
 		var options = new ErasureSchedulerOptions
 		{
@@ -262,7 +262,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 	public async Task Continue_after_processing_error()
 	{
 		var erasureStore = A.Fake<IErasureStore>();
-		var erasureService = A.Fake<IErasureService>();
+		var erasureExecutor = A.Fake<IErasureExecutor>();
 		var queryStore = A.Fake<IErasureQueryStore>();
 		var secondQueryObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -287,7 +287,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 				return Task.FromResult<IReadOnlyList<ErasureStatus>>([]);
 			});
 
-		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureService);
+		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureExecutor);
 
 		var options = new ErasureSchedulerOptions
 		{
@@ -316,14 +316,14 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 	public async Task Handle_query_store_not_supported()
 	{
 		var erasureStore = A.Fake<IErasureStore>();
-		var erasureService = A.Fake<IErasureService>();
+		var erasureExecutor = A.Fake<IErasureExecutor>();
 		var queryStoreLookupObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => erasureStore.GetService(typeof(IErasureQueryStore)))
 			.Invokes(() => { _ = queryStoreLookupObserved.TrySetResult(); })
 			.Returns(null);
 
-		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureService);
+		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureExecutor);
 
 		var options = new ErasureSchedulerOptions
 		{
@@ -357,7 +357,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		// and the second failure should mark as Failed.
 		var requestId = Guid.NewGuid();
 		var erasureStore = A.Fake<IErasureStore>();
-		var erasureService = A.Fake<IErasureService>();
+		var erasureExecutor = A.Fake<IErasureExecutor>();
 		var queryStore = A.Fake<IErasureQueryStore>();
 		var failedStatusUpdated = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var retryStatusUpdated = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -372,7 +372,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 			.ReturnsLazily(() => Task.FromResult<IReadOnlyList<ErasureStatus>>([scheduledRequest]));
 
 		// Always fail
-		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))
+		A.CallTo(() => erasureExecutor.ExecuteAsync(requestId, A<CancellationToken>._))
 			.Returns(ErasureExecutionResult.Failed("Simulated failure"));
 
 		// Track Scheduled (retry) vs Failed (final) status updates
@@ -386,7 +386,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 			.Invokes(() => failedStatusUpdated.TrySetResult(true))
 			.Returns(true);
 
-		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureService);
+		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureExecutor);
 
 		var options = new ErasureSchedulerOptions
 		{
@@ -445,13 +445,13 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 
 	private static (IServiceScopeFactory, IServiceScope) SetupScopeFactory(
 		IErasureStore erasureStore,
-		IErasureService erasureService)
+		IErasureExecutor erasureExecutor)
 	{
 		var serviceProvider = A.Fake<IServiceProvider>();
 		A.CallTo(() => serviceProvider.GetService(typeof(IErasureStore)))
 			.Returns(erasureStore);
-		A.CallTo(() => serviceProvider.GetService(typeof(IErasureService)))
-			.Returns(erasureService);
+		A.CallTo(() => serviceProvider.GetService(typeof(IErasureExecutor)))
+			.Returns(erasureExecutor);
 
 		// CreateAsyncScope() is an extension method that calls CreateScope() internally
 		var scope = A.Fake<IServiceScope>();

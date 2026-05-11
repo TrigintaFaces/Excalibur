@@ -260,7 +260,7 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 		ArgumentNullException.ThrowIfNull(options);
 
 		var entryMetadata = GetOrCreateMetadata(key);
-		var context = await BuildAdaptiveTtlContextAsync(key, options, value.Length, entryMetadata).ConfigureAwait(false);
+		var context = await BuildAdaptiveTtlContextAsync(key, options, value.Length, entryMetadata, token).ConfigureAwait(false);
 
 		// Calculate adaptive TTL
 		var adaptiveTtl = _ttlStrategy.CalculateTtl(context);
@@ -386,10 +386,11 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 		string key,
 		DistributedCacheEntryOptions options,
 		long contentSize,
-		CacheEntryMetadata metadata)
+		CacheEntryMetadata metadata,
+		CancellationToken cancellationToken)
 	{
 		// Get system load
-		var systemLoad = await _loadMonitor.GetCurrentLoadAsync().ConfigureAwait(false);
+		var systemLoad = await _loadMonitor.GetCurrentLoadAsync(cancellationToken).ConfigureAwait(false);
 		LastKnownSystemLoad = systemLoad;
 
 		// Calculate base TTL from options

@@ -142,7 +142,7 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 	{
 		await using var scope = _scopeFactory.CreateAsyncScope();
 		var erasureStore = scope.ServiceProvider.GetRequiredService<IErasureStore>();
-		var erasureService = scope.ServiceProvider.GetRequiredService<IErasureService>();
+		var erasureExecutor = scope.ServiceProvider.GetRequiredService<IErasureExecutor>();
 
 		var queryStore = (IErasureQueryStore?)erasureStore.GetService(typeof(IErasureQueryStore))
 			?? throw new InvalidOperationException("The erasure store does not support query operations.");
@@ -165,14 +165,14 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 			}
 
 			await ProcessSingleErasureAsync(
-				request, erasureStore, erasureService, cancellationToken).ConfigureAwait(false);
+				request, erasureStore, erasureExecutor, cancellationToken).ConfigureAwait(false);
 		}
 	}
 
 	private async Task ProcessSingleErasureAsync(
 		ErasureStatus request,
 		IErasureStore erasureStore,
-		IErasureService erasureService,
+		IErasureExecutor erasureExecutor,
 		CancellationToken cancellationToken)
 	{
 		LogErasureSchedulerExecutingRequest(request.RequestId, request.ScheduledExecutionAt);
@@ -180,7 +180,7 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 		try
 		{
 			// Execute the erasure (the service handles status transitions internally)
-			var result = await erasureService.ExecuteAsync(
+			var result = await erasureExecutor.ExecuteAsync(
 				request.RequestId, cancellationToken).ConfigureAwait(false);
 
 			if (result.Success)

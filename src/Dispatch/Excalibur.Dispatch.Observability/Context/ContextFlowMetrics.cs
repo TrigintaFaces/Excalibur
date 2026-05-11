@@ -82,9 +82,9 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		var tags = new TagList { { "stage", stage } };
 
-		_contextSnapshotCounter.Add(1, tags);
-		_contextFieldCountHistogram.Record(fieldCount, tags);
-		_contextSizeHistogram.Record(sizeBytes, tags);
+		_contextSnapshotCounter?.Add(1, tags);
+		_contextFieldCountHistogram?.Record(fieldCount, tags);
+		_contextSizeHistogram?.Record(sizeBytes, tags);
 
 		Interlocked.Increment(ref _totalContextsProcessed);
 	}
@@ -107,11 +107,11 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 			{ "stage", stage }
 		};
 
-		_contextMutationCounter.Add(1, tags);
+		_contextMutationCounter?.Add(1, tags);
 
 		if (changeType == ContextChangeType.Removed)
 		{
-			_contextFieldLossCounter.Add(1, tags);
+			_contextFieldLossCounter?.Add(1, tags);
 		}
 	}
 
@@ -124,7 +124,7 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		var tags = new TagList { { "error_type", errorType }, { "stage", stage } };
 
-		_contextErrorCounter.Add(1, tags);
+		_contextErrorCounter?.Add(1, tags);
 	}
 
 	/// <summary>
@@ -137,7 +137,7 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 
 		var tags = new TagList { { "reason", TruncateFieldName(failureReason) } };
 
-		_contextValidationFailureCounter.Add(1, tags);
+		_contextValidationFailureCounter?.Add(1, tags);
 	}
 
 	/// <summary>
@@ -149,7 +149,7 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		var tags = new TagList { { "service", serviceBoundary }, { "preserved", contextPreserved.ToString() } };
 
-		_crossBoundaryTransitionCounter.Add(1, tags);
+		_crossBoundaryTransitionCounter?.Add(1, tags);
 
 		if (contextPreserved)
 		{
@@ -165,7 +165,7 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		var tags = new TagList { { "stage", stage } };
 
-		_contextPreservationSuccessCounter.Add(1, tags);
+		_contextPreservationSuccessCounter?.Add(1, tags);
 
 		Interlocked.Increment(ref _contextsPreservedSuccessfully);
 	}
@@ -179,8 +179,8 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		var tags = new TagList { { "stage", stage } };
 
-		_contextSizeThresholdExceededCounter.Add(1, tags);
-		_contextSizeHistogram.Record(sizeBytes, tags);
+		_contextSizeThresholdExceededCounter?.Add(1, tags);
+		_contextSizeHistogram?.Record(sizeBytes, tags);
 	}
 
 	/// <summary>
@@ -192,7 +192,7 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		var tags = new TagList { { "stage", stage } };
 
-		_contextSizeHistogram.Record(sizeBytes, tags);
+		_contextSizeHistogram?.Record(sizeBytes, tags);
 	}
 
 	/// <summary>
@@ -204,7 +204,7 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		var tags = new TagList { { "stage", stage } };
 
-		_pipelineStageLatencyHistogram.Record(latencyMs, tags);
+		_pipelineStageLatencyHistogram?.Record(latencyMs, tags);
 	}
 
 	/// <summary>
@@ -216,7 +216,7 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		var tags = new TagList { { "operation", operationType } };
 
-		_contextSerializationLatencyHistogram.Record(latencyMs, tags);
+		_contextSerializationLatencyHistogram?.Record(latencyMs, tags);
 	}
 
 	/// <summary>
@@ -228,7 +228,7 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		var tags = new TagList { { "operation", operationType } };
 
-		_contextDeserializationLatencyHistogram.Record(latencyMs, tags);
+		_contextDeserializationLatencyHistogram?.Record(latencyMs, tags);
 	}
 
 	/// <summary>

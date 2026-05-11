@@ -28,7 +28,7 @@ public sealed class AdaptiveTtlCacheDepthShould : IAsyncDisposable
 
 		A.CallTo(() => _strategy.CalculateTtl(A<AdaptiveTtlContext>._))
 			.Returns(TimeSpan.FromMinutes(10));
-		A.CallTo(() => _loadMonitor.GetCurrentLoadAsync())
+		A.CallTo(() => _loadMonitor.GetCurrentLoadAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(0.5));
 
 		_sut = new AdaptiveTtlCache(

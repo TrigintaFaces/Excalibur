@@ -28,7 +28,7 @@ namespace Excalibur.Compliance.Erasure;
 /// 5. Verifying erasure and generating compliance certificate
 /// </para>
 /// </remarks>
-public sealed partial class ErasureService : IErasureService
+public sealed partial class ErasureService : IErasureService, IErasureExecutor
 {
 	private static readonly Counter<long> RequestsSubmittedCounter =
 		ErasureTelemetryConstants.Meter.CreateCounter<long>(

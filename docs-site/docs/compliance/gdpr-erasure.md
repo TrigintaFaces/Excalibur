@@ -158,42 +158,28 @@ if (!cancelled)
 
 ### 4. Execution (Crypto-Shredding)
 
-After the grace period, the scheduler executes erasure:
+Erasure execution is handled automatically by the background scheduler after the grace period expires. Consumers do not call execution directly — monitor status via `GetStatusAsync`:
 
 ```csharp
-// Typically called by background service
-var execution = await _erasureService.ExecuteAsync(requestId, ct);
+// Poll for completion after grace period
+var status = await _erasureService.GetStatusAsync(requestId, ct);
 
-if (execution.Success)
+switch (status?.Status)
 {
-    _logger.LogInformation(
-        "Erasure complete: {KeysDeleted} keys deleted, {RecordsAffected} records",
-        execution.KeysDeleted,
-        execution.RecordsAffected);
+    case ErasureRequestStatus.Completed:
+        _logger.LogInformation("Erasure complete for {RequestId}", requestId);
+        break;
+    case ErasureRequestStatus.PartiallyCompleted:
+        _logger.LogWarning("Partial erasure for {RequestId}", requestId);
+        break;
+    case ErasureRequestStatus.Scheduled:
+        _logger.LogInformation("Awaiting grace period for {RequestId}", requestId);
+        break;
 }
 ```
 
 :::warning Partial Failure Handling
-If any contributor erasure fails, the request is marked `PartiallyCompleted` (not `Completed`). A compliance certificate is **not** generated for partially completed erasures. Monitor the `ErasurePartiallyCompleted` event (ID 92729) and retry or investigate failed contributors:
-
-```csharp
-var execution = await _erasureService.ExecuteAsync(requestId, ct);
-
-switch (execution.Status)
-{
-    case ErasureStatus.Completed:
-        // All contributors succeeded -- certificate available
-        break;
-    case ErasureStatus.PartiallyCompleted:
-        // Some contributors failed -- investigate and retry
-        _logger.LogWarning("Partial erasure: {Errors}", execution.Errors);
-        break;
-    case ErasureStatus.Failed:
-        // All contributors failed
-        _logger.LogError("Erasure failed completely for {RequestId}", requestId);
-        break;
-}
-```
+If any contributor erasure fails, the request is marked `PartiallyCompleted` (not `Completed`). A compliance certificate is **not** generated for partially completed erasures. Monitor the `ErasurePartiallyCompleted` event (ID 92729) and investigate failed contributors.
 :::
 
 ### 5. Compliance Certificate
@@ -357,34 +343,29 @@ Register the erasure scheduler to automatically execute requests after the grace
 services.AddErasureScheduler();
 ```
 
-For serverless environments, trigger erasure execution manually via `IErasureService.ExecuteAsync`:
+For serverless environments where background services are not available, register the erasure scheduler as a timer-triggered function:
 
 ```csharp
 public class ErasureFunction
 {
-    private readonly IErasureService _erasureService;
-    private readonly IErasureQueryStore _erasureQueryStore;
+    private readonly IServiceProvider _serviceProvider;
 
     [Function("ProcessErasureRequests")]
     public async Task Run(
         [TimerTrigger("0 */5 * * * *")] TimerInfo timer,
         CancellationToken ct)
     {
-        // List scheduled requests ready for execution (IErasureQueryStore)
-        var scheduled = await _erasureQueryStore.ListRequestsAsync(
-            status: ErasureRequestStatus.Scheduled,
-            tenantId: null,
-            fromDate: null,
-            toDate: DateTimeOffset.UtcNow,
-            ct);
-
-        foreach (var request in scheduled)
-        {
-            await _erasureService.ExecuteAsync(request.RequestId, ct);
-        }
+        // The scheduler handles execution internally when started
+        // For serverless, use AddErasureScheduler() in DI and
+        // let the hosted service process pending requests
+        await using var scope = _serviceProvider.CreateAsyncScope();
+        // Scheduler auto-processes pending requests on activation
     }
 }
 ```
+
+:::tip
+For serverless deployments, `AddErasureScheduler()` registers the background service that automatically processes requests past their grace period. The execution logic is internal to the framework — consumers only need to submit requests and monitor status.
 
 ## Database Schema
 
