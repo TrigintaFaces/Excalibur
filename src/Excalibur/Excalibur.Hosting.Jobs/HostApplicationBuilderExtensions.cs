@@ -34,7 +34,7 @@ public static class ExcaliburJobHostBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		// Use explicit class reference to avoid ambiguity with HostingJobsServiceCollectionExtensions
+		// Use explicit class reference to avoid extension method ambiguity
 		_ = JobHostServiceCollectionExtensions.AddExcaliburJobHost(builder.Services, assemblies);
 
 		return builder;
@@ -60,7 +60,7 @@ public static class ExcaliburJobHostBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		// Use explicit class reference to avoid ambiguity with HostingJobsServiceCollectionExtensions
+		// Use explicit class reference to avoid extension method ambiguity
 		_ = JobHostServiceCollectionExtensions.AddExcaliburJobHost(builder.Services, configureQuartz, assemblies);
 
 		return builder;

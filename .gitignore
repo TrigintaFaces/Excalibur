@@ -514,3 +514,13 @@ StrykerOutput/
 
 # SARIF static analysis results
 *.sarif
+
+# Dev Team Six worker session directories (transient runtime state)
+.dts/
+
+# FORGE/CRUCIBLE transient helper scripts + CI-run scratch output (per S807 bd-nlio6f)
+.tmp_*.py
+.tmp_*.sh
+.tmp_*.cs
+tmp_ci_run/
+.tmp_ci_run/

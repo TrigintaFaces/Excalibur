@@ -1,0 +1,63 @@
+# Gitleaks configuration for Excalibur.Dispatch
+# Uses path-regex allowlists instead of line-based .gitleaksignore entries.
+# This approach survives file moves, line shifts, and refactors.
+#
+# See: https://github.com/gitleaks/gitleaks#configuration
+# Ref: bd-pty3iu (Sprint 819)
+#
+# To verify locally:
+#   gitleaks detect --source . --no-git --config .gitleaks.toml -v --report-format json --report-path findings.json
+
+[extend]
+# Inherit ALL default gitleaks detection rules. Without this, providing a custom
+# config replaces the entire ruleset and no secrets are detected.
+useDefault = true
+
+[allowlist]
+# ------------------------------------------------------------------
+# Global path exclusions: build outputs, tooling data, package caches
+# ------------------------------------------------------------------
+paths = [
+    '''(^|/)bin/''',
+    '''(^|/)obj/''',
+    '''(^|/)\.beads/''',
+    '''(^|/)\.nuget/''',
+    '''(^|/)\.dts/''',
+    '''(^|/)node_modules/''',
+    '''docs-site/build/''',
+    '''validation-results/''',
+]
+
+# ------------------------------------------------------------------
+# Secret-value allowlists: known false-positive patterns by content
+# ------------------------------------------------------------------
+regexes = [
+    # CosmosDB Emulator well-known key (published by Microsoft)
+    # https://learn.microsoft.com/en-us/azure/cosmos-db/emulator#authentication
+    '''C2y6yDjf5/R\+ob0N8A7Cgv30VRDJIWEHLM''',
+
+    # Test dummy base64 "bXktYXBpLWtleQ==" (decodes to "my-api-key")
+    '''bXktYXBpLWtleQ==''',
+
+    # Test fixture placeholder "valid-signing-key-12345"
+    '''valid-signing-key-12345''',
+
+    # CosmosDB builder-pattern placeholder (base64 of "builder-managed-key")
+    '''YnVpbGRlci1tYW5hZ2VkLWtleQ==''',
+
+    # Test dummy base64 "dGVzdC1zaGFyZWQta2V5" (decodes to "test-shared-key")
+    '''dGVzdC1zaGFyZWQta2V5''',
+
+    # Base64 documentation examples ("authenticationtag", "authentication")
+    '''YXV0aGVudGljYXRpb250YWc=''',
+    '''YXV0aGVudGljYXRpb24=''',
+
+    # Serilog README snippet from NuGet package cache
+    '''yeEZyL3SMcxEKUijBjN''',
+
+    # Crypto algorithm name "Rfc3279DerSequence" in Beads issue descriptions
+    '''Rfc3279DerSequence''',
+
+    # PowerShell script name "collect-evidence.ps1" misidentified as API key
+    '''collect-evidence\.ps1''',
+]

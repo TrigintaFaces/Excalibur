@@ -23,7 +23,8 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 public sealed class KafkaTransportConformanceTests
 	: TransportConformanceTestBase<KafkaChannelSender, KafkaChannelReceiver>
 {
-	private const string TopicName = "conformance-test-topic";
+	// Unique topic per test instance to prevent cross-test message contamination
+	private readonly string TopicName = $"conformance-test-{Guid.NewGuid():N}";
 
 	private KafkaContainer? _kafkaContainer;
 	private IProducer<string, string>? _producer;
@@ -66,7 +67,7 @@ public sealed class KafkaTransportConformanceTests
 		var consumerConfig = new ConsumerConfig
 		{
 			BootstrapServers = _kafkaContainer.GetBootstrapAddress(),
-			GroupId = "conformance-test-group",
+			GroupId = $"conformance-test-group-{Guid.NewGuid():N}",
 			AutoOffsetReset = AutoOffsetReset.Earliest,
 			EnableAutoCommit = false
 		};

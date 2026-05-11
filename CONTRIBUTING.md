@@ -431,8 +431,14 @@ dotnet test
 
 ## Security Hygiene
 
-- Never commit secrets. A scheduled workflow (`security-secrets-scan.yml`) scans for common patterns and uploads results.
-- If a false-positive appears, open an issue with the path and rationale.
+- Never commit secrets. The `secret-scan.yml` workflow runs [Gitleaks](https://github.com/gitleaks/gitleaks) on every push and PR.
+- False-positive allowlists are managed in **`.gitleaks.toml`** using path-regex and secret-regex rules (not line numbers). This ensures allowlists survive file moves, line shifts, and refactors.
+- To investigate a new false positive:
+  1. Run locally: `gitleaks detect --source . --no-git --config .gitleaks.toml -v --report-format json --report-path findings.json`
+  2. Inspect the finding in `findings.json` to confirm it is not a real secret.
+  3. Add a path regex or secret-value regex to the `[allowlist]` section in `.gitleaks.toml`.
+  4. Re-run gitleaks to verify the finding is suppressed.
+- The `.gitleaksignore` file is reserved for emergency overrides only; prefer `.gitleaks.toml` for all allowlist changes.
 
 ---
 

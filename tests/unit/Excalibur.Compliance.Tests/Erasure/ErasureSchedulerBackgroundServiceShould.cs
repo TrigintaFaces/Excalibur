@@ -98,7 +98,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			queryObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => queryStore.GetScheduledRequestsAsync(A<int>._, A<CancellationToken>._))

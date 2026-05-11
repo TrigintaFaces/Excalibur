@@ -52,7 +52,7 @@ internal sealed class DefaultOutboxDispatcher : IOutboxDispatcher
 		=> throw new InvalidOperationException(RegisterOutboxMessage);
 
 	public Task<IEnumerable<IDispatchMessage>> GetPendingMessagesAsync(CancellationToken cancellationToken)
-		=> throw new InvalidOperationException(RegisterOutboxMessage);
+		=> Task.FromResult(Enumerable.Empty<IDispatchMessage>());
 
 	public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

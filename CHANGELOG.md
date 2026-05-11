@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **DataProcessorDiscovery AOT split (P0)** -- `TryGetRecordType` split into AOT-safe (attribute-only) and `TryGetRecordTypeWithReflection` (fallback). Assembly-scanning DI path uses reflection; all other paths are AOT-compatible. `[RequiresUnreferencedCode]` scoped to reflection-only path.
+- **HandlerInvokerRegistry ValueTask support (P1)** -- `CreateInvoker` now handles `ValueTask` and `ValueTask<T>` return types. `TargetInvocationException` unwrapped via `ExceptionDispatchInfo` to preserve stack traces.
+- **StaticPipelineGenerator CS0122 (P1)** -- Source generator no longer casts to internal `Dispatcher` class; uses `IDispatcher` interface instead. Namespace filter prevents interceptor recursion.
+- **HashiCorpVault DI double-registration (P1)** -- Changed to singleton forwarding pattern: concrete type registered once, both `ICredentialStore` and `IWritableCredentialStore` forwarded to same instance.
+- **DataProcessorRegistry DI mismatch (P1)** -- All 4 `AddDataProcessor` overloads + assembly-scanning path now register both concrete type and `IDataProcessor` interface.
+- **DefaultOutboxDispatcher sentinel (P2)** -- `GetPendingMessagesAsync` returns `Enumerable.Empty` instead of throwing when no real outbox is configured. Write operations still throw as fail-fast.
+- **10 flaky test fixes** -- Timing thresholds increased (500ms→2000ms CTS, 5s→30s background services), `OperationName`-filtered activity assertions, async delegate fixes, per-test Kafka topic isolation, async disposal for ES adapter.
 - **ContextFlowMetrics null safety (P0)** -- 13 counter/histogram fields in `ContextFlowMetrics` used `null!` initialization. Added null-conditional operators (`?.`) to prevent `NullReferenceException` if meter instrument creation fails.
 - **MongoDbTenantEventStoreResolver MongoClient leak** -- Cached tenant event stores held undisposed `MongoClient` instances (leaking connection pools since MongoDB.Driver 3.x makes `MongoClient` `IDisposable`). Resolver now implements `IAsyncDisposable` with proper `_clientCache` tracking and ordered disposal.
 

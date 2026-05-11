@@ -38,11 +38,30 @@ obj/
     └── net10.0/
         └── GeneratedFiles/
             └── Excalibur.Dispatch.SourceGenerators/
-                ├── PrecompiledHandlerRegistry.g.cs
+                ├── CacheInfoExtractor.g.cs
+                ├── CacheInfoRegistry.g.cs
+                ├── DiscoveredMessageTypeMetadata.g.cs
+                ├── DiscoveredMessageTypeRegistry.g.cs
+                ├── EventMetadataContent.g.cs
+                ├── EventStoreTypeMap.g.cs
+                ├── FluentValidationDispatcher.g.cs
+                ├── GeneratedHandlerActivatorRegistrations.g.cs
                 ├── GeneratedHandlerRegistrationExtensions.g.cs
-                ├── DispatchActionExtensions.g.cs
-                ├── HandlerInvokerInterceptors.g.cs
-                └── ...
+                ├── GeneratedSagaRegistrationExtensions.g.cs
+                ├── GeneratedServiceCollectionExtensions.g.cs
+                ├── HandlerInvokerRegistry.g.cs
+                ├── MiddlewareDecomposition.g.cs
+                ├── MiddlewareInvokers.g.cs
+                ├── PipelineMetadata.g.cs
+                ├── PrecompiledDirectActionDispatch.g.cs
+                ├── PrecompiledHandlerMetadata.g.cs
+                ├── PrecompiledHandlerRegistry.g.cs
+                ├── PrecompiledSagaMetadata.g.cs
+                ├── ProjectionTagResolverRegistry.g.cs
+                ├── ResultFactoryRegistry.g.cs
+                ├── StaticPipelines.g.cs
+                ├── TypedDispatchExtensions.g.cs
+                └── *Validator.g.cs (one per validated type)
 ```
 
 ## Visual Studio
@@ -148,16 +167,27 @@ Create or edit `.omnisharp.json` in your solution root:
 
 Dispatch generators use consistent naming:
 
-| Generator | Output File | Description |
-|-----------|-------------|-------------|
-| HandlerRegistrySourceGenerator | `PrecompiledHandlerRegistry.g.cs`, `GeneratedHandlerRegistrationExtensions.g.cs` | Handler registrations + `AddDiscoveredHandlers()` |
-| DispatchActionExtensionGenerator | `DispatchActionExtensions.g.cs` | Typed dispatch with `TResponse` inference |
-| HandlerInvokerSourceGenerator | `HandlerInvokerInterceptors.g.cs` | Handler invocation interceptors |
-| MessageTypeSourceGenerator | `PrecompiledHandlerMetadata.g.cs` | Handler metadata |
+| Generator | Output File(s) | Description |
+|-----------|----------------|-------------|
+| HandlerRegistrySourceGenerator | `PrecompiledHandlerRegistry.g.cs`, `PrecompiledHandlerMetadata.g.cs`, `GeneratedHandlerRegistrationExtensions.g.cs`, `GeneratedHandlerActivatorRegistrations.g.cs`, `PrecompiledDirectActionDispatch.g.cs` | Handler registrations, metadata, activators, and direct-action dispatch |
+| DispatchActionExtensionGenerator | `TypedDispatchExtensions.g.cs` | Typed dispatch with `TResponse` inference |
+| HandlerInvokerSourceGenerator | `HandlerInvokerRegistry.g.cs` | Handler invocation registry |
+| MessageTypeSourceGenerator | `GeneratedMessageTypeRegistrations.g.cs` | Message type registrations |
+| MessageResultExtractorGenerator | `ResultFactoryRegistry.g.cs` | Result factory registry for message result extraction |
 | StaticPipelineGenerator | `StaticPipelines.g.cs` | Static pipelines |
 | MiddlewareDecompositionAnalyzer | `MiddlewareDecomposition.g.cs` | Middleware analysis |
+| MiddlewareInvokerInterceptorGenerator | `MiddlewareInvokers.g.cs` | Middleware invoker interceptors |
 | CachePolicySourceGenerator | `CacheInfoRegistry.g.cs` | Cache policies |
+| CacheInfoSourceGenerator | `CacheInfoExtractor.g.cs` | Cache info extraction |
+| ProjectionTagResolverGenerator | `ProjectionTagResolverRegistry.g.cs` | Projection cache tag resolution |
 | ServiceRegistrationSourceGenerator | `GeneratedServiceCollectionExtensions.g.cs` | DI registrations |
+| EventStoreTypeMapGenerator | `EventStoreTypeMap.g.cs`, `EventMetadataContent.g.cs` | Event store type mappings and metadata |
+| JsonSerializationSourceGenerator | `DiscoveredMessageTypeRegistry.g.cs`, `DiscoveredMessageTypeMetadata.g.cs` | JSON serialization message type discovery |
+| FluentValidationGenerator | `FluentValidationDispatcher.g.cs` | Fluent validation integration |
+| AotValidationGenerator | `*Validator.g.cs` | AOT-compatible validators (one per validated type) |
+| SagaRegistrationGenerator | `GeneratedSagaRegistrationExtensions.g.cs` | Saga DI registrations |
+| SagaMetadataGenerator | `PrecompiledSagaMetadata.g.cs` | Saga metadata |
+| PipelineDeterminismAnalyzer | `PipelineMetadata.g.cs` | Pipeline determinism analysis metadata |
 
 ## When Files Regenerate
 

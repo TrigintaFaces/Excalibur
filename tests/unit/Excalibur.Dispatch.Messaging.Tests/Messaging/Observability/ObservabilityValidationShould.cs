@@ -350,15 +350,15 @@ public sealed class ObservabilityValidationShould : IDisposable
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext();
 
-		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
+		async ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
 			var startTime = DateTime.UtcNow;
 			// Simulate some processing time
-			global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10, ct).Wait(ct);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10, ct).ConfigureAwait(false);
 			var endTime = DateTime.UtcNow;
 
 			processingTimes.Add(endTime - startTime);
-			return new ValueTask<IMessageResult>(MessageResult.Success());
+			return MessageResult.Success();
 		}
 
 		// Act - Process multiple messages to gather timing data

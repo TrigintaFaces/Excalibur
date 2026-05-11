@@ -32,7 +32,6 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 	private readonly ProjectionEventScanAdapter _adapter;
 	private readonly ProjectionEventIngestAdapter _seed;
 	private readonly ProjectionIndexProvisioningAdapter _provisioning;
-	private bool _disposed;
 
 	public ProjectionEventScanAdapterConformanceShould(ElasticsearchContainerFixture fixture)
 	{
@@ -65,7 +64,23 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 			.ConfigureAwait(false);
 	}
 
-	public Task DisposeAsync() => Task.CompletedTask;
+	public async Task DisposeAsync()
+	{
+		// Clean up indexes asynchronously to avoid sync-over-async deadlock
+		// that can leave stale indexes poisoning subsequent test runs.
+		foreach (var name in new[] { _writeIndex, _readIndex })
+		{
+			try
+			{
+				_ = await _client.Indices.DeleteAsync(name, CancellationToken.None)
+					.ConfigureAwait(false);
+			}
+			catch
+			{
+				// Best-effort cleanup.
+			}
+		}
+	}
 
 	[Fact]
 	public void Construct_WithNullClient_ThrowsArgumentNullException() =>
@@ -163,23 +178,7 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 
 	public void Dispose()
 	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		foreach (var name in new[] { _writeIndex, _readIndex })
-		{
-			try
-			{
-				_ = _client.Indices.DeleteAsync(name)
-					.ConfigureAwait(false).GetAwaiter().GetResult();
-			}
-			catch
-			{
-				// Best-effort cleanup.
-			}
-		}
+		// Cleanup moved to DisposeAsync() to avoid sync-over-async deadlocks.
+		// xUnit calls DisposeAsync before Dispose when both are implemented.
 	}
 }

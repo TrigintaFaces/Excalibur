@@ -166,19 +166,37 @@ public static partial class HandlerInvokerRegistry
 			throw new InvalidOperationException($"HandleAsync on {handlerType} must have exactly 2 parameters");
 		}
 
-		// Determine if method returns Task or Task<T>
-		var returnsVoidTask = method.ReturnType == typeof(Task);
+		var returnType = method.ReturnType;
 
-		// Create a compiled invoker using async/await instead of ContinueWith
+		// Create an invoker that handles Task, Task<T>, ValueTask, and ValueTask<T>
+		// and properly unwraps TargetInvocationException from MethodInfo.Invoke.
 		return async (handler, message, ct) =>
 		{
-			var result = method.Invoke(handler, [message, ct]);
+			object? result;
+			try
+			{
+				result = method.Invoke(handler, [message, ct]);
+			}
+			catch (TargetInvocationException tie) when (tie.InnerException is not null)
+			{
+				// Unwrap TargetInvocationException to preserve the original exception type
+				System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+				return null; // Unreachable
+			}
 
+			// Handle ValueTask (no result)
+			if (result is ValueTask valueTask)
+			{
+				await valueTask.ConfigureAwait(false);
+				return null;
+			}
+
+			// Handle Task and Task<T>
 			if (result is Task task)
 			{
 				await task.ConfigureAwait(false);
 
-				if (returnsVoidTask)
+				if (returnType == typeof(Task))
 				{
 					return null;
 				}
@@ -188,7 +206,19 @@ public static partial class HandlerInvokerRegistry
 				return resultProperty?.GetValue(task);
 			}
 
-			throw new InvalidOperationException($"HandleAsync on {handlerType} must return Task or Task<T>");
+			// Handle ValueTask<T> — must check via reflection since ValueTask<T> is a struct
+			if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(ValueTask<>))
+			{
+				// Convert ValueTask<T> to Task<T> via AsTask() then await
+				var asTaskMethod = returnType.GetMethod("AsTask")!;
+				var task2 = (Task)asTaskMethod.Invoke(result, null)!;
+				await task2.ConfigureAwait(false);
+				var resultProperty = task2.GetType().GetProperty("Result");
+				return resultProperty?.GetValue(task2);
+			}
+
+			throw new InvalidOperationException(
+				$"HandleAsync on {handlerType} must return Task, Task<T>, ValueTask, or ValueTask<T>.");
 		};
 	}
 

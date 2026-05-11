@@ -54,12 +54,22 @@ public sealed class DataProcessorDiscoveryShould : UnitTestBase
 	}
 
 	[Fact]
-	public void TryGetRecordType_FindsPropertyRecordType()
+	public void TryGetRecordType_AttributeOnly_ReturnsFalse_WhenNoAttribute()
 	{
-		// Act
+		// TryGetRecordType (AOT-safe) only checks [DataTaskRecordType] attribute.
+		// Property-based discovery requires TryGetRecordTypeWithReflection.
 		var found = DataProcessorDiscovery.TryGetRecordType(typeof(DiscoveryPropertyProcessor), out var recordType);
 
-		// Assert
+		found.ShouldBeFalse();
+		recordType.ShouldBeNull();
+	}
+
+	[Fact]
+	public void TryGetRecordTypeWithReflection_FindsPropertyRecordType()
+	{
+		// TryGetRecordTypeWithReflection falls back to property inspection + instantiation
+		var found = DataProcessorDiscovery.TryGetRecordTypeWithReflection(typeof(DiscoveryPropertyProcessor), out var recordType);
+
 		found.ShouldBeTrue();
 		recordType.ShouldBe("PropertyTestRecord");
 	}

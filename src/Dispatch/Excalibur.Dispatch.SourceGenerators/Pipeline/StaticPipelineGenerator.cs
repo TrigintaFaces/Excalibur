@@ -353,7 +353,6 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("using System.Threading.Tasks;");
 		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions;");
 		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions.Delivery;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Delivery;");
 		_ = sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
 		_ = sb.AppendLine();
 
@@ -453,10 +452,10 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		// InterceptsLocation attribute
 		_ = sb.AppendLine($"        {callSite.InterceptableLocationData}");
 
-		// Suppress AOT warnings -- static pipelines call through Dispatcher which uses reflection-based
+		// Suppress AOT warnings -- static pipelines call through IDispatcher which uses reflection-based
 		// handler resolution. The DI entry point (AddDispatchPipeline) already suppresses these warnings.
-		_ = sb.AppendLine("        [UnconditionalSuppressMessage(\"AOT\", \"IL2026:RequiresUnreferencedCode\", Justification = \"Static pipelines call Dispatcher.DispatchAsync which is suppressed at DI entry point AddDispatchPipeline.\")]");
-		_ = sb.AppendLine("        [UnconditionalSuppressMessage(\"AOT\", \"IL3050:RequiresDynamicCode\", Justification = \"Static pipelines call Dispatcher.DispatchAsync which is suppressed at DI entry point AddDispatchPipeline.\")]");
+		_ = sb.AppendLine("        [UnconditionalSuppressMessage(\"AOT\", \"IL2026:RequiresUnreferencedCode\", Justification = \"Static pipelines call IDispatcher.DispatchAsync which is suppressed at DI entry point AddDispatchPipeline.\")]");
+		_ = sb.AppendLine("        [UnconditionalSuppressMessage(\"AOT\", \"IL3050:RequiresDynamicCode\", Justification = \"Static pipelines call IDispatcher.DispatchAsync which is suppressed at DI entry point AddDispatchPipeline.\")]");
 
 		// Method signature
 		if (callSite.HasResult && callSite.ResultTypeFullName != null)
@@ -480,11 +479,13 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("            {");
 		if (callSite.HasResult && callSite.ResultTypeFullName != null)
 		{
-			_ = sb.AppendLine($"                return await ((Dispatcher)dispatcher).DispatchAsync<{callSite.MessageTypeFullName}, {callSite.ResultTypeFullName}>(");
+			// Call through IDispatcher interface — this call site is in Excalibur.Dispatch.Generated
+			// namespace which the generator filters out, so it won't be intercepted again.
+			_ = sb.AppendLine($"                return await dispatcher.DispatchAsync<{callSite.MessageTypeFullName}, {callSite.ResultTypeFullName}>(");
 		}
 		else
 		{
-			_ = sb.AppendLine($"                return await ((Dispatcher)dispatcher).DispatchAsync<{callSite.MessageTypeFullName}>(");
+			_ = sb.AppendLine($"                return await dispatcher.DispatchAsync<{callSite.MessageTypeFullName}>(");
 		}
 		_ = sb.AppendLine("                    message, context, cancellationToken).ConfigureAwait(false);");
 		_ = sb.AppendLine("            }");
@@ -492,20 +493,20 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 
 		// Static pipeline execution
 		_ = sb.AppendLine("            // PERF-23: Static pipeline with zero delegate allocation");
-		_ = sb.AppendLine("            // Phase 1: Execute through optimized Dispatcher path");
+		_ = sb.AppendLine("            // Phase 1: Execute through IDispatcher interface");
 		_ = sb.AppendLine("            // Future enhancement: Fully inlined middleware chain with Before/After decomposition");
 
-		// For now, delegate to Dispatcher but with the intercepted path
-		// This establishes the infrastructure; full inlining comes in a follow-up
+		// Call through IDispatcher interface — the generated code lives in Excalibur.Dispatch.Generated
+		// namespace which is filtered out by the generator's namespace check, preventing recursion.
 		_ = sb.AppendLine("            try");
 		_ = sb.AppendLine("            {");
 		if (callSite.HasResult && callSite.ResultTypeFullName != null)
 		{
-			_ = sb.AppendLine($"                return await ((Dispatcher)dispatcher).DispatchAsync<{callSite.MessageTypeFullName}, {callSite.ResultTypeFullName}>(");
+			_ = sb.AppendLine($"                return await dispatcher.DispatchAsync<{callSite.MessageTypeFullName}, {callSite.ResultTypeFullName}>(");
 		}
 		else
 		{
-			_ = sb.AppendLine($"                return await ((Dispatcher)dispatcher).DispatchAsync<{callSite.MessageTypeFullName}>(");
+			_ = sb.AppendLine($"                return await dispatcher.DispatchAsync<{callSite.MessageTypeFullName}>(");
 		}
 		_ = sb.AppendLine("                    message, context, cancellationToken).ConfigureAwait(false);");
 		_ = sb.AppendLine("            }");

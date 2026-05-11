@@ -75,13 +75,16 @@ public static class SecurityServiceCollectionExtensions
 		// Add HashiCorp Vault if configured — uses AddSingleton (not TryAdd) because
 		// ICredentialStore is a multi-registration: multiple stores coexist.
 		// Guard against double-registration when AddSecureCredentialManagement is called twice.
+		// Register the concrete type once, then forward both interfaces to the same instance
+		// to avoid creating two separate HashiCorpVaultCredentialStore instances.
 		var vaultUrl = configuration["Vault:Url"];
 		if (!string.IsNullOrEmpty(vaultUrl))
 		{
 			if (!services.Any(sd => sd.ImplementationType == typeof(HashiCorpVaultCredentialStore)))
 			{
-				_ = services.AddSingleton<ICredentialStore, HashiCorpVaultCredentialStore>();
-				_ = services.AddSingleton<IWritableCredentialStore, HashiCorpVaultCredentialStore>();
+				_ = services.AddSingleton<HashiCorpVaultCredentialStore>();
+				_ = services.AddSingleton<ICredentialStore>(sp => sp.GetRequiredService<HashiCorpVaultCredentialStore>());
+				_ = services.AddSingleton<IWritableCredentialStore>(sp => sp.GetRequiredService<HashiCorpVaultCredentialStore>());
 			}
 		}
 

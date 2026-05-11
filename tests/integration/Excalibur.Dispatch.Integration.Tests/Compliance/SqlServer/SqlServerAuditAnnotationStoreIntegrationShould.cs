@@ -473,7 +473,8 @@ public sealed class SqlServerAuditAnnotationStoreIntegrationShould : Integration
 			    );
 			END;
 
-			DELETE FROM [audit].[AuditAnnotations];
+			-- NOTE: No blanket DELETE. Each test uses UniqueEventId() for data isolation,
+			-- avoiding race conditions when tests share the same SQL Server container.
 			""";
 
 		await using var connection = new SqlConnection(_fixture.ConnectionString);

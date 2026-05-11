@@ -409,9 +409,12 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 
 		_ = services.AddSecureCredentialManagement(_configuration);
 
+		// Concrete type is registered directly; ICredentialStore uses factory forwarding
+		services.ShouldContain(s =>
+			s.ServiceType == typeof(HashiCorpVaultCredentialStore));
 		services.ShouldContain(s =>
 			s.ServiceType == typeof(ICredentialStore)
-			&& s.ImplementationType == typeof(HashiCorpVaultCredentialStore));
+			&& s.ImplementationFactory != null);
 	}
 
 	[Fact]
@@ -423,9 +426,10 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 
 		_ = services.AddSecureCredentialManagement(_configuration);
 
+		// IWritableCredentialStore uses factory forwarding to the concrete singleton
 		services.ShouldContain(s =>
 			s.ServiceType == typeof(IWritableCredentialStore)
-			&& s.ImplementationType == typeof(HashiCorpVaultCredentialStore));
+			&& s.ImplementationFactory != null);
 	}
 
 	[Fact]
@@ -451,10 +455,15 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 
 		_ = services.AddSecureCredentialManagement(_configuration);
 
-		var descriptor = services.First(s =>
+		// Concrete type is registered as singleton; interface forwarding factories inherit lifetime
+		var concreteDescriptor = services.First(s =>
+			s.ServiceType == typeof(HashiCorpVaultCredentialStore));
+		concreteDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+
+		var interfaceDescriptor = services.First(s =>
 			s.ServiceType == typeof(ICredentialStore)
-			&& s.ImplementationType == typeof(HashiCorpVaultCredentialStore));
-		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+			&& s.ImplementationFactory != null);
+		interfaceDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
 	[Fact]

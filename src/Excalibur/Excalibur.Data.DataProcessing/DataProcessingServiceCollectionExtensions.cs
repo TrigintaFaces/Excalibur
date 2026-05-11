@@ -37,7 +37,10 @@ public static class DataProcessingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		services.AddScoped<IDataProcessor, TProcessor>();
+		// Register both the concrete type and interface so DataProcessorRegistry
+		// can resolve by concrete type within a scope (matching the builder pattern).
+		services.AddScoped<TProcessor>();
+		services.AddScoped<IDataProcessor, TProcessor>(sp => sp.GetRequiredService<TProcessor>());
 
 		return services;
 	}
@@ -79,7 +82,10 @@ public static class DataProcessingServiceCollectionExtensions
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
-		services.AddScoped<IDataProcessor, TProcessor>();
+		// Register both the concrete type and interface so DataProcessorRegistry
+		// can resolve by concrete type within a scope (matching the builder pattern).
+		services.AddScoped<TProcessor>();
+		services.AddScoped<IDataProcessor, TProcessor>(sp => sp.GetRequiredService<TProcessor>());
 
 		return services;
 	}
@@ -127,7 +133,10 @@ public static class DataProcessingServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
 
-		services.AddScoped<IDataProcessor, TProcessor>();
+		// Register both the concrete type and interface so DataProcessorRegistry
+		// can resolve by concrete type within a scope (matching the builder pattern).
+		services.AddScoped<TProcessor>();
+		services.AddScoped<IDataProcessor, TProcessor>(sp => sp.GetRequiredService<TProcessor>());
 
 		return services;
 	}
@@ -389,7 +398,10 @@ public static class DataProcessingServiceCollectionExtensions
 
 		foreach (var processorType in DataProcessorDiscovery.DiscoverProcessors(handlerAssemblies))
 		{
-			_ = services.AddScoped(typeof(IDataProcessor), processorType);
+			// Register both the concrete type and interface so DataProcessorRegistry
+			// can resolve by concrete type within a scope (matching the builder pattern).
+			_ = services.AddScoped(processorType);
+			_ = services.AddScoped(typeof(IDataProcessor), sp => sp.GetRequiredService(processorType));
 		}
 
 		foreach (var (interfaceType, implementationType) in RecordHandlerDiscovery.DiscoverHandlers(handlerAssemblies))
@@ -403,10 +415,13 @@ public static class DataProcessingServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
 
+		// Assembly-scanning path: use reflection fallback for record type discovery
+		// since processors discovered via assembly scanning may use runtime RecordType property
+		// instead of [DataTaskRecordType] attribute.
 		services.TryAddScoped<IDataProcessorRegistry>(static sp =>
 		{
 			var processors = sp.GetServices<IDataProcessor>() ?? [];
-			return new DataProcessorRegistry(processors);
+			return new DataProcessorRegistry(processors, useReflectionFallback: true);
 		});
 		services.TryAddScoped<IDataOrchestrationManager, DataOrchestrationManager>();
 

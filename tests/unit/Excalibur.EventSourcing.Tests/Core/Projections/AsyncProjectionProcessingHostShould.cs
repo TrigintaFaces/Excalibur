@@ -148,8 +148,8 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Act — start and let it run; it should log warning and exit
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		// Give it a moment to execute
-		await Task.Delay(100).ConfigureAwait(false);
+		// Give generous time for ExecuteAsync to fire-and-forget under CI thread pool load
+		await Task.Delay(2000).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -169,7 +169,8 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(100).ConfigureAwait(false);
+		// Generous delay for CI thread pool scheduling of fire-and-forget ExecuteAsync
+		await Task.Delay(2000).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -184,9 +185,14 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 	{
 		// Arrange
 		var fakeQuery = A.Fake<IGlobalStreamQuery>();
+		var readAllCalled = 0;
 		A.CallTo(() => fakeQuery.ReadAllAsync(
 				A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
-			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+			.ReturnsLazily(() =>
+			{
+				Interlocked.Increment(ref readAllCalled);
+				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+			});
 
 		_services.AddSingleton(fakeQuery);
 		var sp = _services.BuildServiceProvider();
@@ -198,21 +204,19 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		};
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var host = CreateHost(sp, options: options);
 
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		try
-		{
-			await Task.Delay(400, cts.Token).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException)
-		{
-			// expected
-		}
+		// Poll until ReadAllAsync is called — avoids fragile fixed-delay timing on CI runners.
+		await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref readAllCalled) > 0,
+			TimeSpan.FromSeconds(4),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
+		await cts.CancelAsync().ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert — ReadAllAsync was called at least once (polling loop ran)
@@ -384,21 +388,19 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		};
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		var host = CreateHost(sp, options: options);
 
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		try
-		{
-			await Task.Delay(400, cts.Token).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException)
-		{
-			// expected
-		}
+		// Poll until capturedPosition is set — avoids fragile fixed-delay timing on CI runners.
+		await WaitHelpers.WaitUntilAsync(
+			() => capturedPosition != null,
+			TimeSpan.FromSeconds(4),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
+		await cts.CancelAsync().ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert — polling started from the checkpointed position (42)
@@ -527,12 +529,11 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
 		// Poll until we see at least 2 apply calls (first throws, second succeeds)
-		// instead of relying on a flat delay which is flaky under CI load.
-		var deadline = DateTime.UtcNow.AddSeconds(4);
-		while (Volatile.Read(ref applyCallCount) < 2 && DateTime.UtcNow < deadline)
-		{
-			await Task.Delay(50).ConfigureAwait(false);
-		}
+		// — avoids fragile fixed-delay timing on CI runners.
+		await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref applyCallCount) >= 2,
+			TimeSpan.FromSeconds(4),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 

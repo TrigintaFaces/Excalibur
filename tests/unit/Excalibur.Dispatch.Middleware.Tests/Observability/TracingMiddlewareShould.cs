@@ -177,13 +177,16 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		_ = A.CallTo(() => context.CorrelationId).Returns("test-correlation-id");
 
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Success());
+		var expectedOpName = $"dispatch.{message.GetType().Name}";
 		var countBefore = _capturedActivities.Count;
 
 		// Act
 		_ = await _middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert
-		_capturedActivities.Count.ShouldBeGreaterThan(countBefore);
+		// Assert — filter by OperationName to avoid picking up stray activities from parallel tests
+		var activity = _capturedActivities.Skip(countBefore)
+			.FirstOrDefault(a => a.OperationName == expectedOpName);
+		_ = activity.ShouldNotBeNull();
 	}
 
 	[Fact]

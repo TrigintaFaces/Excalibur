@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.DependencyInjection;
+using Excalibur.LeaderElection.DependencyInjection;
 
 using FakeItEasy;
 

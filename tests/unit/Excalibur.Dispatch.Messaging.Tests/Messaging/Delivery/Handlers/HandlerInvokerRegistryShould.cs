@@ -244,12 +244,11 @@ public sealed class HandlerInvokerRegistryShould : IDisposable
 		var invoker = HandlerInvokerRegistry.GetInvoker(typeof(ThrowingHandler));
 
 		// Act & Assert
-		// Since reflection is used, the exception is wrapped in TargetInvocationException
-		var ex = await Should.ThrowAsync<System.Reflection.TargetInvocationException>(() =>
+		// TargetInvocationException is now unwrapped — the original exception propagates directly
+		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
 			invoker(handler, message, CancellationToken.None));
 
-		_ = ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
-		ex.InnerException!.Message.ShouldBe("Handler error");
+		ex.Message.ShouldBe("Handler error");
 	}
 
 	[Fact]

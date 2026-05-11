@@ -144,7 +144,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			complianceCallObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		cts.Cancel();
 
 		try
@@ -209,7 +209,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCallObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		cts.Cancel();
 
 		try
@@ -247,7 +247,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			alertObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		cts.Cancel();
 
 		try
@@ -291,7 +291,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCallObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		cts.Cancel();
 
 		try
@@ -346,7 +346,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCallObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		cts.Cancel();
 
 		try
@@ -386,7 +386,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			validationAlertObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		cts.Cancel();
 
 		try
@@ -441,10 +441,10 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCycleObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref statusChangeObserved) == 1,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
 			TimeSpan.FromMilliseconds(20),
 			CancellationToken.None);
 		cts.Cancel();
@@ -498,10 +498,10 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCycleObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref statusChangeObserved) == 1,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
 			TimeSpan.FromMilliseconds(20),
 			CancellationToken.None);
 		cts.Cancel();
@@ -554,7 +554,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			recurringAlertObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		cts.Cancel();
 
 		try

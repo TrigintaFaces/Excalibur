@@ -186,6 +186,41 @@ public sealed class DataProcessorRegistryShould : UnitTestBase
 		// Assert — no exception, but no factories registered
 		registry.TryGetFactory("anything", out _).ShouldBeFalse();
 	}
+	[Fact]
+	public void RegisterProcessor_WithReflectionFallback_WhenAttributePresent()
+	{
+		// Arrange & Act — reflection fallback should still find attribute-decorated processors
+		var registry = new DataProcessorRegistry([new TestProcessor()], useReflectionFallback: true);
+
+		// Assert
+		registry.TryGetFactory("TestRecord", out var factory).ShouldBeTrue();
+		factory.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void ThrowInvalidDataProcessorException_WithoutReflectionFallback_ForNoAttribute()
+	{
+		// Arrange & Act & Assert — AOT-safe path rejects processors without attribute
+		Should.Throw<InvalidDataProcessorException>(() =>
+			new DataProcessorRegistry([new NoAttributeProcessor()], useReflectionFallback: false));
+	}
+
+	[Fact]
+	public void Throw_WhenProcessorsIsNull_WithReflectionFallbackOverload()
+	{
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() =>
+			new DataProcessorRegistry(null!, useReflectionFallback: true));
+	}
+
+	[Fact]
+	public void ParameterlessConstructor_UsesAotSafePath()
+	{
+		// Arrange & Act — parameterless constructor delegates with useReflectionFallback: false
+		// A processor without attribute should be rejected (same as explicit false)
+		Should.Throw<InvalidDataProcessorException>(() =>
+			new DataProcessorRegistry([new NoAttributeProcessor()]));
+	}
 #pragma warning restore CA2012
 
 	private static DataProcessorRegistry CreateRegistry(params IDataProcessor[] processors)

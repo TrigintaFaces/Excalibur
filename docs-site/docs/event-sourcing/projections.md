@@ -1001,19 +1001,24 @@ All metrics use the shared `Excalibur.EventSourcing.Projections` Meter via `IMet
 
 ### Health Check
 
-The `ProjectionHealthCheck` is available as an opt-in extension. Call `WithProjectionHealthChecks()` to register the `"projections"` health check:
+The `ProjectionHealthCheck` is available as an opt-in extension. Call `WithProjectionHealthChecks()` on the `IEventSourcingBuilder` to register the `"projections"` health check:
 
 ```csharp
-builder.Services.AddEventSourcing(es =>
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
-    es.AddProjection<OrderSummary>()
-      .WithProjectionHealthChecks();
-});
+    builder.AddProjection<OrderSummary>(p => p
+        .Inline()
+        .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; }));
+
+    builder.WithProjectionHealthChecks();
+}));
 ```
 
-- **Healthy:** No inline errors in window AND async lag below thresholds
-- **Degraded:** Inline error within last 5 minutes, or lag > 100 events
-- **Unhealthy:** Async projection lag > 1000 events
+| Status | Condition |
+|--------|-----------|
+| **Healthy** | No inline errors in the configured window AND async lag below degraded threshold |
+| **Degraded** | Inline projection error within the last 5 minutes (configurable), or async lag > 100 events |
+| **Unhealthy** | Async projection lag > 1000 events |
 
 ---
 

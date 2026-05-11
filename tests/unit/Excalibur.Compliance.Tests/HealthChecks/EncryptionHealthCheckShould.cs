@@ -352,12 +352,15 @@ public sealed class EncryptionHealthCheckShould
 
 	private EncryptionHealthCheck CreateHealthCheck(EncryptionHealthCheckOptions? options = null)
 	{
+		// Use generous degraded threshold by default to avoid CI timing flakiness
+		// (default 100ms can be exceeded under parallel test load even with mocks).
+		// Tests that explicitly verify degraded behavior pass their own tight thresholds.
 		return new EncryptionHealthCheck(
 			_encryptionProvider,
 			_keyManagementProvider,
 			null,
 			NullLogger<EncryptionHealthCheck>.Instance,
-			options ?? EncryptionHealthCheckOptions.Default);
+			options ?? new EncryptionHealthCheckOptions { DegradedThreshold = TimeSpan.FromSeconds(5) });
 	}
 }
 

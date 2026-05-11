@@ -221,13 +221,13 @@ file static class StaticPipelines
         if (_isHotReloadEnabled)
         {
             // Fallback to dynamic pipeline
-            return await ((Dispatcher)dispatcher).DispatchAsync<CreateOrderCommand>(...);
+            return await dispatcher.DispatchAsync<CreateOrderCommand>(...);
         }
 
         // Static pipeline with zero delegate allocation
         try
         {
-            return await ((Dispatcher)dispatcher).DispatchAsync<CreateOrderCommand>(...);
+            return await dispatcher.DispatchAsync<CreateOrderCommand>(...);
         }
         catch (Exception ex)
         {

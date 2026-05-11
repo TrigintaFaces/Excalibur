@@ -182,9 +182,9 @@ public sealed class DispatchSecurityServiceCollectionExtensionsShould
         // Act
         services.AddSecureCredentialManagement(config);
 
-        // Assert
+        // Assert — IWritableCredentialStore uses factory forwarding to concrete singleton
         services.ShouldContain(sd =>
             sd.ServiceType == typeof(IWritableCredentialStore) &&
-            sd.ImplementationType == typeof(HashiCorpVaultCredentialStore));
+            sd.ImplementationFactory != null);
     }
 }

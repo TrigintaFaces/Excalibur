@@ -21,7 +21,7 @@ public static class SecurityMiddlewareExtensions
 	/// <summary>
 	/// Adds security middleware services (encryption, signing, rate limiting, JWT authentication) to the Dispatch pipeline.
 	/// For complete security setup including credential management and auditing, use
-	/// <c>AddDispatchSecurity</c> from <c>DispatchSecurityServiceCollectionExtensions</c> instead.
+	/// <c>AddDispatchSecurity</c> from <c>SecurityServiceCollectionExtensions</c> instead.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration. </param>
@@ -47,7 +47,7 @@ public static class SecurityMiddlewareExtensions
 	/// <summary>
 	/// Adds security middleware services with custom configuration.
 	/// For complete security setup including credential management and auditing, use
-	/// <c>AddDispatchSecurity</c> from <c>DispatchSecurityServiceCollectionExtensions</c> instead.
+	/// <c>AddDispatchSecurity</c> from <c>SecurityServiceCollectionExtensions</c> instead.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Action to configure security options. </param>

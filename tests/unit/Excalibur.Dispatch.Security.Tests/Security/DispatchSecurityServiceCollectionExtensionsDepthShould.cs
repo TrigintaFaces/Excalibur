@@ -86,13 +86,15 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 		// Act
 		services.AddSecureCredentialManagement(config);
 
-		// Assert — should register both ICredentialStore and IWritableCredentialStore for HashiCorp
+		// Assert — concrete type registered directly; interfaces use factory forwarding
+		services.ShouldContain(sd =>
+			sd.ServiceType == typeof(HashiCorpVaultCredentialStore));
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(ICredentialStore) &&
-			sd.ImplementationType == typeof(HashiCorpVaultCredentialStore));
+			sd.ImplementationFactory != null);
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(IWritableCredentialStore) &&
-			sd.ImplementationType == typeof(HashiCorpVaultCredentialStore));
+			sd.ImplementationFactory != null);
 	}
 
 	[Fact]

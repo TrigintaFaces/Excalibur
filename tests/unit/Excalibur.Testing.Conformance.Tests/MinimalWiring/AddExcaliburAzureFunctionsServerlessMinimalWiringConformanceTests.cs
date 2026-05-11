@@ -17,7 +17,7 @@ public sealed class AddExcaliburAzureFunctionsServerlessMarker { }
 /// <summary>
 /// S803-E regression pin for <c>AddExcaliburAzureFunctionsServerless()</c> — one of the
 /// three serverless host-scaffolding aggregators (A10–A12) that <c>bd-sdhocq</c>'s
-/// disposition grid carves out from the composition-root-only policy. Per ADR-324 draft
+/// disposition grid carves out from the composition-root-only policy. Per ADR-324
 /// (`bd-sdhocq` deliverable #1) serverless aggregators keep public surface because the
 /// <see cref="IExcaliburBuilder"/> callback shape does not fit the host-scaffolding
 /// lifecycle model cleanly; consumers invoke them directly on
