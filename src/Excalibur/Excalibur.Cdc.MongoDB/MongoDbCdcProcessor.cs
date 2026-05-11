@@ -197,10 +197,7 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 
 		_disposed = true;
 
-		if (_client is IDisposable disposableClient)
-		{
-			disposableClient.Dispose();
-		}
+		// Client is injected via DI — do not dispose; the DI container owns its lifetime.
 	}
 
 	/// <inheritdoc/>
@@ -213,11 +210,7 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 
 		_disposed = true;
 
-		if (_client is IDisposable disposableClient)
-		{
-			disposableClient.Dispose();
-		}
-
+		// Client is injected via DI — do not dispose; the DI container owns its lifetime.
 		return ValueTask.CompletedTask;
 	}
 

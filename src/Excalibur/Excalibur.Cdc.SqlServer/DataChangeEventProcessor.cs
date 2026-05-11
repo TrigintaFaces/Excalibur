@@ -86,7 +86,14 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 
 		var map = _handlerMap ??= BuildHandlerMap(_serviceProvider);
 
-		if (!map.TryGetValue(tableName, out var handler))
+		// Translate capture instance name to logical table name for handler lookup.
+		// CDC rows carry the capture instance (e.g. "dbo_Customers") but handlers
+		// register with logical table names (e.g. "dbo.Customers").
+		var lookupName = _dbConfig.CaptureInstanceToTableNameMap.TryGetValue(tableName, out var logicalName)
+			? logicalName
+			: tableName;
+
+		if (!map.TryGetValue(lookupName, out var handler))
 		{
 			throw new CdcMissingTableHandlerException(tableName);
 		}

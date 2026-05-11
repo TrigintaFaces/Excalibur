@@ -73,8 +73,6 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 
 		var database = client.GetDatabase(_options.DatabaseName);
 		_collection = database.GetCollection<MongoDbLeaderElectionDocument>(_options.CollectionName);
-
-		EnsureTtlIndex();
 	}
 
 	/// <inheritdoc/>
@@ -105,14 +103,16 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	}
 
 	/// <inheritdoc/>
-	public Task StartAsync(CancellationToken cancellationToken)
+	public async Task StartAsync(CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		if (_isStarted)
 		{
-			return Task.CompletedTask;
+			return;
 		}
+
+		await EnsureTtlIndexAsync(cancellationToken).ConfigureAwait(false);
 
 		_isStarted = true;
 		_renewalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -120,7 +120,6 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		_renewalTask = RunElectionLoopAsync(_renewalCts.Token);
 
 		LogStarted(_resourceName, CandidateId);
-		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc/>
@@ -355,7 +354,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, leaderId, _resourceName));
 	}
 
-	private void EnsureTtlIndex()
+	private async Task EnsureTtlIndexAsync(CancellationToken cancellationToken)
 	{
 		var indexKeysDefinition = Builders<MongoDbLeaderElectionDocument>.IndexKeys.Ascending(d => d.ExpiresAt);
 		var indexOptions = new CreateIndexOptions { ExpireAfter = TimeSpan.Zero, Name = "ttl_expiresAt" };
@@ -363,7 +362,9 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 
 		try
 		{
-			_collection.Indexes.CreateOne(indexModel);
+			await _collection.Indexes
+				.CreateOneAsync(indexModel, cancellationToken: cancellationToken)
+				.ConfigureAwait(false);
 		}
 		catch (MongoCommandException)
 		{

@@ -274,7 +274,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 	}
 
 	/// <inheritdoc />
-	public Task<IDictionary<string, object>> GetMetricsAsync(CancellationToken cancellationToken)
+	public async Task<IDictionary<string, object>> GetMetricsAsync(CancellationToken cancellationToken)
 	{
 		var metrics = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
@@ -291,16 +291,28 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 
 		try
 		{
-			var servers = _client?.Cluster.Description.Servers;
-			var serverDescription = servers is { Count: > 0 } ? servers[0] : null;
-			if (serverDescription != null)
+			var adminDb = _client?.GetDatabase("admin");
+			if (adminDb != null)
 			{
-				// Use WireVersionRange instead of obsolete Version property
-				metrics["ServerVersion"] = serverDescription.WireVersionRange != null
-					? $"{serverDescription.WireVersionRange.Min}-{serverDescription.WireVersionRange.Max}"
-					: "Unknown";
-				metrics["ServerType"] = serverDescription.Type.ToString();
-				metrics["State"] = serverDescription.State.ToString();
+				var buildInfo = await adminDb.RunCommandAsync<BsonDocument>(
+					new BsonDocument("buildInfo", 1), cancellationToken: cancellationToken).ConfigureAwait(false);
+				if (buildInfo != null)
+				{
+					metrics["ServerVersion"] = buildInfo.Contains("version")
+						? buildInfo["version"].AsString
+						: "Unknown";
+				}
+
+				var serverStatus = await adminDb.RunCommandAsync<BsonDocument>(
+					new BsonDocument("serverStatus", new BsonDocument("repl", 0)),
+					cancellationToken: cancellationToken).ConfigureAwait(false);
+				if (serverStatus != null)
+				{
+					metrics["ServerType"] = serverStatus.Contains("process")
+						? serverStatus["process"].AsString
+						: "Unknown";
+					metrics["State"] = "Connected";
+				}
 			}
 		}
 		catch (Exception ex)
@@ -308,7 +320,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 			LogFailedToRetrieveServerMetadata(ex);
 		}
 
-		return Task.FromResult<IDictionary<string, object>>(metrics);
+		return metrics;
 	}
 
 	/// <inheritdoc />
@@ -684,8 +696,14 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 			return;
 		}
 
-		// IMongoClient does not implement IDisposable; it manages connection pooling internally
 		_disposed = true;
+
+		// MongoDB.Driver 3.x: MongoClient now implements IDisposable
+		if (_client is IDisposable disposableClient)
+		{
+			disposableClient.Dispose();
+		}
+
 		LogDisposingProvider(Name);
 	}
 

@@ -402,7 +402,7 @@ public static class CdcBuilderSqlServerExtensions
 				var stateConnId = capturedBuilderStateConnId ?? $"state-{dbName}";
 
 				var cdcOptions = sp.GetRequiredService<IOptions<CdcOptions>>().Value;
-				var captureInstances = DeriveCaptureInstances(
+				var (captureInstances, captureInstanceToTableNameMap) = DeriveCaptureInstances(
 					cdcOptions.TrackedTables, capturedBuilderInstances);
 
 				var recoveryOptions = CdcRecoveryOptions.FromCdcOptions(cdcOptions);
@@ -413,6 +413,7 @@ public static class CdcBuilderSqlServerExtensions
 					DatabaseConnectionIdentifier = dbConnId,
 					StateConnectionIdentifier = stateConnId,
 					CaptureInstances = captureInstances,
+					CaptureInstanceToTableNameMap = captureInstanceToTableNameMap,
 					StopOnMissingTableHandler = capturedStopOnMissing,
 					ProducerBatchSize = capturedBatchSize,
 					RecoveryOptions = recoveryOptions,
@@ -540,11 +541,12 @@ public static class CdcBuilderSqlServerExtensions
 	/// are merged as a fallback for backward compatibility. Duplicates are skipped (case-insensitive).
 	/// </para>
 	/// </remarks>
-	private static string[] DeriveCaptureInstances(
+	private static (string[] CaptureInstances, IReadOnlyDictionary<string, string> CaptureInstanceToTableNameMap) DeriveCaptureInstances(
 		List<CdcTableTrackingOptions> trackedTables,
 		string[]? builderInstances)
 	{
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		// TrackedTables is the primary source of truth.
 		foreach (var table in trackedTables)
@@ -552,7 +554,13 @@ public static class CdcBuilderSqlServerExtensions
 			var instance = table.CaptureInstance ?? table.TableName;
 			if (!string.IsNullOrEmpty(instance))
 			{
-				_ = set.Add(instance);
+				if (set.Add(instance))
+				{
+					// Map capture instance → logical table name.
+					// When CaptureInstance is explicitly set, use the TableName as the logical name.
+					// When CaptureInstance is null, the instance IS the table name (identity mapping).
+					map[instance] = table.TableName;
+				}
 			}
 		}
 
@@ -563,11 +571,15 @@ public static class CdcBuilderSqlServerExtensions
 			{
 				if (!string.IsNullOrEmpty(instance))
 				{
-					_ = set.Add(instance);
+					if (set.Add(instance))
+					{
+						// Legacy builder instances have no separate table name — identity mapping.
+						map[instance] = instance;
+					}
 				}
 			}
 		}
 
-		return [.. set];
+		return ([.. set], map.AsReadOnly());
 	}
 }

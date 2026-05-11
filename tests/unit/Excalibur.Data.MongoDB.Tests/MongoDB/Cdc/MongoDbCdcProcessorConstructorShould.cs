@@ -19,9 +19,9 @@ namespace Excalibur.Data.Tests.MongoDB.Cdc;
 [Trait("Feature", "Cdc")]
 public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 {
+#pragma warning disable CA2213 // FakeItEasy fakes - do not need disposal
 	private readonly IMongoClient _client;
 	private readonly ILogger<MongoDbCdcProcessor> _logger;
-#pragma warning disable CA2213 // FakeItEasy fake - does not need disposal
 	private readonly IMongoDbCdcStateStore _stateStore;
 #pragma warning restore CA2213
 	private readonly IOptions<MongoDbCdcOptions> _options;

@@ -22,6 +22,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 {
 	private readonly MongoDbAuthorizationOptions _options;
 	private readonly ILogger<MongoDbGrantStore> _logger;
+	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<GrantDocument>? _collection;
@@ -43,6 +44,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -265,7 +267,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 
 		_disposed = true;
 
-		if (_client is IDisposable disposableClient)
+		if (_ownsClient && _client is IDisposable disposableClient)
 		{
 			disposableClient.Dispose();
 		}

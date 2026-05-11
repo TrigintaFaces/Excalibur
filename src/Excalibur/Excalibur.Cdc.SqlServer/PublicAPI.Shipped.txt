@@ -95,7 +95,7 @@ Excalibur.Cdc.SqlServer.CdcRepository.CdcRepository(Excalibur.Data.Abstractions.
 Excalibur.Cdc.SqlServer.CdcRepository.ChangesExistAsync(byte[]! fromPosition, byte[]! toPosition, System.Collections.Generic.IEnumerable<string!>! captureInstances, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Cdc.SqlServer.CdcRepository.Dispose() -> void
 Excalibur.Cdc.SqlServer.CdcRepository.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Cdc.SqlServer.CdcRepository.FetchChangesAsync(string! captureInstance, int batchSize, byte[]! lsn, byte[]? lastSequenceValue, Excalibur.Cdc.SqlServer.CdcOperationCodes lastOperation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcRow!>!>!
+Excalibur.Cdc.SqlServer.CdcRepository.FetchChangesAsync(string! captureInstance, int batchSize, byte[]! lsn, byte[]? lastSequenceValue, Excalibur.Cdc.SqlServer.CdcOperationCodes lastOperation, System.Threading.CancellationToken cancellationToken, string? logicalTableName = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcRow!>!>!
 Excalibur.Cdc.SqlServer.CdcRepository.GetLsnToTimeAsync(byte[]! lsn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.DateTime?>!
 Excalibur.Cdc.SqlServer.CdcRepository.GetMaxPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Cdc.SqlServer.CdcRepository.GetMinPositionAsync(string! captureInstance, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
@@ -172,6 +172,8 @@ Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseConnectionIdentifier.get -> stri
 Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseConnectionIdentifier.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseName.get -> string!
 Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseName.init -> void
+Excalibur.Cdc.SqlServer.DatabaseOptions.CaptureInstanceToTableNameMap.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Excalibur.Cdc.SqlServer.DatabaseOptions.CaptureInstanceToTableNameMap.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseOptions() -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.ProducerBatchSize.get -> int
 Excalibur.Cdc.SqlServer.DatabaseOptions.ProducerBatchSize.init -> void
@@ -188,7 +190,7 @@ Excalibur.Cdc.SqlServer.ICdcProcessor
 Excalibur.Cdc.SqlServer.ICdcProcessor.ProcessCdcChangesAsync(System.Func<Excalibur.Cdc.SqlServer.DataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.SqlServer.ICdcRepository
 Excalibur.Cdc.SqlServer.ICdcRepository.ChangesExistAsync(byte[]! fromPosition, byte[]! toPosition, System.Collections.Generic.IEnumerable<string!>! captureInstances, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Cdc.SqlServer.ICdcRepository.FetchChangesAsync(string! captureInstance, int batchSize, byte[]! lsn, byte[]? lastSequenceValue, Excalibur.Cdc.SqlServer.CdcOperationCodes lastOperation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcRow!>!>!
+Excalibur.Cdc.SqlServer.ICdcRepository.FetchChangesAsync(string! captureInstance, int batchSize, byte[]! lsn, byte[]? lastSequenceValue, Excalibur.Cdc.SqlServer.CdcOperationCodes lastOperation, System.Threading.CancellationToken cancellationToken, string? logicalTableName = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcRow!>!>!
 Excalibur.Cdc.SqlServer.ICdcRepository.GetMaxPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Cdc.SqlServer.ICdcRepository.GetMinPositionAsync(string! captureInstance, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Cdc.SqlServer.ICdcRepository.GetNextLsnAsync(byte[]! lastProcessedLsn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
@@ -204,6 +206,7 @@ Excalibur.Cdc.SqlServer.IDataChangeHandler
 Excalibur.Cdc.SqlServer.IDataChangeHandler.HandleAsync(Excalibur.Cdc.SqlServer.DataChangeEvent! changeEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.SqlServer.IDataChangeHandler.TableNames.get -> string![]!
 Excalibur.Cdc.SqlServer.IDatabaseOptions
+Excalibur.Cdc.SqlServer.IDatabaseOptions.CaptureInstanceToTableNameMap.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
 Excalibur.Cdc.SqlServer.IDatabaseOptions.CaptureInstances.get -> string![]!
 Excalibur.Cdc.SqlServer.IDatabaseOptions.ConsumerBatchSize.get -> int
 Excalibur.Cdc.SqlServer.IDatabaseOptions.DatabaseConnectionIdentifier.get -> string!

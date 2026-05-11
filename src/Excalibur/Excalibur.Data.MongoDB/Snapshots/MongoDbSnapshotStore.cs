@@ -40,6 +40,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 {
 	private readonly MongoDbSnapshotStoreOptions _options;
 	private readonly ILogger<MongoDbSnapshotStore> _logger;
+	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<MongoDbSnapshotDocument>? _collection;
@@ -61,6 +62,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -274,7 +276,12 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 		}
 
 		_disposed = true;
-		// MongoDB client doesn't implement IDisposable - it manages connections internally
+
+		if (_ownsClient && _client is IDisposable disposableClient)
+		{
+			disposableClient.Dispose();
+		}
+
 		return ValueTask.CompletedTask;
 	}
 

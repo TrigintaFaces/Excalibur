@@ -35,6 +35,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 	private readonly MongoDbSagaOptions _options;
 	private readonly ILogger<MongoDbSagaStore> _logger;
 	private readonly DispatchJsonSerializer _serializer;
+	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoCollection<MongoDbSagaDocument>? _collection;
 	private volatile bool _initialized;
@@ -62,6 +63,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		_options.Validate();
 		_logger = logger;
 		_serializer = serializer;
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -168,7 +170,12 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		}
 
 		_disposed = true;
-		// MongoDB client doesn't implement IDisposable - it manages connections internally
+
+		if (_ownsClient && _client is IDisposable disposableClient)
+		{
+			disposableClient.Dispose();
+		}
+
 		return ValueTask.CompletedTask;
 	}
 

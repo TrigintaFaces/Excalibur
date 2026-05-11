@@ -35,6 +35,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	private readonly MongoDbProjectionStoreOptions _options;
 	private readonly ILogger<MongoDbProjectionStore<TProjection>> _logger;
 	private readonly string _projectionType;
+	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<MongoDbProjectionDocument>? _collection;
@@ -57,6 +58,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -208,7 +210,12 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		}
 
 		_disposed = true;
-		// MongoDB client doesn't implement IDisposable - it manages connections internally
+
+		if (_ownsClient && _client is IDisposable disposableClient)
+		{
+			disposableClient.Dispose();
+		}
+
 		return ValueTask.CompletedTask;
 	}
 

@@ -77,15 +77,17 @@ public sealed class MongoDbComplianceOptions
 /// subject_access_requests (request_id) for upsert semantics.
 /// </para>
 /// </remarks>
-public sealed partial class MongoDbComplianceStore : IComplianceStore
+public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposable
 {
 	private readonly MongoDbComplianceOptions _options;
 	private readonly ILogger<MongoDbComplianceStore> _logger;
+	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<ConsentDocument>? _consentCollection;
 	private IMongoCollection<ErasureLogDocument>? _erasureLogCollection;
 	private IMongoCollection<SubjectAccessDocument>? _subjectAccessCollection;
+	private volatile bool _disposed;
 	private bool _initialized;
 
 	/// <summary>
@@ -102,6 +104,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore
 
 		_options = options.Value;
 		_logger = logger;
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -122,6 +125,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore
 
 		_options = options.Value;
 		_logger = logger;
+		_ownsClient = false;
 		_client = client;
 		_database = client.GetDatabase(_options.DatabaseName);
 		_consentCollection = _database.GetCollection<ConsentDocument>(_options.ConsentCollectionName);
@@ -219,6 +223,22 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore
 			cancellationToken).ConfigureAwait(false);
 
 		LogMongoDbOperation("StoreSubjectAccessRequest", result.RequestId);
+	}
+
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		if (_ownsClient && _client is IDisposable disposableClient)
+		{
+			disposableClient.Dispose();
+		}
 	}
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)

@@ -60,6 +60,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 	private readonly JsonSerializerOptions _jsonOptions;
 	private readonly ISerializer? _internalSerializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
+	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<MongoDbEventDocument>? _eventsCollection;
@@ -101,6 +102,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 		_internalSerializer = internalSerializer;
 		_payloadSerializer = payloadSerializer;
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -346,7 +348,12 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		}
 
 		_disposed = true;
-		// MongoDB client doesn't implement IDisposable - it manages connections internally
+
+		if (_ownsClient && _client is IDisposable disposableClient)
+		{
+			disposableClient.Dispose();
+		}
+
 		return ValueTask.CompletedTask;
 	}
 

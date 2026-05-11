@@ -22,6 +22,7 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 {
 	private readonly MongoDbAuthorizationOptions _options;
 	private readonly ILogger<MongoDbActivityGroupGrantStore> _logger;
+	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<ActivityGroupDocument>? _collection;
@@ -43,6 +44,7 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -167,7 +169,7 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 
 		_disposed = true;
 
-		if (_client is IDisposable disposableClient)
+		if (_ownsClient && _client is IDisposable disposableClient)
 		{
 			disposableClient.Dispose();
 		}

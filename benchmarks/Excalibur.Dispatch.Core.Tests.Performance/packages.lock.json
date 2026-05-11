@@ -574,28 +574,8 @@
       },
       "MongoDB.Bson": {
         "type": "Transitive",
-        "resolved": "2.25.0",
-        "contentHash": "xQx/qtC2nu9oGiyNqAwfiDpUMweLi0nID677cyKykpwmj5AVMrnd//UwmcmuX95178DeY6rf7cjmA613TQXPiA=="
-      },
-      "MongoDB.Driver.Core": {
-        "type": "Transitive",
-        "resolved": "2.25.0",
-        "contentHash": "oN4nLgO5HQEThTg/zqeoHqaO2+q64DBVb4r7BvhaFb0p0TM9jZKnCKvh1EA8d9E9swIz0CgvMrvL1mPyRCZzag==",
-        "dependencies": {
-          "AWSSDK.SecurityToken": "3.7.100.14",
-          "DnsClient": "1.6.1",
-          "Microsoft.Extensions.Logging.Abstractions": "2.0.0",
-          "MongoDB.Bson": "2.25.0",
-          "MongoDB.Libmongocrypt": "1.8.2",
-          "SharpCompress": "0.30.1",
-          "Snappier": "1.0.0",
-          "ZstdSharp.Port": "0.7.3"
-        }
-      },
-      "MongoDB.Libmongocrypt": {
-        "type": "Transitive",
-        "resolved": "1.8.2",
-        "contentHash": "z/8JCULSHM1+mzkau0ivIkU9kIn8JEFFSkmYTSaMaWMMHt96JjUtMKuXxeGNGSnHZ5290ZPKIlQfjoWFk2sKog=="
+        "resolved": "3.8.0",
+        "contentHash": "HeiOJUylam5nIB7b1EfzlnJbf6A9te79WO6CtsKfp8M/2EeL4SoSQFjmUpJ6/vvuaNKGENXMaX9oUJp9KpHlqw=="
       },
       "NETStandard.Library": {
         "type": "Transitive",
@@ -659,11 +639,6 @@
         "type": "Transitive",
         "resolved": "3.2.4",
         "contentHash": "I5qFifWw/gaTQT52MhzjZpkm/JPlfjSeO/DTZJjO7+hTKI+0aGRgOgZ3NN6D96dDuuqbIAZSeA5RimtHjqrA2A=="
-      },
-      "SharpCompress": {
-        "type": "Transitive",
-        "resolved": "0.30.1",
-        "contentHash": "XqD4TpfyYGa7QTPzaGlMVbcecKnXy4YmYLDWrU+JIj7IuRNl7DH2END+Ll7ekWIY8o3dAMWLFDE1xdhfIWD1nw=="
       },
       "SharpZipLib": {
         "type": "Transitive",
@@ -833,7 +808,7 @@
           "Microsoft.Extensions.Options": "[10.0.7, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.7, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.7, )",
-          "MongoDB.Driver": "[2.25.0, )",
+          "MongoDB.Driver": "[3.8.0, )",
           "Npgsql": "[10.0.2, )",
           "QuestPDF": "[2026.2.4, )"
         }
@@ -1188,15 +1163,6 @@
         "requested": "[4.0.3.30, )",
         "resolved": "4.0.3.30",
         "contentHash": "DdQtAWrlQT+oRw8Mqe6zpmp3DUGMUrzwUYxXzu4Bu8jkdEdiMfBHCvoZqvJjt6qB1AlF1mCM8fgdM6L2aRyd6g=="
-      },
-      "AWSSDK.SecurityToken": {
-        "type": "CentralTransitive",
-        "requested": "[4.0.6, )",
-        "resolved": "4.0.6",
-        "contentHash": "4VpCKVUbnHt7KyUM1rEC8dZ2gdvUhDET+qmNbFuPTSEhorL+CzuAwVJk+SCx32hlCxl/vF+RNYzo1dwe8Urdiw==",
-        "dependencies": {
-          "AWSSDK.Core": "[4.0.3.29, 5.0.0)"
-        }
       },
       "AWSSDK.SQS": {
         "type": "CentralTransitive",
@@ -1686,14 +1652,16 @@
       },
       "MongoDB.Driver": {
         "type": "CentralTransitive",
-        "requested": "[2.25.0, )",
-        "resolved": "2.25.0",
-        "contentHash": "dMqnZTV6MuvoEI4yFtSvKJdAoN6NeyAEvG8aoxnrLIVd7bR84QxLgpsM1nhK17qkOcIx/IrpMIfrvp5iMnYGBg==",
+        "requested": "[3.8.0, )",
+        "resolved": "3.8.0",
+        "contentHash": "BQ6bTaZCuSThmxS4vXu71a1jFGNMht2/+rjx2Uaw3AweIqRKFbPuyFoVsDnoLN935tvdC5OxwwAqrMY9eWBUng==",
         "dependencies": {
+          "DnsClient": "1.6.1",
           "Microsoft.Extensions.Logging.Abstractions": "2.0.0",
-          "MongoDB.Bson": "2.25.0",
-          "MongoDB.Driver.Core": "2.25.0",
-          "MongoDB.Libmongocrypt": "1.8.2"
+          "MongoDB.Bson": "3.8.0",
+          "SharpCompress": "0.30.1",
+          "Snappier": "1.0.0",
+          "ZstdSharp.Port": "0.7.3"
         }
       },
       "NCrontab": {
@@ -1827,6 +1795,12 @@
         "requested": "[2026.2.4, )",
         "resolved": "2026.2.4",
         "contentHash": "fajBdRJFr3hu2Mr6mEVsXjvVKD9Q/Q6hfPEUMpV/xlwxWdFebmpGdi0FLQTApMvpapy72v9dvcGuk7e7NQmQyQ=="
+      },
+      "SharpCompress": {
+        "type": "CentralTransitive",
+        "requested": "[0.48.0, )",
+        "resolved": "0.48.0",
+        "contentHash": "6k0Sa9gf85Sz9Npy7jnn5UPerejrAa3FxU9Gq5T6PwFWHUhUIdF903TjPiJtrYjXFJsXbnccaWSNMHzEg27DwQ=="
       },
       "Snappier": {
         "type": "CentralTransitive",

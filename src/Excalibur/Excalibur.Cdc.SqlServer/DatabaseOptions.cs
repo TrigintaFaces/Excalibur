@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Cdc.SqlServer;
@@ -77,4 +78,8 @@ public sealed class DatabaseOptions : IDatabaseOptions
 
 	/// <inheritdoc />
 	public CdcRecoveryOptions? RecoveryOptions { get; init; }
+
+	/// <inheritdoc />
+	public IReadOnlyDictionary<string, string> CaptureInstanceToTableNameMap { get; init; }
+		= ReadOnlyDictionary<string, string>.Empty;
 }

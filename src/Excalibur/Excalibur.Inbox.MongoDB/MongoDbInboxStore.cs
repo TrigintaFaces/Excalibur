@@ -26,6 +26,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 
 	private readonly MongoDbInboxOptions _options;
 	private readonly ILogger<MongoDbInboxStore> _logger;
+	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<MongoDbInboxDocument>? _collection;
@@ -47,6 +48,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -332,7 +334,12 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 		}
 
 		_disposed = true;
-		// MongoDB client doesn't implement IDisposable - it manages connections internally
+
+		if (_ownsClient && _client is IDisposable disposableClient)
+		{
+			disposableClient.Dispose();
+		}
+
 		return ValueTask.CompletedTask;
 	}
 

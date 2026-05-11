@@ -154,6 +154,42 @@ public sealed class DatabaseConfigShould
 	}
 
 	[Fact]
+	public void HaveDefaultCaptureInstanceToTableNameMap()
+	{
+		var config = new DatabaseOptions
+		{
+			DatabaseName = "TestDb",
+			DatabaseConnectionIdentifier = "db-conn",
+			StateConnectionIdentifier = "state-conn"
+		};
+
+		config.CaptureInstanceToTableNameMap.ShouldNotBeNull();
+		config.CaptureInstanceToTableNameMap.ShouldBeEmpty();
+	}
+
+	[Fact]
+	public void AllowCustomCaptureInstanceToTableNameMap()
+	{
+		var map = new Dictionary<string, string>
+		{
+			["sales_Customers"] = "sales.Customers",
+			["dbo_Orders"] = "dbo.Orders"
+		};
+
+		var config = new DatabaseOptions
+		{
+			DatabaseName = "TestDb",
+			DatabaseConnectionIdentifier = "db-conn",
+			StateConnectionIdentifier = "state-conn",
+			CaptureInstanceToTableNameMap = map.AsReadOnly()
+		};
+
+		config.CaptureInstanceToTableNameMap.Count.ShouldBe(2);
+		config.CaptureInstanceToTableNameMap["sales_Customers"].ShouldBe("sales.Customers");
+		config.CaptureInstanceToTableNameMap["dbo_Orders"].ShouldBe("dbo.Orders");
+	}
+
+	[Fact]
 	public void HaveNullRecoveryOptionsByDefault()
 	{
 		var config = new DatabaseOptions

@@ -64,6 +64,12 @@ public interface ICdcRepository : IAsyncDisposable, IDisposable
 	/// </param>
 	/// <param name="lastOperation"> The CDC operation code filter for the types of changes to retrieve. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
+	/// <param name="logicalTableName">
+	/// The logical table name to use in <see cref="CdcRow.TableName"/> instead of the capture instance.
+	/// When <see langword="null"/>, the capture instance name is used (backward-compatible default).
+	/// This allows handlers to match on the consumer-configured table name (e.g., <c>dbo.Customers</c>)
+	/// rather than the SQL Server capture instance name (e.g., <c>dbo_Customers</c>).
+	/// </param>
 	/// <returns> An asynchronous stream of <see cref="CdcRow" /> instances representing the captured changes. </returns>
 	Task<IEnumerable<CdcRow>> FetchChangesAsync(
 		string captureInstance,
@@ -71,5 +77,6 @@ public interface ICdcRepository : IAsyncDisposable, IDisposable
 		byte[] lsn,
 		byte[]? lastSequenceValue,
 		CdcOperationCodes lastOperation,
-		CancellationToken cancellationToken);
+		CancellationToken cancellationToken,
+		string? logicalTableName = null);
 }

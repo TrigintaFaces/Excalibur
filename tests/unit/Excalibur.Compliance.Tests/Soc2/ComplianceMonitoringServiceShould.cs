@@ -207,9 +207,12 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		try
 		{
+			// BackgroundService.StartAsync queues ExecuteAsync as a fire-and-forget task.
+			// Under CI load the thread pool may take significant time to schedule it,
+			// so use a generous 30s timeout (matches Record_cycle_when_monitoring_enabled).
 			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 				alertObserved.Task,
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
 				cancellationToken: CancellationToken.None).ConfigureAwait(false);
 		}
 		finally
@@ -259,9 +262,12 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		try
 		{
+			// BackgroundService.StartAsync queues ExecuteAsync as a fire-and-forget task.
+			// Under CI load the thread pool may take significant time to schedule it,
+			// so use a generous 30s timeout (matches Record_cycle_when_monitoring_enabled).
 			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 				cycleObserved.Task,
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
 				cancellationToken: CancellationToken.None).ConfigureAwait(false);
 		}
 		finally

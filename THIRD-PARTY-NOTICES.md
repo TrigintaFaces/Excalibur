@@ -142,7 +142,7 @@ It is generated from project files; licenses remain with their respective owners
 | Microsoft.Extensions.Options.DataAnnotations | 10.0.7 |
 | Microsoft.IdentityModel.Tokens | 8.17.0 |
 | MinVer | 6.0.0 |
-| MongoDB.Driver | 2.25.0 |
+| MongoDB.Driver | 3.8.0 |
 | MySqlConnector | 2.5.0 |
 | NCrontab | 3.4.0 |
 | Npgsql | 10.0.2 |

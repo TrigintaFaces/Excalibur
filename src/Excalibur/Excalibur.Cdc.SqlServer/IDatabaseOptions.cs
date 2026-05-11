@@ -90,4 +90,21 @@ public interface IDatabaseOptions
 	/// as the default strategy.
 	/// </remarks>
 	CdcRecoveryOptions? RecoveryOptions { get; }
+
+	/// <summary>
+	/// Gets a mapping from capture instance name to logical table name.
+	/// </summary>
+	/// <value>
+	/// A read-only dictionary mapping capture instance names (e.g., <c>dbo_Customers</c>)
+	/// to their logical table names (e.g., <c>dbo.Customers</c>).
+	/// When a capture instance has no explicit table name, the capture instance itself is the value.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// This map is used to translate capture instance names back to logical table names
+	/// so that <see cref="DataChangeEvent.TableName"/> contains the consumer-configured
+	/// table name rather than the SQL Server CDC implementation detail.
+	/// </para>
+	/// </remarks>
+	IReadOnlyDictionary<string, string> CaptureInstanceToTableNameMap { get; }
 }

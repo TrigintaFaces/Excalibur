@@ -233,7 +233,8 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		byte[] lsn,
 		byte[]? lastSequenceValue,
 		CdcOperationCodes lastOperation,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string? logicalTableName = null)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(captureInstance);
 		ArgumentNullException.ThrowIfNull(lsn);

@@ -36,6 +36,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 {
 	private readonly MongoDbMaterializedViewStoreOptions _options;
 	private readonly ILogger<MongoDbMaterializedViewStore> _logger;
+	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<MongoDbMaterializedViewDocument>? _viewsCollection;
@@ -58,6 +59,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -238,7 +240,12 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 		}
 
 		_disposed = true;
-		// MongoDB client doesn't implement IDisposable - it manages connections internally
+
+		if (_ownsClient && _client is IDisposable disposableClient)
+		{
+			disposableClient.Dispose();
+		}
+
 		return ValueTask.CompletedTask;
 	}
 
