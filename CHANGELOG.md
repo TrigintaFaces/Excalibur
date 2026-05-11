@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Authorization RequestProvider layer deleted** -- 36 legacy `RequestProvider` files removed from `Excalibur.Data.SqlServer` and `Excalibur.Data.Postgres`. SQL is now inlined directly into Store implementations (`SqlServerGrantStore`, `SqlServerActivityGroupStore`, `PostgresGrantStore`, `PostgresActivityGroupStore`). The Store pattern (`IGrantStore`, `IActivityGroupStore`) was already the public contract; RequestProviders were never DI-registered or consumer-accessible. ~98 `PublicAPI.Shipped.txt` entries removed. No functional changes.
+
 ### Changed
 
 - **MongoDB.Driver 2.x → 3.x migration** -- Upgraded `MongoDB.Driver` from 2.30.0 to 3.8.0 across all 8 shipping MongoDB packages (`Excalibur.Data.MongoDB`, `Excalibur.EventSourcing.MongoDB`, `Excalibur.Cdc.MongoDB`, `Excalibur.Saga.MongoDB`, `Excalibur.Inbox.MongoDB`, `Excalibur.Outbox.MongoDB`, `Excalibur.LeaderElection.MongoDB`, `Excalibur.Compliance`). Key migration changes: `_ownsClient` pattern for `MongoClient` `IDisposable` lifecycle tracking; sync `Indexes.CreateOne()` → async `CreateOneAsync()` in leader election; `Cluster.Description.Servers`/`WireVersionRange` health check → `buildInfo`/`serverStatus` commands. `MongoDbComplianceStore` gains `IDisposable`. **Breaking change** for consumers who subclass sealed `MongoClient`/`MongoDatabase`/`MongoCollection<T>` (unlikely — use interfaces for mocking).

@@ -278,40 +278,6 @@ Excalibur.Data.Postgres.PostgresProviderOptions.RetryCount.get -> int
 Excalibur.Data.Postgres.PostgresProviderOptions.RetryCount.set -> void
 Excalibur.Data.Postgres.PostgresProviderOptions.UseDataSource.get -> bool
 Excalibur.Data.Postgres.PostgresProviderOptions.UseDataSource.set -> void
-Excalibur.Data.Postgres.RequestProviders.CreateActivityGroupRequest
-Excalibur.Data.Postgres.RequestProviders.CreateActivityGroupRequest.CreateActivityGroupRequest(string? tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.DeleteActivityGroupGrantsByUserIdRequest
-Excalibur.Data.Postgres.RequestProviders.DeleteActivityGroupGrantsByUserIdRequest.DeleteActivityGroupGrantsByUserIdRequest(string! userId, string! grantType, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.DeleteAllActivityGroupGrantsRequest
-Excalibur.Data.Postgres.RequestProviders.DeleteAllActivityGroupGrantsRequest.DeleteAllActivityGroupGrantsRequest(string! grantType, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.DeleteAllActivityGroupsRequest
-Excalibur.Data.Postgres.RequestProviders.DeleteAllActivityGroupsRequest.DeleteAllActivityGroupsRequest(System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.DeleteGrantRequest
-Excalibur.Data.Postgres.RequestProviders.DeleteGrantRequest.DeleteGrantRequest(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.ExistsActivityGroupRequest
-Excalibur.Data.Postgres.RequestProviders.ExistsActivityGroupRequest.ExistsActivityGroupRequest(string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.ExistsGrantRequest
-Excalibur.Data.Postgres.RequestProviders.ExistsGrantRequest.ExistsGrantRequest(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.FindActivityGroupsRequest
-Excalibur.Data.Postgres.RequestProviders.FindActivityGroupsRequest.FindActivityGroupsRequest(System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.FindUserGrantsRequest
-Excalibur.Data.Postgres.RequestProviders.FindUserGrantsRequest.FindUserGrantsRequest(string! userId, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.GetDistinctActivityGroupGrantUserIdsRequest
-Excalibur.Data.Postgres.RequestProviders.GetDistinctActivityGroupGrantUserIdsRequest.GetDistinctActivityGroupGrantUserIdsRequest(string! grantType, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.InsertActivityGroupGrantRequest
-Excalibur.Data.Postgres.RequestProviders.InsertActivityGroupGrantRequest.InsertActivityGroupGrantRequest(string! userId, string! fullName, string? tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.MatchingGrantsRequest
-Excalibur.Data.Postgres.RequestProviders.MatchingGrantsRequest.MatchingGrantsRequest(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.PostgresActivityGroupRequestProvider
-Excalibur.Data.Postgres.RequestProviders.PostgresActivityGroupRequestProvider.PostgresActivityGroupRequestProvider() -> void
-Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider
-Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.PostgresGrantRequestProvider() -> void
-Excalibur.Data.Postgres.RequestProviders.ReadAllGrantsRequest
-Excalibur.Data.Postgres.RequestProviders.ReadAllGrantsRequest.ReadAllGrantsRequest(string! userId, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.ReadGrantRequest
-Excalibur.Data.Postgres.RequestProviders.ReadGrantRequest.ReadGrantRequest(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.Data.Postgres.RequestProviders.SaveGrantRequest
-Excalibur.Data.Postgres.RequestProviders.SaveGrantRequest.SaveGrantRequest(Excalibur.A3.Abstractions.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Data.Postgres.Snapshots.DeleteSnapshotsOlderThanRequest
 Excalibur.Data.Postgres.Snapshots.DeleteSnapshotsOlderThanRequest.DeleteSnapshotsOlderThanRequest(string! aggregateId, string! aggregateType, long olderThanVersion, string! schemaName, string! tableName, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Data.Postgres.Snapshots.DeleteSnapshotsRequest
@@ -446,21 +412,6 @@ static Excalibur.Data.Postgres.Persistence.PostgresPersistenceBuilderExtensions.
 static Excalibur.Data.Postgres.Persistence.PostgresPersistenceBuilderExtensions.WithPreparedStatements(this Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder! builder, bool enabled = true, int maxStatements = 200) -> Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder!
 static Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.MeasureOperation<T>(System.Func<T>! operation, System.Action<double>! recordAction) -> T
 static Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.MeasureOperationAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Action<double>! recordAction) -> System.Threading.Tasks.Task<T>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresActivityGroupRequestProvider.ActivityGroupExists(string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, bool>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresActivityGroupRequestProvider.CreateActivityGroup(string? tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, int>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresActivityGroupRequestProvider.DeleteAllActivityGroups(System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, int>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresActivityGroupRequestProvider.FindActivityGroups(System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, System.Collections.Generic.Dictionary<string!, object!>!>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.DeleteActivityGroupGrantsByUserId(string! userId, string! grantType, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, int>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.DeleteAllActivityGroupGrants(string! grantType, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, int>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.DeleteGrant(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, int>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.FindUserGrants(string! userId, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, System.Collections.Generic.Dictionary<string!, object!>!>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.GetAllGrants(string! userId, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, System.Collections.Generic.IEnumerable<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.GetDistinctActivityGroupGrantUserIds(string! grantType, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, System.Collections.Generic.IEnumerable<string!>!>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.GetGrant(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, Excalibur.A3.Abstractions.Authorization.Grant?>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.GetMatchingGrants(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, System.Collections.Generic.IEnumerable<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.GrantExists(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, bool>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.InsertActivityGroupGrant(string! userId, string! fullName, string? tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, int>!
-static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.SaveGrant(Excalibur.A3.Abstractions.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, int>!
 static Microsoft.Extensions.DependencyInjection.A3BuilderPostgresExtensions.UsePostgres(this Excalibur.A3.IA3Builder! builder) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.PostgresAuditExtensions.AddPostgresDataAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Postgres.Audit.PostgresAuditOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresAuditExtensions.AddPostgresDataAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

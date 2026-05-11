@@ -107,4 +107,15 @@ public sealed class SqlServerGrantStoreShould
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => store.GetService(null!));
 	}
+
+	[Fact]
+	public async Task ThrowArgumentNullException_WhenSaveGrantAsyncReceivesNull()
+	{
+		// Arrange
+		var store = new SqlServerGrantStore(_domainDb);
+
+		// Act & Assert
+		await Should.ThrowAsync<ArgumentNullException>(
+			() => store.SaveGrantAsync(null!, CancellationToken.None));
+	}
 }

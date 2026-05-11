@@ -4,14 +4,15 @@
 
 using System.Data;
 
+using Dapper;
+
 using Excalibur.A3.Abstractions.Authorization;
-using Excalibur.Data.Postgres.RequestProviders;
+using Excalibur.Data.Abstractions;
 
 namespace Excalibur.Data.Postgres.Authorization;
 
 /// <summary>
-/// PostgreSQL implementation of <see cref="IActivityGroupStore"/> that wraps existing
-/// <see cref="PostgresActivityGroupRequestProvider"/> request classes.
+/// PostgreSQL implementation of <see cref="IActivityGroupStore"/> using inline Dapper queries.
 /// </summary>
 public sealed class PostgresActivityGroupStore : IActivityGroupStore
 {
@@ -31,31 +32,80 @@ public sealed class PostgresActivityGroupStore : IActivityGroupStore
 	public async Task<bool> ActivityGroupExistsAsync(string activityGroupName,
 		CancellationToken cancellationToken)
 	{
-		var request = PostgresActivityGroupRequestProvider.ActivityGroupExists(activityGroupName, cancellationToken);
-		return await request.ResolveAsync(_connection).ConfigureAwait(false);
+		const string sql = """
+		                                          SELECT EXISTS
+		                                          (
+		                                            SELECT 1
+		                                            FROM authz.activity_group
+		                                            WHERE name=@activityGroupName
+		                                          );
+		                   """;
+
+		return await _connection.ExecuteScalarAsync<bool>(
+			new CommandDefinition(sql,
+				new { activityGroupName },
+				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+				cancellationToken: cancellationToken)).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	public async Task<IReadOnlyDictionary<string, object>> FindActivityGroupsAsync(
 		CancellationToken cancellationToken)
 	{
-		var request = PostgresActivityGroupRequestProvider.FindActivityGroups(cancellationToken);
-		return await request.ResolveAsync(_connection).ConfigureAwait(false);
+		const string sql = """
+		                        SELECT name, tenant_id, activity_name
+		                        FROM authz.activity_group
+		                   """;
+
+		var activityGroups = await _connection
+			.QueryAsync<(string Name, string TenantId, string ActivityName)>(
+				new CommandDefinition(sql,
+					commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+					cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+		return activityGroups
+			.GroupBy(
+				group => group.Name,
+				group => new ActivityGroupActivity(group.TenantId, group.ActivityName),
+				StringComparer.Ordinal)
+			.ToDictionary(
+				group => group.Key,
+				object (group) => new ActivityGroupData([.. group]),
+				StringComparer.Ordinal);
 	}
 
 	/// <inheritdoc />
 	public async Task<int> DeleteAllActivityGroupsAsync(CancellationToken cancellationToken)
 	{
-		var request = PostgresActivityGroupRequestProvider.DeleteAllActivityGroups(cancellationToken);
-		return await request.ResolveAsync(_connection).ConfigureAwait(false);
+		const string sql = "DELETE FROM authz.activity_group";
+
+		return await _connection.ExecuteAsync(
+			new CommandDefinition(sql,
+				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+				cancellationToken: cancellationToken)).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	public async Task<int> CreateActivityGroupAsync(string? tenantId, string name,
 		string activityName, CancellationToken cancellationToken)
 	{
-		var request = PostgresActivityGroupRequestProvider.CreateActivityGroup(tenantId, name, activityName, cancellationToken);
-		return await request.ResolveAsync(_connection).ConfigureAwait(false);
+		const string sql = """
+		                      INSERT INTO authz.activity_group (
+		                       tenant_id,
+		                       name,
+		                       activity_name
+		                      ) VALUES (
+		                       @TenantId,
+		                       @ActivityGroupName,
+		                       @ActivityName
+		                      );
+		                   """;
+
+		return await _connection.ExecuteAsync(
+			new CommandDefinition(sql,
+				new { TenantId = tenantId, ActivityGroupName = name, ActivityName = activityName },
+				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+				cancellationToken: cancellationToken)).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -64,4 +114,23 @@ public sealed class PostgresActivityGroupStore : IActivityGroupStore
 		ArgumentNullException.ThrowIfNull(serviceType);
 		return null;
 	}
+
+	/// <summary>
+	/// Data associated with an activity group for <see cref="FindActivityGroupsAsync"/> results.
+	/// </summary>
+	private sealed record ActivityGroupData
+	{
+		public ActivityGroupData(IList<ActivityGroupActivity> activities)
+		{
+			ArgumentNullException.ThrowIfNull(activities);
+			Activities = activities;
+		}
+
+		public IList<ActivityGroupActivity> Activities { get; set; } = [];
+	}
+
+	/// <summary>
+	/// An individual activity within an activity group.
+	/// </summary>
+	private sealed record ActivityGroupActivity(string TenantId, string ActivityName);
 }
