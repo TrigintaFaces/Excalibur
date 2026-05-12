@@ -12,16 +12,16 @@ using Microsoft.Extensions.Logging;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for <see cref="IServiceCollection" /> to register dispatch authorization services.
+/// Extension methods for <see cref="IServiceCollection" /> to register Excalibur authorization services.
 /// </summary>
 public static class AuthorizationServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds dispatch authorization services to the service collection.
+	/// Adds Excalibur authorization services to the service collection.
 	/// </summary>
 	/// <param name="services"> The service collection to add services to. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection AddDispatchAuthorization(this IServiceCollection services)
+	public static IServiceCollection AddExcaliburAuthorization(this IServiceCollection services)
 	{
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuthorizationHandler, GrantsAuthorizationHandler>());
 		services.TryAddSingleton<IDispatchAuthorizationService, DispatchAuthorizationService>();

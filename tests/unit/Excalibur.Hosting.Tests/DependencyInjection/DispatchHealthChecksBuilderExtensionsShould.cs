@@ -23,7 +23,7 @@ public sealed class DispatchHealthCheckExtensionsShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			((IHealthChecksBuilder)null!).AddDispatchHealthChecks());
+			((IHealthChecksBuilder)null!).AddExcaliburHealthChecks());
 	}
 
 	[Fact]
@@ -40,7 +40,7 @@ public sealed class DispatchHealthCheckExtensionsShould
 		var builder = services.AddHealthChecks();
 
 		// Act
-		builder.AddDispatchHealthChecks();
+		builder.AddExcaliburHealthChecks();
 
 		// Assert
 		var registrations = GetHealthCheckRegistrations(services);
@@ -61,7 +61,7 @@ public sealed class DispatchHealthCheckExtensionsShould
 		var builder = services.AddHealthChecks();
 
 		// Act
-		builder.AddDispatchHealthChecks();
+		builder.AddExcaliburHealthChecks();
 
 		// Assert
 		var registrations = GetHealthCheckRegistrations(services);
@@ -81,7 +81,7 @@ public sealed class DispatchHealthCheckExtensionsShould
 		var builder = services.AddHealthChecks();
 
 		// Act
-		builder.AddDispatchHealthChecks();
+		builder.AddExcaliburHealthChecks();
 
 		// Assert
 		var registrations = GetHealthCheckRegistrations(services);
@@ -105,7 +105,7 @@ public sealed class DispatchHealthCheckExtensionsShould
 		var builder = services.AddHealthChecks();
 
 		// Act
-		builder.AddDispatchHealthChecks(options =>
+		builder.AddExcaliburHealthChecks(options =>
 		{
 			options.IncludeOutbox = false;
 			options.IncludeLeaderElection = false;
@@ -129,7 +129,7 @@ public sealed class DispatchHealthCheckExtensionsShould
 		var builder = services.AddHealthChecks();
 
 		// Act
-		var result = builder.AddDispatchHealthChecks();
+		var result = builder.AddExcaliburHealthChecks();
 
 		// Assert
 		result.ShouldBeSameAs(builder);

@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Hosting.Serverless.Tests;
 
@@ -93,21 +94,29 @@ public sealed class ServerlessHostBuilderExtensionsShould : UnitTestBase
 	[Fact]
 	public void UseAwsLambda_WithOptions_ConfiguresLambdaOptions()
 	{
-		// Arrange
+		// Arrange — use a real HostBuilder so ConfigureServices callbacks are captured
+		// and invoked at Build time. FakeItEasy fakes don't invoke the callbacks.
 		var hostBuilder = A.Fake<IHostBuilder>();
+		IServiceCollection? captured = null;
 		A.CallTo(() => hostBuilder.ConfigureServices(A<Action<HostBuilderContext, IServiceCollection>>._))
+			.Invokes((Action<HostBuilderContext, IServiceCollection> action) =>
+			{
+				captured ??= new ServiceCollection();
+				action(null!, captured);
+			})
 			.Returns(hostBuilder);
-		var lambdaConfigured = false;
 
 		// Act
 		_ = hostBuilder.UseAwsLambda(options =>
 		{
 			options.EnableProvisionedConcurrency = true;
-			lambdaConfigured = true;
 		});
 
-		// Assert
-		lambdaConfigured.ShouldBeTrue();
+		// Assert — platform options are registered as independent IOptions<T>
+		captured.ShouldNotBeNull();
+		using var provider = captured.BuildServiceProvider();
+		var awsOptions = provider.GetRequiredService<IOptions<AwsLambdaOptions>>().Value;
+		awsOptions.EnableProvisionedConcurrency.ShouldBeTrue();
 	}
 
 	#endregion
@@ -144,19 +153,26 @@ public sealed class ServerlessHostBuilderExtensionsShould : UnitTestBase
 	{
 		// Arrange
 		var hostBuilder = A.Fake<IHostBuilder>();
+		IServiceCollection? captured = null;
 		A.CallTo(() => hostBuilder.ConfigureServices(A<Action<HostBuilderContext, IServiceCollection>>._))
+			.Invokes((Action<HostBuilderContext, IServiceCollection> action) =>
+			{
+				captured ??= new ServiceCollection();
+				action(null!, captured);
+			})
 			.Returns(hostBuilder);
-		var azureConfigured = false;
 
 		// Act
 		_ = hostBuilder.UseAzureFunctions(options =>
 		{
 			options.EnableDurableFunctions = true;
-			azureConfigured = true;
 		});
 
-		// Assert
-		azureConfigured.ShouldBeTrue();
+		// Assert — platform options are registered as independent IOptions<T>
+		captured.ShouldNotBeNull();
+		using var provider = captured.BuildServiceProvider();
+		var azureOptions = provider.GetRequiredService<IOptions<AzureFunctionsOptions>>().Value;
+		azureOptions.EnableDurableFunctions.ShouldBeTrue();
 	}
 
 	#endregion
@@ -193,19 +209,26 @@ public sealed class ServerlessHostBuilderExtensionsShould : UnitTestBase
 	{
 		// Arrange
 		var hostBuilder = A.Fake<IHostBuilder>();
+		IServiceCollection? captured = null;
 		A.CallTo(() => hostBuilder.ConfigureServices(A<Action<HostBuilderContext, IServiceCollection>>._))
+			.Invokes((Action<HostBuilderContext, IServiceCollection> action) =>
+			{
+				captured ??= new ServiceCollection();
+				action(null!, captured);
+			})
 			.Returns(hostBuilder);
-		var googleConfigured = false;
 
 		// Act
 		_ = hostBuilder.UseGoogleCloudFunctions(options =>
 		{
 			options.MinInstances = 1;
-			googleConfigured = true;
 		});
 
-		// Assert
-		googleConfigured.ShouldBeTrue();
+		// Assert — platform options are registered as independent IOptions<T>
+		captured.ShouldNotBeNull();
+		using var provider = captured.BuildServiceProvider();
+		var googleOptions = provider.GetRequiredService<IOptions<GoogleCloudFunctionsOptions>>().Value;
+		googleOptions.MinInstances.ShouldBe(1);
 	}
 
 	#endregion

@@ -47,7 +47,6 @@ public sealed class AzureFunctionsHostProviderShould : UnitTestBase
 			EnableColdStartOptimization = true,
 			Telemetry = { EnableDistributedTracing = true, EnableMetrics = true },
 		};
-		options.AzureFunctions.EnableDurableFunctions = true;
 
 		_sut.ConfigureServices(services, options);
 

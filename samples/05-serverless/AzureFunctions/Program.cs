@@ -18,6 +18,7 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Hosting.Serverless;
 
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,12 +56,9 @@ var host = new HostBuilder()
 		_ = services.AddExcaliburAzureFunctionsServerless(opts =>
 		{
 			opts.EnableColdStartOptimization = true;
+			opts.PreferredPlatform = ServerlessPlatform.AzureFunctions;
 			opts.Telemetry.EnableDistributedTracing = true;
 			opts.Telemetry.EnableStructuredLogging = true;
-
-			// Azure Functions specific options
-			opts.AzureFunctions.HostingPlan = "Consumption";
-			opts.AzureFunctions.RuntimeVersion = "~4";
 		});
 	})
 	.Build();

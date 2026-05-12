@@ -15,13 +15,13 @@ namespace Excalibur.Tests.A3.Authorization.ServiceCollection;
 public sealed class AuthorizationServiceCollectionExtensionsShould
 {
 	[Fact]
-	public void AddDispatchAuthorization_RegistersRequiredServices()
+	public void AddExcaliburAuthorization_RegistersRequiredServices()
 	{
 		// Arrange
 		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
 
 		// Act
-		services.AddDispatchAuthorization();
+		services.AddExcaliburAuthorization();
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(IAuthorizationHandler));
@@ -31,27 +31,27 @@ public sealed class AuthorizationServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddDispatchAuthorization_ReturnsSameServiceCollection()
+	public void AddExcaliburAuthorization_ReturnsSameServiceCollection()
 	{
 		// Arrange
 		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
 
 		// Act
-		var result = services.AddDispatchAuthorization();
+		var result = services.AddExcaliburAuthorization();
 
 		// Assert
 		result.ShouldBeSameAs(services);
 	}
 
 	[Fact]
-	public void AddDispatchAuthorization_IsIdempotent()
+	public void AddExcaliburAuthorization_IsIdempotent()
 	{
 		// Arrange
 		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
 
 		// Act
-		services.AddDispatchAuthorization();
-		services.AddDispatchAuthorization();
+		services.AddExcaliburAuthorization();
+		services.AddExcaliburAuthorization();
 
 		// Assert — TryAddEnumerable and TryAddSingleton should prevent duplicates
 		var handlerCount = services.Count(sd => sd.ServiceType == typeof(IAuthorizationHandler));

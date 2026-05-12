@@ -31,7 +31,7 @@ public static class AdvancedSagaServiceCollectionExtensions
 	/// Use the <see cref="AdvancedSagaBuilder"/> returned by this method's overload
 	/// for advanced configuration including custom state stores and retry policies.
 	/// </remarks>
-	public static IServiceCollection AddDispatchAdvancedSagas(
+	public static IServiceCollection AddExcaliburAdvancedSagas(
 		this IServiceCollection services,
 		Action<AdvancedSagaOptions>? configure = null)
 	{
@@ -69,7 +69,7 @@ public static class AdvancedSagaServiceCollectionExtensions
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddDispatchAdvancedSagas(
+	public static IServiceCollection AddExcaliburAdvancedSagas(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
@@ -102,7 +102,7 @@ public static class AdvancedSagaServiceCollectionExtensions
 	/// Use this overload to configure custom state stores, retry policies,
 	/// and other advanced saga settings through the fluent builder.
 	/// </remarks>
-	public static IServiceCollection AddDispatchAdvancedSagas(
+	public static IServiceCollection AddExcaliburAdvancedSagas(
 		this IServiceCollection services,
 		Action<AdvancedSagaBuilder> configure)
 	{

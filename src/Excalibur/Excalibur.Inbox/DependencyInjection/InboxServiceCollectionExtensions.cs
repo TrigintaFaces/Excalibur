@@ -28,16 +28,16 @@ public static class InboxServiceCollectionExtensions
 	/// <example>
 	/// <code>
 	/// // SQL Server
-	/// services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString = connectionString));
+	/// services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 	///
 	/// // Postgres
-	/// services.AddExcaliburInbox(inbox => inbox.UsePostgres(pg => pg.ConnectionString = connectionString));
+	/// services.AddExcaliburInbox(inbox => inbox.UsePostgres(pg => pg.ConnectionString(connectionString)));
 	///
 	/// // In-Memory (for testing)
 	/// services.AddExcaliburInbox(inbox => inbox.UseInMemory());
 	///
 	/// // Redis
-	/// services.AddExcaliburInbox(inbox => inbox.UseRedis(options => options.ConnectionString = "localhost:6379"));
+	/// services.AddExcaliburInbox(inbox => inbox.UseRedis(redis => redis.ConnectionString("localhost:6379")));
 	/// </code>
 	/// </example>
 	public static IServiceCollection AddExcaliburInbox(

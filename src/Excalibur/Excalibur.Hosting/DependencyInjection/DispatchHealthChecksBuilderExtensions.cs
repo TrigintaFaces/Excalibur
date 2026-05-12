@@ -20,11 +20,11 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Example usage:
 /// <code>
 /// services.AddHealthChecks()
-///     .AddDispatchHealthChecks();
+///     .AddExcaliburHealthChecks();
 ///
 /// // Or with options to exclude specific checks:
 /// services.AddHealthChecks()
-///     .AddDispatchHealthChecks(options =&gt;
+///     .AddExcaliburHealthChecks(options =&gt;
 ///     {
 ///         options.IncludeLeaderElection = false;
 ///     });
@@ -54,7 +54,7 @@ public static class DispatchHealthChecksBuilderExtensions
 	/// <param name="configure">Optional action to configure which health checks to include.</param>
 	/// <returns>The health checks builder for chaining.</returns>
 	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover and invoke health check extension methods at runtime.")]
-	public static IHealthChecksBuilder AddDispatchHealthChecks(
+	public static IHealthChecksBuilder AddExcaliburHealthChecks(
 		this IHealthChecksBuilder builder,
 		Action<DispatchHealthCheckOptions>? configure = null)
 	{

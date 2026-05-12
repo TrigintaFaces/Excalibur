@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Hosting.Serverless;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -44,12 +45,9 @@ public static class Startup
 		_ = services.AddExcaliburAwsLambdaServerless(opts =>
 		{
 			opts.EnableColdStartOptimization = true;
+			opts.PreferredPlatform = ServerlessPlatform.AwsLambda;
 			opts.Telemetry.EnableDistributedTracing = true;
 			opts.Telemetry.EnableStructuredLogging = true;
-
-			// AWS Lambda specific options
-			opts.AwsLambda.Runtime = "dotnet8";
-			opts.AwsLambda.PackageType = "Zip";
 		});
 
 		return services.BuildServiceProvider();

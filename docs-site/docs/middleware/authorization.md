@@ -65,11 +65,11 @@ using Microsoft.Extensions.DependencyInjection;
 
 services.AddDispatch(builder =>
 {
-    builder.AddDispatchAuthorization();
+    builder.AddExcaliburAuthorization();
 });
 ```
 
-`AddDispatchAuthorization()` registers:
+`AddExcaliburAuthorization()` registers:
 - `GrantsAuthorizationHandler` — evaluates `GrantsAuthorizationRequirement` against grants
 - `IDispatchAuthorizationService` — orchestrates authorization checks
 - `AttributeAuthorizationCache` — caches `[RequirePermission]` attribute lookups

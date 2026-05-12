@@ -44,11 +44,11 @@ public static class SagasDispatchBuilderExtensions
 
 		if (configure != null)
 		{
-			_ = builder.Services.AddDispatchAdvancedSagas(configure);
+			_ = builder.Services.AddExcaliburAdvancedSagas(configure);
 		}
 		else
 		{
-			_ = builder.Services.AddDispatchAdvancedSagas();
+			_ = builder.Services.AddExcaliburAdvancedSagas();
 		}
 
 		// Add middleware to the pipeline
@@ -81,7 +81,7 @@ public static class SagasDispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		_ = builder.Services.AddDispatchAdvancedSagas(configureOptions);
+		_ = builder.Services.AddExcaliburAdvancedSagas(configureOptions);
 
 		// Add middleware to the pipeline
 		_ = builder.UseMiddleware<AdvancedSagaMiddleware>();
@@ -110,7 +110,7 @@ public static class SagasDispatchBuilderExtensions
 			.Bind(configuration)
 			.ValidateOnStart();
 
-		_ = builder.Services.AddDispatchAdvancedSagas();
+		_ = builder.Services.AddExcaliburAdvancedSagas();
 
 		// Add middleware to the pipeline
 		_ = builder.UseMiddleware<AdvancedSagaMiddleware>();

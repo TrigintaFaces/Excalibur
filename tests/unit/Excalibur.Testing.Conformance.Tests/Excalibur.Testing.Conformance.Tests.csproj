@@ -53,6 +53,9 @@
     <!-- S804 bd-sdhocq A13/A15 bridge MinimalWiring pins -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Caching\Excalibur.Caching.csproj" />
+    <!-- S822 bd-x10iv0 A2/A3/A4 bridge MinimalWiring pins -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
     <!-- Shared test infrastructure -->
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>

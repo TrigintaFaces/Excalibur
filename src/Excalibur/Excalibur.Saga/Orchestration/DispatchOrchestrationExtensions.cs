@@ -22,7 +22,7 @@ public static class DispatchOrchestrationExtensions
 	/// <param name="services"> The service collection to configure. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="services" /> is null. </exception>
-	public static IServiceCollection AddDispatchOrchestration(this IServiceCollection services)
+	public static IServiceCollection AddExcaliburOrchestration(this IServiceCollection services)
 	{
 		services.TryAddSingleton<InMemorySagaStore>();
 		services.AddKeyedSingleton<ISagaStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemorySagaStore>());

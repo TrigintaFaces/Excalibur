@@ -20,14 +20,14 @@ namespace Excalibur.Saga.Tests.DependencyInjection;
 [Trait("Component", "Saga")]
 public sealed class AdvancedSagaServiceCollectionExtensionsShould
 {
-	#region AddDispatchAdvancedSagas with Configure Action Tests
+	#region AddExcaliburAdvancedSagas with Configure Action Tests
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenServicesIsNull_ForConfigureOverload()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			AdvancedSagaServiceCollectionExtensions.AddDispatchAdvancedSagas(null!, (Action<AdvancedSagaOptions>)(opts => { })));
+			AdvancedSagaServiceCollectionExtensions.AddExcaliburAdvancedSagas(null!, (Action<AdvancedSagaOptions>)(opts => { })));
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		services.AddLogging();
 
 		// Act
-		services.AddDispatchAdvancedSagas();
+		services.AddExcaliburAdvancedSagas();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -55,7 +55,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		var customTimeout = TimeSpan.FromMinutes(15);
 
 		// Act
-		services.AddDispatchAdvancedSagas(opts =>
+		services.AddExcaliburAdvancedSagas(opts =>
 		{
 			opts.DefaultTimeout = customTimeout;
 		});
@@ -74,7 +74,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		services.AddLogging();
 
 		// Act
-		services.AddDispatchAdvancedSagas();
+		services.AddExcaliburAdvancedSagas();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -93,7 +93,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		services.AddSingleton(A.Fake<ISagaStateStore>());
 
 		// Act
-		services.AddDispatchAdvancedSagas();
+		services.AddExcaliburAdvancedSagas();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -109,7 +109,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddDispatchAdvancedSagas();
+		var result = services.AddExcaliburAdvancedSagas();
 
 		// Assert
 		result.ShouldBe(services);
@@ -125,7 +125,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		services.AddLogging();
 
 		// Act
-		services.AddDispatchAdvancedSagas();
+		services.AddExcaliburAdvancedSagas();
 		var provider = services.BuildServiceProvider();
 
 		// Assert - TryAddSingleton should not replace existing
@@ -135,14 +135,14 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 
 	#endregion
 
-	#region AddDispatchAdvancedSagas with Builder Tests
+	#region AddExcaliburAdvancedSagas with Builder Tests
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenServicesIsNull_ForBuilderOverload()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			AdvancedSagaServiceCollectionExtensions.AddDispatchAdvancedSagas(null!, (Action<AdvancedSagaBuilder>)(builder => { })));
+			AdvancedSagaServiceCollectionExtensions.AddExcaliburAdvancedSagas(null!, (Action<AdvancedSagaBuilder>)(builder => { })));
 	}
 
 	[Fact]
@@ -153,7 +153,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDispatchAdvancedSagas((Action<AdvancedSagaBuilder>)null!));
+			services.AddExcaliburAdvancedSagas((Action<AdvancedSagaBuilder>)null!));
 	}
 
 	[Fact]
@@ -165,7 +165,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		var builderInvoked = false;
 
 		// Act
-		services.AddDispatchAdvancedSagas((Action<AdvancedSagaBuilder>)(builder =>
+		services.AddExcaliburAdvancedSagas((Action<AdvancedSagaBuilder>)(builder =>
 		{
 			builderInvoked = true;
 		}));
@@ -185,7 +185,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		var customTimeout = TimeSpan.FromMinutes(20);
 
 		// Act
-		services.AddDispatchAdvancedSagas((Action<AdvancedSagaBuilder>)(builder =>
+		services.AddExcaliburAdvancedSagas((Action<AdvancedSagaBuilder>)(builder =>
 		{
 			builder.WithDefaultTimeout(customTimeout);
 		}));
@@ -206,7 +206,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		services.AddSingleton(A.Fake<ISagaStateStore>());
 
 		// Act
-		services.AddDispatchAdvancedSagas((Action<AdvancedSagaBuilder>)(builder =>
+		services.AddExcaliburAdvancedSagas((Action<AdvancedSagaBuilder>)(builder =>
 		{
 			builder
 				.WithDefaultTimeout(TimeSpan.FromMinutes(30))
@@ -242,7 +242,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		services.AddSingleton(A.Fake<ISagaStateStore>());
 
 		// Act
-		services.AddDispatchAdvancedSagas((Action<AdvancedSagaBuilder>)(builder => { }));
+		services.AddExcaliburAdvancedSagas((Action<AdvancedSagaBuilder>)(builder => { }));
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -262,7 +262,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddDispatchAdvancedSagas((Action<AdvancedSagaBuilder>)(builder => { }));
+		var result = services.AddExcaliburAdvancedSagas((Action<AdvancedSagaBuilder>)(builder => { }));
 
 		// Assert
 		result.ShouldBe(services);
@@ -276,7 +276,7 @@ public sealed class AdvancedSagaServiceCollectionExtensionsShould
 		IServiceCollection? capturedServices = null;
 
 		// Act
-		services.AddDispatchAdvancedSagas((Action<AdvancedSagaBuilder>)(builder =>
+		services.AddExcaliburAdvancedSagas((Action<AdvancedSagaBuilder>)(builder =>
 		{
 			capturedServices = builder.Services;
 		}));

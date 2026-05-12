@@ -175,7 +175,7 @@ It is generated from project files; licenses remain with their respective owners
 | Shouldly | 4.3.0 |
 | Snappier | 1.3.1 |
 | StackExchange.Redis | 2.12.14 |
-| Swashbuckle.AspNetCore.SwaggerGen | 6.8.0 |
+| Swashbuckle.AspNetCore.SwaggerGen | 10.1.7 |
 | System.Collections.Immutable | 9.0.9 |
 | System.CommandLine | 2.0.0-beta4.22272.1 |
 | System.Diagnostics.DiagnosticSource | 10.0.7 |

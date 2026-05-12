@@ -90,11 +90,12 @@ public static class ServerlessServiceCollectionExtensions
 		_ = services.AddServerlessHosting(options =>
 		{
 			options.PreferredPlatform = ServerlessPlatform.AwsLambda;
-			if (configureOptions != null)
-			{
-				configureOptions(options.AwsLambda);
-			}
 		});
+
+		if (configureOptions != null)
+		{
+			_ = services.Configure(configureOptions);
+		}
 
 		return services;
 	}
@@ -114,11 +115,12 @@ public static class ServerlessServiceCollectionExtensions
 		_ = services.AddServerlessHosting(options =>
 		{
 			options.PreferredPlatform = ServerlessPlatform.AzureFunctions;
-			if (configureOptions != null)
-			{
-				configureOptions(options.AzureFunctions);
-			}
 		});
+
+		if (configureOptions != null)
+		{
+			_ = services.Configure(configureOptions);
+		}
 
 		return services;
 	}
@@ -138,11 +140,12 @@ public static class ServerlessServiceCollectionExtensions
 		_ = services.AddServerlessHosting(options =>
 		{
 			options.PreferredPlatform = ServerlessPlatform.GoogleCloudFunctions;
-			if (configureOptions != null)
-			{
-				configureOptions(options.GoogleCloudFunctions);
-			}
 		});
+
+		if (configureOptions != null)
+		{
+			_ = services.Configure(configureOptions);
+		}
 
 		return services;
 	}

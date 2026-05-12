@@ -19,11 +19,11 @@ public static class OrchestrationDispatchBuilderExtensions
 	/// <param name="builder"> The dispatch builder to configure. </param>
 	/// <returns> The dispatch builder for method chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="builder" /> is null. </exception>
-	public static IDispatchBuilder AddDispatchOrchestration(this IDispatchBuilder builder)
+	public static IDispatchBuilder AddExcaliburOrchestration(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		_ = builder.Services.AddDispatchOrchestration();
+		_ = builder.Services.AddExcaliburOrchestration();
 
 		return builder;
 	}

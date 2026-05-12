@@ -14,16 +14,16 @@ namespace Excalibur.Tests.A3.Authorization;
 public sealed class DispatchBuilderExtensionsShould
 {
 	[Fact]
-	public void AddDispatchAuthorization_ThrowsOnNullBuilder()
+	public void AddExcaliburAuthorization_ThrowsOnNullBuilder()
 	{
 		IDispatchBuilder? builder = null;
 
 		Should.Throw<ArgumentNullException>(() =>
-			builder!.AddDispatchAuthorization());
+			builder!.AddExcaliburAuthorization());
 	}
 
 	[Fact]
-	public void AddDispatchAuthorization_ReturnsSameBuilder()
+	public void AddExcaliburAuthorization_ReturnsSameBuilder()
 	{
 		// Arrange
 		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
@@ -31,14 +31,14 @@ public sealed class DispatchBuilderExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		var result = builder.AddDispatchAuthorization();
+		var result = builder.AddExcaliburAuthorization();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void AddDispatchAuthorization_RegistersServicesViaBuilder()
+	public void AddExcaliburAuthorization_RegistersServicesViaBuilder()
 	{
 		// Arrange
 		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
@@ -46,7 +46,7 @@ public sealed class DispatchBuilderExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		builder.AddDispatchAuthorization();
+		builder.AddExcaliburAuthorization();
 
 		// Assert — services should be registered via the builder's Services
 		services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchAuthorizationService));

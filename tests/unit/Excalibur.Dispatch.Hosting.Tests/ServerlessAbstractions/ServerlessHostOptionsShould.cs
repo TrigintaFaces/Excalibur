@@ -38,18 +38,6 @@ public sealed class ServerlessHostOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void PlatformOptions_AreInitialized()
-	{
-		// Arrange & Act
-		var options = new ServerlessHostOptions();
-
-		// Assert
-		_ = options.AwsLambda.ShouldNotBeNull();
-		_ = options.AzureFunctions.ShouldNotBeNull();
-		_ = options.GoogleCloudFunctions.ShouldNotBeNull();
-	}
-
-	[Fact]
 	public void Telemetry_SubOptionsAreInitialized()
 	{
 		// Arrange & Act

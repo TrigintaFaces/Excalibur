@@ -113,10 +113,11 @@ public sealed class ServerlessServiceCollectionExtensionsShould : UnitTestBase
 
 		_ = services.AddAwsLambdaHosting(options => options.Runtime = "dotnet10");
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
+		var hostOptions = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
+		var awsOptions = provider.GetRequiredService<IOptions<AwsLambdaOptions>>().Value;
 
-		options.PreferredPlatform.ShouldBe(ServerlessPlatform.AwsLambda);
-		options.AwsLambda.Runtime.ShouldBe("dotnet10");
+		hostOptions.PreferredPlatform.ShouldBe(ServerlessPlatform.AwsLambda);
+		awsOptions.Runtime.ShouldBe("dotnet10");
 	}
 
 	#endregion
@@ -167,10 +168,11 @@ public sealed class ServerlessServiceCollectionExtensionsShould : UnitTestBase
 
 		_ = services.AddAzureFunctionsHosting(options => options.EnableDurableFunctions = true);
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
+		var hostOptions = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
+		var azureOptions = provider.GetRequiredService<IOptions<AzureFunctionsOptions>>().Value;
 
-		options.PreferredPlatform.ShouldBe(ServerlessPlatform.AzureFunctions);
-		options.AzureFunctions.EnableDurableFunctions.ShouldBeTrue();
+		hostOptions.PreferredPlatform.ShouldBe(ServerlessPlatform.AzureFunctions);
+		azureOptions.EnableDurableFunctions.ShouldBeTrue();
 	}
 
 	#endregion
@@ -221,10 +223,11 @@ public sealed class ServerlessServiceCollectionExtensionsShould : UnitTestBase
 
 		_ = services.AddGoogleCloudFunctionsHosting(options => options.MinInstances = 2);
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
+		var hostOptions = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
+		var googleOptions = provider.GetRequiredService<IOptions<GoogleCloudFunctionsOptions>>().Value;
 
-		options.PreferredPlatform.ShouldBe(ServerlessPlatform.GoogleCloudFunctions);
-		options.GoogleCloudFunctions.MinInstances.ShouldBe(2);
+		hostOptions.PreferredPlatform.ShouldBe(ServerlessPlatform.GoogleCloudFunctions);
+		googleOptions.MinInstances.ShouldBe(2);
 	}
 
 	#endregion

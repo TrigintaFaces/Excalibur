@@ -30,7 +30,7 @@ public sealed class SagaEventSourcingIntegrationShould
 		// Arrange & Act
 		var services = new ServiceCollection();
 		_ = services.AddLogging(b => b.AddProvider(NullLoggerProvider.Instance));
-		_ = services.AddDispatchOrchestration();
+		_ = services.AddExcaliburOrchestration();
 		var provider = services.BuildServiceProvider();
 
 		// Assert -- ISagaStore resolves via keyed service to InMemorySagaStore
@@ -160,8 +160,8 @@ public sealed class SagaEventSourcingIntegrationShould
 		var services = new ServiceCollection();
 		_ = services.AddDispatch();
 		_ = services.AddLogging(b => b.AddProvider(NullLoggerProvider.Instance));
-		_ = services.AddDispatchOrchestration();
-		_ = services.AddDispatchAdvancedSagas();
+		_ = services.AddExcaliburOrchestration();
+		_ = services.AddExcaliburAdvancedSagas();
 
 		// Act
 		var provider = services.BuildServiceProvider();

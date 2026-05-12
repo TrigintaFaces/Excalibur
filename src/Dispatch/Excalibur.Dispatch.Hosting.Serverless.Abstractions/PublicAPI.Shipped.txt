@@ -92,17 +92,11 @@ Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.ServerlessContextBas
 Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.ThrowIfDisposed() -> void
 Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions
-Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.AwsLambda.get -> Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions!
-Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.AwsLambda.set -> void
-Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.AzureFunctions.get -> Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions!
-Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.AzureFunctions.set -> void
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.EnableColdStartOptimization.get -> bool
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.EnableColdStartOptimization.set -> void
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.EnvironmentVariables.get -> System.Collections.Generic.IDictionary<string!, string!>!
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.ExecutionTimeout.get -> System.TimeSpan?
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.ExecutionTimeout.set -> void
-Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.GoogleCloudFunctions.get -> Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions!
-Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.GoogleCloudFunctions.set -> void
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.MemoryLimitMB.get -> int?
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.MemoryLimitMB.set -> void
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.PreferredPlatform.get -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform?

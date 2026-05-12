@@ -392,7 +392,7 @@ static Excalibur.A3.ActivityContextExtensions.UserId(this Excalibur.Domain.IActi
 static Excalibur.A3.Authorization.AuthorizationCacheKey.ForActivityGroups() -> string!
 static Excalibur.A3.Authorization.AuthorizationCacheKey.ForGrants(string! userId) -> string!
 static Excalibur.A3.Authorization.AuthorizationPolicyExtensions.IsAuthorized(this Excalibur.A3.Authorization.IAuthorizationPolicy! policy, string! activityName) -> bool
-static Excalibur.A3.Authorization.DispatchBuilderExtensions.AddDispatchAuthorization(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.A3.Authorization.DispatchBuilderExtensions.AddExcaliburAuthorization(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.A3.Exceptions.NotAuthenticatedException.BecauseMissingClaim(string! claim) -> Excalibur.A3.Exceptions.NotAuthenticatedException!
 static Excalibur.A3.Exceptions.NotAuthenticatedException.ThrowIf(bool condition, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 static Excalibur.A3.Exceptions.NotAuthorizedException.Because(Excalibur.A3.Authentication.IAuthenticationToken! user, string! message, System.Exception? exception = null) -> Excalibur.A3.Exceptions.NotAuthorizedException!
@@ -401,7 +401,7 @@ static Excalibur.A3.Exceptions.NotAuthorizedException.BecauseNotAuthenticated(Sy
 static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddA3DispatchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddExcaliburA3(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.AuditExcaliburBuilderExtensions.AddAudit(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
-static Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions.AddDispatchAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions.AddExcaliburAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.A3.Authentication.AuthClaims.Email -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.FamilyName -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.GivenName -> string!

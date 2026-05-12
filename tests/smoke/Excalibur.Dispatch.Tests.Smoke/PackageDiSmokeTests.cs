@@ -410,7 +410,7 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Saga [Reminders]", s => s.AddSagaReminders());
 		yield return Reg("Excalibur.Saga [Snapshots]", s => s.AddSagaSnapshots());
 		yield return Reg("Excalibur.Saga [TimeoutCleanup]", s => s.AddSagaTimeoutCleanup());
-		yield return Reg("Excalibur.Saga [Orchestration]", s => s.AddDispatchOrchestration());
+		yield return Reg("Excalibur.Saga [Orchestration]", s => s.AddExcaliburOrchestration());
 		yield return Reg("Excalibur.Saga.SqlServer", s =>
 			s.AddSqlServerSagaStore(sql => { sql.ConnectionString = MockConnectionString; }));
 
@@ -420,7 +420,7 @@ public sealed class PackageDiSmokeTests
 
 		yield return Reg("Excalibur.A3", s => s.AddExcaliburA3());
 		yield return Reg("Excalibur.A3 [DispatchServices]", s => s.AddA3DispatchServices());
-		yield return Reg("Excalibur.A3 [Authorization]", s => s.AddDispatchAuthorization());
+		yield return Reg("Excalibur.A3 [Authorization]", s => s.AddExcaliburAuthorization());
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR APPLICATION

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Hosting.Serverless;
 
 using Google.Cloud.Functions.Hosting;
 
@@ -41,12 +42,9 @@ public class Startup : FunctionsStartup
 		_ = services.AddExcaliburGoogleCloudFunctionsServerless(opts =>
 		{
 			opts.EnableColdStartOptimization = true;
+			opts.PreferredPlatform = ServerlessPlatform.GoogleCloudFunctions;
 			opts.Telemetry.EnableDistributedTracing = true;
 			opts.Telemetry.EnableStructuredLogging = true;
-
-			// Google Cloud Functions specific options
-			opts.GoogleCloudFunctions.Runtime = "dotnet8";
-			opts.GoogleCloudFunctions.IngressSettings = "ALLOW_ALL";
 		});
 	}
 }

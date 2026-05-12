@@ -231,12 +231,12 @@ Excalibur.Data.ElasticSearch.IndexManagement.ColdPhaseConfiguration.Priority.get
 Excalibur.Data.ElasticSearch.IndexManagement.ColdPhaseConfiguration.Priority.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration
 Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.ComponentTemplateConfiguration() -> void
-Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.Mappings.get -> Elastic.Clients.Elasticsearch.Mapping.TypeMapping?
-Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.Mappings.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.MappingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.MappingsJson.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.Metadata.get -> System.Collections.Generic.Dictionary<string!, object?>?
 Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.Metadata.init -> void
-Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.Template.get -> Elastic.Clients.Elasticsearch.IndexManagement.IndexSettings?
-Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.Template.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.SettingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.SettingsJson.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.Version.get -> long?
 Excalibur.Data.ElasticSearch.IndexManagement.ComponentTemplateConfiguration.Version.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.DataStreamConfiguration
@@ -425,14 +425,14 @@ Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.DataStre
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.IndexPatterns.get -> System.Collections.Generic.IEnumerable<string!>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.IndexPatterns.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.IndexTemplateConfiguration() -> void
-Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Mappings.get -> Elastic.Clients.Elasticsearch.Mapping.TypeMapping?
-Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Mappings.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.MappingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.MappingsJson.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Metadata.get -> System.Collections.Generic.Dictionary<string!, object?>?
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Metadata.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Priority.get -> int
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Priority.init -> void
-Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Template.get -> Elastic.Clients.Elasticsearch.IndexManagement.IndexSettings?
-Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Template.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.SettingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.SettingsJson.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Version.get -> long?
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration.Version.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateDescriptor

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Elastic.Clients.Elasticsearch.IndexManagement;
+using System.Text.Json;
 using Excalibur.Data.ElasticSearch.IndexManagement;
 
 namespace Excalibur.Data.Tests.ElasticSearch.IndexManagement;
@@ -31,23 +31,23 @@ public sealed class ComponentTemplateConfigurationShould
 	}
 
 	[Fact]
-	public void Template_DefaultsToNull()
+	public void SettingsJson_DefaultsToNull()
 	{
 		// Arrange & Act
 		var config = new ComponentTemplateConfiguration();
 
 		// Assert
-		config.Template.ShouldBeNull();
+		config.SettingsJson.ShouldBeNull();
 	}
 
 	[Fact]
-	public void Mappings_DefaultsToNull()
+	public void MappingsJson_DefaultsToNull()
 	{
 		// Arrange & Act
 		var config = new ComponentTemplateConfiguration();
 
 		// Assert
-		config.Mappings.ShouldBeNull();
+		config.MappingsJson.ShouldBeNull();
 	}
 
 	[Fact]
@@ -78,15 +78,15 @@ public sealed class ComponentTemplateConfigurationShould
 		var config = new ComponentTemplateConfiguration
 		{
 			Version = 1,
-			Template = new IndexSettings(),
-			Mappings = new Elastic.Clients.Elasticsearch.Mapping.TypeMapping(),
+			SettingsJson = JsonSerializer.SerializeToElement(new { number_of_shards = 1 }),
+			MappingsJson = JsonSerializer.SerializeToElement(new { properties = new { title = new { type = "text" } } }),
 			Metadata = metadata
 		};
 
 		// Assert
 		config.Version.ShouldBe(1);
-		config.Template.ShouldNotBeNull();
-		config.Mappings.ShouldNotBeNull();
+		config.SettingsJson.ShouldNotBeNull();
+		config.MappingsJson.ShouldNotBeNull();
 		config.Metadata.ShouldNotBeNull();
 		config.Metadata.Count.ShouldBe(2);
 	}
@@ -184,8 +184,8 @@ public sealed class ComponentTemplateConfigurationShould
 
 		// Assert
 		config.Version.ShouldBeNull();
-		config.Template.ShouldBeNull();
-		config.Mappings.ShouldBeNull();
+		config.SettingsJson.ShouldBeNull();
+		config.MappingsJson.ShouldBeNull();
 		config.Metadata.ShouldBeNull();
 	}
 

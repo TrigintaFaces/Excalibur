@@ -12,11 +12,11 @@ namespace Excalibur.Data.ElasticSearch.IndexManagement;
 /// </summary>
 /// <remarks>
 /// This descriptor intentionally does not expose the template's mappings or
-/// settings. Those are SDK-typed shapes (<c>TypeMapping</c>,
-/// <c>IndexSettings</c>) and are carried on <see cref="IndexTemplateConfiguration"/>
-/// on the write path. If a future consumer needs to inspect the mapping/settings
-/// payload on read, prefer adding opaque JSON strings here (serialized via the
-/// SDK) rather than re-exposing SDK types.
+/// settings. Those are opaque JSON payloads on <see cref="IndexTemplateConfiguration"/>
+/// (<see cref="IndexTemplateConfiguration.SettingsJson"/>,
+/// <see cref="IndexTemplateConfiguration.MappingsJson"/>) on the write path.
+/// If a future consumer needs to inspect the mapping/settings payload on read,
+/// prefer adding opaque JSON strings here rather than re-exposing SDK types.
 /// </remarks>
 public sealed record IndexTemplateDescriptor
 {

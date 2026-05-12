@@ -128,7 +128,7 @@ public static class SagaServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// This is the recommended entry point for configuring all saga services.
-	/// It replaces multiple separate <c>AddDispatchAdvancedSagas</c>,
+	/// It replaces multiple separate <c>AddExcaliburAdvancedSagas</c>,
 	/// <c>AddSagaTimeoutDelivery</c>, and <c>AddSagaInstrumentation</c> calls
 	/// with a single, discoverable builder pattern.
 	/// </para>

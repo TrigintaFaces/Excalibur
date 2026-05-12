@@ -148,11 +148,8 @@ static async Task DemoIndexTemplatesAsync(IServiceProvider services, Cancellatio
             IndexPatterns = ["logs-*"],
             Priority = 200,
             Version = 1,
-            Template = new IndexSettings
-            {
-                NumberOfShards = 2,
-                NumberOfReplicas = 1,
-            },
+            SettingsJson = System.Text.Json.JsonSerializer.SerializeToElement(
+                new { number_of_shards = 2, number_of_replicas = 1 }),
             Metadata = new Dictionary<string, object?>
             {
                 ["managed-by"] = "excalibur",

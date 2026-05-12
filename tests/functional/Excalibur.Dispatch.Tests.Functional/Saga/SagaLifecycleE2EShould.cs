@@ -311,7 +311,7 @@ public sealed class SagaLifecycleE2EShould : FunctionalTestBase
 		// Core dispatch + saga orchestration
 		services.AddDispatchPipeline();
 		services.AddDispatchHandlers(typeof(SagaLifecycleE2EShould).Assembly);
-		services.AddDispatchOrchestration();
+		services.AddExcaliburOrchestration();
 
 		// Bridge keyed ISagaStore to non-keyed for SagaCoordinator constructor
 		services.AddSingleton<ISagaStore>(static sp =>

@@ -18,14 +18,14 @@ namespace Excalibur.Saga.Tests.Orchestration;
 [Trait("Component", "Saga")]
 public sealed class OrchestrationDispatchBuilderExtensionsShould
 {
-	#region AddDispatchOrchestration Tests
+	#region AddExcaliburOrchestration Tests
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenBuilderIsNull()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			OrchestrationDispatchBuilderExtensions.AddDispatchOrchestration(null!));
+			OrchestrationDispatchBuilderExtensions.AddExcaliburOrchestration(null!));
 	}
 
 	[Fact]
@@ -37,7 +37,7 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		var result = builder.AddDispatchOrchestration();
+		var result = builder.AddExcaliburOrchestration();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -52,7 +52,7 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		builder.AddDispatchOrchestration();
+		builder.AddExcaliburOrchestration();
 
 		// Assert - verify keyed ISagaStore registration exists
 		var descriptor = services.FirstOrDefault(d =>
@@ -74,7 +74,7 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		builder.AddDispatchOrchestration();
+		builder.AddExcaliburOrchestration();
 
 		// Assert - verify registration exists
 		var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ISagaCoordinator));
@@ -91,7 +91,7 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		builder.AddDispatchOrchestration();
+		builder.AddExcaliburOrchestration();
 
 		// Assert - verify the middleware is registered
 		var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDispatchMiddleware));
@@ -100,7 +100,7 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 	}
 
 	[Fact]
-	public void CallServicesAddDispatchOrchestration()
+	public void CallServicesAddExcaliburOrchestration()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -108,7 +108,7 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		builder.AddDispatchOrchestration();
+		builder.AddExcaliburOrchestration();
 
 		// Assert - verify services were accessed
 		A.CallTo(() => builder.Services).MustHaveHappened();
@@ -125,8 +125,8 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 		// Act & Assert - should not throw
 		Should.NotThrow(() =>
 		{
-			builder.AddDispatchOrchestration();
-			builder.AddDispatchOrchestration();
+			builder.AddExcaliburOrchestration();
+			builder.AddExcaliburOrchestration();
 		});
 	}
 

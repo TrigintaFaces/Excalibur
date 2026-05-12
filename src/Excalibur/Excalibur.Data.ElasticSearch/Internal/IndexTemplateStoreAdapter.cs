@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.Mapping;
@@ -48,8 +51,8 @@ internal sealed class IndexTemplateStoreAdapter : IIndexTemplateStore
 			Version = template.Version,
 			Template = new IndexTemplateMapping
 			{
-				Settings = template.Template,
-				Mappings = template.Mappings,
+				Settings = DeserializeOrNull<IndexSettings>(template.SettingsJson),
+				Mappings = DeserializeOrNull<TypeMapping>(template.MappingsJson),
 			},
 			ComposedOf = template.ComposedOf?.Select(static x => (Name)x).ToList(),
 			Meta = template.Metadata?.ToDictionary(static k => k.Key, static k => k.Value!),
@@ -120,6 +123,11 @@ internal sealed class IndexTemplateStoreAdapter : IIndexTemplateStore
 
 		return result;
 	}
+
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Elastic SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Elastic SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	private static T? DeserializeOrNull<T>(JsonElement? element) where T : class =>
+		element.HasValue ? JsonSerializer.Deserialize<T>(element.Value) : null;
 
 	private static FrameworkIndexTemplateDescriptor Project(IndexTemplateItem item)
 	{

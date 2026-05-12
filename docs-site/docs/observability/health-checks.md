@@ -316,16 +316,16 @@ app.MapHealthChecks("/health/detailed", new HealthCheckOptions
 
 ## Aggregated Health Checks
 
-Instead of registering individual health checks one by one, use `AddDispatchHealthChecks()` to register all available checks in a single call. The extension conditionally registers only the checks whose prerequisite services are present in the DI container.
+Instead of registering individual health checks one by one, use `AddExcaliburHealthChecks()` to register all available checks in a single call. The extension conditionally registers only the checks whose prerequisite services are present in the DI container.
 
-### AddDispatchHealthChecks()
+### AddExcaliburHealthChecks()
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
 // Register all available Dispatch health checks
 builder.Services.AddHealthChecks()
-    .AddDispatchHealthChecks();
+    .AddExcaliburHealthChecks();
 ```
 
 To exclude specific checks, pass a configuration action:
@@ -335,7 +335,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 // Register all except leader election
 builder.Services.AddHealthChecks()
-    .AddDispatchHealthChecks(options =>
+    .AddExcaliburHealthChecks(options =>
     {
         options.IncludeLeaderElection = false;
     });
@@ -352,12 +352,12 @@ builder.Services.AddHealthChecks()
 
 ### Conditional Registration
 
-`AddDispatchHealthChecks()` scans the `IServiceCollection` for prerequisite service registrations. A health check is added only when **both** conditions are met:
+`AddExcaliburHealthChecks()` scans the `IServiceCollection` for prerequisite service registrations. A health check is added only when **both** conditions are met:
 
 1. The corresponding `DispatchHealthCheckOptions` flag is `true` (all default to `true`).
 2. The prerequisite service type is registered in the DI container.
 
-This means you can safely call `AddDispatchHealthChecks()` in every application. Services that are not registered are silently skipped:
+This means you can safely call `AddExcaliburHealthChecks()` in every application. Services that are not registered are silently skipped:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -366,18 +366,18 @@ using Microsoft.Extensions.DependencyInjection;
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(options => { /* ... */ }));
 
 builder.Services.AddHealthChecks()
-    .AddDispatchHealthChecks(); // Only adds outbox check
+    .AddExcaliburHealthChecks(); // Only adds outbox check
 ```
 
 ### Combining with Custom Health Checks
 
-`AddDispatchHealthChecks()` returns `IHealthChecksBuilder`, so you can chain it with additional checks:
+`AddExcaliburHealthChecks()` returns `IHealthChecksBuilder`, so you can chain it with additional checks:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
 builder.Services.AddHealthChecks()
-    .AddDispatchHealthChecks()
+    .AddExcaliburHealthChecks()
     .AddSqlServer(connectionString, name: "sql-server", tags: new[] { "db" })
     .AddRedis(redisConnectionString, name: "redis", tags: new[] { "cache" })
     .AddCheck("self", () => HealthCheckResult.Healthy());
@@ -450,7 +450,7 @@ spec:
 using Microsoft.Extensions.DependencyInjection;
 
 builder.Services.AddHealthChecks()
-    .AddDispatchHealthChecks()
+    .AddExcaliburHealthChecks()
     .AddSqlServer(connectionString, tags: new[] { "ready" })
     .AddRedis(redisConnectionString, tags: new[] { "ready" });
 
@@ -877,7 +877,7 @@ Health check results feed into:
 
 1. Implement basic `/health` endpoint
 2. Add component-specific health checks (dispatcher, event store, outbox)
-3. Use `AddDispatchHealthChecks()` for one-line aggregated registration
+3. Use `AddExcaliburHealthChecks()` for one-line aggregated registration
 4. Configure Kubernetes probes (liveness, readiness, startup)
 5. Add detailed health check UI for development
 6. Integrate with monitoring platforms (Grafana, Datadog, Azure Monitor)

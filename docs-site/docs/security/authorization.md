@@ -102,7 +102,7 @@ services.AddExcaliburA3()
     .UseActivityGroupStore<MyActivityGroupStore>();
 ```
 
-The builder also registers Dispatch pipeline integration (`AddDispatchAuthorization()`) automatically.
+The builder also registers Dispatch pipeline integration (`AddExcaliburAuthorization()`) automatically.
 
 :::tip Single-Tenant Applications
 You do **not** need to configure a tenant to use A3. When you call `AddExcaliburA3()`, it automatically registers `ITenantId` with the default value `"Default"` (via `TenantDefaults.DefaultTenantId`). All tenant-scoped features — grants, authorization policies, audit logging — work transparently.

@@ -7,7 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **ServerlessHostOptions ISP split** -- Removed nested `AwsLambda`, `AzureFunctions`, `GoogleCloudFunctions` properties from `ServerlessHostOptions`. Per-platform options now registered independently via `IOptions<AwsLambdaOptions>`, `IOptions<AzureFunctionsOptions>`, `IOptions<GoogleCloudFunctionsOptions>` when calling `AddAwsLambdaHosting()`/`AddAzureFunctionsHosting()`/`AddGoogleCloudFunctionsHosting()`. `ServerlessHostOptions` retains only 6 shared cross-cutting properties. **Breaking change** for consumers accessing nested platform properties.
+- **DI naming convention doc fix** -- Removed stale "Known Violations" table and `[Obsolete]` references from `docs/architecture/di-naming-convention.md` (S822 ORACLE F6 closure).
+
 ### Added
+
+- **NServiceBus feature-parity evaluation** -- Comprehensive 10-dimension comparison at `management/research/nservicebus-feature-parity-evaluation.md`. Result: parity or superiority across all dimensions. 1 MEDIUM gap (saga timeouts) tracked as bd-k4urle.
+
+### Added
+
+- **MinimalWiring bridge conformance tests** -- A2/A3/A4 bridge shapes (ElasticSearchProjections, DataProcessing, CDC) with bucket classification and isolation/idempotence gates.
+- **Security namespace-vs-folder policy doc** -- `docs/architecture/security-namespace-policy.md` documenting when Excalibur.Security folders get sub-namespaces.
+- **Builder method naming convention doc** -- `docs/architecture/builder-pattern-convention.md` canonical 4-method connection pattern (ConnectionString, ConnectionStringName, ConnectionFactory, BindConfiguration).
+- **Public helper audit** -- `management/audits/s822-public-helper-audit.md` evaluating A2/A3/A4 retained-public class helpers against Required Public API Checklist.
+
+### Changed
+
+- **A3 DI three-pillar naming** -- `AddDispatchAuthorization` → `AddExcaliburAuthorization`, `AddDispatchAdvancedSagas` → `AddExcaliburAdvancedSagas`, `AddDispatchOrchestration` → `AddExcaliburOrchestration`, `AddDispatchHealthChecks` → `AddExcaliburHealthChecks`. Direct renames, no `[Obsolete]` shims. **Breaking change** for consumers calling old method names.
+- **Elastic IndexTemplate SDK-type hide** -- `IndexTemplateConfiguration.Template` (`IndexSettings`) and `Mappings` (`TypeMapping`) replaced with opaque `SettingsJson` and `MappingsJson` (`JsonElement?`). Same for `ComponentTemplateConfiguration`. SDK types confined to `Internal/` adapter layer. **Breaking change** for consumers directly setting `Template`/`Mappings` properties.
+
+### Added
+
+- **SmartEnum\<T\> DDD building block** -- Type-safe enumeration base class in `Excalibur.Domain.Model` with `FromId()`, `FromName()`, `TryFromId()`, `TryFromName()`, `GetAll()`. Supports case-insensitive name lookup, equality by ID, and error messages listing valid values. Replaces raw enums for constrained value sets (OrderStatus, PaymentMethod, etc.).
+- **CDC DI forwarding registrations** -- All 7 CDC providers now register forwarding DI entries so consumers can resolve processors via base interfaces (`ICdcProcessor<T>`, `ICdcStreamProcessor<T,TPos>`) in addition to provider-specific marker interfaces.
+- **SDK seam interfaces** -- `IStorageClientSeam` (GCP), `IServiceBusSenderSeam`/`IServiceBusReceiverSeam`/`IServiceBusProcessorSeam` (Azure ServiceBus), `IPublisherClientSeam`/`ISubscriberClientSeam` (GCP PubSub), `IArmClientSeam` (Azure ARM). Internal adapter pattern replaces concrete SDK fakes in tests with proper seams. SDK governance fakes reduced from 11 to 4.
+- **DataProcessing assembly scanners** -- `AddProcessorsFromAssembly` and `AddRecordHandlersFromAssembly` on `IDataProcessingBuilder`. AOT-annotated; explicit registration alternatives available.
+
+### Changed
+
+- **ExcaliburHeaderNames + Cultures moved** -- Moved from `Excalibur.Domain` to `Excalibur.Application`. These are HTTP infrastructure concerns, not domain model types. Consumer `using` statements must update. A3 consumers use type aliases to avoid namespace collision with `ApplicationContext`.
+- **Swashbuckle 6→10 migration** -- `SwaggerGenOptionsExtensions` updated for Microsoft.OpenApi v2 API (`OpenApiSchema` constructor changes). Package reference updated in `Directory.Packages.props`.
+- **CdcJobQuartz sample composition** -- Consolidated 3 separate registration calls (1×`AddDispatch` + 2×`AddExcalibur`) into single `AddExcalibur` root with `ScanAssemblies()`, `AddJobs()`, `AddEventSourcing()` chained.
 
 - **CDC ISP two-tier hierarchy** -- New `ICdcProcessor<TEvent>` (batch, 1 method) and `ICdcStreamProcessor<TEvent, TPosition>` (streaming, 3 methods) base interfaces in `Excalibur.Cdc`. All 7 CDC providers (CosmosDB, MongoDB, Postgres, DynamoDB, Firestore, SqlServer, InMemory) converted to marker interfaces inheriting the appropriate base. Compile-time safety: injecting a poll-only provider where streaming is required now fails at compile time. **Breaking change** -- provider interfaces no longer declare methods directly; consumers must code against the base interfaces or the provider marker.
 - **DelegatingPersistenceProvider** -- Abstract decorator base class following Microsoft `DelegatingHandler` pattern. All methods virtual, forwarding to `Inner`. Paired with `PersistenceProviderBuilder` (sealed, `ChatClientBuilder` pattern) for fluent `Use()` + `Build()` composition.

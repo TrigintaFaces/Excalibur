@@ -104,12 +104,22 @@ public static class ServerlessHostBuilderExtensions
 	/// <returns> The host builder for chaining. </returns>
 	public static IHostBuilder UseAwsLambda(
 		this IHostBuilder hostBuilder,
-		Action<AwsLambdaOptions>? configureOptions = null) =>
-		hostBuilder.UseServerlessHosting(options =>
+		Action<AwsLambdaOptions>? configureOptions = null)
+	{
+		ArgumentNullException.ThrowIfNull(hostBuilder);
+
+		_ = hostBuilder.UseServerlessHosting(options =>
 		{
 			options.PreferredPlatform = ServerlessPlatform.AwsLambda;
-			configureOptions?.Invoke(options.AwsLambda);
 		});
+
+		if (configureOptions != null)
+		{
+			_ = hostBuilder.ConfigureServices((_, services) => services.Configure(configureOptions));
+		}
+
+		return hostBuilder;
+	}
 
 	/// <summary>
 	/// Configures the host builder specifically for Azure Functions.
@@ -119,12 +129,22 @@ public static class ServerlessHostBuilderExtensions
 	/// <returns> The host builder for chaining. </returns>
 	public static IHostBuilder UseAzureFunctions(
 		this IHostBuilder hostBuilder,
-		Action<AzureFunctionsOptions>? configureOptions = null) =>
-		hostBuilder.UseServerlessHosting(options =>
+		Action<AzureFunctionsOptions>? configureOptions = null)
+	{
+		ArgumentNullException.ThrowIfNull(hostBuilder);
+
+		_ = hostBuilder.UseServerlessHosting(options =>
 		{
 			options.PreferredPlatform = ServerlessPlatform.AzureFunctions;
-			configureOptions?.Invoke(options.AzureFunctions);
 		});
+
+		if (configureOptions != null)
+		{
+			_ = hostBuilder.ConfigureServices((_, services) => services.Configure(configureOptions));
+		}
+
+		return hostBuilder;
+	}
 
 	/// <summary>
 	/// Configures the host builder specifically for Google Cloud Functions.
@@ -134,10 +154,20 @@ public static class ServerlessHostBuilderExtensions
 	/// <returns> The host builder for chaining. </returns>
 	public static IHostBuilder UseGoogleCloudFunctions(
 		this IHostBuilder hostBuilder,
-		Action<GoogleCloudFunctionsOptions>? configureOptions = null) =>
-		hostBuilder.UseServerlessHosting(options =>
+		Action<GoogleCloudFunctionsOptions>? configureOptions = null)
+	{
+		ArgumentNullException.ThrowIfNull(hostBuilder);
+
+		_ = hostBuilder.UseServerlessHosting(options =>
 		{
 			options.PreferredPlatform = ServerlessPlatform.GoogleCloudFunctions;
-			configureOptions?.Invoke(options.GoogleCloudFunctions);
 		});
+
+		if (configureOptions != null)
+		{
+			_ = hostBuilder.ConfigureServices((_, services) => services.Configure(configureOptions));
+		}
+
+		return hostBuilder;
+	}
 }

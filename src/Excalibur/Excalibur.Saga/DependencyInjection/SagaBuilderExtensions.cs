@@ -23,7 +23,7 @@ public static class SagaBuilderExtensions
 	/// <param name="configure">Optional action to configure advanced saga options.</param>
 	/// <returns>The saga builder for chaining.</returns>
 	/// <remarks>
-	/// This is equivalent to calling <see cref="AdvancedSagaServiceCollectionExtensions.AddDispatchAdvancedSagas(IServiceCollection, Action{AdvancedSagaOptions}?)"/>
+	/// This is equivalent to calling <see cref="AdvancedSagaServiceCollectionExtensions.AddExcaliburAdvancedSagas(IServiceCollection, Action{AdvancedSagaOptions}?)"/>
 	/// but integrated into the builder pattern for discoverability.
 	/// </remarks>
 	public static ISagaBuilder WithOrchestration(
@@ -32,7 +32,7 @@ public static class SagaBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		_ = builder.Services.AddDispatchAdvancedSagas(configure);
+		_ = builder.Services.AddExcaliburAdvancedSagas(configure);
 
 		return builder;
 	}
@@ -50,7 +50,7 @@ public static class SagaBuilderExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.AddDispatchAdvancedSagas(configure);
+		_ = builder.Services.AddExcaliburAdvancedSagas(configure);
 
 		return builder;
 	}
@@ -63,7 +63,7 @@ public static class SagaBuilderExtensions
 	/// <returns>The saga builder for chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// This is equivalent to calling <see cref="DispatchOrchestrationExtensions.AddDispatchOrchestration"/>
+	/// This is equivalent to calling <see cref="DispatchOrchestrationExtensions.AddExcaliburOrchestration"/>
 	/// but integrated into the builder pattern for discoverability.
 	/// </para>
 	/// <para>
@@ -76,7 +76,7 @@ public static class SagaBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		_ = builder.Services.AddDispatchOrchestration();
+		_ = builder.Services.AddExcaliburOrchestration();
 
 		return builder;
 	}

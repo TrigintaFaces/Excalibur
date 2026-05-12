@@ -71,22 +71,4 @@ public sealed class ServerlessHostOptions
 	/// </summary>
 	/// <value>The custom environment variables.</value>
 	public IDictionary<string, string> EnvironmentVariables { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
-
-	/// <summary>
-	/// Gets or sets AWS Lambda specific options.
-	/// </summary>
-	/// <value>The AWS Lambda specific options.</value>
-	public AwsLambdaOptions AwsLambda { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets Azure Functions specific options.
-	/// </summary>
-	/// <value>The Azure Functions specific options.</value>
-	public AzureFunctionsOptions AzureFunctions { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets Google Cloud Functions specific options.
-	/// </summary>
-	/// <value>The Google Cloud Functions specific options.</value>
-	public GoogleCloudFunctionsOptions GoogleCloudFunctions { get; set; } = new();
 }

@@ -17,7 +17,7 @@ namespace Excalibur.Saga.Tests.Orchestration;
 [Trait("Component", "Saga")]
 public sealed class DispatchOrchestrationExtensionsShould
 {
-	#region AddDispatchOrchestration Tests
+	#region AddExcaliburOrchestration Tests
 
 	[Fact]
 	public void ReturnServiceCollection_ForChaining()
@@ -26,7 +26,7 @@ public sealed class DispatchOrchestrationExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddDispatchOrchestration();
+		var result = services.AddExcaliburOrchestration();
 
 		// Assert
 		result.ShouldBeSameAs(services);
@@ -39,7 +39,7 @@ public sealed class DispatchOrchestrationExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDispatchOrchestration();
+		services.AddExcaliburOrchestration();
 
 		// Assert - verify keyed registration exists for ISagaStore
 		var descriptor = services.FirstOrDefault(d =>
@@ -59,7 +59,7 @@ public sealed class DispatchOrchestrationExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDispatchOrchestration();
+		services.AddExcaliburOrchestration();
 
 		// Assert - verify registration exists
 		var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ISagaCoordinator));
@@ -75,7 +75,7 @@ public sealed class DispatchOrchestrationExtensionsShould
 		services.AddLogging();
 
 		// Act
-		services.AddDispatchOrchestration();
+		services.AddExcaliburOrchestration();
 
 		// Assert - verify the middleware is registered in the service collection
 		var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDispatchMiddleware));
@@ -90,7 +90,7 @@ public sealed class DispatchOrchestrationExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDispatchOrchestration();
+		services.AddExcaliburOrchestration();
 
 		// Assert - verify singleton lifetime for keyed ISagaStore
 		var storeDescriptor = services.FirstOrDefault(d =>
@@ -113,7 +113,7 @@ public sealed class DispatchOrchestrationExtensionsShould
 		services.AddKeyedSingleton<ISagaStore>("default", fakeSagaStore);
 
 		// Act
-		services.AddDispatchOrchestration();
+		services.AddExcaliburOrchestration();
 
 		// Assert - the "default" keyed registration should still be the original fake
 		var defaultDescriptors = services.Where(d =>
@@ -133,7 +133,7 @@ public sealed class DispatchOrchestrationExtensionsShould
 		services.AddSingleton(fakeCoordinator);
 
 		// Act
-		services.AddDispatchOrchestration();
+		services.AddExcaliburOrchestration();
 
 		// Assert - should only have one registration (the original fake)
 		var descriptors = services.Where(d => d.ServiceType == typeof(ISagaCoordinator)).ToList();
@@ -150,9 +150,9 @@ public sealed class DispatchOrchestrationExtensionsShould
 		// Act & Assert - should not throw
 		Should.NotThrow(() =>
 		{
-			services.AddDispatchOrchestration();
-			services.AddDispatchOrchestration();
-			services.AddDispatchOrchestration();
+			services.AddExcaliburOrchestration();
+			services.AddExcaliburOrchestration();
+			services.AddExcaliburOrchestration();
 		});
 	}
 
@@ -163,8 +163,8 @@ public sealed class DispatchOrchestrationExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDispatchOrchestration();
-		services.AddDispatchOrchestration();
+		services.AddExcaliburOrchestration();
+		services.AddExcaliburOrchestration();
 
 		// Assert - verify only one middleware registration
 		var middlewareDescriptors = services.Where(d =>

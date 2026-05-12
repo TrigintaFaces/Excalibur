@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Elastic.Clients.Elasticsearch.IndexManagement;
+using System.Text.Json;
 using Excalibur.Data.ElasticSearch.IndexManagement;
 
 namespace Excalibur.Data.Tests.ElasticSearch.IndexManagement;
@@ -66,7 +66,7 @@ public sealed class IndexTemplateConfigurationShould
 	}
 
 	[Fact]
-	public void Template_DefaultsToNull()
+	public void SettingsJson_DefaultsToNull()
 	{
 		// Arrange & Act
 		var config = new IndexTemplateConfiguration
@@ -75,11 +75,11 @@ public sealed class IndexTemplateConfigurationShould
 		};
 
 		// Assert
-		config.Template.ShouldBeNull();
+		config.SettingsJson.ShouldBeNull();
 	}
 
 	[Fact]
-	public void Mappings_DefaultsToNull()
+	public void MappingsJson_DefaultsToNull()
 	{
 		// Arrange & Act
 		var config = new IndexTemplateConfiguration
@@ -88,7 +88,7 @@ public sealed class IndexTemplateConfigurationShould
 		};
 
 		// Assert
-		config.Mappings.ShouldBeNull();
+		config.MappingsJson.ShouldBeNull();
 	}
 
 	[Fact]
@@ -157,13 +157,16 @@ public sealed class IndexTemplateConfigurationShould
 		};
 
 		// Act
+		var settingsJson = JsonSerializer.SerializeToElement(new { number_of_shards = 1 });
+		var mappingsJson = JsonSerializer.SerializeToElement(new { properties = new { title = new { type = "text" } } });
+
 		var config = new IndexTemplateConfiguration
 		{
 			IndexPatterns = ["logs-*"],
 			Priority = 200,
 			Version = 1,
-			Template = new IndexSettings(),
-			Mappings = new Elastic.Clients.Elasticsearch.Mapping.TypeMapping(),
+			SettingsJson = settingsJson,
+			MappingsJson = mappingsJson,
 			ComposedOf = ["common-settings", "common-mappings"],
 			DataStream = new DataStreamConfiguration(),
 			Metadata = metadata,
@@ -174,8 +177,8 @@ public sealed class IndexTemplateConfigurationShould
 		config.IndexPatterns.ShouldContain("logs-*");
 		config.Priority.ShouldBe(200);
 		config.Version.ShouldBe(1);
-		config.Template.ShouldNotBeNull();
-		config.Mappings.ShouldNotBeNull();
+		config.SettingsJson.ShouldNotBeNull();
+		config.MappingsJson.ShouldNotBeNull();
 		config.ComposedOf.Count().ShouldBe(2);
 		config.DataStream.ShouldNotBeNull();
 		config.Metadata.Count.ShouldBe(1);

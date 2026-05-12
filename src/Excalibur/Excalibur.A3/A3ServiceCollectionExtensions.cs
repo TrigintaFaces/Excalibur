@@ -38,7 +38,7 @@ public static class A3ServiceCollectionExtensions
 	/// </para>
 	/// <code>
 	/// services.AddExcaliburA3()
-	///     .UseSqlServer(options =&gt; { options.ConnectionString = "..."; });
+	///     .UseSqlServer();
 	/// </code>
 	/// <para>
 	/// For a lightweight registration (no CQRS, no Dispatch pipeline, no
@@ -98,7 +98,7 @@ public static class A3ServiceCollectionExtensions
 		_ = services.AddDispatchHandlers(typeof(AuthorizationPolicy).Assembly);
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, AuditMiddleware>());
-		_ = services.AddDispatchAuthorization();
+		_ = services.AddExcaliburAuthorization();
 
 		return services;
 	}

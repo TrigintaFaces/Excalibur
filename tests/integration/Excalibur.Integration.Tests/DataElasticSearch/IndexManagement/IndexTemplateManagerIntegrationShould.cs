@@ -48,7 +48,8 @@ public sealed class IndexTemplateManagerIntegrationShould : IDisposable
 		{
 			IndexPatterns = ["test-*"],
 			Priority = 100,
-			Template = new IndexSettings { NumberOfShards = 1, NumberOfReplicas = 0 },
+			SettingsJson = System.Text.Json.JsonSerializer.SerializeToElement(
+				new { number_of_shards = 1, number_of_replicas = 0 }),
 		};
 
 		// Act
