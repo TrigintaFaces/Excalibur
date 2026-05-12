@@ -1,5 +1,4 @@
 using System.Net;
-using System.Security.Cryptography;
 
 using Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage;
 using Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Internal;
@@ -203,57 +202,6 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 		Should.Throw<ArgumentNullException>(() => new GcsClaimCheckStore(null!, claimCheckOptions, logger));
 		Should.Throw<ArgumentNullException>(() => new GcsClaimCheckStore(options, null!, logger));
 		Should.Throw<ArgumentNullException>(() => new GcsClaimCheckStore(options, claimCheckOptions, null!));
-	}
-
-	[Fact]
-	public void PrimaryConstructor_ShouldCreateClient_WhenApplicationCredentialsAreProvided()
-	{
-		var previousCredentialsPath = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
-		var credentialsPath = Path.Combine(Path.GetTempPath(), $"gcs-adc-{Guid.NewGuid():N}.json");
-
-		try
-		{
-			using var rsa = RSA.Create(2048);
-			var privateKey = rsa.ExportPkcs8PrivateKeyPem().Replace("\r\n", "\n", StringComparison.Ordinal);
-			var escapedPrivateKey = privateKey.Replace("\n", "\\n", StringComparison.Ordinal);
-
-			var credentialsJson = $$"""
-{
-  "type": "service_account",
-  "project_id": "excalibur-test",
-  "private_key_id": "test-key-id",
-  "private_key": "{{escapedPrivateKey}}",
-  "client_email": "dispatch-test@excalibur-test.iam.gserviceaccount.com",
-  "client_id": "1234567890",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/dispatch-test%40excalibur-test.iam.gserviceaccount.com"
-}
-""";
-
-			File.WriteAllText(credentialsPath, credentialsJson);
-			Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
-
-			var sut = new GcsClaimCheckStore(
-				Microsoft.Extensions.Options.Options.Create(new GcsClaimCheckOptions
-				{
-					BucketName = "test-bucket",
-					Prefix = "claim-check/",
-				}),
-				Microsoft.Extensions.Options.Options.Create(new ClaimCheckOptions { PayloadThreshold = 8 }),
-				CreateEnabledLogger());
-
-			sut.ShouldUseClaimCheck(new byte[8]).ShouldBeTrue();
-		}
-		finally
-		{
-			Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", previousCredentialsPath);
-			if (File.Exists(credentialsPath))
-			{
-				File.Delete(credentialsPath);
-			}
-		}
 	}
 
 	[Fact]

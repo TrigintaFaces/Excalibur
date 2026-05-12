@@ -35,8 +35,13 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 		IOptions<GcsClaimCheckOptions> options,
 		IOptions<ClaimCheckOptions> claimCheckOptions,
 		ILogger<GcsClaimCheckStore> logger)
-		: this(new StorageClientAdapter(StorageClient.Create()), options, claimCheckOptions, logger)
 	{
+		// Validate parameters before creating the SDK client to ensure
+		// ArgumentNullException is thrown instead of credential-related exceptions.
+		_options = (options ?? throw new ArgumentNullException(nameof(options))).Value;
+		_claimCheckOptions = (claimCheckOptions ?? throw new ArgumentNullException(nameof(claimCheckOptions))).Value;
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_storageClient = new StorageClientAdapter(StorageClient.Create());
 	}
 
 	/// <summary>
