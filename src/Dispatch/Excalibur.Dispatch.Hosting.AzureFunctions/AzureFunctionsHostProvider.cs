@@ -58,6 +58,20 @@ internal partial class AzureFunctionsHostProvider(ILogger<AzureFunctionsHostProv
 			services.TryAddSingleton<IColdStartOptimizer, AzureFunctionsColdStartOptimizer>();
 		}
 
+		// Log warnings when consumers enable telemetry options that require
+		// platform SDK integration not yet wired up. This prevents silent no-ops
+		// where consumers think EnableDistributedTracing=true does something.
+		// Application Insights should be configured via AddExcaliburObservability() instead.
+		if (options.Telemetry.EnableDistributedTracing)
+		{
+			LogConfiguringAppInsights();
+		}
+
+		if (options.Telemetry.EnableMetrics)
+		{
+			LogConfiguringMetrics();
+		}
+
 		LogServicesConfigured();
 	}
 
@@ -199,4 +213,12 @@ internal partial class AzureFunctionsHostProvider(ILogger<AzureFunctionsHostProv
 	[LoggerMessage(AzureFunctionsEventId.HandlerFailed, LogLevel.Error,
 		"Azure Functions handler execution failed")]
 	private partial void LogHandlerFailed(Exception ex);
+
+	[LoggerMessage(AzureFunctionsEventId.ConfiguringAppInsights, LogLevel.Warning,
+		"Application Insights tracing via ServerlessHostOptions is not yet implemented. Configure tracing via AddExcaliburObservability() instead.")]
+	private partial void LogConfiguringAppInsights();
+
+	[LoggerMessage(AzureFunctionsEventId.ConfiguringMetrics, LogLevel.Warning,
+		"Azure Functions metrics via ServerlessHostOptions is not yet implemented. Configure metrics via AddExcaliburObservability() instead.")]
+	private partial void LogConfiguringMetrics();
 }

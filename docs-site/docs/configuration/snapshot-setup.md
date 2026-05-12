@@ -139,7 +139,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 
 ## Implementing Snapshot Methods
 
-Your aggregate must override the snapshot methods from `AggregateRoot`. The `ISnapshot` interface uses `byte[] Data` for serialized state — you define a domain state type and serialize it:
+Your aggregate must override the snapshot methods from `AggregateRoot`. The `ISnapshot` interface uses `ReadOnlyMemory<byte> Data` for serialized state (ensuring immutability) — you define a domain state type and serialize it:
 
 ```csharp
 public class Order : AggregateRoot<OrderId>

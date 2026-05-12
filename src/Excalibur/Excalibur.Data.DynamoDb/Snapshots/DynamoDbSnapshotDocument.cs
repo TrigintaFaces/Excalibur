@@ -76,7 +76,7 @@ internal static class DynamoDbSnapshotDocument
 			[Version] = new() { N = snapshot.Version.ToString(CultureInfo.InvariantCulture) },
 			[AggregateId] = new() { S = snapshot.AggregateId },
 			[AggregateType] = new() { S = snapshot.AggregateType },
-			[Data] = new() { B = new MemoryStream(snapshot.Data) },
+			[Data] = new() { B = new MemoryStream(snapshot.Data.ToArray()) },
 			[CreatedAt] = new() { S = snapshot.CreatedAt.ToString("O", CultureInfo.InvariantCulture) }
 		};
 

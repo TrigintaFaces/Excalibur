@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.LeaderElection;
 /// <item><see cref="LeaderElectionOptions.GracePeriod"/> is less than <see cref="LeaderElectionOptions.LeaseDuration"/>.</item>
 /// </list>
 /// </remarks>
-public class LeaderElectionOptionsValidator : IValidateOptions<LeaderElectionOptions>
+public sealed class LeaderElectionOptionsValidator : IValidateOptions<LeaderElectionOptions>
 {
 	/// <inheritdoc />
 	public ValidateOptionsResult Validate(string? name, LeaderElectionOptions options)

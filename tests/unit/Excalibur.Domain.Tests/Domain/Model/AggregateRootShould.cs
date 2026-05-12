@@ -382,7 +382,7 @@ public sealed class AggregateRootShould
 
 		protected override void ApplySnapshot(ISnapshot snapshot)
 		{
-			SnapshotData = System.Text.Encoding.UTF8.GetString(snapshot.Data);
+			SnapshotData = System.Text.Encoding.UTF8.GetString(snapshot.Data.Span);
 		}
 	}
 
@@ -411,7 +411,7 @@ public sealed class AggregateRootShould
 		public string AggregateType { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
-		public byte[] Data { get; init; } = [];
+		public ReadOnlyMemory<byte> Data { get; init; }
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

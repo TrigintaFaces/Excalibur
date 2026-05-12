@@ -326,7 +326,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 		// Assert -- verify service registrations exist
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISqlServerCdcStateStore));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcRepository));
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcProcessor));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ISqlServerCdcProcessor));
 
 		// Assert -- verify options configuration delegates were registered for both types
 		var sqlOptionsDescriptors = services.Where(sd =>

@@ -157,7 +157,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 				AggregateId = aggregateId,
 				AggregateType = "EdgeCaseAggregate",
 				Version = 1,
-				Data = [],
+				Data = Array.Empty<byte>(),
 				CreatedAt = DateTime.UtcNow,
 			});
 

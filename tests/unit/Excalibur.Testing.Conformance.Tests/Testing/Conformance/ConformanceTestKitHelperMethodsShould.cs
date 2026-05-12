@@ -320,7 +320,7 @@ public sealed class ConformanceTestKitHelperMethodsShould
 		snapshot.AggregateId.ShouldBe(aggregateId);
 		snapshot.AggregateType.ShouldBe(aggregateType);
 		snapshot.Version.ShouldBe(version);
-		Encoding.UTF8.GetString(snapshot.Data).ShouldBe($"state-v{version}");
+		Encoding.UTF8.GetString(snapshot.Data.Span).ShouldBe($"state-v{version}");
 	}
 
 	[Fact]
@@ -333,7 +333,7 @@ public sealed class ConformanceTestKitHelperMethodsShould
 		var snapshot = TestSnapshot.Create("agg", "Type", 1, customState);
 
 		// Assert
-		Encoding.UTF8.GetString(snapshot.Data).ShouldBe(customState);
+		Encoding.UTF8.GetString(snapshot.Data.Span).ShouldBe(customState);
 	}
 
 	#endregion

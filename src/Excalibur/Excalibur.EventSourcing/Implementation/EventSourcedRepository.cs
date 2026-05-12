@@ -598,7 +598,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		}
 
 		var upgradedData = _snapshotVersionManager.UpgradeSnapshot(
-			aggregateType, snapshot.Data, currentSchemaVersion, _targetSnapshotVersion);
+			aggregateType, snapshot.Data.ToArray(), currentSchemaVersion, _targetSnapshotVersion);
 
 		return new UpgradedSnapshot(snapshot, upgradedData, _targetSnapshotVersion);
 	}
@@ -825,7 +825,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		public string AggregateId => _original.AggregateId;
 		public long Version => _original.Version;
 		public DateTimeOffset CreatedAt => _original.CreatedAt;
-		public byte[] Data => _upgradedData;
+		public ReadOnlyMemory<byte> Data => _upgradedData;
 		public string AggregateType => _original.AggregateType;
 
 		public IDictionary<string, object>? Metadata

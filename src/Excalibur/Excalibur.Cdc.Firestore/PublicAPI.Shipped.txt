@@ -128,10 +128,6 @@ Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.PollInterval(System.TimeSpan interv
 Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
 Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
 Excalibur.Cdc.Firestore.IFirestoreCdcProcessor
-Excalibur.Cdc.Firestore.IFirestoreCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.Firestore.IFirestoreCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition!>!
-Excalibur.Cdc.Firestore.IFirestoreCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Cdc.Firestore.IFirestoreCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Firestore.IFirestoreCdcStateStore
 Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition?>!

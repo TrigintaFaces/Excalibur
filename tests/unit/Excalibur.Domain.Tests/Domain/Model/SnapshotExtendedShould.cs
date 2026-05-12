@@ -86,7 +86,7 @@ public sealed class SnapshotExtendedShould
 			AggregateId = "agg-1",
 			Version = 5,
 			CreatedAt = DateTimeOffset.UtcNow,
-			Data = [0x01],
+			Data = new byte[] { 0x01 },
 			AggregateType = "TestAggregate",
 		};
 		var snapshot2 = snapshot1 with { Version = 6 };
@@ -106,7 +106,7 @@ public sealed class SnapshotExtendedShould
 			AggregateId = "agg-id",
 			Version = 3,
 			CreatedAt = now,
-			Data = [0xAA, 0xBB],
+			Data = new byte[] { 0xAA, 0xBB },
 			AggregateType = "MyAggregate",
 			Metadata = new Dictionary<string, object> { ["key"] = "value" },
 		};
@@ -116,7 +116,7 @@ public sealed class SnapshotExtendedShould
 		snapshot.AggregateId.ShouldBe("agg-id");
 		snapshot.Version.ShouldBe(3);
 		snapshot.CreatedAt.ShouldBe(now);
-		snapshot.Data.ShouldBe(new byte[] { 0xAA, 0xBB });
+		snapshot.Data.ToArray().ShouldBe(new byte[] { 0xAA, 0xBB });
 		snapshot.AggregateType.ShouldBe("MyAggregate");
 		snapshot.Metadata!["key"].ShouldBe("value");
 	}

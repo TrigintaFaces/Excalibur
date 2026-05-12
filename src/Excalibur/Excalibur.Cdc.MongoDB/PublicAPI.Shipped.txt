@@ -7,10 +7,6 @@ Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.ConnectionString(string! connectionStri
 Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.DatabaseName(string! databaseName) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
 Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.ProcessorId(string! processorId) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
 Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor
-Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.MongoDB.MongoDbCdcPosition>!
-Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore
 Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.ClearStateAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.GetAllStatesAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry!>!>!

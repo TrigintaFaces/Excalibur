@@ -96,7 +96,7 @@ internal sealed class MongoDbSnapshotDocument
 			AggregateId = snapshot.AggregateId,
 			AggregateType = snapshot.AggregateType,
 			Version = snapshot.Version,
-			Data = snapshot.Data,
+			Data = snapshot.Data.ToArray(),
 			Metadata = SerializeMetadata(snapshot.Metadata),
 			CreatedAt = snapshot.CreatedAt.UtcDateTime
 		};

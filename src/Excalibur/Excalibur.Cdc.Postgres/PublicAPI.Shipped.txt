@@ -15,10 +15,6 @@ Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder.SchemaName(string! schema) 
 Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder.StateTableName(string! tableName) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder.Timeout(System.TimeSpan timeout) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcProcessor
-Excalibur.Cdc.Postgres.IPostgresCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.Postgres.PostgresCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.Postgres.IPostgresCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Postgres.PostgresCdcPosition>!
-Excalibur.Cdc.Postgres.IPostgresCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.Postgres.PostgresDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Cdc.Postgres.IPostgresCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.Postgres.PostgresDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Postgres.IPostgresCdcReplicationBuilder
 Excalibur.Cdc.Postgres.IPostgresCdcReplicationBuilder.AutoCreateSlot(bool autoCreate = true) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcReplicationBuilder.ProcessorId(string! processorId) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!

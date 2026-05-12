@@ -123,6 +123,8 @@ Excalibur.Cdc.ICdcBuilderDiscovery.BindTrackedTables(string! configSectionPath) 
 Excalibur.Cdc.ICdcBuilderDiscovery.TrackTablesFromHandlers() -> Excalibur.Cdc.ICdcBuilder!
 Excalibur.Cdc.ICdcEventMapper<TEvent>
 Excalibur.Cdc.ICdcEventMapper<TEvent>.Map(System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.CdcDataChange!>! changes, Excalibur.Cdc.CdcChangeType changeType) -> TEvent
+Excalibur.Cdc.ICdcProcessor<TEvent>
+Excalibur.Cdc.ICdcProcessor<TEvent>.ProcessBatchAsync(System.Func<TEvent, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.ICdcRecoveryBuilder
 Excalibur.Cdc.ICdcRecoveryBuilder.AttemptDelay(System.TimeSpan delay) -> Excalibur.Cdc.ICdcRecoveryBuilder!
 Excalibur.Cdc.ICdcRecoveryBuilder.EnableStructuredLogging(bool enable = true) -> Excalibur.Cdc.ICdcRecoveryBuilder!
@@ -138,6 +140,10 @@ Excalibur.Cdc.ICdcRelationalStateStoreBuilder.TableName(string! tableName) -> Ex
 Excalibur.Cdc.ICdcStateStoreBuilder
 Excalibur.Cdc.ICdcStateStoreBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.ICdcStateStoreBuilder!
 Excalibur.Cdc.ICdcStateStoreBuilder.TableName(string! tableName) -> Excalibur.Cdc.ICdcStateStoreBuilder!
+Excalibur.Cdc.ICdcStreamProcessor<TEvent, TPosition>
+Excalibur.Cdc.ICdcStreamProcessor<TEvent, TPosition>.ConfirmPositionAsync(TPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.ICdcStreamProcessor<TEvent, TPosition>.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TPosition>!
+Excalibur.Cdc.ICdcStreamProcessor<TEvent, TPosition>.StartAsync(System.Func<TEvent, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.ICdcTableBuilder
 Excalibur.Cdc.ICdcTableBuilder.CaptureInstance(string! name) -> Excalibur.Cdc.ICdcTableBuilder!
 Excalibur.Cdc.ICdcTableBuilder.MapAll<TEvent, TMapper>() -> Excalibur.Cdc.ICdcTableBuilder!
@@ -158,7 +164,6 @@ Excalibur.Cdc.InMemory.IInMemoryCdcBuilder.BatchSize(int size) -> Excalibur.Cdc.
 Excalibur.Cdc.InMemory.IInMemoryCdcBuilder.PreserveHistory(bool preserveHistory = true) -> Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!
 Excalibur.Cdc.InMemory.IInMemoryCdcBuilder.ProcessorId(string! processorId) -> Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!
 Excalibur.Cdc.InMemory.IInMemoryCdcProcessor
-Excalibur.Cdc.InMemory.IInMemoryCdcProcessor.ProcessChangesAsync(System.Func<Excalibur.Cdc.InMemory.InMemoryCdcChange!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! changeHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.InMemory.IInMemoryCdcStore
 Excalibur.Cdc.InMemory.IInMemoryCdcStore.AddChange(Excalibur.Cdc.InMemory.InMemoryCdcChange! change) -> void
 Excalibur.Cdc.InMemory.IInMemoryCdcStore.Clear() -> void
@@ -194,7 +199,7 @@ Excalibur.Cdc.InMemory.InMemoryCdcProcessor
 Excalibur.Cdc.InMemory.InMemoryCdcProcessor.Dispose() -> void
 Excalibur.Cdc.InMemory.InMemoryCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Cdc.InMemory.InMemoryCdcProcessor.InMemoryCdcProcessor(Excalibur.Cdc.InMemory.IInMemoryCdcStore! store, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.InMemory.InMemoryCdcOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.InMemory.InMemoryCdcProcessor!>! logger) -> void
-Excalibur.Cdc.InMemory.InMemoryCdcProcessor.ProcessChangesAsync(System.Func<Excalibur.Cdc.InMemory.InMemoryCdcChange!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! changeHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.InMemory.InMemoryCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.InMemory.InMemoryCdcChange!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.InMemory.InMemoryCdcStoreExtensions
 Excalibur.Cdc.Processing.CdcProcessingOptions
 Excalibur.Cdc.Processing.CdcProcessingOptions.CdcProcessingOptions() -> void

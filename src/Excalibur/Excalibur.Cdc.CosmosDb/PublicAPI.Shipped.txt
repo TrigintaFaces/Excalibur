@@ -163,10 +163,6 @@ Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.DatabaseId(string! databaseId) -> Exc
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!>!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition?>!

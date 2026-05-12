@@ -113,7 +113,7 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
 					snapshot.AggregateId,
 					snapshot.AggregateType,
 					snapshot.Version,
-					snapshot.Data,
+					Data = snapshot.Data.ToArray(),
 					CreatedAt = snapshot.CreatedAt.ToString("O"),
 				},
 				cancellationToken: cancellationToken)).ConfigureAwait(false);

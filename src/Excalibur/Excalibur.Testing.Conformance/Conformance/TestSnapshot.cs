@@ -26,7 +26,7 @@ public sealed class TestSnapshot : ISnapshot
 	public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
 	/// <inheritdoc />
-	public byte[] Data { get; init; } = [];
+	public ReadOnlyMemory<byte> Data { get; init; }
 
 	/// <inheritdoc />
 	public string AggregateType { get; init; } = "TestAggregate";

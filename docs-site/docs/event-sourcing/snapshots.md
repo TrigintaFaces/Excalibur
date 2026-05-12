@@ -218,7 +218,7 @@ public record OrderLineState(
 
 ### Override Snapshot Methods
 
-The `ISnapshot` interface uses `byte[] Data` for serialized state. Use the built-in `Snapshot` record:
+The `ISnapshot` interface uses `ReadOnlyMemory<byte> Data` for serialized state, ensuring immutability. Use the built-in `Snapshot` record:
 
 ```csharp
 public class Order : AggregateRoot<Guid>
@@ -416,7 +416,7 @@ public class AdaptiveSnapshotStrategy : ISnapshotStrategy
 
 ## Snapshot Versioning
 
-Handle snapshot schema changes by versioning your snapshot state types. Since snapshots store serialized `byte[]` data, you can evolve the schema by handling deserialization gracefully.
+Handle snapshot schema changes by versioning your snapshot state types. Since snapshots store serialized `ReadOnlyMemory<byte>` data, you can evolve the schema by handling deserialization gracefully.
 
 ### Current Approach: Graceful Deserialization
 
@@ -535,7 +535,7 @@ public record OrderSnapshotState
 }
 ```
 
-> **Note:** Your state type is serialized into the `ISnapshot.Data` byte array. The `ISnapshot` interface is the envelope - you don't implement it directly for your state.
+> **Note:** Your state type is serialized into the `ISnapshot.Data` property (`ReadOnlyMemory<byte>`). The `ISnapshot` interface is the envelope - you don't implement it directly for your state. The `Snapshot.Create()` factory accepts `byte[]` via implicit conversion for convenience.
 
 ## Testing with Snapshots
 

@@ -186,7 +186,7 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 
 		// Assert
 		_ = retrieved.ShouldNotBeNull();
-		retrieved.Data.ShouldBe(data, "R26.27: Snapshot data must be preserved without corruption");
+		retrieved.Data.ToArray().ShouldBe(data, "R26.27: Snapshot data must be preserved without corruption");
 	}
 
 	/// <summary>
@@ -216,7 +216,7 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 		// Assert
 		_ = retrieved.ShouldNotBeNull();
 		retrieved.Version.ShouldBe(100, "R26.27: Must return the latest snapshot version");
-		retrieved.Data.ShouldBe(new byte[] { 3 }, "R26.27: Must return the latest snapshot data");
+		retrieved.Data.ToArray().ShouldBe(new byte[] { 3 }, "R26.27: Must return the latest snapshot data");
 	}
 
 	/// <summary>
@@ -365,7 +365,7 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 		// Assert
 		_ = retrieved.ShouldNotBeNull("Should handle large snapshot data");
 		retrieved.Data.Length.ShouldBe(largeData.Length, "Large data length should be preserved");
-		retrieved.Data.ShouldBe(largeData, "Large data content should be preserved");
+		retrieved.Data.ToArray().ShouldBe(largeData, "Large data content should be preserved");
 	}
 
 	/// <summary>
@@ -388,7 +388,7 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 
 		// Assert
 		_ = retrieved.ShouldNotBeNull("Should handle empty snapshot data");
-		retrieved.Data.ShouldBeEmpty("Empty data should be preserved");
+		retrieved.Data.ToArray().ShouldBeEmpty("Empty data should be preserved");
 	}
 
 	/// <summary>
@@ -528,6 +528,6 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 		string AggregateType,
 		long Version,
 		DateTimeOffset CreatedAt,
-		byte[] Data,
+		ReadOnlyMemory<byte> Data,
 		IDictionary<string, object>? Metadata) : ISnapshot;
 }

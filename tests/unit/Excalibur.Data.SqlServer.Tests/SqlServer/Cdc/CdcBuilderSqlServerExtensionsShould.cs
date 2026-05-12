@@ -74,7 +74,7 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISqlServerCdcStateStore));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcRepository));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcRepositoryLsnMapping));
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcProcessor));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ISqlServerCdcProcessor));
 		services.ShouldContain(sd => sd.ServiceType == typeof(IDataChangeEventProcessor));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcBackgroundProcessor));
 	}

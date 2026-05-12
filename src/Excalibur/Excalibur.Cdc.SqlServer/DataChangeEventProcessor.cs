@@ -68,7 +68,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> The total number of events processed. </returns>
 	public Task<int> ProcessCdcChangesAsync(CancellationToken cancellationToken) =>
-		ProcessCdcChangesAsync(
+		ProcessBatchAsync(
 			(changeEvent, token) => HandleCdcDataChangeEventsAsync(changeEvent, token).AsTask(),
 			cancellationToken);
 

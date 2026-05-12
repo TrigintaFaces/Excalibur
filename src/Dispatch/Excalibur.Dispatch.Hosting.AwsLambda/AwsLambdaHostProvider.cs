@@ -51,16 +51,17 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 			_ = services.AddSingleton<IColdStartOptimizer, AwsLambdaColdStartOptimizer>();
 		}
 
-		// Configure tracing if enabled
+		// Log warnings when consumers enable telemetry options that require
+		// platform SDK integration not yet wired up. This prevents silent no-ops
+		// where consumers think EnableDistributedTracing=true does something.
 		if (options.Telemetry.EnableDistributedTracing)
 		{
-			ConfigureXRayTracing();
+			LogConfiguringAwsXRayTracingForLambda();
 		}
 
-		// Configure metrics if enabled
 		if (options.Telemetry.EnableMetrics)
 		{
-			ConfigureLambdaMetrics();
+			LogConfiguringAwsLambdaMetrics();
 		}
 
 		LogAwsLambdaServicesConfiguredSuccessfully();
@@ -215,24 +216,6 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 	[LoggerMessage(AwsLambdaEventId.ConfiguringMetrics, Microsoft.Extensions.Logging.LogLevel.Warning,
 		"AWS CloudWatch metrics integration is not yet implemented. Metrics will not be collected.")]
 	private partial void LogConfiguringAwsLambdaMetrics();
-
-	/// <summary>
-	/// Configures AWS X-Ray tracing for Lambda functions.
-	/// </summary>
-	private void ConfigureXRayTracing() =>
-
-		// Add X-Ray tracing services if available
-		LogConfiguringAwsXRayTracingForLambda();
-
-	// This would typically integrate with AWS X-Ray SDK services.AddXRayTracing();
-
-	/// <summary>
-	/// Configures Lambda-specific metrics collection.
-	/// </summary>
-	private void ConfigureLambdaMetrics() =>
-		LogConfiguringAwsLambdaMetrics();
-
-	// Add CloudWatch metrics integration services.AddCloudWatchMetrics();
 
 	/// <summary>
 	/// Creates a default serverless context for AWS Lambda.

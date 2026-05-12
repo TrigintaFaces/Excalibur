@@ -143,11 +143,15 @@ Excalibur.Domain.Model.IDomainEventEnricher.EnrichAsync(Excalibur.Dispatch.Abstr
 Excalibur.Domain.Model.IEntity
 Excalibur.Domain.Model.IEntity<TKey>
 Excalibur.Domain.Model.IEntity<TKey>.Key.get -> TKey
+Excalibur.Domain.Model.IRepository<TEntity, TKey>
+Excalibur.Domain.Model.IRepository<TEntity, TKey>.DeleteAsync(TEntity! entity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Domain.Model.IRepository<TEntity, TKey>.GetByIdAsync(TKey id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TEntity?>!
+Excalibur.Domain.Model.IRepository<TEntity, TKey>.SaveAsync(TEntity! entity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Domain.Model.ISnapshot
 Excalibur.Domain.Model.ISnapshot.AggregateId.get -> string!
 Excalibur.Domain.Model.ISnapshot.AggregateType.get -> string!
 Excalibur.Domain.Model.ISnapshot.CreatedAt.get -> System.DateTimeOffset
-Excalibur.Domain.Model.ISnapshot.Data.get -> byte[]!
+Excalibur.Domain.Model.ISnapshot.Data.get -> System.ReadOnlyMemory<byte>
 Excalibur.Domain.Model.ISnapshot.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 Excalibur.Domain.Model.ISnapshot.SnapshotId.get -> string!
 Excalibur.Domain.Model.ISnapshot.Version.get -> long
@@ -161,7 +165,7 @@ Excalibur.Domain.Model.Snapshot.AggregateType.get -> string!
 Excalibur.Domain.Model.Snapshot.AggregateType.init -> void
 Excalibur.Domain.Model.Snapshot.CreatedAt.get -> System.DateTimeOffset
 Excalibur.Domain.Model.Snapshot.CreatedAt.init -> void
-Excalibur.Domain.Model.Snapshot.Data.get -> byte[]!
+Excalibur.Domain.Model.Snapshot.Data.get -> System.ReadOnlyMemory<byte>
 Excalibur.Domain.Model.Snapshot.Data.init -> void
 Excalibur.Domain.Model.Snapshot.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 Excalibur.Domain.Model.Snapshot.Metadata.init -> void
@@ -189,9 +193,9 @@ Excalibur.Domain.Model.ValueObjects.Money.Money(decimal amount, string! currency
 Excalibur.Domain.Model.ValueObjects.Money.Money(decimal amount, string! currencyCode, decimal denomination) -> void
 Excalibur.Domain.Model.ValueObjects.Money.ToDecimal() -> decimal
 Excalibur.Domain.Model.ValueObjects.Money.ToDouble() -> double
+Excalibur.Domain.Model.ValueObjects.Money.ToString(System.Globalization.CultureInfo! culture) -> string!
 Excalibur.Domain.Model.ValueObjects.Money.ToString(string! format) -> string!
 Excalibur.Domain.Model.ValueObjects.Money.ToString(string! format, System.Globalization.CultureInfo! culture) -> string!
-Excalibur.Domain.Model.ValueObjects.Money.ToString(System.Globalization.CultureInfo! culture) -> string!
 Excalibur.Domain.Model.ValueObjects.Money.UnitCount.get -> int
 Excalibur.Domain.Model.ValueObjects.ValueObjectBase
 Excalibur.Domain.Model.ValueObjects.ValueObjectBase.Equals(Excalibur.Domain.Model.ValueObjects.ValueObjectBase? other) -> bool
@@ -264,10 +268,10 @@ static Excalibur.Domain.Model.ValueObjects.Money.From(float amount, string! curr
 static Excalibur.Domain.Model.ValueObjects.Money.From(int amount, string! currencyCode = "USD") -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.From(long amount, string! currencyCode = "USD") -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.From(string! amount, string! cultureName = "en-US") -> Excalibur.Domain.Model.ValueObjects.Money!
-static Excalibur.Domain.Model.ValueObjects.Money.Parse(string! amount, string! currencyCode = "USD", System.Globalization.CultureInfo? culture = null) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.GBP(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.JPY(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.Multiply(Excalibur.Domain.Model.ValueObjects.Money! money, decimal multiplier) -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.Parse(string! amount, string! currencyCode = "USD", System.Globalization.CultureInfo? culture = null) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.Subtract(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.USD(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.explicit operator double(Excalibur.Domain.Model.ValueObjects.Money! money) -> double

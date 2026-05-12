@@ -46,16 +46,17 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 			_ = services.AddSingleton<IColdStartOptimizer, GoogleCloudFunctionsColdStartOptimizer>();
 		}
 
-		// Configure distributed tracing if enabled
+		// Log warnings when consumers enable telemetry options that require
+		// platform SDK integration not yet wired up. This prevents silent no-ops
+		// where consumers think EnableDistributedTracing=true does something.
 		if (options.Telemetry.EnableDistributedTracing)
 		{
-			ConfigureGoogleCloudTracing(services, options);
+			LogTraceConfiguring();
 		}
 
-		// Configure metrics if enabled
 		if (options.Telemetry.EnableMetrics)
 		{
-			ConfigureGoogleCloudMetrics(services, options);
+			LogMetricsConfiguring();
 		}
 
 		LogServicesConfigured();
@@ -167,24 +168,6 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 
 		// Create a context from environment variables for Google Cloud Functions
 		new GoogleCloudFunctionsServerlessContext(new { }, _logger);
-
-	private void ConfigureGoogleCloudTracing(IServiceCollection services, ServerlessHostOptions options)
-	{
-		_ = services; // Reserved for future Google Cloud Trace service registration
-		_ = options; // Reserved for future trace configuration options
-
-		// Configure Google Cloud Trace integration
-		LogTraceConfiguring();
-	}
-
-	private void ConfigureGoogleCloudMetrics(IServiceCollection services, ServerlessHostOptions options)
-	{
-		_ = services; // Reserved for future Google Cloud Monitoring service registration
-		_ = options; // Reserved for future monitoring configuration options
-
-		// Configure Google Cloud Monitoring integration
-		LogMetricsConfiguring();
-	}
 
 	// Source-generated logging methods (Sprint 368 - EventId migration)
 	[LoggerMessage(GoogleCloudFunctionsEventId.ConfiguringServices, LogLevel.Debug, "Configuring services for Google Cloud Functions")]

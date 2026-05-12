@@ -37,7 +37,7 @@ public record OrderSnapshot : ISnapshot
     public long Version { get; init; }
     public string AggregateType { get; init; } = nameof(OrderAggregate);
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
-    public byte[] Data { get; init; } = [];
+    public ReadOnlyMemory<byte> Data { get; init; }
     public IDictionary<string, object>? Metadata { get; init; }
     public decimal Total { get; init; }
     public int ItemCount { get; init; }

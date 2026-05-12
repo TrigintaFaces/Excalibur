@@ -115,7 +115,7 @@ public sealed class EncryptingSnapshotStoreShould
 		A.CallTo(() => snapshot.AggregateType).Returns("TestType");
 		A.CallTo(() => snapshot.SnapshotId).Returns("snap-1");
 		A.CallTo(() => snapshot.Version).Returns(3);
-		A.CallTo(() => snapshot.Data).Returns([1, 2]);
+		A.CallTo(() => snapshot.Data).Returns(new ReadOnlyMemory<byte>(new byte[] { 1, 2 }));
 		A.CallTo(() => snapshot.Metadata).Returns(metadata);
 		A.CallTo(() => snapshot.CreatedAt).Returns(DateTimeOffset.UtcNow);
 

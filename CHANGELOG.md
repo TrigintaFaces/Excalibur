@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **CDC ISP two-tier hierarchy** -- New `ICdcProcessor<TEvent>` (batch, 1 method) and `ICdcStreamProcessor<TEvent, TPosition>` (streaming, 3 methods) base interfaces in `Excalibur.Cdc`. All 7 CDC providers (CosmosDB, MongoDB, Postgres, DynamoDB, Firestore, SqlServer, InMemory) converted to marker interfaces inheriting the appropriate base. Compile-time safety: injecting a poll-only provider where streaming is required now fails at compile time. **Breaking change** -- provider interfaces no longer declare methods directly; consumers must code against the base interfaces or the provider marker.
+- **DelegatingPersistenceProvider** -- Abstract decorator base class following Microsoft `DelegatingHandler` pattern. All methods virtual, forwarding to `Inner`. Paired with `PersistenceProviderBuilder` (sealed, `ChatClientBuilder` pattern) for fluent `Use()` + `Build()` composition.
+- **IRepository\<TEntity, TKey\>** -- Non-event-sourced CRUD repository abstraction in `Excalibur.Domain`: `GetByIdAsync`, `SaveAsync` (upsert), `DeleteAsync`. Distinct from `IEventSourcedRepository<T,TKey>`.
+- **DataProcessing assembly scanners** -- `AddProcessorsFromAssembly` and `AddRecordHandlersFromAssembly` extension methods on `IDataProcessingBuilder`. AOT-annotated with `[RequiresUnreferencedCode]`; explicit `AddProcessor<T>` / `AddRecordHandler<THandler,TRecord>` available as AOT-safe alternatives.
+
+### Changed
+
+- **Snapshot.Data byte\[\] → ReadOnlyMemory\<byte\>** -- `ISnapshot.Data` and `Snapshot.Data` changed from `byte[]` to `ReadOnlyMemory<byte>` for improved immutability and zero-copy slicing. `Snapshot.Create()` factory still accepts `byte[]` via implicit conversion. All 8 snapshot store implementations updated. **Breaking change** for custom `ISnapshot` implementations.
+- **Serverless host provider cleanup** -- AWS Lambda, Azure Functions, and Google Cloud Functions host providers now consistently emit `LogLevel.Warning` stubs for telemetry options without platform SDK integration. Dead stub methods (`ConfigureXRayTracing`, `ConfigureLambdaMetrics`, `ConfigureGoogleCloudTracing`, `ConfigureGoogleCloudMetrics`) removed.
+- **LeaderElectionOptionsValidator sealed** -- Changed from `public class` to `public sealed class`.
+- **CDC method renames** -- `ProcessCdcChangesAsync` → `ProcessBatchAsync` (SqlServer), `ProcessChangesAsync` → `ProcessBatchAsync` (InMemory) for unified contract consistency.
+
+### Removed
+
+- **SqlServer-specific ICdcProcessor deleted** -- Replaced by `ISqlServerCdcProcessor` marker interface extending the new generic `ICdcProcessor<T>`.
+- **Duplicate CDC provider method declarations** -- 200+ lines of duplicated interface method declarations across 6 CDC providers eliminated by inheritance from base interfaces.
+
 ### Removed
 
 - **Authorization RequestProvider layer deleted** -- 36 legacy `RequestProvider` files removed from `Excalibur.Data.SqlServer` and `Excalibur.Data.Postgres`. SQL is now inlined directly into Store implementations (`SqlServerGrantStore`, `SqlServerActivityGroupStore`, `PostgresGrantStore`, `PostgresActivityGroupStore`). The Store pattern (`IGrantStore`, `IActivityGroupStore`) was already the public contract; RequestProviders were never DI-registered or consumer-accessible. ~98 `PublicAPI.Shipped.txt` entries removed. No functional changes.

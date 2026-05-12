@@ -1334,7 +1334,7 @@ services.AddCdcProcessor(cdc =>
 
 ### Option 3: Manual/Serverless
 
-For serverless environments, omit `EnableBackgroundProcessing()` and call `ICdcProcessor` directly from an Azure Function, AWS Lambda, or other trigger:
+For serverless environments, omit `EnableBackgroundProcessing()` and call `ISqlServerCdcProcessor` directly from an Azure Function, AWS Lambda, or other trigger:
 
 ```csharp
 services.AddCdcProcessor(cdc =>
@@ -1346,10 +1346,10 @@ services.AddCdcProcessor(cdc =>
 
 public class CdcProcessorFunction
 {
-    private readonly ICdcProcessor _processor;
+    private readonly ISqlServerCdcProcessor _processor;
     private readonly IDispatcher _dispatcher;
 
-    public CdcProcessorFunction(ICdcProcessor processor, IDispatcher dispatcher)
+    public CdcProcessorFunction(ISqlServerCdcProcessor processor, IDispatcher dispatcher)
     {
         _processor = processor;
         _dispatcher = dispatcher;
@@ -1358,8 +1358,8 @@ public class CdcProcessorFunction
     [Function("ProcessCdc")]
     public async Task Run([TimerTrigger("*/10 * * * * *")] TimerInfo timer)
     {
-        // ICdcProcessor.ProcessCdcChangesAsync requires an event handler delegate
-        var processedCount = await _processor.ProcessCdcChangesAsync(
+        // ICdcProcessor<T>.ProcessBatchAsync requires an event handler delegate
+        var processedCount = await _processor.ProcessBatchAsync(
             async (changeEvent, ct) =>
             {
                 // Handle each change event - dispatch to handlers, update projections, etc.
@@ -1370,6 +1370,14 @@ public class CdcProcessorFunction
     }
 }
 ```
+
+:::info CDC Interface Hierarchy
+All CDC providers implement a two-tier interface hierarchy:
+- **`ICdcProcessor<TEvent>`** — poll-based batch processing (SqlServer, InMemory)
+- **`ICdcStreamProcessor<TEvent, TPosition>`** — streaming with position tracking (Postgres, MongoDB, CosmosDB, DynamoDB, Firestore)
+
+Each provider has a marker interface (e.g., `ISqlServerCdcProcessor`, `IPostgresCdcProcessor`) for type-safe DI injection. Inject the provider-specific marker interface (e.g., `ISqlServerCdcProcessor`) in your DI registrations for compile-time safety.
+:::
 
 ## Connection Management
 

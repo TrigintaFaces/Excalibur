@@ -68,7 +68,7 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 		parameters.Add("@AggregateType", snapshot.AggregateType);
 		parameters.Add("@Version", snapshot.Version);
 		parameters.Add("@SnapshotType", snapshot.GetType().AssemblyQualifiedName ?? snapshot.GetType().FullName ?? "Unknown");
-		parameters.Add("@Data", snapshot.Data, DbType.Binary);
+		parameters.Add("@Data", snapshot.Data.ToArray(), DbType.Binary);
 		parameters.Add("@Metadata", null, DbType.Binary);
 		parameters.Add("@CreatedAt", snapshot.CreatedAt);
 

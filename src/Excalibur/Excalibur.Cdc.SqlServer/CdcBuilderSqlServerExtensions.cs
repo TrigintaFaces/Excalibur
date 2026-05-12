@@ -452,7 +452,7 @@ public static class CdcBuilderSqlServerExtensions
 		builder.Services.TryAddSingleton<ICdcRepositoryLsnMapping>(sp => sp.GetRequiredService<CdcRepository>());
 
 		// Register SQL Server CDC processor with dual factories
-		builder.Services.TryAddSingleton<ICdcProcessor>(sp =>
+		builder.Services.TryAddSingleton<ISqlServerCdcProcessor>(sp =>
 		{
 			var effectiveStateFactory = stateConnectionFactory ?? sourceConnectionFactory;
 			var stateFactory = effectiveStateFactory(sp);

@@ -41,11 +41,11 @@ public sealed partial class InMemoryCdcProcessor : IInMemoryCdcProcessor
 	}
 
 	/// <inheritdoc/>
-	public async Task<int> ProcessChangesAsync(
-		Func<InMemoryCdcChange, CancellationToken, Task> changeHandler,
+	public async Task<int> ProcessBatchAsync(
+		Func<InMemoryCdcChange, CancellationToken, Task> eventHandler,
 		CancellationToken cancellationToken)
 	{
-		ArgumentNullException.ThrowIfNull(changeHandler);
+		ArgumentNullException.ThrowIfNull(eventHandler);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var totalProcessed = 0;
@@ -66,7 +66,7 @@ public sealed partial class InMemoryCdcProcessor : IInMemoryCdcProcessor
 
 				try
 				{
-					await changeHandler(change, cancellationToken).ConfigureAwait(false);
+					await eventHandler(change, cancellationToken).ConfigureAwait(false);
 					totalProcessed++;
 				}
 				catch (Exception ex) when (ex is not OperationCanceledException)

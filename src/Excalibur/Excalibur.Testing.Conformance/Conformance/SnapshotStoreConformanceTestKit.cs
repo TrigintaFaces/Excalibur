@@ -473,7 +473,7 @@ public abstract class SnapshotStoreConformanceTestKit
 			throw new TestFixtureAssertionException("Expected snapshot but got null");
 		}
 
-		if (loaded.Data is null || loaded.Data.Length == 0)
+		if (loaded.Data.Length == 0)
 		{
 			throw new TestFixtureAssertionException("Snapshot data was not preserved");
 		}

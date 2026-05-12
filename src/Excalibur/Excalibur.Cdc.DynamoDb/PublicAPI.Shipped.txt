@@ -134,10 +134,6 @@ Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.StreamArn(string! streamArn) -> Excal
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.TableName(string! tableName) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!>!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition?>!

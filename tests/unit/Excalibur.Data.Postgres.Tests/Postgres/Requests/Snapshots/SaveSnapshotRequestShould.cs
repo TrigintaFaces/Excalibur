@@ -23,7 +23,7 @@ public sealed class SaveSnapshotRequestShould
 		AggregateId = "aggregate-123",
 		AggregateType = "OrderAggregate",
 		Version = 5,
-		Data = [0x01, 0x02, 0x03],
+		Data = new byte[] { 0x01, 0x02, 0x03 },
 		CreatedAt = DateTimeOffset.UtcNow
 	};
 
@@ -173,7 +173,7 @@ public sealed class SaveSnapshotRequestShould
 			AggregateId = "aggregate-123",
 			AggregateType = "OrderAggregate",
 			Version = 5,
-			Data = [0x01],
+			Data = new byte[] { 0x01 },
 			CreatedAt = DateTimeOffset.UtcNow
 		};
 

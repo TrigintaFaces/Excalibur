@@ -52,7 +52,7 @@ public sealed class SnapshotCoverageShould
             AggregateId = "agg-1",
             Version = 3,
             CreatedAt = DateTimeOffset.UtcNow,
-            Data = [1, 2],
+            Data = new byte[] { 1, 2 },
             AggregateType = "TestType",
         };
 
@@ -114,7 +114,7 @@ public sealed class SnapshotCoverageShould
             AggregateId = "a",
             Version = 0,
             CreatedAt = DateTimeOffset.UtcNow,
-            Data = [],
+            Data = Array.Empty<byte>(),
             AggregateType = "T",
             Metadata = null,
         };

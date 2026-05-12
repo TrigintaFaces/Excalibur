@@ -168,7 +168,7 @@ public sealed class InMemorySnapshotStoreShould : IDisposable
 		A.CallTo(() => snapshot.AggregateType).Returns(aggregateType);
 		A.CallTo(() => snapshot.Version).Returns(version);
 		A.CallTo(() => snapshot.CreatedAt).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => snapshot.Data).Returns([1, 2, 3]);
+		A.CallTo(() => snapshot.Data).Returns(new ReadOnlyMemory<byte>(new byte[] { 1, 2, 3 }));
 		A.CallTo(() => snapshot.Metadata).Returns(null);
 		return snapshot;
 	}

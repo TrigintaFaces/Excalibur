@@ -58,10 +58,10 @@ public sealed class CompressingSnapshotStoreShould
 
 		// Assert
 		capturedSnapshot.ShouldNotBeNull();
-		capturedSnapshot.Data.ShouldNotBe(originalData);
+		capturedSnapshot.Data.ToArray().ShouldNotBe(originalData);
 		// Verify magic prefix for Brotli
-		capturedSnapshot.Data[0].ShouldBe(BrotliMagic[0]);
-		capturedSnapshot.Data[1].ShouldBe(BrotliMagic[1]);
+		capturedSnapshot.Data.Span[0].ShouldBe(BrotliMagic[0]);
+		capturedSnapshot.Data.Span[1].ShouldBe(BrotliMagic[1]);
 	}
 
 	[Fact]
@@ -212,7 +212,7 @@ public sealed class CompressingSnapshotStoreShould
 		await _sut.SaveSnapshotAsync(snapshot, CancellationToken.None);
 
 		// Verify GZip magic
-		savedSnapshot!.Data[0].ShouldBe(GZipMagic[0]);
+		savedSnapshot!.Data.Span[0].ShouldBe(GZipMagic[0]);
 
 		// Setup load to return the compressed data
 #pragma warning disable CA2012

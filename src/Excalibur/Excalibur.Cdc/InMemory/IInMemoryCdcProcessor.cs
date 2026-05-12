@@ -9,18 +9,9 @@ namespace Excalibur.Cdc.InMemory;
 /// <remarks>
 /// <para>
 /// This processor handles simulated CDC changes from an <see cref="IInMemoryCdcStore"/>
-/// for testing scenarios.
+/// for testing scenarios. Extends <see cref="ICdcProcessor{TEvent}"/> for
+/// provider-agnostic batch processing.
 /// </para>
 /// </remarks>
-public interface IInMemoryCdcProcessor : IAsyncDisposable, IDisposable
-{
-	/// <summary>
-	/// Processes all pending CDC changes from the store.
-	/// </summary>
-	/// <param name="changeHandler">A delegate that handles each CDC change.</param>
-	/// <param name="cancellationToken">A token to observe while processing.</param>
-	/// <returns>The total number of changes processed.</returns>
-	Task<int> ProcessChangesAsync(
-		Func<InMemoryCdcChange, CancellationToken, Task> changeHandler,
-		CancellationToken cancellationToken);
-}
+public interface IInMemoryCdcProcessor : ICdcProcessor<InMemoryCdcChange>;
+

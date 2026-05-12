@@ -324,7 +324,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 			["aggregateType"] = snapshot.AggregateType,
 			["version"] = snapshot.Version,
 			["createdAt"] = snapshot.CreatedAt.ToString("o", CultureInfo.InvariantCulture),
-			["data"] = Blob.CopyFrom(snapshot.Data)
+			["data"] = Blob.CopyFrom(snapshot.Data.ToArray())
 		};
 
 		// Serialize metadata as JSON string if present

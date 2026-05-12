@@ -126,7 +126,7 @@ public sealed class AggregateRootShould
 		protected override void ApplySnapshot(ISnapshot snapshot)
 		{
 			SnapshotApplied = true;
-			State = System.Text.Encoding.UTF8.GetString(snapshot.Data);
+			State = System.Text.Encoding.UTF8.GetString(snapshot.Data.Span);
 		}
 	}
 
@@ -137,7 +137,7 @@ public sealed class AggregateRootShould
 		public string AggregateType { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
-		public byte[] Data { get; init; } = [];
+		public ReadOnlyMemory<byte> Data { get; init; }
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 
@@ -397,7 +397,7 @@ public sealed class AggregateRootShould
 		_ = snapshot.ShouldNotBeNull();
 		snapshot.AggregateId.ShouldBe("test-1");
 		snapshot.Version.ShouldBe(1);
-		System.Text.Encoding.UTF8.GetString(snapshot.Data).ShouldBe("snapshot-state");
+		System.Text.Encoding.UTF8.GetString(snapshot.Data.Span).ShouldBe("snapshot-state");
 	}
 
 	[Fact]

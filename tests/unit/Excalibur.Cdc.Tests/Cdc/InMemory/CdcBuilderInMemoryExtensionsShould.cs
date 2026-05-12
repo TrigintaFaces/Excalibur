@@ -197,7 +197,7 @@ public sealed class CdcBuilderInMemoryExtensionsShould : UnitTestBase
 		var processedIds = new List<object?>();
 
 		// Act
-		var count = await processor.ProcessChangesAsync((change, _) =>
+		var count = await processor.ProcessBatchAsync((change, _) =>
 		{
 			processedIds.Add(change.Changes[0].NewValue);
 			return Task.CompletedTask;

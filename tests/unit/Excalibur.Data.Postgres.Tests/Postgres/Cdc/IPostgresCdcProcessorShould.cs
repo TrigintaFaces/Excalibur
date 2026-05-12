@@ -1,14 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Reflection;
+using Excalibur.Cdc;
 using Excalibur.Cdc.Postgres;
 
 namespace Excalibur.Data.Tests.Postgres.Cdc;
 
 /// <summary>
-/// Sprint 623 B.1: Unit tests for the <see cref="IPostgresCdcProcessor"/> interface.
-/// Tests verify interface definition and member signatures.
-/// Follows the CosmosDb/DynamoDb processor interface test pattern.
+/// Unit tests for the <see cref="IPostgresCdcProcessor"/> interface.
+/// Tests verify interface definition, hierarchy, and inherited member signatures.
+/// After CDC ISP unification (S820), IPostgresCdcProcessor is a marker interface
+/// inheriting all methods from ICdcStreamProcessor&lt;TEvent, TPosition&gt;.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Postgres")]
@@ -17,6 +20,27 @@ public sealed class IPostgresCdcProcessorShould
 {
 	private readonly Type _interfaceType = typeof(IPostgresCdcProcessor);
 
+	/// <summary>
+	/// Gets a method from the interface or any of its inherited interfaces.
+	/// Required because .NET reflection does not traverse interface hierarchies
+	/// with a simple GetMethod call on the derived marker interface.
+	/// </summary>
+	private static MethodInfo? GetInterfaceMethod(Type interfaceType, string name)
+	{
+		var method = interfaceType.GetMethod(name);
+		if (method is not null)
+			return method;
+
+		foreach (var parent in interfaceType.GetInterfaces())
+		{
+			method = parent.GetMethod(name);
+			if (method is not null)
+				return method;
+		}
+
+		return null;
+	}
+
 	#region Interface Definition Tests
 
 	[Fact]
@@ -24,6 +48,34 @@ public sealed class IPostgresCdcProcessorShould
 	{
 		// Assert
 		_interfaceType.IsInterface.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void BeAMarkerInterfaceWithNoDeclaredMethods()
+	{
+		// After CDC ISP unification, this is a marker interface —
+		// all methods are inherited from ICdcStreamProcessor<T, TPos>
+		var declaredMethods = _interfaceType.GetMethods()
+			.Where(m => m.DeclaringType == _interfaceType)
+			.ToList();
+
+		declaredMethods.Count.ShouldBe(0);
+	}
+
+	[Fact]
+	public void InheritFromICdcStreamProcessor()
+	{
+		// Assert
+		typeof(ICdcStreamProcessor<PostgresDataChangeEvent, PostgresCdcPosition>)
+			.IsAssignableFrom(_interfaceType).ShouldBeTrue();
+	}
+
+	[Fact]
+	public void InheritFromICdcProcessor()
+	{
+		// Assert
+		typeof(ICdcProcessor<PostgresDataChangeEvent>)
+			.IsAssignableFrom(_interfaceType).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -42,13 +94,13 @@ public sealed class IPostgresCdcProcessorShould
 
 	#endregion
 
-	#region Method Definition Tests
+	#region Inherited Method Tests
 
 	[Fact]
 	public void HaveStartAsyncMethod()
 	{
-		// Arrange
-		var method = _interfaceType.GetMethod("StartAsync");
+		// Arrange — method inherited from ICdcStreamProcessor
+		var method = GetInterfaceMethod(_interfaceType, "StartAsync");
 
 		// Assert
 		method.ShouldNotBeNull();
@@ -59,7 +111,7 @@ public sealed class IPostgresCdcProcessorShould
 	public void StartAsyncMethod_HasCorrectParameters()
 	{
 		// Arrange
-		var method = _interfaceType.GetMethod("StartAsync");
+		var method = GetInterfaceMethod(_interfaceType, "StartAsync");
 		var parameters = method!.GetParameters();
 
 		// Assert
@@ -71,8 +123,8 @@ public sealed class IPostgresCdcProcessorShould
 	[Fact]
 	public void HaveProcessBatchAsyncMethod()
 	{
-		// Arrange
-		var method = _interfaceType.GetMethod("ProcessBatchAsync");
+		// Arrange — method inherited from ICdcProcessor
+		var method = GetInterfaceMethod(_interfaceType, "ProcessBatchAsync");
 
 		// Assert
 		method.ShouldNotBeNull();
@@ -83,7 +135,7 @@ public sealed class IPostgresCdcProcessorShould
 	public void ProcessBatchAsyncMethod_HasCorrectParameters()
 	{
 		// Arrange
-		var method = _interfaceType.GetMethod("ProcessBatchAsync");
+		var method = GetInterfaceMethod(_interfaceType, "ProcessBatchAsync");
 		var parameters = method!.GetParameters();
 
 		// Assert
@@ -95,8 +147,8 @@ public sealed class IPostgresCdcProcessorShould
 	[Fact]
 	public void HaveGetCurrentPositionAsyncMethod()
 	{
-		// Arrange
-		var method = _interfaceType.GetMethod("GetCurrentPositionAsync");
+		// Arrange — method inherited from ICdcStreamProcessor
+		var method = GetInterfaceMethod(_interfaceType, "GetCurrentPositionAsync");
 
 		// Assert
 		method.ShouldNotBeNull();
@@ -107,7 +159,7 @@ public sealed class IPostgresCdcProcessorShould
 	public void GetCurrentPositionAsyncMethod_HasCorrectParameters()
 	{
 		// Arrange
-		var method = _interfaceType.GetMethod("GetCurrentPositionAsync");
+		var method = GetInterfaceMethod(_interfaceType, "GetCurrentPositionAsync");
 		var parameters = method!.GetParameters();
 
 		// Assert
@@ -118,8 +170,8 @@ public sealed class IPostgresCdcProcessorShould
 	[Fact]
 	public void HaveConfirmPositionAsyncMethod()
 	{
-		// Arrange
-		var method = _interfaceType.GetMethod("ConfirmPositionAsync");
+		// Arrange — method inherited from ICdcStreamProcessor
+		var method = GetInterfaceMethod(_interfaceType, "ConfirmPositionAsync");
 
 		// Assert
 		method.ShouldNotBeNull();
@@ -130,7 +182,7 @@ public sealed class IPostgresCdcProcessorShould
 	public void ConfirmPositionAsyncMethod_HasCorrectParameters()
 	{
 		// Arrange
-		var method = _interfaceType.GetMethod("ConfirmPositionAsync");
+		var method = GetInterfaceMethod(_interfaceType, "ConfirmPositionAsync");
 		var parameters = method!.GetParameters();
 
 		// Assert
@@ -141,18 +193,19 @@ public sealed class IPostgresCdcProcessorShould
 
 	#endregion
 
-	#region Method Count Tests
+	#region Total Method Count Tests
 
 	[Fact]
-	public void HaveFourDeclaredMethods()
+	public void ExposeFourMethodsThroughInheritance()
 	{
-		// Arrange
-		var methods = _interfaceType.GetMethods()
-			.Where(m => m.DeclaringType == _interfaceType)
+		// All 4 methods are inherited: StartAsync, ProcessBatchAsync,
+		// GetCurrentPositionAsync, ConfirmPositionAsync
+		var allMethods = _interfaceType.GetInterfaces()
+			.Where(i => i != typeof(IAsyncDisposable) && i != typeof(IDisposable))
+			.SelectMany(i => i.GetMethods().Where(m => m.DeclaringType == i))
 			.ToList();
 
-		// Assert
-		methods.Count.ShouldBe(4);
+		allMethods.Count.ShouldBe(4);
 	}
 
 	#endregion

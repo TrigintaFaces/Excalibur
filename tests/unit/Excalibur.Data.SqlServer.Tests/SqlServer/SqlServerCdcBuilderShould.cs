@@ -138,7 +138,7 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 
 		// Assert - service descriptor exists
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ICdcProcessor) &&
+			sd.ServiceType == typeof(ISqlServerCdcProcessor) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
 	}
 

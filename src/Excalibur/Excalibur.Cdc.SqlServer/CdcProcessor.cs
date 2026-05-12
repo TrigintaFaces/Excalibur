@@ -33,7 +33,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// the disposal lifecycle.
 /// </para>
 /// </remarks>
-public partial class CdcProcessor : ICdcProcessor
+public partial class CdcProcessor : ISqlServerCdcProcessor
 {
 	private protected readonly IDatabaseOptions _dbConfig;
 	private readonly IDataAccessPolicyFactory _policyFactory;
@@ -167,7 +167,7 @@ public partial class CdcProcessor : ICdcProcessor
 	/// fatal error handler delegate, if supplied. If not supplied, the processor will rethrow and stop execution.
 	/// </remarks>
 	/// <exception cref="InvalidOperationException"> </exception>
-	public async Task<int> ProcessCdcChangesAsync(
+	public async Task<int> ProcessBatchAsync(
 		Func<DataChangeEvent, CancellationToken, Task> eventHandler,
 		CancellationToken cancellationToken)
 	{

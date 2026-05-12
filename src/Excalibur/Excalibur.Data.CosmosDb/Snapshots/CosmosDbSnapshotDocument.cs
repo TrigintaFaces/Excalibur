@@ -117,7 +117,7 @@ internal sealed class CosmosDbSnapshotDocument
 			AggregateType = snapshot.AggregateType,
 			SnapshotId = snapshot.SnapshotId,
 			Version = snapshot.Version,
-			Data = Convert.ToBase64String(snapshot.Data),
+			Data = Convert.ToBase64String(snapshot.Data.Span),
 			Metadata = SerializeMetadata(snapshot.Metadata),
 			CreatedAt = snapshot.CreatedAt.ToString("O")
 		};

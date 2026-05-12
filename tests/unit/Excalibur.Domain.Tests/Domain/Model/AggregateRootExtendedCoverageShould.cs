@@ -140,7 +140,7 @@ public sealed class AggregateRootExtendedCoverageShould
             AggregateId = "agg-1",
             Version = 10,
             CreatedAt = DateTimeOffset.UtcNow,
-            Data = [1, 2, 3],
+            Data = new byte[] { 1, 2, 3 },
             AggregateType = "TestAggregate",
         };
 

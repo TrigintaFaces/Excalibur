@@ -51,7 +51,7 @@ public sealed class EncryptingSnapshotStore : DelegatingSnapshotStore
 			return null;
 		}
 
-		var decryptedData = await _encryptor.DecryptAsync(snapshot.Data, cancellationToken)
+		var decryptedData = await _encryptor.DecryptAsync(snapshot.Data.ToArray(), cancellationToken)
 			.ConfigureAwait(false);
 
 		return new DecryptedSnapshot(snapshot, decryptedData);
@@ -64,7 +64,7 @@ public sealed class EncryptingSnapshotStore : DelegatingSnapshotStore
 	{
 		ArgumentNullException.ThrowIfNull(snapshot);
 
-		var encryptedData = await _encryptor.EncryptAsync(snapshot.Data, cancellationToken)
+		var encryptedData = await _encryptor.EncryptAsync(snapshot.Data.ToArray(), cancellationToken)
 			.ConfigureAwait(false);
 
 		var encryptedSnapshot = new EncryptedSnapshotWrapper(snapshot, encryptedData);
@@ -89,7 +89,7 @@ public sealed class EncryptingSnapshotStore : DelegatingSnapshotStore
 		public string AggregateId => _original.AggregateId;
 		public long Version => _original.Version;
 		public DateTimeOffset CreatedAt => _original.CreatedAt;
-		public byte[] Data => _decryptedData;
+		public ReadOnlyMemory<byte> Data => _decryptedData;
 		public string AggregateType => _original.AggregateType;
 		public IDictionary<string, object>? Metadata => _original.Metadata;
 	}
@@ -112,7 +112,7 @@ public sealed class EncryptingSnapshotStore : DelegatingSnapshotStore
 		public string AggregateId => _original.AggregateId;
 		public long Version => _original.Version;
 		public DateTimeOffset CreatedAt => _original.CreatedAt;
-		public byte[] Data => _encryptedData;
+		public ReadOnlyMemory<byte> Data => _encryptedData;
 		public string AggregateType => _original.AggregateType;
 		public IDictionary<string, object>? Metadata => _original.Metadata;
 	}

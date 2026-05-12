@@ -42,6 +42,25 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 }
 ```
 
+### CRUD Repository (Non-Event-Sourced)
+
+For entities that don't need event sourcing, use `IRepository<TEntity, TKey>` from `Excalibur.Domain`:
+
+```csharp
+public interface IRepository<TEntity, in TKey>
+    where TEntity : class, IEntity<TKey>
+    where TKey : notnull
+{
+    Task<TEntity?> GetByIdAsync(TKey id, CancellationToken cancellationToken);
+    Task SaveAsync(TEntity entity, CancellationToken cancellationToken);     // upsert
+    Task DeleteAsync(TEntity entity, CancellationToken cancellationToken);
+}
+```
+
+:::tip When to choose
+Use `IEventSourcedRepository` when you need full audit trail, time-travel, and event replay. Use `IRepository` for simple CRUD entities without event history. The two are intentionally separate — `IRepository` has no event stream or concurrency ETag concepts.
+:::
+
 ## Basic Usage
 
 ### Loading Aggregates

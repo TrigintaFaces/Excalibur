@@ -52,7 +52,7 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 		parameters.Add("@AggregateId", snapshot.AggregateId);
 		parameters.Add("@AggregateType", snapshot.AggregateType);
 		parameters.Add("@Version", snapshot.Version);
-		parameters.Add("@Data", snapshot.Data, DbType.Binary);
+		parameters.Add("@Data", snapshot.Data.ToArray(), DbType.Binary);
 		parameters.Add("@CreatedAt", snapshot.CreatedAt);
 
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);

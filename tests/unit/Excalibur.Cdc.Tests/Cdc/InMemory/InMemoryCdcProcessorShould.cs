@@ -69,10 +69,10 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 
 	#endregion
 
-	#region ProcessChangesAsync Tests
+	#region ProcessBatchAsync Tests
 
 	[Fact]
-	public async Task ProcessChangesAsync_ThrowsArgumentNullException_WhenHandlerIsNull()
+	public async Task ProcessBatchAsync_ThrowsArgumentNullException_WhenHandlerIsNull()
 	{
 		// Arrange
 		var store = A.Fake<IInMemoryCdcStore>();
@@ -83,11 +83,11 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(async () =>
-			await processor.ProcessChangesAsync(null!, CancellationToken.None).ConfigureAwait(false));
+			await processor.ProcessBatchAsync(null!, CancellationToken.None).ConfigureAwait(false));
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_ThrowsObjectDisposedException_WhenDisposed()
+	public async Task ProcessBatchAsync_ThrowsObjectDisposedException_WhenDisposed()
 	{
 		// Arrange
 		var store = A.Fake<IInMemoryCdcStore>();
@@ -99,11 +99,11 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ObjectDisposedException>(async () =>
-			await processor.ProcessChangesAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false));
+			await processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false));
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_ReturnsZero_WhenNoPendingChanges()
+	public async Task ProcessBatchAsync_ReturnsZero_WhenNoPendingChanges()
 	{
 		// Arrange
 		var store = new InMemoryCdcStore();
@@ -113,14 +113,14 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 		using var processor = new InMemoryCdcProcessor(store, options, logger);
 
 		// Act
-		var result = await processor.ProcessChangesAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
+		var result = await processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.ShouldBe(0);
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_ProcessesAllChanges()
+	public async Task ProcessBatchAsync_ProcessesAllChanges()
 	{
 		// Arrange
 		var store = new InMemoryCdcStore();
@@ -136,7 +136,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 		var processedChanges = new List<InMemoryCdcChange>();
 
 		// Act
-		var result = await processor.ProcessChangesAsync((change, _) =>
+		var result = await processor.ProcessBatchAsync((change, _) =>
 		{
 			processedChanges.Add(change);
 			return Task.CompletedTask;
@@ -148,7 +148,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_ProcessesInBatches()
+	public async Task ProcessBatchAsync_ProcessesInBatches()
 	{
 		// Arrange
 		var store = new InMemoryCdcStore();
@@ -163,7 +163,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 		using var processor = new InMemoryCdcProcessor(store, options, logger);
 
 		// Act
-		var result = await processor.ProcessChangesAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
+		var result = await processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.ShouldBe(5);
@@ -171,7 +171,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_StopsOnCancellation()
+	public async Task ProcessBatchAsync_StopsOnCancellation()
 	{
 		// Arrange
 		var store = new InMemoryCdcStore();
@@ -190,7 +190,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
-			await processor.ProcessChangesAsync((_, ct) =>
+			await processor.ProcessBatchAsync((_, ct) =>
 			{
 				processedCount++;
 				if (processedCount == 3)
@@ -206,7 +206,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_PropagatesHandlerException()
+	public async Task ProcessBatchAsync_PropagatesHandlerException()
 	{
 		// Arrange
 		var store = new InMemoryCdcStore();
@@ -219,14 +219,14 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
-			await processor.ProcessChangesAsync((_, _) =>
+			await processor.ProcessBatchAsync((_, _) =>
 				throw new InvalidOperationException("Test exception"), CancellationToken.None).ConfigureAwait(false));
 
 		ex.Message.ShouldBe("Test exception");
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_MarksChangesAsProcessed()
+	public async Task ProcessBatchAsync_MarksChangesAsProcessed()
 	{
 		// Arrange
 		var store = new InMemoryCdcStore(Options.Create(new InMemoryCdcOptions { PreserveHistory = true }));
@@ -239,7 +239,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 		using var processor = new InMemoryCdcProcessor(store, options, logger);
 
 		// Act
-		_ = await processor.ProcessChangesAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
+		_ = await processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		store.GetPendingCount().ShouldBe(0);
@@ -247,7 +247,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_CallsMarkAsProcessedOnlyAfterSuccessfulBatch()
+	public async Task ProcessBatchAsync_CallsMarkAsProcessedOnlyAfterSuccessfulBatch()
 	{
 		// Arrange
 		var store = A.Fake<IInMemoryCdcStore>();
@@ -265,7 +265,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 		using var processor = new InMemoryCdcProcessor(store, options, logger);
 
 		// Act
-		var result = await processor.ProcessChangesAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
+		var result = await processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.ShouldBe(2);
@@ -275,7 +275,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_DoesNotCallMarkAsProcessed_WhenHandlerThrows()
+	public async Task ProcessBatchAsync_DoesNotCallMarkAsProcessed_WhenHandlerThrows()
 	{
 		// Arrange
 		var store = A.Fake<IInMemoryCdcStore>();
@@ -292,7 +292,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
-			await processor.ProcessChangesAsync((_, _) =>
+			await processor.ProcessBatchAsync((_, _) =>
 				throw new InvalidOperationException("boom"), CancellationToken.None).ConfigureAwait(false));
 
 		A.CallTo(() => store.MarkAsProcessed(A<IEnumerable<InMemoryCdcChange>>._))
@@ -300,7 +300,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_MarksOnlyCompletedBatches_WhenLaterBatchHandlerFails()
+	public async Task ProcessBatchAsync_MarksOnlyCompletedBatches_WhenLaterBatchHandlerFails()
 	{
 		// Arrange
 		var firstBatch = new List<InMemoryCdcChange>
@@ -335,7 +335,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
-			processor.ProcessChangesAsync((_, _) =>
+			processor.ProcessBatchAsync((_, _) =>
 			{
 				if (Interlocked.Increment(ref handled) == 3)
 				{
@@ -353,7 +353,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task ProcessChangesAsync_DoesNotCallMarkAsProcessed_WhenCancellationOccursInHandler()
+	public async Task ProcessBatchAsync_DoesNotCallMarkAsProcessed_WhenCancellationOccursInHandler()
 	{
 		// Arrange
 		var store = A.Fake<IInMemoryCdcStore>();
@@ -371,7 +371,7 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
-			await processor.ProcessChangesAsync((_, ct) =>
+			await processor.ProcessBatchAsync((_, ct) =>
 			{
 				cts.Cancel();
 				ct.ThrowIfCancellationRequested();

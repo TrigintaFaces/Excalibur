@@ -43,7 +43,7 @@ public sealed class SaveSnapshotRequestShould
 	{
 		// Arrange
 		var snapshot = A.Fake<ISnapshot>();
-		A.CallTo(() => snapshot.Data).Returns([]);
+		A.CallTo(() => snapshot.Data).Returns(ReadOnlyMemory<byte>.Empty);
 
 		// Act
 		var sut = new SaveSnapshotRequest(snapshot, CancellationToken.None);

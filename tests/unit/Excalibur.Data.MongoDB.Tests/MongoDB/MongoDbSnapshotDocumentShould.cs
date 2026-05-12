@@ -52,7 +52,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 			AggregateId = "order-456",
 			AggregateType = "Order",
 			Version = 10,
-			Data = [1, 2, 3, 4],
+			Data = new byte[] { 1, 2, 3, 4 },
 			CreatedAt = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc)
 		};
 
@@ -65,7 +65,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 		document.AggregateId.ShouldBe("order-456");
 		document.AggregateType.ShouldBe("Order");
 		document.Version.ShouldBe(10);
-		document.Data.ShouldBe([1, 2, 3, 4]);
+		document.Data.ShouldBe(new byte[] { 1, 2, 3, 4 });
 		document.CreatedAt.ShouldBe(new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc));
 	}
 
@@ -79,7 +79,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 			AggregateId = "order-456",
 			AggregateType = "Order",
 			Version = 10,
-			Data = [1, 2, 3],
+			Data = new byte[] { 1, 2, 3 },
 			CreatedAt = DateTime.UtcNow,
 			Metadata = new Dictionary<string, object>
 			{
@@ -106,7 +106,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 			AggregateId = "order-456",
 			AggregateType = "Order",
 			Version = 10,
-			Data = [1, 2, 3],
+			Data = new byte[] { 1, 2, 3 },
 			CreatedAt = DateTime.UtcNow,
 			Metadata = null
 		};
@@ -129,7 +129,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 			AggregateId = "order-789",
 			AggregateType = "Order",
 			Version = 25,
-			Data = [5, 6, 7, 8],
+			Data = new byte[] { 5, 6, 7, 8 },
 			CreatedAt = new DateTime(2025, 6, 15, 10, 30, 0, DateTimeKind.Utc)
 		};
 
@@ -141,7 +141,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 		snapshot.AggregateId.ShouldBe("order-789");
 		snapshot.AggregateType.ShouldBe("Order");
 		snapshot.Version.ShouldBe(25);
-		snapshot.Data.ShouldBe([5, 6, 7, 8]);
+		snapshot.Data.ToArray().ShouldBe(new byte[] { 5, 6, 7, 8 });
 		snapshot.CreatedAt.ShouldBe(new DateTime(2025, 6, 15, 10, 30, 0, DateTimeKind.Utc));
 	}
 
@@ -155,7 +155,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 			AggregateId = "agg-round",
 			AggregateType = "RoundTrip",
 			Version = 100,
-			Data = [10, 20, 30, 40, 50],
+			Data = new byte[] { 10, 20, 30, 40, 50 },
 			CreatedAt = new DateTime(2025, 3, 20, 15, 45, 30, DateTimeKind.Utc)
 		};
 
@@ -168,7 +168,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 		result.AggregateId.ShouldBe(original.AggregateId);
 		result.AggregateType.ShouldBe(original.AggregateType);
 		result.Version.ShouldBe(original.Version);
-		result.Data.ShouldBe(original.Data);
+		result.Data.ToArray().ShouldBe(original.Data.ToArray());
 		result.CreatedAt.ShouldBe(original.CreatedAt);
 	}
 }

@@ -84,7 +84,7 @@ public sealed class SnapshotDepthShould
 			AggregateId = "agg-1",
 			Version = 3,
 			CreatedAt = DateTimeOffset.UtcNow,
-			Data = [0xFF],
+			Data = new byte[] { 0xFF },
 			AggregateType = "MyAggregate",
 		};
 
@@ -92,7 +92,7 @@ public sealed class SnapshotDepthShould
 		snapshot.SnapshotId.ShouldBe("snap-1");
 		snapshot.AggregateId.ShouldBe("agg-1");
 		snapshot.Version.ShouldBe(3);
-		snapshot.Data.ShouldBe(new byte[] { 0xFF });
+		snapshot.Data.ToArray().ShouldBe(new byte[] { 0xFF });
 		snapshot.AggregateType.ShouldBe("MyAggregate");
 	}
 }

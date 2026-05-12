@@ -53,13 +53,13 @@ public sealed class TestSnapshotShould
 	public void Have_Default_CreatedAt_Near_UtcNow()
 	{
 		// Arrange
-		var before = DateTime.UtcNow;
+		var before = DateTimeOffset.UtcNow;
 
 		// Act
 		var snapshot = new TestSnapshot();
 
 		// Assert
-		var after = DateTime.UtcNow;
+		var after = DateTimeOffset.UtcNow;
 		snapshot.CreatedAt.ShouldBeGreaterThanOrEqualTo(before);
 		snapshot.CreatedAt.ShouldBeLessThanOrEqualTo(after);
 	}
@@ -71,7 +71,7 @@ public sealed class TestSnapshotShould
 		var snapshot = new TestSnapshot();
 
 		// Assert
-		snapshot.Data.ShouldBeEmpty();
+		snapshot.Data.Length.ShouldBe(0);
 	}
 
 	[Fact]
@@ -123,7 +123,7 @@ public sealed class TestSnapshotShould
 		snapshot.AggregateId.ShouldBe(aggregateId);
 		snapshot.Version.ShouldBe(version);
 		snapshot.CreatedAt.ShouldBe(createdAt);
-		snapshot.Data.ShouldBe(data);
+		snapshot.Data.ToArray().ShouldBe(data);
 		snapshot.AggregateType.ShouldBe(aggregateType);
 		snapshot.Metadata.ShouldBe(metadata);
 	}
@@ -167,13 +167,13 @@ public sealed class TestSnapshotShould
 	public void Create_Snapshot_With_CreatedAt_Near_UtcNow()
 	{
 		// Arrange
-		var before = DateTime.UtcNow;
+		var before = DateTimeOffset.UtcNow;
 
 		// Act
 		var snapshot = TestSnapshot.Create("agg-1", "TestAggregate", 1);
 
 		// Assert
-		var after = DateTime.UtcNow;
+		var after = DateTimeOffset.UtcNow;
 		snapshot.CreatedAt.ShouldBeGreaterThanOrEqualTo(before);
 		snapshot.CreatedAt.ShouldBeLessThanOrEqualTo(after);
 	}
@@ -188,7 +188,7 @@ public sealed class TestSnapshotShould
 		var snapshot = TestSnapshot.Create("agg-1", "TestAggregate", version);
 
 		// Assert
-		var stateString = Encoding.UTF8.GetString(snapshot.Data);
+		var stateString = Encoding.UTF8.GetString(snapshot.Data.Span);
 		stateString.ShouldBe($"state-v{version}");
 	}
 
@@ -202,7 +202,7 @@ public sealed class TestSnapshotShould
 		var snapshot = TestSnapshot.Create("agg-1", "TestAggregate", 1, customState);
 
 		// Assert
-		var stateString = Encoding.UTF8.GetString(snapshot.Data);
+		var stateString = Encoding.UTF8.GetString(snapshot.Data.Span);
 		stateString.ShouldBe(customState);
 	}
 
@@ -216,7 +216,7 @@ public sealed class TestSnapshotShould
 		var snapshot = TestSnapshot.Create("agg-1", "TestAggregate", version, null);
 
 		// Assert
-		var stateString = Encoding.UTF8.GetString(snapshot.Data);
+		var stateString = Encoding.UTF8.GetString(snapshot.Data.Span);
 		stateString.ShouldBe($"state-v{version}");
 	}
 
@@ -239,7 +239,7 @@ public sealed class TestSnapshotShould
 
 		// Act
 		var snapshot = new TestSnapshot { Data = data };
-		var recoveredState = Encoding.UTF8.GetString(snapshot.Data);
+		var recoveredState = Encoding.UTF8.GetString(snapshot.Data.Span);
 
 		// Assert
 		recoveredState.ShouldBe(originalState);

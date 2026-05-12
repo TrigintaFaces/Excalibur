@@ -57,7 +57,7 @@ public sealed class RedisSnapshotStoreShould : UnitTestBase
 			AggregateType = "Order",
 			Version = 11,
 			CreatedAt = DateTimeOffset.UtcNow,
-			Data = [1, 2, 3, 4],
+			Data = new byte[] { 1, 2, 3, 4 },
 			Metadata = new Dictionary<string, object> { ["tenant"] = "acme" }
 		};
 
@@ -75,7 +75,7 @@ public sealed class RedisSnapshotStoreShould : UnitTestBase
 		roundTripped.AggregateId.ShouldBe("agg-1");
 		roundTripped.AggregateType.ShouldBe("Order");
 		roundTripped.Version.ShouldBe(11);
-		roundTripped.Data.ShouldBe([1, 2, 3, 4]);
+		roundTripped.Data.ToArray().ShouldBe(new byte[] { 1, 2, 3, 4 });
 		roundTripped.Metadata.ShouldNotBeNull();
 		roundTripped.Metadata!.ShouldContainKey("tenant");
 	}
@@ -90,7 +90,7 @@ public sealed class RedisSnapshotStoreShould : UnitTestBase
 			AggregateType = "Order",
 			Version = 3,
 			CreatedAt = DateTimeOffset.UtcNow,
-			Data = [5, 6]
+			Data = new byte[] { 5, 6 }
 		};
 
 		var toHash = typeof(RedisSnapshotStore).GetMethod("ToHashEntries", BindingFlags.NonPublic | BindingFlags.Static);

@@ -75,7 +75,7 @@ Excalibur.Cdc.SqlServer.CdcProcessingState.TableName.init -> void
 Excalibur.Cdc.SqlServer.CdcProcessor
 Excalibur.Cdc.SqlServer.CdcProcessor.Dispose() -> void
 Excalibur.Cdc.SqlServer.CdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Cdc.SqlServer.CdcProcessor.ProcessCdcChangesAsync(System.Func<Excalibur.Cdc.SqlServer.DataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.SqlServer.CdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.SqlServer.DataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.SqlServer.CdcRecoveryOptions
 Excalibur.Cdc.SqlServer.CdcRecoveryOptions.CdcRecoveryOptions() -> void
 Excalibur.Cdc.SqlServer.CdcRecoveryOptions.EnableStructuredLogging.get -> bool
@@ -186,8 +186,7 @@ Excalibur.Cdc.SqlServer.DatabaseOptions.StateConnectionIdentifier.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.StopOnMissingTableHandler.get -> bool
 Excalibur.Cdc.SqlServer.DatabaseOptions.StopOnMissingTableHandler.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults
-Excalibur.Cdc.SqlServer.ICdcProcessor
-Excalibur.Cdc.SqlServer.ICdcProcessor.ProcessCdcChangesAsync(System.Func<Excalibur.Cdc.SqlServer.DataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.SqlServer.ISqlServerCdcProcessor
 Excalibur.Cdc.SqlServer.ICdcRepository
 Excalibur.Cdc.SqlServer.ICdcRepository.ChangesExistAsync(byte[]! fromPosition, byte[]! toPosition, System.Collections.Generic.IEnumerable<string!>! captureInstances, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Cdc.SqlServer.ICdcRepository.FetchChangesAsync(string! captureInstance, int batchSize, byte[]! lsn, byte[]? lastSequenceValue, Excalibur.Cdc.SqlServer.CdcOperationCodes lastOperation, System.Threading.CancellationToken cancellationToken, string? logicalTableName = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcRow!>!>!

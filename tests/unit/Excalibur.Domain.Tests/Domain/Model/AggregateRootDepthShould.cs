@@ -256,7 +256,7 @@ public sealed class AggregateRootDepthShould
 		public string AggregateType { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
-		public byte[] Data { get; init; } = [];
+		public ReadOnlyMemory<byte> Data { get; init; }
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 }

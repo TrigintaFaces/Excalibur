@@ -387,6 +387,10 @@ Excalibur.Data.Abstractions.Persistence.ConfigurationValidationResult.Message.ge
 Excalibur.Data.Abstractions.Persistence.ConfigurationValidationResult.ProviderName.get -> string!
 Excalibur.Data.Abstractions.Persistence.ConfigurationValidationResult.Severity.get -> Excalibur.Dispatch.Abstractions.Validation.ValidationSeverity
 Excalibur.Data.Abstractions.Persistence.ConnectionStringProviderExtensions
+Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider
+Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.DelegatingPersistenceProvider(Excalibur.Data.Abstractions.Persistence.IPersistenceProvider! inner) -> void
+Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.Dispose() -> void
+Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.Inner.get -> Excalibur.Data.Abstractions.Persistence.IPersistenceProvider!
 Excalibur.Data.Abstractions.Persistence.DetailedHealthCheckResult
 Excalibur.Data.Abstractions.Persistence.DetailedHealthCheckResult.Data.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
 Excalibur.Data.Abstractions.Persistence.DetailedHealthCheckResult.Description.get -> string?
@@ -597,6 +601,10 @@ Excalibur.Data.Abstractions.Persistence.PersistenceMetricsSnapshot.TotalErrors.g
 Excalibur.Data.Abstractions.Persistence.PersistenceMetricsSnapshot.TotalErrors.set -> void
 Excalibur.Data.Abstractions.Persistence.PersistenceMetricsSnapshot.TotalQueries.get -> long
 Excalibur.Data.Abstractions.Persistence.PersistenceMetricsSnapshot.TotalQueries.set -> void
+Excalibur.Data.Abstractions.Persistence.PersistenceProviderBuilder
+Excalibur.Data.Abstractions.Persistence.PersistenceProviderBuilder.Build() -> Excalibur.Data.Abstractions.Persistence.IPersistenceProvider!
+Excalibur.Data.Abstractions.Persistence.PersistenceProviderBuilder.PersistenceProviderBuilder(Excalibur.Data.Abstractions.Persistence.IPersistenceProvider! innerProvider) -> void
+Excalibur.Data.Abstractions.Persistence.PersistenceProviderBuilder.Use(System.Func<Excalibur.Data.Abstractions.Persistence.IPersistenceProvider!, Excalibur.Data.Abstractions.Persistence.IPersistenceProvider!>! decorator) -> Excalibur.Data.Abstractions.Persistence.PersistenceProviderBuilder!
 Excalibur.Data.Abstractions.Persistence.PersistenceProviderType
 Excalibur.Data.Abstractions.Persistence.PersistenceProviderType.Custom = 6 -> Excalibur.Data.Abstractions.Persistence.PersistenceProviderType
 Excalibur.Data.Abstractions.Persistence.PersistenceProviderType.Elasticsearch = 3 -> Excalibur.Data.Abstractions.Persistence.PersistenceProviderType
@@ -859,3 +867,10 @@ static readonly Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions.Defau
 static readonly Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions.Eventual -> Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions!
 static readonly Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions.Strong -> Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions!
 virtual Excalibur.Data.Abstractions.Db.Dispose(bool disposing) -> void
+virtual Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.Dispose(bool disposing) -> void
+virtual Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
+virtual Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+virtual Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.GetService(System.Type! serviceType) -> object?
+virtual Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+virtual Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.Name.get -> string!
+virtual Excalibur.Data.Abstractions.Persistence.DelegatingPersistenceProvider.ProviderType.get -> string!

@@ -240,7 +240,7 @@ internal sealed class RedisSnapshot : ISnapshot
 	public required DateTimeOffset CreatedAt { get; init; }
 
 	/// <inheritdoc/>
-	public required byte[] Data { get; init; }
+	public required ReadOnlyMemory<byte> Data { get; init; }
 
 	/// <inheritdoc/>
 	public required string AggregateType { get; init; }

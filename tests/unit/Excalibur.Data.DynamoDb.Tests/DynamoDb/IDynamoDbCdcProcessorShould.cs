@@ -44,117 +44,79 @@ public sealed class IDynamoDbCdcProcessorShould
 
 	#endregion
 
-	#region Method Definition Tests
+	#region ISP Hierarchy Tests (Sprint 820)
 
 	[Fact]
-	public void HaveStartAsyncMethod()
+	public void InheritFromICdcStreamProcessor()
 	{
-		// Arrange
-		var method = _interfaceType.GetMethod("StartAsync");
-
-		// Assert
-		method.ShouldNotBeNull();
-		method.ReturnType.ShouldBe(typeof(Task));
+		// Assert — IDynamoDbCdcProcessor : ICdcStreamProcessor<DynamoDbDataChangeEvent, DynamoDbCdcPosition>
+		typeof(Excalibur.Cdc.ICdcStreamProcessor<DynamoDbDataChangeEvent, DynamoDbCdcPosition>)
+			.IsAssignableFrom(_interfaceType).ShouldBeTrue();
 	}
 
 	[Fact]
-	public void StartAsyncMethod_HasCorrectParameters()
+	public void InheritFromICdcProcessor()
 	{
-		// Arrange
-		var method = _interfaceType.GetMethod("StartAsync");
-		var parameters = method.GetParameters();
-
-		// Assert
-		parameters.Length.ShouldBe(2);
-		parameters[0].ParameterType.ShouldBe(typeof(Func<DynamoDbDataChangeEvent, CancellationToken, Task>));
-		parameters[1].ParameterType.ShouldBe(typeof(CancellationToken));
+		// Assert — transitive: ICdcStreamProcessor<T, TPos> : ICdcProcessor<T>
+		typeof(Excalibur.Cdc.ICdcProcessor<DynamoDbDataChangeEvent>)
+			.IsAssignableFrom(_interfaceType).ShouldBeTrue();
 	}
 
 	[Fact]
-	public void HaveProcessBatchAsyncMethod()
+	public void HaveZeroDeclaredMethods()
 	{
-		// Arrange
-		var method = _interfaceType.GetMethod("ProcessBatchAsync");
+		// Assert — marker interface, all methods inherited from base interfaces
+		var methods = _interfaceType.GetMethods(
+				System.Reflection.BindingFlags.Public |
+				System.Reflection.BindingFlags.Instance |
+				System.Reflection.BindingFlags.DeclaredOnly)
+			.ToList();
 
-		// Assert
-		method.ShouldNotBeNull();
-		method.ReturnType.ShouldBe(typeof(Task<int>));
-	}
-
-	[Fact]
-	public void ProcessBatchAsyncMethod_HasCorrectParameters()
-	{
-		// Arrange
-		var method = _interfaceType.GetMethod("ProcessBatchAsync");
-		var parameters = method.GetParameters();
-
-		// Assert
-		parameters.Length.ShouldBe(2);
-		parameters[0].ParameterType.ShouldBe(typeof(Func<DynamoDbDataChangeEvent, CancellationToken, Task>));
-		parameters[1].ParameterType.ShouldBe(typeof(CancellationToken));
-	}
-
-	[Fact]
-	public void HaveGetCurrentPositionAsyncMethod()
-	{
-		// Arrange
-		var method = _interfaceType.GetMethod("GetCurrentPositionAsync");
-
-		// Assert
-		method.ShouldNotBeNull();
-		method.ReturnType.ShouldBe(typeof(Task<DynamoDbCdcPosition>));
-	}
-
-	[Fact]
-	public void GetCurrentPositionAsyncMethod_HasCorrectParameters()
-	{
-		// Arrange
-		var method = _interfaceType.GetMethod("GetCurrentPositionAsync");
-		var parameters = method.GetParameters();
-
-		// Assert
-		parameters.Length.ShouldBe(1);
-		parameters[0].ParameterType.ShouldBe(typeof(CancellationToken));
-	}
-
-	[Fact]
-	public void HaveConfirmPositionAsyncMethod()
-	{
-		// Arrange
-		var method = _interfaceType.GetMethod("ConfirmPositionAsync");
-
-		// Assert
-		method.ShouldNotBeNull();
-		method.ReturnType.ShouldBe(typeof(Task));
-	}
-
-	[Fact]
-	public void ConfirmPositionAsyncMethod_HasCorrectParameters()
-	{
-		// Arrange
-		var method = _interfaceType.GetMethod("ConfirmPositionAsync");
-		var parameters = method.GetParameters();
-
-		// Assert
-		parameters.Length.ShouldBe(2);
-		parameters[0].ParameterType.ShouldBe(typeof(DynamoDbCdcPosition));
-		parameters[1].ParameterType.ShouldBe(typeof(CancellationToken));
+		methods.Count.ShouldBe(0);
 	}
 
 	#endregion
 
-	#region Method Count Tests
+	#region Inherited Method Accessibility Tests
 
 	[Fact]
-	public void HaveFourDeclaredMethods()
+	public void ExposeStartAsync_ViaBaseInterface()
 	{
-		// Arrange
-		var methods = _interfaceType.GetMethods()
-			.Where(m => m.DeclaringType == _interfaceType)
-			.ToList();
+		// Assert — StartAsync is accessible through the interface hierarchy
+		var streamType = typeof(Excalibur.Cdc.ICdcStreamProcessor<DynamoDbDataChangeEvent, DynamoDbCdcPosition>);
+		var method = streamType.GetMethod("StartAsync");
+		method.ShouldNotBeNull();
+		method!.ReturnType.ShouldBe(typeof(Task));
+	}
 
+	[Fact]
+	public void ExposeProcessBatchAsync_ViaBaseInterface()
+	{
+		// Assert — ProcessBatchAsync is accessible through the interface hierarchy
+		var baseType = typeof(Excalibur.Cdc.ICdcProcessor<DynamoDbDataChangeEvent>);
+		var method = baseType.GetMethod("ProcessBatchAsync");
+		method.ShouldNotBeNull();
+		method!.ReturnType.ShouldBe(typeof(Task<int>));
+	}
+
+	[Fact]
+	public void ExposeGetCurrentPositionAsync_ViaBaseInterface()
+	{
 		// Assert
-		methods.Count.ShouldBe(4);
+		var streamType = typeof(Excalibur.Cdc.ICdcStreamProcessor<DynamoDbDataChangeEvent, DynamoDbCdcPosition>);
+		var method = streamType.GetMethod("GetCurrentPositionAsync");
+		method.ShouldNotBeNull();
+		method!.ReturnType.ShouldBe(typeof(Task<DynamoDbCdcPosition>));
+	}
+
+	[Fact]
+	public void ExposeConfirmPositionAsync_ViaBaseInterface()
+	{
+		// Assert
+		var streamType = typeof(Excalibur.Cdc.ICdcStreamProcessor<DynamoDbDataChangeEvent, DynamoDbCdcPosition>);
+		var method = streamType.GetMethod("ConfirmPositionAsync");
+		method.ShouldNotBeNull();
+		method!.ReturnType.ShouldBe(typeof(Task));
 	}
 
 	#endregion

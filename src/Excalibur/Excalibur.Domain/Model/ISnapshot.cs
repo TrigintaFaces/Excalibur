@@ -36,8 +36,8 @@ public interface ISnapshot
 	/// <summary>
 	/// Gets the serialized state data.
 	/// </summary>
-	/// <value>The serialized state data.</value>
-	byte[] Data { get; }
+	/// <value>The serialized state data as an immutable memory region.</value>
+	ReadOnlyMemory<byte> Data { get; }
 
 	/// <summary>
 	/// Gets the type of the aggregate for deserialization.

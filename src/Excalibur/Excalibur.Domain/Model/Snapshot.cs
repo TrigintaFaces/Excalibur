@@ -28,7 +28,7 @@ public sealed record Snapshot : ISnapshot
 	public required DateTimeOffset CreatedAt { get; init; }
 
 	/// <inheritdoc />
-	public required byte[] Data { get; init; }
+	public required ReadOnlyMemory<byte> Data { get; init; }
 
 	/// <inheritdoc />
 	public required string AggregateType { get; init; }
@@ -41,7 +41,7 @@ public sealed record Snapshot : ISnapshot
 	/// </summary>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="version">The aggregate version.</param>
-	/// <param name="data">The serialized state data.</param>
+	/// <param name="data">The serialized state data as an immutable memory region.</param>
 	/// <param name="aggregateType">The type of the aggregate.</param>
 	/// <param name="metadata">Optional metadata.</param>
 	/// <returns>A new <see cref="Snapshot"/> instance.</returns>

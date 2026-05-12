@@ -313,7 +313,7 @@ public sealed class EventSourcingJourneyE2EShould : IAsyncDisposable
 		public long Version { get; init; }
 		public string AggregateType { get; init; } = nameof(TestOrderAggregate);
 		public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
-		public byte[] Data { get; init; } = [];
+		public ReadOnlyMemory<byte> Data { get; init; }
 		public IDictionary<string, object>? Metadata { get; init; }
 
 		// Domain state

@@ -72,10 +72,11 @@ public sealed class CompressingSnapshotStore : DelegatingSnapshotStore
 			return null;
 		}
 
-		var decompressedData = Decompress(snapshot.Data);
+		var snapshotBytes = snapshot.Data.ToArray();
+		var decompressedData = Decompress(snapshotBytes);
 
 		// If data was not compressed (no magic prefix), return as-is
-		if (ReferenceEquals(decompressedData, snapshot.Data))
+		if (ReferenceEquals(decompressedData, snapshotBytes))
 		{
 			return snapshot;
 		}
@@ -91,7 +92,7 @@ public sealed class CompressingSnapshotStore : DelegatingSnapshotStore
 		ArgumentNullException.ThrowIfNull(snapshot);
 
 		var opts = _options.Value;
-		var data = snapshot.Data;
+		var data = snapshot.Data.ToArray();
 
 		// Skip compression for small payloads
 		if (data.Length < opts.MinimumSizeBytes)
@@ -217,7 +218,7 @@ public sealed class CompressingSnapshotStore : DelegatingSnapshotStore
 		public string AggregateId => _original.AggregateId;
 		public long Version => _original.Version;
 		public DateTimeOffset CreatedAt => _original.CreatedAt;
-		public byte[] Data => _decompressedData;
+		public ReadOnlyMemory<byte> Data => _decompressedData;
 		public string AggregateType => _original.AggregateType;
 		public IDictionary<string, object>? Metadata => _original.Metadata;
 	}
@@ -240,7 +241,7 @@ public sealed class CompressingSnapshotStore : DelegatingSnapshotStore
 		public string AggregateId => _original.AggregateId;
 		public long Version => _original.Version;
 		public DateTimeOffset CreatedAt => _original.CreatedAt;
-		public byte[] Data => _compressedData;
+		public ReadOnlyMemory<byte> Data => _compressedData;
 		public string AggregateType => _original.AggregateType;
 		public IDictionary<string, object>? Metadata => _original.Metadata;
 	}

@@ -119,7 +119,7 @@ Excalibur.Testing.Conformance.TestSnapshot.AggregateType.get -> string!
 Excalibur.Testing.Conformance.TestSnapshot.AggregateType.init -> void
 Excalibur.Testing.Conformance.TestSnapshot.CreatedAt.get -> System.DateTimeOffset
 Excalibur.Testing.Conformance.TestSnapshot.CreatedAt.init -> void
-Excalibur.Testing.Conformance.TestSnapshot.Data.get -> byte[]!
+Excalibur.Testing.Conformance.TestSnapshot.Data.get -> System.ReadOnlyMemory<byte>
 Excalibur.Testing.Conformance.TestSnapshot.Data.init -> void
 Excalibur.Testing.Conformance.TestSnapshot.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 Excalibur.Testing.Conformance.TestSnapshot.Metadata.init -> void
