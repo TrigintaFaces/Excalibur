@@ -72,8 +72,6 @@ Excalibur.Domain.Concurrency.IETag.IncomingValue.get -> string?
 Excalibur.Domain.Concurrency.IETag.IncomingValue.set -> void
 Excalibur.Domain.Concurrency.IETag.OutgoingValue.get -> string?
 Excalibur.Domain.Concurrency.IETag.OutgoingValue.set -> void
-Excalibur.Domain.Cultures
-Excalibur.Domain.ExcaliburHeaderNames
 Excalibur.Domain.Exceptions.DomainException
 Excalibur.Domain.Exceptions.DomainException.DomainException() -> void
 Excalibur.Domain.Exceptions.DomainException.DomainException(string! message) -> void
@@ -212,11 +210,6 @@ abstract Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEventInternal(Excalibur
 abstract Excalibur.Domain.Model.EntityBase<TKey>.Key.get -> TKey
 abstract Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.BusinessKey.get -> TBusinessKey
 abstract Excalibur.Domain.Model.ValueObjects.ValueObjectBase.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
-const Excalibur.Domain.Cultures.DefaultCultureName = "en-US" -> string!
-const Excalibur.Domain.ExcaliburHeaderNames.CorrelationId = "X-Correlation-Id" -> string!
-const Excalibur.Domain.ExcaliburHeaderNames.ETag = "X-Etag" -> string!
-const Excalibur.Domain.ExcaliburHeaderNames.RaisedBy = "X-Raised-By" -> string!
-const Excalibur.Domain.ExcaliburHeaderNames.TenantId = "X-Tenant-Id" -> string!
 override Excalibur.Domain.Model.EntityBase<TKey>.Equals(object? obj) -> bool
 override Excalibur.Domain.Model.EntityBase<TKey>.GetHashCode() -> int
 override Excalibur.Domain.Model.ValueObjects.Address.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
@@ -242,9 +235,6 @@ static Excalibur.Domain.ApplicationContext.Reset() -> void
 static Excalibur.Domain.ApplicationContext.ServiceAccountName.get -> string!
 static Excalibur.Domain.ApplicationContext.ServiceAccountPrivateKeyPasswordSecure.get -> string!
 static Excalibur.Domain.ApplicationContext.ServiceAccountPrivateKeyPath.get -> string!
-static Excalibur.Domain.Cultures.GetCultureInfo(string! cultureName) -> System.Globalization.CultureInfo!
-static Excalibur.Domain.Cultures.IsValidCultureName(string! cultureName) -> bool
-static Excalibur.Domain.Cultures.Names.get -> System.Collections.Generic.IEnumerable<string!>!
 static Excalibur.Domain.Exceptions.DomainException.ThrowIf(bool condition, string! message) -> void
 static Excalibur.Domain.Exceptions.DomainException.ThrowIf(bool condition, string! message, System.Exception! innerException) -> void
 static Excalibur.Domain.Extensions.ConfigurationExtensions.GetApplicationContextConfiguration(this Microsoft.Extensions.Configuration.IConfiguration! configuration) -> System.Collections.Generic.Dictionary<string!, string?>!

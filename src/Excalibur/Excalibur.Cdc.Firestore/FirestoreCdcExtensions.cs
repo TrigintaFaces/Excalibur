@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Cdc;
 using Excalibur.Cdc.Firestore;
 
 using Microsoft.Extensions.Configuration;
@@ -33,6 +34,12 @@ public static class FirestoreCdcServiceCollectionExtensions
 		RegisterCdcValidators(services);
 		services.TryAddSingleton<IFirestoreCdcProcessor, FirestoreCdcProcessor>();
 
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<FirestoreDataChangeEvent, FirestoreCdcPosition>>(
+			sp => sp.GetRequiredService<IFirestoreCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<FirestoreDataChangeEvent>>(
+			sp => sp.GetRequiredService<IFirestoreCdcProcessor>());
+
 		return services;
 	}
 
@@ -56,6 +63,12 @@ public static class FirestoreCdcServiceCollectionExtensions
 			.ValidateOnStart();
 		RegisterCdcValidators(services);
 		services.TryAddSingleton<IFirestoreCdcProcessor, FirestoreCdcProcessor>();
+
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<FirestoreDataChangeEvent, FirestoreCdcPosition>>(
+			sp => sp.GetRequiredService<IFirestoreCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<FirestoreDataChangeEvent>>(
+			sp => sp.GetRequiredService<IFirestoreCdcProcessor>());
 
 		return services;
 	}
@@ -82,6 +95,12 @@ public static class FirestoreCdcServiceCollectionExtensions
 			.ValidateOnStart();
 		RegisterCdcValidators(services);
 		services.TryAddSingleton<IFirestoreCdcProcessor, FirestoreCdcProcessor>();
+
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<FirestoreDataChangeEvent, FirestoreCdcPosition>>(
+			sp => sp.GetRequiredService<IFirestoreCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<FirestoreDataChangeEvent>>(
+			sp => sp.GetRequiredService<IFirestoreCdcProcessor>());
 
 		return services;
 	}

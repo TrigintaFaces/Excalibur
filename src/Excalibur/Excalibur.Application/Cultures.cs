@@ -4,7 +4,7 @@
 
 using System.Globalization;
 
-namespace Excalibur.Domain;
+namespace Excalibur.Application;
 
 /// <summary>
 /// Provides utilities for handling and validating cultures.

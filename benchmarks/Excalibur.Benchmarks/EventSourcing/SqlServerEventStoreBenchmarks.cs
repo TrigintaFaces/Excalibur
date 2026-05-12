@@ -287,6 +287,6 @@ internal sealed class BenchmarkSnapshot : ISnapshot
 	public required string AggregateType { get; init; }
 	public required long Version { get; init; }
 	public required DateTimeOffset CreatedAt { get; init; }
-	public required byte[] Data { get; init; }
+	public required ReadOnlyMemory<byte> Data { get; init; }
 	public IDictionary<string, object>? Metadata { get; init; }
 }

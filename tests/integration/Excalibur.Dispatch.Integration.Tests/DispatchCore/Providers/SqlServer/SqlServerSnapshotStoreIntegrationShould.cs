@@ -230,7 +230,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 		// Assert - Documents current MERGE behavior: last write wins
 		_ = loaded.ShouldNotBeNull();
 		loaded.Version.ShouldBe(5, "Current impl uses last-write-wins (MERGE upsert)");
-		System.Text.Encoding.UTF8.GetString(loaded.Data).ShouldBe("state-v5");
+		System.Text.Encoding.UTF8.GetString(loaded.Data.Span).ShouldBe("state-v5");
 	}
 
 	/// <summary>

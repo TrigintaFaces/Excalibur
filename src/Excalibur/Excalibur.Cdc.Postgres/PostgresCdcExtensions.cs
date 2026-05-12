@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Cdc;
 using Excalibur.Cdc.Postgres;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -66,6 +67,12 @@ public static class PostgresCdcExtensions
 		// Register processor
 		services.TryAddSingleton<IPostgresCdcProcessor, PostgresCdcProcessor>();
 
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<PostgresDataChangeEvent, PostgresCdcPosition>>(
+			sp => sp.GetRequiredService<IPostgresCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<PostgresDataChangeEvent>>(
+			sp => sp.GetRequiredService<IPostgresCdcProcessor>());
+
 		return services;
 	}
 
@@ -98,6 +105,12 @@ public static class PostgresCdcExtensions
 
 		// Register processor
 		services.TryAddSingleton<IPostgresCdcProcessor, PostgresCdcProcessor>();
+
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<PostgresDataChangeEvent, PostgresCdcPosition>>(
+			sp => sp.GetRequiredService<IPostgresCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<PostgresDataChangeEvent>>(
+			sp => sp.GetRequiredService<IPostgresCdcProcessor>());
 
 		return services;
 	}
@@ -135,6 +148,12 @@ public static class PostgresCdcExtensions
 
 		// Register processor
 		services.TryAddSingleton<IPostgresCdcProcessor, PostgresCdcProcessor>();
+
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<PostgresDataChangeEvent, PostgresCdcPosition>>(
+			sp => sp.GetRequiredService<IPostgresCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<PostgresDataChangeEvent>>(
+			sp => sp.GetRequiredService<IPostgresCdcProcessor>());
 
 		return services;
 	}

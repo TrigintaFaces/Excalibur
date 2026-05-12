@@ -12,6 +12,8 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Domain;
 
+using ExcaliburHeaderNames = Excalibur.Application.ExcaliburHeaderNames;
+
 using Microsoft.Extensions.Logging;
 
 using ApiException = Excalibur.Dispatch.Abstractions.ApiException;

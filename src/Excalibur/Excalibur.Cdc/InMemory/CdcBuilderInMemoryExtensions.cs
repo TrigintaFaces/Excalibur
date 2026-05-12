@@ -105,6 +105,10 @@ public static class CdcBuilderInMemoryExtensions
 			return new InMemoryCdcProcessor(store, options, logger);
 		});
 
+		// Forward to base interface so consumers can depend on the abstraction level they need
+		builder.Services.TryAddSingleton<ICdcProcessor<InMemoryCdcChange>>(
+			sp => sp.GetRequiredService<IInMemoryCdcProcessor>());
+
 		return builder;
 	}
 
@@ -177,6 +181,10 @@ public static class CdcBuilderInMemoryExtensions
 			var logger = sp.GetRequiredService<ILogger<InMemoryCdcProcessor>>();
 			return new InMemoryCdcProcessor(store, options, logger);
 		});
+
+		// Forward to base interface so consumers can depend on the abstraction level they need
+		builder.Services.TryAddSingleton<ICdcProcessor<InMemoryCdcChange>>(
+			sp => sp.GetRequiredService<IInMemoryCdcProcessor>());
 
 		return builder;
 	}

@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;
 using Excalibur.Dispatch.Transport.GooglePubSub;
+using Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 
 using Google.Api.Gax;
 using Google.Api.Gax.Grpc;
@@ -31,20 +34,37 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </remarks>
 internal sealed partial class PubSubTransportSender : ITransportSender
 {
-	private readonly PublisherServiceApiClient _client;
+	private readonly IPublisherClientSeam _client;
 	private readonly TimeSpan _requestTimeout;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="PubSubTransportSender"/> class.
+	/// Initializes a new instance of the <see cref="PubSubTransportSender"/> class
+	/// with an existing <see cref="PublisherServiceApiClient"/>.
 	/// </summary>
 	/// <param name="client">The Pub/Sub publisher service API client.</param>
 	/// <param name="topicName">The fully qualified topic name.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="requestTimeout">Optional request timeout.</param>
+	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+		Justification = "Adapter is stored in _client field and lives for the sender's lifetime.")]
 	public PubSubTransportSender(
 		PublisherServiceApiClient client,
+		string topicName,
+		ILogger<PubSubTransportSender> logger,
+		TimeSpan requestTimeout = default)
+		: this(CreatePublisherAdapter(client), topicName, logger, requestTimeout)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="PubSubTransportSender"/>
+	/// class using a pre-built adapter. Used by tests to substitute the SDK via
+	/// the <see cref="IPublisherClientSeam"/> seam (ADR-142 §D7).
+	/// </summary>
+	internal PubSubTransportSender(
+		IPublisherClientSeam client,
 		string topicName,
 		ILogger<PubSubTransportSender> logger,
 		TimeSpan requestTimeout = default)
@@ -53,6 +73,12 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 		Destination = topicName ?? throw new ArgumentNullException(nameof(topicName));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_requestTimeout = requestTimeout;
+	}
+
+	private static IPublisherClientSeam CreatePublisherAdapter(PublisherServiceApiClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		return new PublisherClientAdapter(client);
 	}
 
 	/// <inheritdoc />
@@ -167,7 +193,7 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
-		if (serviceType == typeof(PublisherServiceApiClient))
+		if (serviceType == typeof(IPublisherClientSeam))
 		{
 			return _client;
 		}

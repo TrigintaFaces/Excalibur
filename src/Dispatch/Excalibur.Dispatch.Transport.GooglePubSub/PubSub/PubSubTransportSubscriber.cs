@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Transport.GooglePubSub;
+using Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 
 using Google.Cloud.PubSub.V1;
 
@@ -31,24 +34,46 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </remarks>
 internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 {
-	private readonly SubscriberClient _subscriber;
+	private readonly ISubscriberClientSeam _subscriber;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="PubSubTransportSubscriber"/> class.
+	/// Initializes a new instance of the <see cref="PubSubTransportSubscriber"/> class
+	/// with an existing <see cref="SubscriberClient"/>.
 	/// </summary>
 	/// <param name="subscriber">The Pub/Sub subscriber client.</param>
 	/// <param name="source">The subscription name this subscriber reads from.</param>
 	/// <param name="logger">The logger instance.</param>
+	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+		Justification = "Adapter is stored in _subscriber field and lives for the subscriber's lifetime.")]
 	public PubSubTransportSubscriber(
 		SubscriberClient subscriber,
+		string source,
+		ILogger<PubSubTransportSubscriber> logger)
+		: this(CreateAdapter(subscriber), source, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="PubSubTransportSubscriber"/>
+	/// class using a pre-built adapter. Used by tests to substitute the SDK via
+	/// the <see cref="ISubscriberClientSeam"/> seam (ADR-142 §D7).
+	/// </summary>
+	internal PubSubTransportSubscriber(
+		ISubscriberClientSeam subscriber,
 		string source,
 		ILogger<PubSubTransportSubscriber> logger)
 	{
 		_subscriber = subscriber ?? throw new ArgumentNullException(nameof(subscriber));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	}
+
+	private static ISubscriberClientSeam CreateAdapter(SubscriberClient subscriber)
+	{
+		ArgumentNullException.ThrowIfNull(subscriber);
+		return new SubscriberClientAdapter(subscriber);
 	}
 
 	/// <inheritdoc />
@@ -125,7 +150,7 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
-		if (serviceType == typeof(SubscriberClient))
+		if (serviceType == typeof(ISubscriberClientSeam))
 		{
 			return _subscriber;
 		}

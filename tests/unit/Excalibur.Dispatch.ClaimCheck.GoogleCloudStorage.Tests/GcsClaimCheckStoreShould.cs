@@ -2,10 +2,9 @@ using System.Net;
 using System.Security.Cryptography;
 
 using Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage;
+using Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Internal;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
-using Google.Apis.Download;
-using Google.Apis.Upload;
 using Google.Apis.Storage.v1.Data;
 using Google.Cloud.Storage.V1;
 
@@ -25,16 +24,14 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	[Fact]
 	public async Task StoreAsync_ShouldUploadPayloadAndReturnReference()
 	{
-		var storageClient = A.Fake<StorageClient>();
+		var storageClient = A.Fake<IStorageClientSeam>();
 		GcsObject? capturedObject = null;
 		var uploadedLength = -1;
 		A.CallTo(() => storageClient.UploadObjectAsync(
 				A<GcsObject>._,
 				A<Stream>._,
-				A<UploadObjectOptions?>._,
-				A<CancellationToken>._,
-				A<IProgress<IUploadProgress>?>._))
-			.Invokes((GcsObject gcsObject, Stream stream, UploadObjectOptions? _, CancellationToken _, IProgress<IUploadProgress>? _) =>
+				A<CancellationToken>._))
+			.Invokes((GcsObject gcsObject, Stream stream, CancellationToken _) =>
 			{
 				capturedObject = gcsObject;
 				var bytes = new MemoryStream();
@@ -67,15 +64,13 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	[Fact]
 	public async Task StoreAsync_WithNullMetadata_ShouldUseDefaultContentType()
 	{
-		var storageClient = A.Fake<StorageClient>();
+		var storageClient = A.Fake<IStorageClientSeam>();
 		GcsObject? capturedObject = null;
 		A.CallTo(() => storageClient.UploadObjectAsync(
 				A<GcsObject>._,
 				A<Stream>._,
-				A<UploadObjectOptions?>._,
-				A<CancellationToken>._,
-				A<IProgress<IUploadProgress>?>._))
-			.Invokes((GcsObject gcsObject, Stream _, UploadObjectOptions? _, CancellationToken _, IProgress<IUploadProgress>? _) =>
+				A<CancellationToken>._))
+			.Invokes((GcsObject gcsObject, Stream _, CancellationToken _) =>
 			{
 				capturedObject = gcsObject;
 			})
@@ -94,21 +89,19 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	public async Task RetrieveAsync_ShouldReturnPayloadFromBucket()
 	{
 		var expected = new byte[] { 11, 12, 13 };
-		var storageClient = A.Fake<StorageClient>();
+		var storageClient = A.Fake<IStorageClientSeam>();
 
 		A.CallTo(() => storageClient.DownloadObjectAsync(
 				"test-bucket",
 				A<string>._,
 				A<Stream>._,
-				A<DownloadObjectOptions?>._,
-				A<CancellationToken>._,
-				A<IProgress<IDownloadProgress>?>._))
-			.Invokes((string _, string _, Stream stream, DownloadObjectOptions? _, CancellationToken _, IProgress<IDownloadProgress>? _) =>
+				A<CancellationToken>._))
+			.Invokes((string _, string _, Stream stream, CancellationToken _) =>
 			{
 				stream.Write(expected, 0, expected.Length);
 				stream.Position = 0;
 			})
-			.Returns(new GcsObject());
+			.Returns(Task.CompletedTask);
 
 		var sut = CreateSut(storageClient);
 		var reference = new ClaimCheckReference { Id = "cc-retrieve" };
@@ -121,14 +114,12 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	[Fact]
 	public async Task RetrieveAsync_WhenObjectMissing_ShouldThrowKeyNotFoundException()
 	{
-		var storageClient = A.Fake<StorageClient>();
+		var storageClient = A.Fake<IStorageClientSeam>();
 		A.CallTo(() => storageClient.DownloadObjectAsync(
 				"test-bucket",
 				A<string>._,
 				A<Stream>._,
-				A<DownloadObjectOptions?>._,
-				A<CancellationToken>._,
-				A<IProgress<IDownloadProgress>?>._))
+				A<CancellationToken>._))
 			.Throws(CreateGoogleApiException(HttpStatusCode.NotFound));
 
 		var sut = CreateSut(storageClient);
@@ -141,11 +132,10 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	[Fact]
 	public async Task DeleteAsync_WhenDeleteSucceeds_ShouldReturnTrue()
 	{
-		var storageClient = A.Fake<StorageClient>();
+		var storageClient = A.Fake<IStorageClientSeam>();
 		A.CallTo(() => storageClient.DeleteObjectAsync(
 				"test-bucket",
 				A<string>._,
-				A<DeleteObjectOptions?>._,
 				A<CancellationToken>._))
 			.Returns(Task.CompletedTask);
 
@@ -158,11 +148,10 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	[Fact]
 	public async Task DeleteAsync_WhenProviderThrows_ShouldReturnFalse()
 	{
-		var storageClient = A.Fake<StorageClient>();
+		var storageClient = A.Fake<IStorageClientSeam>();
 		A.CallTo(() => storageClient.DeleteObjectAsync(
 				"test-bucket",
 				A<string>._,
-				A<DeleteObjectOptions?>._,
 				A<CancellationToken>._))
 			.Throws(new Google.GoogleApiException("storage", "boom"));
 
@@ -177,7 +166,7 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	[InlineData(256, true)]
 	public void ShouldUseClaimCheck_ShouldRespectThreshold(int payloadSize, bool expected)
 	{
-		var sut = CreateSut(A.Fake<StorageClient>(), claimCheckOptions: new ClaimCheckOptions
+		var sut = CreateSut(A.Fake<IStorageClientSeam>(), claimCheckOptions: new ClaimCheckOptions
 		{
 			PayloadThreshold = 256
 		});
@@ -195,7 +184,7 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 		var claimCheckOptions = Microsoft.Extensions.Options.Options.Create(new ClaimCheckOptions());
 		var logger = CreateEnabledLogger();
 
-		Should.Throw<ArgumentNullException>(() => new GcsClaimCheckStore(null!, options, claimCheckOptions, logger));
+		Should.Throw<ArgumentNullException>(() => new GcsClaimCheckStore((StorageClient)null!, options, claimCheckOptions, logger));
 		Should.Throw<ArgumentNullException>(() => new GcsClaimCheckStore(storageClient, null!, claimCheckOptions, logger));
 		Should.Throw<ArgumentNullException>(() => new GcsClaimCheckStore(storageClient, options, null!, logger));
 		Should.Throw<ArgumentNullException>(() => new GcsClaimCheckStore(storageClient, options, claimCheckOptions, null!));
@@ -270,7 +259,7 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	[Fact]
 	public async Task Methods_ShouldValidateNullArguments()
 	{
-		var sut = CreateSut(A.Fake<StorageClient>());
+		var sut = CreateSut(A.Fake<IStorageClientSeam>());
 
 		_ = await Should.ThrowAsync<ArgumentNullException>(() => sut.StoreAsync(null!, CancellationToken.None));
 		_ = await Should.ThrowAsync<ArgumentNullException>(() => sut.RetrieveAsync(null!, CancellationToken.None));
@@ -279,7 +268,7 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 	}
 
 	private static GcsClaimCheckStore CreateSut(
-		StorageClient storageClient,
+		IStorageClientSeam storageClient,
 		GcsClaimCheckOptions? options = null,
 		ClaimCheckOptions? claimCheckOptions = null)
 	{

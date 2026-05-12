@@ -13,6 +13,8 @@ using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Domain;
 
+using ExcaliburHeaderNames = Excalibur.Application.ExcaliburHeaderNames;
+
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 

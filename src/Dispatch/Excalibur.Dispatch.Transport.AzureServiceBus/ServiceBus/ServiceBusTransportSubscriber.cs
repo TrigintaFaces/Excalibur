@@ -4,6 +4,7 @@
 using Azure.Messaging.ServiceBus;
 
 using Excalibur.Dispatch.Transport.AzureServiceBus;
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 
 using Microsoft.Extensions.Logging;
 
@@ -30,7 +31,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </remarks>
 internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscriber
 {
-	private readonly ServiceBusProcessor _processor;
+	private readonly IServiceBusProcessorSeam _processor;
 	private readonly ILogger _logger;
 	private Func<ProcessMessageEventArgs, Task>? _messageHandler;
 	private Func<ProcessErrorEventArgs, Task>? _errorHandler;
@@ -38,12 +39,31 @@ internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscrib
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ServiceBusTransportSubscriber"/> class.
+	/// Wraps the SDK processor in a <see cref="ServiceBusProcessorAdapter"/>.
 	/// </summary>
 	/// <param name="processor">The Azure Service Bus processor.</param>
 	/// <param name="source">The source queue or subscription name.</param>
 	/// <param name="logger">The logger instance.</param>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+		Justification = "Adapter is stored in _processor field and disposed via DisposeAsync.")]
 	public ServiceBusTransportSubscriber(
 		ServiceBusProcessor processor,
+		string source,
+		ILogger<ServiceBusTransportSubscriber> logger)
+		: this(CreateAdapter(processor), source, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="ServiceBusTransportSubscriber"/>
+	/// class using a pre-built adapter. Used by tests to substitute the SDK via
+	/// the <see cref="IServiceBusProcessorSeam"/> seam (ADR-142 §D7).
+	/// </summary>
+	/// <param name="processor">The Service Bus processor adapter.</param>
+	/// <param name="source">The source queue or subscription name.</param>
+	/// <param name="logger">The logger instance.</param>
+	internal ServiceBusTransportSubscriber(
+		IServiceBusProcessorSeam processor,
 		string source,
 		ILogger<ServiceBusTransportSubscriber> logger)
 	{
@@ -139,7 +159,7 @@ internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscrib
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
-		if (serviceType == typeof(ServiceBusProcessor))
+		if (serviceType == typeof(IServiceBusProcessorSeam))
 		{
 			return _processor;
 		}
@@ -159,6 +179,12 @@ internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscrib
 		await _processor.DisposeAsync().ConfigureAwait(false);
 		LogDisposed(Source);
 		GC.SuppressFinalize(this);
+	}
+
+	private static IServiceBusProcessorSeam CreateAdapter(ServiceBusProcessor processor)
+	{
+		ArgumentNullException.ThrowIfNull(processor);
+		return new ServiceBusProcessorAdapter(processor);
 	}
 
 	private TransportReceivedMessage ConvertToReceivedMessage(ServiceBusReceivedMessage sbMessage)

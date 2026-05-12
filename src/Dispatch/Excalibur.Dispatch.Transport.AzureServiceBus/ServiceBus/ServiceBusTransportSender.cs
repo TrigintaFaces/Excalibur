@@ -8,6 +8,7 @@ using System.Globalization;
 using Azure.Messaging.ServiceBus;
 
 using Excalibur.Dispatch.Transport.AzureServiceBus;
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -31,18 +32,37 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </remarks>
 internal sealed partial class ServiceBusTransportSender : ITransportSender
 {
-	private readonly ServiceBusSender _sender;
+	private readonly IServiceBusSenderSeam _sender;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ServiceBusTransportSender"/> class.
+	/// Wraps the SDK sender in a <see cref="ServiceBusSenderAdapter"/>.
 	/// </summary>
 	/// <param name="sender">The Azure Service Bus sender.</param>
 	/// <param name="destination">The destination queue or topic name.</param>
 	/// <param name="logger">The logger instance.</param>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+		Justification = "Adapter is stored in _sender field and disposed via DisposeAsync.")]
 	public ServiceBusTransportSender(
 		ServiceBusSender sender,
+		string destination,
+		ILogger<ServiceBusTransportSender> logger)
+		: this(CreateAdapter(sender), destination, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="ServiceBusTransportSender"/>
+	/// class using a pre-built adapter. Used by tests to substitute the SDK via
+	/// the <see cref="IServiceBusSenderSeam"/> seam (ADR-142 §D7).
+	/// </summary>
+	/// <param name="sender">The Service Bus sender adapter.</param>
+	/// <param name="destination">The destination queue or topic name.</param>
+	/// <param name="logger">The logger instance.</param>
+	internal ServiceBusTransportSender(
+		IServiceBusSenderSeam sender,
 		string destination,
 		ILogger<ServiceBusTransportSender> logger)
 	{
@@ -107,29 +127,28 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 
 		try
 		{
-			using var batch = await _sender.CreateMessageBatchAsync(cancellationToken).ConfigureAwait(false);
-			var results = new List<SendResult>(messages.Count);
-			var overflow = new List<TransportMessage>();
-
+			var sbMessages = new List<ServiceBusMessage>(messages.Count);
 			foreach (var message in messages)
 			{
-				var sbMessage = CreateServiceBusMessage(message);
-				if (!batch.TryAddMessage(sbMessage))
+				sbMessages.Add(CreateServiceBusMessage(message));
+			}
+
+			var overflowIndices = await _sender.SendBatchAsync(sbMessages, cancellationToken).ConfigureAwait(false);
+			var overflowSet = new HashSet<int>(overflowIndices);
+
+			var results = new List<SendResult>(messages.Count);
+			for (var i = 0; i < messages.Count; i++)
+			{
+				if (!overflowSet.Contains(i))
 				{
-					overflow.Add(message);
-				}
-				else
-				{
-					results.Add(SendResult.Success(message.Id));
+					results.Add(SendResult.Success(messages[i].Id));
 				}
 			}
 
-			await _sender.SendMessagesAsync(batch, cancellationToken).ConfigureAwait(false);
-
 			// Send overflow individually
-			foreach (var message in overflow)
+			foreach (var idx in overflowIndices)
 			{
-				var result = await SendAsync(message, cancellationToken).ConfigureAwait(false);
+				var result = await SendAsync(messages[idx], cancellationToken).ConfigureAwait(false);
 				results.Add(result);
 			}
 			var successCount = results.Count(static r => r.IsSuccess);
@@ -174,7 +193,7 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
-		if (serviceType == typeof(ServiceBusSender))
+		if (serviceType == typeof(IServiceBusSenderSeam))
 		{
 			return _sender;
 		}
@@ -250,6 +269,12 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 		}
 
 		return sbMessage;
+	}
+
+	private static IServiceBusSenderSeam CreateAdapter(ServiceBusSender sender)
+	{
+		ArgumentNullException.ThrowIfNull(sender);
+		return new ServiceBusSenderAdapter(sender);
 	}
 
 	private static bool IsTransient(Exception ex) =>

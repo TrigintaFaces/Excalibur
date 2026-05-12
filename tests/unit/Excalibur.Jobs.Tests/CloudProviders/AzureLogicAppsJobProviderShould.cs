@@ -4,10 +4,9 @@
 using System.Reflection;
 using System.Text.Json;
 
-using Azure.ResourceManager;
-
 using Excalibur.Jobs.Abstractions;
 using Excalibur.Jobs.Azure;
+using Excalibur.Jobs.Azure.Internal;
 
 using FakeItEasy;
 
@@ -23,28 +22,28 @@ public sealed class AzureLogicAppsJobProviderShould
 	public void ThrowWhenArmClientIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new AzureLogicAppsJobProvider(null!, CreateOptions(), A.Fake<ILogger<AzureLogicAppsJobProvider>>()));
+			new AzureLogicAppsJobProvider((IArmClientSeam)null!, CreateOptions(), A.Fake<ILogger<AzureLogicAppsJobProvider>>()));
 	}
 
 	[Fact]
 	public void ThrowWhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new AzureLogicAppsJobProvider(A.Fake<ArmClient>(), null!, A.Fake<ILogger<AzureLogicAppsJobProvider>>()));
+			new AzureLogicAppsJobProvider(A.Fake<IArmClientSeam>(), null!, A.Fake<ILogger<AzureLogicAppsJobProvider>>()));
 	}
 
 	[Fact]
 	public void ThrowWhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new AzureLogicAppsJobProvider(A.Fake<ArmClient>(), CreateOptions(), null!));
+			new AzureLogicAppsJobProvider(A.Fake<IArmClientSeam>(), CreateOptions(), null!));
 	}
 
 	[Fact]
 	public void BuildWorkflowDefinitionUsingConfiguredEndpoint()
 	{
 		var provider = new AzureLogicAppsJobProvider(
-			A.Fake<ArmClient>(),
+			A.Fake<IArmClientSeam>(),
 			CreateOptions(),
 			A.Fake<ILogger<AzureLogicAppsJobProvider>>());
 		var method = typeof(AzureLogicAppsJobProvider)
@@ -86,7 +85,7 @@ public sealed class AzureLogicAppsJobProviderShould
 	[Fact]
 	public async Task RethrowWhenScheduleCannotResolveSubscription()
 	{
-		var armClient = A.Fake<ArmClient>();
+		var armClient = A.Fake<IArmClientSeam>();
 		_ = A.CallTo(() => armClient.GetDefaultSubscriptionAsync(A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("subscription unavailable"));
 		var provider = new AzureLogicAppsJobProvider(
@@ -103,7 +102,7 @@ public sealed class AzureLogicAppsJobProviderShould
 	[Fact]
 	public async Task RethrowWhenDeleteCannotResolveSubscription()
 	{
-		var armClient = A.Fake<ArmClient>();
+		var armClient = A.Fake<IArmClientSeam>();
 		_ = A.CallTo(() => armClient.GetDefaultSubscriptionAsync(A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("subscription unavailable"));
 		var provider = new AzureLogicAppsJobProvider(

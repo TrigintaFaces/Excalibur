@@ -104,14 +104,7 @@ builder.Services.AddLogging(logging =>
 });
 
 // ============================================================================
-// Step 2: Configure Dispatch Messaging
-// ============================================================================
-
-builder.Services.AddDispatch(typeof(Program).Assembly);
-builder.Services.AddSingleton<IEventSerializer, JsonEventSerializer>();
-
-// ============================================================================
-// Step 3: Configure SQL Server Event Store (Port 1434)
+// Step 2: Configure Infrastructure Connections
 // ============================================================================
 
 var eventStoreConnectionString = builder.Configuration.GetConnectionString("EventStore")
@@ -120,17 +113,14 @@ var eventStoreConnectionString = builder.Configuration.GetConnectionString("Even
 
 Console.WriteLine("[Infrastructure] SQL Server #2 (Event Store): localhost:1434");
 
-// SQL Server event sourcing is configured below via es.UseSqlServer() in the builder
-
-// ============================================================================
-// Step 4: Configure CDC Processing with Named Connections
-// ============================================================================
-
 var cdcSourceConnectionString = builder.Configuration.GetConnectionString("CdcSource")
 								??
 								"Server=localhost,1433;Database=LegacyDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True";
 
 Console.WriteLine("[Infrastructure] SQL Server #1 (CDC Source): localhost:1433");
+
+var elasticsearchUri = builder.Configuration["Elasticsearch:Uri"] ?? "http://localhost:9200";
+Console.WriteLine($"[Infrastructure] Elasticsearch: {elasticsearchUri}");
 
 // Register SQL Server services (IDataAccessPolicyFactory, Dapper type handlers)
 builder.Services.AddExcaliburSqlServices();
@@ -146,35 +136,6 @@ builder.Services.AddCdcProcessor();
 // Anti-Corruption Layer components
 builder.Services.AddSingleton<LegacyCustomerAdapter>();
 builder.Services.AddSingleton<ICustomerLookupService, InMemoryCustomerLookupService>();
-
-// ============================================================================
-// Step 5: Configure Quartz.NET Job Host with CdcJob
-// ============================================================================
-
-// The IExcaliburBuilder.AddJobs(...) bridge:
-// - Sets up Quartz.NET scheduler with sensible defaults
-// - Configures job store (in-memory or persistent)
-// - Registers health checks for job monitoring automatically
-// - Allows custom job configuration via callback
-// Canonical composition path per ADR-321 / ADR-325 (S804 bd-sdhocq A13).
-builder.Services.AddExcalibur(excalibur => excalibur.AddJobs(
-	configureQuartz: q =>
-	{
-		// Configure CdcJob using framework's static configuration method
-		// This reads from appsettings.json "Jobs:CdcJob" section
-		CdcJob.ConfigureJob(q, builder.Configuration);
-
-		// Optionally configure additional jobs here
-		// ProjectionJob.ConfigureJob(q, builder.Configuration);
-	},
-	typeof(Program).Assembly));
-
-// ============================================================================
-// Step 6: Configure Elasticsearch Projections (Port 9200)
-// ============================================================================
-
-var elasticsearchUri = builder.Configuration["Elasticsearch:Uri"] ?? "http://localhost:9200";
-Console.WriteLine($"[Infrastructure] Elasticsearch: {elasticsearchUri}");
 
 // Register Elasticsearch projection stores using per-projection named options.
 // Each projection type gets its own isolated options (Sprint 658 fix).
@@ -200,42 +161,65 @@ builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 });
 
 // ============================================================================
-// Inline Projection Handlers (Framework-managed)
+// Step 3: Configure Excalibur (Single Composition Root)
 // ============================================================================
-// Register projection handlers through the framework pipeline.
-// The framework manages load, handler invocation, and upsert automatically.
+// All Excalibur subsystems are composed under a single AddExcalibur root:
+// - Dispatch messaging (handler discovery via ScanAssemblies)
+// - Quartz.NET job scheduling (CdcJob)
+// - Event sourcing (SQL Server + inline projections)
+// Canonical composition path per ADR-321 / ADR-325 (S804 bd-sdhocq A13).
 
-builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
-{
-	// SQL Server event store, snapshot store, outbox store + health checks
-	es.UseSqlServer(sql =>
-	{
-		sql.ConnectionString(eventStoreConnectionString);
-	});
+builder.Services.AddSingleton<IEventSerializer, JsonEventSerializer>();
 
-	// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
-	es.AddProjection<CustomerSearchProjection>(p => p
-		.Inline()
-		.WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
-		.WhenHandledBy<CustomerInfoUpdated, CustomerInfoUpdatedHandler>()
-		.WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
-		.When<CustomerDeactivated>((proj, _) =>
+builder.Services.AddExcalibur(excalibur => excalibur
+	// Discover handlers and validators from the application assembly
+	.ScanAssemblies(typeof(Program).Assembly)
+
+	// Quartz.NET job host: scheduler, job store, health checks
+	.AddJobs(
+		configureQuartz: q =>
 		{
-			proj.IsActive = false;
-			if (!proj.Tags.Contains("deactivated"))
-			{
-				proj.Tags.Add("deactivated");
-			}
-		}));
+			// Configure CdcJob using framework's static configuration method
+			// This reads from appsettings.json "Jobs:CdcJob" section
+			CdcJob.ConfigureJob(q, builder.Configuration);
 
-	// CustomerTierSummaryProjection: uses OverrideProjectionId for per-tier routing
-	es.AddProjection<CustomerTierSummaryProjection>(p => p
-		.Inline()
-		.WhenHandledBy<CustomerCreated, CustomerTierSummaryCreatedHandler>());
-}));
+			// Optionally configure additional jobs here
+			// ProjectionJob.ConfigureJob(q, builder.Configuration);
+		},
+		typeof(Program).Assembly)
+
+	// Event sourcing: SQL Server store + inline projection handlers
+	.AddEventSourcing(es =>
+	{
+		// SQL Server event store, snapshot store, outbox store + health checks
+		es.UseSqlServer(sql =>
+		{
+			sql.ConnectionString(eventStoreConnectionString);
+		});
+
+		// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
+		es.AddProjection<CustomerSearchProjection>(p => p
+			.Inline()
+			.WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
+			.WhenHandledBy<CustomerInfoUpdated, CustomerInfoUpdatedHandler>()
+			.WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
+			.When<CustomerDeactivated>((proj, _) =>
+			{
+				proj.IsActive = false;
+				if (!proj.Tags.Contains("deactivated"))
+				{
+					proj.Tags.Add("deactivated");
+				}
+			}));
+
+		// CustomerTierSummaryProjection: uses OverrideProjectionId for per-tier routing
+		es.AddProjection<CustomerTierSummaryProjection>(p => p
+			.Inline()
+			.WhenHandledBy<CustomerCreated, CustomerTierSummaryCreatedHandler>());
+	}));
 
 // ============================================================================
-// Step 7: Build and Start Host
+// Step 4: Build and Start Host
 // ============================================================================
 
 Console.WriteLine();

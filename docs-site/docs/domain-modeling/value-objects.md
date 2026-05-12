@@ -422,6 +422,75 @@ public override string ToString() =>
 - **[Entities](entities.md)** - Understand the difference from entities
 - **[Event Sourcing](../event-sourcing/index.md)** - Serialize value objects in events
 
+## SmartEnum
+
+SmartEnum&lt;T&gt; provides type-safe enumerations with richer behavior than standard C# enums — display names, custom logic, and polymorphism while remaining serialization-friendly via integer IDs.
+
+### Defining a SmartEnum
+
+```csharp
+using Excalibur.Domain.Model;
+
+public sealed class OrderStatus : SmartEnum<OrderStatus>
+{
+    public static readonly OrderStatus Pending = new(0, nameof(Pending));
+    public static readonly OrderStatus Processing = new(1, nameof(Processing));
+    public static readonly OrderStatus Shipped = new(2, nameof(Shipped));
+    public static readonly OrderStatus Cancelled = new(3, nameof(Cancelled));
+
+    private OrderStatus(int id, string name) : base(id, name) { }
+}
+```
+
+### Usage
+
+```csharp
+// Get all values
+IReadOnlyCollection<OrderStatus> all = OrderStatus.GetAll();
+
+// Look up by ID (for deserialization)
+OrderStatus status = OrderStatus.FromId(1); // Processing
+
+// Look up by name (case-insensitive)
+OrderStatus shipped = OrderStatus.FromName("shipped"); // Shipped
+
+// Safe lookups (no exceptions)
+if (OrderStatus.TryFromId(99, out var result))
+{
+    // Use result
+}
+
+// Use in domain logic
+if (order.Status == OrderStatus.Pending)
+{
+    order.StartProcessing();
+}
+```
+
+### Key Design Points
+
+| Feature | Detail |
+|---------|--------|
+| **Thread-safe** | Lazy initialization with `ExecutionAndPublication` |
+| **Case-insensitive** | `FromName` uses `OrdinalIgnoreCase` |
+| **Equality** | By `(GetType(), Id)` — correct for inheritance |
+| **Serialization** | Persist `Id` (int) and reconstruct via `FromId` |
+| **AOT** | Annotated with `[RequiresUnreferencedCode]` — uses reflection for field discovery |
+
+### When to Use SmartEnum vs C# Enum
+
+| Scenario | Use |
+|----------|-----|
+| Simple flags or switch cases | C# `enum` |
+| Need display names or descriptions | SmartEnum&lt;T&gt; |
+| Need behavior per value (polymorphism) | SmartEnum&lt;T&gt; |
+| Need validation on deserialization | SmartEnum&lt;T&gt; |
+| Performance-critical hot path | C# `enum` (no allocation) |
+
+:::info AOT Compatibility
+SmartEnum&lt;T&gt; uses reflection to discover static fields on the derived type. It is annotated with `[RequiresUnreferencedCode]`. For AOT/trimmed scenarios, use standard C# enums or manually register values.
+:::
+
 ## See Also
 
 - [Aggregates](./aggregates.md) - Using value objects within aggregate roots to express domain concepts

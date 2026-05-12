@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Google;
+using Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
@@ -23,14 +24,14 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 public sealed class PubSubDeadLetterQueueManagerShould : IDisposable
 {
 	private readonly SubscriberServiceApiClient _fakeSubscriber;
-	private readonly PublisherServiceApiClient _fakePublisher;
+	private readonly IPublisherClientSeam _fakePublisher;
 	private readonly PubSubDeadLetterQueueManager _sut;
 	private readonly GoogleDeadLetterOptions _options;
 
 	public PubSubDeadLetterQueueManagerShould()
 	{
 		_fakeSubscriber = A.Fake<SubscriberServiceApiClient>();
-		_fakePublisher = A.Fake<PublisherServiceApiClient>();
+		_fakePublisher = A.Fake<IPublisherClientSeam>();
 
 		_options = new GoogleDeadLetterOptions
 		{
@@ -312,7 +313,7 @@ public sealed class PubSubDeadLetterQueueManagerShould : IDisposable
 		Should.Throw<ArgumentNullException>(() =>
 			new PubSubDeadLetterQueueManager(
 				_fakeSubscriber,
-				null!,
+				(IPublisherClientSeam)null!,
 				Microsoft.Extensions.Options.Options.Create(_options),
 				NullLogger<PubSubDeadLetterQueueManager>.Instance));
 	}

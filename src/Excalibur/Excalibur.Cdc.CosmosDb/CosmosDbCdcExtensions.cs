@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Cdc;
 using Excalibur.Cdc.CosmosDb;
 
 using Microsoft.Extensions.Configuration;
@@ -34,6 +35,12 @@ public static class CosmosDbCdcServiceCollectionExtensions
 			.ValidateOnStart();
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<CosmosDbDataChangeEvent, CosmosDbCdcPosition>>(
+			sp => sp.GetRequiredService<ICosmosDbCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<CosmosDbDataChangeEvent>>(
+			sp => sp.GetRequiredService<ICosmosDbCdcProcessor>());
+
 		return services;
 	}
 
@@ -56,6 +63,12 @@ public static class CosmosDbCdcServiceCollectionExtensions
 			.Bind(configuration)
 			.ValidateOnStart();
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
+
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<CosmosDbDataChangeEvent, CosmosDbCdcPosition>>(
+			sp => sp.GetRequiredService<ICosmosDbCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<CosmosDbDataChangeEvent>>(
+			sp => sp.GetRequiredService<ICosmosDbCdcProcessor>());
 
 		return services;
 	}
@@ -81,6 +94,12 @@ public static class CosmosDbCdcServiceCollectionExtensions
 			.Bind(configuration.GetSection(sectionName))
 			.ValidateOnStart();
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
+
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<CosmosDbDataChangeEvent, CosmosDbCdcPosition>>(
+			sp => sp.GetRequiredService<ICosmosDbCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<CosmosDbDataChangeEvent>>(
+			sp => sp.GetRequiredService<ICosmosDbCdcProcessor>());
 
 		return services;
 	}

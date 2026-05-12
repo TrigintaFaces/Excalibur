@@ -408,7 +408,7 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
-		services.AddSingleton(A.Fake<ServiceBusClient>());
+		services.AddSingleton(new ServiceBusClient("Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA=="));
 		services.AddServiceBusDeadLetterQueue(options =>
 		{
 			options.EntityPath = "test-queue";

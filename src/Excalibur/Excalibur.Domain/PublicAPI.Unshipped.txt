@@ -1,1 +1,13 @@
 #nullable enable
+Excalibur.Domain.Model.SmartEnum<T>
+Excalibur.Domain.Model.SmartEnum<T>.Id.get -> int
+Excalibur.Domain.Model.SmartEnum<T>.Name.get -> string!
+Excalibur.Domain.Model.SmartEnum<T>.SmartEnum(int id, string! name) -> void
+override Excalibur.Domain.Model.SmartEnum<T>.Equals(object? obj) -> bool
+override Excalibur.Domain.Model.SmartEnum<T>.GetHashCode() -> int
+override Excalibur.Domain.Model.SmartEnum<T>.ToString() -> string!
+static Excalibur.Domain.Model.SmartEnum<T>.FromId(int id) -> T!
+static Excalibur.Domain.Model.SmartEnum<T>.FromName(string! name) -> T!
+static Excalibur.Domain.Model.SmartEnum<T>.GetAll() -> System.Collections.Generic.IReadOnlyCollection<T!>!
+static Excalibur.Domain.Model.SmartEnum<T>.TryFromId(int id, out T? result) -> bool
+static Excalibur.Domain.Model.SmartEnum<T>.TryFromName(string! name, out T? result) -> bool

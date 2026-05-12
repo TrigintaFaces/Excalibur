@@ -7,6 +7,7 @@ using Azure.Messaging.ServiceBus;
 
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Azure;
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -21,12 +22,12 @@ namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus.ServiceBus;
 public sealed class ServiceBusTransportSubscriberShould : IAsyncDisposable
 {
 	private const string TestSource = "orders-queue";
-	private readonly ServiceBusProcessor _fakeProcessor;
+	private readonly IServiceBusProcessorSeam _fakeProcessor;
 	private readonly ServiceBusTransportSubscriber _sut;
 
 	public ServiceBusTransportSubscriberShould()
 	{
-		_fakeProcessor = A.Fake<ServiceBusProcessor>();
+		_fakeProcessor = A.Fake<IServiceBusProcessorSeam>();
 		_sut = new ServiceBusTransportSubscriber(
 			_fakeProcessor,
 			TestSource,
@@ -43,21 +44,21 @@ public sealed class ServiceBusTransportSubscriberShould : IAsyncDisposable
 	public void Throw_when_processor_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ServiceBusTransportSubscriber(null!, TestSource, NullLogger<ServiceBusTransportSubscriber>.Instance));
+			new ServiceBusTransportSubscriber((IServiceBusProcessorSeam)null!, TestSource, NullLogger<ServiceBusTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void Throw_when_source_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ServiceBusTransportSubscriber(A.Fake<ServiceBusProcessor>(), null!, NullLogger<ServiceBusTransportSubscriber>.Instance));
+			new ServiceBusTransportSubscriber(A.Fake<IServiceBusProcessorSeam>(), null!, NullLogger<ServiceBusTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void Throw_when_logger_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ServiceBusTransportSubscriber(A.Fake<ServiceBusProcessor>(), TestSource, null!));
+			new ServiceBusTransportSubscriber(A.Fake<IServiceBusProcessorSeam>(), TestSource, null!));
 	}
 
 	[Fact]
@@ -104,7 +105,7 @@ public sealed class ServiceBusTransportSubscriberShould : IAsyncDisposable
 	[Fact]
 	public void Return_processor_via_GetService()
 	{
-		var result = _sut.GetService(typeof(ServiceBusProcessor));
+		var result = _sut.GetService(typeof(IServiceBusProcessorSeam));
 		result.ShouldBe(_fakeProcessor);
 	}
 
@@ -154,13 +155,6 @@ public sealed class ServiceBusTransportSubscriberShould : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _sut.DisposeAsync();
-		if (_fakeProcessor is IAsyncDisposable asyncDisposable)
-		{
-			await asyncDisposable.DisposeAsync();
-		}
-		else if (_fakeProcessor is IDisposable disposable)
-		{
-			disposable.Dispose();
-		}
+		await _fakeProcessor.DisposeAsync();
 	}
 }

@@ -24,6 +24,7 @@ Excalibur provides building blocks for domain-driven design (DDD): **aggregates*
 | [Aggregates](aggregates.md) | Root entity that controls access to related objects | Has identity, owns entities |
 | [Entities](entities.md) | Objects within an aggregate that have identity | Identity over attributes |
 | [Value Objects](value-objects.md) | Objects compared by their attributes | Immutable, no identity |
+| [SmartEnum](value-objects.md#smartenum) | Type-safe enumerations with behavior | Richer than C# enums |
 
 ## The DDD Building Blocks
 

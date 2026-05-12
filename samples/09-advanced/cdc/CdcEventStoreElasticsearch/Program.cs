@@ -134,7 +134,7 @@ builder.Services
 	.AddSwaggerGen(options =>
 	{
 		options.SwaggerDoc("v1",
-			new Microsoft.OpenApi.Models.OpenApiInfo
+			new Microsoft.OpenApi.OpenApiInfo
 			{
 				Title = "CDC Event Store Elasticsearch Sample API",
 				Version = "v1",

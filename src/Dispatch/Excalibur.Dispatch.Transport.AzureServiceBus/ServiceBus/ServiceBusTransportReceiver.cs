@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using Azure.Messaging.ServiceBus;
 
 using Excalibur.Dispatch.Transport.AzureServiceBus;
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 
 using Microsoft.Extensions.Logging;
 
@@ -21,7 +22,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </remarks>
 internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 {
-	private readonly ServiceBusReceiver _receiver;
+	private readonly IServiceBusReceiverSeam _receiver;
 	private readonly ILogger _logger;
 	private const int MaxCacheSize = 10_000;
 	private readonly ConcurrentDictionary<string, ServiceBusReceivedMessage> _messageCache = new(StringComparer.Ordinal);
@@ -29,12 +30,31 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ServiceBusTransportReceiver"/> class.
+	/// Wraps the SDK receiver in a <see cref="ServiceBusReceiverAdapter"/>.
 	/// </summary>
 	/// <param name="receiver">The Azure Service Bus receiver.</param>
 	/// <param name="source">The source queue or subscription name.</param>
 	/// <param name="logger">The logger instance.</param>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+		Justification = "Adapter is stored in _receiver field and disposed via DisposeAsync.")]
 	public ServiceBusTransportReceiver(
 		ServiceBusReceiver receiver,
+		string source,
+		ILogger<ServiceBusTransportReceiver> logger)
+		: this(CreateAdapter(receiver), source, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="ServiceBusTransportReceiver"/>
+	/// class using a pre-built adapter. Used by tests to substitute the SDK via
+	/// the <see cref="IServiceBusReceiverSeam"/> seam (ADR-142 §D7).
+	/// </summary>
+	/// <param name="receiver">The Service Bus receiver adapter.</param>
+	/// <param name="source">The source queue or subscription name.</param>
+	/// <param name="logger">The logger instance.</param>
+	internal ServiceBusTransportReceiver(
+		IServiceBusReceiverSeam receiver,
 		string source,
 		ILogger<ServiceBusTransportReceiver> logger)
 	{
@@ -51,7 +71,7 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	{
 		try
 		{
-			var messages = await _receiver.ReceiveMessagesAsync(maxMessages, cancellationToken: cancellationToken)
+			var messages = await _receiver.ReceiveMessagesAsync(maxMessages, cancellationToken)
 				.ConfigureAwait(false);
 
 			var result = new List<TransportReceivedMessage>(messages.Count);
@@ -94,7 +114,8 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 				// Ack must complete even during shutdown to prevent redelivery;
 				// use dedicated timeout instead of caller's cancellation token
 				using var ackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-				await _receiver.CompleteMessageAsync(sbMessage, ackCts.Token).ConfigureAwait(false);
+				await _receiver.CompleteMessageAsync(sbMessage, ackCts.Token)
+					.ConfigureAwait(false);
 				LogMessageAcknowledged(message.Id, Source);
 			}
 			else
@@ -130,13 +151,13 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 				using var rejectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 				if (requeue)
 				{
-					await _receiver.AbandonMessageAsync(sbMessage, cancellationToken: rejectCts.Token)
+					await _receiver.AbandonMessageAsync(sbMessage, rejectCts.Token)
 						.ConfigureAwait(false);
 					LogMessageRejectedRequeue(message.Id, Source, reason ?? "no reason");
 				}
 				else
 				{
-					await _receiver.DeadLetterMessageAsync(sbMessage, reason ?? "Rejected", cancellationToken: rejectCts.Token)
+					await _receiver.DeadLetterMessageAsync(sbMessage, reason ?? "Rejected", rejectCts.Token)
 						.ConfigureAwait(false);
 					LogMessageRejected(message.Id, Source, reason ?? "no reason");
 				}
@@ -162,7 +183,7 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
-		if (serviceType == typeof(ServiceBusReceiver))
+		if (serviceType == typeof(IServiceBusReceiverSeam))
 		{
 			return _receiver;
 		}
@@ -183,6 +204,12 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 		_messageCache.Clear();
 		LogDisposed(Source);
 		GC.SuppressFinalize(this);
+	}
+
+	private static IServiceBusReceiverSeam CreateAdapter(ServiceBusReceiver receiver)
+	{
+		ArgumentNullException.ThrowIfNull(receiver);
+		return new ServiceBusReceiverAdapter(receiver);
 	}
 
 	private TransportReceivedMessage ConvertToReceivedMessage(ServiceBusReceivedMessage sbMessage)

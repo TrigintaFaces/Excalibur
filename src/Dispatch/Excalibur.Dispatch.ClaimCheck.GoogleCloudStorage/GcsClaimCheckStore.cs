@@ -3,6 +3,7 @@
 
 using System.Globalization;
 
+using Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Internal;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 using Google.Cloud.Storage.V1;
@@ -18,7 +19,7 @@ namespace Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage;
 /// </summary>
 public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 {
-	private readonly StorageClient _storageClient;
+	private readonly IStorageClientSeam _storageClient;
 	private readonly GcsClaimCheckOptions _options;
 	private readonly ClaimCheckOptions _claimCheckOptions;
 	private readonly ILogger<GcsClaimCheckStore> _logger;
@@ -34,12 +35,8 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 		IOptions<GcsClaimCheckOptions> options,
 		IOptions<ClaimCheckOptions> claimCheckOptions,
 		ILogger<GcsClaimCheckStore> logger)
+		: this(new StorageClientAdapter(StorageClient.Create()), options, claimCheckOptions, logger)
 	{
-		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-		_claimCheckOptions = claimCheckOptions?.Value ?? throw new ArgumentNullException(nameof(claimCheckOptions));
-		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-		_storageClient = StorageClient.Create();
 	}
 
 	/// <summary>
@@ -55,11 +52,35 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 		IOptions<GcsClaimCheckOptions> options,
 		IOptions<ClaimCheckOptions> claimCheckOptions,
 		ILogger<GcsClaimCheckStore> logger)
+		: this(CreateAdapter(storageClient), options, claimCheckOptions, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="GcsClaimCheckStore"/>
+	/// class using a pre-built adapter. Used by tests to substitute the SDK via
+	/// the <see cref="IStorageClientSeam"/> seam (ADR-142 §D7).
+	/// </summary>
+	/// <param name="storageClient">The storage client adapter.</param>
+	/// <param name="options">The GCS-specific options.</param>
+	/// <param name="claimCheckOptions">The core claim check options.</param>
+	/// <param name="logger">The logger instance.</param>
+	internal GcsClaimCheckStore(
+		IStorageClientSeam storageClient,
+		IOptions<GcsClaimCheckOptions> options,
+		IOptions<ClaimCheckOptions> claimCheckOptions,
+		ILogger<GcsClaimCheckStore> logger)
 	{
 		_storageClient = storageClient ?? throw new ArgumentNullException(nameof(storageClient));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_claimCheckOptions = claimCheckOptions?.Value ?? throw new ArgumentNullException(nameof(claimCheckOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	}
+
+	private static IStorageClientSeam CreateAdapter(StorageClient storageClient)
+	{
+		ArgumentNullException.ThrowIfNull(storageClient);
+		return new StorageClientAdapter(storageClient);
 	}
 
 	/// <inheritdoc />
@@ -97,7 +118,7 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 		await _storageClient.UploadObjectAsync(
 			gcsObject,
 			stream,
-			cancellationToken: cancellationToken).ConfigureAwait(false);
+			cancellationToken).ConfigureAwait(false);
 
 		LogStoredPayload(id, payload.Length);
 
@@ -129,7 +150,7 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 				_options.BucketName,
 				objectName,
 				ms,
-				cancellationToken: cancellationToken).ConfigureAwait(false);
+				cancellationToken).ConfigureAwait(false);
 
 			var data = ms.ToArray();
 			LogRetrievedPayload(reference.Id, data.Length);
@@ -155,7 +176,7 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 			await _storageClient.DeleteObjectAsync(
 				_options.BucketName,
 				objectName,
-				cancellationToken: cancellationToken).ConfigureAwait(false);
+				cancellationToken).ConfigureAwait(false);
 
 			LogDeletedClaimCheck(reference.Id);
 			return true;

@@ -483,6 +483,10 @@ public static class CdcBuilderSqlServerExtensions
 				fatalErrorOptions);
 		});
 
+		// Forward to base interface so consumers can depend on the abstraction level they need
+		builder.Services.TryAddSingleton<ICdcProcessor<DataChangeEvent>>(
+			sp => sp.GetRequiredService<ISqlServerCdcProcessor>());
+
 		// Register DataChangeEventProcessor for background processing adapter
 		builder.Services.TryAddSingleton<IDataChangeEventProcessor>(sp =>
 		{

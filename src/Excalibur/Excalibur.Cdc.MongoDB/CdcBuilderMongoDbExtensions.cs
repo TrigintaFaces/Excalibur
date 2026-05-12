@@ -106,6 +106,12 @@ public static class CdcBuilderMongoDbExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<MongoDbCdcRecoveryOptions>, MongoDbCdcRecoveryOptionsValidator>());
 		services.AddOptions<MongoDbCdcOptions>().ValidateOnStart();
 		services.TryAddSingleton<IMongoDbCdcProcessor, MongoDbCdcProcessor>();
+
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<MongoDbDataChangeEvent, MongoDbCdcPosition>>(
+			sp => sp.GetRequiredService<IMongoDbCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<MongoDbDataChangeEvent>>(
+			sp => sp.GetRequiredService<IMongoDbCdcProcessor>());
 	}
 
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

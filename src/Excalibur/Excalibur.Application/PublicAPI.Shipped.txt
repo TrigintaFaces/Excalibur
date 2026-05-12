@@ -6,6 +6,8 @@ Excalibur.Application.ActivityContext.GetValue<T>(string! key, T defaultValue) -
 Excalibur.Application.ActivityContext.Remove(string! key) -> void
 Excalibur.Application.ActivityContext.SetValue<T>(string! key, T value) -> void
 Excalibur.Application.AssemblyMarker
+Excalibur.Application.Cultures
+Excalibur.Application.ExcaliburHeaderNames
 Excalibur.Application.IDetermineValidationRuleSetByConfig<T>
 Excalibur.Application.IDetermineValidationRuleSetByConfig<T>.WhichRuleSets(T config) -> string![]!
 Excalibur.Application.OptionsBuilderExtensions
@@ -133,8 +135,16 @@ Excalibur.Application.Requests.Validation.RulesFor<TRequest, TPart>.ValidateAsyn
 Excalibur.Application.ValidationExtensions
 Microsoft.Extensions.DependencyInjection.ExcaliburApplicationServiceCollectionExtensions
 abstract Excalibur.Application.Requests.Jobs.JobHandlerBase<TRequest>.HandleAsync(TRequest action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Application.Requests.Jobs.JobResult>!
+const Excalibur.Application.Cultures.DefaultCultureName = "en-US" -> string!
+const Excalibur.Application.ExcaliburHeaderNames.CorrelationId = "X-Correlation-Id" -> string!
+const Excalibur.Application.ExcaliburHeaderNames.ETag = "X-Etag" -> string!
+const Excalibur.Application.ExcaliburHeaderNames.RaisedBy = "X-Raised-By" -> string!
+const Excalibur.Application.ExcaliburHeaderNames.TenantId = "X-Tenant-Id" -> string!
 override Excalibur.Application.Requests.Jobs.JobResult.Equals(object? obj) -> bool
 override Excalibur.Application.Requests.Jobs.JobResult.GetHashCode() -> int
+static Excalibur.Application.Cultures.GetCultureInfo(string! cultureName) -> System.Globalization.CultureInfo!
+static Excalibur.Application.Cultures.IsValidCultureName(string! cultureName) -> bool
+static Excalibur.Application.Cultures.Names.get -> System.Collections.Generic.IEnumerable<string!>!
 static Excalibur.Application.OptionsBuilderExtensions.Validate<TOptions, TValidator>(this Microsoft.Extensions.Options.OptionsBuilder<TOptions!>! builder) -> void
 static Excalibur.Application.Requests.Jobs.JobResult.operator !=(Excalibur.Application.Requests.Jobs.JobResult left, Excalibur.Application.Requests.Jobs.JobResult right) -> bool
 static Excalibur.Application.Requests.Jobs.JobResult.operator ==(Excalibur.Application.Requests.Jobs.JobResult left, Excalibur.Application.Requests.Jobs.JobResult right) -> bool

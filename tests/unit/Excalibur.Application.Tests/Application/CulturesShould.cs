@@ -3,13 +3,13 @@
 
 using System.Globalization;
 
-namespace Excalibur.Tests.Domain;
+namespace Excalibur.Tests.Application;
 
 /// <summary>
 /// Unit tests for <see cref="Cultures"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Domain")]
+[Trait("Component", "Application")]
 public sealed class CulturesShould
 {
 	[Fact]

@@ -6,6 +6,7 @@
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Diagnostics;
 using Excalibur.Dispatch.Transport.Google;
+using Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 
 using Google.Api.Gax.Grpc;
 using Google.Cloud.PubSub.V1;
@@ -29,14 +30,14 @@ public sealed class PubSubMetadataRoundTripShould : IAsyncDisposable
     private const string TestTopic = "projects/test-project/topics/orders";
     private const string TestSubscription = "projects/test-project/subscriptions/orders-sub";
 
-    private readonly PublisherServiceApiClient _fakePublisher;
+    private readonly IPublisherClientSeam _fakePublisher;
     private readonly SubscriberServiceApiClient _fakeSubscriber;
     private readonly PubSubTransportSender _senderSut;
     private readonly PubSubTransportReceiver _receiverSut;
 
     public PubSubMetadataRoundTripShould()
     {
-        _fakePublisher = A.Fake<PublisherServiceApiClient>();
+        _fakePublisher = A.Fake<IPublisherClientSeam>();
         _fakeSubscriber = A.Fake<SubscriberServiceApiClient>();
 
         _senderSut = new PubSubTransportSender(

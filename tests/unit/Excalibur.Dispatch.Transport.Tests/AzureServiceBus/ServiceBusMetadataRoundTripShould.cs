@@ -7,6 +7,7 @@ using Azure.Messaging.ServiceBus;
 
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Azure;
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -27,16 +28,16 @@ public sealed class ServiceBusMetadataRoundTripShould : IAsyncDisposable
     private const string TestDestination = "orders-queue";
     private const string TestSource = "orders-queue";
 
-    // CA2213: FakeItEasy fakes -- disposed via DisposeAsync for analyzer compliance
-    private readonly ServiceBusSender _fakeSender;
-    private readonly ServiceBusReceiver _fakeReceiver;
+    // ADR-142 §D7: fake the internal seam interfaces, not the SDK types.
+    private readonly IServiceBusSenderSeam _fakeSender;
+    private readonly IServiceBusReceiverSeam _fakeReceiver;
     private readonly ServiceBusTransportSender _senderSut;
     private readonly ServiceBusTransportReceiver _receiverSut;
 
     public ServiceBusMetadataRoundTripShould()
     {
-        _fakeSender = A.Fake<ServiceBusSender>();
-        _fakeReceiver = A.Fake<ServiceBusReceiver>();
+        _fakeSender = A.Fake<IServiceBusSenderSeam>();
+        _fakeReceiver = A.Fake<IServiceBusReceiverSeam>();
 
         _senderSut = new ServiceBusTransportSender(
             _fakeSender,
@@ -116,8 +117,8 @@ public sealed class ServiceBusMetadataRoundTripShould : IAsyncDisposable
             properties: appProperties);
 
         A.CallTo(() => _fakeReceiver.ReceiveMessagesAsync(
-                A<int>._, A<TimeSpan?>._, A<CancellationToken>._))
-            .Returns(new[] { sbReceived });
+                A<int>._, A<CancellationToken>._))
+            .Returns(new[] { sbReceived } as IReadOnlyList<ServiceBusReceivedMessage>);
 
         // Act
         var messages = await _receiverSut.ReceiveAsync(1, CancellationToken.None);
@@ -153,8 +154,8 @@ public sealed class ServiceBusMetadataRoundTripShould : IAsyncDisposable
             lockTokenGuid: Guid.NewGuid());
 
         A.CallTo(() => _fakeReceiver.ReceiveMessagesAsync(
-                A<int>._, A<TimeSpan?>._, A<CancellationToken>._))
-            .Returns(new[] { sbReceived });
+                A<int>._, A<CancellationToken>._))
+            .Returns(new[] { sbReceived } as IReadOnlyList<ServiceBusReceivedMessage>);
 
         // Act
         var messages = await _receiverSut.ReceiveAsync(1, CancellationToken.None);
@@ -299,8 +300,8 @@ public sealed class ServiceBusMetadataRoundTripShould : IAsyncDisposable
             properties: appProperties);
 
         A.CallTo(() => _fakeReceiver.ReceiveMessagesAsync(
-                A<int>._, A<TimeSpan?>._, A<CancellationToken>._))
-            .Returns(new[] { sbReceived });
+                A<int>._, A<CancellationToken>._))
+            .Returns(new[] { sbReceived } as IReadOnlyList<ServiceBusReceivedMessage>);
 
         // Act
         var messages = await _receiverSut.ReceiveAsync(1, CancellationToken.None);
@@ -326,8 +327,8 @@ public sealed class ServiceBusMetadataRoundTripShould : IAsyncDisposable
             lockTokenGuid: Guid.NewGuid());
 
         A.CallTo(() => _fakeReceiver.ReceiveMessagesAsync(
-                A<int>._, A<TimeSpan?>._, A<CancellationToken>._))
-            .Returns(new[] { sbReceived });
+                A<int>._, A<CancellationToken>._))
+            .Returns(new[] { sbReceived } as IReadOnlyList<ServiceBusReceivedMessage>);
 
         // Act
         var messages = await _receiverSut.ReceiveAsync(1, CancellationToken.None);

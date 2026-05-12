@@ -9,6 +9,7 @@ using Azure.ResourceManager;
 using Azure.ResourceManager.Logic;
 
 using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs.Azure.Internal;
 
 using Microsoft.Extensions.Logging;
 
@@ -17,18 +18,49 @@ namespace Excalibur.Jobs.Azure;
 /// <summary>
 /// Provides Azure Logic Apps integration for Excalibur background jobs.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="AzureLogicAppsJobProvider" /> class. </remarks>
-/// <param name="armClient"> The Azure Resource Manager client. </param>
-/// <param name="options"> Configuration options for Azure Logic Apps. </param>
-/// <param name="logger"> Logger for this provider. </param>
-public sealed partial class AzureLogicAppsJobProvider(
-	ArmClient armClient,
-	AzureLogicAppsOptions options,
-	ILogger<AzureLogicAppsJobProvider> logger)
+public sealed partial class AzureLogicAppsJobProvider
 {
-	private readonly ArmClient _armClient = armClient ?? throw new ArgumentNullException(nameof(armClient));
-	private readonly AzureLogicAppsOptions _options = options ?? throw new ArgumentNullException(nameof(options));
-	private readonly ILogger<AzureLogicAppsJobProvider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly IArmClientSeam _armClient;
+	private readonly AzureLogicAppsOptions _options;
+	private readonly ILogger<AzureLogicAppsJobProvider> _logger;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AzureLogicAppsJobProvider"/> class
+	/// with an existing <see cref="ArmClient"/>.
+	/// </summary>
+	/// <param name="armClient">The Azure Resource Manager client.</param>
+	/// <param name="options">Configuration options for Azure Logic Apps.</param>
+	/// <param name="logger">Logger for this provider.</param>
+	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+		Justification = "Adapter is stored in _armClient field and lives for the provider's lifetime.")]
+	public AzureLogicAppsJobProvider(
+		ArmClient armClient,
+		AzureLogicAppsOptions options,
+		ILogger<AzureLogicAppsJobProvider> logger)
+		: this(CreateAdapter(armClient), options, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AzureLogicAppsJobProvider"/>
+	/// class using a pre-built adapter. Used by tests to substitute the SDK via
+	/// the <see cref="IArmClientSeam"/> seam (ADR-142 §D7).
+	/// </summary>
+	internal AzureLogicAppsJobProvider(
+		IArmClientSeam armClient,
+		AzureLogicAppsOptions options,
+		ILogger<AzureLogicAppsJobProvider> logger)
+	{
+		_armClient = armClient ?? throw new ArgumentNullException(nameof(armClient));
+		_options = options ?? throw new ArgumentNullException(nameof(options));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	}
+
+	private static IArmClientSeam CreateAdapter(ArmClient armClient)
+	{
+		ArgumentNullException.ThrowIfNull(armClient);
+		return new ArmClientAdapter(armClient);
+	}
 
 	/// <summary>
 	/// Creates a scheduled Logic App workflow for a background job.

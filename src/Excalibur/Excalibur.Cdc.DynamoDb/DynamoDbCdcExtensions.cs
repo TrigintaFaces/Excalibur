@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Cdc;
 using Excalibur.Cdc.DynamoDb;
 
 using Microsoft.Extensions.Configuration;
@@ -32,6 +33,12 @@ public static class DynamoDbCdcServiceCollectionExtensions
 			.ValidateOnStart();
 		services.TryAddSingleton<IDynamoDbCdcProcessor, DynamoDbCdcProcessor>();
 
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<DynamoDbDataChangeEvent, DynamoDbCdcPosition>>(
+			sp => sp.GetRequiredService<IDynamoDbCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<DynamoDbDataChangeEvent>>(
+			sp => sp.GetRequiredService<IDynamoDbCdcProcessor>());
+
 		return services;
 	}
 
@@ -54,6 +61,12 @@ public static class DynamoDbCdcServiceCollectionExtensions
 			.Bind(configuration)
 			.ValidateOnStart();
 		services.TryAddSingleton<IDynamoDbCdcProcessor, DynamoDbCdcProcessor>();
+
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<DynamoDbDataChangeEvent, DynamoDbCdcPosition>>(
+			sp => sp.GetRequiredService<IDynamoDbCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<DynamoDbDataChangeEvent>>(
+			sp => sp.GetRequiredService<IDynamoDbCdcProcessor>());
 
 		return services;
 	}
@@ -79,6 +92,12 @@ public static class DynamoDbCdcServiceCollectionExtensions
 			.Bind(configuration.GetSection(sectionName))
 			.ValidateOnStart();
 		services.TryAddSingleton<IDynamoDbCdcProcessor, DynamoDbCdcProcessor>();
+
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		services.TryAddSingleton<ICdcStreamProcessor<DynamoDbDataChangeEvent, DynamoDbCdcPosition>>(
+			sp => sp.GetRequiredService<IDynamoDbCdcProcessor>());
+		services.TryAddSingleton<ICdcProcessor<DynamoDbDataChangeEvent>>(
+			sp => sp.GetRequiredService<IDynamoDbCdcProcessor>());
 
 		return services;
 	}

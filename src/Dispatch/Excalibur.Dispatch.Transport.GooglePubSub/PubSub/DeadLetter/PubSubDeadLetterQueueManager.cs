@@ -3,7 +3,9 @@
 
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Transport.GooglePubSub;
+using Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
@@ -29,18 +31,35 @@ namespace Excalibur.Dispatch.Transport.Google;
 internal sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManager, IDisposable
 {
 	private readonly SubscriberServiceApiClient _subscriberClient;
-	private readonly PublisherServiceApiClient _publisherClient;
+	private readonly IPublisherClientSeam _publisherClient;
 	private readonly DeadLetterOptions _options;
 	private readonly ILogger<PubSubDeadLetterQueueManager> _logger;
 	private static readonly ActivitySource s_activitySource = new("Excalibur.Dispatch.Transport.GooglePubSub.DeadLetter");
 	private readonly SemaphoreSlim _reprocessLock = new(1, 1);
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="PubSubDeadLetterQueueManager" /> class.
+	/// Initializes a new instance of the <see cref="PubSubDeadLetterQueueManager" /> class
+	/// with existing SDK clients.
 	/// </summary>
+	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+		Justification = "Adapter is stored in _publisherClient field and lives for the manager's lifetime.")]
 	public PubSubDeadLetterQueueManager(
 		SubscriberServiceApiClient subscriberClient,
 		PublisherServiceApiClient publisherClient,
+		IOptions<DeadLetterOptions> options,
+		ILogger<PubSubDeadLetterQueueManager> logger)
+		: this(subscriberClient, CreatePublisherAdapter(publisherClient), options, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="PubSubDeadLetterQueueManager"/>
+	/// class using a pre-built publisher adapter. Used by tests to substitute the
+	/// SDK via the <see cref="IPublisherClientSeam"/> seam (ADR-142 §D7).
+	/// </summary>
+	internal PubSubDeadLetterQueueManager(
+		SubscriberServiceApiClient subscriberClient,
+		IPublisherClientSeam publisherClient,
 		IOptions<DeadLetterOptions> options,
 		ILogger<PubSubDeadLetterQueueManager> logger)
 	{
@@ -48,6 +67,12 @@ internal sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueMan
 		_publisherClient = publisherClient ?? throw new ArgumentNullException(nameof(publisherClient));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	}
+
+	private static IPublisherClientSeam CreatePublisherAdapter(PublisherServiceApiClient publisherClient)
+	{
+		ArgumentNullException.ThrowIfNull(publisherClient);
+		return new PublisherClientAdapter(publisherClient);
 	}
 
 	/// <summary>

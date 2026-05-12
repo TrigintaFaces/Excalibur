@@ -84,23 +84,24 @@ public sealed class NoConcreteSdkFakesGovernanceShould
 			// === Azure ===
 			// DI passthrough, never intercepted (A1 LOW-RISK).
 			"Azure.Storage.Blobs.BlobServiceClient",
-			// S799 defer — A2 msg 1705 ranked these below ServiceBusClient seam.
-			// ServiceBusDLQ test currently keeps one ServiceBusClient fake for a
-			// null-guard ctor test; CRUCIBLE will remove in a follow-up pass.
-			"Azure.Messaging.ServiceBus.ServiceBusClient",
-			"Azure.Messaging.ServiceBus.ServiceBusSender",
-			"Azure.Messaging.ServiceBus.ServiceBusReceiver",
-			"Azure.Messaging.ServiceBus.ServiceBusProcessor",
-			// S799 defer — A2 rank #5 ArmClient (lower-traffic surface).
-			"Azure.ResourceManager.ArmClient",
+			// S821: ServiceBusClient/Sender/Receiver/Processor drained — seam
+			// interfaces IServiceBusSenderSeam, IServiceBusReceiverSeam,
+			// IServiceBusProcessorSeam created per ADR-142 §D7. DLQ DI test
+			// uses real unconnected ServiceBusClient instance.
+			// S821: ArmClient drained — IArmClientSeam created in
+			// Excalibur.Jobs.Azure.Internal per ADR-142 §D7.
 
 			// === Google Cloud ===
-			// DI passthrough / builder registration tests.
+			// S821: StorageClient method-intercepting sites drained —
+			// IStorageClientSeam created in ClaimCheck.GoogleCloudStorage.Internal.
+			// Remaining sites are DI passthrough / builder / ctor null-guard tests.
 			"Google.Cloud.Storage.V1.StorageClient",
 			"Google.Cloud.Firestore.FirestoreClient",
-			// S799 defer — A2 rank #6+#7 PubSub seam work.
-			"Google.Cloud.PubSub.V1.SubscriberClient",
-			"Google.Cloud.PubSub.V1.PublisherServiceApiClient",
+			// S821: SubscriberClient + PublisherServiceApiClient drained —
+			// ISubscriberClientSeam and IPublisherClientSeam created in
+			// Transport.GooglePubSub.Internal per ADR-142 §D7.
+			// SubscriberServiceApiClient remains — 7-method surface across
+			// receiver + DLQ admin ops; seam deferred as lower-priority.
 			"Google.Cloud.PubSub.V1.SubscriberServiceApiClient");
 
 			// === Elastic (fully drained in S799-A5, bd-iqlx2p) ===
@@ -125,7 +126,7 @@ public sealed class NoConcreteSdkFakesGovernanceShould
 	/// assertion to detect unauthorized growth. Per COMPASS msg 1743 ruling:
 	/// "guardrail test MUST fail if the baseline grows."
 	/// </summary>
-	private const int RecordedDebtBaselineCount = 11;
+	private const int RecordedDebtBaselineCount = 4;
 
 	/// <summary>
 	/// Name suffixes that identify data-shaped DTO types in SDK namespaces.

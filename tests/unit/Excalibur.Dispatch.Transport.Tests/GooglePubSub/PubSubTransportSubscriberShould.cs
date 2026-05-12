@@ -5,6 +5,7 @@
 
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Google;
+using Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 
 using Google.Cloud.PubSub.V1;
 
@@ -21,12 +22,12 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub;
 public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 {
 	private const string TestSource = "projects/test-project/subscriptions/test-subscription";
-	private readonly SubscriberClient _fakeSubscriber;
+	private readonly ISubscriberClientSeam _fakeSubscriber;
 	private readonly PubSubTransportSubscriber _sut;
 
 	public PubSubTransportSubscriberShould()
 	{
-		_fakeSubscriber = A.Fake<SubscriberClient>();
+		_fakeSubscriber = A.Fake<ISubscriberClientSeam>();
 		_sut = new PubSubTransportSubscriber(
 			_fakeSubscriber,
 			TestSource,
@@ -43,21 +44,21 @@ public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 	public void Throw_when_subscriber_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new PubSubTransportSubscriber(null!, TestSource, NullLogger<PubSubTransportSubscriber>.Instance));
+			new PubSubTransportSubscriber((ISubscriberClientSeam)null!, TestSource, NullLogger<PubSubTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void Throw_when_source_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new PubSubTransportSubscriber(A.Fake<SubscriberClient>(), null!, NullLogger<PubSubTransportSubscriber>.Instance));
+			new PubSubTransportSubscriber(A.Fake<ISubscriberClientSeam>(), null!, NullLogger<PubSubTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void Throw_when_logger_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new PubSubTransportSubscriber(A.Fake<SubscriberClient>(), TestSource, null!));
+			new PubSubTransportSubscriber(A.Fake<ISubscriberClientSeam>(), TestSource, null!));
 	}
 
 	[Fact]
@@ -104,7 +105,7 @@ public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 	[Fact]
 	public void Return_subscriber_client_via_GetService()
 	{
-		var result = _sut.GetService(typeof(SubscriberClient));
+		var result = _sut.GetService(typeof(ISubscriberClientSeam));
 		result.ShouldBe(_fakeSubscriber);
 	}
 

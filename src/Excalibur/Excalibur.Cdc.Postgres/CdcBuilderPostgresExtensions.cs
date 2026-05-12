@@ -306,6 +306,12 @@ public static class CdcBuilderPostgresExtensions
 			return new PostgresCdcProcessor(Options.Create(optionsValue), stateStore, logger);
 		});
 
+		// Forward to base interfaces so consumers can depend on the abstraction level they need
+		builder.Services.TryAddSingleton<ICdcStreamProcessor<PostgresDataChangeEvent, PostgresCdcPosition>>(
+			sp => sp.GetRequiredService<IPostgresCdcProcessor>());
+		builder.Services.TryAddSingleton<ICdcProcessor<PostgresDataChangeEvent>>(
+			sp => sp.GetRequiredService<IPostgresCdcProcessor>());
+
 		return;
 	}
 }

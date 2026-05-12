@@ -4,7 +4,7 @@
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -22,39 +22,37 @@ public static class SwaggerGenOptionsExtensions
 	public static void AddProblemDetailsSchema(this SwaggerGenOptions options) =>
 		options.MapType<ProblemDetails>(static () => new OpenApiSchema
 		{
-			Type = "object",
+			Type = JsonSchemaType.Object,
 			Required = new HashSet<string>(StringComparer.Ordinal) { "title", "status", "traceId" },
-			Properties = new Dictionary<string, OpenApiSchema>
-(StringComparer.Ordinal)
+			Properties = new Dictionary<string, IOpenApiSchema>(StringComparer.Ordinal)
 			{
-				["title"] = new() { Type = "string", Description = "A short, human-readable summary of the problem type." },
-				["status"] = new() { Type = "integer", Format = "int32", Description = "The HTTP status code." },
+				["title"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "A short, human-readable summary of the problem type." },
+				["status"] = new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Description = "The HTTP status code." },
 				["detail"] =
-					new() { Type = "string", Description = "A human-readable explanation specific to this occurrence of the problem." },
+					new OpenApiSchema { Type = JsonSchemaType.String, Description = "A human-readable explanation specific to this occurrence of the problem." },
 				["instance"] =
-					new()
+					new OpenApiSchema
 					{
-						Type = "string",
+						Type = JsonSchemaType.String,
 						Format = "uri",
 						Description = "A URI reference identifying this specific occurrence of the problem.",
 					},
-				["traceId"] = new() { Type = "string", Description = "The trace identifier for correlating logs and diagnostics." },
+				["traceId"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "The trace identifier for correlating logs and diagnostics." },
 				["exceptionId"] =
-					new() { Type = "string", Format = "uuid", Description = "A globally unique identifier for this exception instance." },
-				["errorCode"] = new() { Type = "integer", Description = "Application-specific error code, if available." },
-				["stack"] = new() { Type = "string", Description = "The exception stack trace (only shown in development)." },
-				["validationErrors"] = new()
+					new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid", Description = "A globally unique identifier for this exception instance." },
+				["errorCode"] = new OpenApiSchema { Type = JsonSchemaType.Integer, Description = "Application-specific error code, if available." },
+				["stack"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "The exception stack trace (only shown in development)." },
+				["validationErrors"] = new OpenApiSchema
 				{
-					Type = "array",
+					Type = JsonSchemaType.Array,
 					Description = "List of validation errors returned for a failed validation.",
 					Items = new OpenApiSchema
 					{
-						Type = "object",
-						Properties = new Dictionary<string, OpenApiSchema>
-(StringComparer.Ordinal)
+						Type = JsonSchemaType.Object,
+						Properties = new Dictionary<string, IOpenApiSchema>(StringComparer.Ordinal)
 						{
-							["propertyName"] = new() { Type = "string" },
-							["errorMessage"] = new() { Type = "string" },
+							["propertyName"] = new OpenApiSchema { Type = JsonSchemaType.String },
+							["errorMessage"] = new OpenApiSchema { Type = JsonSchemaType.String },
 						},
 					},
 				},
