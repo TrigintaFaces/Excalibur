@@ -71,6 +71,11 @@ public record CdcRow
 	/// <value>
 	/// A dictionary mapping column names to their data types.
 	/// </value>
-	/// <remarks> This is useful for interpreting the data changes with their corresponding data types. </remarks>
-	public required Dictionary<string, Type> DataTypes { get; init; }
+	/// <remarks>
+	/// This is useful for interpreting the data changes with their corresponding data types.
+	/// The dictionary is shared across all rows in a batch (the schema is identical for every row
+	/// in the same result set). It is exposed as <see cref="IReadOnlyDictionary{TKey, TValue}"/>
+	/// to enforce the no-mutation invariant.
+	/// </remarks>
+	public required IReadOnlyDictionary<string, Type> DataTypes { get; init; }
 }

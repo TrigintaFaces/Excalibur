@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CDC performance optimization (Sprint 824)** -- Batch checkpoint writes per-table instead of per-event, adaptive polling skips delay when work found, `CdcDefaultConsumerBatchSize` increased from 10 to 50, pre-computed column filter and shared `DataTypes` dictionary in `CdcRepository.FetchChangesAsync`, LSN range queries via `fn_cdc_get_all_changes(fromLsn, toLsn)`, and cached Polly policy per batch. `ICdcRepository.FetchChangesAsync` now accepts `fromLsn` + `toLsn` range parameters. `CdcRow.DataTypes` changed from `Dictionary<string, Type>` to `IReadOnlyDictionary<string, Type>`. **Breaking change** for consumers calling `FetchChangesAsync` directly or accessing `CdcRow.DataTypes` as mutable.
+
+### Fixed
+
+- **CDC batch checkpoint data loss** -- Fixed critical bug where `onFatalError`-swallowed exceptions allowed later same-table events to advance the checkpoint past the failed event, permanently skipping it. The table is now removed from checkpoint tracking on failure, ensuring the failed event is reprocessed on the next cycle.
+
+### Changed
+
 - **ServerlessHostOptions ISP split** -- Removed nested `AwsLambda`, `AzureFunctions`, `GoogleCloudFunctions` properties from `ServerlessHostOptions`. Per-platform options now registered independently via `IOptions<AwsLambdaOptions>`, `IOptions<AzureFunctionsOptions>`, `IOptions<GoogleCloudFunctionsOptions>` when calling `AddAwsLambdaHosting()`/`AddAzureFunctionsHosting()`/`AddGoogleCloudFunctionsHosting()`. `ServerlessHostOptions` retains only 6 shared cross-cutting properties. **Breaking change** for consumers accessing nested platform properties.
 - **DI naming convention doc fix** -- Removed stale "Known Violations" table and `[Obsolete]` references from `docs/architecture/di-naming-convention.md` (S822 ORACLE F6 closure).
 

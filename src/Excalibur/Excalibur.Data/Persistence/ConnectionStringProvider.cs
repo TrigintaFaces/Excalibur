@@ -299,10 +299,8 @@ internal sealed partial class ConnectionStringProvider : IConnectionStringProvid
 	/// <summary>
 	/// Resolves a connection string from external sources.
 	/// </summary>
-	// R0.8: Async method lacks 'await' operators
-#pragma warning disable CS1998
 	// R0.8: Remove unused parameter - cancellationToken reserved for future Key Vault integration
-	private async ValueTask<string?> ResolveFromExternalSourceAsync(string name, CancellationToken cancellationToken)
+	private ValueTask<string?> ResolveFromExternalSourceAsync(string name, CancellationToken cancellationToken)
 	{
 		// Check for environment variable override
 		var envVarName = $"CONNECTIONSTRINGS__{name.ToUpperInvariant().Replace(":", "__", StringComparison.Ordinal)}";
@@ -310,7 +308,7 @@ internal sealed partial class ConnectionStringProvider : IConnectionStringProvid
 		if (!string.IsNullOrWhiteSpace(envValue))
 		{
 			LogResolvedFromEnvironment(name);
-			return envValue;
+			return new ValueTask<string?>(envValue);
 		}
 
 		// Check for key vault reference
@@ -323,9 +321,8 @@ internal sealed partial class ConnectionStringProvider : IConnectionStringProvid
 			LogReferencesSecretStore(name);
 		}
 
-		return null;
+		return new ValueTask<string?>(result: null);
 	}
-#pragma warning restore CS1998
 
 	/// <summary>
 	/// Loads connection strings from external sources.

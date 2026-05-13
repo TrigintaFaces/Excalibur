@@ -219,6 +219,13 @@ internal sealed partial class CdcChangeApplier
 			}
 			else
 			{
+				// CRITICAL: Freeze this table's checkpoint at the pre-failure position.
+				// Remove the table from tracking so no later event in this batch can
+				// advance the checkpoint past the failed event. On the next cycle,
+				// processing resumes from the previous cycle's checkpoint, ensuring
+				// the failed event is reprocessed.
+				lastSuccessfulPerTable.Remove(changeEvent.TableName);
+
 				LogCheckpointSkippedForFailedEvent(changeEvent.TableName,
 					CdcChangeDetector.ByteArrayToHex(changeEvent.Lsn),
 					CdcChangeDetector.ByteArrayToHex(changeEvent.SeqVal));

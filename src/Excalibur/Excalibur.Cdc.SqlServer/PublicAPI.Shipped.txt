@@ -108,7 +108,7 @@ Excalibur.Cdc.SqlServer.CdcRow.Changes.get -> System.Collections.Generic.IDictio
 Excalibur.Cdc.SqlServer.CdcRow.Changes.init -> void
 Excalibur.Cdc.SqlServer.CdcRow.CommitTime.get -> System.DateTime
 Excalibur.Cdc.SqlServer.CdcRow.CommitTime.init -> void
-Excalibur.Cdc.SqlServer.CdcRow.DataTypes.get -> System.Collections.Generic.Dictionary<string!, System.Type!>!
+Excalibur.Cdc.SqlServer.CdcRow.DataTypes.get -> System.Collections.Generic.IReadOnlyDictionary<string!, System.Type!>!
 Excalibur.Cdc.SqlServer.CdcRow.DataTypes.init -> void
 Excalibur.Cdc.SqlServer.CdcRow.Lsn.get -> byte[]!
 Excalibur.Cdc.SqlServer.CdcRow.Lsn.init -> void
