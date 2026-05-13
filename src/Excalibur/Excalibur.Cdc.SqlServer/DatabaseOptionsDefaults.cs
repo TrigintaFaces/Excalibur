@@ -22,7 +22,11 @@ public static class DatabaseOptionsDefaults
 	/// <summary>
 	/// Default batch size for CDC consumer operations.
 	/// </summary>
-	public const int CdcDefaultConsumerBatchSize = 10;
+	/// <remarks>
+	/// Increased from 10 to 50 in Sprint 824 to reduce per-batch overhead
+	/// while remaining conservative for memory usage.
+	/// </remarks>
+	public const int CdcDefaultConsumerBatchSize = 50;
 
 	/// <summary>
 	/// Default setting for whether to stop CDC processing when a table handler is missing.

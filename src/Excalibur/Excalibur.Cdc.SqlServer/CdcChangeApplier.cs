@@ -160,6 +160,14 @@ internal sealed partial class CdcChangeApplier
 
 		BatchSizeHistogram.Record(batch.Count);
 
+		// Track the last successfully processed event per table so we can write
+		// a single checkpoint per table after the batch completes (instead of per-event).
+		var lastSuccessfulPerTable = new Dictionary<string, DataChangeEvent>(StringComparer.Ordinal);
+
+		// Resolve the Polly policy once per batch instead of per-event.
+		// The policy configuration does not change within a processing cycle.
+		var batchPolicy = _policyFactory.GetComprehensivePolicy();
+
 		foreach (var changeEvent in batch)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
@@ -168,7 +176,7 @@ internal sealed partial class CdcChangeApplier
 			try
 			{
 				await _orderedEventProcessor.ProcessAsync(async () =>
-						await _policyFactory.GetComprehensivePolicy().ExecuteAsync(async () =>
+						await batchPolicy.ExecuteAsync(async () =>
 								await eventHandler(changeEvent, cancellationToken)
 									.ConfigureAwait(false))
 							.ConfigureAwait(false), cancellationToken)
@@ -202,18 +210,12 @@ internal sealed partial class CdcChangeApplier
 				}
 			}
 
-			// Only advance checkpoint after successful processing.
+			// Only track checkpoint for successful events.
 			// When onFatalError swallows an exception, the checkpoint must NOT advance
 			// past the failed event -- otherwise that event is permanently skipped.
 			if (eventSucceeded)
 			{
-				var updateTablePolicy = _policyFactory.GetComprehensivePolicy();
-				await updateTablePolicy.ExecuteAsync(() => _checkpointManager.UpdateTableLastProcessedAsync(
-					changeEvent.TableName,
-					changeEvent.Lsn,
-					changeEvent.SeqVal,
-					changeEvent.CommitTime,
-					cancellationToken)).ConfigureAwait(false);
+				lastSuccessfulPerTable[changeEvent.TableName] = changeEvent;
 			}
 			else
 			{
@@ -222,6 +224,19 @@ internal sealed partial class CdcChangeApplier
 					CdcChangeDetector.ByteArrayToHex(changeEvent.SeqVal));
 			}
 		}
+
+		// Write a single checkpoint per table after the entire batch completes.
+		// This reduces checkpoint I/O from O(batch_size) to O(tracked_tables).
+		foreach (var (tableName, lastEvent) in lastSuccessfulPerTable)
+		{
+			await batchPolicy.ExecuteAsync(() => _checkpointManager.UpdateTableLastProcessedAsync(
+				tableName,
+				lastEvent.Lsn,
+				lastEvent.SeqVal,
+				lastEvent.CommitTime,
+				cancellationToken)).ConfigureAwait(false);
+		}
+
 		BatchDurationHistogram.Record(batchStopwatch.Elapsed.TotalMilliseconds);
 	}
 

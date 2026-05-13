@@ -15,9 +15,13 @@ public sealed class ErasureHealthCheckShould
 
 	public ErasureHealthCheckShould()
 	{
+		// Use a generous threshold (30s) so fake store calls never trigger
+		// Degraded on loaded CI runners where even FakeItEasy stubs can
+		// exceed the default 500ms under contention.
 		_sut = new ErasureHealthCheck(
 			_erasureStore,
-			NullLogger<ErasureHealthCheck>.Instance);
+			NullLogger<ErasureHealthCheck>.Instance,
+			TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]

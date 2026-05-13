@@ -109,10 +109,12 @@ internal sealed partial class CdcProcessingHostedService : BackgroundService
 
 		while (!stoppingToken.IsCancellationRequested)
 		{
+			var processed = 0;
+
 			try
 			{
 				var stopwatch = ValueStopwatch.StartNew();
-				var processed = await _processor.ProcessChangesAsync(stoppingToken).ConfigureAwait(false);
+				processed = await _processor.ProcessChangesAsync(stoppingToken).ConfigureAwait(false);
 
 				_consecutiveErrors = 0;
 				_isHealthy = true;
@@ -138,13 +140,19 @@ internal sealed partial class CdcProcessingHostedService : BackgroundService
 				LogBackgroundServiceError(ex);
 			}
 
-			try
+			// Adaptive polling: skip the delay when work was found so the next batch
+			// is picked up immediately, reducing end-to-end latency under load.
+			// Only delay on empty polls or after errors to avoid busy-spinning.
+			if (processed == 0)
 			{
-				await Task.Delay(_options.Value.PollingInterval, stoppingToken).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-			{
-				break;
+				try
+				{
+					await Task.Delay(_options.Value.PollingInterval, stoppingToken).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+				{
+					break;
+				}
 			}
 		}
 

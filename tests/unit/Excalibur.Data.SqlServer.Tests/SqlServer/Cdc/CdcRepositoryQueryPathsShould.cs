@@ -157,7 +157,8 @@ public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 		var rows = (await repository.FetchChangesAsync(
 				"dbo.Orders",
 				batchSize: 100,
-				lsn: [0x01, 0x02],
+				fromLsn: [0x01, 0x02],
+				toLsn: [0xFF, 0xFF],
 				lastSequenceValue: null,
 				lastOperation: CdcOperationCodes.Unknown,
 				cancellationToken: CancellationToken.None))
@@ -200,7 +201,8 @@ public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 		var row = (await repository.FetchChangesAsync(
 				"dbo.Orders",
 				batchSize: 10,
-				lsn: [0x03],
+				fromLsn: [0x03],
+				toLsn: [0xFF],
 				lastSequenceValue: null,
 				lastOperation: CdcOperationCodes.Unknown,
 				cancellationToken: CancellationToken.None))
@@ -229,7 +231,8 @@ public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 		_ = await repository.FetchChangesAsync(
 			"dbo.Orders",
 			batchSize: 25,
-			lsn: [0x03],
+			fromLsn: [0x03],
+			toLsn: [0xFF],
 			lastSequenceValue: [0x07],
 			lastOperation: CdcOperationCodes.UpdateBefore,
 			cancellationToken: CancellationToken.None);
@@ -237,9 +240,122 @@ public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 		// Assert
 		connection.Commands.Count.ShouldBe(1);
 		connection.Commands[0].ParameterValues["batchSize"].ShouldBe(25);
-		connection.Commands[0].ParameterValues["lsn"].ShouldBeOfType<byte[]>();
+		connection.Commands[0].ParameterValues["fromLsn"].ShouldBeOfType<byte[]>();
+		connection.Commands[0].ParameterValues["toLsn"].ShouldBeOfType<byte[]>();
 		connection.Commands[0].ParameterValues["lastSequenceValue"].ShouldBeOfType<byte[]>();
 		connection.Commands[0].ParameterValues["lastOperation"].ShouldBe((int)CdcOperationCodes.UpdateBefore);
+	}
+
+	[Fact]
+	public async Task FetchChangesAsync_UsesRangeQuery_WithFromLsnAndToLsn()
+	{
+		// Arrange — verify the SQL query uses @fromLsn and @toLsn range parameters
+		// instead of the old single-LSN point query pattern (Sprint 824, bd-ko74ik).
+		var connection = new RecordingDbConnection();
+		connection.EnqueueReaderResult(CreateChangesTable(
+			operationCode: 2,
+			tableName: "dbo.Orders",
+			commitTime: DateTime.UtcNow,
+			position: [0x01],
+			sequenceValue: [0x02],
+			orderId: 1,
+			status: "ok"));
+		await using var repository = new CdcRepository(connection);
+
+		// Act
+		_ = await repository.FetchChangesAsync(
+			"dbo.Orders",
+			batchSize: 50,
+			fromLsn: [0x01],
+			toLsn: [0x99],
+			lastSequenceValue: null,
+			lastOperation: CdcOperationCodes.Unknown,
+			cancellationToken: CancellationToken.None);
+
+		// Assert — range query passes both LSN boundaries
+		connection.Commands.Count.ShouldBe(1);
+		var sql = connection.Commands[0].CommandText;
+		sql.ShouldContain("@fromLsn");
+		sql.ShouldContain("@toLsn");
+		sql.ShouldNotContain("@lsn");
+		connection.Commands[0].ParameterValues["fromLsn"].ShouldBeOfType<byte[]>();
+		connection.Commands[0].ParameterValues["toLsn"].ShouldBeOfType<byte[]>();
+	}
+
+	[Fact]
+	public async Task FetchChangesAsync_ThrowsArgumentNullException_WhenToLsnIsNull()
+	{
+		// Arrange
+		var connection = new RecordingDbConnection();
+		await using var repository = new CdcRepository(connection);
+
+		// Act & Assert
+		await Should.ThrowAsync<ArgumentNullException>(async () =>
+			await repository.FetchChangesAsync(
+				"dbo.Orders",
+				batchSize: 10,
+				fromLsn: [0x01],
+				toLsn: null!,
+				lastSequenceValue: null,
+				lastOperation: CdcOperationCodes.Unknown,
+				cancellationToken: CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task FetchChangesAsync_ThrowsArgumentNullException_WhenFromLsnIsNull()
+	{
+		// Arrange
+		var connection = new RecordingDbConnection();
+		await using var repository = new CdcRepository(connection);
+
+		// Act & Assert
+		await Should.ThrowAsync<ArgumentNullException>(async () =>
+			await repository.FetchChangesAsync(
+				"dbo.Orders",
+				batchSize: 10,
+				fromLsn: null!,
+				toLsn: [0xFF],
+				lastSequenceValue: null,
+				lastOperation: CdcOperationCodes.Unknown,
+				cancellationToken: CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task FetchChangesAsync_SharesDataTypesDictionary_AcrossRowsInBatch()
+	{
+		// Arrange — verify the pre-computed DataTypes dictionary is shared (Sprint 824, bd-znaw4w).
+		var connection = new RecordingDbConnection();
+		var table = new DataTable();
+		_ = table.Columns.Add("TableName", typeof(string));
+		_ = table.Columns.Add("CommitTime", typeof(DateTime));
+		_ = table.Columns.Add("Position", typeof(byte[]));
+		_ = table.Columns.Add("SequenceValue", typeof(byte[]));
+		_ = table.Columns.Add("OperationCode", typeof(int));
+		_ = table.Columns.Add("__$start_lsn", typeof(byte[]));
+		_ = table.Columns.Add("__$seqval", typeof(byte[]));
+		_ = table.Columns.Add("__$operation", typeof(int));
+		_ = table.Columns.Add("OrderId", typeof(int));
+		var now = DateTime.UtcNow;
+		_ = table.Rows.Add("dbo.Orders", now, new byte[] { 0x01 }, new byte[] { 0x01 }, 2, new byte[] { 0x01 }, new byte[] { 0x01 }, 2, 1);
+		_ = table.Rows.Add("dbo.Orders", now, new byte[] { 0x01 }, new byte[] { 0x02 }, 2, new byte[] { 0x01 }, new byte[] { 0x02 }, 2, 2);
+		connection.EnqueueReaderResult(table);
+		await using var repository = new CdcRepository(connection);
+
+		// Act
+		var rows = (await repository.FetchChangesAsync(
+				"dbo.Orders",
+				batchSize: 50,
+				fromLsn: [0x01],
+				toLsn: [0xFF],
+				lastSequenceValue: null,
+				lastOperation: CdcOperationCodes.Unknown,
+				cancellationToken: CancellationToken.None))
+			.ToList();
+
+		// Assert — both rows share the same DataTypes dictionary instance
+		rows.Count.ShouldBe(2);
+		ReferenceEquals(rows[0].DataTypes, rows[1].DataTypes).ShouldBeTrue(
+			"DataTypes dictionary should be shared across rows in the same batch for allocation reduction.");
 	}
 
 	[Fact]

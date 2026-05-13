@@ -512,10 +512,9 @@ jobs:
         run: dotnet restore Excalibur.sln
 
       - name: Generate CycloneDX SBOM for release
-        uses: CycloneDX/gh-dotnet-generate-sbom@v1.0.1
-        with:
-          path: './src'
-          github-bearer-token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet tool install --global CycloneDX || dotnet tool update --global CycloneDX
+          dotnet CycloneDX ./src -o ./src -F Json -t
 
       - name: Validate SBOM files exist
         run: |
@@ -558,25 +557,18 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Install security tools
+      - name: Security scan — vulnerable packages
         run: |
-          dotnet tool install --global security-scan --version 5.6.7 || true
-          npm install -g @cyclone-dx/cyclone-dx-npm --silent || true
+          echo "🔒 Running NuGet vulnerability analysis..."
+          dotnet list Excalibur.sln package --vulnerable --include-transitive 2>&1 | tee security-report.txt
 
-      - name: Security scan
-        run: |
-          echo "🔒 Running security analysis..."
-          security-scan packages/ --report-format json --output security-report.json || true
-
-          if [ -f security-report.json ]; then
-            echo "Security scan completed"
-            # Check for high/critical vulnerabilities
-            if grep -q '"severity":"HIGH\|CRITICAL"' security-report.json; then
-              echo "⚠️ High or critical security issues found"
-              cat security-report.json | jq '.vulnerabilities[] | select(.severity == "HIGH" or .severity == "CRITICAL")'
-            else
-              echo "✅ No high or critical security issues found"
-            fi
+          if grep -qi "has the following vulnerable packages" security-report.txt; then
+            echo ""
+            echo "⚠️ Vulnerable packages detected — review security-report.txt artifact"
+            # Extract just the vulnerable package lines for the summary
+            grep -A2 "has the following vulnerable packages" security-report.txt >> "$GITHUB_STEP_SUMMARY" || true
+          else
+            echo "✅ No vulnerable packages found"
           fi
 
       - name: Package analysis
@@ -618,7 +610,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: security-analysis
-          path: security-report.json
+          path: security-report.txt
           retention-days: 30
 
   # Create GitHub release

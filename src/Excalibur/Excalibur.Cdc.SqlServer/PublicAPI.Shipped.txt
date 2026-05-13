@@ -95,7 +95,7 @@ Excalibur.Cdc.SqlServer.CdcRepository.CdcRepository(Excalibur.Data.Abstractions.
 Excalibur.Cdc.SqlServer.CdcRepository.ChangesExistAsync(byte[]! fromPosition, byte[]! toPosition, System.Collections.Generic.IEnumerable<string!>! captureInstances, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Cdc.SqlServer.CdcRepository.Dispose() -> void
 Excalibur.Cdc.SqlServer.CdcRepository.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Cdc.SqlServer.CdcRepository.FetchChangesAsync(string! captureInstance, int batchSize, byte[]! lsn, byte[]? lastSequenceValue, Excalibur.Cdc.SqlServer.CdcOperationCodes lastOperation, System.Threading.CancellationToken cancellationToken, string? logicalTableName = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcRow!>!>!
+Excalibur.Cdc.SqlServer.CdcRepository.FetchChangesAsync(string! captureInstance, int batchSize, byte[]! fromLsn, byte[]! toLsn, byte[]? lastSequenceValue, Excalibur.Cdc.SqlServer.CdcOperationCodes lastOperation, System.Threading.CancellationToken cancellationToken, string? logicalTableName = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcRow!>!>!
 Excalibur.Cdc.SqlServer.CdcRepository.GetLsnToTimeAsync(byte[]! lsn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.DateTime?>!
 Excalibur.Cdc.SqlServer.CdcRepository.GetMaxPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Cdc.SqlServer.CdcRepository.GetMinPositionAsync(string! captureInstance, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
@@ -189,7 +189,7 @@ Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults
 Excalibur.Cdc.SqlServer.ISqlServerCdcProcessor
 Excalibur.Cdc.SqlServer.ICdcRepository
 Excalibur.Cdc.SqlServer.ICdcRepository.ChangesExistAsync(byte[]! fromPosition, byte[]! toPosition, System.Collections.Generic.IEnumerable<string!>! captureInstances, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Cdc.SqlServer.ICdcRepository.FetchChangesAsync(string! captureInstance, int batchSize, byte[]! lsn, byte[]? lastSequenceValue, Excalibur.Cdc.SqlServer.CdcOperationCodes lastOperation, System.Threading.CancellationToken cancellationToken, string? logicalTableName = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcRow!>!>!
+Excalibur.Cdc.SqlServer.ICdcRepository.FetchChangesAsync(string! captureInstance, int batchSize, byte[]! fromLsn, byte[]! toLsn, byte[]? lastSequenceValue, Excalibur.Cdc.SqlServer.CdcOperationCodes lastOperation, System.Threading.CancellationToken cancellationToken, string? logicalTableName = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcRow!>!>!
 Excalibur.Cdc.SqlServer.ICdcRepository.GetMaxPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Cdc.SqlServer.ICdcRepository.GetMinPositionAsync(string! captureInstance, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Cdc.SqlServer.ICdcRepository.GetNextLsnAsync(byte[]! lastProcessedLsn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
@@ -302,7 +302,7 @@ const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CaptureInstanceNotFoundEr
 const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CdcNotEnabledError = 22911 -> int
 const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.InvalidFromLsnError = 22037 -> int
 const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.LsnOutOfRangeError = 22029 -> int
-const Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults.CdcDefaultConsumerBatchSize = 10 -> int
+const Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults.CdcDefaultConsumerBatchSize = 50 -> int
 const Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults.CdcDefaultProducerBatchSize = 100 -> int
 const Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults.CdcDefaultQueueSize = 1000 -> int
 const Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults.CdcDefaultStopOnMissingTableHandler = true -> bool

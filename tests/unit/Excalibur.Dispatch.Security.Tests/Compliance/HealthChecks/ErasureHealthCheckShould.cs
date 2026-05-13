@@ -38,7 +38,10 @@ public sealed class ErasureHealthCheckShould
 		A.CallTo(() => _fakeErasureStore.GetStatusAsync(Guid.Empty, A<CancellationToken>._))
 			.Returns((ErasureStatus?)null);
 
-		var healthCheck = new ErasureHealthCheck(_fakeErasureStore, _logger);
+		// Use a generous threshold (30s) so fake store calls never trigger
+		// Degraded on loaded CI runners where even FakeItEasy stubs can
+		// exceed the default 500ms under contention.
+		var healthCheck = new ErasureHealthCheck(_fakeErasureStore, _logger, TimeSpan.FromSeconds(30));
 		var context = new HealthCheckContext
 		{
 			Registration = new HealthCheckRegistration("erasure", healthCheck, null, null),

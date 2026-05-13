@@ -148,6 +148,7 @@ internal sealed partial class CdcChangeDetector
 				tableName,
 				producerBatchSize,
 				changeProcessingState.Lsn,
+				maxLsn,
 				changeProcessingState.SequenceValue,
 				changeProcessingState.LastOperation,
 				combinedToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];

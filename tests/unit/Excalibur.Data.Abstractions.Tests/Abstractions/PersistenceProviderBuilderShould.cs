@@ -14,6 +14,8 @@ namespace Excalibur.Data.Tests.Abstractions.Persistence;
 [Trait(TraitNames.Feature, TestFeatures.Abstractions)]
 public sealed class PersistenceProviderBuilderShould : UnitTestBase
 {
+    private static readonly string[] ExpectedCallOrder = ["first", "second"];
+
     private readonly IPersistenceProvider _innerProvider;
 
     public PersistenceProviderBuilderShould()
@@ -115,7 +117,7 @@ public sealed class PersistenceProviderBuilderShould : UnitTestBase
         var result = builder.Build();
 
         // Assert — first decorator called first, second wraps the first's result
-        callOrder.ShouldBe(new[] { "first", "second" });
+        callOrder.ShouldBe(ExpectedCallOrder);
         result.Name.ShouldStartWith("Second-wrapping-First-wrapping-");
     }
 
@@ -175,5 +177,15 @@ public sealed class PersistenceProviderBuilderShould : UnitTestBase
         // Assert — both return the same inner
         result1.ShouldBeSameAs(_innerProvider);
         result2.ShouldBeSameAs(_innerProvider);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            (_innerProvider as IDisposable)?.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 }

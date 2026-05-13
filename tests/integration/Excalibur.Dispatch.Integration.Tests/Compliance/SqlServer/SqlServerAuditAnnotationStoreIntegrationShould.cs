@@ -184,18 +184,23 @@ public sealed class SqlServerAuditAnnotationStoreIntegrationShould : Integration
 		await InitializeAnnotationTableAsync();
 		var store = CreateStore();
 
+		// Use a unique tag to isolate this test's data from other tests
+		// that also use DefaultActor in the shared SQL Server container.
+		var isolationTag = $"actor-query-{Guid.NewGuid():N}";
 		var evt1 = UniqueEventId();
 		var evt2 = UniqueEventId();
 
-		await store.TagAsync(evt1, new[] { "tagged" }, TestCancellationToken);
-		await store.TagAsync(evt2, new[] { "tagged" }, TestCancellationToken);
+		await store.TagAsync(evt1, new[] { isolationTag }, TestCancellationToken);
+		await store.TagAsync(evt2, new[] { isolationTag }, TestCancellationToken);
 
-		// evt2 also annotated by a different actor -- but the default actor tags both
+		// Query by both actor AND the unique tag to get deterministic results
 		var results = await store.QueryByAnnotationAsync(
-			new AuditAnnotationQuery { ActorId = DefaultActor },
+			new AuditAnnotationQuery { ActorId = DefaultActor, Tags = new[] { isolationTag } },
 			TestCancellationToken);
 
 		results.Count.ShouldBe(2);
+		results.ShouldContain(evt1);
+		results.ShouldContain(evt2);
 	}
 
 	[Fact]

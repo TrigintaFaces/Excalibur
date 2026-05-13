@@ -182,6 +182,16 @@ public sealed class DelegatingPersistenceProviderShould : UnitTestBase, IAsyncDi
         await _sut.DisposeAsync();
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            (_innerProvider as IDisposable)?.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+
     /// <summary>
     /// Concrete subclass exposing the abstract <see cref="DelegatingPersistenceProvider"/>
     /// for testing without overriding any methods (validates default delegation).

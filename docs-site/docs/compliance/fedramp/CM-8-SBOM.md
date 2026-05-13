@@ -60,10 +60,9 @@ sbom-generation:
       run: dotnet restore
 
     - name: Generate CycloneDX SBOM for all packages
-      uses: CycloneDX/gh-dotnet-generate-sbom@v2
-      with:
-        path: './src'
-        github-bearer-token: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        dotnet tool install --global CycloneDX
+        dotnet CycloneDX ./src -o ./src -F Json -t
 
     - name: Upload SBOM artifacts
       uses: actions/upload-artifact@v4

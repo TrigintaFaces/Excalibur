@@ -230,17 +230,23 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	public async Task<IEnumerable<CdcRow>> FetchChangesAsync(
 		string captureInstance,
 		int batchSize,
-		byte[] lsn,
+		byte[] fromLsn,
+		byte[] toLsn,
 		byte[]? lastSequenceValue,
 		CdcOperationCodes lastOperation,
 		CancellationToken cancellationToken,
 		string? logicalTableName = null)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(captureInstance);
-		ArgumentNullException.ThrowIfNull(lsn);
+		ArgumentNullException.ThrowIfNull(fromLsn);
+		ArgumentNullException.ThrowIfNull(toLsn);
 		var normalizedCaptureInstance = NormalizeCaptureInstanceForSql(captureInstance);
 		SqlIdentifierValidator.ThrowIfInvalid(normalizedCaptureInstance, nameof(captureInstance));
 
+		// Use an LSN range query (@fromLsn → @toLsn) instead of a point query (@lsn, @lsn).
+		// This fetches changes across multiple LSNs in a single round-trip,
+		// reducing the number of SQL calls from one-per-LSN to one-per-batch.
+		// Pagination across LSN boundaries uses (start_lsn, seqval, operation) ordering.
 		var commandText = $"""
 		                   SELECT TOP (@batchSize)
 		                   	'{captureInstance}' AS TableName,
@@ -249,17 +255,23 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		                   	__$seqval AS SequenceValue,
 		                   	__$operation AS OperationCode,
 		                   *
-		                   FROM cdc.fn_cdc_get_all_changes_{normalizedCaptureInstance}(@lsn, @lsn, N'all update old')
+		                   FROM cdc.fn_cdc_get_all_changes_{normalizedCaptureInstance}(@fromLsn, @toLsn, N'all update old')
 		                   WHERE
-		                   __$start_lsn = @lsn
-		                   AND
 		                   (
 		                   @lastSequenceValue IS NULL
 		                   OR
 		                   (
-		                   		(@lastOperation = 3 AND __$seqval = @lastSequenceValue AND __$operation = 4)
+		                   		__$start_lsn > @fromLsn
 		                   		OR
-		                   		(__$seqval > @lastSequenceValue)
+		                   		(
+		                   			__$start_lsn = @fromLsn
+		                   			AND
+		                   			(
+		                   				(@lastOperation = 3 AND __$seqval = @lastSequenceValue AND __$operation = 4)
+		                   				OR
+		                   				(__$seqval > @lastSequenceValue)
+		                   			)
+		                   		)
 		                   )
 		                   )
 		                   ORDER BY
@@ -270,7 +282,8 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@batchSize", batchSize, DbType.Int32);
-		parameters.Add("lsn", lsn, DbType.Binary, size: 10);
+		parameters.Add("fromLsn", fromLsn, DbType.Binary, size: 10);
+		parameters.Add("toLsn", toLsn, DbType.Binary, size: 10);
 		parameters.Add("lastSequenceValue", lastSequenceValue, DbType.Binary);
 		parameters.Add("@lastOperation", (int)lastOperation, DbType.Int32);
 
@@ -284,28 +297,43 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 
 		await using (reader.ConfigureAwait(false))
 		{
-			var dataTypes = new Dictionary<string, Type?>(StringComparer.Ordinal);
+			// Pre-compute the column ordinals and filter once for all rows.
+			// This avoids per-row LINQ filtering and repeated string comparisons.
+			var userColumnNames = new List<string>();
+			var userColumnOrdinals = new List<int>();
+			var sharedDataTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
 
 			for (var i = 0; i < reader.FieldCount; i++)
 			{
 				var columnName = reader.GetName(i);
+
+				// Skip CDC metadata columns and our synthetic projection columns
+				if (columnName.StartsWith("__$", StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(columnName, "TableName", StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(columnName, "CommitTime", StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(columnName, "OperationCode", StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(columnName, "SequenceValue", StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+
+				userColumnNames.Add(columnName);
+				userColumnOrdinals.Add(i);
 				var fieldType = reader.GetFieldType(i);
-				dataTypes.Add(columnName, fieldType);
+				if (fieldType is not null)
+				{
+					sharedDataTypes[columnName] = fieldType;
+				}
 			}
 
 			while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				var changes = new Dictionary<string, object>(StringComparer.Ordinal);
-				foreach (var columnName in dataTypes.Keys.Where(columnName =>
-							 !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase) ||
-							   string.Equals(columnName, "TableName", StringComparison.OrdinalIgnoreCase) ||
-							   string.Equals(columnName, "CommitTime", StringComparison.OrdinalIgnoreCase) ||
-							   string.Equals(columnName, "OperationCode", StringComparison.OrdinalIgnoreCase) ||
-							   string.Equals(columnName, "SequenceValue", StringComparison.OrdinalIgnoreCase))))
+				var changes = new Dictionary<string, object>(userColumnNames.Count, StringComparer.Ordinal);
+				for (var i = 0; i < userColumnNames.Count; i++)
 				{
-					changes[columnName] = reader[columnName];
+					changes[userColumnNames[i]] = reader.GetValue(userColumnOrdinals[i]);
 				}
 
 				var cdcRow = new CdcRow
@@ -316,12 +344,9 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 					SeqVal = (byte[])reader["SequenceValue"],
 					CommitTime = (DateTime)reader["CommitTime"],
 					Changes = changes,
-					DataTypes = dataTypes
-						.Where(ct => changes.ContainsKey(ct.Key) && ct.Value != null)
-						.ToDictionary(
-							kvp => kvp.Key,
-							kvp => kvp.Value!,
-							StringComparer.Ordinal),
+					// Share the pre-computed DataTypes dictionary across all rows in this batch.
+					// The schema is identical for every row in the same result set.
+					DataTypes = sharedDataTypes,
 				};
 
 				resultList.Add(cdcRow);

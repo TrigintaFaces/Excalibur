@@ -54,11 +54,12 @@ public interface ICdcRepository : IAsyncDisposable, IDisposable
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Fetches change rows between two LSN positions for the specified capture instances.
+	/// Fetches change rows within an LSN range for the specified capture instance.
 	/// </summary>
 	/// <param name="captureInstance"> A capture instance table name to query for changes. </param>
 	/// <param name="batchSize"> The number of records to retrieve in the batch. </param>
-	/// <param name="lsn"> The LSN position. </param>
+	/// <param name="fromLsn"> The starting LSN position (inclusive). </param>
+	/// <param name="toLsn"> The ending LSN position (inclusive). </param>
 	/// <param name="lastSequenceValue">
 	/// The last processed sequence value, if any. This is used for processing changes with finer granularity.
 	/// </param>
@@ -74,7 +75,8 @@ public interface ICdcRepository : IAsyncDisposable, IDisposable
 	Task<IEnumerable<CdcRow>> FetchChangesAsync(
 		string captureInstance,
 		int batchSize,
-		byte[] lsn,
+		byte[] fromLsn,
+		byte[] toLsn,
 		byte[]? lastSequenceValue,
 		CdcOperationCodes lastOperation,
 		CancellationToken cancellationToken,

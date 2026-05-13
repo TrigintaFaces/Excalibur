@@ -18,6 +18,7 @@ namespace Excalibur.Cdc.Tests;
 [Trait(TraitNames.Feature, TestFeatures.Abstractions)]
 public sealed class CdcInterfaceHierarchyShould
 {
+    private static readonly string[] ExpectedStreamMethods = ["ConfirmPositionAsync", "GetCurrentPositionAsync", "StartAsync"];
     // ========================================
     // ICdcProcessor<T> — Base Interface Shape
     // ========================================
@@ -99,7 +100,7 @@ public sealed class CdcInterfaceHierarchyShould
         // Assert
         declaredMethods.Length.ShouldBe(3);
         var methodNames = declaredMethods.Select(m => m.Name).OrderBy(n => n).ToArray();
-        methodNames.ShouldBe(new[] { "ConfirmPositionAsync", "GetCurrentPositionAsync", "StartAsync" });
+        methodNames.ShouldBe(ExpectedStreamMethods);
     }
 
     // ========================================

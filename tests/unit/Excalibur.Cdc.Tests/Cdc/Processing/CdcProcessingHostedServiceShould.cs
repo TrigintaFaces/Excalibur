@@ -179,6 +179,99 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		callCount.ShouldBeGreaterThan(1);
 	}
 
+	[Fact]
+	public async Task ExecuteAsync_SkipsDelay_WhenWorkWasFound()
+	{
+		// Arrange — Sprint 824 (bd-dgofwv): adaptive polling skips Task.Delay when
+		// ProcessChangesAsync returns > 0 so the next batch is picked up immediately.
+		// We verify rapid consecutive calls when the processor reports work found.
+		var callTimestamps = new List<long>();
+		var targetCalls = 3;
+		var targetReached = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var processor = A.Fake<ICdcBackgroundProcessor>();
+		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() =>
+			{
+				callTimestamps.Add(Environment.TickCount64);
+				if (callTimestamps.Count >= targetCalls)
+				{
+					targetReached.TrySetResult(true);
+				}
+			})
+			.Returns(5); // Non-zero = work found -> should skip delay
+
+		var options = Options.Create(new CdcProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromSeconds(10) // Long interval — should be skipped
+		});
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
+
+		var service = new CdcProcessingHostedService(processor, options, logger);
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			targetReached.Task,
+			SignalWaitTimeout);
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert — all 3 calls should happen within well under the 10s polling interval.
+		// If delay was NOT skipped, it would take ~20s for 3 calls.
+		callTimestamps.Count.ShouldBeGreaterThanOrEqualTo(targetCalls);
+		var totalElapsedMs = callTimestamps[^1] - callTimestamps[0];
+		totalElapsedMs.ShouldBeLessThan(5000,
+			"With adaptive polling, consecutive polls should not wait the full PollingInterval when work was found.");
+	}
+
+	[Fact]
+	public async Task ExecuteAsync_DelaysOnEmpty_WhenNoWorkFound()
+	{
+		// Arrange — Sprint 824 (bd-dgofwv): when ProcessChangesAsync returns 0 (no work),
+		// the service should wait the full PollingInterval before the next poll.
+		var callCount = 0;
+		var firstCallSeen = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var processor = A.Fake<ICdcBackgroundProcessor>();
+		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() =>
+			{
+				Interlocked.Increment(ref callCount);
+				firstCallSeen.TrySetResult(true);
+			})
+			.Returns(0); // Zero = no work found -> should delay
+
+		var options = Options.Create(new CdcProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(500)
+		});
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
+
+		var service = new CdcProcessingHostedService(processor, options, logger);
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			firstCallSeen.Task,
+			SignalWaitTimeout);
+
+		// Wait a short time that's less than the polling interval to confirm no rapid re-polling
+		await Task.Delay(200);
+		var callsAfterFirstPoll = callCount;
+
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert — should have seen very few calls because delay is respected.
+		// With 500ms interval and 200ms observation window after first call,
+		// we should NOT have 3+ calls (that would mean delay was skipped).
+		callsAfterFirstPoll.ShouldBeLessThanOrEqualTo(2,
+			"When no work is found, the service should delay the full PollingInterval between polls.");
+	}
+
 	#endregion
 
 	#region Error Handling Tests

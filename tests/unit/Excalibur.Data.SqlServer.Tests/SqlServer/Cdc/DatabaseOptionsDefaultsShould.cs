@@ -22,9 +22,10 @@ public sealed class DatabaseOptionsDefaultsShould
 	}
 
 	[Fact]
-	public void DefaultConsumerBatchSizeTo10()
+	public void DefaultConsumerBatchSizeTo50()
 	{
-		DatabaseOptionsDefaults.CdcDefaultConsumerBatchSize.ShouldBe(10);
+		// Changed from 10 to 50 in Sprint 824 (bd-exq52k) to reduce per-batch overhead.
+		DatabaseOptionsDefaults.CdcDefaultConsumerBatchSize.ShouldBe(50);
 	}
 
 	[Fact]
