@@ -94,6 +94,35 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			IDataAccessPolicyFactory policyFactory,
 			ILogger<CdcProcessor> logger,
 			IOptions<CdcFatalErrorOptions>? fatalErrorOptions = null)
+		: this(appLifetime, dbConfig, cdcRepository, stateStoreConnection,
+			   stateStoreOptions, policyFactory, logger, fatalErrorOptions,
+			   idempotencyFilter: null)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CdcProcessor"/> class with an optional
+	/// idempotency filter for deduplicating replayed events.
+	/// </summary>
+	/// <param name="appLifetime">The application lifetime service for graceful shutdown.</param>
+	/// <param name="dbConfig">The database configuration options.</param>
+	/// <param name="cdcRepository">The CDC repository for reading change data.</param>
+	/// <param name="stateStoreConnection">The SQL connection for the CDC state store.</param>
+	/// <param name="stateStoreOptions">The CDC state store options.</param>
+	/// <param name="policyFactory">The factory for creating data access policies.</param>
+	/// <param name="logger">The logger.</param>
+	/// <param name="fatalErrorOptions">Optional fatal error handler options.</param>
+	/// <param name="idempotencyFilter">Optional idempotency filter for deduplicating replayed CDC events.</param>
+	internal CdcProcessor(
+			IHostApplicationLifetime appLifetime,
+			IDatabaseOptions dbConfig,
+			CdcRepository cdcRepository,
+			SqlConnection stateStoreConnection,
+			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
+			IDataAccessPolicyFactory policyFactory,
+			ILogger<CdcProcessor> logger,
+			IOptions<CdcFatalErrorOptions>? fatalErrorOptions,
+			ICdcIdempotencyFilter? idempotencyFilter)
 	{
 		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(dbConfig);
@@ -122,7 +151,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		// Compose subsystems
 		_checkpointManager = new CdcCheckpointManager(dbConfig, cdcRepository, _stateStore, logger);
 		_changeDetector = new CdcChangeDetector(cdcRepository, cdcRepository, dbConfig, policyFactory, _checkpointManager, logger);
-		_changeApplier = new CdcChangeApplier(dbConfig, policyFactory, _checkpointManager, _orderedEventProcessor, logger, _onFatalError);
+		_changeApplier = new CdcChangeApplier(dbConfig, policyFactory, _checkpointManager, _orderedEventProcessor, logger, _onFatalError, idempotencyFilter);
 
 		_ = appLifetime.ApplicationStopping.Register(() =>
 		{

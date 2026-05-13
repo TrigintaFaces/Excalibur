@@ -800,6 +800,9 @@ public static class DataSqlServerEventId
 	/// <summary>CDC table enqueued with LSN tracking info.</summary>
 	public const int CdcDetectorTableEnqueued = 100941;
 
+	/// <summary>CDC table LSN was stale (before cleanup boundary) and has been reset to the minimum valid LSN.</summary>
+	public const int CdcDetectorStaleLsnReset = 100942;
+
 	// ========================================
 	// 100950-100969: CdcChangeApplier (Consumer)
 	// ========================================
@@ -855,4 +858,17 @@ public static class DataSqlServerEventId
 
 	/// <summary>CDC checkpoint LSN inserted for table.</summary>
 	public const int CdcCheckpointLsnInserted = 100973;
+
+	// ========================================
+	// 100980-100989: CdcIdempotencyFilter
+	// ========================================
+
+	/// <summary>Duplicate CDC event detected and skipped by idempotency filter.</summary>
+	public const int CdcIdempotencyDuplicateSkipped = 100980;
+
+	/// <summary>CDC idempotency filter capacity reached; new events will not be tracked.</summary>
+	public const int CdcIdempotencyCapacityReached = 100981;
+
+	/// <summary>CDC event skipped by idempotency filter during batch processing.</summary>
+	public const int CdcIdempotencyEventSkipped = 100982;
 }

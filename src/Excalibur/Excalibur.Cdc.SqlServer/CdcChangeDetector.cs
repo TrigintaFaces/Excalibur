@@ -127,6 +127,19 @@ internal sealed partial class CdcChangeDetector
 		int queueSize,
 		CancellationToken combinedToken)
 	{
+		// Defense-in-depth: if this table's LSN predates the CDC cleanup boundary,
+		// reset the checkpoint to the capture instance's minimum valid LSN and skip
+		// this cycle. The next poll will process from the correct position.
+		// This avoids SQL Error 313 ("insufficient arguments") from the CDC TVF
+		// and only resets the affected table — other tables continue uninterrupted.
+		var minLsn = await _cdcRepository.GetMinPositionAsync(tableName, combinedToken).ConfigureAwait(false);
+		if (lastLsn.CompareLsn(minLsn) < 0)
+		{
+			LogStaleLsnReset(tableName, ByteArrayToHex(lastLsn), ByteArrayToHex(minLsn));
+			_checkpointManager.UpdateLsnTracking(tableName, minLsn, seqVal: null);
+			return;
+		}
+
 		var changeProcessingState = new ChangeProcessingState
 		{
 			TableName = tableName,
@@ -387,4 +400,8 @@ internal sealed partial class CdcChangeDetector
 	[LoggerMessage(DataSqlServerEventId.CdcDetectorTableEnqueued, LogLevel.Debug,
 		"Table {CaptureInstance} enqueued: currentLSN={CurrentLsn}, nextLSN={NextLsn}, maxLSN={MaxLsn}")]
 	private partial void LogTableEnqueuedDetails(string captureInstance, string currentLsn, string nextLsn, string maxLsn);
+
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorStaleLsnReset, LogLevel.Warning,
+		"Table {CaptureInstance} has stale LSN {StaleLsn} (before cleanup boundary {MinLsn}). Resetting checkpoint to minimum valid LSN. Next cycle will process from the new position.")]
+	private partial void LogStaleLsnReset(string captureInstance, string staleLsn, string minLsn);
 }

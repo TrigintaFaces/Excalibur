@@ -65,6 +65,7 @@ public sealed class DataChangeEventProcessorFactory : IDataChangeEventProcessorF
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 		var stateStoreOptions = _serviceProvider.GetService<IOptions<SqlServerCdcStateStoreOptions>>();
 		var fatalErrorOptions = _serviceProvider.GetService<IOptions<CdcFatalErrorOptions>>();
+		var idempotencyFilter = _serviceProvider.GetService<ICdcIdempotencyFilter>();
 
 		return new DataChangeEventProcessor(
 				_appLifetime,
@@ -75,6 +76,7 @@ public sealed class DataChangeEventProcessorFactory : IDataChangeEventProcessorF
 				_serviceProvider,
 				_policyFactory,
 				logger,
-				fatalErrorOptions);
+				fatalErrorOptions,
+				idempotencyFilter);
 	}
 }

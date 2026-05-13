@@ -60,6 +60,18 @@ public static class StalePositionReasonCodes
 	public const string CaptureInstanceDropped = "CAPTURE_INSTANCE_DROPPED";
 
 	/// <summary>
+	/// The CDC table-valued function received an invalid LSN range, reported as
+	/// SQL Error 313 ("An insufficient number of arguments were supplied").
+	/// </summary>
+	/// <remarks>
+	/// This occurs when <c>cdc.fn_cdc_get_all_changes_*</c> is called with an LSN
+	/// that falls outside the valid CDC window. Certain boundary conditions cause
+	/// SQL Server to raise error 313 instead of the more specific 22037/22029 errors.
+	/// The practical effect is the same: the saved position is stale and must be reset.
+	/// </remarks>
+	public const string TvfInsufficientArguments = "TVF_INSUFFICIENT_ARGUMENTS";
+
+	/// <summary>
 	/// The reason for the stale position could not be determined.
 	/// </summary>
 	/// <remarks>
@@ -84,6 +96,8 @@ public static class StalePositionReasonCodes
 			22911 => CdcReenabled,
 			// Capture instance not found
 			22985 => CaptureInstanceDropped,
+			// Insufficient arguments supplied to CDC TVF (invalid LSN range boundary condition)
+			313 => TvfInsufficientArguments,
 			_ => Unknown
 		};
 }

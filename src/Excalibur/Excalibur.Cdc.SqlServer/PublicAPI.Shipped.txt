@@ -302,6 +302,7 @@ const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CaptureInstanceNotFoundEr
 const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CdcNotEnabledError = 22911 -> int
 const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.InvalidFromLsnError = 22037 -> int
 const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.LsnOutOfRangeError = 22029 -> int
+const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.TvfInsufficientArgumentsError = 313 -> int
 const Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults.CdcDefaultConsumerBatchSize = 50 -> int
 const Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults.CdcDefaultProducerBatchSize = 100 -> int
 const Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults.CdcDefaultQueueSize = 1000 -> int
@@ -311,6 +312,7 @@ const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.CaptureInstanceDropped = 
 const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.CdcCleanup = "CDC_CLEANUP" -> string!
 const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.CdcReenabled = "CDC_REENABLED" -> string!
 const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.LsnOutOfRange = "LSN_OUT_OF_RANGE" -> string!
+const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.TvfInsufficientArguments = "TVF_INSUFFICIENT_ARGUMENTS" -> string!
 const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.Unknown = "UNKNOWN" -> string!
 override Excalibur.Cdc.SqlServer.CdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.SqlServer.CdcPosition.GetHashCode() -> int
@@ -352,3 +354,6 @@ Excalibur.Cdc.SqlServer.DataChangeEventProcessor.DataChangeEventProcessor(Micros
 Excalibur.Cdc.SqlServer.DataChangeEventProcessorFactory.Create(Excalibur.Cdc.SqlServer.IDatabaseOptions! dbConfig, Excalibur.Cdc.SqlServer.CdcRepository! cdcRepository, Microsoft.Data.SqlClient.SqlConnection! stateStoreConnection) -> Excalibur.Cdc.SqlServer.IDataChangeEventProcessor!
 Excalibur.Cdc.SqlServer.IDataChangeEventProcessorFactory.Create(Excalibur.Cdc.SqlServer.IDatabaseOptions! dbConfig, Excalibur.Cdc.SqlServer.CdcRepository! cdcRepository, Microsoft.Data.SqlClient.SqlConnection! stateStoreConnection) -> Excalibur.Cdc.SqlServer.IDataChangeEventProcessor!
 static Excalibur.Cdc.SqlServer.CdcRecoveryOptions.FromCdcOptions(Excalibur.Cdc.CdcOptions! cdcOptions) -> Excalibur.Cdc.SqlServer.CdcRecoveryOptions!
+
+Microsoft.Extensions.DependencyInjection.CdcIdempotencyBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.CdcIdempotencyBuilderExtensions.UseInMemoryIdempotencyFilter(this Excalibur.Cdc.ICdcBuilder! builder) -> Excalibur.Cdc.ICdcBuilder!
