@@ -165,7 +165,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 
 			await handler.HandleAsync(changeEvent, cancellationToken).ConfigureAwait(false);
 
-			if (_logger.IsEnabled(LogLevel.Information))
+			if (_logger.IsEnabled(LogLevel.Debug))
 			{
 				LogChangeEventProcessed(changeEvent.TableName);
 			}
@@ -194,7 +194,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	}
 
 	// Source-generated logging methods
-	[LoggerMessage(DataSqlServerEventId.DataChangeEventProcessed, LogLevel.Information,
+	[LoggerMessage(DataSqlServerEventId.DataChangeEventProcessed, LogLevel.Debug,
 		"Successfully processed change event for table '{TableName}'.")]
 	private partial void LogChangeEventProcessed(string tableName);
 

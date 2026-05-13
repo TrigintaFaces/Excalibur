@@ -96,8 +96,12 @@ internal sealed partial class CdcChangeDetector
 	/// table's checkpoint might reference an LSN that has been cleaned up by CDC retention.
 	/// </para>
 	/// <para>
-	/// The range query pattern in <see cref="EnqueueTableChangesAsync"/> fetches multiple
-	/// records per LSN, so the per-LSN outer loop does NOT cause N+1 round-trips per record.
+	/// Each table uses a point query <c>fn_cdc_get_all_changes(@lsn, @lsn)</c> to fetch
+	/// changes at exactly one LSN per call. This bounds the TVF scan to a single LSN —
+	/// fast and predictable regardless of the gap between the checkpoint and the current max.
+	/// Range queries <c>(@fromLsn, @maxLsn)</c> were reverted because <c>fn_cdc_get_all_changes</c>
+	/// materializes ALL rows in the range before <c>TOP</c>/<c>WHERE</c> filtering, causing
+	/// SQL timeouts on high-volume tables with large checkpoint gaps.
 	/// </para>
 	/// </remarks>
 	internal async Task ProducerLoopCoreAsync(
@@ -171,11 +175,18 @@ internal sealed partial class CdcChangeDetector
 
 			var producerBatchSize = Math.Min(queueSize, _dbConfig.ProducerBatchSize);
 			var retryPolicy = _policyFactory.GetComprehensivePolicy();
+
+			// Use a point query (@lsn, @lsn) instead of a range query (@fromLsn, @maxLsn).
+			// fn_cdc_get_all_changes materializes ALL rows in [fromLsn, toLsn] before
+			// TOP/WHERE filtering can take effect. With a wide range (e.g., last checkpoint
+			// to current max), the TVF scans thousands of rows only to return a batch of N.
+			// Point queries bound the TVF scan to a single LSN — fast and predictable.
+			// The outer loop in ProducerLoopCoreAsync handles LSN-by-LSN advancement.
 			var changes = await retryPolicy.ExecuteAsync(() => _cdcRepository.FetchChangesAsync(
 				tableName,
 				producerBatchSize,
 				changeProcessingState.Lsn,
-				maxLsn,
+				changeProcessingState.Lsn,
 				changeProcessingState.SequenceValue,
 				changeProcessingState.LastOperation,
 				combinedToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
