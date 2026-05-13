@@ -871,4 +871,13 @@ public static class DataSqlServerEventId
 
 	/// <summary>CDC event skipped by idempotency filter during batch processing.</summary>
 	public const int CdcIdempotencyEventSkipped = 100982;
+
+	/// <summary>Duplicate CDC event detected and skipped by SQL Server idempotency filter.</summary>
+	public const int CdcIdempotencyDuplicateSkippedSql = 100983;
+
+	/// <summary>Expired CDC idempotency records cleaned up.</summary>
+	public const int CdcIdempotencyCleanupCompleted = 100984;
+
+	/// <summary>Duplicate key ignored during SQL Server idempotency MarkProcessedAsync.</summary>
+	public const int CdcIdempotencyDuplicateInsertIgnored = 100985;
 }

@@ -357,3 +357,17 @@ static Excalibur.Cdc.SqlServer.CdcRecoveryOptions.FromCdcOptions(Excalibur.Cdc.C
 
 Microsoft.Extensions.DependencyInjection.CdcIdempotencyBuilderExtensions
 static Microsoft.Extensions.DependencyInjection.CdcIdempotencyBuilderExtensions.UseInMemoryIdempotencyFilter(this Excalibur.Cdc.ICdcBuilder! builder) -> Excalibur.Cdc.ICdcBuilder!
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.CleanupBatchSize.get -> int
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.CleanupBatchSize.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.QualifiedTableName.get -> string!
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.RetentionPeriod.get -> System.TimeSpan
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.RetentionPeriod.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.SchemaName.get -> string!
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.SchemaName.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.SqlServerCdcIdempotencyFilterOptions() -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.TableName.get -> string!
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.TableName.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions.Validate() -> void
+static Microsoft.Extensions.DependencyInjection.CdcIdempotencyBuilderExtensions.UseSqlServerIdempotencyFilter(this Excalibur.Cdc.ICdcBuilder! builder) -> Excalibur.Cdc.ICdcBuilder!
+static Microsoft.Extensions.DependencyInjection.CdcIdempotencyBuilderExtensions.UseSqlServerIdempotencyFilter(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!

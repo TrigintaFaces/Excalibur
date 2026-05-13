@@ -1042,7 +1042,7 @@ public class ResilientOrderCdcHandler : IDataChangeHandler
 
 ### Stale Position Recovery
 
-Handle stale LSN positions when CDC retention expires using the fluent builder:
+Handle stale LSN positions when CDC retention expires, a database is restored from backup, or an invalid LSN range triggers SQL Error 313. The framework detects these scenarios automatically and invokes the configured recovery strategy:
 
 ```csharp
 using Excalibur.Cdc;
@@ -1071,6 +1071,24 @@ services.AddCdcProcessor(cdc =>
 | `FallbackToLatest` | Skip to latest position (may lose unprocessed events) |
 | `InvokeCallback` | Call custom handler for advanced recovery logic |
 
+#### Reason Codes
+
+The `ReasonCode` on `CdcPositionResetEventArgs` tells you *why* the position is stale:
+
+| Reason Code | Description |
+|-------------|-------------|
+| `CdcCleanup` | CDC cleanup job purged records older than the retention threshold |
+| `BackupRestore` | Database restored from backup with different CDC history |
+| `CdcReenabled` | CDC was disabled and re-enabled, invalidating previous positions |
+| `LsnOutOfRange` | LSN falls outside the valid min/max range (SQL Error 22037/22029) |
+| `TvfInsufficientArguments` | CDC TVF received an invalid LSN range (SQL Error 313) |
+| `CaptureInstanceDropped` | The capture instance no longer exists in the database |
+| `Unknown` | Cause could not be determined from the SQL error |
+
+:::info SQL Error 313
+SQL Server sometimes raises error 313 ("An insufficient number of arguments were supplied") instead of the more specific 22037/22029 errors when the LSN falls outside the valid CDC window. The framework recognizes this error and treats it the same as `LsnOutOfRange` — the position is stale and recovery is triggered automatically.
+:::
+
 #### Custom Recovery Callback
 
 For complex recovery scenarios, use `InvokeCallback` with a custom handler:
@@ -1092,12 +1110,121 @@ services.AddCdcProcessor(cdc =>
 
                        // Handle based on reason code
                        // StalePositionReasonCodes: CdcCleanup, BackupRestore,
-                       // CdcReenabled, LsnOutOfRange, CaptureInstanceDropped, Unknown
+                       // CdcReenabled, LsnOutOfRange, CaptureInstanceDropped,
+                       // TvfInsufficientArguments, Unknown
                    });
        })
        .EnableBackgroundProcessing();
 });
 ```
+
+## Idempotency Filtering
+
+CDC uses at-least-once delivery — events may be replayed after a crash, restart, or stale position reset. If your handlers are not naturally idempotent, enable an **idempotency filter** to deduplicate events before they reach your handler.
+
+When registered, the CDC processor checks each event's `(tableName, LSN, seqVal)` composite key before invoking the handler. Events that have already been processed are skipped automatically. This is an opt-in feature — when no filter is registered, all events are processed without deduplication.
+
+### In-Memory Filter (Single Instance)
+
+For single-instance deployments where CDC events are processed by one consumer:
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+       .UseInMemoryIdempotencyFilter()
+       .EnableBackgroundProcessing();
+});
+```
+
+The in-memory filter uses a bounded `ConcurrentDictionary` with a capacity of 10,000 entries. When capacity is reached, new events are processed without deduplication tracking (skip-when-full pattern), ensuring bounded memory usage.
+
+:::warning Limitations
+The in-memory filter does **not** survive process restarts — it is purely in-memory. For durable deduplication across restarts or multi-instance deployments, use the SQL Server filter.
+:::
+
+### SQL Server Filter (Multi-Instance)
+
+For multi-instance deployments where multiple CDC consumers may process the same events:
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+       .UseSqlServerIdempotencyFilter()
+       .EnableBackgroundProcessing();
+});
+```
+
+The SQL Server filter persists processed event records in a `[Cdc].[CdcProcessedEvents]` table with a clustered composite primary key on `(TableName, Lsn, SeqVal)`. Duplicate inserts are handled gracefully via primary key violation detection — concurrent instances processing the same event will not error.
+
+#### Customizing Options
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+       .UseSqlServerIdempotencyFilter(opts =>
+       {
+           opts.SchemaName = "MySchema";             // Default: "Cdc"
+           opts.TableName = "MyProcessedEvents";     // Default: "CdcProcessedEvents"
+           opts.RetentionPeriod = TimeSpan.FromHours(48); // Default: 24 hours
+           opts.CleanupBatchSize = 5000;             // Default: 1000
+       })
+       .EnableBackgroundProcessing();
+});
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `SchemaName` | `"Cdc"` | Schema for the processed events table |
+| `TableName` | `"CdcProcessedEvents"` | Table name for tracking processed events |
+| `RetentionPeriod` | 24 hours | Records older than this are eligible for cleanup |
+| `CleanupBatchSize` | 1000 | Max records deleted per cleanup batch (prevents long transactions) |
+
+Options are validated at startup via `IValidateOptions<T>` and `ValidateOnStart()`. Schema and table names are validated against SQL identifier rules (alphanumeric and underscores only), and retention period and batch size must be positive.
+
+#### DDL Migration
+
+Create the processed events table before starting the CDC processor:
+
+```sql
+-- Create schema if it doesn't exist
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'Cdc')
+    EXEC('CREATE SCHEMA [Cdc]');
+
+-- Create processed events table
+CREATE TABLE [Cdc].[CdcProcessedEvents] (
+    TableName   NVARCHAR(256)   NOT NULL,
+    Lsn         VARBINARY(10)   NOT NULL,
+    SeqVal      VARBINARY(10)   NOT NULL,
+    ProcessedAt DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_CdcProcessedEvents
+        PRIMARY KEY CLUSTERED (TableName, Lsn, SeqVal)
+);
+```
+
+#### Retention and Cleanup
+
+Old records are cleaned up periodically based on the configured `RetentionPeriod`. Cleanup uses batched `DELETE TOP (@batchSize)` to prevent long-running transactions from blocking CDC processing. The cleanup is invoked internally by the CDC processor.
+
+### Choosing a Filter
+
+| | In-Memory | SQL Server |
+|---|---|---|
+| **Durability** | Lost on restart | Survives restarts |
+| **Multi-instance** | No (single consumer only) | Yes (concurrent consumers) |
+| **Performance** | Fastest (dictionary lookup) | Fast (clustered PK point lookup) |
+| **Capacity** | Bounded at 10,000 entries | Limited only by disk |
+| **Maintenance** | None | Retention cleanup (automatic) |
+| **Best for** | Dev/test, single-instance prod | Multi-instance production |
+
+:::tip TryAdd Semantics
+`UseInMemoryIdempotencyFilter()` uses `TryAddSingleton` — if a filter is already registered, the call is a no-op. `UseSqlServerIdempotencyFilter()` uses `AddSingleton` and replaces any previously registered filter. This means you can safely call both, and the last one wins.
+:::
 
 ## Resilience
 
@@ -1242,6 +1369,7 @@ services.AddCdcProcessor(cdc =>
 
 The hosted service:
 - Polls for CDC changes at a configurable interval (default 5 seconds)
+- Applies exponential backoff on errors (up to 5× the polling interval), resetting on success
 - Catches and logs exceptions without crashing the host
 - Supports graceful drain on shutdown (default 30-second timeout)
 - Reports structured log events via `LoggerMessage` source generation
@@ -1462,6 +1590,7 @@ CDC processors, outbox processors, and inbox stores are all registered as single
 | Checkpointing | Configure state store schema via `UseSqlServer(sql => sql.SchemaName(...))` |
 | Anti-corruption | Transform database columns to domain events using mapping functions |
 | Recovery | Configure `WithRecovery()` with `FallbackToEarliest` for idempotent handlers |
+| Idempotency | Use `UseInMemoryIdempotencyFilter()` for single-instance, `UseSqlServerIdempotencyFilter()` for multi-instance |
 | Hosting | Use `EnableBackgroundProcessing()` for most cases, Quartz job for cron schedules |
 
 ## Providers

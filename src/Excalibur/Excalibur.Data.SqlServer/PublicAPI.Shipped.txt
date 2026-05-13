@@ -616,3 +616,6 @@ const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcCheckpointLsn
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcIdempotencyCapacityReached = 100981 -> int
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcIdempotencyDuplicateSkipped = 100980 -> int
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcIdempotencyEventSkipped = 100982 -> int
+const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcIdempotencyCleanupCompleted = 100984 -> int
+const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcIdempotencyDuplicateInsertIgnored = 100985 -> int
+const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcIdempotencyDuplicateSkippedSql = 100983 -> int

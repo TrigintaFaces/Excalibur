@@ -86,6 +86,20 @@ internal sealed partial class CdcChangeDetector
 	/// Core producer iteration logic without exception handling or channel lifecycle management.
 	/// Used by <see cref="ProducerLoopAsync"/> and by <c>CdcProcessor</c> (which wraps with stale-position recovery).
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The per-LSN iteration pattern (outer loop over global LSN, inner loop over tables)
+	/// is retained intentionally for multi-table checkpoint synchronization. When multiple
+	/// tables are tracked, this ensures all tables advance through the LSN space together,
+	/// maintaining a consistent checkpoint frontier. Processing tables independently would
+	/// allow one table to race ahead, complicating recovery after a crash — the lagging
+	/// table's checkpoint might reference an LSN that has been cleaned up by CDC retention.
+	/// </para>
+	/// <para>
+	/// The range query pattern in <see cref="EnqueueTableChangesAsync"/> fetches multiple
+	/// records per LSN, so the per-LSN outer loop does NOT cause N+1 round-trips per record.
+	/// </para>
+	/// </remarks>
 	internal async Task ProducerLoopCoreAsync(
 		byte[]? lowestStartLsn,
 		ChannelWriter<DataChangeEvent> writer,
