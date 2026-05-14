@@ -280,3 +280,5 @@ static Microsoft.Extensions.DependencyInjection.CdcHealthChecksBuilderExtensions
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.ICdcBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.HasCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
+
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceErrorBackoff = 3109 -> int

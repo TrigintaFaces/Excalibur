@@ -30,6 +30,7 @@ internal sealed partial class CdcChangeApplier
 	private readonly Domain.OrderedEventProcessor _orderedEventProcessor;
 	private readonly ILogger _logger;
 	private readonly CdcFatalErrorHandler? _onFatalError;
+	private readonly ICdcIdempotencyFilter? _idempotencyFilter;
 
 	private static readonly Counter<long> EventsProcessedCounter = CdcTelemetryConstants.Meter.CreateCounter<long>(
 		CdcTelemetryConstants.MetricNames.EventsProcessed,
@@ -57,7 +58,8 @@ internal sealed partial class CdcChangeApplier
 		CdcCheckpointManager checkpointManager,
 		Domain.OrderedEventProcessor orderedEventProcessor,
 		ILogger logger,
-		CdcFatalErrorHandler? onFatalError)
+		CdcFatalErrorHandler? onFatalError,
+		ICdcIdempotencyFilter? idempotencyFilter = null)
 	{
 		_dbConfig = dbConfig;
 		_policyFactory = policyFactory;
@@ -65,6 +67,7 @@ internal sealed partial class CdcChangeApplier
 		_orderedEventProcessor = orderedEventProcessor;
 		_logger = logger;
 		_onFatalError = onFatalError;
+		_idempotencyFilter = idempotencyFilter;
 	}
 
 	/// <summary>
@@ -172,6 +175,21 @@ internal sealed partial class CdcChangeApplier
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
+			// Idempotency check: skip events already processed in a prior cycle.
+			if (_idempotencyFilter is not null
+				&& await _idempotencyFilter.IsProcessedAsync(
+					changeEvent.TableName, changeEvent.Lsn, changeEvent.SeqVal, cancellationToken)
+					.ConfigureAwait(false))
+			{
+				LogIdempotencyEventSkipped(changeEvent.TableName,
+					CdcChangeDetector.ByteArrayToHex(changeEvent.Lsn),
+					CdcChangeDetector.ByteArrayToHex(changeEvent.SeqVal));
+
+				// Treat as successful for checkpoint advancement purposes.
+				lastSuccessfulPerTable[changeEvent.TableName] = changeEvent;
+				continue;
+			}
+
 			var eventSucceeded = false;
 			try
 			{
@@ -183,6 +201,14 @@ internal sealed partial class CdcChangeApplier
 					.ConfigureAwait(false);
 
 				eventSucceeded = true;
+
+				// Mark event as processed for idempotency tracking.
+				if (_idempotencyFilter is not null)
+				{
+					await _idempotencyFilter.MarkProcessedAsync(
+						changeEvent.TableName, changeEvent.Lsn, changeEvent.SeqVal, cancellationToken)
+						.ConfigureAwait(false);
+				}
 
 				EventsProcessedCounter.Add(1, new TagList
 				{
@@ -299,4 +325,8 @@ internal sealed partial class CdcChangeApplier
 	[LoggerMessage(DataSqlServerEventId.CdcCheckpointSkipped, LogLevel.Warning,
 		"Checkpoint NOT advanced for failed event on table '{TableName}', LSN {Lsn}, SeqVal {SeqVal}. Event will be reprocessed on next cycle.")]
 	private partial void LogCheckpointSkippedForFailedEvent(string tableName, string lsn, string seqVal);
+
+	[LoggerMessage(DataSqlServerEventId.CdcIdempotencyEventSkipped, LogLevel.Debug,
+		"CDC event skipped by idempotency filter: table={TableName}, LSN={Lsn}, SeqVal={SeqVal}")]
+	private partial void LogIdempotencyEventSkipped(string tableName, string lsn, string seqVal);
 }

@@ -145,9 +145,21 @@ internal sealed partial class CdcProcessingHostedService : BackgroundService
 			// Only delay on empty polls or after errors to avoid busy-spinning.
 			if (processed == 0)
 			{
+				var delay = _options.Value.PollingInterval;
+
+				// Exponential backoff on errors, capped at 5x polling interval.
+				// Prevents rapid retry storms while allowing recovery once errors clear.
+				// _consecutiveErrors resets to 0 on the next successful cycle.
+				if (_consecutiveErrors > 0)
+				{
+					var backoffMultiplier = Math.Min(_consecutiveErrors, 5);
+					delay = TimeSpan.FromTicks(delay.Ticks * backoffMultiplier);
+					LogErrorBackoff(delay, _consecutiveErrors);
+				}
+
 				try
 				{
-					await Task.Delay(_options.Value.PollingInterval, stoppingToken).ConfigureAwait(false);
+					await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
@@ -183,4 +195,8 @@ internal sealed partial class CdcProcessingHostedService : BackgroundService
 	[LoggerMessage(CdcProcessingEventId.CdcBackgroundServiceDrainTimeout, LogLevel.Warning,
 		"CDC background processing service drain timeout exceeded ({DrainTimeout}).")]
 	private partial void LogDrainTimeoutExceeded(TimeSpan drainTimeout);
+
+	[LoggerMessage(CdcProcessingEventId.CdcBackgroundServiceErrorBackoff, LogLevel.Warning,
+		"CDC background processing applying error backoff: {Delay} ({ConsecutiveErrors} consecutive errors).")]
+	private partial void LogErrorBackoff(TimeSpan delay, int consecutiveErrors);
 }

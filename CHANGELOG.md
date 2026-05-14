@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **SqlServerCdcIdempotencyFilter (Sprint 826)** -- Persistent CDC event deduplication using `[Cdc].[CdcProcessedEvents]` table with composite primary key (TableName, Lsn, SeqVal). Supports configurable retention with batched cleanup via `SqlServerCdcIdempotencyFilterOptions` (schema, table name, retention period, cleanup batch size). Registered via `UseSqlServerIdempotencyFilter()` builder extension on `ICdcBuilder`. Includes `IValidateOptions<T>` validator with `ValidateOnStart()`. Complements the `InMemoryCdcIdempotencyFilter` added in Sprint 825 for single-instance scenarios.
+- **ICdcIdempotencyFilter abstraction (Sprint 825)** -- Internal interface for CDC event deduplication with `IsProcessedAsync` and `MarkProcessedAsync`. Default `InMemoryCdcIdempotencyFilter` uses bounded `ConcurrentDictionary` (10K cap, skip-when-full). Opt-in via `UseInMemoryIdempotencyFilter()` on `ICdcBuilder`. Integrated into `CdcChangeApplier` — checks before handler dispatch, marks after success.
+- **CDC idempotency documentation (Sprint 826)** -- New docs-site content covering idempotency filter overview (why at-least-once needs dedup), InMemory vs SqlServer filter comparison, DI registration examples, and retention/cleanup guidance. Added to `docs/patterns/cdc.md` and `docs/operations/cdc-troubleshooting.md`.
+
+### Fixed
+
+- **CDC SQL Error 313 stale LSN recovery (Sprint 825)** -- SQL Error 313 ("insufficient arguments") thrown by CDC table-valued functions when LSN falls outside the valid range (e.g., after CDC cleanup jobs) now triggers graceful stale position recovery. Dual-layer defense: (1) defensive pre-check in `CdcChangeDetector.EnqueueTableChangesAsync` validates lastLsn against `fn_cdc_get_min_lsn` per capture instance and resets checkpoint proactively; (2) error code 313 added to `CdcStalePositionDetector.StalePositionErrorNumbers` as safety-net catch filter. New `StalePositionReasonCodes.TvfInsufficientArguments` reason code for diagnostics.
+- **CDC adaptive polling error backoff (Sprint 826)** -- `CdcProcessingHostedService` now distinguishes no-work cycles (normal delay) from error cycles (exponential backoff). Consecutive errors increment a backoff multiplier capped at 5× `PollingInterval`, reset to 1× on first successful cycle. Prevents tight error-retry loops under sustained failure conditions.
+- **CDC SQL timeout from range queries** -- Reverted `fn_cdc_get_all_changes` from range query `(@fromLsn, @maxLsn)` to point query `(@lsn, @lsn)`. The TVF materializes ALL rows in the `[fromLsn, toLsn]` range before `TOP`/`WHERE` filtering, causing execution timeouts on high-volume tables with large checkpoint gaps. Point queries bound the TVF scan to a single LSN. The outer loop in `ProducerLoopCoreAsync` handles LSN-by-LSN advancement.
+- **CDC per-row log noise** -- Demoted `DataChangeEventProcessor.LogChangeEventProcessed` from `Information` to `Debug`. Per-row success logging flooded consumer logs with hundreds of identical lines per poll cycle. The batch summary at `CdcChangeApplier.LogCompletedProcessing` already provides operator-level Information totals.
+
 ### Changed
 
-- **CDC performance optimization (Sprint 824)** -- Batch checkpoint writes per-table instead of per-event, adaptive polling skips delay when work found, `CdcDefaultConsumerBatchSize` increased from 10 to 50, pre-computed column filter and shared `DataTypes` dictionary in `CdcRepository.FetchChangesAsync`, LSN range queries via `fn_cdc_get_all_changes(fromLsn, toLsn)`, and cached Polly policy per batch. `ICdcRepository.FetchChangesAsync` now accepts `fromLsn` + `toLsn` range parameters. `CdcRow.DataTypes` changed from `Dictionary<string, Type>` to `IReadOnlyDictionary<string, Type>`. **Breaking change** for consumers calling `FetchChangesAsync` directly or accessing `CdcRow.DataTypes` as mutable.
+- **CDC performance optimization (Sprint 824)** -- Batch checkpoint writes per-table instead of per-event, adaptive polling skips delay when work found, `CdcDefaultConsumerBatchSize` increased from 10 to 50, pre-computed column filter and shared `DataTypes` dictionary in `CdcRepository.FetchChangesAsync`, cached Polly policy per batch. `ICdcRepository.FetchChangesAsync` now accepts `fromLsn` + `toLsn` range parameters (callers should pass `fromLsn == toLsn` for point queries). `CdcRow.DataTypes` changed from `Dictionary<string, Type>` to `IReadOnlyDictionary<string, Type>`. **Breaking change** for consumers calling `FetchChangesAsync` directly or accessing `CdcRow.DataTypes` as mutable.
 
 ### Fixed
 

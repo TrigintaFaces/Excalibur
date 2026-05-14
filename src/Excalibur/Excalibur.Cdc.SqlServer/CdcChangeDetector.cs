@@ -86,6 +86,24 @@ internal sealed partial class CdcChangeDetector
 	/// Core producer iteration logic without exception handling or channel lifecycle management.
 	/// Used by <see cref="ProducerLoopAsync"/> and by <c>CdcProcessor</c> (which wraps with stale-position recovery).
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The per-LSN iteration pattern (outer loop over global LSN, inner loop over tables)
+	/// is retained intentionally for multi-table checkpoint synchronization. When multiple
+	/// tables are tracked, this ensures all tables advance through the LSN space together,
+	/// maintaining a consistent checkpoint frontier. Processing tables independently would
+	/// allow one table to race ahead, complicating recovery after a crash — the lagging
+	/// table's checkpoint might reference an LSN that has been cleaned up by CDC retention.
+	/// </para>
+	/// <para>
+	/// Each table uses a point query <c>fn_cdc_get_all_changes(@lsn, @lsn)</c> to fetch
+	/// changes at exactly one LSN per call. This bounds the TVF scan to a single LSN —
+	/// fast and predictable regardless of the gap between the checkpoint and the current max.
+	/// Range queries <c>(@fromLsn, @maxLsn)</c> were reverted because <c>fn_cdc_get_all_changes</c>
+	/// materializes ALL rows in the range before <c>TOP</c>/<c>WHERE</c> filtering, causing
+	/// SQL timeouts on high-volume tables with large checkpoint gaps.
+	/// </para>
+	/// </remarks>
 	internal async Task ProducerLoopCoreAsync(
 		byte[]? lowestStartLsn,
 		ChannelWriter<DataChangeEvent> writer,
@@ -127,6 +145,19 @@ internal sealed partial class CdcChangeDetector
 		int queueSize,
 		CancellationToken combinedToken)
 	{
+		// Defense-in-depth: if this table's LSN predates the CDC cleanup boundary,
+		// reset the checkpoint to the capture instance's minimum valid LSN and skip
+		// this cycle. The next poll will process from the correct position.
+		// This avoids SQL Error 313 ("insufficient arguments") from the CDC TVF
+		// and only resets the affected table — other tables continue uninterrupted.
+		var minLsn = await _cdcRepository.GetMinPositionAsync(tableName, combinedToken).ConfigureAwait(false);
+		if (lastLsn.CompareLsn(minLsn) < 0)
+		{
+			LogStaleLsnReset(tableName, ByteArrayToHex(lastLsn), ByteArrayToHex(minLsn));
+			_checkpointManager.UpdateLsnTracking(tableName, minLsn, seqVal: null);
+			return;
+		}
+
 		var changeProcessingState = new ChangeProcessingState
 		{
 			TableName = tableName,
@@ -144,11 +175,18 @@ internal sealed partial class CdcChangeDetector
 
 			var producerBatchSize = Math.Min(queueSize, _dbConfig.ProducerBatchSize);
 			var retryPolicy = _policyFactory.GetComprehensivePolicy();
+
+			// Use a point query (@lsn, @lsn) instead of a range query (@fromLsn, @maxLsn).
+			// fn_cdc_get_all_changes materializes ALL rows in [fromLsn, toLsn] before
+			// TOP/WHERE filtering can take effect. With a wide range (e.g., last checkpoint
+			// to current max), the TVF scans thousands of rows only to return a batch of N.
+			// Point queries bound the TVF scan to a single LSN — fast and predictable.
+			// The outer loop in ProducerLoopCoreAsync handles LSN-by-LSN advancement.
 			var changes = await retryPolicy.ExecuteAsync(() => _cdcRepository.FetchChangesAsync(
 				tableName,
 				producerBatchSize,
 				changeProcessingState.Lsn,
-				maxLsn,
+				changeProcessingState.Lsn,
 				changeProcessingState.SequenceValue,
 				changeProcessingState.LastOperation,
 				combinedToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
@@ -387,4 +425,8 @@ internal sealed partial class CdcChangeDetector
 	[LoggerMessage(DataSqlServerEventId.CdcDetectorTableEnqueued, LogLevel.Debug,
 		"Table {CaptureInstance} enqueued: currentLSN={CurrentLsn}, nextLSN={NextLsn}, maxLSN={MaxLsn}")]
 	private partial void LogTableEnqueuedDetails(string captureInstance, string currentLsn, string nextLsn, string maxLsn);
+
+	[LoggerMessage(DataSqlServerEventId.CdcDetectorStaleLsnReset, LogLevel.Warning,
+		"Table {CaptureInstance} has stale LSN {StaleLsn} (before cleanup boundary {MinLsn}). Resetting checkpoint to minimum valid LSN. Next cycle will process from the new position.")]
+	private partial void LogStaleLsnReset(string captureInstance, string staleLsn, string minLsn);
 }

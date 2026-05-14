@@ -63,6 +63,30 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	}
 
 	/// <summary>
+	/// Initializes a new instance of the <see cref="DataChangeEventProcessor"/> class with an optional
+	/// idempotency filter for deduplicating replayed events.
+	/// </summary>
+	internal DataChangeEventProcessor(
+			IHostApplicationLifetime appLifetime,
+			IDatabaseOptions dbConfig,
+			CdcRepository cdcRepository,
+			SqlConnection stateStoreConnection,
+			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
+			IServiceProvider serviceProvider,
+			IDataAccessPolicyFactory policyFactory,
+			ILogger<DataChangeEventProcessor> logger,
+			IOptions<CdcFatalErrorOptions>? fatalErrorOptions,
+			ICdcIdempotencyFilter? idempotencyFilter)
+			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, logger, fatalErrorOptions, idempotencyFilter)
+	{
+		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(logger);
+
+		_serviceProvider = serviceProvider;
+		_logger = logger;
+	}
+
+	/// <summary>
 	/// Processes CDC changes by retrieving and handling data change events.
 	/// </summary>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
@@ -141,7 +165,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 
 			await handler.HandleAsync(changeEvent, cancellationToken).ConfigureAwait(false);
 
-			if (_logger.IsEnabled(LogLevel.Information))
+			if (_logger.IsEnabled(LogLevel.Debug))
 			{
 				LogChangeEventProcessed(changeEvent.TableName);
 			}
@@ -170,7 +194,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	}
 
 	// Source-generated logging methods
-	[LoggerMessage(DataSqlServerEventId.DataChangeEventProcessed, LogLevel.Information,
+	[LoggerMessage(DataSqlServerEventId.DataChangeEventProcessed, LogLevel.Debug,
 		"Successfully processed change event for table '{TableName}'.")]
 	private partial void LogChangeEventProcessed(string tableName);
 

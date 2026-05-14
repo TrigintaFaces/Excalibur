@@ -39,4 +39,7 @@ public static class CdcProcessingEventId
 
 	/// <summary>In-memory CDC processor completed processing.</summary>
 	public const int InMemoryCdcProcessingComplete = 3108;
+
+	/// <summary>CDC background service applying error backoff delay.</summary>
+	public const int CdcBackgroundServiceErrorBackoff = 3109;
 }

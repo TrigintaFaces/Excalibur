@@ -16,6 +16,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// <item><description>22029 - fn_cdc_get_all_changes was called with a from_lsn that is outside of valid range</description></item>
 /// <item><description>22911 - CDC is not enabled for database</description></item>
 /// <item><description>22985 - Capture instance not found</description></item>
+/// <item><description>313 - Insufficient arguments supplied to CDC TVF (invalid LSN range)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -42,6 +43,24 @@ public static class CdcStalePositionDetector
 	public const int CaptureInstanceNotFoundError = 22985;
 
 	/// <summary>
+	/// SQL Server error number 313: "An insufficient number of arguments were supplied
+	/// for the procedure or function".
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This error is thrown by <c>cdc.fn_cdc_get_all_changes_*</c> table-valued functions
+	/// when an invalid LSN range is passed (e.g., a from_lsn that predates the CDC cleanup
+	/// boundary). While SQL Server typically reports this via errors 22037 or 22029,
+	/// certain LSN boundary conditions cause the TVF to raise error 313 instead.
+	/// </para>
+	/// <para>
+	/// Without handling this error, the CDC processor crashes instead of triggering
+	/// the stale-position recovery path.
+	/// </para>
+	/// </remarks>
+	public const int TvfInsufficientArgumentsError = 313;
+
+	/// <summary>
 	/// Gets the set of SQL Server error numbers that indicate a stale CDC position.
 	/// </summary>
 	public static IReadOnlySet<int> StalePositionErrorNumbers { get; } = new HashSet<int>
@@ -49,7 +68,8 @@ public static class CdcStalePositionDetector
 		InvalidFromLsnError,
 		LsnOutOfRangeError,
 		CdcNotEnabledError,
-		CaptureInstanceNotFoundError
+		CaptureInstanceNotFoundError,
+		TvfInsufficientArgumentsError
 	};
 
 	/// <summary>

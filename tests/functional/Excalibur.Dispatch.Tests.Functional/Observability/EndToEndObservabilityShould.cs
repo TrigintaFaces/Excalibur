@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -366,9 +367,9 @@ public sealed class ObservabilityTestHarness : IDisposable
 
 	public CapturingLoggerProvider LoggerProvider { get; } = new();
 
-	public Collection<Activity> RecordedActivities { get; } = [];
+	public ConcurrentBag<Activity> RecordedActivities { get; } = [];
 
-	public Collection<MetricMeasurement> RecordedMetrics { get; } = [];
+	public ConcurrentBag<MetricMeasurement> RecordedMetrics { get; } = [];
 
 	/// <inheritdoc/>
 	public void Dispose()
@@ -380,10 +381,10 @@ public sealed class ObservabilityTestHarness : IDisposable
 
 public sealed class TestMeterListener : IDisposable
 {
-	private readonly Collection<MetricMeasurement> _measurements;
+	private readonly ConcurrentBag<MetricMeasurement> _measurements;
 	private readonly MeterListener _listener;
 
-	public TestMeterListener(Collection<MetricMeasurement> measurements)
+	public TestMeterListener(ConcurrentBag<MetricMeasurement> measurements)
 	{
 		_measurements = measurements;
 		_listener = new MeterListener();
@@ -407,10 +408,7 @@ public sealed class TestMeterListener : IDisposable
 			Timestamp = DateTimeOffset.UtcNow,
 		};
 
-		lock (_measurements)
-		{
-			_measurements.Add(metricMeasurement);
-		}
+		_measurements.Add(metricMeasurement);
 	}
 
 	public void Start() => _listener.Start();
@@ -421,23 +419,17 @@ public sealed class TestMeterListener : IDisposable
 
 public sealed class TestActivityListener : IDisposable
 {
-	private readonly Collection<Activity> _activities;
+	private readonly ConcurrentBag<Activity> _activities;
 	private readonly ActivityListener _listener;
 
-	public TestActivityListener(Collection<Activity> activities)
+	public TestActivityListener(ConcurrentBag<Activity> activities)
 	{
 		_activities = activities;
 		_listener = new ActivityListener
 		{
 			ShouldListenTo = _ => true,
 			Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllData,
-			ActivityStarted = activity =>
-			{
-				lock (_activities)
-				{
-					_activities.Add(activity);
-				}
-			},
+			ActivityStarted = activity => _activities.Add(activity),
 		};
 	}
 

@@ -471,6 +471,7 @@ public static class CdcBuilderSqlServerExtensions
 			var stateStoreConnection = stateFactory();
 
 			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions>>();
+			var idempotencyFilter = sp.GetService<ICdcIdempotencyFilter>();
 
 			return new CdcProcessor(
 				appLifetime,
@@ -480,7 +481,8 @@ public static class CdcBuilderSqlServerExtensions
 				stateStoreOptions,
 				policyFactory,
 				logger,
-				fatalErrorOptions);
+				fatalErrorOptions,
+				idempotencyFilter);
 		});
 
 		// Forward to base interface so consumers can depend on the abstraction level they need
@@ -507,6 +509,7 @@ public static class CdcBuilderSqlServerExtensions
 			var stateStoreConnection = stateFactory();
 
 			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions>>();
+			var idempotencyFilter = sp.GetService<ICdcIdempotencyFilter>();
 
 			return new DataChangeEventProcessor(
 				appLifetime,
@@ -517,7 +520,8 @@ public static class CdcBuilderSqlServerExtensions
 				sp,
 				policyFactory,
 				logger,
-				fatalErrorOptions);
+				fatalErrorOptions,
+				idempotencyFilter);
 		});
 
 		// Register ICdcBackgroundProcessor adapter for the hosted service

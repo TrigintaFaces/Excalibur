@@ -243,10 +243,11 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		var normalizedCaptureInstance = NormalizeCaptureInstanceForSql(captureInstance);
 		SqlIdentifierValidator.ThrowIfInvalid(normalizedCaptureInstance, nameof(captureInstance));
 
-		// Use an LSN range query (@fromLsn → @toLsn) instead of a point query (@lsn, @lsn).
-		// This fetches changes across multiple LSNs in a single round-trip,
-		// reducing the number of SQL calls from one-per-LSN to one-per-batch.
-		// Pagination across LSN boundaries uses (start_lsn, seqval, operation) ordering.
+		// Callers typically pass fromLsn == toLsn (point query) to bound the TVF scan to a
+		// single LSN. The method supports range queries (fromLsn < toLsn) but callers must
+		// be aware that fn_cdc_get_all_changes materializes ALL rows in [fromLsn, toLsn]
+		// before TOP/WHERE filtering — wide ranges cause timeouts on high-volume tables.
+		// Pagination within a single LSN uses (seqval, operation) ordering.
 		var commandText = $"""
 		                   SELECT TOP (@batchSize)
 		                   	'{captureInstance}' AS TableName,

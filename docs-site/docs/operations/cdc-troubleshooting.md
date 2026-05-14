@@ -99,6 +99,18 @@ services.AddCdcProcessor(cdc =>
 | `Throw` | Manual intervention required | Fails with detailed error |
 | `InvokeCallback` | Complex scenarios | Custom handling via callback |
 
+### SQL Error 313: Insufficient Arguments
+
+SQL Server may raise error 313 ("An insufficient number of arguments were supplied for the procedure or function `cdc.fn_cdc_get_all_changes_*`") when the CDC table-valued function receives an LSN outside the valid range. This is a boundary condition variant of the more common errors 22037/22029.
+
+**Symptoms:**
+- `SqlException` with `Number = 313` in CDC processor logs
+- Processing loop stops advancing for affected capture instances
+
+**Resolution:** The framework detects error 313 automatically via `CdcStalePositionDetector` and maps it to `StalePositionReasonCodes.TvfInsufficientArguments`. If you have a recovery strategy configured (e.g., `FallbackToEarliest`), the position resets and processing resumes. If using the default `Throw` strategy, you will see the exception in logs and must reset the position manually.
+
+**Tip:** Pair recovery with [idempotency filtering](../patterns/cdc.md#idempotency-filtering) to safely reprocess events after a position reset without duplicate side effects.
+
 ### Manual Recovery Procedure
 
 1. **Stop CDC processor**

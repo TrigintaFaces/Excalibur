@@ -14,6 +14,7 @@ public sealed class StalePositionReasonCodesShould
 	[InlineData(22029, "LSN_OUT_OF_RANGE")]
 	[InlineData(22911, "CDC_REENABLED")]
 	[InlineData(22985, "CAPTURE_INSTANCE_DROPPED")]
+	[InlineData(313, "TVF_INSUFFICIENT_ARGUMENTS")]
 	public void MapKnownErrorNumbersToReasonCodes(int errorNumber, string expectedCode)
 	{
 		StalePositionReasonCodes.FromSqlError(errorNumber).ShouldBe(expectedCode);
@@ -53,5 +54,11 @@ public sealed class StalePositionReasonCodesShould
 	public void ExposeCdcReenabledConstant()
 	{
 		StalePositionReasonCodes.CdcReenabled.ShouldBe("CDC_REENABLED");
+	}
+
+	[Fact]
+	public void ExposeTvfInsufficientArgumentsConstant()
+	{
+		StalePositionReasonCodes.TvfInsufficientArguments.ShouldBe("TVF_INSUFFICIENT_ARGUMENTS");
 	}
 }

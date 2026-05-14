@@ -51,6 +51,7 @@ public sealed class CdcStalePositionDetectorShould : UnitTestBase
 	[InlineData(22029)] // LsnOutOfRangeError
 	[InlineData(22911)] // CdcNotEnabledError
 	[InlineData(22985)] // CaptureInstanceNotFoundError
+	[InlineData(313)]   // TvfInsufficientArgumentsError
 	public void DetectStalePositionSqlErrors(int errorNumber)
 	{
 		// Arrange
@@ -124,6 +125,7 @@ public sealed class CdcStalePositionDetectorShould : UnitTestBase
 	[InlineData(22029)]
 	[InlineData(22911)]
 	[InlineData(22985)]
+	[InlineData(313)]
 	public void ExtractStalePositionErrorNumber(int expectedErrorNumber)
 	{
 		// Arrange
@@ -175,6 +177,36 @@ public sealed class CdcStalePositionDetectorShould : UnitTestBase
 		eventArgs.OriginalException.ShouldBe(sqlException);
 		_ = eventArgs.AdditionalContext.ShouldNotBeNull();
 		eventArgs.AdditionalContext["SqlErrorNumber"].ShouldBe(22037);
+	}
+
+	[Fact]
+	public void CreateEventArgsWithTvfInsufficientArgumentsReasonCodeForError313()
+	{
+		// Arrange
+		var sqlException = CreateSqlException(313, "Insufficient arguments for TVF");
+
+		// Act
+		var eventArgs = CdcStalePositionDetector.CreateEventArgs(
+			sqlException,
+			"test-processor");
+
+		// Assert
+		eventArgs.ReasonCode.ShouldBe(StalePositionReasonCodes.TvfInsufficientArguments);
+		_ = eventArgs.AdditionalContext.ShouldNotBeNull();
+		eventArgs.AdditionalContext["SqlErrorNumber"].ShouldBe(313);
+	}
+
+	[Fact]
+	public void GetTvfInsufficientArgumentsReasonCodeFromError313()
+	{
+		// Arrange
+		var sqlException = CreateSqlException(313, "Insufficient arguments for TVF");
+
+		// Act
+		var reasonCode = CdcStalePositionDetector.GetReasonCode(sqlException);
+
+		// Assert
+		reasonCode.ShouldBe(StalePositionReasonCodes.TvfInsufficientArguments);
 	}
 
 	[Fact]
@@ -246,7 +278,8 @@ public sealed class CdcStalePositionDetectorShould : UnitTestBase
 		CdcStalePositionDetector.StalePositionErrorNumbers.ShouldContain(22029);
 		CdcStalePositionDetector.StalePositionErrorNumbers.ShouldContain(22911);
 		CdcStalePositionDetector.StalePositionErrorNumbers.ShouldContain(22985);
-		CdcStalePositionDetector.StalePositionErrorNumbers.Count.ShouldBe(4);
+		CdcStalePositionDetector.StalePositionErrorNumbers.ShouldContain(313);
+		CdcStalePositionDetector.StalePositionErrorNumbers.Count.ShouldBe(5);
 	}
 
 	[Fact]
@@ -257,6 +290,7 @@ public sealed class CdcStalePositionDetectorShould : UnitTestBase
 		CdcStalePositionDetector.LsnOutOfRangeError.ShouldBe(22029);
 		CdcStalePositionDetector.CdcNotEnabledError.ShouldBe(22911);
 		CdcStalePositionDetector.CaptureInstanceNotFoundError.ShouldBe(22985);
+		CdcStalePositionDetector.TvfInsufficientArgumentsError.ShouldBe(313);
 	}
 
 	/// <summary>

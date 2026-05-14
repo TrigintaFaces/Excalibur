@@ -220,9 +220,10 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Assert — all 3 calls should happen within well under the 10s polling interval.
 		// If delay was NOT skipped, it would take ~20s for 3 calls.
+		// Use 8000ms threshold to accommodate CI runner load (observed 5453ms on GitHub Actions).
 		callTimestamps.Count.ShouldBeGreaterThanOrEqualTo(targetCalls);
 		var totalElapsedMs = callTimestamps[^1] - callTimestamps[0];
-		totalElapsedMs.ShouldBeLessThan(5000,
+		totalElapsedMs.ShouldBeLessThan(8000,
 			"With adaptive polling, consecutive polls should not wait the full PollingInterval when work was found.");
 	}
 
