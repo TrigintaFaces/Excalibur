@@ -85,7 +85,7 @@ services.AddElasticSearchProjections("https://es.example.com:9200", projections 
 });
 ```
 
-See [Projections](../event-sourcing/projections.md#registering-store-backends) for index naming, multi-node clusters, and per-projection overrides.
+Projections are stored flat as the document root — no envelope wrapper. Custom repositories using `ElasticRepositoryBase<T>` can query the same index with natural field names. See [Projections — Document Storage Format](../event-sourcing/projections.md#document-storage-format) for details.
 
 ### Health Checks
 

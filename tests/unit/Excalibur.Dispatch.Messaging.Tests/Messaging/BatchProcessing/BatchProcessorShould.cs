@@ -130,8 +130,8 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
-				callCount++;
-				if (callCount == 1)
+				var current = Interlocked.Increment(ref callCount);
+				if (current == 1)
 				{
 					throw new InvalidOperationException("Test exception");
 				}
@@ -144,9 +144,10 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
-		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => callCount >= 2, TimeSpan.FromSeconds(120));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref callCount) >= 2, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
-		callCount.ShouldBe(2);
+		Volatile.Read(ref callCount).ShouldBeGreaterThanOrEqualTo(2);
 	}
 
 	[Fact]

@@ -5,7 +5,7 @@ using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 
 using Excalibur.Data.CosmosDb.Diagnostics;
 using Excalibur.EventSourcing.Abstractions;
@@ -33,6 +33,44 @@ namespace Excalibur.Data.CosmosDb.Projections;
 public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionStore<TProjection>, IAsyncDisposable, IDisposable
 	where TProjection : class
 {
+	/// <summary>
+	/// Root-level key for the framework metadata object. All framework-managed fields
+	/// (id, type, updatedAt, origId) are nested under this key to prevent collisions
+	/// with consumer projection properties. MongoDB and DynamoDB stores use the same key.
+	/// </summary>
+	private const string MetadataKey = "_projection";
+
+	/// <summary>Metadata field: the original projection ID passed to UpsertAsync.</summary>
+	private const string MetaFieldId = "id";
+
+	/// <summary>Metadata field: the projection type discriminator for shared-container filtering.</summary>
+	private const string MetaFieldType = "type";
+
+	/// <summary>Metadata field: UTC timestamp of the last upsert.</summary>
+	private const string MetaFieldUpdatedAt = "updatedAt";
+
+	/// <summary>
+	/// Metadata field: preserves the projection's original 'id' value before it is
+	/// overwritten with the Base64-encoded compound document key. Restored during
+	/// deserialization by <see cref="StripAndDeserialize"/>.
+	/// </summary>
+	private const string MetaFieldOrigId = "origId";
+
+	/// <summary>
+	/// Cosmos DB root-level partition key field. This MUST remain at the document root
+	/// because the container's partition key path is <c>/projectionType</c>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This field exposes the .NET type name (e.g., <c>OrderProjection</c>) as a
+	/// queryable Cosmos DB attribute. This is an inherent consequence of the shared-container
+	/// design with type-based partitioning — the partition key value must be readable by
+	/// Cosmos DB and cannot be nested or encrypted. Consumers storing sensitive type names
+	/// should use opaque projection class names or a dedicated container per projection type.
+	/// </para>
+	/// </remarks>
+	private const string PartitionKeyField = "projectionType";
+
 	private readonly CosmosDbProjectionStoreOptions _options;
 	private readonly ILogger<CosmosDbProjectionStore<TProjection>> _logger;
 	private readonly string _projectionType;
@@ -131,12 +169,25 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 
 		try
 		{
-			var response = await _container!.ReadItemAsync<CosmosDbProjectionDocument>(
+			// Use ReadItemStreamAsync to get the raw response stream, then parse directly
+			// to JsonNode. This avoids the double-parse overhead of ReadItemAsync<JsonElement>
+			// followed by GetRawText() + JsonNode.Parse() in StripAndDeserialize.
+			using var response = await _container!.ReadItemStreamAsync(
 				documentId,
 				new PartitionKey(_projectionType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
-			return DeserializeData(response.Resource.Data);
+			if (response.StatusCode == HttpStatusCode.NotFound)
+			{
+				return null;
+			}
+
+			response.EnsureSuccessStatusCode();
+
+			var node = await JsonNode.ParseAsync(response.Content, cancellationToken: cancellationToken)
+				.ConfigureAwait(false);
+
+			return StripAndDeserialize(node);
 		}
 		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
 		{
@@ -157,17 +208,41 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = new CosmosDbProjectionDocument
+		// Serialize projection to JsonElement — projection properties live at the document root.
+		// Framework metadata is isolated under a nested '_projection' object to prevent
+		// field name collisions with consumer projection properties.
+		var projectionJson = JsonSerializer.SerializeToElement(projection, _jsonOptions);
+		var merged = new Dictionary<string, object?>();
+
+		// Add all projection properties at root level first
+		foreach (var prop in projectionJson.EnumerateObject())
 		{
-			Id = CreateDocumentId(id),
-			ProjectionId = id,
-			ProjectionType = _projectionType,
-			Data = SerializeData(projection),
-			UpdatedAt = DateTimeOffset.UtcNow.ToString("O")
+			merged[prop.Name] = prop.Value;
+		}
+
+		// Build framework metadata — preserve the projection's original 'id' if present
+		// so it can be restored during deserialization (see StripAndDeserialize).
+		var metadata = new Dictionary<string, object?>
+		{
+			[MetaFieldId] = id,
+			[MetaFieldType] = _projectionType,
+			[MetaFieldUpdatedAt] = DateTimeOffset.UtcNow.ToString("O"),
 		};
 
+		if (merged.TryGetValue("id", out var origId))
+		{
+			metadata[MetaFieldOrigId] = origId;
+		}
+
+		merged[MetadataKey] = metadata;
+
+		// Cosmos DB requires 'id' as document identifier and 'projectionType' as partition key
+		// at the document root — these are database engine requirements, not framework metadata.
+		merged["id"] = CreateDocumentId(id);
+		merged[PartitionKeyField] = _projectionType;
+
 		_ = await _container!.UpsertItemAsync(
-			document,
+			merged,
 			new PartitionKey(_projectionType),
 			new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
 			cancellationToken).ConfigureAwait(false);
@@ -189,7 +264,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 
 		try
 		{
-			_ = await _container!.DeleteItemAsync<CosmosDbProjectionDocument>(
+			_ = await _container!.DeleteItemAsync<object>(
 				documentId,
 				new PartitionKey(_projectionType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -217,8 +292,8 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 		var orderByClause = BuildOrderByClause(options);
 		var paginationClause = BuildPaginationClause(options);
 
-		// Cosmos SQL query selecting data property
-		var queryText = $"SELECT c.data FROM c WHERE c.projectionType = @projectionType{whereClause}{orderByClause}{paginationClause}";
+		// Cosmos SQL query returning full documents — metadata is stripped by StripAndDeserialize
+		var queryText = $"SELECT VALUE c FROM c WHERE c.{PartitionKeyField} = @projectionType{whereClause}{orderByClause}{paginationClause}";
 
 		var queryDefinition = new QueryDefinition(queryText)
 			.WithParameter("@projectionType", _projectionType);
@@ -241,14 +316,18 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 		}
 
 		var results = new List<TProjection>();
-		using var iterator = _container!.GetItemQueryIterator<QueryResult>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<JsonElement>(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{
 			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
 			foreach (var item in response)
 			{
-				var projection = DeserializeData(item.Data);
+				// Convert JsonElement to JsonNode for StripAndDeserialize.
+				// QueryAsync iterates multiple results so stream-based parsing is not
+				// practical — the SDK returns JsonElement from the query iterator.
+				var node = JsonNode.Parse(item.GetRawText());
+				var projection = StripAndDeserialize(node);
 				if (projection is not null)
 				{
 					results.Add(projection);
@@ -270,7 +349,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 
 		var (whereClause, parameters) = BuildWhereClause(filters);
 
-		var queryText = $"SELECT VALUE COUNT(1) FROM c WHERE c.projectionType = @projectionType{whereClause}";
+		var queryText = $"SELECT VALUE COUNT(1) FROM c WHERE c.{PartitionKeyField} = @projectionType{whereClause}";
 
 		var queryDefinition = new QueryDefinition(queryText)
 			.WithParameter("@projectionType", _projectionType);
@@ -341,15 +420,15 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 
 			var condition = parsed.Operator switch
 			{
-				FilterOperator.Equals => $"c.data.{propertyName} = {paramName}",
-				FilterOperator.NotEquals => $"c.data.{propertyName} != {paramName}",
-				FilterOperator.GreaterThan => $"c.data.{propertyName} > {paramName}",
-				FilterOperator.GreaterThanOrEqual => $"c.data.{propertyName} >= {paramName}",
-				FilterOperator.LessThan => $"c.data.{propertyName} < {paramName}",
-				FilterOperator.LessThanOrEqual => $"c.data.{propertyName} <= {paramName}",
+				FilterOperator.Equals => $"c.{propertyName} = {paramName}",
+				FilterOperator.NotEquals => $"c.{propertyName} != {paramName}",
+				FilterOperator.GreaterThan => $"c.{propertyName} > {paramName}",
+				FilterOperator.GreaterThanOrEqual => $"c.{propertyName} >= {paramName}",
+				FilterOperator.LessThan => $"c.{propertyName} < {paramName}",
+				FilterOperator.LessThanOrEqual => $"c.{propertyName} <= {paramName}",
 				FilterOperator.Contains => BuildContainsCondition(propertyName, value, paramName, parameters),
 				FilterOperator.In => BuildInCondition(propertyName, value, paramName, parameters, ref paramIndex),
-				_ => $"c.data.{propertyName} = {paramName}"
+				_ => $"c.{propertyName} = {paramName}"
 			};
 
 			// Add parameter for simple operators (not In or Contains which handle their own)
@@ -372,7 +451,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 	{
 		// Cosmos DB CONTAINS function with case-insensitive search (third parameter = true)
 		parameters.Add((paramName, value?.ToString() ?? string.Empty));
-		return $"CONTAINS(c.data.{propertyName}, {paramName}, true)";
+		return $"CONTAINS(c.{propertyName}, {paramName}, true)";
 	}
 
 	private static string BuildInCondition(
@@ -386,7 +465,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 		{
 			// Single value, treat as equals
 			parameters.Add((paramName, value));
-			return $"c.data.{propertyName} = {paramName}";
+			return $"c.{propertyName} = {paramName}";
 		}
 
 		// Cosmos DB uses ARRAY_CONTAINS for IN operations
@@ -401,11 +480,11 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 			return "false"; // Empty IN clause, always false
 		}
 
-		// Use ARRAY_CONTAINS(@array, c.data.property)
+		// Use ARRAY_CONTAINS(@array, c.property)
 		var arrayParamName = $"@p{paramIndex++}";
 		parameters.Add((arrayParamName, values.ToArray()));
 
-		return $"ARRAY_CONTAINS({arrayParamName}, c.data.{propertyName})";
+		return $"ARRAY_CONTAINS({arrayParamName}, c.{propertyName})";
 	}
 
 	private static string BuildOrderByClause(QueryOptions? options)
@@ -418,7 +497,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 		var propertyName = $"{char.ToLowerInvariant(options.OrderBy[0])}{options.OrderBy[1..]}";
 		var direction = options.Descending ? "DESC" : "ASC";
 
-		return $" ORDER BY c.data.{propertyName} {direction}";
+		return $" ORDER BY c.{propertyName} {direction}";
 	}
 
 	private static string BuildPaginationClause(QueryOptions? options)
@@ -450,25 +529,6 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 			.Replace('+', '-')
 			.Replace('/', '_')
 			.TrimEnd('=');
-	}
-
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private JsonElement SerializeData(TProjection projection)
-	{
-		var json = JsonSerializer.Serialize(projection, _jsonOptions);
-		using var document = JsonDocument.Parse(json);
-		return document.RootElement.Clone();
-	}
-
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
-	private TProjection? DeserializeData(JsonElement element)
-	{
-		if (element.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
-		{
-			return null;
-		}
-
-		return JsonSerializer.Deserialize<TProjection>(element.GetRawText(), _jsonOptions);
 	}
 
 	private CosmosClientOptions CreateClientOptions()
@@ -521,6 +581,56 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 		}
 	}
 
+	/// <summary>
+	/// Strips framework metadata and Cosmos DB system fields from a parsed JSON node,
+	/// restores the projection's original 'id' if preserved, and deserializes to TProjection.
+	/// </summary>
+	/// <param name="node">
+	/// A <see cref="JsonNode"/> representing the raw Cosmos DB document. Accepts <see langword="null"/>
+	/// (returns <see langword="default"/>). Called from <see cref="GetByIdAsync"/> with a stream-parsed
+	/// node and from <see cref="QueryAsync"/> with a <see cref="JsonElement"/>-converted node.
+	/// </param>
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
+	private TProjection? StripAndDeserialize(JsonNode? node)
+	{
+		if (node is not JsonObject obj)
+		{
+			return default;
+		}
+
+		// Restore projection's original 'id' from metadata if it was preserved during write
+		if (obj.TryGetPropertyValue(MetadataKey, out var metaNode) && metaNode is JsonObject meta)
+		{
+			if (meta.TryGetPropertyValue(MetaFieldOrigId, out var origId) && origId is not null)
+			{
+				obj["id"] = origId.DeepClone();
+			}
+			else
+			{
+				obj.Remove("id");
+			}
+		}
+		else
+		{
+			obj.Remove("id");
+		}
+
+		// Remove framework metadata object
+		obj.Remove(MetadataKey);
+
+		// Remove Cosmos DB partition key (stored at root for the database engine)
+		obj.Remove(PartitionKeyField);
+
+		// Remove Cosmos DB system fields
+		obj.Remove("_rid");
+		obj.Remove("_self");
+		obj.Remove("_etag");
+		obj.Remove("_attachments");
+		obj.Remove("_ts");
+
+		return obj.Deserialize<TProjection>(_jsonOptions);
+	}
+
 	[LoggerMessage(DataCosmosDbEventId.ProjectionStoreInitialized, LogLevel.Information,
 		"Initialized Cosmos DB projection store with container '{ContainerName}' for type '{ProjectionType}'")]
 	private partial void LogInitialized(string containerName, string projectionType);
@@ -530,28 +640,4 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 
 	[LoggerMessage(DataCosmosDbEventId.ProjectionDeleted, LogLevel.Debug, "Deleted projection {ProjectionType}/{Id}")]
 	private partial void LogDeleted(string projectionType, string id);
-
-	/// <summary>
-	/// Internal document structure for Cosmos DB storage.
-	/// </summary>
-	private sealed class CosmosDbProjectionDocument
-	{
-		[JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
-
-		[JsonPropertyName("projectionId")] public string ProjectionId { get; set; } = string.Empty;
-
-		[JsonPropertyName("projectionType")] public string ProjectionType { get; set; } = string.Empty;
-
-		[JsonPropertyName("data")] public JsonElement Data { get; set; }
-
-		[JsonPropertyName("updatedAt")] public string UpdatedAt { get; set; } = string.Empty;
-	}
-
-	/// <summary>
-	/// Result structure for queries selecting only the data field.
-	/// </summary>
-	private sealed class QueryResult
-	{
-		[JsonPropertyName("data")] public JsonElement Data { get; set; }
-	}
 }

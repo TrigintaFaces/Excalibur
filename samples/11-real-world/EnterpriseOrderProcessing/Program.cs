@@ -26,7 +26,6 @@ using EnterpriseOrderProcessing.LegacyIntegration;
 
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Resilience.Polly;
 using Excalibur.Dispatch.Validation;
 using Excalibur.Outbox.SqlServer;
 
@@ -34,7 +33,6 @@ using FluentValidation;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 Console.WriteLine("EnterpriseOrderProcessing reference application scaffold.");
 Console.WriteLine("Package composition validated at build time.");

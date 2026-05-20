@@ -87,6 +87,8 @@ services.AddMongoDbProjections("mongodb://localhost:27017", "MyApp", projections
 });
 ```
 
+Projections are stored flat at the document root. Framework metadata is isolated under a `_projection` nested object to avoid collisions with your projection properties. See [Projections — Document Storage Format](../event-sourcing/projections.md#document-storage-format) for details.
+
 This follows the same pattern as [`AddElasticSearchProjections()`](./elasticsearch.md).
 
 ## Aggregation Pipelines

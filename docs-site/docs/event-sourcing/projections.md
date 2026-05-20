@@ -639,6 +639,52 @@ var summary = await projectionStore.GetByIdAsync(orderId.ToString(), cancellatio
 
 For most use cases, `IProjectionStore<T>` is all you need. Graduate to a custom repository only when you need backend-native features (full-text search, aggregations, SQL joins).
 
+### Document Storage Format
+
+All document-based projection stores (ElasticSearch, Cosmos DB, DynamoDB, MongoDB) store projections **flat at the document root** — your projection properties are top-level fields, not nested under an envelope wrapper. This means custom repositories querying the same index/container/collection use natural field names without any prefix.
+
+| Provider | Projection Properties | Framework Metadata | Partition/Routing |
+|---|---|---|---|
+| **ElasticSearch** | Document root | None — completely flat | Index per projection type |
+| **Cosmos DB** | Document root | `_projection` object (id, type, updatedAt) | `projectionType` field at root (partition key) |
+| **DynamoDB** | Document root | `_projection` object (id, type, updatedAt) | PK/SK attributes |
+| **MongoDB** | Document root | `_projection` object (id, type, updatedAt) | Collection per projection type |
+
+**ElasticSearch** stores your projection with zero framework overhead:
+
+```json
+{
+  "orderId": "ORD-123",
+  "customerId": "CUST-456",
+  "status": "Shipped",
+  "total": 99.95
+}
+```
+
+**Cosmos DB, DynamoDB, and MongoDB** add a `_projection` metadata object alongside your properties:
+
+```json
+{
+  "orderId": "ORD-123",
+  "customerId": "CUST-456",
+  "status": "Shipped",
+  "total": 99.95,
+  "_projection": {
+    "id": "ORD-123",
+    "type": "OrderSummary",
+    "updatedAt": "2026-05-20T14:30:00.000Z"
+  }
+}
+```
+
+:::warning Reserved Field Name
+Do not define a property named `_projection` on your projection classes — it will collide with the framework metadata object. Cosmos DB also reserves `projectionType` and `id` at the document root for its partition key and document identifier.
+:::
+
+:::tip Custom Repositories
+Because projections are stored flat, an `ElasticRepositoryBase<OrderSummary>` targeting the same index as `IProjectionStore<OrderSummary>` can query fields like `status.keyword` directly — no `data.` prefix needed. Use `ElasticSearchProjectionIndexConvention.GetIndexName<T>()` to share the same index name.
+:::
+
 ---
 
 ## Execution and Failure Handling

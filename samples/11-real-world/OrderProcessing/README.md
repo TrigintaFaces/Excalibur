@@ -16,7 +16,7 @@ The sample implements a complete e-commerce order processing system that showcas
 ## Quick Start
 
 ```bash
-cd samples/10-real-world/OrderProcessing
+cd samples/11-real-world/OrderProcessing
 dotnet run
 ```
 

@@ -71,6 +71,8 @@ services.AddCosmosDbProjections(connectionString, "MyDatabase", projections =>
 });
 ```
 
+Projections are stored flat at the document root. Framework metadata is isolated under a `_projection` nested object to avoid collisions with your projection properties. The `projectionType` partition key and Cosmos DB `id` remain at root level as required by the database engine. See [Projections — Document Storage Format](../event-sourcing/projections.md#document-storage-format) for details.
+
 ### Change Data Capture
 
 ```csharp

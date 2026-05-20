@@ -164,7 +164,26 @@ Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.SupportsMultiRegionWrites.ge
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.UpdateAsync<TDocument>(TDocument! document, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, string? etag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult<TDocument!>!>!
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.ValidateDocumentRequest<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! documentRequest) -> bool
+Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>
+Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.Container.get -> Microsoft.Azure.Cosmos.Container!
+Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.ContainerName.get -> string!
+Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.CosmosDbRepositoryBase(Microsoft.Azure.Cosmos.CosmosClient! client, string! databaseName, string! containerName) -> void
 Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId
+Excalibur.Data.CosmosDb.ICosmosDbDataBuilder
+Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
+Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.Client(Microsoft.Azure.Cosmos.CosmosClient! client) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
+Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, Microsoft.Azure.Cosmos.CosmosClient!>! clientFactory) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
+Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
+Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.ContainerName(string! containerName) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
+Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.DatabaseName(string! databaseName) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
+Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.Endpoint(string! endpoint, string! authKey) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
+Excalibur.Data.CosmosDb.ICosmosDbRepositoryBase<TDocument>
+Excalibur.Data.CosmosDb.ICosmosDbRepositoryBase<TDocument>.AddOrUpdateAsync(string! documentId, TDocument! document, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.CosmosDb.ICosmosDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
+Excalibur.Data.CosmosDb.ICosmosDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.CosmosDb.ICosmosDbRepositoryBaseQuery<TDocument>
+Excalibur.Data.CosmosDb.ICosmosDbRepositoryBaseQuery<TDocument>.QueryAsync(string! sql, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
+Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionContainerConvention
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionRegistrar
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionRegistrar.Add<TProjection>(System.Action<Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions!>? configureOptions = null) -> Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionRegistrar!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>
@@ -226,6 +245,7 @@ Microsoft.Extensions.DependencyInjection.CosmosDbHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.CosmosDbProjectionStoreExtensions
 Microsoft.Extensions.DependencyInjection.CosmosDbServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.CosmosDbSnapshotStoreExtensions
+abstract Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.InitializeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ActivityGroupAllGrantsDeleted = 103703 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ActivityGroupGrantSaved = 103701 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ActivityGroupGrantsDeletedByUser = 103702 -> int
@@ -315,6 +335,8 @@ const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.SnapshotStoreIniti
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.SnapshotVersionSkipped = 103002 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ThrottlingDetected = 102502 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.TransactionalBatchExecuted = 102206 -> int
+static Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionContainerConvention.GetContainerName(Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions! options, string! projectionTypeName) -> string!
+static Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionContainerConvention.GetContainerName<TProjection>(Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions! options) -> string!
 static Microsoft.Extensions.DependencyInjection.A3BuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.Data.CosmosDb.Authorization.CosmosDbAuthorizationOptions!>! configure) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.CosmosDbAuthorizationExtensions.AddCosmosDbActivityGroupGrantStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.Authorization.CosmosDbAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbAuthorizationExtensions.AddCosmosDbActivityGroupGrantStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Func<System.Net.Http.HttpClient!>! httpClientFactory, string! databaseName = "authorization") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -329,13 +351,10 @@ static Microsoft.Extensions.DependencyInjection.CosmosDbProjectionStoreExtension
 static Microsoft.Extensions.DependencyInjection.CosmosDbProjectionStoreExtensions.AddCosmosDbProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName, System.Action<Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbProjectionStoreExtensions.AddCosmosDbProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions!>! configureShared, System.Action<Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbProjectionStoreExtensions.AddCosmosDbProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName, System.Action<Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.CosmosDbSnapshotStoreExtensions.AddCosmosDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Data.CosmosDb.ICosmosDbDataBuilder
-Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
-Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.Client(Microsoft.Azure.Cosmos.CosmosClient! client) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
-Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, Microsoft.Azure.Cosmos.CosmosClient!>! clientFactory) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
-Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
-Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.ContainerName(string! containerName) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
-Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.DatabaseName(string! databaseName) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
-Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.Endpoint(string! endpoint, string! authKey) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
 static Microsoft.Extensions.DependencyInjection.CosmosDbServiceCollectionExtensions.AddExcaliburCosmosDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CosmosDbSnapshotStoreExtensions.AddCosmosDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.AddOrUpdateAsync(string! documentId, TDocument! document, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
+virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.QueryAsync(string! sql, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
+virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+

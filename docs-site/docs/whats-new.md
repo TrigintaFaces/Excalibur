@@ -14,6 +14,29 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ---
 
+## May 2026 — CDC Resilience + Projection Flat Storage
+
+### CDC Idempotency Filtering (Sprints 825–826)
+
+- **Opt-in event deduplication** -- New `ICdcIdempotencyFilter` with two implementations: `InMemoryCdcIdempotencyFilter` (bounded 10K cache, single-instance) and `SqlServerCdcIdempotencyFilter` (persistent, multi-instance). Register via `UseInMemoryIdempotencyFilter()` or `UseSqlServerIdempotencyFilter()` on `ICdcBuilder`.
+- **SQL Server persistent filter** -- Stores processed event keys in `[Cdc].[CdcProcessedEvents]` with composite PK `(TableName, Lsn, SeqVal)`. Configurable retention, batched cleanup, `IValidateOptions<T>` + `ValidateOnStart()`.
+- See [CDC Idempotency Filtering](./patterns/cdc.md#idempotency-filtering) for full details.
+
+### CDC Performance + Error Recovery (Sprints 824–826)
+
+- **Batch checkpoint writes** -- Per-table instead of per-event, reducing I/O by up to 50× per poll cycle.
+- **Adaptive polling** -- Skips delay when work was found for lower end-to-end latency. Exponential backoff on errors (capped at 5× polling interval) prevents tight retry storms.
+- **SQL Error 313 recovery** -- CDC table-valued function boundary errors now trigger graceful stale position recovery instead of unhandled failures. New `TvfInsufficientArguments` reason code.
+- **Point query optimization** -- Reverted `fn_cdc_get_all_changes` from range to point queries to prevent SQL execution timeouts on high-volume tables.
+- **Log noise reduction** -- Per-row success logging demoted to `Debug`; batch summary remains at `Information`.
+
+### Projection Store Flat Storage Refactor (Sprint 827)
+
+- **ElasticSearch** -- Projections stored flat as the document root (no envelope wrapper). Custom repositories using `ElasticRepositoryBase<T>` can query the same index with natural field names.
+- **Cosmos DB, DynamoDB, MongoDB** -- Framework metadata moved to a `_projection` nested object, keeping consumer properties at the document root for natural querying.
+
+---
+
 ## April 2026 — Performance + Container Deployment + AOT Epic Complete
 
 ### DI Improvements

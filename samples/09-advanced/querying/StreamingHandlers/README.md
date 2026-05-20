@@ -18,7 +18,7 @@ This sample demonstrates all four streaming handler patterns in Dispatch, enabli
 ## Running the Sample
 
 ```bash
-cd samples/09-advanced/StreamingHandlers
+cd samples/09-advanced/querying/StreamingHandlers
 dotnet run
 ```
 

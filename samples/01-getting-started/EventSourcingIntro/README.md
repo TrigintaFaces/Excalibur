@@ -126,10 +126,22 @@ public class CreateOrderHandler : IActionHandler<CreateOrderCommand, Guid>
 ### Service Registration
 
 ```csharp
-services.AddExcalibur(excalibur => excalibur
-    .AddDispatch(dispatch => dispatch.AddHandlersFromAssembly(typeof(Program).Assembly))
-    .AddEventSourcing(es => es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id))));
+// Add Dispatch (messaging) with handlers from this assembly
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+});
 
+// Add event serializer (required for event sourcing)
+services.AddSingleton<IEventSerializer, JsonEventSerializer>();
+
+// Add Excalibur event sourcing with in-memory event store
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
+{
+    builder.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
+}));
+
+// Add in-memory event store (for development/testing)
 services.AddInMemoryEventStore();
 ```
 

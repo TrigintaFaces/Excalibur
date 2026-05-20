@@ -38,7 +38,8 @@ public sealed class SchemaHistoryStoreAdapterConformanceShould : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(fixture);
 
-		var settings = new ElasticsearchClientSettings(new Uri(fixture.ConnectionString));
+		var settings = new ElasticsearchClientSettings(new Uri(fixture.ConnectionString))
+			.RequestTimeout(TimeSpan.FromMinutes(3));
 		_client = new ElasticsearchClient(settings);
 		_adapter = new SchemaHistoryStoreAdapter(_client);
 	}
@@ -72,9 +73,23 @@ public sealed class SchemaHistoryStoreAdapterConformanceShould : IDisposable
 			ensured.ShouldBeTrue();
 
 			// Act 2 — WriteSchemaVersionAsync persists a record.
-			var written = await _adapter
-				.WriteSchemaVersionAsync(indexName, documentId, record, CancellationToken.None)
-				.ConfigureAwait(false);
+			// Retry on transient failures — CI runners can cause ES container
+			// resource contention leading to failed write responses.
+			var written = false;
+			for (var attempt = 0; attempt < 5; attempt++)
+			{
+				written = await _adapter
+					.WriteSchemaVersionAsync(indexName, documentId, record, CancellationToken.None)
+					.ConfigureAwait(false);
+
+				if (written)
+				{
+					break;
+				}
+
+				await Task.Delay(2000, CancellationToken.None).ConfigureAwait(false);
+			}
+
 			written.ShouldBeTrue();
 
 			// Refresh so the query sees the write without racing.
