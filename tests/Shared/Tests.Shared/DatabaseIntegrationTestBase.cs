@@ -25,13 +25,13 @@ public abstract class DatabaseIntegrationTestBase<TFixture> : IntegrationTestBas
 	/// </summary>
 	protected abstract string ConnectionString { get; }
 
-	public override async Task InitializeAsync()
+	public override async ValueTask InitializeAsync()
 	{
 		await base.InitializeAsync();
 		await SetupDatabaseAsync();
 	}
 
-	public override async Task DisposeAsync()
+	public override async ValueTask DisposeAsync()
 	{
 		await CleanupDatabaseAsync();
 		await base.DisposeAsync();

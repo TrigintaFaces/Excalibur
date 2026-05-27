@@ -288,7 +288,7 @@ public sealed class SagaLifecycleE2EShould : FunctionalTestBase
 		stateAfterReplay.OrderId.ShouldBe("ORD-IDEMPOTENT");
 	}
 
-	public override async Task DisposeAsync()
+	public override async ValueTask DisposeAsync()
 	{
 		if (_serviceProvider is not null)
 		{

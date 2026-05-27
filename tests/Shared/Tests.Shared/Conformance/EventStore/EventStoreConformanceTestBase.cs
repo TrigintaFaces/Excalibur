@@ -40,13 +40,13 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 	protected IEventStore Store { get; private set; } = null!;
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		Store = await CreateStoreAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await CleanupAsync().ConfigureAwait(false);
 

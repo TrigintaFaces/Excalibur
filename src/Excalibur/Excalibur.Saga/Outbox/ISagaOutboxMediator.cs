@@ -17,7 +17,7 @@ namespace Excalibur.Saga.Outbox;
 /// Register via <c>.WithOutbox()</c> on <see cref="DependencyInjection.ISagaBuilder"/>.
 /// </para>
 /// </remarks>
-public interface ISagaOutboxMediator
+internal interface ISagaOutboxMediator
 {
 	/// <summary>
 	/// Publishes events through the configured outbox store.

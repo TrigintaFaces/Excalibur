@@ -65,8 +65,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		// Ensure no ambient context
 		MessageContextHolder.Current = null;
 
-		// Act
-		_ = await _dispatcher.DispatchAsync(message, CancellationToken.None);
+		// Act — call extension method explicitly to avoid interface method shadowing
+		_ = await DispatcherContextExtensions.DispatchAsync(_dispatcher, message, CancellationToken.None);
 
 		// Assert
 		_ = capturedContext.ShouldNotBeNull();
@@ -94,8 +94,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		// Set ambient context
 		MessageContextHolder.Current = ambientContext;
 
-		// Act
-		_ = await _dispatcher.DispatchAsync(message, CancellationToken.None);
+		// Act — call extension method explicitly to avoid interface method shadowing
+		_ = await DispatcherContextExtensions.DispatchAsync(_dispatcher, message, CancellationToken.None);
 
 		// Assert
 		capturedContext.ShouldBe(ambientContext);
@@ -185,8 +185,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		// Set ambient context
 		MessageContextHolder.Current = ambientContext;
 
-		// Act
-		_ = await _dispatcher.DispatchAsync(message, CancellationToken.None);
+		// Act — call extension method explicitly to avoid interface method shadowing
+		_ = await DispatcherContextExtensions.DispatchAsync(_dispatcher, message, CancellationToken.None);
 
 		// Assert
 		capturedContext.CorrelationId.ShouldBe(existingCorrelationId);
@@ -200,8 +200,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		var message = new LocalActionMessage();
 		MessageContextHolder.Current = null;
 
-		// Act
-		var result = await dispatcher.DispatchAsync(message, CancellationToken.None);
+		// Act — call extension method explicitly to test the ultra-local dispatch path
+		var result = await DispatcherContextExtensions.DispatchAsync(dispatcher, message, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -237,9 +237,9 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		IDispatcher? nullDispatcher = null;
 		var message = A.Fake<IDispatchMessage>();
 
-		// Act & Assert
+		// Act & Assert — call extension method explicitly to test its null guard
 		var exception = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await nullDispatcher.DispatchAsync(message, CancellationToken.None));
+			async () => await DispatcherContextExtensions.DispatchAsync(nullDispatcher!, message, CancellationToken.None));
 
 		exception.ParamName.ShouldBe("dispatcher");
 	}
@@ -438,8 +438,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		// Ensure no ambient context so factory path is used
 		MessageContextHolder.Current = null;
 
-		// Act
-		_ = await dispatcher.DispatchAsync(message, CancellationToken.None);
+		// Act — call extension method explicitly to avoid interface method shadowing
+		_ = await DispatcherContextExtensions.DispatchAsync(dispatcher, message, CancellationToken.None);
 
 		// Assert - context was created via factory with ServiceProvider injected
 		_ = capturedContext.ShouldNotBeNull();
@@ -470,8 +470,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		// Ensure no ambient context
 		MessageContextHolder.Current = null;
 
-		// Act
-		_ = await dispatcher.DispatchAsync(message, CancellationToken.None);
+		// Act — call extension method explicitly to avoid interface method shadowing
+		_ = await DispatcherContextExtensions.DispatchAsync(dispatcher, message, CancellationToken.None);
 
 		// Assert - context was created without factory (fallback to new MessageContext)
 		_ = capturedContext.ShouldNotBeNull();
@@ -574,8 +574,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 
 		MessageContextHolder.Current = null;
 
-		// Act
-		_ = await _dispatcher.DispatchAsync(message, token);
+		// Act — call extension method explicitly to avoid interface method shadowing
+		_ = await DispatcherContextExtensions.DispatchAsync(_dispatcher, message, token);
 
 		// Assert
 		capturedToken.ShouldBe(token);
@@ -806,23 +806,6 @@ IDispatchAction<Guid> action1 = message1;
 			IMessageContext context,
 			CancellationToken cancellationToken)
 			where TMessage : IDispatchAction<TResponse>
-		{
-			ContextDispatchCalls++;
-			return Task.FromResult<IMessageResult<TResponse>>(MessageResult.Success(default(TResponse)!));
-		}
-
-		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
-			IDispatchAction<TResponse> message,
-			CancellationToken cancellationToken)
-		{
-			ContextDispatchCalls++;
-			return Task.FromResult<IMessageResult<TResponse>>(MessageResult.Success(default(TResponse)!));
-		}
-
-		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
-			IDispatchAction<TResponse> message,
-			IMessageContext context,
-			CancellationToken cancellationToken)
 		{
 			ContextDispatchCalls++;
 			return Task.FromResult<IMessageResult<TResponse>>(MessageResult.Success(default(TResponse)!));

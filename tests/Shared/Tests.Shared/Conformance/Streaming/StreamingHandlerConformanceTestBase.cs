@@ -38,10 +38,10 @@ namespace Tests.Shared.Conformance.Streaming;
 public abstract class StreamingHandlerConformanceTestBase : IAsyncLifetime
 {
 	/// <inheritdoc/>
-	public virtual Task InitializeAsync() => Task.CompletedTask;
+	public virtual ValueTask InitializeAsync() => default;
 
 	/// <inheritdoc/>
-	public virtual Task DisposeAsync() => Task.CompletedTask;
+	public virtual ValueTask DisposeAsync() => default;
 
 	/// <summary>
 	/// Creates a stream consumer handler for testing.

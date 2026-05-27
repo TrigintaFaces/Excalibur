@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Elastic.Clients.Elasticsearch.IndexManagement;
+using System.Text.Json;
 
 namespace Excalibur.Data.ElasticSearch.IndexManagement;
 
@@ -30,8 +30,8 @@ public sealed class AliasOperation
 	public required string IndexName { get; init; }
 
 	/// <summary>
-	/// Gets the alias configuration for add operations.
+	/// Gets the alias configuration for add operations as opaque JSON.
 	/// </summary>
-	/// <value> The alias configuration. </value>
-	public Alias? AliasConfiguration { get; init; }
+	/// <value> The alias configuration as a JSON element, or <see langword="null"/> if not specified. </value>
+	public JsonElement? ConfigurationJson { get; init; }
 }

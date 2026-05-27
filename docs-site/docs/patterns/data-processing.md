@@ -127,6 +127,7 @@ builder.Services.AddDataProcessing(
 ```
 
 :::warning AOT Compatibility
+
 `AddDataProcessing` uses reflection-based assembly scanning and is annotated with `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`. For AOT-safe deployments, use the explicit generic overloads below.
 :::
 
@@ -451,6 +452,7 @@ builder.Services.EnableDataProcessingBackgroundService(
 The hosted service calls `IDataOrchestrationManager.ProcessDataTasksAsync()` on each polling cycle. It works with both the assembly-scanning registration path (`AddDataProcessing`) and the AOT-safe explicit registration path (`AddDataProcessor<T>`).
 
 :::info Two Separate Options Classes
+
 Configuration is split into two concerns:
 
 - **`DataProcessingOptions`** -- pipeline tuning: `SchemaName`, `TableName`, `QueueSize`, `ProducerBatchSize`, `ConsumerBatchSize`, `MaxAttempts`
@@ -518,6 +520,7 @@ Both can also be configured entirely via `appsettings.json`:
 | `UnhealthyThreshold` | `int` | 3 | Consecutive errors before the service is considered unhealthy |
 
 :::tip Computed Property
+
 `DrainTimeout` is a read-only `TimeSpan` computed from `DrainTimeoutSeconds`. Use `DrainTimeoutSeconds` in configuration.
 :::
 
@@ -565,6 +568,7 @@ builder.Services.Configure<DataProcessingHealthCheckOptions>(options =>
 The health check reports diagnostic data including `IsRunning`, `TotalProcessed`, `TotalFailed`, `TotalCycles`, `LastActivityTime`, and `InactivitySeconds`.
 
 :::tip Internal Tracking
+
 The hosted service also tracks basic health state internally (`IsHealthy`, `ConsecutiveErrors`, `LastSuccessfulProcessing`) and marks itself unhealthy after `UnhealthyThreshold` consecutive errors. The `IHealthCheck` integration is the recommended approach for production monitoring.
 :::
 

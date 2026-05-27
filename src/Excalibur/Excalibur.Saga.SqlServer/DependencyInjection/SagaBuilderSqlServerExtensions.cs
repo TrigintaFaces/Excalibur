@@ -6,8 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.DependencyInjection;
-using Excalibur.Saga.Idempotency;
-using Excalibur.Saga.Queries;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -43,7 +41,7 @@ public static class SagaBuilderSqlServerExtensions
 	///            .SchemaName("dispatch")
 	///            .TableName("sagas");
 	///     })
-	///     .WithOrchestration()
+	///     .WithCoordination()
 	///     .WithTimeouts();
 	/// }));
 	/// </code>
@@ -64,40 +62,6 @@ public static class SagaBuilderSqlServerExtensions
 			|| sqlBuilder.ConnectionStringNameValue is not null;
 
 		RegisterOptionsAndServices(builder, sqlBuilder, options, connectionFactory, hasBuilderConnection);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures the saga builder to use SQL Server for idempotency tracking.
-	/// </summary>
-	/// <param name="builder">The saga builder.</param>
-	/// <param name="configure">Action to configure SQL Server idempotency options.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
-	/// </exception>
-	public static ISagaBuilder WithSqlServerIdempotency(
-		this ISagaBuilder builder,
-		Action<SqlServerSagaIdempotencyOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = builder.Services.AddOptions<SqlServerSagaIdempotencyOptions>()
-			.ValidateOnStart();
-
-		_ = builder.Services.Configure(configure);
-
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<SqlServerSagaIdempotencyOptions>, SqlServerSagaIdempotencyOptionsValidator>());
-
-		builder.Services.TryAddSingleton<ISagaIdempotencyProvider>(sp =>
-		{
-			var idempotencyOptions = sp.GetRequiredService<IOptions<SqlServerSagaIdempotencyOptions>>();
-			var logger = sp.GetRequiredService<ILogger<SqlServerSagaIdempotencyProvider>>();
-			return new SqlServerSagaIdempotencyProvider(idempotencyOptions.Value.ConnectionString!, idempotencyOptions, logger);
-		});
 
 		return builder;
 	}
@@ -200,29 +164,5 @@ public static class SagaBuilderSqlServerExtensions
 		builder.Services.TryAddSingleton<ISagaTimeoutStore>(
 			sp => sp.GetRequiredService<SqlServerSagaTimeoutStore>());
 
-		// Register monitoring service sharing the same connection
-		builder.Services.TryAddSingleton(sp =>
-		{
-			var factory = connectionFactory(sp);
-			var storeOptions = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
-			var logger = sp.GetRequiredService<ILogger<SqlServerSagaMonitoringService>>();
-			return new SqlServerSagaMonitoringService(factory, storeOptions, logger);
-		});
-		builder.Services.TryAddSingleton<ISagaMonitoringService>(
-			sp => sp.GetRequiredService<SqlServerSagaMonitoringService>());
-
-		// Register correlation query
-		_ = builder.Services.AddOptions<SagaCorrelationQueryOptions>()
-			.ValidateOnStart();
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<SagaCorrelationQueryOptions>, SagaCorrelationQueryOptionsValidator>());
-		builder.Services.TryAddSingleton<ISagaCorrelationQuery>(sp =>
-		{
-			var factory = connectionFactory(sp);
-			var storeOptions = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
-			var queryOpts = sp.GetRequiredService<IOptions<SagaCorrelationQueryOptions>>();
-			var logger = sp.GetRequiredService<ILogger<SqlServerSagaCorrelationQuery>>();
-			return new SqlServerSagaCorrelationQuery(factory, storeOptions, queryOpts, logger);
-		});
 	}
 }

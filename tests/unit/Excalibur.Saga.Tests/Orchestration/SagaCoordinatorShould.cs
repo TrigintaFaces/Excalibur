@@ -231,6 +231,147 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 
 	#endregion
 
+	#region ISagaTimeout<T> Dispatch Tests (bd-oe0a2k)
+
+	[Fact]
+	public async Task InvokeTimeoutHandlerWhenSagaImplementsISagaTimeout()
+	{
+		// Arrange
+		var messageContext = A.Fake<IMessageContext>();
+		var sagaId = Guid.NewGuid();
+		var evt = new PaymentTimeoutEvent { SagaId = sagaId.ToString(), StepId = null };
+		var sagaInfo = new SagaInfo(typeof(TimeoutAwareSaga), typeof(TimeoutSagaState));
+		sagaInfo.StartsWith<PaymentTimeoutEvent>();
+
+		var services = new ServiceCollection();
+		services.AddSingleton(_sagaStore);
+		services.AddSingleton(A.Fake<IDispatcher>());
+		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
+		var sp = services.BuildServiceProvider();
+		var coordinator = new SagaCoordinator(sp, _sagaStore, _logger);
+
+		// Act
+		await coordinator.HandleEventInternalAsync<TimeoutAwareSaga, TimeoutSagaState>(
+			messageContext, evt, sagaInfo, CancellationToken.None);
+
+		// Assert — state should be saved (timeout handler was invoked, not HandleAsync)
+		A.CallTo(() => _sagaStore.SaveAsync(A<TimeoutSagaState>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task FallThroughToHandleAsyncWhenSagaDoesNotImplementISagaTimeoutForEventType()
+	{
+		// Arrange — TestSaga does NOT implement ISagaTimeout<TestStartEvent>
+		var messageContext = A.Fake<IMessageContext>();
+		var sagaId = Guid.NewGuid();
+		var evt = new TestStartEvent { SagaId = sagaId.ToString(), StepId = null };
+		var sagaInfo = new SagaInfo(typeof(TestSaga), typeof(TestSagaState));
+		sagaInfo.StartsWith<TestStartEvent>();
+
+		// Act
+		await _sut.HandleEventInternalAsync<TestSaga, TestSagaState>(
+			messageContext, evt, sagaInfo, CancellationToken.None);
+
+		// Assert — state is saved (HandleAsync was called since no ISagaTimeout<T>)
+		A.CallTo(() => _sagaStore.SaveAsync(A<TestSagaState>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task RouteMultipleTimeoutTypesToCorrectHandlers()
+	{
+		// Arrange — saga implements ISagaTimeout<PaymentTimeoutEvent> and ISagaTimeout<ShippingTimeoutEvent>
+		var messageContext = A.Fake<IMessageContext>();
+		var sagaId = Guid.NewGuid();
+		var sagaInfo = new SagaInfo(typeof(MultiTimeoutSaga), typeof(MultiTimeoutSagaState));
+		sagaInfo.StartsWith<PaymentTimeoutEvent>();
+		sagaInfo.Handles<ShippingTimeoutEvent>();
+
+		var services = new ServiceCollection();
+		services.AddSingleton(_sagaStore);
+		services.AddSingleton(A.Fake<IDispatcher>());
+		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
+		var sp = services.BuildServiceProvider();
+		var coordinator = new SagaCoordinator(sp, _sagaStore, _logger);
+
+		// Act — send payment timeout as start event
+		var paymentEvt = new PaymentTimeoutEvent { SagaId = sagaId.ToString(), StepId = null };
+		await coordinator.HandleEventInternalAsync<MultiTimeoutSaga, MultiTimeoutSagaState>(
+			messageContext, paymentEvt, sagaInfo, CancellationToken.None);
+
+		// Act — send shipping timeout as continuation
+		var existingState = new MultiTimeoutSagaState { SagaId = sagaId };
+		A.CallTo(() => _sagaStore.LoadAsync<MultiTimeoutSagaState>(sagaId, A<CancellationToken>._))
+			.Returns(existingState);
+
+		var shippingEvt = new ShippingTimeoutEvent { SagaId = sagaId.ToString(), StepId = "step-ship" };
+		await coordinator.HandleEventInternalAsync<MultiTimeoutSaga, MultiTimeoutSagaState>(
+			messageContext, shippingEvt, sagaInfo, CancellationToken.None);
+
+		// Assert — both events should result in state saves (2 total)
+		A.CallTo(() => _sagaStore.SaveAsync(A<MultiTimeoutSagaState>._, A<CancellationToken>._))
+			.MustHaveHappened(2, Times.Exactly);
+	}
+
+	#endregion
+
+	#region ISagaTimeout Interface Shape Tests (bd-oe0a2k)
+
+	[Fact]
+	public void ISagaTimeoutShouldHaveExactlyOneMethod()
+	{
+		// Arrange
+		var interfaceType = typeof(Excalibur.Saga.Abstractions.ISagaTimeout<>);
+
+		// Act
+		var methods = interfaceType.GetMethods();
+
+		// Assert — ISP compliant: single method
+		methods.Length.ShouldBe(1);
+		methods[0].Name.ShouldBe("HandleTimeoutAsync");
+	}
+
+	[Fact]
+	public void ISagaTimeoutShouldBeContravariantOnTMessage()
+	{
+		// Arrange
+		var interfaceType = typeof(Excalibur.Saga.Abstractions.ISagaTimeout<>);
+		var typeParam = interfaceType.GetGenericArguments()[0];
+
+		// Act
+		var attributes = typeParam.GenericParameterAttributes;
+
+		// Assert — contravariant (in TMessage)
+		(attributes & System.Reflection.GenericParameterAttributes.Contravariant)
+			.ShouldNotBe((System.Reflection.GenericParameterAttributes)0,
+			"ISagaTimeout<TMessage> should be contravariant (in TMessage)");
+	}
+
+	[Fact]
+	public void HandleTimeoutAsyncShouldReturnTask()
+	{
+		// Arrange
+		var method = typeof(Excalibur.Saga.Abstractions.ISagaTimeout<>).GetMethods()[0];
+
+		// Assert
+		method.ReturnType.ShouldBe(typeof(Task));
+	}
+
+	[Fact]
+	public void HandleTimeoutAsyncShouldAcceptMessageAndCancellationToken()
+	{
+		// Arrange
+		var method = typeof(Excalibur.Saga.Abstractions.ISagaTimeout<>).GetMethods()[0];
+		var parameters = method.GetParameters();
+
+		// Assert — 2 parameters: TMessage + CancellationToken
+		parameters.Length.ShouldBe(2);
+		parameters[1].ParameterType.ShouldBe(typeof(CancellationToken));
+	}
+
+	#endregion
+
 	#region Helper Methods
 
 	private static TestSagaEvent CreateTestSagaEvent() =>
@@ -258,6 +399,69 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 
 		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
 			Task.CompletedTask;
+	}
+
+	// --- ISagaTimeout test doubles (bd-oe0a2k) ---
+
+	private sealed class TimeoutSagaState : SagaState
+	{
+	}
+
+	private sealed class TimeoutAwareSaga(
+		TimeoutSagaState initialState,
+		IDispatcher dispatcher,
+		ILogger<TimeoutAwareSaga> logger)
+		: SagaBase<TimeoutSagaState>(initialState, dispatcher, logger),
+		  Excalibur.Saga.Abstractions.ISagaTimeout<PaymentTimeoutEvent>
+	{
+		public bool TimeoutHandlerInvoked { get; private set; }
+
+		public override bool HandlesEvent(object eventMessage) => false; // Timeout bypasses this
+
+		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
+			throw new InvalidOperationException("Should not be called — timeout handler should be used instead");
+
+		public Task HandleTimeoutAsync(PaymentTimeoutEvent message, CancellationToken cancellationToken)
+		{
+			TimeoutHandlerInvoked = true;
+			return Task.CompletedTask;
+		}
+	}
+
+	private sealed class MultiTimeoutSagaState : SagaState
+	{
+	}
+
+	private sealed class MultiTimeoutSaga(
+		MultiTimeoutSagaState initialState,
+		IDispatcher dispatcher,
+		ILogger<MultiTimeoutSaga> logger)
+		: SagaBase<MultiTimeoutSagaState>(initialState, dispatcher, logger),
+		  Excalibur.Saga.Abstractions.ISagaTimeout<PaymentTimeoutEvent>,
+		  Excalibur.Saga.Abstractions.ISagaTimeout<ShippingTimeoutEvent>
+	{
+		public override bool HandlesEvent(object eventMessage) => false;
+
+		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
+			throw new InvalidOperationException("Should not be called — timeout handler should be used");
+
+		public Task HandleTimeoutAsync(PaymentTimeoutEvent message, CancellationToken cancellationToken) =>
+			Task.CompletedTask;
+
+		public Task HandleTimeoutAsync(ShippingTimeoutEvent message, CancellationToken cancellationToken) =>
+			Task.CompletedTask;
+	}
+
+	private sealed class PaymentTimeoutEvent : ISagaEvent
+	{
+		public required string SagaId { get; init; }
+		public string? StepId { get; init; }
+	}
+
+	private sealed class ShippingTimeoutEvent : ISagaEvent
+	{
+		public required string SagaId { get; init; }
+		public string? StepId { get; init; }
 	}
 
 	private sealed class TestSagaEvent : ISagaEvent

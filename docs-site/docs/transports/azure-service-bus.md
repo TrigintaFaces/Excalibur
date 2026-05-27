@@ -19,6 +19,7 @@ dotnet add package Excalibur.Dispatch.Transport.AzureServiceBus
 ```
 
 :::tip One-Line Setup with Metapackage
+
 For the fastest setup, use the **`Excalibur.Dispatch.Azure`** experience metapackage. It bundles the Azure Service Bus transport with Polly resilience and OpenTelemetry observability in a single call:
 
 ```bash

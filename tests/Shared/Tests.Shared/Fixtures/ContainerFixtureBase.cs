@@ -118,7 +118,7 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	/// Docker is expected to be available in all CI environments.
 	/// Failures propagate as exceptions so tests fail visibly rather than silently skipping.
 	/// </remarks>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		const int maxAttempts = 3;
 		Exception? lastException = null;
@@ -169,7 +169,7 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	/// Disposal is skipped if the container never started successfully (i.e., <see cref="DockerAvailable"/> is <c>false</c>).
 	/// Errors during disposal are swallowed to prevent tests from failing due to cleanup issues.
 	/// </remarks>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (DockerAvailable)
 		{

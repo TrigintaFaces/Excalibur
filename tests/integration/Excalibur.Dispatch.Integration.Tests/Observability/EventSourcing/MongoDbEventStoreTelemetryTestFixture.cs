@@ -89,7 +89,7 @@ public sealed class MongoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDis
 	public bool IsInitialized { get; private set; }
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -178,7 +178,7 @@ public sealed class MongoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDis
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		Dispose();
 

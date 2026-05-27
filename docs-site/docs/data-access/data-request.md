@@ -294,6 +294,7 @@ services.AddSqlDataRequestResolver(() => new SqlConnection(connectionString));
 Both overloads register a singleton `IDataRequestResolver<SqlConnection>`.
 
 :::note TryAdd Semantics
+
 All `AddSqlDataRequestResolver` overloads use `TryAdd*`, so the first registration wins. This lets host applications override the resolver in test or staging environments.
 :::
 

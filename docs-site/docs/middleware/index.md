@@ -9,6 +9,7 @@ description: Cross-cutting concerns with the Dispatch middleware pipeline
 Middleware components process messages before and after handlers, providing cross-cutting concerns like logging, validation, and authorization.
 
 :::info Why Should I Care?
+
 Without middleware, every handler ends up with copy-pasted try/catch logging, manual validation checks, and authorization guards. Middleware lets you **write cross-cutting logic once** and apply it to every message automatically -- just like ASP.NET Core middleware but for your dispatch pipeline. Add logging, validation, retry, and auth without touching any handler code.
 :::
 
@@ -62,6 +63,7 @@ builder.Services.AddDispatch(dispatch =>
 ```
 
 :::tip Pipeline.Use vs UseX()
+
 Both approaches register the same middleware. The `Use{Feature}()` extensions are shorthand for the explicit pipeline API:
 
 ```csharp

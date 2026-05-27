@@ -116,6 +116,7 @@ public class GetOrderSummaryHandler : IActionHandler<GetOrderSummaryQuery, Order
 ```
 
 :::tip Direct Dapper vs IDataRequest
+
 The examples above use direct Dapper for simplicity. For complex or reusable queries, consider the `IDataRequest` pattern which provides encapsulation, testability, and correlation tracking:
 
 ```csharp
@@ -432,6 +433,7 @@ Override options (in priority order):
 3. **Convention default** - No code needed
 
 :::tip
+
 The `[Activity]` attribute enforces static, type-level metadata because attribute arguments must be compile-time constants. This prevents accidentally embedding instance-specific data (like order IDs) into ACL metadata.
 :::
 

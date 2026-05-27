@@ -407,12 +407,14 @@ await _distributor.ReportJobCompletionAsync(
 ```
 
 :::tip Use ILeaderElection for leader election
+
 `IJobCoordinator` handles job locking, instance registration, and work distribution. For leader election (electing a single coordinator instance), use `ILeaderElection` from the [Leader Election](../leader-election/index.md) package instead.
 :::
 
 ## Workflows
 
 :::caution Preview
+
 `WorkflowContext` is currently a **preview implementation** using in-memory state only. It does not provide durable scheduling, real step dispatch, or persistent checkpoints. A production workflow orchestration implementation is planned.
 :::
 

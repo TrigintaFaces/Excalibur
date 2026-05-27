@@ -9,6 +9,7 @@ description: Step-by-step tutorial building a complete order management system w
 This hands-on tutorial walks you through building a working order management API with Excalibur.Dispatch. You'll implement commands, queries, domain events, validation, and middleware — all running in-process with no external dependencies.
 
 :::tip Prerequisites
+
 - .NET 10.0 SDK installed
 - A code editor (VS Code, Rider, or Visual Studio)
 - Basic familiarity with ASP.NET Core minimal APIs
@@ -280,6 +281,7 @@ record CancelRequest(string Reason);
 ```
 
 :::tip Railway-Oriented Programming
+
 Notice the endpoints don't use `if/else` or manual `result.IsSuccess` checks. Instead:
 - **`.ToApiResult()`** — converts success to 200/202 and failure to ProblemDetails automatically
 - **`.ToNoContentResult()`** — converts success to 204 No Content

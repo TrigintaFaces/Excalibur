@@ -106,7 +106,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ISagaMonitoringService));
+			sd.ServiceType == typeof(ISagaTimeoutStore));
 	}
 
 	#endregion
@@ -140,44 +140,8 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 		// Act -- verify chaining with existing saga builder extensions
 		var result = builder
 			.UseSqlServer(sql => sql.ConnectionString(TestConnectionString))
-			.WithOrchestration()
+			.WithCoordination()
 			.WithTimeouts();
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-	}
-
-	#endregion
-
-	#region WithSqlServerIdempotency Tests
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenIdempotencyBuilderIsNull()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			((ISagaBuilder)null!).WithSqlServerIdempotency(sql => { sql.ConnectionString = TestConnectionString; }));
-	}
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenIdempotencyConfigureIsNull()
-	{
-		// Arrange
-		var builder = new TestSagaBuilder();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			builder.WithSqlServerIdempotency(null!));
-	}
-
-	[Fact]
-	public void ReturnSameBuilder_ForIdempotencyFluentChaining()
-	{
-		// Arrange
-		var builder = new TestSagaBuilder();
-
-		// Act
-		var result = builder.WithSqlServerIdempotency(sql => { sql.ConnectionString = TestConnectionString; });
 
 		// Assert
 		result.ShouldBeSameAs(builder);

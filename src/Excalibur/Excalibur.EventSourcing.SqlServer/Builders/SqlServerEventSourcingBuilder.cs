@@ -48,6 +48,21 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 	/// </summary>
 	internal string? BindConfigurationPath { get; private set; }
 
+	/// <summary>
+	/// Gets a value indicating whether materialized view store should be registered.
+	/// </summary>
+	internal bool EnableMaterializedViewStore { get; private set; }
+
+	/// <summary>
+	/// Gets the materialized view data table name.
+	/// </summary>
+	internal string? MaterializedViewTableName { get; private set; }
+
+	/// <summary>
+	/// Gets the materialized view position tracking table name.
+	/// </summary>
+	internal string? MaterializedViewPositionTableName { get; private set; }
+
 	// --- Connection overloads (last-wins: each clears the others) ---
 
 	/// <inheritdoc/>
@@ -134,6 +149,29 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
 		_options.SnapshotStoreTable = tableName;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerEventSourcingBuilder UseMaterializedViewStore()
+	{
+		EnableMaterializedViewStore = true;
+		MaterializedViewTableName = null;
+		MaterializedViewPositionTableName = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerEventSourcingBuilder UseMaterializedViewStore(
+		string viewTableName,
+		string positionTableName)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewTableName);
+		ArgumentException.ThrowIfNullOrWhiteSpace(positionTableName);
+
+		EnableMaterializedViewStore = true;
+		MaterializedViewTableName = viewTableName;
+		MaterializedViewPositionTableName = positionTableName;
 		return this;
 	}
 }

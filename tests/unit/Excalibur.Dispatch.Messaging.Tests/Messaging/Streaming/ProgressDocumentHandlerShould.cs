@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Tests.Messaging.Streaming.TestTypes;
@@ -22,7 +23,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<TestProgressHandler>();
 		_ = services.AddScoped<IProgressDocumentHandler<TestProgressDocument>>(
@@ -63,7 +64,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<TestProgressHandler>();
 		_ = services.AddScoped<IProgressDocumentHandler<TestProgressDocument>>(
@@ -106,7 +107,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<TestProgressHandler>();
 		_ = services.AddScoped<IProgressDocumentHandler<TestProgressDocument>>(
@@ -146,7 +147,9 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		// Use an assembly with no handlers to prevent zero-config auto-scan from
+		// discovering test handler types (xUnit v3 runs in-process).
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
@@ -170,7 +173,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<TestProgressHandler>();
 		_ = services.AddScoped<IProgressDocumentHandler<TestProgressDocument>>(
@@ -196,7 +199,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<TestProgressHandler>();
 		_ = services.AddScoped<IProgressDocumentHandler<TestProgressDocument>>(
@@ -223,7 +226,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<TestProgressHandler>();
 		_ = services.AddScoped<IProgressDocumentHandler<TestProgressDocument>>(
@@ -250,7 +253,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Use a longer delay to ensure reliable cancellation detection
 		var slowHandler = new TestProgressHandler { ProcessingDelayMs = 100 };
@@ -307,7 +310,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		var errorHandler = new ErrorThrowingProgressHandler { ThrowAfterItems = 5 };
 		_ = services.AddSingleton(errorHandler);
@@ -350,7 +353,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<IndeterminateProgressHandler>();
 		_ = services.AddScoped<IProgressDocumentHandler<TestProgressDocument>>(
@@ -394,7 +397,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<MultiPhaseProgressHandler>();
 		_ = services.AddScoped<IProgressDocumentHandler<TestProgressDocument>>(
@@ -437,7 +440,7 @@ public sealed class ProgressDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<TestProgressHandler>();
 		_ = services.AddScoped<IProgressDocumentHandler<TestProgressDocument>>(

@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
     <IsTestProject>false</IsTestProject>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- xUnit1051: Use TestContext.Current.CancellationToken (new v3 rule — bulk migration deferred) -->
+    <!-- CA1816: GC.SuppressFinalize in DisposeAsync — triggered by v3 IAsyncLifetime inheriting IAsyncDisposable -->
+    <NoWarn>$(NoWarn);xUnit1051;CA1816</NoWarn>
     <RootNamespace>Tests.Shared</RootNamespace>
     <AssemblyName>Tests.Shared</AssemblyName>
   </PropertyGroup>
@@ -14,7 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Test Frameworks -->
-    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="FakeItEasy" />
@@ -48,7 +51,7 @@
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <!-- Snapshot Testing -->
-    <PackageReference Include="Verify.Xunit" />
+    <PackageReference Include="Verify.XunitV3" />
   </ItemGroup>
   <ItemGroup>
     <!-- Core Dispatch Dependencies -->

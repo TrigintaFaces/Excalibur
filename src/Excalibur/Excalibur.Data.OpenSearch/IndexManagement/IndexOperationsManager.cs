@@ -2,9 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+
 using Microsoft.Extensions.Logging;
 
 using OpenSearch.Client;
+using OpenSearch.Net;
+
+using HttpMethod = OpenSearch.Net.HttpMethod;
 
 namespace Excalibur.Data.OpenSearch.IndexManagement;
 
@@ -23,6 +29,7 @@ internal sealed class IndexOperationsManager(IOpenSearchClient client, ILogger<I
 	private readonly ILogger<IndexOperationsManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "OpenSearch low-level API requires runtime serialization of opaque JSON payloads.")]
 	public async Task<bool> CreateIndexAsync(string indexName, IndexConfiguration configuration,
 		CancellationToken cancellationToken)
 	{
@@ -33,36 +40,32 @@ internal sealed class IndexOperationsManager(IOpenSearchClient client, ILogger<I
 		{
 			_logger.LogInformation("Creating index: {IndexName}", indexName);
 
-			var response = await _client.Indices.CreateAsync(indexName, c =>
+			// Build index creation body from opaque JSON payloads
+			var body = new Dictionary<string, object?>(StringComparer.Ordinal);
+			if (configuration.SettingsJson.HasValue)
 			{
-				if (configuration.Settings != null)
-				{
-					// Apply settings from configuration if available
-				_ = c.Settings(s => s.NumberOfShards(1).NumberOfReplicas(0));
-				}
+				body["settings"] = configuration.SettingsJson.Value;
+			}
 
-				if (configuration.Mappings != null)
-				{
-					_ = c.Map(m => configuration.Mappings);
-				}
+			if (configuration.MappingsJson.HasValue)
+			{
+				body["mappings"] = configuration.MappingsJson.Value;
+			}
 
-				if (configuration.Aliases != null)
-				{
-					_ = c.Aliases(a =>
-					{
-						foreach (var alias in configuration.Aliases)
-						{
-							_ = a.Alias(alias.Key);
-						}
+			if (configuration.AliasesJson.HasValue)
+			{
+				body["aliases"] = configuration.AliasesJson.Value;
+			}
 
-						return a;
-					});
-				}
+			var response = await _client.LowLevel.DoRequestAsync<StringResponse>(
+				HttpMethod.PUT,
+				$"{Uri.EscapeDataString(indexName)}",
+				cancellationToken,
+				body.Count > 0
+					? PostData.String(JsonSerializer.Serialize(body))
+					: null).ConfigureAwait(false);
 
-				return c;
-			}, cancellationToken).ConfigureAwait(false);
-
-			if (response.IsValid)
+			if (response.Success)
 			{
 				_logger.LogInformation("Successfully created index: {IndexName}", indexName);
 				return true;
@@ -70,7 +73,7 @@ internal sealed class IndexOperationsManager(IOpenSearchClient client, ILogger<I
 
 			_logger.LogError(
 				"Failed to create index: {IndexName}. Error: {Error}",
-				indexName, response.DebugInformation);
+				indexName, response.Body);
 			return false;
 		}
 		catch (Exception ex)
@@ -218,11 +221,10 @@ internal sealed class IndexOperationsManager(IOpenSearchClient client, ILogger<I
 	}
 
 	/// <inheritdoc />
-	public async Task<bool> UpdateIndexSettingsAsync(string indexName, IIndexSettings settings,
+	public async Task<bool> UpdateIndexSettingsAsync(string indexName, JsonElement settingsJson,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
-		ArgumentNullException.ThrowIfNull(settings);
 
 		try
 		{
@@ -288,4 +290,9 @@ internal sealed class IndexOperationsManager(IOpenSearchClient client, ILogger<I
 			return false;
 		}
 	}
+
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "OpenSearch SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "OpenSearch SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	private static T? DeserializeOrNull<T>(JsonElement? element) where T : class =>
+		element.HasValue ? JsonSerializer.Deserialize<T>(element.Value) : null;
 }

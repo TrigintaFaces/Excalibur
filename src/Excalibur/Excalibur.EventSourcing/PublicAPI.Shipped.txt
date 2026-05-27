@@ -273,7 +273,6 @@ Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.MaxParallelism.set 
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.ProjectionRebuildOptions() -> void
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.RebuildOnStartup.get -> bool
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.RebuildOnStartup.set -> void
-
 Excalibur.EventSourcing.Projections.ProjectionRebuildState
 Excalibur.EventSourcing.Projections.ProjectionRebuildState.Completed = 2 -> Excalibur.EventSourcing.Projections.ProjectionRebuildState
 Excalibur.EventSourcing.Projections.ProjectionRebuildState.Failed = 3 -> Excalibur.EventSourcing.Projections.ProjectionRebuildState
@@ -553,11 +552,11 @@ const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateStateRec
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateVersionChecked = 111005 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionBatchProcessed = 113202 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionCheckpointSaved = 113203 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionDispatchError = 113207 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionEventError = 113204 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostError = 113205 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostStarted = 113200 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostStopped = 113201 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionDispatchError = 113207 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionNoGlobalStreamQuery = 113206 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreAppendingEvents = 114300 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreConcurrencyConflict = 114302 -> int
@@ -614,9 +613,9 @@ const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionError =
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionEventProcessed = 113003 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionManagerCreated = 113000 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildEventError = 113105 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuilt = 113100 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildNoStore = 113107 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildPersisted = 113106 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuilt = 113100 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStarted = 113001 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStopped = 113002 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackCompleted = 114406 -> int
@@ -647,6 +646,16 @@ const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterChainExec
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterRegistered = 114003 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterRegistryCreated = 114000 -> int
 const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcastingSkipped = 114004 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorBatchProcessed = 113301 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorBuilderRegistered = 113308 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorCatchUpCompleted = 113305 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorCatchUpStarting = 113304 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorEventError = 113306 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorEventProcessed = 113300 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorRebuildCompleted = 113303 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorRebuildStarting = 113302 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorRoutingMapsBuilt = 113309 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorViewNotFound = 113307 -> int
 const Excalibur.EventSourcing.Diagnostics.MaterializedViewMetrics.MeterName = "Excalibur.EventSourcing.MaterializedViews" -> string!
 const Excalibur.EventSourcing.Observability.EventSourcingActivities.Append = "EventStore.Append" -> string!
 const Excalibur.EventSourcing.Observability.EventSourcingActivities.DeleteSnapshots = "SnapshotStore.Delete" -> string!
@@ -777,3 +786,6 @@ virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.DeleteSnapsho
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.DeleteAsync(TAggregate! aggregate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddProjection<TProjection, TConfig>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WithSearchText(System.Func<TProjection!, string!>! computeSearchText, System.Action<TProjection!, string!>! setSearchText) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!

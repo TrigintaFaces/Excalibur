@@ -155,10 +155,12 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'event-sourcing/repositories' },
             { type: 'doc', id: 'event-sourcing/snapshots' },
             { type: 'doc', id: 'event-sourcing/projections' },
+            { type: 'doc', id: 'event-sourcing/global-stream-projection-host' },
             { type: 'doc', id: 'event-sourcing/materialized-views' },
             { type: 'doc', id: 'event-sourcing/migrations' },
             { type: 'doc', id: 'event-sourcing/versioning' },
             { type: 'doc', id: 'event-sourcing/providers' },
+            { type: 'doc', id: 'event-sourcing/seed-data' },
           ],
         },
         {

@@ -3,6 +3,7 @@
 
 
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 
 using Excalibur.Data.CosmosDb.Resources;
 
@@ -70,6 +71,21 @@ public sealed class CosmosDbProjectionStoreOptions
 	/// </remarks>
 	/// <value>Defaults to -1 (no expiration).</value>
 	public int DefaultTtlSeconds { get; set; } = -1;
+
+	/// <summary>
+	/// Gets or sets the JSON serializer options used for projection serialization and deserialization.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// When <see langword="null"/> (default), the store creates internal options with
+	/// <see cref="JsonNamingPolicy.CamelCase"/>. For AOT/trimming scenarios, provide a
+	/// <see cref="JsonSerializerOptions"/> instance with a source-generated
+	/// <c>JsonSerializerContext</c> as the <see cref="JsonSerializerOptions.TypeInfoResolver"/>
+	/// to eliminate reflection-based serialization.
+	/// </para>
+	/// </remarks>
+	/// <value>Defaults to <see langword="null"/> (uses internal camelCase options).</value>
+	public JsonSerializerOptions? JsonSerializerOptions { get; set; }
 
 	/// <summary>
 	/// Validates the options and throws if invalid.

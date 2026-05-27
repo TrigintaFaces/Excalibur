@@ -33,7 +33,7 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
     private IChannel? _channel;
     private bool _dockerAvailable;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         try
         {
@@ -57,7 +57,7 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         var timeout = TimeSpan.FromSeconds(30);
 
@@ -106,10 +106,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SubscribeAsync_ReceivesPublishedMessages()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-sub-{Guid.NewGuid():N}";
@@ -160,10 +160,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         Encoding.UTF8.GetString(msg.Body).ShouldBe("subscriber test");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SubscribeAsync_ReceivesMultipleMessages()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-sub-multi-{Guid.NewGuid():N}";
@@ -216,10 +216,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         receivedCount.ShouldBe(expectedCount);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SubscribeAsync_AcknowledgesMessageManually()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Use a separate channel to avoid shared channel state issues
         await using var ackChannel = await _connection!.CreateChannelAsync().ConfigureAwait(false);
@@ -267,10 +267,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         await ackChannel.QueueDeleteAsync(queueName).ConfigureAwait(false);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SubscribeAsync_RejectsMessageWithRequeue()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-sub-requeue-{Guid.NewGuid():N}";
@@ -320,10 +320,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         deliveryCount.ShouldBeGreaterThanOrEqualTo(2);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SubscribeAsync_CancellationStopsConsumer()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Use a separate channel to avoid poisoning the shared one
         await using var separateChannel = await _connection!.CreateChannelAsync().ConfigureAwait(false);
@@ -369,10 +369,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         await separateChannel.QueueDeleteAsync(queueName).ConfigureAwait(false);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SubscribeAsync_MessagePropertiesPreserved()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-sub-props-{Guid.NewGuid():N}";
@@ -445,10 +445,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         Encoding.UTF8.GetString(body!).ShouldBe("{\"orderId\": 1}");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SubscribeAsync_FromTopicExchange_ReceivesRoutedMessages()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"test-sub-exchange-{Guid.NewGuid():N}";

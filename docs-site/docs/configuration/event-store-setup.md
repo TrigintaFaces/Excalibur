@@ -60,6 +60,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 ```
 
 :::tip Connection overloads
+
 The SQL Server builder supports 4 connection methods (last-wins if multiple are called):
 
 ```csharp
@@ -103,6 +104,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 ```
 
 :::tip Postgres connection overloads
+
 The Postgres builder supports 5 connection methods (last-wins if multiple are called):
 
 ```csharp

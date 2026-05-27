@@ -368,6 +368,7 @@ Use `IDispatchHandler` only when you need capabilities not available with specia
 | Batch processing (`IBatchableHandler`) | ❌ | ✅ |
 
 :::tip When in doubt, use specialized handlers
+
 Start with `IActionHandler` or `IEventHandler`. Only switch to `IDispatchHandler` if you need the advanced capabilities above.
 :::
 

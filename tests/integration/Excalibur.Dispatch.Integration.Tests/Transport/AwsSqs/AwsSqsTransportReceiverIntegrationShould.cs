@@ -67,10 +67,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 		await _fixture.SqsClient.SendMessageAsync(request).ConfigureAwait(false);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ReceiveMessages_FromPopulatedQueue()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -93,10 +93,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 		receiveResponse.Messages[0].ReceiptHandle.ShouldNotBeNullOrWhiteSpace();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ReceiveFromEmptyQueue_ReturnsEmptyList()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -113,10 +113,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 		(receiveResponse.Messages ?? []).ShouldBeEmpty();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task DeleteMessage_RemovesFromQueue()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -146,10 +146,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 		(afterDelete.Messages ?? []).ShouldBeEmpty();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ChangeVisibility_MakesMessageReappear()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange — create a queue with a long default visibility timeout
 		var queueUrl = await CreateStandardQueueAsync(visibilityTimeout: 30).ConfigureAwait(false);
@@ -186,10 +186,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 		reReceive.Messages[0].Body.ShouldBe("visibility-test");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ReceiveWithAttributes_AttributesPreserved()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -227,10 +227,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 		received.MessageAttributes["CorrelationId"].StringValue.ShouldBe("corr-001");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ReceiveMaxMessages_RespectsLimit()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange — send 5 messages
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -251,10 +251,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 		receiveResponse.Messages.Count.ShouldBeInRange(1, 3);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MessageBody_PreservesEncoding()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange — UTF-8 body with special characters
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -275,10 +275,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 		receiveResponse.Messages[0].Body.ShouldBe(unicodeBody);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MultipleConsumers_CanReceive()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange — send 4 messages, use short visibility so they don't overlap
 		var queueUrl = await CreateStandardQueueAsync(visibilityTimeout: 5).ConfigureAwait(false);

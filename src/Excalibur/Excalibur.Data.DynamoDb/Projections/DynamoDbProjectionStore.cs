@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json;
 
@@ -12,6 +13,8 @@ using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+#pragma warning disable IL2026 // JSON serialization fallback path uses reflection when consumer does not provide source-gen JsonSerializerOptions
 
 namespace Excalibur.Data.DynamoDb.Projections;
 
@@ -26,7 +29,9 @@ namespace Excalibur.Data.DynamoDb.Projections;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed class DynamoDbProjectionStore<TProjection> : IProjectionStore<TProjection>
+public sealed class DynamoDbProjectionStore<
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] TProjection>
+	: IProjectionStore<TProjection>, ICursorProjectionStore<TProjection>
 	where TProjection : class
 {
 	/// <summary>
@@ -88,7 +93,7 @@ public sealed class DynamoDbProjectionStore<TProjection> : IProjectionStore<TPro
 		_options = options.Value;
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_jsonOptions = _options.JsonSerializerOptions ?? new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 	}
 
 	/// <inheritdoc/>
@@ -145,9 +150,7 @@ public sealed class DynamoDbProjectionStore<TProjection> : IProjectionStore<TPro
 
 		var json = doc.ToJson();
 
-#pragma warning disable IL2026
 		return JsonSerializer.Deserialize<TProjection>(json, _jsonOptions);
-#pragma warning restore IL2026
 	}
 
 	/// <inheritdoc/>
@@ -159,9 +162,7 @@ public sealed class DynamoDbProjectionStore<TProjection> : IProjectionStore<TPro
 		// Serialize projection to JSON, then convert to flat DynamoDB attributes.
 		// Projection properties live at the item root. Framework metadata is isolated
 		// under a nested '_projection' map to prevent field name collisions.
-#pragma warning disable IL2026
 		var json = JsonSerializer.Serialize(projection, _jsonOptions);
-#pragma warning restore IL2026
 		var doc = Document.FromJson(json);
 
 		// Framework metadata — nested under '_projection' to avoid collisions
@@ -273,6 +274,93 @@ public sealed class DynamoDbProjectionStore<TProjection> : IProjectionStore<TPro
 
 		var response = await _client.ScanAsync(request, cancellationToken).ConfigureAwait(false);
 		return response.Count ?? 0;
+	}
+
+	/// <inheritdoc/>
+	public async Task<CursorPagedResult<TProjection>> QueryCursorAsync(
+		IDictionary<string, object>? filters,
+		string? cursor,
+		int pageSize,
+		CancellationToken cancellationToken)
+	{
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+
+		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
+
+		var request = new ScanRequest
+		{
+			TableName = _options.TableName,
+			FilterExpression = "#proj.#type = :projType",
+			ExpressionAttributeNames = new Dictionary<string, string>
+			{
+				["#proj"] = MetadataKey,
+				["#type"] = MetaFieldType,
+			},
+			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+			{
+				[":projType"] = new() { S = _projectionType },
+			},
+			Limit = pageSize,
+		};
+
+		// Decode cursor (Base64url-encoded ExclusiveStartKey JSON)
+		if (!string.IsNullOrEmpty(cursor))
+		{
+			var cursorValues = CursorEncoder.Decode(cursor);
+			if (cursorValues is { Length: > 0 } && cursorValues[0] is string pkValue)
+			{
+				request.ExclusiveStartKey = new Dictionary<string, AttributeValue>
+				{
+					[_options.PartitionKeyName] = new() { S = pkValue },
+				};
+			}
+		}
+
+		// Execute scan + count in parallel
+		var countRequest = new ScanRequest
+		{
+			TableName = _options.TableName,
+			FilterExpression = "#proj.#type = :projType",
+			ExpressionAttributeNames = new Dictionary<string, string>
+			{
+				["#proj"] = MetadataKey,
+				["#type"] = MetaFieldType,
+			},
+			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+			{
+				[":projType"] = new() { S = _projectionType },
+			},
+			Select = Select.COUNT,
+		};
+
+		var scanTask = _client.ScanAsync(request, cancellationToken);
+		var countTask = _client.ScanAsync(countRequest, cancellationToken);
+
+		await Task.WhenAll(scanTask, countTask).ConfigureAwait(false);
+
+		var scanResponse = await scanTask.ConfigureAwait(false);
+		var countResponse = await countTask.ConfigureAwait(false);
+		var totalCount = countResponse.Count ?? 0;
+
+		var results = new List<TProjection>();
+		foreach (var item in scanResponse.Items)
+		{
+			var projection = DeserializeItem(item);
+			if (projection is not null)
+			{
+				results.Add(projection);
+			}
+		}
+
+		// Encode next cursor from LastEvaluatedKey
+		string? nextCursor = null;
+		if (scanResponse.LastEvaluatedKey is { Count: > 0 } lastKey &&
+		    lastKey.TryGetValue(_options.PartitionKeyName, out var lastPk))
+		{
+			nextCursor = CursorEncoder.Encode(lastPk.S);
+		}
+
+		return new CursorPagedResult<TProjection>(results, pageSize, totalCount, nextCursor);
 	}
 
 	private Dictionary<string, AttributeValue> CreateKey(string id)

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Hosting;
 
 using Tests.Shared;
 
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Infrastructure;
 
@@ -39,7 +39,7 @@ public abstract class TestContainersTestBase(ITestOutputHelper output = null) : 
 	protected virtual TimeSpan ContainerStartupTimeout => TimeSpan.FromMinutes(2);
 
 	/// <inheritdoc/>
-	public override async Task DisposeAsync()
+	public override async ValueTask DisposeAsync()
 	{
 		// Dispose hosts first (with timeout to prevent hang)
 		foreach (var host in _hosts)

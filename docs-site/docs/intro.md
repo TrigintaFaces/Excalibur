@@ -153,6 +153,7 @@ public class OrderController : ControllerBase
 ```
 
 :::tip Production Ready
+
 The setup above is a complete, production-ready Dispatch application.
 Everything below describes **optional capabilities** you can add later.
 For a laser-focused guide, see **[Dispatch Only](./getting-started/dispatch-only.md)**.

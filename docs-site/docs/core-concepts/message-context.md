@@ -9,6 +9,7 @@ description: Learn how to use the message context to pass metadata through the D
 The message context carries metadata through the pipeline, enabling correlation, multi-tenancy, and custom data propagation.
 
 :::info Why Should I Care?
+
 Without message context, every handler needs to manually thread correlation IDs, tenant info, and user identity through method parameters. Message context solves this by providing a **per-request ambient bag** that all middleware and handlers can read and write -- similar to `HttpContext` in ASP.NET Core but for any dispatch pipeline (HTTP, queue, background job).
 :::
 
@@ -234,6 +235,7 @@ var orderId = context.GetOrderId();
 ```
 
 :::info Tenant ID as a DI Service
+
 In addition to the identity feature, `ITenantId` is available as a scoped DI service registered via `TryAddTenantId()`. When no tenant is explicitly configured, the framework uses `TenantDefaults.DefaultTenantId` (`"Default"`) automatically — single-tenant applications work without any tenant setup.
 
 ```csharp

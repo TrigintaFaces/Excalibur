@@ -54,10 +54,10 @@ public sealed class ServiceBusClientAdapterConformanceShould
 		_fixture = fixture;
 	}
 
-	[SkippableFact]
+	[Fact]
 	public void Construct_WithRealServiceBusClient_Succeeds()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// The adapter is the ONLY place in the framework that touches the live SDK
 		// ServiceBusClient; this asserts the ctor contract round-trips on a real client.
@@ -66,19 +66,19 @@ public sealed class ServiceBusClientAdapterConformanceShould
 		((IServiceBusClient)adapter).ShouldNotBeNull();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public void Construct_WithNullInner_ThrowsArgumentNullException()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Guardrail: null-inner rejection is part of the seam contract.
 		Should.Throw<ArgumentNullException>(() => new ServiceBusClientAdapter(null!));
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessageAsync_PassesThroughToRealClient()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		IServiceBusClient adapter = new ServiceBusClientAdapter(_fixture.Client);
 
@@ -106,10 +106,10 @@ public sealed class ServiceBusClientAdapterConformanceShould
 		await receiver.CompleteMessageAsync(received).ConfigureAwait(false);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PeekDlqMessagesAsync_PassesThroughToRealClient()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		IServiceBusClient adapter = new ServiceBusClientAdapter(_fixture.Client);
 
@@ -126,10 +126,10 @@ public sealed class ServiceBusClientAdapterConformanceShould
 		peeked.ShouldNotBeNull();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PurgeDlqAsync_PassesThroughToRealClient()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		IServiceBusClient adapter = new ServiceBusClientAdapter(_fixture.Client);
 

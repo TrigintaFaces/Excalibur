@@ -155,6 +155,7 @@ builder.Services.AddAuthorization(options =>
 ```
 
 :::note Access Control
+
 The `[RequirePermission]` attribute is provided by `Excalibur.A3.Authorization`, a separate authorization package. For basic access control, use ASP.NET Core's built-in `[Authorize]` policies as shown above.
 :::
 
@@ -178,6 +179,7 @@ builder.Services.AddEncryption(encryption => encryption
 ```
 
 :::note Key Management
+
 The `AddEncryption()` API uses a fluent builder pattern. Call `.UseKeyManagement<TProvider>(name)` to register your provider, then `.ConfigureOptions()` for settings. For production, implement `IEncryptionProvider` with your KMS (Azure Key Vault, AWS KMS, etc.).
 :::
 

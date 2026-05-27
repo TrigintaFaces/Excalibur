@@ -29,9 +29,9 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		_fixture = fixture;
 	}
 
-	public Task InitializeAsync() => Task.CompletedTask;
+	public ValueTask InitializeAsync() => default;
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_fixture.IsInitialized)
 		{
@@ -43,7 +43,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 
 	#region Event Store Span Creation Tests
 
-	[SkippableFact]
+	[Fact]
 	public async Task CreateActivitySpanForAppendOperation()
 	{
 		// Arrange
@@ -68,7 +68,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		appendActivity.GetTagItem(EventSourcingTags.ExpectedVersion).ShouldBe(-1L);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task CreateActivitySpanForLoadOperation()
 	{
 		// Arrange
@@ -97,7 +97,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		loadActivity.GetTagItem(EventSourcingTags.AggregateType).ShouldBe("TestAggregate");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task CreateActivitySpanForLoadWithFromVersion()
 	{
 		// Arrange
@@ -129,7 +129,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 
 	#region Tag Verification Tests
 
-	[SkippableFact]
+	[Fact]
 	public async Task SetEventCountTagOnSuccessfulAppend()
 	{
 		// Arrange
@@ -151,7 +151,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		appendActivity.GetTagItem(EventSourcingTags.EventCount).ShouldBe(5);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SetVersionTagOnSuccessfulAppend()
 	{
 		// Arrange
@@ -173,7 +173,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		appendActivity.GetTagItem(EventSourcingTags.Version).ShouldBe(0L);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SetEventCountTagOnSuccessfulLoad()
 	{
 		// Arrange
@@ -204,7 +204,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 
 	#region Operation Result Tests
 
-	[SkippableFact]
+	[Fact]
 	public async Task SetSuccessResultOnSuccessfulAppend()
 	{
 		// Arrange
@@ -226,7 +226,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		appendActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SetSuccessResultOnSuccessfulLoad()
 	{
 		// Arrange
@@ -251,7 +251,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		loadActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SetConcurrencyConflictResultOnVersionMismatch()
 	{
 		// Arrange
@@ -283,7 +283,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		appendActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.ConcurrencyConflict);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SetConcurrencyConflictOnCosmosDbConflictException()
 	{
 		// Arrange
@@ -323,7 +323,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 
 	#region Multiple Operations Sequence Tests
 
-	[SkippableFact]
+	[Fact]
 	public async Task RecordMultipleOperationsInSequence()
 	{
 		// Arrange
@@ -358,7 +358,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		}
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MaintainTraceContextAcrossOperations()
 	{
 		// Arrange
@@ -398,7 +398,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 
 	#region Empty Result Tests
 
-	[SkippableFact]
+	[Fact]
 	public async Task HandleEmptyLoadResultGracefully()
 	{
 		// Arrange
@@ -422,7 +422,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		loadActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task HandleEmptyAppendGracefully()
 	{
 		// Arrange
@@ -474,11 +474,11 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		var runnerOs = Environment.GetEnvironmentVariable("RUNNER_OS");
 		var isLinuxRunner = string.Equals(runnerOs, "Linux", StringComparison.OrdinalIgnoreCase) || OperatingSystem.IsLinux();
 
-		Skip.If(
+		Assert.SkipWhen(
 			!forceRun && isLinuxRunner && (isGithubActions || isCi),
 			"CosmosDb emulator telemetry tests are unstable on Linux CI runners. Set COSMOS_TELEMETRY_FORCE_RUN=true to override.");
 
-		Skip.IfNot(_fixture.IsInitialized, "CosmosDb emulator not available");
+		Assert.SkipUnless(_fixture.IsInitialized, "CosmosDb emulator not available");
 	}
 
 	#endregion Helper Methods

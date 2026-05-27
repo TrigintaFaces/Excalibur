@@ -65,7 +65,10 @@ projects:
   - path: samples/09-advanced/deployment/JobWorkerSample/JobWorkerSample.csproj
   - path: samples/09-advanced/deployment/LeaderElection/LeaderElection.csproj
   - path: samples/09-advanced/persistence-patterns/MultiDatabase/MultiDatabase.csproj
+  - path: samples/09-advanced/persistence-patterns/OutOfBandProjections/OutOfBandProjections.csproj
   - path: samples/09-advanced/deployment/ProductionPipeline/ProductionPipeline.csproj
+  - path: samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj
+  - path: samples/09-advanced/persistence-patterns/ProjectionRebuildJob/ProjectionRebuildJob.csproj
   - path: samples/09-advanced/persistence-patterns/ProjectionsSample/ProjectionsSample.csproj
   - path: samples/09-advanced/persistence-patterns/SessionManagement/SessionManagementExample.csproj
   - path: samples/09-advanced/persistence-patterns/SnapshotStrategies/SnapshotStrategies.csproj
@@ -101,6 +104,7 @@ projects:
   - path: samples/09-advanced/querying/Redis/Redis.csproj
   - path: samples/11-real-world/FullStackAddExcalibur/FullStackAddExcalibur.csproj
   - path: samples/11-real-world/MultiTenantEventSourcing/MultiTenantEventSourcing.csproj
+  - path: samples/11-real-world/ProofOfLife/ProofOfLife.csproj
   - path: samples/06-security/GdprCompliance/GdprCompliance.csproj
   - path: samples/01-getting-started/MetapackageQuickStart/MetapackageQuickStart.csproj
   - path: samples/01-getting-started/BindConfigurationPatterns/BindConfigurationPatterns.csproj

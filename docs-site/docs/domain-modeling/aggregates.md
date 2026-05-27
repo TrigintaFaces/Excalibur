@@ -220,6 +220,56 @@ var orderId = OrderId.New();
 var order = new Order(orderId, "CUST-123");
 ```
 
+## CRTP Convenience Base Class
+
+For aggregates that want zero-argument repository registration and built-in factory methods, use the CRTP (Curiously Recurring Template Pattern) base class:
+
+```csharp
+public class OrderAggregate : AggregateRoot<OrderAggregate, Guid>
+{
+    public string CustomerId { get; private set; } = string.Empty;
+    public OrderStatus Status { get; private set; }
+
+    // CRTP requires parameterless constructor via new() constraint
+    public OrderAggregate() { }
+
+    // Static factory methods satisfy IAggregateRoot<TAggregate, TKey>
+    public static OrderAggregate Create(Guid id) => new() { Id = id };
+
+    public static OrderAggregate FromEvents(Guid id, IEnumerable<IDomainEvent> events)
+    {
+        var aggregate = Create(id);
+        aggregate.LoadFromHistory(events);
+        return aggregate;
+    }
+
+    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    {
+        OrderCreated e => Apply(e),
+        OrderShipped e => Apply(e),
+        _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+    };
+
+    private bool Apply(OrderCreated e) { Id = e.OrderId; CustomerId = e.CustomerId; Status = OrderStatus.Draft; return true; }
+    private bool Apply(OrderShipped _) { Status = OrderStatus.Shipped; return true; }
+}
+```
+
+### Benefits of the CRTP Base Class
+
+| Feature | `AggregateRoot<TKey>` | `AggregateRoot<TAggregate, TKey>` (CRTP) |
+|---------|----------------------|------------------------------------------|
+| DI registration | `AddRepository<OrderAggregate, Guid>()` | `AddRepository<OrderAggregate, Guid>()` with type inference |
+| Factory methods | Manual | Built-in `Create(TKey)` + `FromEvents(TKey, events)` |
+| `IAggregateRoot<TAggregate, TKey>` | Must implement separately | Automatic |
+| Snapshot compatibility | ✅ | ✅ |
+| Existing code impact | N/A | None — `AggregateRoot<TKey>` still works |
+
+:::tip When to Use CRTP
+
+Use CRTP when you want the framework to create aggregate instances (e.g., during rehydration from events or snapshot loading). If your aggregates use domain constructors with business parameters, the standard `AggregateRoot<TKey>` base class is sufficient.
+:::
+
 ## Working with Uncommitted Events
 
 After modifying an aggregate, uncommitted events are available for persistence:

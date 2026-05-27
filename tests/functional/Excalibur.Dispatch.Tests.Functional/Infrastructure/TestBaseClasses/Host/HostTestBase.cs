@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Builder;
 
 using Tests.Shared.Fixtures;
 
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Dispatch.Tests.Functional.Infrastructure.TestBaseClasses.Host;
 
@@ -54,14 +54,14 @@ public abstract class HostTestBase<TFixture> : IClassFixture<TFixture>, IAsyncLi
 	protected string TenantId { get; set; } = WellKnownId.TestTenant;
 
 	/// <inheritdoc/>
-	public Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		_scope = TestHost.Services.CreateScope();
-		return InitializeDatabaseAsync();
+		await InitializeDatabaseAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		_sink.Dispose(); // TestOutputSink only implements IDisposable, not IAsyncDisposable
 		_scope?.Dispose();

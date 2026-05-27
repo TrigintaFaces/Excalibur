@@ -44,14 +44,14 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 	protected IOutboxStoreAdmin Admin { get; private set; } = null!;
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		Store = await CreateStoreAsync().ConfigureAwait(false);
 		Admin = (Store as IOutboxStoreAdmin)!;
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await CleanupAsync().ConfigureAwait(false);
 

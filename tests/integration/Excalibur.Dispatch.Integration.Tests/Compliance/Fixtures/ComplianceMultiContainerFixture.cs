@@ -55,7 +55,7 @@ public class ComplianceMultiContainerFixture : IAsyncLifetime
 	}
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		// Start all containers in parallel, catching failures so tests can skip gracefully
 		// instead of the entire collection failing with an unhandled exception.
@@ -81,15 +81,15 @@ public class ComplianceMultiContainerFixture : IAsyncLifetime
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		try
 		{
 			await TestTimeouts.WithTimeout(
 				Task.WhenAll(
-					_sqlServer.DisposeAsync(),
-					_vault.DisposeAsync(),
-					_localStack.DisposeAsync()),
+					_sqlServer.DisposeAsync().AsTask(),
+					_vault.DisposeAsync().AsTask(),
+					_localStack.DisposeAsync().AsTask()),
 				TestTimeouts.ContainerDispose,
 				"ComplianceMultiContainerFixture disposal");
 		}

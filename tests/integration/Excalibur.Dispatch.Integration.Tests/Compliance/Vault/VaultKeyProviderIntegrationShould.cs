@@ -28,11 +28,11 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 		_cache = new MemoryCache(new MemoryCacheOptions());
 	}
 
-	public Task InitializeAsync()
+	public ValueTask InitializeAsync()
 	{
 		if (!_fixture.DockerAvailable)
 		{
-			return Task.CompletedTask;
+			return default;
 		}
 
 		var options = Microsoft.Extensions.Options.Options.Create(new VaultOptions
@@ -45,19 +45,19 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 		});
 
 		_provider = new VaultKeyProvider(options, _cache, _logger);
-		return Task.CompletedTask;
+		return default;
 	}
 
 	private void SkipIfUnavailable()
 	{
-		Skip.IfNot(_fixture.DockerAvailable,
+		Assert.SkipUnless(_fixture.DockerAvailable,
 			_fixture.InitializationError ?? "Vault container not available");
 	}
 
-	public Task DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
 		Dispose();
-		return Task.CompletedTask;
+		return default;
 	}
 
 	public void Dispose()

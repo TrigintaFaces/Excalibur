@@ -1,19 +1,15 @@
-using Excalibur.Saga.Abstractions;
+using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Company.ExcaliburSaga.Sagas;
 
 /// <summary>
 /// State data for the order processing saga.
 /// Tracks the progress of an order through payment, inventory, and shipping steps.
+/// Extends <see cref="SagaState"/> for built-in persistence, versioning, and
+/// idempotent replay protection.
 /// </summary>
-public sealed class OrderSagaData : ISagaData
+public sealed class OrderSagaState : SagaState
 {
-    /// <inheritdoc />
-    public Guid Id { get; set; }
-
-    /// <inheritdoc />
-    public int Version { get; set; }
-
     /// <summary>
     /// Gets or sets the order identifier being processed.
     /// </summary>
@@ -48,4 +44,19 @@ public sealed class OrderSagaData : ISagaData
     /// Gets or sets the shipping tracking number.
     /// </summary>
     public string? TrackingNumber { get; set; }
+
+    /// <summary>
+    /// Gets or sets the timeout identifier for payment deadline tracking.
+    /// </summary>
+    public string? TimeoutId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the reason for saga failure, if any.
+    /// </summary>
+    public string? FailureReason { get; set; }
+
+    /// <summary>
+    /// Gets the list of completed step names for tracking progress.
+    /// </summary>
+    public List<string> CompletedSteps { get; init; } = [];
 }

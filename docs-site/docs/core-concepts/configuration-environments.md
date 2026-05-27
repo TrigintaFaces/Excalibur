@@ -85,6 +85,7 @@ builder.Services.AddDispatch(dispatch =>
 ```
 
 :::tip Standalone methods still work
+
 You can also register transports directly on `IServiceCollection` if preferred:
 ```csharp
 builder.Services.AddKafkaTransport(options => { /* ... */ });

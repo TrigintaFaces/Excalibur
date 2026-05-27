@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Builder;
 using Tests.Shared.Fixtures;
 using Tests.Shared.Helpers;
 
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses.Host;
 
@@ -53,18 +53,18 @@ public abstract class HostTestBase<TFixture> : IClassFixture<TFixture>, IAsyncLi
 	protected ITestOutputHelper Output { get; set; }
 
 	/// <inheritdoc />
-	public Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		_scope = TestHost.Services.CreateScope();
-		return InitializePersistenceAsync();
+		await InitializePersistenceAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public Task DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
 		_scope?.Dispose();
 		TestHost?.Dispose();
-		return Task.CompletedTask;
+		return default;
 	}
 
 	/// <inheritdoc />

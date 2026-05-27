@@ -29,7 +29,7 @@ public sealed class SqlServerKeyEscrowIntegrationShould : IAsyncLifetime, IDispo
 		_encryptionProvider = A.Fake<IEncryptionProvider>();
 	}
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		// Create the required tables
 		await CreateTablesAsync();
@@ -50,10 +50,10 @@ public sealed class SqlServerKeyEscrowIntegrationShould : IAsyncLifetime, IDispo
 		_service = new SqlServerKeyEscrowService(options, _encryptionProvider, _logger);
 	}
 
-	public Task DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
 		Dispose();
-		return Task.CompletedTask;
+		return default;
 	}
 
 	public void Dispose()

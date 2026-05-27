@@ -34,7 +34,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		_cache = new MemoryCache(new MemoryCacheOptions());
 	}
 
-	public Task InitializeAsync()
+	public ValueTask InitializeAsync()
 	{
 		// Only create provider if we have a real vault URI
 		if (!string.IsNullOrEmpty(VaultUri))
@@ -50,13 +50,13 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 			_provider = new AzureKeyVaultProvider(options, _cache, _logger);
 		}
 
-		return Task.CompletedTask;
+		return default;
 	}
 
-	public Task DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
 		Dispose();
-		return Task.CompletedTask;
+		return default;
 	}
 
 	public void Dispose()
@@ -115,7 +115,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 			new AzureKeyVaultProvider(options, _cache, null!));
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task CreateNewKey_WhenKeyDoesNotExist()
 	{
 		SkipIfVaultUnavailable();
@@ -134,7 +134,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		_ = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task GetKey_AfterCreation()
 	{
 		SkipIfVaultUnavailable();
@@ -154,7 +154,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		_ = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ReturnNull_WhenKeyDoesNotExist()
 	{
 		SkipIfVaultUnavailable();
@@ -168,7 +168,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		metadata.ShouldBeNull();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ListKeys_ReturnsCreatedKeys()
 	{
 		SkipIfVaultUnavailable();
@@ -191,7 +191,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		_ = await _provider.DeleteKeyAsync(keyId2, 30, CancellationToken.None);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SuspendKey_DisablesKey()
 	{
 		SkipIfVaultUnavailable();
@@ -213,7 +213,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		_ = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task DeleteKey_SchedulesDeletion()
 	{
 		SkipIfVaultUnavailable();
@@ -228,7 +228,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		result.ShouldBeTrue();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task RotateKey_CreatesNewVersion()
 	{
 		SkipIfVaultUnavailable();
@@ -249,7 +249,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		_ = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task GetActiveKey_ReturnsLatestActiveKey()
 	{
 		SkipIfVaultUnavailable();
@@ -270,7 +270,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		_ = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task GetCryptographyClient_ReturnsValidClient()
 	{
 		SkipIfVaultUnavailable();
@@ -287,7 +287,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		_ = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task CacheKeyMetadata_ReducesApiCalls()
 	{
 		SkipIfVaultUnavailable();
@@ -310,7 +310,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		_ = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task CreateKeyWithPurpose()
 	{
 		SkipIfVaultUnavailable();
@@ -329,6 +329,6 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 
 	private void SkipIfVaultUnavailable()
 	{
-		Skip.If(_provider is null, "AZURE_KEYVAULT_URI environment variable not set");
+		Assert.SkipWhen(_provider is null, "AZURE_KEYVAULT_URI environment variable not set");
 	}
 }

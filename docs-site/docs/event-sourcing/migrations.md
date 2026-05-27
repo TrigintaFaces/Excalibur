@@ -63,6 +63,7 @@ excalibur-migrate down --to <migration-id> [options]
 ```
 
 :::caution Record-Only Rollback
+
 The `down` command removes entries from the migration history table — it does **not** execute
 reverse SQL scripts. After rolling back, you are responsible for manually reverting any schema
 changes (e.g., dropping tables or columns) or writing a new forward migration that undoes the
@@ -170,6 +171,7 @@ Migration scripts are **.sql files embedded as resources** in a .NET assembly. T
 4. Migrations are applied in alphabetical order by ID
 
 :::tip Assembly Flag
+
 When using the CLI tool, you must pass `--assembly` pointing to the DLL that contains your
 embedded migration scripts. Without it, the tool looks in its own assembly (which has no user
 migrations).

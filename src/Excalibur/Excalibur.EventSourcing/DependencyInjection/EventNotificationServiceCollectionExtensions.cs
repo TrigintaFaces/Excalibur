@@ -72,6 +72,47 @@ public static class EventNotificationServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Registers an inline projection using a DI-resolved <see cref="IProjectionConfiguration{TProjection}"/>
+	/// implementation. The configuration class is resolved from the service provider at startup
+	/// to configure the projection's mode, event handlers, and options.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection state type.</typeparam>
+	/// <typeparam name="TConfig">
+	/// The configuration type implementing <see cref="IProjectionConfiguration{TProjection}"/>.
+	/// Must have a public parameterless constructor or be pre-registered in DI.
+	/// </typeparam>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is the preferred registration path for projections when using the class-based
+	/// configuration pattern. It avoids reflection-based assembly scanning while supporting
+	/// DI-injected configuration classes.
+	/// </para>
+	/// <para>
+	/// A second call for the same projection type replaces the first (R27.37).
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =>
+	/// {
+	///     builder.AddProjection&lt;OrderSummary, OrderSummaryProjectionConfig&gt;();
+	/// }));
+	/// </code>
+	/// </example>
+	public static IEventSourcingBuilder AddProjection<TProjection, TConfig>(
+		this IEventSourcingBuilder builder)
+		where TProjection : class, new()
+		where TConfig : class, IProjectionConfiguration<TProjection>, new()
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		var config = new TConfig();
+		return builder.AddProjection<TProjection>(b => config.Configure(b));
+	}
+
+	/// <summary>
 	/// Scans the specified assembly for types implementing
 	/// <see cref="IProjectionConfiguration{TProjection}"/> and registers each
 	/// discovered projection via <see cref="AddProjection{TProjection}"/>.

@@ -7,6 +7,7 @@ description: Reliable message publishing with transactional outbox
 # Outbox Pattern
 
 :::tip New to reliable messaging?
+
 Start with the [Idempotent Consumer Guide](idempotent-consumer.md) to understand why messages get duplicated and how the Outbox and Inbox patterns work together.
 :::
 

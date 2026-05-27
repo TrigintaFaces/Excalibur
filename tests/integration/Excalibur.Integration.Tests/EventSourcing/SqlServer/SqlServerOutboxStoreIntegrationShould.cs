@@ -34,7 +34,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	private bool _dockerAvailable;
 	private SqlServerOutboxOptions? _options;
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -65,7 +65,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_container != null)
 		{

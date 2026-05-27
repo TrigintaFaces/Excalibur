@@ -301,6 +301,7 @@ public class PlaceOrderHandlerShould : IAsyncDisposable
 ```
 
 :::tip
+
 When testing with FakeItEasy, register fakes via `ConfigureServices` so they are resolved by the DI container during handler construction.
 :::
 

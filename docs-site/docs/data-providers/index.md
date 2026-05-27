@@ -317,6 +317,7 @@ Each provider uses sensible defaults for table/collection/container names. You c
 | **ElasticSearch** | Projections | `{prefix}-{typename}` | `IndexName`, `IndexPrefix` |
 
 :::tip SQL Injection Protection
+
 SQL Server and PostgreSQL validate all schema and table names against a strict whitelist (`[a-zA-Z0-9_]`) and bracket/quote-escape them in queries. You cannot inject SQL through configuration.
 :::
 

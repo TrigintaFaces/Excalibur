@@ -215,7 +215,7 @@ public sealed class ServerlessColdStartE2EShould : FunctionalTestBase
 			"IsAvailable should be false when not running in actual Lambda environment");
 	}
 
-	public override async Task DisposeAsync()
+	public override async ValueTask DisposeAsync()
 	{
 		if (_serviceProvider is not null)
 		{

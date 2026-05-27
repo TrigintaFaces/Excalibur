@@ -95,6 +95,7 @@ endpoints.DispatchPostEvent<TRequest, TEvent>(
 | `TEvent` | `class, IDispatchEvent` |
 
 :::tip TResponse Must Be a Class
+
 The hosting bridge requires `TResponse : class`. If your handler returns a value type like `Guid`, wrap it in a result class:
 
 ```csharp

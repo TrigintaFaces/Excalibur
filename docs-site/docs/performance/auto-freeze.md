@@ -70,6 +70,7 @@ builder.Services.Configure<DispatchOptions>(options =>
 ```
 
 :::warning Runtime Registration
+
 Disabling auto-freeze means caches remain mutable, using `ConcurrentDictionary` with synchronization overhead. Only disable if you have a specific need for runtime handler registration.
 :::
 

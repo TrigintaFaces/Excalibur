@@ -26,6 +26,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	private Func<string, CancellationToken, Task>? _deleteAction;
 	private Type? _storeType;
 	private ProjectionOptions? _options;
+	private Func<TProjection, string>? _searchTextComputer;
+	private Action<TProjection, string>? _searchTextSetter;
 
 	/// <summary>
 	/// Creates a builder with a registry for direct build (used by tests).
@@ -73,6 +75,15 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	{
 		ArgumentNullException.ThrowIfNull(handler);
 		_projection.AddHandler(handler);
+		return this;
+	}
+
+	/// <inheritdoc />
+	public IProjectionBuilder<TProjection> When<TEvent>(Action<TProjection, TEvent, ProjectionContext> handler)
+		where TEvent : IDomainEvent
+	{
+		ArgumentNullException.ThrowIfNull(handler);
+		_projection.AddContextHandler(handler);
 		return this;
 	}
 
@@ -212,6 +223,18 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		return this;
 	}
 
+	/// <inheritdoc />
+	public IProjectionBuilder<TProjection> WithSearchText(
+		Func<TProjection, string> computeSearchText,
+		Action<TProjection, string> setSearchText)
+	{
+		ArgumentNullException.ThrowIfNull(computeSearchText);
+		ArgumentNullException.ThrowIfNull(setSearchText);
+		_searchTextComputer = computeSearchText;
+		_searchTextSetter = setSearchText;
+		return this;
+	}
+
 	/// <summary>
 	/// Gets the optional cache TTL configured via <see cref="WithCacheTtl"/>.
 	/// </summary>
@@ -231,6 +254,16 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	/// Gets the projection options configured via <see cref="WithOptions"/>.
 	/// </summary>
 	internal ProjectionOptions? Options => _options;
+
+	/// <summary>
+	/// Gets the search text computation function configured via <see cref="WithSearchText"/>.
+	/// </summary>
+	internal Func<TProjection, string>? SearchTextComputer => _searchTextComputer;
+
+	/// <summary>
+	/// Gets the search text setter configured via <see cref="WithSearchText"/>.
+	/// </summary>
+	internal Action<TProjection, string>? SearchTextSetter => _searchTextSetter;
 
 	/// <summary>
 	/// Builds and registers the projection using the registry provided at construction.
@@ -263,6 +296,16 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			? CreateInlineApplyDelegate()
 			: null;
 
+		// Type-erase the search text delegates for storage in the non-generic ProjectionRegistration.
+		// The cast from object back to TProjection is safe because the projection engine only
+		// invokes these with instances of TProjection.
+		Func<object, string>? searchTextComputer = _searchTextComputer is not null
+			? obj => _searchTextComputer((TProjection)obj)
+			: null;
+		Action<object, string>? searchTextSetter = _searchTextSetter is not null
+			? (obj, text) => _searchTextSetter((TProjection)obj, text)
+			: null;
+
 		var registration = new ProjectionRegistration(
 			typeof(TProjection),
 			_mode,
@@ -271,7 +314,9 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			_cacheTtl,
 			_deleteAction,
 			_storeType,
-			_options);
+			_options,
+			searchTextComputer,
+			searchTextSetter);
 
 		registry.Register(registration);
 	}
@@ -279,12 +324,15 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	private ProjectionRegistration.InlineApplyDelegate CreateInlineApplyDelegate()
 	{
 		var projection = _projection;
+		var searchTextComputer = _searchTextComputer;
+		var searchTextSetter = _searchTextSetter;
 
-		// Fast path: when all handlers are synchronous and no key selectors exist,
-		// use the simpler single-ID code path that avoids Dictionary allocation and async overhead.
+		// Fast path: when all handlers are synchronous (with or without context) and no
+		// key selectors exist, use the simpler single-ID code path that avoids Dictionary
+		// allocation and async overhead.
 		if (!projection.HasAsyncHandlers)
 		{
-			return CreateSyncOnlyApplyDelegate(projection);
+			return CreateSyncOnlyApplyDelegate(projection, searchTextComputer, searchTextSetter);
 		}
 
 		// Full path: supports both sync and async handlers, multi-ID via KeyedBy and OverrideProjectionId (D1)
@@ -329,6 +377,12 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 						.ConfigureAwait(false);
 					handlerEntry.SyncAction(state, @event);
 				}
+				else if (handlerEntry.SyncContextAction is not null)
+				{
+					var state = await GetOrLoadAsync(projections, store, projectionId, cancellationToken)
+						.ConfigureAwait(false);
+					handlerEntry.SyncContextAction(state, @event, ProjectionContext.Live);
+				}
 				else if (handlerEntry.AsyncHandler is not null)
 				{
 					var state = await GetOrLoadAsync(projections, store, projectionId, cancellationToken)
@@ -346,6 +400,15 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 						await handlerEntry.AsyncHandler(customState, @event, handlerContext, serviceProvider, cancellationToken)
 							.ConfigureAwait(false);
 					}
+				}
+			}
+
+			// Compute search text once per projection instance (after all events applied)
+			if (searchTextComputer is not null && searchTextSetter is not null)
+			{
+				foreach (var (_, state) in projections)
+				{
+					searchTextSetter(state, searchTextComputer(state));
 				}
 			}
 
@@ -379,7 +442,9 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	/// Avoids Dictionary allocation and async overhead when no key selectors are present.
 	/// </summary>
 	private static ProjectionRegistration.InlineApplyDelegate CreateSyncOnlyApplyDelegate(
-		MultiStreamProjection<TProjection> projection)
+		MultiStreamProjection<TProjection> projection,
+		Func<TProjection, string>? searchTextComputer,
+		Action<TProjection, string>? searchTextSetter)
 	{
 		// When key selectors exist, different events may target different projection IDs
 		if (projection.HasKeySelectors)
@@ -415,6 +480,15 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 					projection.Apply(state, @event);
 				}
 
+				// Compute search text once per projection instance (after all events applied)
+				if (searchTextComputer is not null && searchTextSetter is not null)
+				{
+					foreach (var (_, state) in projections)
+					{
+						searchTextSetter(state, searchTextComputer(state));
+					}
+				}
+
 				foreach (var (id, state) in projections)
 				{
 					await store.UpsertAsync(id, state, cancellationToken)
@@ -423,25 +497,41 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			};
 		}
 
-		// Original fast path: no key selectors, single projection by aggregate ID
+		// Fast path: no key selectors, single projection by aggregate ID.
+		// Lazy-load pattern: defer the store round-trip until the first relevant
+		// event is found, then apply remaining events and upsert once.
+		// This avoids ghost projections from unrelated aggregate events where
+		// Apply() no-ops but the upsert would still fire with default state.
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
+			TProjection? state = null;
 
-			// Load existing projection state or create new
-			var state = await store.GetByIdAsync(context.AggregateId, cancellationToken)
-				.ConfigureAwait(false)
-				?? new TProjection();
-
-			// Apply events sequentially in commit order
 			foreach (var @event in events)
 			{
+				if (projection.GetHandler(@event.GetType()) is null)
+				{
+					continue;
+				}
+
+				// Lazy-load: only hit the store when we know at least one handler matches
+				state ??= await store.GetByIdAsync(context.AggregateId, cancellationToken)
+					.ConfigureAwait(false) ?? new TProjection();
+
 				projection.Apply(state, @event);
 			}
 
-			// Persist the updated projection
-			await store.UpsertAsync(context.AggregateId, state, cancellationToken)
-				.ConfigureAwait(false);
+			if (state is not null)
+			{
+				// Compute search text once after all events applied
+				if (searchTextComputer is not null && searchTextSetter is not null)
+				{
+					searchTextSetter(state, searchTextComputer(state));
+				}
+
+				await store.UpsertAsync(context.AggregateId, state, cancellationToken)
+					.ConfigureAwait(false);
+			}
 		};
 	}
 }

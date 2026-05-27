@@ -128,4 +128,32 @@ public interface ISqlServerEventSourcingBuilder
 	/// Thrown when <paramref name="tableName"/> is null or whitespace.
 	/// </exception>
 	ISqlServerEventSourcingBuilder SnapshotStoreTable(string tableName);
+
+	/// <summary>
+	/// Enables SQL Server materialized view store registration, using the same
+	/// connection configured for the event store.
+	/// </summary>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Registers <see cref="Excalibur.EventSourcing.Abstractions.IMaterializedViewStore"/>
+	/// backed by <see cref="SqlServerMaterializedViewStore"/>.
+	/// Uses "MaterializedViews" and "MaterializedViewPositions" as default table names.
+	/// </para>
+	/// </remarks>
+	ISqlServerEventSourcingBuilder UseMaterializedViewStore();
+
+	/// <summary>
+	/// Enables SQL Server materialized view store registration with custom table names.
+	/// </summary>
+	/// <param name="viewTableName">The view data table name.</param>
+	/// <param name="positionTableName">The position tracking table name.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="viewTableName"/> or <paramref name="positionTableName"/>
+	/// is null or whitespace.
+	/// </exception>
+	ISqlServerEventSourcingBuilder UseMaterializedViewStore(
+		string viewTableName,
+		string positionTableName);
 }

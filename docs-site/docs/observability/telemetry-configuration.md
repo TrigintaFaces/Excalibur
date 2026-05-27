@@ -35,6 +35,7 @@ builder.Services.AddOpenTelemetry()
 This follows the ASP.NET Core pattern (`AddAspNetCoreInstrumentation()`). The method is defined in `OpenTelemetryExtensions` from the `Excalibur.Dispatch.Observability` package.
 
 :::tip Auto-wire
+
 `AddDispatchPipeline()` automatically registers `AddDispatchTelemetry()`, so metrics and traces emit whenever OpenTelemetry is configured -- no explicit opt-in required.
 :::
 

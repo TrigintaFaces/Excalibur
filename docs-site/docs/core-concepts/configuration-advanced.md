@@ -281,6 +281,7 @@ services.TryAddEnumerable(
 ```
 
 :::tip Why ValidateOnStart Matters
+
 Without `ValidateOnStart()`, misconfigured options are only detected when `IOptions<T>.Value` is first accessed -- which could be hours into production under a specific code path. `ValidateOnStart()` fails fast at startup, before any traffic is served.
 :::
 

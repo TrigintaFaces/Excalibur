@@ -45,6 +45,8 @@
     <!-- CA2000: Dispose objects (test setup/teardown handles lifecycle) -->
     <!-- CA1310: StringComparison not always needed in tests -->
     <!-- xUnit1030: ConfigureAwait(false) in tests (xUnit-specific rule) -->
+    <!-- xUnit1051: Use TestContext.Current.CancellationToken (new v3 rule — bulk migration deferred) -->
+    <!-- CA1816: GC.SuppressFinalize in DisposeAsync — v3 IAsyncLifetime inherits IAsyncDisposable, triggers on all test lifecycle methods -->
     <!-- MA0020: Use TrueForAll() instead of All() (test readability) -->
     <!-- MA0044: Remove useless ToString call (test assertions sometimes need it) -->
     <!-- Suppress duplicate package reference warnings (NU1504) -->
@@ -55,16 +57,21 @@
     <!-- CS9113: Parameter is unread (test helper classes use primary constructors for consistency) -->
     <!-- CS8625: Cannot convert null literal to non-nullable (tests intentionally test null scenarios) -->
     <!-- NU1510: net10 SDK package-pruning hint (informational; per-package cleanup tracked by S797 Workstream B) -->
-    <NoWarn>$(NoWarn);CS1591;SA1600;SA1611;SA1615;SA1618;SA1648;RCS1141;SA1402;RCS1046;CA1307;CA1707;CA1305;CA1848;CA1849;CA1854;CA1860;CA1812;CA1873;CA5394;CA1506;CA2000;CA1310;xUnit1030;MA0020;MA0044;NU1504;CS8602;CS8604;CS8625;CS9113;CA1711;CA1823;CA1852;CA1859;NU1510</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;SA1600;SA1611;SA1615;SA1618;SA1648;RCS1141;SA1402;RCS1046;CA1307;CA1707;CA1305;CA1848;CA1849;CA1854;CA1860;CA1812;CA1873;CA5394;CA1506;CA2000;CA1310;CA1816;xUnit1030;xUnit1051;MA0020;MA0044;NU1504;CS8602;CS8604;CS8625;CS9113;CA1711;CA1823;CA1852;CA1859;NU1510</NoWarn>
 
     <!-- Allow test-friendly code style -->
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
+  <!-- xUnit v3 requires OutputType=Exe for test projects (not class libraries like Tests.Shared) -->
+  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
   <!-- Ensure all test projects get the test SDK packages -->
   <ItemGroup Condition="'$(IsTestProject)' == 'true'">
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
 

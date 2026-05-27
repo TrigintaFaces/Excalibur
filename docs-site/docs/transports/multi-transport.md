@@ -71,6 +71,7 @@ dispatch.UseRouting(routing =>
 ```
 
 :::note
+
 `RouteAll` validates each type at registration time -- types that don't implement `IIntegrationEvent` throw `ArgumentException` immediately. This method uses reflection and carries `[RequiresUnreferencedCode]`.
 :::
 
@@ -105,6 +106,7 @@ builder.Services.AddKafkaTransport("kafka-analytics", kafka =>
 ## Routing Strategies
 
 :::info IIntegrationEvent Constraint
+
 Transport routing only accepts `IIntegrationEvent` types. Commands and domain events cannot be routed to transports — they are handled locally. See [Routing](../patterns/routing.md#transport-routing) for details.
 :::
 

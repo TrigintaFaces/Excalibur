@@ -35,7 +35,7 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 		_logger = new LoggerFactory().CreateLogger<SqlServerProjectionStore<TestOrderProjection>>();
 	}
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		// Create the projection table
 		await using var connection = new SqlConnection(_fixture.ConnectionString);
@@ -59,7 +59,7 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 			TableName);
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		// Clean up test data
 		await using var connection = new SqlConnection(_fixture.ConnectionString);

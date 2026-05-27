@@ -744,6 +744,15 @@ public sealed partial class ElasticSearchProjectionStore<
 		// metadata (projectionType discriminator, etc.) is needed.
 		var properties = ElasticIndexMappingBuilder.BuildMappingProperties<TProjection>();
 
+		// Apply convention-based customization if configured.
+		// This allows consumers to globally override mapping defaults (e.g., text + keyword
+		// multi-fields for strings) without implementing IElasticIndexConfiguration<T> per type.
+		var convention = _options.IndexMappingConvention;
+		if (convention is not null)
+		{
+			properties = convention.ConfigureMappings(typeof(TProjection), properties);
+		}
+
 		var createResponse = await _client!.Indices
 			.CreateAsync(_indexName, c => c
 				.Settings(s => s

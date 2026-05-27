@@ -52,7 +52,7 @@ public sealed class ApiUnificationCompositionShould
 		// Act — register each subsystem with builder configuration
 		services.AddExcaliburEventSourcing(_ => { });
 		services.AddExcaliburOutbox(outbox => outbox.EnableBackgroundProcessing());
-		services.AddExcaliburSaga((Action<ISagaBuilder>)(saga => saga.WithOrchestration()));
+		services.AddExcaliburSaga((Action<ISagaBuilder>)(saga => saga.WithCoordination()));
 
 		// Assert — verify we can build the provider without DI conflicts
 		var provider = services.BuildServiceProvider();

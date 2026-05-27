@@ -6,7 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Saga;
 using Excalibur.Saga.DependencyInjection;
 using Excalibur.Saga.Orchestration;
-using Excalibur.Saga.Storage;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -19,18 +18,6 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class SagaServiceCollectionExtensions
 {
-	/// <summary>
-	/// Static accumulator for types discovered during DI composition.
-	/// Read by <see cref="SagaTypeRegistryPopulator"/> on first options resolution.
-	/// </summary>
-	internal static readonly System.Collections.Concurrent.ConcurrentBag<Type> SagaPendingTypeRegistrations = [];
-
-	/// <summary>
-	/// Static accumulator for dispatch delegate registrations discovered during DI composition.
-	/// Read by <see cref="SagaDispatchRegistryPopulator"/> on first options resolution.
-	/// </summary>
-	internal static readonly System.Collections.Concurrent.ConcurrentBag<Action<ISagaDispatchRegistry>> SagaPendingDispatchRegistrations = [];
-
 	/// <summary>
 	/// Adds the core Excalibur.Saga services with default options.
 	/// </summary>
@@ -51,17 +38,26 @@ public static class SagaServiceCollectionExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<SagaOptions>, DefaultSagaOptionsSetup>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SagaOptions>, SagaOptionsValidator>());
 
-		// Register CachedSagaStateStoreOptions validator
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<CachedSagaStateStoreOptions>, CachedSagaStateStoreOptionsValidator>());
+		// Instance-scoped accumulator for saga registrations discovered during DI composition.
+		// Replaces previous static ConcurrentBag fields to prevent test contamination.
+		// Registered as an instance singleton so it's accessible at DI composition time
+		// (before the container is built) via GetPendingRegistrations().
+		if (!services.Any(d => d.ServiceType == typeof(SagaPendingRegistrations)))
+		{
+			services.AddSingleton(new SagaPendingRegistrations());
+		}
 
 		// Register AOT-safe saga registries as singletons.
 		// Populated during AddSaga<TSaga, TSagaState>() calls at DI composition time.
 		services.TryAddSingleton<ISagaTypeRegistry, SagaTypeRegistry>();
 		services.TryAddSingleton<ISagaDispatchRegistry, SagaDispatchRegistry>();
 
-		// bd-x6rg45: fail loud at host start if the consumer forgot to pick a state store.
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, SagaPrerequisiteValidator>());
+		// Register InMemorySagaStore as the default fallback saga store.
+		// Uses TryAdd so persistent stores (SqlServer, etc.) registered by
+		// AddExcaliburOrchestration() or provider-specific extensions take precedence.
+		services.TryAddSingleton<Excalibur.Saga.Orchestration.InMemorySagaStore>();
+		services.TryAddKeyedSingleton<Excalibur.Dispatch.Abstractions.Messaging.ISagaStore>(
+			"default", (sp, _) => sp.GetRequiredService<Excalibur.Saga.Orchestration.InMemorySagaStore>());
 
 		// Non-keyed ISagaStore convenience alias: forwards to keyed "default" so consumers
 		// can inject ISagaStore directly without [FromKeyedServices("default")].
@@ -136,7 +132,7 @@ public static class SagaServiceCollectionExtensions
 	/// <example>
 	/// <code>
 	/// services.AddExcalibur(x => x.AddSagas(saga => saga
-	///     .WithOrchestration(opts => opts.MaxRetryAttempts = 5)
+	///     .WithCoordination()
 	///     .WithTimeouts(opts => opts.PollInterval = TimeSpan.FromSeconds(30))
 	///     .WithInstrumentation()));
 	/// </code>
@@ -195,16 +191,19 @@ public static class SagaServiceCollectionExtensions
 		// Register the saga as scoped
 		services.TryAddScoped<TSaga>();
 
+		// Retrieve the instance-scoped registration accumulator from the service collection.
+		var pending = GetPendingRegistrations(services);
+
 		// Accumulate saga/state types for AOT-safe registry population.
-		// SagaPendingTypeRegistrations is a static list read by SagaTypeRegistryPopulator
+		// SagaPendingRegistrations is an instance-scoped accumulator read by SagaTypeRegistryPopulator
 		// (registered as IPostConfigureOptions) which runs on first options resolution.
-		SagaPendingTypeRegistrations.Add(typeof(TSaga));
-		SagaPendingTypeRegistrations.Add(typeof(TSagaState));
+		pending.TypeRegistrations.Add(typeof(TSaga));
+		pending.TypeRegistrations.Add(typeof(TSagaState));
 
 		// Accumulate typed dispatch delegate for AOT-safe dispatch.
 		// At DI composition time, TSaga and TSagaState are concrete types,
 		// so the AOT compiler preserves the concrete HandleEventInternalAsync<TSaga, TSagaState> instantiation.
-		SagaPendingDispatchRegistrations.Add(CreateDispatchDelegate<TSaga, TSagaState>());
+		pending.DispatchRegistrations.Add(CreateDispatchDelegate<TSaga, TSagaState>());
 
 		// Register the populators once (idempotent via TryAddEnumerable)
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<SagaOptions>, SagaTypeRegistryPopulator>());
@@ -249,12 +248,27 @@ public static class SagaServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Retrieves the <see cref="SagaPendingRegistrations"/> instance from the service collection.
+	/// The instance is stored as a singleton descriptor's implementation instance, accessible
+	/// at DI composition time (before the container is built).
+	/// </summary>
+	private static SagaPendingRegistrations GetPendingRegistrations(IServiceCollection services)
+	{
+		var descriptor = services.First(
+			d => d.ServiceType == typeof(SagaPendingRegistrations));
+
+		return (SagaPendingRegistrations)descriptor.ImplementationInstance!;
+	}
+
+	/// <summary>
 	/// Populates <see cref="ISagaTypeRegistry"/> from types accumulated during DI composition.
 	/// Runs once on first <see cref="SagaOptions"/> resolution via <see cref="IPostConfigureOptions{TOptions}"/>.
 	/// </summary>
 	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 		Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
-	private sealed class SagaTypeRegistryPopulator(ISagaTypeRegistry typeRegistry) : IPostConfigureOptions<SagaOptions>
+	private sealed class SagaTypeRegistryPopulator(
+		ISagaTypeRegistry typeRegistry,
+		SagaPendingRegistrations pending) : IPostConfigureOptions<SagaOptions>
 	{
 		private volatile bool _populated;
 
@@ -267,7 +281,7 @@ public static class SagaServiceCollectionExtensions
 
 			_populated = true;
 
-			foreach (var type in SagaPendingTypeRegistrations)
+			foreach (var type in pending.TypeRegistrations)
 			{
 				typeRegistry.RegisterType(type);
 			}
@@ -282,7 +296,9 @@ public static class SagaServiceCollectionExtensions
 	/// </summary>
 	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 		Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
-	private sealed class SagaDispatchRegistryPopulator(ISagaDispatchRegistry dispatchRegistry) : IPostConfigureOptions<SagaOptions>
+	private sealed class SagaDispatchRegistryPopulator(
+		ISagaDispatchRegistry dispatchRegistry,
+		SagaPendingRegistrations pending) : IPostConfigureOptions<SagaOptions>
 	{
 		private volatile bool _populated;
 
@@ -295,7 +311,7 @@ public static class SagaServiceCollectionExtensions
 
 			_populated = true;
 
-			foreach (var registration in SagaPendingDispatchRegistrations)
+			foreach (var registration in pending.DispatchRegistrations)
 			{
 				registration(dispatchRegistry);
 			}

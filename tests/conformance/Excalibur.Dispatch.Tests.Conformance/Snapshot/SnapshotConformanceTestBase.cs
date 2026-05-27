@@ -51,14 +51,14 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 	protected ISnapshotStrategy? SnapshotStrategy { get; private set; }
 
 	/// <inheritdoc />
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		SnapshotStore = await CreateSnapshotStoreAsync().ConfigureAwait(false);
 		SnapshotStrategy = await CreateSnapshotStrategyAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await DisposeSnapshotStoreAsync().ConfigureAwait(false);
 	}

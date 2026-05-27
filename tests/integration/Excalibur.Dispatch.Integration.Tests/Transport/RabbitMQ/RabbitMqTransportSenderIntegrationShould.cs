@@ -30,7 +30,7 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
     private IChannel? _channel;
     private bool _dockerAvailable;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         try
         {
@@ -54,7 +54,7 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         var timeout = TimeSpan.FromSeconds(30);
 
@@ -103,10 +103,10 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SendMessageToQueue_AndVerifyArrival()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-queue-{Guid.NewGuid():N}";
@@ -141,10 +141,10 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         result.BasicProperties.ContentType.ShouldBe("text/plain");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SendMessageWithRoutingKey_ToTopicExchange()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"test-exchange-{Guid.NewGuid():N}";
@@ -195,10 +195,10 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         result.BasicProperties.Type.ShouldBe("OrderCreated");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SendBatchOfMessages_AllArrive()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-batch-{Guid.NewGuid():N}";
@@ -241,10 +241,10 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         receivedCount.ShouldBe(batchSize);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SendMessageWithHeaders_HeadersPreserved()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-headers-{Guid.NewGuid():N}";
@@ -284,10 +284,10 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         result.BasicProperties.Headers.ShouldContainKey("custom-header");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SendMessageWithPriority_PriorityPreserved()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange - priority queues need x-max-priority argument
         var queueName = $"test-priority-{Guid.NewGuid():N}";
@@ -322,10 +322,10 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         result.BasicProperties.Priority.ShouldBe((byte)5);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SendMessageWithTtl_ExpirationSet()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-ttl-{Guid.NewGuid():N}";
@@ -356,10 +356,10 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         result.BasicProperties.Expiration.ShouldBe("60000");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConnectionFactory_EstablishesConnection()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Assert - connection should be open from InitializeAsync
         _connection.ShouldNotBeNull();
@@ -368,10 +368,10 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         _channel!.IsOpen.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SendToNonExistentExchange_ChannelRemainsUsable()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange - use a separate channel so we don't break the shared one
         await using var separateChannel = await _connection!.CreateChannelAsync().ConfigureAwait(false);
@@ -390,10 +390,10 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
         separateChannel.IsOpen.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SendMessageWithMessageType_TypePreserved()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-type-{Guid.NewGuid():N}";

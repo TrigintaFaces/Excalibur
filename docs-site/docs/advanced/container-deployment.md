@@ -25,6 +25,7 @@ Pick the strategy that matches your workload:
 150 of 170 packages are AOT-compatible. Core dispatch, pipeline, handlers, and most transports work fully in AOT. Packages depending on external SDKs without AOT support (Kafka/Confluent, AWS SDK) remain JIT-only -- see the [AOT Compatibility Matrix](./aot-compatibility.md).
 
 :::tip AOT deserialization trade-off
+
 AOT eliminates JIT warmup, giving faster startup. However, source-generated deserialization can be 41-93% slower for complex message types compared to JIT-optimized paths (measured in `AotPathSerializationBenchmarks`). For most container workloads, the startup improvement outweighs the per-message overhead. Profile your specific workload to decide.
 :::
 
@@ -152,6 +153,7 @@ livenessProbe:
 ```
 
 :::warning Liveness vs Readiness separation
+
 The liveness probe must NOT check transport or database dependencies. If a broker goes down temporarily and liveness fails, Kubernetes restarts the pod -- making the outage worse. Use a dedicated `/healthz/live` endpoint that returns 200 if the process is running. Use `/.well-known/ready` (with transport health) only for readiness.
 :::
 
@@ -213,6 +215,7 @@ builder.Services.Configure<TransportAdapterHostedServiceOptions>(options =>
 ## 5. GC Tuning Recipes
 
 :::info Starting points, not prescriptions
+
 GC behavior is highly workload-dependent -- allocation rate, object lifetime distribution, and message size all affect optimal settings. Use these profiles as baselines, then profile your specific workload with `dotnet-counters` and adjust.
 :::
 

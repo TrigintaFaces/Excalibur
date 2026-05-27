@@ -9,6 +9,7 @@ description: Use Excalibur.Dispatch as a standalone MediatR replacement — just
 Need a modern MediatR replacement and nothing else? This page is for you. One package, zero infrastructure dependencies, production-ready in minutes.
 
 :::tip New to Dispatch?
+
 If you haven't used Dispatch before, start with the [Getting Started tutorial](./index.md) for a step-by-step walkthrough. This page is a focused reference for teams that want messaging only.
 :::
 

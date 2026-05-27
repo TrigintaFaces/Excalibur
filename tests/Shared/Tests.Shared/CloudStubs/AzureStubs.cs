@@ -280,10 +280,10 @@ public class ServiceBusHealthChecker
 public abstract class ServiceBusIntegrationTestBase : IAsyncLifetime
 {
 	/// <inheritdoc/>
-	public virtual Task InitializeAsync() => Task.CompletedTask;
+	public virtual ValueTask InitializeAsync() => default;
 
 	/// <inheritdoc/>
-	public virtual Task DisposeAsync() => Task.CompletedTask;
+	public virtual ValueTask DisposeAsync() => default;
 }
 
 /// <summary>Batch receiving options stub.</summary>

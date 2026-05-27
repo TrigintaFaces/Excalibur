@@ -9,6 +9,7 @@ description: Extend the order system tutorial with AggregateRoot, event store, a
 This tutorial extends the [Order System Tutorial](./order-system-tutorial.md) with event sourcing. Instead of storing current state, you'll store the sequence of events that produced the state — enabling full audit trails, temporal queries, and rebuild-from-history.
 
 :::tip Prerequisites
+
 - Completed the [Order System Tutorial](./order-system-tutorial.md)
 - SQL Server available (LocalDB, Docker, or remote instance)
 - Familiarity with domain-driven design concepts (aggregates, events)
@@ -173,6 +174,7 @@ public enum OrderStatus { Pending, Confirmed, Cancelled }
 ```
 
 :::info Why Pattern Matching?
+
 `ApplyEventInternal` uses a `switch` expression — no reflection, no virtual dispatch overhead. This is a deliberate design choice for performance. The aggregate knows all its event types at compile time.
 :::
 
@@ -298,6 +300,7 @@ public class GetCustomerOrdersHandler(
 An event handler listens to domain events and updates the read model. This is the "projection" -- it projects events into a queryable shape.
 
 :::tip Inline projections for immediate consistency
+
 This tutorial uses `IEventHandler<T>` for projections, which processes events through the Dispatch pipeline (eventually consistent). For **immediate read-after-write consistency**, use the `AddProjection<T>().Inline()` builder API instead -- see [Inline Projections](../event-sourcing/projections.md#inline-projections-mutable) and the [CQRS Program.cs template](./program-cs-templates.md#cqrs-with-event-sourcing-and-projections) for a complete example.
 :::
 

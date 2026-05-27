@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+
 using Microsoft.Extensions.Logging;
 
 using OpenSearch.Client;
@@ -158,7 +161,7 @@ internal sealed class IndexAliasManager(IOpenSearchClient client, ILogger<IndexA
 							{
 								AliasName = alias.Key,
 								Indices = [indexEntry.Key.ToString()],
-								Filter = alias.Value.Filter as QueryContainer,
+								FilterJson = SerializeOrNull(alias.Value.Filter),
 								IndexRouting = alias.Value.IndexRouting,
 								SearchRouting = alias.Value.SearchRouting,
 								IsWriteIndex = alias.Value.IsWriteIndex,
@@ -227,4 +230,9 @@ internal sealed class IndexAliasManager(IOpenSearchClient client, ILogger<IndexA
 			return false;
 		}
 	}
+
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "OpenSearch SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "OpenSearch SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	private static JsonElement? SerializeOrNull<T>(T? value) where T : class =>
+		value is not null ? JsonSerializer.SerializeToElement(value) : null;
 }

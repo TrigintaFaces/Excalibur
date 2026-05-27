@@ -29,7 +29,7 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 	private SubscriberServiceApiClient? _subscriberApi;
 	private bool _dockerAvailable;
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -58,7 +58,7 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", null);
 
@@ -78,10 +78,10 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PublishMessage_DeliversToTopic()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var topicId = $"test-topic-{Guid.NewGuid():N}";
@@ -106,10 +106,10 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		response.MessageIds.Count.ShouldBe(1);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PublishBatchMessages_AllDeliverSuccessfully()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var topicId = $"test-topic-{Guid.NewGuid():N}";
@@ -140,10 +140,10 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		pullResponse.ReceivedMessages.Count.ShouldBe(batchSize);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PublishMessageWithAttributes_AttributesPreserved()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var topicId = $"test-topic-{Guid.NewGuid():N}";
@@ -178,10 +178,10 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		received.Attributes["custom-header"].ShouldBe("custom-value");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PublishEmptyData_Succeeds()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var topicId = $"test-topic-{Guid.NewGuid():N}";
@@ -212,10 +212,10 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		pullResponse.ReceivedMessages[0].Message.Data.Length.ShouldBe(0);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MessageData_RoundTrips()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var topicId = $"test-topic-{Guid.NewGuid():N}";
@@ -242,10 +242,10 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		pullResponse.ReceivedMessages[0].Message.Data.ToStringUtf8().ShouldBe(jsonPayload);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PublishMessage_ReturnsMessageId()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var topicId = $"test-topic-{Guid.NewGuid():N}";
@@ -266,10 +266,10 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		response.MessageIds[0].ShouldNotBeNullOrWhiteSpace();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task TopicCreation_IsSuccessful()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var topicId = $"test-topic-{Guid.NewGuid():N}";

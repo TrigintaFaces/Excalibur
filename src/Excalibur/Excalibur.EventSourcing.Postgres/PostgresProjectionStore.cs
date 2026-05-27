@@ -13,6 +13,9 @@ using Microsoft.Extensions.Logging;
 
 using Npgsql;
 
+#pragma warning disable IL2026 // Dapper and JSON serialization use reflection; consumers can provide source-gen JsonSerializerOptions for AOT-safe JSON
+#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
+
 namespace Excalibur.EventSourcing.Postgres;
 
 /// <summary>
@@ -192,14 +195,12 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-		#pragma warning disable IL2026, IL3050 // Dapper QueryAsync uses reflection for type mapping
 		var results = await connection.QueryAsync<string>(
 				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 		return results
 			.Select(json => JsonSerializer.Deserialize<TProjection>(json, _jsonOptions)!)
 			.ToList();
-		#pragma warning restore IL2026, IL3050
 	}
 
 	/// <inheritdoc/>

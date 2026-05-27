@@ -4,6 +4,7 @@
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Tests.Messaging.Streaming.TestTypes;
 
@@ -22,7 +23,7 @@ public sealed class StreamingHandlerRegistrationShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register streaming handler with scoped lifetime
 		_ = services.AddScoped<TestCsvStreamingHandler>();
@@ -44,7 +45,7 @@ public sealed class StreamingHandlerRegistrationShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register stream consumer handler with scoped lifetime
 		_ = services.AddScoped<CollectingStreamConsumerHandler>();
@@ -66,7 +67,7 @@ public sealed class StreamingHandlerRegistrationShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register discoverable handler directly (simulating assembly discovery)
 		_ = services.AddScoped<DiscoverableStreamingHandler>();
@@ -87,7 +88,7 @@ public sealed class StreamingHandlerRegistrationShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register discoverable handler directly (simulating assembly discovery)
 		_ = services.AddScoped<DiscoverableStreamConsumerHandler>();
@@ -108,7 +109,7 @@ public sealed class StreamingHandlerRegistrationShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register streaming handler with scoped lifetime
 		_ = services.AddScoped<StatefulStreamingHandler>();
@@ -137,7 +138,7 @@ public sealed class StreamingHandlerRegistrationShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register streaming handler with scoped lifetime
 		_ = services.AddScoped<StatefulStreamingHandler>();
@@ -163,7 +164,7 @@ public sealed class StreamingHandlerRegistrationShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register both streaming and consumer handlers
 		_ = services.AddScoped<TestCsvStreamingHandler>();

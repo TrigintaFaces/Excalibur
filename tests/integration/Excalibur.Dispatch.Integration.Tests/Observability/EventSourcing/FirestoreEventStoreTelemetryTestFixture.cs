@@ -89,7 +89,7 @@ public sealed class FirestoreEventStoreTelemetryTestFixture : IAsyncLifetime, ID
 	public string ProjectId { get; } = "test-project";
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -209,7 +209,7 @@ public sealed class FirestoreEventStoreTelemetryTestFixture : IAsyncLifetime, ID
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		Dispose();
 

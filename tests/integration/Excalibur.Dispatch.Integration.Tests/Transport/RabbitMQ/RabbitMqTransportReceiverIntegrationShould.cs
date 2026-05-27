@@ -30,7 +30,7 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
     private IChannel? _channel;
     private bool _dockerAvailable;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         try
         {
@@ -54,7 +54,7 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         var timeout = TimeSpan.FromSeconds(30);
 
@@ -103,10 +103,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReceiveMessage_FromPublishedQueue()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-receive-{Guid.NewGuid():N}";
@@ -147,10 +147,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         await _channel.BasicAckAsync(result.DeliveryTag, multiple: false).ConfigureAwait(false);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReceiveFromEmptyQueue_ReturnsNull()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-empty-{Guid.NewGuid():N}";
@@ -167,10 +167,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         result.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AcknowledgeMessage_RemovesFromQueue()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-ack-{Guid.NewGuid():N}";
@@ -197,10 +197,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         afterAck.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task RejectMessageWithRequeue_MessageRedelivered()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-nack-{Guid.NewGuid():N}";
@@ -231,10 +231,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         redelivered.BasicProperties.MessageId.ShouldBe("nack-msg");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task RejectMessageWithoutRequeue_MessageRemoved()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-reject-{Guid.NewGuid():N}";
@@ -261,10 +261,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         afterReject.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReceiveMultipleMessages_InOrder()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-multi-{Guid.NewGuid():N}";
@@ -304,10 +304,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         empty.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReceiveMessageWithHeaders_HeadersPreserved()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-recv-headers-{Guid.NewGuid():N}";
@@ -344,10 +344,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         result.BasicProperties.Headers.ShouldContainKey("x-retry-count");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReceiveMessageFromTopicExchange_RoutingKeyPreserved()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"test-recv-exchange-{Guid.NewGuid():N}";
@@ -394,10 +394,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         result.BasicProperties.MessageId.ShouldBe("routed-msg");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task PrefetchLimit_RespectedByConsumer()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange - set prefetch count to 2
         var queueName = $"test-prefetch-{Guid.NewGuid():N}";
@@ -437,10 +437,10 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
         msg3.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CancellationToken_StopsReceiving()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"test-cancel-{Guid.NewGuid():N}";

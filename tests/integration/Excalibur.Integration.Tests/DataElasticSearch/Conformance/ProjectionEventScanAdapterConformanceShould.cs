@@ -57,7 +57,7 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 	/// Without this, ES auto-creates indexes with dynamic text mapping on first
 	/// document ingest, causing Term queries on eventId/projectionType to miss.
 	/// </summary>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		await _provisioning.CreateIndexAsync(_writeIndex, ConsistencyIndexKind.WriteEvents, CancellationToken.None)
 			.ConfigureAwait(false);
@@ -65,7 +65,7 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 			.ConfigureAwait(false);
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		// Clean up indexes asynchronously to avoid sync-over-async deadlock
 		// that can leave stale indexes poisoning subsequent test runs.

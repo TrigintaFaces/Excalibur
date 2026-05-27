@@ -43,7 +43,7 @@ public sealed class IDomainDbFunctionalShould : IAsyncLifetime
 		_fixture = fixture;
 	}
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		if (!_fixture.DockerAvailable)
 		{
@@ -55,7 +55,7 @@ public sealed class IDomainDbFunctionalShould : IAsyncLifetime
 		await CreateTestTableAsync();
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_testTableName != null && _fixture.DockerAvailable)
 		{

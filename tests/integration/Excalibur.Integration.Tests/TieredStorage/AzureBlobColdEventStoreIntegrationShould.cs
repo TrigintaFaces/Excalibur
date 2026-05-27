@@ -23,7 +23,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	private IColdEventStore? _store;
 	private bool _available;
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -55,7 +55,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		try
 		{

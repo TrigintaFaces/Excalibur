@@ -9,6 +9,7 @@ description: Handle success and failure patterns in Dispatch using the MessageRe
 Dispatch provides a comprehensive result type system for handling operation outcomes without relying on exceptions for control flow. The `IMessageResult` and `IMessageResult<T>` interfaces enable clean error handling with full support for railway-oriented programming patterns.
 
 :::info Why Should I Care?
+
 Throwing exceptions for business validation ("order not found", "insufficient stock") is expensive and makes error paths invisible in your code. `IMessageResult` makes success and failure **first-class values** -- you can pattern-match, chain with `.Map()` and `.Match()`, and convert directly to HTTP responses with `.ToApiResult()`. Your handlers return results, not throw exceptions.
 :::
 

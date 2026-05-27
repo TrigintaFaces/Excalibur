@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Text.Json;
 using Excalibur.Data.ElasticSearch.IndexManagement;
 
 namespace Excalibur.Data.Tests.ElasticSearch.IndexManagement;
@@ -11,6 +12,7 @@ namespace Excalibur.Data.Tests.ElasticSearch.IndexManagement;
 /// <remarks>
 /// Sprint 514 (S514.2): IndexManagement unit tests.
 /// Tests verify required properties and optional configuration.
+/// Updated Sprint 837: SDK types replaced with JsonElement? (bd-b9dvfl).
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Elasticsearch")]
@@ -69,7 +71,7 @@ public sealed class AliasOperationShould
 	#region Default Value Tests
 
 	[Fact]
-	public void AliasConfiguration_DefaultsToNull()
+	public void ConfigurationJson_DefaultsToNull()
 	{
 		// Arrange & Act
 		var operation = new AliasOperation
@@ -80,7 +82,7 @@ public sealed class AliasOperationShould
 		};
 
 		// Assert
-		operation.AliasConfiguration.ShouldBeNull();
+		operation.ConfigurationJson.ShouldBeNull();
 	}
 
 	#endregion
@@ -132,20 +134,23 @@ public sealed class AliasOperationShould
 	[Fact]
 	public void AllProperties_CanBeInitialized()
 	{
-		// Arrange & Act
+		// Arrange
+		using var configDoc = JsonDocument.Parse("""{"is_write_index":true}""");
+
+		// Act
 		var operation = new AliasOperation
 		{
 			OperationType = AliasOperationType.Add,
 			AliasName = "events-read",
 			IndexName = "events-000001",
-			AliasConfiguration = new Elastic.Clients.Elasticsearch.IndexManagement.Alias()
+			ConfigurationJson = configDoc.RootElement.Clone(),
 		};
 
 		// Assert
 		operation.OperationType.ShouldBe(AliasOperationType.Add);
 		operation.AliasName.ShouldBe("events-read");
 		operation.IndexName.ShouldBe("events-000001");
-		operation.AliasConfiguration.ShouldNotBeNull();
+		operation.ConfigurationJson.ShouldNotBeNull();
 	}
 
 	#endregion

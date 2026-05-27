@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </remarks>
 internal sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManager, IDisposable
 {
-	private readonly SubscriberServiceApiClient _subscriberClient;
+	private readonly ISubscriberApiClientSeam _subscriberClient;
 	private readonly IPublisherClientSeam _publisherClient;
 	private readonly DeadLetterOptions _options;
 	private readonly ILogger<PubSubDeadLetterQueueManager> _logger;
@@ -42,23 +42,28 @@ internal sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueMan
 	/// with existing SDK clients.
 	/// </summary>
 	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
-		Justification = "Adapter is stored in _publisherClient field and lives for the manager's lifetime.")]
+		Justification = "Adapters are stored in fields and live for the manager's lifetime.")]
 	public PubSubDeadLetterQueueManager(
 		SubscriberServiceApiClient subscriberClient,
 		PublisherServiceApiClient publisherClient,
 		IOptions<DeadLetterOptions> options,
 		ILogger<PubSubDeadLetterQueueManager> logger)
-		: this(subscriberClient, CreatePublisherAdapter(publisherClient), options, logger)
+		: this(
+			new SubscriberApiClientAdapter(subscriberClient ?? throw new ArgumentNullException(nameof(subscriberClient))),
+			CreatePublisherAdapter(publisherClient),
+			options,
+			logger)
 	{
 	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PubSubDeadLetterQueueManager"/>
-	/// class using a pre-built publisher adapter. Used by tests to substitute the
-	/// SDK via the <see cref="IPublisherClientSeam"/> seam (ADR-142 §D7).
+	/// class using pre-built adapter seams. Used by tests to substitute the
+	/// SDK via <see cref="ISubscriberApiClientSeam"/> and
+	/// <see cref="IPublisherClientSeam"/> (ADR-142 §D7).
 	/// </summary>
 	internal PubSubDeadLetterQueueManager(
-		SubscriberServiceApiClient subscriberClient,
+		ISubscriberApiClientSeam subscriberClient,
 		IPublisherClientSeam publisherClient,
 		IOptions<DeadLetterOptions> options,
 		ILogger<PubSubDeadLetterQueueManager> logger)
@@ -397,7 +402,7 @@ internal sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueMan
 
 			var ackIds = response.ReceivedMessages.Select(static m => m.AckId).ToList();
 
-			await _subscriberClient.AcknowledgeAsync(deadLetterSubscription, ackIds, cancellationToken).ConfigureAwait(false);
+			await _subscriberClient.AcknowledgeAsync(deadLetterSubscription.ToString(), ackIds, cancellationToken).ConfigureAwait(false);
 
 			purgedCount += ackIds.Count;
 		}

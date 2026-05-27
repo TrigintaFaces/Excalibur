@@ -31,7 +31,7 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 	private SubscriberServiceApiClient? _subscriberApi;
 	private bool _dockerAvailable;
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -82,7 +82,7 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", null);
 
@@ -102,10 +102,10 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PullMessages_FromPopulatedSubscription()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var (topicName, subscriptionName) = await CreateTopicAndSubscriptionAsync().ConfigureAwait(false);
@@ -126,10 +126,10 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		pullResponse.ReceivedMessages[0].Message.Data.ToStringUtf8().ShouldBe("pull-test-message");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PullFromEmptySubscription_ReturnsEmptyList()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var (_, subscriptionName) = await CreateTopicAndSubscriptionAsync().ConfigureAwait(false);
@@ -144,10 +144,10 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		pullResponse.ReceivedMessages.Count.ShouldBe(0);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task AcknowledgeMessage_RemovesFromSubscription()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var (topicName, subscriptionName) = await CreateTopicAndSubscriptionAsync().ConfigureAwait(false);
@@ -173,10 +173,10 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		secondPull.ReceivedMessages.Count.ShouldBe(0);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task NackMessage_MakesMessageReappear()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var (topicName, subscriptionName) = await CreateTopicAndSubscriptionAsync().ConfigureAwait(false);
@@ -211,10 +211,10 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		secondPull.ReceivedMessages[0].Message.Data.ToStringUtf8().ShouldBe("nack-test-message");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PullWithAttributes_AttributesPreserved()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange
 		var (topicName, subscriptionName) = await CreateTopicAndSubscriptionAsync().ConfigureAwait(false);
@@ -243,10 +243,10 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		received.Attributes["source"].ShouldBe("integration-test");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MultipleSubscriptions_ReceiveSameMessage()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange — create one topic with two subscriptions (fan-out)
 		var topicId = $"test-topic-{Guid.NewGuid():N}";
@@ -277,10 +277,10 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		pull2.ReceivedMessages[0].Message.Data.ToStringUtf8().ShouldBe("fan-out-message");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MessageOrdering_WithOrderingKey()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
 		// Arrange — create topic with message ordering enabled
 		var topicId = $"test-topic-{Guid.NewGuid():N}";

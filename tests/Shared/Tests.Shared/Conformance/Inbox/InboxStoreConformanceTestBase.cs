@@ -44,7 +44,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	protected IInboxStoreAdmin AdminStore { get; private set; } = null!;
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		Store = await CreateStoreAsync().ConfigureAwait(false);
 		AdminStore = Store as IInboxStoreAdmin
@@ -54,7 +54,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await CleanupAsync().ConfigureAwait(false);
 

@@ -7,6 +7,7 @@ description: Compact reference for LLM coding agents helping developers use Exca
 # Excalibur LLM Quick Reference
 
 :::tip For AI Coding Agents
+
 This page is optimized for LLM coding agents (Cursor, Copilot, Claude Code, etc.). It provides the essential information needed to help developers use this framework without reading all documentation pages. For the full docs, see the sidebar navigation.
 :::
 
@@ -76,6 +77,7 @@ Domain building blocks are in namespace `Excalibur.Domain.Model`.
 | `ISnapshot` | Snapshot interface | `SnapshotId`, `AggregateId`, `AggregateType`, `Version`, `CreatedAt`, `Data` |
 
 :::note Two DomainEvent base types
+
 - `DomainEvent` in `Excalibur.Dispatch.Abstractions` — parameterless construction, override `AggregateId` property, uses UUID v7 EventId, fluent metadata API
 
 Both implement `IDomainEvent`. Use whichever fits your project.

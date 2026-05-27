@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Text.Json;
 
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Core.Reindex;
@@ -530,7 +531,7 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 			AliasName = aliasName,
 			IndexName = targetIndexName,
 			OperationType = AliasOperationType.Add,
-			AliasConfiguration = new Alias { IsWriteIndex = true },
+			ConfigurationJson = JsonDocument.Parse("""{"is_write_index":true}""").RootElement.Clone(),
 		});
 
 		if (operations.Count == 1)
@@ -538,7 +539,7 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 			_ = await _aliasManager.CreateAliasAsync(
 					aliasName,
 					[targetIndexName],
-					new Alias { IsWriteIndex = true },
+					JsonDocument.Parse("""{"is_write_index":true}""").RootElement.Clone(),
 					cancellationToken)
 				.ConfigureAwait(false);
 			return;

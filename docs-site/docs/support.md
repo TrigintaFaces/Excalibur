@@ -17,6 +17,7 @@ This guide explains how to get help with Excalibur, our support policy, and what
 | [Security Advisories](https://github.com/TrigintaFaces/Excalibur/security) | Report vulnerabilities (private) |
 
 :::note Community Project
+
 This is an open-source project maintained by volunteers. Response times are best-effort and not guaranteed.
 :::
 
@@ -118,6 +119,7 @@ We follow [Semantic Versioning](https://semver.org/):
 ### Reporting
 
 :::danger Private Disclosure Required
+
 **DO NOT** create public issues for security vulnerabilities.
 :::
 

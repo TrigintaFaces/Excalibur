@@ -16,9 +16,8 @@ namespace Excalibur.Dispatch.Abstractions.Messaging;
 /// business process and system architecture needs.
 /// </para>
 /// <para>
-/// This is the basic saga persistence contract in the Dispatch layer. For advanced saga orchestration with
-/// CRUD operations and query capabilities, see <c>Excalibur.Saga.Abstractions.ISagaStateStore</c> and
-/// <c>Excalibur.Saga.Abstractions.ISagaStateStoreQuery</c> in the Excalibur.Saga package.
+/// This is the basic saga persistence contract in the Dispatch layer. For saga orchestration with
+/// coordination and timeout support, see the Excalibur.Saga package.
 /// </para>
 /// </remarks>
 public interface ISagaStore

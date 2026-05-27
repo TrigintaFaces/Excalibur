@@ -33,7 +33,7 @@ namespace Excalibur.Saga.SqlServer;
 ///            .SchemaName("dispatch")
 ///            .TableName("sagas");
 ///     })
-///     .WithOrchestration()
+///     .WithCoordination()
 ///     .WithTimeouts();
 /// }));
 /// </code>

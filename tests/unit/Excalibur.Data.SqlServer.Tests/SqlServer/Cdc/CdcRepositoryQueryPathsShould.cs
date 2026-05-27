@@ -91,8 +91,8 @@ public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 		// Assert
 		exists.ShouldBeTrue();
 		connection.Commands.Count.ShouldBe(2);
-		connection.Commands[0].CommandText.ShouldContain("fn_cdc_get_all_changes_dbo_Orders");
-		connection.Commands[1].CommandText.ShouldContain("fn_cdc_get_all_changes_sales_Invoices");
+		connection.Commands[0].CommandText.ShouldContain("cdc.dbo_Orders_CT");
+		connection.Commands[1].CommandText.ShouldContain("cdc.sales_Invoices_CT");
 	}
 
 	[Fact]
@@ -113,7 +113,7 @@ public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 		// Assert
 		exists.ShouldBeTrue();
 		connection.Commands.Count.ShouldBe(1);
-		connection.Commands[0].CommandText.ShouldContain("fn_cdc_get_all_changes_dbo_Orders");
+		connection.Commands[0].CommandText.ShouldContain("cdc.dbo_Orders_CT");
 	}
 
 	[Fact]

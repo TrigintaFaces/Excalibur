@@ -169,6 +169,7 @@ public class CustomerAggregate : AggregateRoot<Guid>
 ```
 
 :::tip Use stable names
+
 If you rename your aggregate class, the default `GetType().Name` changes — breaking existing streams. Override `AggregateType` with a fixed string to decouple storage from class names.
 :::
 

@@ -35,9 +35,9 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 	}
 
 	private void EnsureKafkaAvailable() =>
-		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
 
-	[SkippableFact]
+	[Fact]
 	public async Task SubscribeAsync_ReceivesAndAcknowledgesMessages()
 	{
 		EnsureKafkaAvailable();
@@ -89,7 +89,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		}
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SubscribeAsync_RejectAction_CommitsOffsetAndSkipsMessage()
 	{
 		EnsureKafkaAvailable();
@@ -124,7 +124,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		rejected.ShouldBeTrue();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SubscribeAsync_StopsOnCancellation()
 	{
 		EnsureKafkaAvailable();
@@ -154,7 +154,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		await subscriber.DisposeAsync().ConfigureAwait(false);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SubscribeAsync_HandlerExceptionDoesNotStopSubscription()
 	{
 		EnsureKafkaAvailable();
@@ -199,7 +199,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		callCount.ShouldBeGreaterThanOrEqualTo(2);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SubscribeAsync_MessageHeadersArePreserved()
 	{
 		EnsureKafkaAvailable();
@@ -256,7 +256,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		receivedMsg.Source.ShouldBe(topic);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task GetService_ReturnsUnderlyingConsumer()
 	{
 		EnsureKafkaAvailable();

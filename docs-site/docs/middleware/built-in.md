@@ -405,6 +405,7 @@ services.Configure<RateLimitingOptions>(options =>
 | Concurrency | Limits concurrent message processing |
 
 :::tip Pipeline Order
+
 Place `UseThrottling()` **before** `UseRetry()` to prevent retry amplification:
 
 ```csharp
@@ -529,6 +530,7 @@ services.AddDispatch(dispatch =>
 Ensures that all state changes within the handler execute atomically -- if any step fails, the entire transaction is rolled back.
 
 :::tip Pipeline Order
+
 Place `UseTransaction()` late in the pipeline, after validation but before outbox:
 
 ```csharp
@@ -552,6 +554,7 @@ services.AddDispatch(dispatch =>
 Messages are persisted to the outbox store within the current transaction and delivered asynchronously by a background processor.
 
 :::tip Pipeline Order
+
 Place `UseOutbox()` at the end of the pipeline, after `UseTransaction()`:
 
 ```csharp
@@ -576,6 +579,7 @@ services.AddDispatch(dispatch =>
 Both `UseInbox()` and `UseIdempotency()` register the same `InboxMiddleware`. Use whichever name best communicates your intent.
 
 :::tip Pipeline Order
+
 Place inbox/idempotency early, before validation and transaction, to reject duplicates before doing any work:
 
 ```csharp
@@ -598,6 +602,7 @@ services.AddDispatch(dispatch =>
 ```
 
 :::tip Pipeline Order
+
 Place `UseCloudEvents()` early in the pipeline so downstream middleware sees CE metadata:
 
 ```csharp
@@ -620,6 +625,7 @@ services.AddDispatch(dispatch =>
 ```
 
 :::tip Pipeline Order
+
 Place after authentication but before authorization, so tenant context is available for tenant-scoped authorization policies:
 
 ```csharp
@@ -641,6 +647,7 @@ services.AddDispatch(dispatch =>
 ```
 
 :::tip Pipeline Order
+
 Place after authorization but before validation, so sanitized values are what gets validated:
 
 ```csharp
@@ -748,6 +755,7 @@ services.AddDispatch(dispatch =>
 ```
 
 :::note
+
 These extensions register **services** (not pipeline middleware). The `Use*()` naming provides consistency with the pipeline API surface.
 :::
 

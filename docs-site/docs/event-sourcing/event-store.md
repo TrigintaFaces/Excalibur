@@ -264,6 +264,7 @@ Archiving is typically handled at the database level. Consider:
 ### GDPR Compliance (Right to Erasure)
 
 :::danger Logical Delete is NOT GDPR Compliant
+
 Simply marking events as "deleted" in metadata does **not** satisfy GDPR Article 17 (Right to Erasure). The personal data still exists in your database and is technically accessible.
 :::
 

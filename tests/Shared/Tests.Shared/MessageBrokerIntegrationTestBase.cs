@@ -24,13 +24,13 @@ public abstract class MessageBrokerIntegrationTestBase<TFixture> : IntegrationTe
 	/// </summary>
 	protected abstract string ConnectionString { get; }
 
-	public override async Task InitializeAsync()
+	public override async ValueTask InitializeAsync()
 	{
 		await base.InitializeAsync();
 		await SetupQueuesAsync();
 	}
 
-	public override async Task DisposeAsync()
+	public override async ValueTask DisposeAsync()
 	{
 		await PurgeQueuesAsync();
 		await base.DisposeAsync();

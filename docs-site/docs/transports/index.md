@@ -1,4 +1,4 @@
-﻿---
+---
 sidebar_position: 1
 title: Transports
 description: Configure message transports for Kafka, RabbitMQ, Azure Service Bus, AWS SQS, and Google Pub/Sub.
@@ -19,6 +19,7 @@ Dispatch supports multiple message transports for distributed messaging. You can
 - Familiarity with [handlers](../handlers.md) and [pipeline concepts](../pipeline/index.md)
 
 :::tip Not sure which transport to use?
+
 Start with the **[Choosing a Transport](choosing-a-transport.md)** guide for a decision matrix and trade-off comparison across all five production transports.
 :::
 

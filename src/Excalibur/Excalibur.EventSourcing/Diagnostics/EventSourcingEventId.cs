@@ -231,6 +231,40 @@ public static class EventSourcingEventId
 	public const int AsyncProjectionDispatchError = 113207;
 
 	// ========================================
+	// 113300-113399: Materialized View Processor
+	// ========================================
+
+	/// <summary>Materialized view processor processed a single event.</summary>
+	public const int ViewProcessorEventProcessed = 113300;
+
+	/// <summary>Materialized view processor completed a batch of events.</summary>
+	public const int ViewProcessorBatchProcessed = 113301;
+
+	/// <summary>Materialized view rebuild starting.</summary>
+	public const int ViewProcessorRebuildStarting = 113302;
+
+	/// <summary>Materialized view rebuild completed.</summary>
+	public const int ViewProcessorRebuildCompleted = 113303;
+
+	/// <summary>Materialized view catch-up starting for a specific view.</summary>
+	public const int ViewProcessorCatchUpStarting = 113304;
+
+	/// <summary>Materialized view catch-up completed for a specific view.</summary>
+	public const int ViewProcessorCatchUpCompleted = 113305;
+
+	/// <summary>Error processing event in materialized view processor.</summary>
+	public const int ViewProcessorEventError = 113306;
+
+	/// <summary>Catch-up requested for unknown view name.</summary>
+	public const int ViewProcessorViewNotFound = 113307;
+
+	/// <summary>Materialized view builder registered with processor.</summary>
+	public const int ViewProcessorBuilderRegistered = 113308;
+
+	/// <summary>Materialized view routing maps built from registrations.</summary>
+	public const int ViewProcessorRoutingMapsBuilt = 113309;
+
+	// ========================================
 	// 114000-114099: Upcasting Core
 	// ========================================
 

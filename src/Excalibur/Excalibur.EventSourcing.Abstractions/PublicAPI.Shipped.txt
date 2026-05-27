@@ -42,6 +42,20 @@ Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.TimeThreshold.get -> Sy
 Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.TimeThreshold.set -> void
 Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.VersionThreshold.get -> long?
 Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.VersionThreshold.set -> void
+Excalibur.EventSourcing.Abstractions.CursorEncoder
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.CursorPagedResult(System.Collections.Generic.IEnumerable<T>! items, int pageSize, long totalRecords, string? nextCursor = null) -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.Deconstruct(out System.Collections.Generic.IEnumerable<T>! items, out int pageSize, out long totalRecords, out string? nextCursor) -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.HasMore.get -> bool
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.Items.get -> System.Collections.Generic.IEnumerable<T>!
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.Items.init -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.NextCursor.get -> string?
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.NextCursor.init -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.PageSize.get -> int
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.PageSize.init -> void
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.TotalPages.get -> int
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.TotalRecords.get -> long
+Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.TotalRecords.init -> void
 Excalibur.EventSourcing.Abstractions.EventNotificationContext
 Excalibur.EventSourcing.Abstractions.EventNotificationContext.AggregateId.get -> string!
 Excalibur.EventSourcing.Abstractions.EventNotificationContext.AggregateId.init -> void
@@ -78,6 +92,8 @@ Excalibur.EventSourcing.Abstractions.ICursorMapStore
 Excalibur.EventSourcing.Abstractions.ICursorMapStore.GetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, long>!>!
 Excalibur.EventSourcing.Abstractions.ICursorMapStore.ResetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Abstractions.ICursorMapStore.SaveCursorMapAsync(string! projectionName, System.Collections.Generic.IReadOnlyDictionary<string!, long>! cursorMap, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Abstractions.ICursorProjectionStore<TProjection>
+Excalibur.EventSourcing.Abstractions.ICursorProjectionStore<TProjection>.QueryCursorAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, string? cursor, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.CursorPagedResult<TProjection!>!>!
 Excalibur.EventSourcing.Abstractions.IEphemeralProjectionEngine
 Excalibur.EventSourcing.Abstractions.IEphemeralProjectionEngine.BuildAsync<TProjection>(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection!>!
 Excalibur.EventSourcing.Abstractions.IEventNotificationBroker
@@ -134,6 +150,8 @@ Excalibur.EventSourcing.Abstractions.IMigrator.GetAppliedMigrationsAsync(System.
 Excalibur.EventSourcing.Abstractions.IMigrator.GetPendingMigrationsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 Excalibur.EventSourcing.Abstractions.IMigrator.MigrateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.MigrationResult!>!
 Excalibur.EventSourcing.Abstractions.IMigrator.RollbackAsync(string! targetMigrationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.MigrationResult!>!
+Excalibur.EventSourcing.Abstractions.IPageableProjectionStore<TProjection>
+Excalibur.EventSourcing.Abstractions.IPageableProjectionStore<TProjection>.QueryPagedAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, int pageNumber, int pageSize, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.PagedResult<TProjection!>!>!
 Excalibur.EventSourcing.Abstractions.IProjectionEventHandler<TProjection, TEvent>
 Excalibur.EventSourcing.Abstractions.IProjectionRecovery
 Excalibur.EventSourcing.Abstractions.IProjectionRecovery.ReapplyAsync<TProjection>(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -179,12 +197,43 @@ Excalibur.EventSourcing.Abstractions.MigrationResult.Success.init -> void
 Excalibur.EventSourcing.Abstractions.NotificationFailurePolicy
 Excalibur.EventSourcing.Abstractions.NotificationFailurePolicy.LogAndContinue = 1 -> Excalibur.EventSourcing.Abstractions.NotificationFailurePolicy
 Excalibur.EventSourcing.Abstractions.NotificationFailurePolicy.Propagate = 0 -> Excalibur.EventSourcing.Abstractions.NotificationFailurePolicy
+Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PageNavigation.First = 0 -> Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PageNavigation.Last = 3 -> Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PageNavigation.Next = 2 -> Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PageNavigation.Previous = 1 -> Excalibur.EventSourcing.Abstractions.PageNavigation
+Excalibur.EventSourcing.Abstractions.PagedResult<T>
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.GetEnumerator() -> System.Collections.Generic.IEnumerator<T!>!
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.HasNextPage.get -> bool
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.HasPreviousPage.get -> bool
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.IsFirstPage.get -> bool
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.IsLastPage.get -> bool
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.Items.get -> System.Collections.Generic.IList<T!>!
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.PageNumber.get -> int
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.PageSize.get -> int
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.PagedResult(System.Collections.Generic.IEnumerable<T!>! items, int? pageNumber = null, int? pageSize = null, long? totalItems = null) -> void
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.TotalItems.get -> long
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.TotalPages.get -> int
+Excalibur.EventSourcing.Abstractions.PagedResult<T>.this[int index].get -> T!
 Excalibur.EventSourcing.Abstractions.ParsedFilter
 Excalibur.EventSourcing.Abstractions.ParsedFilter.Operator.get -> Excalibur.EventSourcing.Abstractions.FilterOperator
 Excalibur.EventSourcing.Abstractions.ParsedFilter.Operator.init -> void
 Excalibur.EventSourcing.Abstractions.ParsedFilter.ParsedFilter(string! PropertyName, Excalibur.EventSourcing.Abstractions.FilterOperator Operator) -> void
 Excalibur.EventSourcing.Abstractions.ParsedFilter.PropertyName.get -> string!
 Excalibur.EventSourcing.Abstractions.ParsedFilter.PropertyName.init -> void
+Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder
+Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder.Build() -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder.ProjectionFilterBuilder() -> void
+Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder.Where(string! propertyName) -> Excalibur.EventSourcing.Abstractions.ProjectionFilterClause!
+Excalibur.EventSourcing.Abstractions.ProjectionFilterClause
+Excalibur.EventSourcing.Abstractions.ProjectionFilterClause.Contains(object! value) -> Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder!
+Excalibur.EventSourcing.Abstractions.ProjectionFilterClause.EqualTo(object! value) -> Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder!
+Excalibur.EventSourcing.Abstractions.ProjectionFilterClause.GreaterThan(object! value) -> Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder!
+Excalibur.EventSourcing.Abstractions.ProjectionFilterClause.GreaterThanOrEqual(object! value) -> Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder!
+Excalibur.EventSourcing.Abstractions.ProjectionFilterClause.In(object! values) -> Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder!
+Excalibur.EventSourcing.Abstractions.ProjectionFilterClause.LessThan(object! value) -> Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder!
+Excalibur.EventSourcing.Abstractions.ProjectionFilterClause.LessThanOrEqual(object! value) -> Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder!
+Excalibur.EventSourcing.Abstractions.ProjectionFilterClause.NotEqualTo(object! value) -> Excalibur.EventSourcing.Abstractions.ProjectionFilterBuilder!
 Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext
 Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext.AggregateId.get -> string!
 Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext.AggregateType.get -> string!
@@ -242,42 +291,31 @@ Excalibur.EventSourcing.Abstractions.StoredEvent.Version.init -> void
 static Excalibur.EventSourcing.Abstractions.AppendResult.CreateConcurrencyConflict(long expectedVersion, long actualVersion) -> Excalibur.EventSourcing.Abstractions.AppendResult!
 static Excalibur.EventSourcing.Abstractions.AppendResult.CreateFailure(string! errorMessage) -> Excalibur.EventSourcing.Abstractions.AppendResult!
 static Excalibur.EventSourcing.Abstractions.AppendResult.CreateSuccess(long nextExpectedVersion, long firstEventPosition) -> Excalibur.EventSourcing.Abstractions.AppendResult!
+static Excalibur.EventSourcing.Abstractions.CursorEncoder.Decode(string? cursor) -> object?[]?
+static Excalibur.EventSourcing.Abstractions.CursorEncoder.Encode(params object?[]! sortValues) -> string!
 static Excalibur.EventSourcing.Abstractions.FilterParser.Parse(string! key) -> Excalibur.EventSourcing.Abstractions.ParsedFilter!
 static Excalibur.EventSourcing.Abstractions.MigrationResult.Failed(string! errorMessage, System.Exception? exception = null) -> Excalibur.EventSourcing.Abstractions.MigrationResult!
 static Excalibur.EventSourcing.Abstractions.MigrationResult.NoMigrationsPending() -> Excalibur.EventSourcing.Abstractions.MigrationResult!
 static Excalibur.EventSourcing.Abstractions.MigrationResult.Succeeded(System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.AppliedMigration!>! appliedMigrations) -> Excalibur.EventSourcing.Abstractions.MigrationResult!
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.CursorPagedResult(System.Collections.Generic.IEnumerable<T>! items, int pageSize, long totalRecords, string? nextCursor = null) -> void
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.Deconstruct(out System.Collections.Generic.IEnumerable<T>! items, out int pageSize, out long totalRecords, out string? nextCursor) -> void
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.HasMore.get -> bool
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.Items.get -> System.Collections.Generic.IEnumerable<T>!
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.Items.init -> void
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.NextCursor.get -> string?
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.NextCursor.init -> void
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.PageSize.get -> int
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.PageSize.init -> void
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.TotalPages.get -> int
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.TotalRecords.get -> long
-Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>.TotalRecords.init -> void
-Excalibur.EventSourcing.Abstractions.PageNavigation
-Excalibur.EventSourcing.Abstractions.PageNavigation.First = 0 -> Excalibur.EventSourcing.Abstractions.PageNavigation
-Excalibur.EventSourcing.Abstractions.PageNavigation.Last = 3 -> Excalibur.EventSourcing.Abstractions.PageNavigation
-Excalibur.EventSourcing.Abstractions.PageNavigation.Next = 2 -> Excalibur.EventSourcing.Abstractions.PageNavigation
-Excalibur.EventSourcing.Abstractions.PageNavigation.Previous = 1 -> Excalibur.EventSourcing.Abstractions.PageNavigation
-Excalibur.EventSourcing.Abstractions.PagedResult<T>
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.GetEnumerator() -> System.Collections.Generic.IEnumerator<T!>!
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.HasNextPage.get -> bool
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.HasPreviousPage.get -> bool
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.IsFirstPage.get -> bool
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.IsLastPage.get -> bool
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.Items.get -> System.Collections.Generic.IList<T!>!
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.PageNumber.get -> int
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.PageSize.get -> int
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.PagedResult(System.Collections.Generic.IEnumerable<T!>! items, int? pageNumber = null, int? pageSize = null, long? totalItems = null) -> void
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.TotalItems.get -> long
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.TotalPages.get -> int
-Excalibur.EventSourcing.Abstractions.PagedResult<T>.this[int index].get -> T!
 static Excalibur.EventSourcing.Abstractions.QueryOptions.Default.get -> Excalibur.EventSourcing.Abstractions.QueryOptions!
-Excalibur.EventSourcing.Abstractions.CursorEncoder
-static Excalibur.EventSourcing.Abstractions.CursorEncoder.Decode(string? cursor) -> object?[]?
-static Excalibur.EventSourcing.Abstractions.CursorEncoder.Encode(params object?[]! sortValues) -> string!
+Excalibur.EventSourcing.Abstractions.IDistinctValuesProjectionStore<TProjection>
+Excalibur.EventSourcing.Abstractions.IDistinctValuesProjectionStore<TProjection>.DistinctValuesAsync(string! propertyName, System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<object!>!>!
+Excalibur.EventSourcing.Abstractions.IExistsProjectionStore<TProjection>
+Excalibur.EventSourcing.Abstractions.IExistsProjectionStore<TProjection>.ExistsAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.EventSourcing.Abstractions.ProjectionContext
+Excalibur.EventSourcing.Abstractions.ProjectionContext.GlobalPosition.get -> long?
+Excalibur.EventSourcing.Abstractions.ProjectionContext.IsReplay.get -> bool
+Excalibur.EventSourcing.Abstractions.ProjectionContext.ProjectionContext(bool isReplay, long? globalPosition) -> void
+Excalibur.EventSourcing.Abstractions.ProjectionStoreExtensions
+static Excalibur.EventSourcing.Abstractions.ProjectionContext.Live.get -> Excalibur.EventSourcing.Abstractions.ProjectionContext!
+static Excalibur.EventSourcing.Abstractions.ProjectionContext.Replay(long globalPosition) -> Excalibur.EventSourcing.Abstractions.ProjectionContext!
+static Excalibur.EventSourcing.Abstractions.ProjectionStoreExtensions.DistinctValuesAsync<TProjection>(this Excalibur.EventSourcing.Abstractions.IProjectionStore<TProjection!>! store, string! propertyName, System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<object!>!>!
+static Excalibur.EventSourcing.Abstractions.ProjectionStoreExtensions.ExistsAsync<TProjection>(this Excalibur.EventSourcing.Abstractions.IProjectionStore<TProjection!>! store, string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+
+Excalibur.EventSourcing.Abstractions.IVersionedProjectionStore<TProjection>
+Excalibur.EventSourcing.Abstractions.IVersionedProjectionStore<TProjection>.GetVersionedAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.VersionedProjection<TProjection!>?>!
+Excalibur.EventSourcing.Abstractions.IVersionedProjectionStore<TProjection>.UpsertVersionedAsync(string! id, TProjection! projection, long? expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Abstractions.VersionedProjection<TProjection>
+Excalibur.EventSourcing.Abstractions.VersionedProjection<TProjection>.Projection.get -> TProjection
+Excalibur.EventSourcing.Abstractions.VersionedProjection<TProjection>.Version.get -> long
+Excalibur.EventSourcing.Abstractions.VersionedProjection<TProjection>.VersionedProjection(TProjection projection, long version) -> void

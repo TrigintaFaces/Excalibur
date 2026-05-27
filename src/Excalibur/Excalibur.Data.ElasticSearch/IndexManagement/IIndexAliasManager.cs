@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Elastic.Clients.Elasticsearch.IndexManagement;
+using System.Text.Json;
 
 namespace Excalibur.Data.ElasticSearch.IndexManagement;
 
@@ -16,10 +16,10 @@ public interface IIndexAliasManager
 	/// </summary>
 	/// <param name="aliasName"> The name of the alias. </param>
 	/// <param name="indexNames"> The names of the indices to include in the alias. </param>
-	/// <param name="aliasConfiguration"> Optional alias configuration settings. </param>
+	/// <param name="aliasConfigurationJson"> Optional alias configuration settings as opaque JSON. </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{Boolean}" /> indicating whether the operation was successful. </returns>
-	Task<bool> CreateAliasAsync(string aliasName, IEnumerable<string> indexNames, Alias? aliasConfiguration,
+	Task<bool> CreateAliasAsync(string aliasName, IEnumerable<string> indexNames, JsonElement? aliasConfigurationJson,
 		CancellationToken cancellationToken);
 
 	/// <summary>

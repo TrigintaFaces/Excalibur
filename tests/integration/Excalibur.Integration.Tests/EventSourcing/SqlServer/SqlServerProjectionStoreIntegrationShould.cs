@@ -30,7 +30,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	private string? _connectionString;
 	private bool _dockerAvailable;
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -52,7 +52,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_container != null)
 		{

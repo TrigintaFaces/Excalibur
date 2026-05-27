@@ -42,13 +42,13 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	protected ILeaderElection Election { get; private set; } = null!;
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		Election = await CreateElectionAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await CleanupAsync().ConfigureAwait(false);
 

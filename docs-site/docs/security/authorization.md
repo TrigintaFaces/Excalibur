@@ -31,6 +31,7 @@ Excalibur.A3 provides a unified **Authentication, Authorization, and Audit** (A3
 | `Excalibur.A3.Abstractions` | -- | Provider-neutral interfaces: `IGrantStore`, `IActivityGroupStore`, `IA3Builder`, `Grant` |
 
 :::tip Choose the Right Package
+
 - **Building governance primitives, microservices, or lightweight tools?** Use `Excalibur.A3.Core` -- 3 dependencies, no database required.
 - **Full application with CQRS, event sourcing, and Dispatch pipeline?** Use `Excalibur.A3` -- includes everything in A3.Core plus the full stack.
 :::
@@ -105,6 +106,7 @@ services.AddExcaliburA3()
 The builder also registers Dispatch pipeline integration (`AddExcaliburAuthorization()`) automatically.
 
 :::tip Single-Tenant Applications
+
 You do **not** need to configure a tenant to use A3. When you call `AddExcaliburA3()`, it automatically registers `ITenantId` with the default value `"Default"` (via `TenantDefaults.DefaultTenantId`). All tenant-scoped features — grants, authorization policies, audit logging — work transparently.
 
 For **multi-tenant** applications that serve multiple tenants from a single instance, use the factory overload:
@@ -731,6 +733,7 @@ services.AddExcaliburA3Core()
 | `GetService(Type)` | ISP escape hatch for extensions |
 
 :::tip Override the In-Memory Store
+
 `AddAccessReviews()` registers `InMemoryAccessReviewStore` as a fallback via `TryAddSingleton`. Replace it with a persistent implementation by registering your own `IAccessReviewStore` before calling `AddAccessReviews()`, or by replacing the registration afterward.
 :::
 
@@ -807,6 +810,7 @@ services.AddExcaliburA3Core()
 ```
 
 :::tip Override SoD Stores
+
 Like access review stores, `AddSeparationOfDuties()` registers `InMemorySoDPolicyStore` as a fallback. Override with your persistent implementation via `TryAddSingleton` replacement.
 :::
 
@@ -848,6 +852,7 @@ services.AddExcaliburA3Core()
 4. Returns an `OrphanedAccessReport` with all findings
 
 :::warning IUserStatusProvider Required
+
 Unlike other governance features, orphaned access detection requires you to provide an `IUserStatusProvider` implementation that connects to your identity/HR system. No in-memory fallback exists because the detector needs real user status data to function.
 :::
 
@@ -929,6 +934,7 @@ services.AddExcaliburA3Core()
 | `GetService(Type)` | ISP escape hatch |
 
 :::tip Security Properties
+
 API keys are stored as SHA-256 hashes -- plaintext is never persisted. The plaintext key is returned exactly once at creation. Mandatory expiry is enforced, and the number of active keys per principal is bounded.
 :::
 
@@ -987,6 +993,7 @@ var bytes = await formatter.FormatAsync(snapshot, ct);
 The built-in `JsonReportFormatter` uses `System.Text.Json` source generation for AOT safety. Implement `IReportFormatter` for custom formats (CSV, PDF, etc.).
 
 :::tip Graceful Degradation
+
 The entitlement report provider aggregates data from all governance subsystems. If an optional subsystem (e.g., orphaned access detection, SoD evaluator) is not registered, reports that need it return empty entries with a warning log -- they do not throw.
 :::
 
@@ -1074,6 +1081,7 @@ Cedar supports two modes:
 - **`CedarMode.AwsVerifiedPermissions`** -- Delegate to AWS Verified Permissions via HTTP
 
 :::caution One evaluator at a time
+
 `UseOpaPolicy()` and `UseCedarPolicy()` both register `IAuthorizationEvaluator`. Calling both replaces the previous registration -- the **last call wins**. Choose one policy engine per application.
 :::
 

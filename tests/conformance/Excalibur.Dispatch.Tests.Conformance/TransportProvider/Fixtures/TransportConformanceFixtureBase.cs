@@ -21,14 +21,14 @@ public abstract class TransportConformanceFixtureBase : IAsyncLifetime
 	public ITransportTestHarness Harness => _harness ?? throw new InvalidOperationException("Fixture not initialized");
 
 	/// <inheritdoc />
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		_harness = CreateHarness() ?? throw new InvalidOperationException("Harness factory returned null");
 		await _harness.InitializeAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_harness is not null)
 		{

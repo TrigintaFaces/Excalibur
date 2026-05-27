@@ -21,6 +21,7 @@ dotnet add package Excalibur.Dispatch.Transport.AwsSqs
 ```
 
 :::tip One-Line Setup with Metapackage
+
 For the fastest setup, use the **`Excalibur.Dispatch.Aws`** experience metapackage. It bundles the AWS SQS transport with Polly resilience and OpenTelemetry observability in a single call:
 
 ```bash

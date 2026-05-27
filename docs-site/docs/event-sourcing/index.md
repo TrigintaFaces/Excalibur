@@ -9,6 +9,7 @@ description: Build event-sourced applications with aggregates, event stores, and
 Excalibur provides a complete event sourcing implementation with aggregates, event stores, snapshots, and projections.
 
 :::info Why Should I Care?
+
 Traditional CRUD overwrites state on every save -- you lose the history of *how* you got there. Event sourcing stores every change as an immutable event, giving you: **full audit trails** (who changed what, when), **temporal queries** (what was the state at any point in time), **easy debugging** (replay events to reproduce bugs), and **decoupled read models** (build multiple query-optimized views from the same event stream).
 :::
 

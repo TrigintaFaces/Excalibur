@@ -1,4 +1,4 @@
-﻿---
+---
 sidebar_position: 2
 title: Encryption Architecture
 description: Comprehensive data protection and encryption patterns for Excalibur
@@ -154,6 +154,7 @@ var context = new EncryptionContext
 ```
 
 :::tip Multi-Tenant Security
+
 `TenantId` is always included in the AAD (Associated Authenticated Data) as a length-prefixed field, even when empty or null. This ensures a stable, unambiguous AAD format across all tenancy modes. When a non-empty `TenantId` is provided, it cryptographically binds the ciphertext to the tenant -- attempting to decrypt with a different tenant ID will fail authentication, even with the correct key.
 :::
 
@@ -215,6 +216,7 @@ builder.Services.AddDevEncryption();
 ```
 
 :::warning Development Only
+
 `InMemoryKeyManagementProvider` stores keys in memory. Keys are lost on restart. **Never use in production.**
 :::
 

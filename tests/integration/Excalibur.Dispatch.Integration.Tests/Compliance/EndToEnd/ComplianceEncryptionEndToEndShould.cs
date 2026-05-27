@@ -28,9 +28,9 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		_escrowLogger = A.Fake<ILogger<SqlServerKeyEscrowService>>();
 	}
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
-		Skip.IfNot(_fixture.AllContainersAvailable, _fixture.InitializationError ?? "One or more containers not available");
+		Assert.SkipUnless(_fixture.AllContainersAvailable, _fixture.InitializationError ?? "One or more containers not available");
 
 		// Set up SQL Server tables
 		await CreateKeyEscrowTablesAsync();
@@ -52,10 +52,10 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		_escrowService = new SqlServerKeyEscrowService(escrowOptions, _encryptionProvider, _escrowLogger);
 	}
 
-	public Task DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
 		Dispose();
-		return Task.CompletedTask;
+		return default;
 	}
 
 	public void Dispose()
@@ -63,7 +63,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		_escrowService?.Dispose();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PerformFullKeyEscrowWorkflow()
 	{
 		// Arrange
@@ -103,7 +103,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		statusWithTokens.ActiveTokenCount.ShouldBe(3);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task HandleMultipleTenantIsolation()
 	{
 		// Arrange
@@ -127,7 +127,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		tenant1Status.KeyId.ShouldNotBe(tenant2Status.KeyId);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task EnforceThresholdRecoveryRules()
 	{
 		// Arrange
@@ -146,7 +146,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		tokens.Select(t => t.ShareIndex).Distinct().Count().ShouldBe(5);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task HandleRevocationProperly()
 	{
 		// Arrange
@@ -168,7 +168,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		status.ActiveTokenCount.ShouldBe(0);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SupportMultipleKeyBackups()
 	{
 		// Arrange & Act - Create multiple keys
@@ -190,7 +190,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		}
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task TrackRecoveryAttempts()
 	{
 		// Arrange
@@ -206,7 +206,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		initialStatus.RecoveryAttempts.ShouldBe(0);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task HandleConcurrentKeyEscrowOperations()
 	{
 		// Arrange
@@ -228,7 +228,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		results.Select(r => r.KeyId).Distinct().Count().ShouldBe(10);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ValidateKeyHashIntegrity()
 	{
 		// Arrange
@@ -245,7 +245,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		status.KeyId.ShouldBe(keyId);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task HandleExpirationSettings()
 	{
 		// Arrange
@@ -265,7 +265,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		receipt.ExpiresAt.Value.ShouldBeLessThan(DateTimeOffset.UtcNow.AddDays(31));
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PreventDuplicateTokenGeneration()
 	{
 		// Arrange
@@ -281,7 +281,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		tokens1.Select(t => t.TokenId).ShouldNotBe(tokens2.Select(t => t.TokenId));
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MaintainAuditTrailForOperations()
 	{
 		// Arrange
@@ -300,7 +300,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		status.EscrowedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ValidatePurposeBasedKeyOrganization()
 	{
 		// Arrange
@@ -323,7 +323,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		_ = paymentStatus.ShouldNotBeNull();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task HandleVariableKeySizes()
 	{
 		// Arrange & Act - Test different key sizes
@@ -345,7 +345,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		_ = status512.ShouldNotBeNull();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task EnforceMinimumCustodianRequirements()
 	{
 		// Arrange
@@ -358,7 +358,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 			() => _escrowService.GenerateRecoveryTokensAsync(keyId, custodianCount: 1, threshold: 1, null, CancellationToken.None));
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task EnforceMinimumThresholdRequirements()
 	{
 		// Arrange
@@ -371,7 +371,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 			() => _escrowService.GenerateRecoveryTokensAsync(keyId, custodianCount: 5, threshold: 1, null, CancellationToken.None));
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task PreventThresholdExceedingCustodianCount()
 	{
 		// Arrange
@@ -384,7 +384,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 			() => _escrowService.GenerateRecoveryTokensAsync(keyId, custodianCount: 3, threshold: 5, null, CancellationToken.None));
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task HandleNonExistentKeyOperations()
 	{
 		// Arrange
@@ -399,7 +399,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		revokeResult.ShouldBeFalse();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ValidateEmptyKeyMaterialRejection()
 	{
 		// Arrange
@@ -410,7 +410,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 			() => _escrowService.BackupKeyAsync(keyId, ReadOnlyMemory<byte>.Empty, null, CancellationToken.None));
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ValidateNullKeyIdRejection()
 	{
 		// Arrange

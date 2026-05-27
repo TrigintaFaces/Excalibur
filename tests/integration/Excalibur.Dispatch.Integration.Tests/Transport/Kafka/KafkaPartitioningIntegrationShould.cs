@@ -39,9 +39,9 @@ public sealed class KafkaPartitioningIntegrationShould
 	}
 
 	private void EnsureKafkaAvailable() =>
-		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
 
-	[SkippableFact]
+	[Fact]
 	public async Task SamePartitionKey_RoutesToSamePartition()
 	{
 		EnsureKafkaAvailable();
@@ -80,7 +80,7 @@ public sealed class KafkaPartitioningIntegrationShould
 		partitions.Count.ShouldBe(1, "All messages with the same partition key should go to the same partition");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task DifferentPartitionKeys_CanRouteToMultiplePartitions()
 	{
 		EnsureKafkaAvailable();
@@ -119,7 +119,7 @@ public sealed class KafkaPartitioningIntegrationShould
 			"Messages with different partition keys should distribute across partitions");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task OrderingKey_UsedAsKafkaMessageKey()
 	{
 		EnsureKafkaAvailable();
@@ -156,7 +156,7 @@ public sealed class KafkaPartitioningIntegrationShould
 		consumed.Message.Key.ShouldBe(orderingKey);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MessagesWithSameKey_MaintainOrderWithinPartition()
 	{
 		EnsureKafkaAvailable();
@@ -217,7 +217,7 @@ public sealed class KafkaPartitioningIntegrationShould
 		}
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task DefaultKey_UsesMessageId_WhenNoPartitionKeySet()
 	{
 		EnsureKafkaAvailable();
@@ -250,7 +250,7 @@ public sealed class KafkaPartitioningIntegrationShould
 		consumed.Message.Key.ShouldBe(messageId);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task OrderingKey_TakesPrecedence_OverPartitionKey()
 	{
 		EnsureKafkaAvailable();

@@ -56,6 +56,7 @@ Both patterns use the same CDC processor under the hood. The difference is **who
 All three table registration methods — `TrackTable()`, `BindTrackedTables()`, and `.CaptureInstances()` — feed into the same capture instance list that the processor polls. `BindTrackedTables()` works with either pattern: tables from config can be handled by auto-mapping (if event mappers are configured in code) or by your own `IDataChangeHandler` implementations.
 
 :::tip Composing Both Patterns
+
 You can use both patterns in the same processor. For example, auto-map `dbo.Orders` with `TrackTable()` while processing `dbo.AuditLog` via a manual `IDataChangeHandler` registered through `BindTrackedTables()` or `.CaptureInstances()`.
 :::
 
@@ -374,6 +375,7 @@ public enum DataChangeType
 ```
 
 :::tip Built-in Extension Methods
+
 The framework provides extension methods for extracting typed values from `DataChangeEvent`:
 
 ```csharp
@@ -424,6 +426,7 @@ public async Task HandleAsync(DataChangeEvent changeEvent, CancellationToken can
 ## Anti-Corruption Pattern Example
 
 :::info User-Implemented Pattern
+
 This section shows a recommended **pattern** for implementing an anti-corruption layer using `IDataChangeHandler`. This is not a built-in framework component — you implement this yourself using the CDC handler infrastructure.
 :::
 
@@ -523,6 +526,7 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `BindConfiguration(string)` | Bind source options from `IConfiguration` section | -- |
 
 :::tip Auto-Registration of IDatabaseOptions
+
 When you call `DatabaseName()`, the builder automatically registers an `IDatabaseOptions` factory with sensible defaults for connection identifiers. The factory derives `CaptureInstances` at runtime from all registered sources — `TrackTable()`, `BindTrackedTables()`, and `.CaptureInstances()` — so config-driven tables are included automatically. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseOptions` registration takes precedence.
 :::
 
@@ -748,6 +752,7 @@ The `Action<ICdcStateStoreBuilder>` callback configures state store persistence:
 | `BindConfiguration(string)` | Bind state store options from an `IConfiguration` section |
 
 :::tip Backward Compatibility
+
 When `WithStateStore` is omitted, the source connection is used for state persistence — existing code continues to work without changes.
 :::
 
@@ -822,6 +827,7 @@ Config-bound tables work with both processing patterns:
 Config-bound tables merge additively with code-registered tables. Duplicate table names (case-insensitive) are skipped — code-registered tables always take precedence. Event mappings cannot be expressed in configuration and remain code-only via `TrackTable()`.
 
 :::tip Per-Environment Configuration
+
 Use `appsettings.{Environment}.json` to vary tracked tables by environment:
 ```json
 // appsettings.Development.json
@@ -1086,6 +1092,7 @@ The `ReasonCode` on `CdcPositionResetEventArgs` tells you *why* the position is 
 | `Unknown` | Cause could not be determined from the SQL error |
 
 :::info SQL Error 313
+
 SQL Server sometimes raises error 313 ("An insufficient number of arguments were supplied") instead of the more specific 22037/22029 errors when the LSN falls outside the valid CDC window. The framework recognizes this error and treats it the same as `LsnOutOfRange` — the position is stale and recovery is triggered automatically.
 :::
 
@@ -1141,6 +1148,7 @@ services.AddCdcProcessor(cdc =>
 The in-memory filter uses a bounded `ConcurrentDictionary` with a capacity of 10,000 entries. When capacity is reached, new events are processed without deduplication tracking (skip-when-full pattern), ensuring bounded memory usage.
 
 :::warning Limitations
+
 The in-memory filter does **not** survive process restarts — it is purely in-memory. For durable deduplication across restarts or multi-instance deployments, use the SQL Server filter.
 :::
 
@@ -1223,6 +1231,7 @@ Old records are cleaned up periodically based on the configured `RetentionPeriod
 | **Best for** | Dev/test, single-instance prod | Multi-instance production |
 
 :::tip TryAdd Semantics
+
 `UseInMemoryIdempotencyFilter()` uses `TryAddSingleton` — if a filter is already registered, the call is a no-op. `UseSqlServerIdempotencyFilter()` uses `AddSingleton` and replaces any previously registered filter. This means you can safely call both, and the last one wins.
 :::
 
@@ -1500,6 +1509,7 @@ public class CdcProcessorFunction
 ```
 
 :::info CDC Interface Hierarchy
+
 All CDC providers implement a two-tier interface hierarchy:
 - **`ICdcProcessor<TEvent>`** — poll-based batch processing (SqlServer, InMemory)
 - **`ICdcStreamProcessor<TEvent, TPosition>`** — streaming with position tracking (Postgres, MongoDB, CosmosDB, DynamoDB, Firestore)
@@ -1576,6 +1586,7 @@ services.AddCdcProcessor(cdc =>
 | Managed identity | Difficult (token refresh on held connection) | Natural (fresh connection with current token) |
 
 :::warning Avoid holding connections in singletons
+
 CDC processors, outbox processors, and inbox stores are all registered as singletons. Never inject a raw `SqlConnection` or `IDbConnection` into these services. Always use the factory pattern to create connections on demand.
 :::
 
@@ -1780,6 +1791,7 @@ services.AddCdcProcessor(cdc =>
 ```
 
 :::note DynamoDB has no connection string
+
 DynamoDB uses AWS SDK credential resolution (environment variables, IAM roles, profiles) instead of connection strings. `WithStateStore` accepts only factory overloads (`Func<IServiceProvider, IAmazonDynamoDB>`), not connection strings.
 :::
 

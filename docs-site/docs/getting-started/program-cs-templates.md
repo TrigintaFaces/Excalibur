@@ -9,6 +9,7 @@ description: Copy-paste-ready Program.cs files for the most common Excalibur sce
 Copy-paste-ready starting points for the most common scenarios. Each template is a complete, working `Program.cs` that you can paste into a new project and run immediately.
 
 :::tip How to use
+
 1. Create a new project: `dotnet new web -n MyProject`
 2. Install the listed packages
 3. Replace the generated `Program.cs` with the template below

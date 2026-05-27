@@ -227,6 +227,7 @@ var appEvents = await _auditStore.QueryAsync(query, ct);
 ```
 
 :::tip
+
 `ApplicationName` is set automatically from `ApplicationContext.ApplicationName` when not provided explicitly on the `AuditEvent`. Configure it once via hosting and all audit events will carry the application identity.
 :::
 
@@ -601,6 +602,7 @@ public async Task Should_Detect_Tampering()
 ## Provider Compliance Boundary
 
 :::warning ADR-290: Not All Backends Are Compliance-Grade
+
 Elasticsearch and OpenSearch are **audit sinks** -- write-only, search-optimized projections. They do **not** implement `IAuditStore` and cannot provide tamper-evident hash chain verification.
 :::
 
@@ -795,6 +797,7 @@ ON [audit].[AuditAnnotations] ([ActorId]);
 ```
 
 :::tip
+
 Annotations never modify the original `AuditEvent` or its hash chain. They are stored in a separate table and linked by `EventId`.
 :::
 
@@ -818,6 +821,7 @@ services.AddAuditContext(options =>
 ```
 
 :::note
+
 `AddAuditContext()` registers `AuditContextMiddleware` which populates scope context before handler execution. Requires an `IAuditActorProvider` implementation and an `IAuditStore` registration.
 :::
 

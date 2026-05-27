@@ -89,10 +89,10 @@ namespace Tests.Shared
 	/// </summary>
 	public sealed class TestOutputSink : IDisposable
 	{
-		private readonly Xunit.Abstractions.ITestOutputHelper _output;
+		private readonly Xunit.ITestOutputHelper _output;
 		private bool _disposed;
 
-		public TestOutputSink(Xunit.Abstractions.ITestOutputHelper output)
+		public TestOutputSink(Xunit.ITestOutputHelper output)
 		{
 			_output = output;
 		}
@@ -121,8 +121,8 @@ namespace Tests.Shared.Fixtures
 	{
 		public string ConnectionString { get; } = "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=test";
 
-		public Task InitializeAsync() => Task.CompletedTask;
+		public ValueTask InitializeAsync() => default;
 
-		public Task DisposeAsync() => Task.CompletedTask;
+		public ValueTask DisposeAsync() => default;
 	}
 }

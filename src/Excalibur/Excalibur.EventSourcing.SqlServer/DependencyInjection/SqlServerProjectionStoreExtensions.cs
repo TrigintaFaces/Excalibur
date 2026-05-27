@@ -10,6 +10,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+#pragma warning disable IL2091 // DI registration methods create stores with DynamicallyAccessedMembers-annotated TProjection
+#pragma warning disable IL2026 // Projection stores use reflection-based JSON serialization as fallback; consumers can provide source-gen context
+#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -45,13 +49,11 @@ public static class SqlServerProjectionStoreExtensions
 
 			options.Value.Validate();
 
-			#pragma warning disable IL2026, IL3050 // SqlServerProjectionStore uses reflection-based JSON serialization
 			return new SqlServerProjectionStore<TProjection>(
 				options.Value.ConnectionString ?? throw new InvalidOperationException("SqlServerProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				options.Value.TableName,
 				options.Value.JsonSerializerOptions);
-			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;

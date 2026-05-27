@@ -759,7 +759,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 						AliasName = aliasName,
 						IndexName = targetIndex,
 						OperationType = AliasOperationType.Add,
-						AliasConfiguration = new Alias { IsWriteIndex = true },
+						ConfigurationJson = JsonDocument.Parse("""{"is_write_index":true}""").RootElement.Clone(),
 					});
 
 					if (operations.Count == 1)
@@ -767,7 +767,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 						return await _aliasManager.CreateAliasAsync(
 								aliasName,
 								[targetIndex],
-								new Alias { IsWriteIndex = true },
+								JsonDocument.Parse("""{"is_write_index":true}""").RootElement.Clone(),
 								cancellationToken)
 							.ConfigureAwait(false);
 					}

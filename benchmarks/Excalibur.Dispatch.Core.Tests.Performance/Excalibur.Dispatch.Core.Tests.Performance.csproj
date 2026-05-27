@@ -2,6 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Excalibur.Dispatch.Core.Tests.Performance</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Core.Tests.Performance</AssemblyName>
@@ -16,7 +17,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Shouldly" />
-    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" />

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using OpenSearch.Client;
+using System.Text.Json;
 
 namespace Excalibur.Data.OpenSearch.IndexManagement;
 
@@ -24,10 +24,10 @@ public sealed class AliasDefinition
 	public required IEnumerable<string> Indices { get; init; }
 
 	/// <summary>
-	/// Gets or sets the filter query for the alias.
+	/// Gets or sets the filter query for the alias as opaque JSON.
 	/// </summary>
-	/// <value> The filter query. </value>
-	public QueryContainer? Filter { get; set; }
+	/// <value> The filter query as a JSON element, or <see langword="null"/> if not specified. </value>
+	public JsonElement? FilterJson { get; set; }
 
 	/// <summary>
 	/// Gets or sets the index routing value.

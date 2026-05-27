@@ -18,7 +18,7 @@ using Microsoft.Extensions.Options;
 using Shouldly;
 
 using Xunit;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Dispatch.Tests.Performance;
 

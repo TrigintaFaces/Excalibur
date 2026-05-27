@@ -70,12 +70,12 @@
 		<PackageVersion Include="Testcontainers" Version="4.11.0" />
 		<PackageVersion Include="Testcontainers.MongoDb" Version="4.11.0" />
 		<PackageVersion Include="WolverineFx" Version="5.31.1" />
-		<!-- Test frameworks -->
-		<PackageVersion Include="xunit" Version="2.9.3" />
+		<!-- Test frameworks — xUnit v3 (migrated from v2.9.3 in Sprint 836) -->
+		<PackageVersion Include="xunit.v3" Version="3.2.2" />
 		<PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-		<PackageVersion Include="xunit.core" Version="2.9.3" />
-		<PackageVersion Include="xunit.extensibility.core" Version="2.9.3" />
-		<PackageVersion Include="xunit.extensibility.execution" Version="2.9.3" />
+		<PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.2" />
+		<!-- Legacy v2 packages kept for Microsoft.CodeAnalysis.Testing.Verifiers.XUnit 1.1.2 transitive dep -->
+		<PackageVersion Include="xunit.assert" Version="2.9.3" />
 		<PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
 		<PackageVersion Include="Shouldly" Version="4.3.0" />
 		<PackageVersion Include="FakeItEasy" Version="9.0.1" />
@@ -126,9 +126,10 @@
 		<!-- Testcontainers family (aligned to 4.7.0) -->
 		<PackageVersion Include="Testcontainers.Redis" Version="4.11.0" />
 		<!-- Testing utilities -->
-		<PackageVersion Include="Verify.Xunit" Version="31.12.5" />
+		<!-- Verify.Xunit→Verify.XunitV3 for xUnit v3 compat (Sprint 836) -->
+		<PackageVersion Include="Verify.XunitV3" Version="31.18.0" />
 		<PackageVersion Include="Alba" Version="8.5.2" />
-		<PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />
+		<!-- Xunit.SkippableFact removed: xUnit v3 has native Assert.SkipUnless()/Assert.SkipWhen() (Sprint 836) -->
 		<!-- EF Core -->
 		<PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
 		<PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.7" />
@@ -140,8 +141,8 @@
 		<!-- Application Insights ASP.NET Core -->
 		<PackageVersion Include="Microsoft.ApplicationInsights.AspNetCore" Version="3.1.0" />
 		<!-- Roslyn (tests) -->
-		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
-		<PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.14.0" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.3.0" />
 		<!-- Reference assemblies for source generator testing (Sprint 426) -->
 		<PackageVersion Include="Basic.Reference.Assemblies.Net90" Version="1.8.4" />
 	</ItemGroup>
@@ -171,9 +172,10 @@
 		<PackageVersion Include="Grpc.Net.Client" Version="2.76.0" />
 		<PackageVersion Include="Consul" Version="1.8.0" />
 		<!-- Roslyn for generators -->
-		<PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" />
-		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-		<PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.3.0" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+		<!-- Bumped 3.11.0→5.3.0: forced transitive dep from Microsoft.CodeAnalysis.Common 5.3.0 (requires >= 5.3.0-2.25625.1) -->
+		<PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.3.0" />
 		<PackageVersion Include="System.Collections.Immutable" Version="10.0.7" />
 		<!-- Transitive pin: AspNetCore.DataProtection pulls Xml transitively.
 		     Originally pinned to 10.0.6 for GHSA-37gx-xxp4-5rgx + GHSA-w3x6-4m5h-cxqf (S810 bd-qn5sjd).

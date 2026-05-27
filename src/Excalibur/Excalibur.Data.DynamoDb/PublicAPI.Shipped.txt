@@ -343,3 +343,6 @@ virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.GetByIdAsync(s
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.ScanAsync(Amazon.DynamoDBv2.Model.ScanRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
 
+Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.QueryCursorAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, string? cursor, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.CursorPagedResult<TProjection!>!>!
+Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.JsonSerializerOptions.get -> System.Text.Json.JsonSerializerOptions?
+Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.JsonSerializerOptions.set -> void

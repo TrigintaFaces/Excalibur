@@ -30,8 +30,8 @@ Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.AliasDefinition() -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.AliasName.get -> string!
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.AliasName.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.Filter.get -> OpenSearch.Client.QueryContainer?
-Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.Filter.set -> void
+Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.FilterJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.FilterJson.set -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.IndexRouting.get -> string?
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.IndexRouting.set -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.Indices.get -> System.Collections.Generic.IEnumerable<string!>!
@@ -41,8 +41,8 @@ Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.IsWriteIndex.set -> vo
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.SearchRouting.get -> string?
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.SearchRouting.set -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation
-Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.AliasConfiguration.get -> OpenSearch.Client.AliasAddAction?
-Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.AliasConfiguration.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.ConfigurationJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.ConfigurationJson.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.AliasName.get -> string!
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.AliasName.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.AliasOperation() -> void
@@ -61,12 +61,12 @@ Excalibur.Data.OpenSearch.IndexManagement.ColdPhaseConfiguration.Priority.get ->
 Excalibur.Data.OpenSearch.IndexManagement.ColdPhaseConfiguration.Priority.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration
 Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.ComponentTemplateConfiguration() -> void
-Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.Mappings.get -> OpenSearch.Client.ITypeMapping?
-Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.Mappings.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.MappingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.MappingsJson.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.Metadata.get -> System.Collections.Generic.Dictionary<string!, object?>?
 Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.Metadata.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.Template.get -> OpenSearch.Client.IIndexSettings?
-Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.Template.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.SettingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.SettingsJson.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.Version.get -> long?
 Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration.Version.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.DataStreamConfiguration
@@ -130,20 +130,20 @@ Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.CreateIndexAsy
 Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.DeleteIndexAsync(string! indexName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.GetIndexHealthAsync(string? indexPattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.OpenSearch.IndexManagement.IndexHealthStatus!>!>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.IndexExistsAsync(string! indexName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.UpdateIndexSettingsAsync(string! indexName, OpenSearch.Client.IIndexSettings! settings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.UpdateIndexSettingsAsync(string! indexName, System.Text.Json.JsonElement settingsJson, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.CreateOrUpdateTemplateAsync(string! templateName, Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.DeleteTemplateAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.TemplateExistsAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.ValidateTemplateAsync(Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.OpenSearch.IndexManagement.TemplateValidationResult!>!
 Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration
-Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.Aliases.get -> System.Collections.Generic.Dictionary<string!, OpenSearch.Client.IAlias!>?
-Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.Aliases.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.AliasesJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.AliasesJson.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.IndexConfiguration() -> void
-Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.Mappings.get -> OpenSearch.Client.ITypeMapping?
-Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.Mappings.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.Settings.get -> OpenSearch.Client.IIndexSettings?
-Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.Settings.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.MappingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.MappingsJson.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.SettingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration.SettingsJson.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexHealthStatus
 Excalibur.Data.OpenSearch.IndexManagement.IndexHealthStatus.DocumentCount.get -> long
 Excalibur.Data.OpenSearch.IndexManagement.IndexHealthStatus.DocumentCount.init -> void
@@ -231,14 +231,14 @@ Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.DataStream.
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.IndexPatterns.get -> System.Collections.Generic.IEnumerable<string!>!
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.IndexPatterns.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.IndexTemplateConfiguration() -> void
-Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Mappings.get -> OpenSearch.Client.ITypeMapping?
-Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Mappings.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.MappingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.MappingsJson.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Metadata.get -> System.Collections.Generic.Dictionary<string!, object?>?
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Metadata.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Priority.get -> int
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Priority.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Template.get -> OpenSearch.Client.IIndexSettings?
-Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Template.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.SettingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.SettingsJson.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Version.get -> long?
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Version.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateManagerExtensions

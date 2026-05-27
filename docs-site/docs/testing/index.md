@@ -7,6 +7,7 @@ description: Testing strategies for event-sourced applications built with Excali
 # Testing Event-Sourced Applications
 
 :::tip Start here
+
 If you use Dispatch without event sourcing (e.g., as a MediatR replacement), the **[Testing Dispatch Handlers](testing-handlers.md)** guide covers unit testing handlers, verifying middleware behavior, and integration testing the pipeline.
 :::
 

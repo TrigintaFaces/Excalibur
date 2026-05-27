@@ -32,7 +32,7 @@ public sealed class SecurityEventLoggerShould : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _sut.StopAsync(CancellationToken.None);
-		_sut.Dispose();
+		await _sut.DisposeAsync();
 	}
 
 	[Fact]
@@ -54,6 +54,13 @@ public sealed class SecurityEventLoggerShould : IAsyncDisposable
 	{
 		// Assert
 		_sut.ShouldBeAssignableTo<IDisposable>();
+	}
+
+	[Fact]
+	public void ImplementIAsyncDisposable()
+	{
+		// Assert
+		_sut.ShouldBeAssignableTo<IAsyncDisposable>();
 	}
 
 	[Fact]
@@ -156,6 +163,18 @@ public sealed class SecurityEventLoggerShould : IAsyncDisposable
 	}
 
 	[Fact]
+	public async Task DisposeAsyncWithoutException()
+	{
+		// Act & Assert
+		await Should.NotThrowAsync(async () =>
+		{
+			await _sut.StartAsync(CancellationToken.None);
+			await _sut.StopAsync(CancellationToken.None);
+			await _sut.DisposeAsync();
+		});
+	}
+
+	[Fact]
 	public async Task HandleMultipleStopCallsGracefully()
 	{
 		// Arrange
@@ -167,5 +186,76 @@ public sealed class SecurityEventLoggerShould : IAsyncDisposable
 		// Assert - Second stop should not throw
 		await Should.NotThrowAsync(async () =>
 			await _sut.StopAsync(CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task HandleDoubleDisposeAsyncGracefully()
+	{
+		// Arrange
+		await _sut.StartAsync(CancellationToken.None);
+		await _sut.StopAsync(CancellationToken.None);
+
+		// Act & Assert - double DisposeAsync should not throw
+		await _sut.DisposeAsync();
+		await Should.NotThrowAsync(async () =>
+			await _sut.DisposeAsync());
+	}
+
+	[Fact]
+	public async Task HandleDoubleDisposeGracefully()
+	{
+		// Arrange
+		await _sut.StartAsync(CancellationToken.None);
+		await _sut.StopAsync(CancellationToken.None);
+
+		// Act & Assert - double Dispose should not throw
+		_sut.Dispose();
+		Should.NotThrow(() => _sut.Dispose());
+	}
+
+	[Fact]
+	public async Task NotThrowWhenDisposeCalledBeforeStopAsync()
+	{
+		// Arrange - This is the race condition: Dispose runs before StopAsync
+		await _sut.StartAsync(CancellationToken.None);
+
+		// Act - Dispose first (disposes CTS), then StopAsync tries to use CTS
+		_sut.Dispose();
+
+		// Assert - StopAsync should handle the disposed CTS gracefully
+		await Should.NotThrowAsync(async () =>
+			await _sut.StopAsync(CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task NotThrowWhenDisposeAsyncCalledBeforeStopAsync()
+	{
+		// Arrange - DisposeAsync before StopAsync (race condition variant)
+		await _sut.StartAsync(CancellationToken.None);
+
+		// Act - DisposeAsync first, then StopAsync
+		await _sut.DisposeAsync();
+
+		// Assert - StopAsync should handle the disposed state gracefully
+		await Should.NotThrowAsync(async () =>
+			await _sut.StopAsync(CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task HandleConcurrentDisposeAndStopGracefully()
+	{
+		// Arrange
+		await _sut.StartAsync(CancellationToken.None);
+
+		// Act - Run Dispose and StopAsync concurrently to test the race
+		var tasks = new[]
+		{
+			Task.Run(() => _sut.Dispose()),
+			_sut.StopAsync(CancellationToken.None),
+		};
+
+		// Assert - Neither should throw
+		await Should.NotThrowAsync(async () =>
+			await Task.WhenAll(tasks));
 	}
 }

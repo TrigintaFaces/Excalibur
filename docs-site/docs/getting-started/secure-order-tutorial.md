@@ -9,6 +9,7 @@ description: Extend the order system with CommandBase, grant-based authorization
 This tutorial extends the [Event-Sourced Order System](./event-sourcing-tutorial.md) with enterprise security: structured commands via `CommandBase`, grant-based authorization via Excalibur.A3, and compliance-grade audit logging.
 
 :::tip Prerequisites
+
 - Completed the [Event-Sourced Order System](./event-sourcing-tutorial.md) tutorial
 - SQL Server available (LocalDB, Docker, or remote instance)
 - Familiarity with authorization concepts (roles, permissions, grants)
@@ -218,6 +219,7 @@ public class CancelOrderHandler(
 Inject `IAuditLogger` to log security-sensitive operations explicitly. Commands marked with `IAmAuditable` are also logged automatically by the A3 audit middleware.
 
 :::tip Skip this on first read
+
 The grant management endpoints below are **admin-only plumbing**. If you just want to see the security flow end-to-end, skip ahead to [Step 6: Wire It Up](#step-6-wire-it-up) and come back here when you need to manage grants programmatically.
 :::
 

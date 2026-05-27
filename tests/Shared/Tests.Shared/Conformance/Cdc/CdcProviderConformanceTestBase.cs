@@ -41,13 +41,13 @@ public abstract class CdcProviderConformanceTestBase : IAsyncLifetime
 	protected ICdcStateStore StateStore { get; private set; } = null!;
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		StateStore = await CreateStateStoreAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await CleanupAsync().ConfigureAwait(false);
 

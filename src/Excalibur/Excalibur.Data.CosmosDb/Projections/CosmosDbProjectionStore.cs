@@ -14,6 +14,9 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+#pragma warning disable IL2026 // JSON serialization fallback path uses reflection when consumer does not provide source-gen JsonSerializerOptions
+#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
+
 namespace Excalibur.Data.CosmosDb.Projections;
 
 /// <summary>
@@ -30,7 +33,9 @@ namespace Excalibur.Data.CosmosDb.Projections;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionStore<TProjection>, IAsyncDisposable, IDisposable
+public sealed partial class CosmosDbProjectionStore<
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] TProjection>
+	: IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>, IAsyncDisposable, IDisposable
 	where TProjection : class
 {
 	/// <summary>
@@ -97,7 +102,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = false };
+		_jsonOptions = _options.JsonSerializerOptions ?? new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = false };
 	}
 
 	/// <summary>
@@ -155,7 +160,6 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 	}
 
 	/// <inheritdoc/>
-	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	public async Task<TProjection?> GetByIdAsync(
 		string id,
 		CancellationToken cancellationToken)
@@ -196,7 +200,6 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 	}
 
 	/// <inheritdoc/>
-	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	public async Task UpsertAsync(
 		string id,
 		TProjection projection,
@@ -278,7 +281,6 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 	}
 
 	/// <inheritdoc/>
-	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
@@ -359,6 +361,92 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 			queryDefinition = queryDefinition.WithParameter(paramName, paramValue);
 		}
 
+		using var iterator = _container!.GetItemQueryIterator<long>(queryDefinition);
+		if (iterator.HasMoreResults)
+		{
+			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			return response.FirstOrDefault();
+		}
+
+		return 0;
+	}
+
+	/// <inheritdoc/>
+	public async Task<PagedResult<TProjection>> QueryPagedAsync(
+		IDictionary<string, object>? filters,
+		int pageNumber,
+		int pageSize,
+		QueryOptions? options,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var (whereClause, parameters) = BuildWhereClause(filters);
+		var orderByClause = BuildOrderByClause(options);
+		var offset = (pageNumber - 1) * pageSize;
+
+		// Single-roundtrip: run data + count queries in parallel
+		var dataQueryText = $"SELECT VALUE c FROM c WHERE c.{PartitionKeyField} = @projectionType{whereClause}{orderByClause} OFFSET @skip LIMIT @take";
+		var countQueryText = $"SELECT VALUE COUNT(1) FROM c WHERE c.{PartitionKeyField} = @projectionType{whereClause}";
+
+		var dataQueryDef = new QueryDefinition(dataQueryText)
+			.WithParameter("@projectionType", _projectionType)
+			.WithParameter("@skip", offset)
+			.WithParameter("@take", pageSize);
+
+		var countQueryDef = new QueryDefinition(countQueryText)
+			.WithParameter("@projectionType", _projectionType);
+
+		foreach (var (paramName, paramValue) in parameters)
+		{
+			dataQueryDef = dataQueryDef.WithParameter(paramName, paramValue);
+			countQueryDef = countQueryDef.WithParameter(paramName, paramValue);
+		}
+
+		// Execute both queries concurrently for single-roundtrip semantics
+		var dataTask = ExecuteQueryAsync(dataQueryDef, cancellationToken);
+		var countTask = ExecuteCountQueryAsync(countQueryDef, cancellationToken);
+
+		await Task.WhenAll(dataTask, countTask).ConfigureAwait(false);
+
+		var items = await dataTask.ConfigureAwait(false);
+		var totalCount = await countTask.ConfigureAwait(false);
+
+		return new PagedResult<TProjection>(items, pageNumber, pageSize, totalCount);
+	}
+
+	private async Task<List<TProjection>> ExecuteQueryAsync(
+		QueryDefinition queryDefinition,
+		CancellationToken cancellationToken)
+	{
+		var results = new List<TProjection>();
+		using var iterator = _container!.GetItemQueryIterator<JsonElement>(queryDefinition);
+
+		while (iterator.HasMoreResults)
+		{
+			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			foreach (var item in response)
+			{
+				var node = JsonNode.Parse(item.GetRawText());
+				var projection = StripAndDeserialize(node);
+				if (projection is not null)
+				{
+					results.Add(projection);
+				}
+			}
+		}
+
+		return results;
+	}
+
+	private async Task<long> ExecuteCountQueryAsync(
+		QueryDefinition queryDefinition,
+		CancellationToken cancellationToken)
+	{
 		using var iterator = _container!.GetItemQueryIterator<long>(queryDefinition);
 		if (iterator.HasMoreResults)
 		{
@@ -590,7 +678,6 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 	/// (returns <see langword="default"/>). Called from <see cref="GetByIdAsync"/> with a stream-parsed
 	/// node and from <see cref="QueryAsync"/> with a <see cref="JsonElement"/>-converted node.
 	/// </param>
-	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	private TProjection? StripAndDeserialize(JsonNode? node)
 	{
 		if (node is not JsonObject obj)

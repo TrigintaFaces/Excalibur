@@ -3,8 +3,11 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Views;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -36,6 +39,9 @@ public static class MaterializedViewsServiceCollectionExtensions
 		// Register options
 		_ = services.AddOptions<MaterializedViewOptions>()
 			.ValidateOnStart();
+
+		// Register default processor (consumers can override via UseProcessor<T>)
+		services.TryAddSingleton<IMaterializedViewProcessor, MaterializedViewProcessor>();
 
 		return services;
 	}
@@ -72,12 +78,16 @@ public static class MaterializedViewsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Ensure base services are registered
-		_ = services.AddMaterializedViews();
+		// Register options (but NOT the default processor yet — let configure run first)
+		_ = services.AddOptions<MaterializedViewOptions>()
+			.ValidateOnStart();
 
-		// Configure using the builder pattern
+		// Configure using the builder pattern — consumer may call UseProcessor<T>()
 		var builder = new MaterializedViewsBuilder(services);
 		configure(builder);
+
+		// Register default processor AFTER configure so UseProcessor<T> wins via TryAdd
+		services.TryAddSingleton<IMaterializedViewProcessor, MaterializedViewProcessor>();
 
 		return services;
 	}

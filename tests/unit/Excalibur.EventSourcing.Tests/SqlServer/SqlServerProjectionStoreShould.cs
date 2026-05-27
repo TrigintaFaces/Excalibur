@@ -385,6 +385,81 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 
 	#endregion Generic Type Parameter Tests
 
+	#region QueryPagedAsync — IPageableProjectionStore (bd-7pxxqb)
+
+	[Fact]
+	public async Task QueryPagedAsync_ThrowsWhenPageNumberIsZero()
+	{
+		// Arrange
+		var store = new SqlServerProjectionStore<TestProjection>(
+			() => new SqlConnection("Server=localhost"), _logger);
+
+		// Act & Assert
+		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
+			await store.QueryPagedAsync(null, 0, 10, null, CancellationToken.None)
+				.ConfigureAwait(false)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task QueryPagedAsync_ThrowsWhenPageNumberIsNegative()
+	{
+		var store = new SqlServerProjectionStore<TestProjection>(
+			() => new SqlConnection("Server=localhost"), _logger);
+
+		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
+			await store.QueryPagedAsync(null, -1, 10, null, CancellationToken.None)
+				.ConfigureAwait(false)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task QueryPagedAsync_ThrowsWhenPageSizeIsZero()
+	{
+		var store = new SqlServerProjectionStore<TestProjection>(
+			() => new SqlConnection("Server=localhost"), _logger);
+
+		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
+			await store.QueryPagedAsync(null, 1, 0, null, CancellationToken.None)
+				.ConfigureAwait(false)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task QueryPagedAsync_ThrowsWhenPageSizeIsNegative()
+	{
+		var store = new SqlServerProjectionStore<TestProjection>(
+			() => new SqlConnection("Server=localhost"), _logger);
+
+		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
+			await store.QueryPagedAsync(null, 1, -5, null, CancellationToken.None)
+				.ConfigureAwait(false)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public void SqlServerProjectionStore_ImplementsIPageableProjectionStore()
+	{
+		// Assert — ISP sub-interface is implemented
+		var store = new SqlServerProjectionStore<TestProjection>(
+			() => new SqlConnection("Server=localhost"), _logger);
+
+		(store is IPageableProjectionStore<TestProjection>).ShouldBeTrue(
+			"SqlServerProjectionStore should implement IPageableProjectionStore<T>");
+	}
+
+	[Fact]
+	public void SqlServerProjectionStore_DetectableViaPatternMatching()
+	{
+		// Arrange — ISP pattern: consumers check via 'is' cast
+		IProjectionStore<TestProjection> store = new SqlServerProjectionStore<TestProjection>(
+			() => new SqlConnection("Server=localhost"), _logger);
+
+		// Act
+		var isPageable = store is IPageableProjectionStore<TestProjection>;
+
+		// Assert
+		isPageable.ShouldBeTrue("IPageableProjectionStore should be detectable via pattern match on IProjectionStore");
+	}
+
+	#endregion QueryPagedAsync — IPageableProjectionStore (bd-7pxxqb)
+
 	#region Test Projections
 
 	/// <summary>

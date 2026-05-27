@@ -95,6 +95,7 @@ obj/
 4. Run with debugging (F5)
 
 :::tip
+
 Generated code supports full debugging including step-through, watch expressions, and conditional breakpoints.
 :::
 
@@ -199,6 +200,7 @@ Generated files are recreated when:
 - Clean/rebuild is performed
 
 :::note Incremental Generators
+
 Dispatch uses incremental generators that only regenerate when relevant source changes. This ensures fast build times even with many generators.
 :::
 

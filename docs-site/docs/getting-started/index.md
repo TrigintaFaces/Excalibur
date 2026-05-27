@@ -194,6 +194,7 @@ public record GreetRequest(string Name);
 ```
 
 :::tip You Have a Working App — Stop Here Unless You Need More
+
 The example above is a complete, production-ready Dispatch application. **You don't need anything else to start building.**
 
 | If you need... | Next step |

@@ -205,7 +205,7 @@ dotnet run
 - Sample `OrderSaga` process manager with 3 steps (CollectPayment, ReserveInventory, ShipOrder) including compensation
 - `OrderSagaData` implementing `ISagaData`
 - Messages: `StartOrderProcessing` action + domain events
-- Builder configuration: `UseSqlServer()`, `WithOrchestration()`, `WithCorrelation()`, `WithInstrumentation()`
+- Builder configuration: `UseSqlServer()`, `WithCoordination()`, `WithCorrelation()`, `WithInstrumentation()`
 - Transport selection via `--Transport` option (all 6 transports supported)
 - Database selection via `--Database` option (sqlserver, inmemory)
 

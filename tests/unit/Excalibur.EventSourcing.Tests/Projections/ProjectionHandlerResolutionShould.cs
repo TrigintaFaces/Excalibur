@@ -417,6 +417,124 @@ public sealed class ProjectionHandlerResolutionShould
 	}
 
 	[Fact]
+	public async Task SyncOnlyFastPath_ShouldNotCreateGhostProjection_WhenNoHandlersMatch()
+	{
+		// Arrange -- register a handler for TestOrderPlaced only, then send
+		// only TestOrderShipped events. The sync-only fast path should never
+		// touch the store (no GetByIdAsync, no UpsertAsync). Before the fix,
+		// the fast path loaded and upserted default-constructed state even
+		// when no handlers matched, creating "ghost" projections.
+		var store = new InMemoryProjectionStore<OrderSummary>();
+		var services = new ServiceCollection()
+			.AddSingleton<IProjectionStore<OrderSummary>>(store)
+			.BuildServiceProvider();
+
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e) =>
+		{
+			proj.Total = e.Amount;
+			proj.EventCount++;
+		});
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+		var projection = (MultiStreamProjection<OrderSummary>)registration.Projection;
+
+		// Confirm we're on the sync-only fast path
+		projection.HasAsyncHandlers.ShouldBeFalse();
+
+		// Only unrelated events -- no handler registered for TestOrderShipped
+		var events = new List<IDomainEvent>
+		{
+			new TestOrderShipped { AggregateId = "order-99", Version = 1 },
+			new TestOrderShipped { AggregateId = "order-99", Version = 2 }
+		};
+		var context = new EventNotificationContext("order-99", "Order", 2, DateTimeOffset.UtcNow);
+
+		// Act
+		await registration.InlineApply!(events, context, services, CancellationToken.None);
+
+		// Assert -- no projection should exist (store was never written to)
+		store.Get("order-99").ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task SyncOnlyFastPath_ShouldNoOpGracefully_WhenEventsListIsEmpty()
+	{
+		// Arrange -- empty event list should result in no store interaction
+		// and no ghost projection. Validates the lazy-load guard handles the
+		// degenerate case where state never gets initialized.
+		var store = new InMemoryProjectionStore<OrderSummary>();
+		var services = new ServiceCollection()
+			.AddSingleton<IProjectionStore<OrderSummary>>(store)
+			.BuildServiceProvider();
+
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e) =>
+		{
+			proj.Total = e.Amount;
+			proj.EventCount++;
+		});
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+
+		var events = new List<IDomainEvent>(); // empty
+		var context = new EventNotificationContext("order-empty", "Order", 0, DateTimeOffset.UtcNow);
+
+		// Act
+		await registration.InlineApply!(events, context, services, CancellationToken.None);
+
+		// Assert -- no projection should exist
+		store.Get("order-empty").ShouldBeNull();
+		(await store.CountAsync(null, CancellationToken.None)).ShouldBe(0);
+	}
+
+	[Fact]
+	public async Task SyncOnlyFastPath_ShouldProjectOnlyMatchedEvents_WhenMixedWithUnhandled()
+	{
+		// Arrange -- register handler for TestOrderPlaced only. Send a mix of
+		// handled (TestOrderPlaced) and unhandled (TestOrderShipped) events.
+		// Only the handled event should cause a store load + upsert, and the
+		// unhandled event should be silently skipped.
+		var store = new InMemoryProjectionStore<OrderSummary>();
+		var services = new ServiceCollection()
+			.AddSingleton<IProjectionStore<OrderSummary>>(store)
+			.BuildServiceProvider();
+
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e) =>
+		{
+			proj.Total = e.Amount;
+			proj.EventCount++;
+		});
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+
+		var events = new List<IDomainEvent>
+		{
+			new TestOrderShipped { AggregateId = "order-50", Version = 1 }, // unhandled -- skipped
+			new TestOrderPlaced { AggregateId = "order-50", Amount = 42m, Version = 2 }, // handled
+			new TestOrderShipped { AggregateId = "order-50", Version = 3 } // unhandled -- skipped
+		};
+		var context = new EventNotificationContext("order-50", "Order", 3, DateTimeOffset.UtcNow);
+
+		// Act
+		await registration.InlineApply!(events, context, services, CancellationToken.None);
+
+		// Assert -- only the one handled event should have been applied
+		var projected = store.Get("order-50");
+		projected.ShouldNotBeNull();
+		projected.Total.ShouldBe(42m);
+		projected.EventCount.ShouldBe(1); // only TestOrderPlaced counted
+		projected.ShippedAt.ShouldBeNull(); // TestOrderShipped was never applied
+	}
+
+	[Fact]
 	public void ThrowOnBuildWithNullRegistryParameter()
 	{
 		// Arrange

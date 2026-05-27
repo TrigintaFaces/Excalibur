@@ -30,7 +30,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddSingleton(collector);
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp => sp.GetRequiredService<CollectingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -58,7 +58,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddSingleton(collector);
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp => sp.GetRequiredService<CollectingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -82,7 +82,9 @@ public sealed class StreamConsumerHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		// Use an assembly with no handlers to prevent zero-config auto-scan from
+		// discovering test handler types (xUnit v3 runs in-process).
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -110,7 +112,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddSingleton(collector);
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp => sp.GetRequiredService<CollectingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -136,7 +138,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddSingleton(collector);
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp => sp.GetRequiredService<CollectingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -162,7 +164,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddSingleton(collector);
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp => sp.GetRequiredService<CollectingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -189,7 +191,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddSingleton(collector);
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp => sp.GetRequiredService<CollectingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -215,7 +217,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddSingleton(collector);
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp => sp.GetRequiredService<CollectingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -241,7 +243,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddSingleton(batcher);
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp => sp.GetRequiredService<BatchingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();

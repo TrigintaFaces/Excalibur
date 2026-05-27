@@ -358,3 +358,6 @@ virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.GetByIdAsync(s
 virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.QueryAsync(string! sql, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
 virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 
+Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.QueryPagedAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, int pageNumber, int pageSize, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.PagedResult<TProjection!>!>!
+Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.JsonSerializerOptions.get -> System.Text.Json.JsonSerializerOptions?
+Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.JsonSerializerOptions.set -> void

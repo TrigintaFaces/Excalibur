@@ -66,6 +66,7 @@ Do you need to publish messages reliably (no lost messages)?
 ```
 
 :::tip Common Combinations
+
 Most production systems use **Outbox + Inbox** together: Outbox on the sender side for reliable publishing, Inbox on the receiver side for idempotent processing. This gives you effective exactly-once semantics.
 :::
 

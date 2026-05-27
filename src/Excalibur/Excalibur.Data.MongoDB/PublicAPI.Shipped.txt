@@ -366,3 +366,4 @@ virtual Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.FindAsync(MongoD
 virtual Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
 virtual Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 
+Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>.QueryPagedAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, int pageNumber, int pageSize, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.PagedResult<TProjection!>!>!

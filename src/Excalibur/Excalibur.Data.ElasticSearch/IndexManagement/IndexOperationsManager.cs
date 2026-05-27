@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.IndexManagement;
-
+using Elastic.Clients.Elasticsearch.Mapping;
 
 using Microsoft.Extensions.Logging;
 
@@ -37,9 +40,10 @@ public sealed class IndexOperationsManager(ElasticsearchClient client, ILogger<I
 
 			var request = new CreateIndexRequest(indexName)
 			{
-				Settings = configuration.Settings,
-				Mappings = configuration.Mappings,
-				Aliases = configuration.Aliases?.ToDictionary(static kvp => (Name)kvp.Key, static kvp => kvp.Value),
+				Settings = DeserializeOrNull<IndexSettings>(configuration.SettingsJson),
+				Mappings = DeserializeOrNull<TypeMapping>(configuration.MappingsJson),
+				Aliases = DeserializeOrNull<Dictionary<string, Alias>>(configuration.AliasesJson)
+					?.ToDictionary(static kvp => (Name)kvp.Key, static kvp => kvp.Value),
 			};
 
 			var response = await _client.Indices.CreateAsync(request, cancellationToken).ConfigureAwait(false);
@@ -202,16 +206,17 @@ public sealed class IndexOperationsManager(ElasticsearchClient client, ILogger<I
 	}
 
 	/// <inheritdoc />
-	public async Task<bool> UpdateIndexSettingsAsync(string indexName, IndexSettings settings,
+	public async Task<bool> UpdateIndexSettingsAsync(string indexName, JsonElement settingsJson,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
-		ArgumentNullException.ThrowIfNull(settings);
 
 		try
 		{
 			_logger.LogInformation("Updating settings for index: {IndexName}", indexName);
 
+			var settings = DeserializeOrNull<IndexSettings>((JsonElement?)settingsJson)
+				?? new IndexSettings();
 			var request = new PutIndicesSettingsRequest(indexName) { Settings = settings };
 
 			var response = await _client.Indices.PutSettingsAsync(request, cancellationToken).ConfigureAwait(false);
@@ -266,4 +271,9 @@ public sealed class IndexOperationsManager(ElasticsearchClient client, ILogger<I
 			return false;
 		}
 	}
+
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Elastic SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Elastic SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	private static T? DeserializeOrNull<T>(JsonElement? element) where T : class =>
+		element.HasValue ? JsonSerializer.Deserialize<T>(element.Value) : null;
 }

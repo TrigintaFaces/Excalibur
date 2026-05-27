@@ -10,7 +10,7 @@ using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClass
 
 using Tests.Shared.Fixtures;
 
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch;
 

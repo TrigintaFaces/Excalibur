@@ -250,6 +250,7 @@ subscriber.IsSubscribed.ShouldBeFalse();
 ```
 
 :::note
+
 `PushAsync` throws `InvalidOperationException` if called before `SubscribeAsync`. Always start the subscription first.
 :::
 

@@ -31,13 +31,11 @@ public sealed class AotDualPathDispatchShould : IDisposable
 	{
 		// Clear static state before each test to prevent cross-test contamination
 		SagaContextFactoryRegistry.Clear();
-		SagaServiceCollectionExtensions.SagaPendingDispatchRegistrations.Clear();
 	}
 
 	public void Dispose()
 	{
 		SagaContextFactoryRegistry.Clear();
-		SagaServiceCollectionExtensions.SagaPendingDispatchRegistrations.Clear();
 	}
 
 	// -- ISagaDispatchRegistry Population Tests --

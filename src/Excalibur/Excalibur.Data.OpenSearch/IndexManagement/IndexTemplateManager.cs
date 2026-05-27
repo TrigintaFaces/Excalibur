@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+
 using Microsoft.Extensions.Logging;
 
 using OpenSearch.Client;
@@ -26,6 +29,7 @@ internal sealed class IndexTemplateManager(IOpenSearchClient client, ILogger<Ind
 	private readonly ILogger<IndexTemplateManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "OpenSearch low-level API requires runtime serialization of opaque JSON payloads.")]
 	public async Task<bool> CreateOrUpdateTemplateAsync(string templateName, IndexTemplateConfiguration template,
 		CancellationToken cancellationToken)
 	{
@@ -37,22 +41,31 @@ internal sealed class IndexTemplateManager(IOpenSearchClient client, ILogger<Ind
 			_logger.LogInformation("Creating or updating index template: {TemplateName}", templateName);
 
 			// OpenSearch uses _index_template API (composable templates) similar to ES 7.8+
+			// Build template body with opaque JSON payloads for settings/mappings
+			var templateBody = new Dictionary<string, object?>(StringComparer.Ordinal);
+			if (template.SettingsJson.HasValue)
+			{
+				templateBody["settings"] = template.SettingsJson.Value;
+			}
+
+			if (template.MappingsJson.HasValue)
+			{
+				templateBody["mappings"] = template.MappingsJson.Value;
+			}
+
 			var response = await _client.LowLevel.DoRequestAsync<StringResponse>(
 				HttpMethod.PUT,
 				$"_index_template/{Uri.EscapeDataString(templateName)}",
 				cancellationToken,
-				PostData.Serializable(new
+				PostData.String(JsonSerializer.Serialize(new Dictionary<string, object?>(StringComparer.Ordinal)
 				{
-					index_patterns = template.IndexPatterns.ToArray(),
-					priority = template.Priority,
-					version = template.Version,
-					template = new
-					{
-						// Settings and mappings will be serialized by the low-level client
-					},
-					composed_of = template.ComposedOf?.ToArray(),
-					_meta = template.Metadata,
-				})).ConfigureAwait(false);
+					["index_patterns"] = template.IndexPatterns.ToArray(),
+					["priority"] = template.Priority,
+					["version"] = template.Version,
+					["template"] = templateBody,
+					["composed_of"] = template.ComposedOf?.ToArray(),
+					["_meta"] = template.Metadata,
+				}))).ConfigureAwait(false);
 
 			if (response.Success)
 			{
@@ -160,6 +173,7 @@ internal sealed class IndexTemplateManager(IOpenSearchClient client, ILogger<Ind
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "OpenSearch low-level API requires runtime serialization of opaque JSON payloads.")]
 	public async Task<bool> CreateOrUpdateComponentTemplateAsync(string templateName, ComponentTemplateConfiguration template,
 		CancellationToken cancellationToken)
 	{
@@ -171,16 +185,28 @@ internal sealed class IndexTemplateManager(IOpenSearchClient client, ILogger<Ind
 			_logger.LogInformation("Creating or updating component template: {TemplateName}", templateName);
 
 			// OpenSearch uses _component_template API
+			// Build template body with opaque JSON payloads for settings/mappings
+			var templateBody = new Dictionary<string, object?>(StringComparer.Ordinal);
+			if (template.SettingsJson.HasValue)
+			{
+				templateBody["settings"] = template.SettingsJson.Value;
+			}
+
+			if (template.MappingsJson.HasValue)
+			{
+				templateBody["mappings"] = template.MappingsJson.Value;
+			}
+
 			var response = await _client.LowLevel.DoRequestAsync<StringResponse>(
 				HttpMethod.PUT,
 				$"_component_template/{Uri.EscapeDataString(templateName)}",
 				cancellationToken,
-				PostData.Serializable(new
+				PostData.String(JsonSerializer.Serialize(new Dictionary<string, object?>(StringComparer.Ordinal)
 				{
-					version = template.Version,
-					template = new { },
-					_meta = template.Metadata,
-				})).ConfigureAwait(false);
+					["version"] = template.Version,
+					["template"] = templateBody,
+					["_meta"] = template.Metadata,
+				}))).ConfigureAwait(false);
 
 			if (response.Success)
 			{

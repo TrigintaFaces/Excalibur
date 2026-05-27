@@ -39,9 +39,9 @@ public sealed class KafkaTransportReceiverIntegrationShould
 	}
 
 	private void EnsureKafkaAvailable() =>
-		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
 
-	[SkippableFact]
+	[Fact]
 	public async Task ReceiveMessages_FromPopulatedTopic()
 	{
 		EnsureKafkaAvailable();
@@ -103,7 +103,7 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		}
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ReceiveFromEmptyTopic_ReturnsEmptyList()
 	{
 		EnsureKafkaAvailable();
@@ -142,7 +142,7 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		received.Count.ShouldBe(0);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ReceiveRespectsCancellationToken()
 	{
 		EnsureKafkaAvailable();
@@ -177,7 +177,7 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		received.Count.ShouldBe(0);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task AcknowledgeMessage_CommitsOffset()
 	{
 		EnsureKafkaAvailable();
@@ -212,7 +212,7 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		secondReceive.Count.ShouldBe(0);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task RejectMessage_WithoutRequeue_CommitsOffset()
 	{
 		EnsureKafkaAvailable();
@@ -248,7 +248,7 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		secondReceive.Count.ShouldBe(0);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task GetService_ReturnsUnderlyingConsumer()
 	{
 		EnsureKafkaAvailable();
@@ -266,7 +266,7 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		service.ShouldBeAssignableTo<IConsumer<string, byte[]>>();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task GetService_ReturnsNullForUnknownType()
 	{
 		EnsureKafkaAvailable();
@@ -283,7 +283,7 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		service.ShouldBeNull();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ReceiveMessage_SetsEnqueuedAt()
 	{
 		EnsureKafkaAvailable();

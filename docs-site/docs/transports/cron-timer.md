@@ -19,6 +19,7 @@ The Cron Timer transport enables scheduled message dispatching using cron expres
 - Familiarity with [choosing a transport](./choosing-a-transport.md) and [actions and handlers](../core-concepts/actions-and-handlers.md)
 
 :::tip ASP.NET Core Eventing Framework
+
 This transport fulfills the `AddTimerEventQueue()` capability from the [ASP.NET Core Eventing Framework proposal](https://github.com/dotnet/aspnetcore/issues/53219). See [From ASP.NET Core Eventing Proposal](../migration/from-aspnet-eventing-proposal.md) for a complete comparison of how Dispatch implements all the proposed features.
 :::
 

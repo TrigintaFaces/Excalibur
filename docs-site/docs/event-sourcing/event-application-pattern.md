@@ -111,6 +111,7 @@ protected override void ApplyEventInternal(IDomainEvent @event)
 ```
 
 :::tip Performance Optimization
+
 This pattern-matching approach achieves **under 10 nanoseconds** per event application because:
 - No reflection is used
 - No dictionary lookups

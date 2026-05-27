@@ -1,123 +1,123 @@
+using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Saga.Abstractions;
+using Excalibur.Saga.Orchestration;
+
+using Company.ExcaliburSaga.Messages;
+
+using Microsoft.Extensions.Logging;
 
 namespace Company.ExcaliburSaga.Sagas;
 
 /// <summary>
 /// Order processing saga that coordinates payment, inventory, and shipping.
-/// Demonstrates a multi-step process manager with compensation logic.
+/// Demonstrates event-driven choreography with timeout handling using
+/// <see cref="SagaBase{TSagaState}"/> and <see cref="ISagaTimeout{TMessage}"/>.
 /// </summary>
-public sealed class OrderSaga : ISagaDefinition<OrderSagaData>, ISagaDefinitionLifecycle<OrderSagaData>
+public sealed partial class OrderSaga(
+    OrderSagaState initialState,
+    IDispatcher dispatcher,
+    ILogger<OrderSaga> logger)
+    : SagaBase<OrderSagaState>(initialState, dispatcher, logger),
+      ISagaTimeout<PaymentTimedOut>
 {
     /// <inheritdoc />
-    public string Name => "OrderProcessing";
-
-    /// <inheritdoc />
-    public TimeSpan Timeout => TimeSpan.FromMinutes(30);
-
-    /// <inheritdoc />
-    public IReadOnlyList<ISagaStep<OrderSagaData>> Steps { get; } = new ISagaStep<OrderSagaData>[]
+    public override bool HandlesEvent(object eventMessage)
     {
-        new CollectPaymentStep(),
-        new ReserveInventoryStep(),
-        new ShipOrderStep(),
-    };
+        return eventMessage is StartOrderProcessing
+            or PaymentCollected
+            or InventoryReserved
+            or OrderShipped;
+    }
 
     /// <inheritdoc />
-    public ISagaRetryPolicy? RetryPolicy => null;
-
-    /// <inheritdoc />
-    public Task OnCompletedAsync(ISagaContext<OrderSagaData> context, CancellationToken cancellationToken)
+    public override async Task HandleAsync(object eventMessage, CancellationToken cancellationToken)
     {
-        var data = context.Data;
-        Console.WriteLine($"Order {data.OrderId} completed. Tracking: {data.TrackingNumber}");
+        switch (eventMessage)
+        {
+            case StartOrderProcessing start:
+                await HandleStartAsync(start, cancellationToken).ConfigureAwait(false);
+                break;
+            case PaymentCollected payment:
+                await HandlePaymentCollectedAsync(payment, cancellationToken).ConfigureAwait(false);
+                break;
+            case InventoryReserved reserved:
+                HandleInventoryReserved(reserved);
+                break;
+            case OrderShipped shipped:
+                await HandleOrderShippedAsync(shipped, cancellationToken).ConfigureAwait(false);
+                break;
+        }
+    }
+
+    /// <inheritdoc />
+    public Task HandleTimeoutAsync(PaymentTimedOut message, CancellationToken cancellationToken)
+    {
+        LogTimeoutReceived(State.SagaId, nameof(PaymentTimedOut));
+        State.FailureReason = "Payment confirmation timed out";
+        MarkCompleted();
         return Task.CompletedTask;
     }
 
-    /// <inheritdoc />
-    public Task OnFailedAsync(ISagaContext<OrderSagaData> context, Exception exception, CancellationToken cancellationToken)
+    private async Task HandleStartAsync(StartOrderProcessing start, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"Order {context.Data.OrderId} failed: {exception.Message}");
-        return Task.CompletedTask;
+        State.OrderId = start.OrderId;
+        State.ProductId = start.ProductId;
+        State.Quantity = start.Quantity;
+        State.TotalAmount = start.UnitPrice * start.Quantity;
+
+        LogSagaStarted(State.SagaId, start.OrderId);
+
+        // Schedule a payment timeout — if payment is not confirmed within 5 minutes, fail the saga
+        State.TimeoutId = await RequestTimeoutAsync<PaymentTimedOut>(
+            TimeSpan.FromMinutes(5), cancellationToken).ConfigureAwait(false);
     }
+
+    private async Task HandlePaymentCollectedAsync(PaymentCollected payment, CancellationToken cancellationToken)
+    {
+        State.PaymentCollected = true;
+        State.CompletedSteps.Add("CollectPayment");
+        LogStepCompleted(State.SagaId, "CollectPayment");
+
+        // Cancel the payment timeout since we got confirmation
+        if (State.TimeoutId is not null)
+        {
+            await CancelTimeoutAsync(State.TimeoutId, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private void HandleInventoryReserved(InventoryReserved reserved)
+    {
+        State.InventoryReserved = true;
+        State.CompletedSteps.Add("ReserveInventory");
+        LogStepCompleted(State.SagaId, "ReserveInventory");
+    }
+
+    private async Task HandleOrderShippedAsync(OrderShipped shipped, CancellationToken cancellationToken)
+    {
+        State.TrackingNumber = shipped.TrackingNumber;
+        State.CompletedSteps.Add("ShipOrder");
+        LogStepCompleted(State.SagaId, "ShipOrder");
+
+        LogSagaCompleted(State.SagaId, State.OrderId);
+        await MarkCompletedAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // Source-generated logging
+    [LoggerMessage(Level = LogLevel.Information, Message = "Saga {SagaId} started for order {OrderId}")]
+    private partial void LogSagaStarted(Guid sagaId, Guid orderId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Saga {SagaId} step {StepName} completed")]
+    private partial void LogStepCompleted(Guid sagaId, string stepName);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Saga {SagaId} completed for order {OrderId}")]
+    private partial void LogSagaCompleted(Guid sagaId, Guid orderId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Saga {SagaId} received timeout {TimeoutType}")]
+    private partial void LogTimeoutReceived(Guid sagaId, string timeoutType);
 }
 
 /// <summary>
-/// Step 1: Collect payment for the order.
+/// Timeout message dispatched when payment confirmation is not received within the deadline.
 /// </summary>
-internal sealed class CollectPaymentStep : ISagaStep<OrderSagaData>
-{
-    public string Name => "CollectPayment";
-    public bool CanCompensate => true;
-    public TimeSpan Timeout => TimeSpan.FromMinutes(5);
-
-    public Task<StepResult> ExecuteAsync(ISagaContext<OrderSagaData> context, CancellationToken cancellationToken)
-    {
-        var data = context.Data;
-        // TODO: Integrate with your payment service
-        data.PaymentCollected = true;
-        Console.WriteLine($"Payment of {data.TotalAmount:C} collected for order {data.OrderId}");
-        return Task.FromResult(StepResult.Success);
-    }
-
-    public Task<StepResult> CompensateAsync(ISagaContext<OrderSagaData> context, CancellationToken cancellationToken)
-    {
-        var data = context.Data;
-        // TODO: Refund payment
-        data.PaymentCollected = false;
-        Console.WriteLine($"Payment refunded for order {data.OrderId}");
-        return Task.FromResult(StepResult.Success);
-    }
-}
-
-/// <summary>
-/// Step 2: Reserve inventory for the order.
-/// </summary>
-internal sealed class ReserveInventoryStep : ISagaStep<OrderSagaData>
-{
-    public string Name => "ReserveInventory";
-    public bool CanCompensate => true;
-    public TimeSpan Timeout => TimeSpan.FromMinutes(5);
-
-    public Task<StepResult> ExecuteAsync(ISagaContext<OrderSagaData> context, CancellationToken cancellationToken)
-    {
-        var data = context.Data;
-        // TODO: Integrate with your inventory service
-        data.InventoryReserved = true;
-        Console.WriteLine($"Reserved {data.Quantity}x {data.ProductId} for order {data.OrderId}");
-        return Task.FromResult(StepResult.Success);
-    }
-
-    public Task<StepResult> CompensateAsync(ISagaContext<OrderSagaData> context, CancellationToken cancellationToken)
-    {
-        var data = context.Data;
-        // TODO: Release inventory reservation
-        data.InventoryReserved = false;
-        Console.WriteLine($"Released inventory for order {data.OrderId}");
-        return Task.FromResult(StepResult.Success);
-    }
-}
-
-/// <summary>
-/// Step 3: Ship the order.
-/// </summary>
-internal sealed class ShipOrderStep : ISagaStep<OrderSagaData>
-{
-    public string Name => "ShipOrder";
-    public bool CanCompensate => false;
-    public TimeSpan Timeout => TimeSpan.FromMinutes(10);
-
-    public Task<StepResult> ExecuteAsync(ISagaContext<OrderSagaData> context, CancellationToken cancellationToken)
-    {
-        var data = context.Data;
-        // TODO: Integrate with your shipping service
-        data.TrackingNumber = $"TRACK-{Guid.NewGuid():N}"[..16].ToUpperInvariant();
-        Console.WriteLine($"Order {data.OrderId} shipped with tracking {data.TrackingNumber}");
-        return Task.FromResult(StepResult.Success);
-    }
-
-    public Task<StepResult> CompensateAsync(ISagaContext<OrderSagaData> context, CancellationToken cancellationToken)
-    {
-        // Shipping cannot be compensated once dispatched
-        return Task.FromResult(StepResult.Success);
-    }
-}
+public sealed class PaymentTimedOut;

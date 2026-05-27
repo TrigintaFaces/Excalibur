@@ -148,8 +148,6 @@ Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeLeaderElection.get -
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeLeaderElection.set -> void
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeOutbox.get -> bool
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeOutbox.set -> void
-Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeSaga.get -> bool
-Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeSaga.set -> void
 Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions
 Microsoft.Extensions.DependencyInjection.DispatchHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.ExcaliburBuilderContextExtensions

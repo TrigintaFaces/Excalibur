@@ -1,91 +1,99 @@
 # Saga Orchestration Example
 
-This example demonstrates advanced saga orchestration patterns including timeout scheduling, LIFO compensation, state persistence, and operational monitoring.
+This example demonstrates the **Excalibur.Saga** framework's event-driven choreography model for long-running business processes.
 
 ## Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        ORDER FULFILLMENT SAGA                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Execute:   ReserveInventory → ProcessPayment → ShipOrder → COMPLETE        │
-│                                      │                                      │
-│                                      └── (on failure)                       │
-│                                              │                              │
-│  Compensate:                                 ▼                              │
-│             ReserveInventory ← ProcessPayment (LIFO order)                  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+Event-Driven Saga Flow:
+
+  StartOrderProcessing (creates saga)
+       |
+       v
+  InventoryReserved --> PaymentProcessed --> OrderShipped --> COMPLETE
+                              |
+                              +-- PaymentFailed --> FAILED (graceful)
+                              |
+                              +-- PaymentTimeout --> FAILED (timed out)
 ```
 
 ## Key Patterns Demonstrated
 
-### 1. Timeout Scheduling
+### 1. Event-Driven Choreography with `SagaBase<TSagaState>`
 
-Schedule timeouts to ensure resources aren't held indefinitely:
-
-```csharp
-// Schedule a 5-minute inventory reservation timeout
-var timeoutId = await saga.RequestTimeoutAsync<InventoryReservationTimeout>(
-    sagaId,
-    TimeSpan.FromMinutes(5),
-    cancellationToken);
-
-// Cancel if saga completes before timeout
-await saga.CancelTimeoutAsync(sagaId, timeoutId, cancellationToken);
-```
-
-### 2. LIFO Compensation
-
-Steps are compensated in reverse order (Last-In-First-Out):
+The saga extends the framework's base class and reacts to events dispatched through `IDispatcher`:
 
 ```csharp
-// Execution order: A → B → C
-// If C fails, compensation order: B → A (reverse)
-foreach (var stepName in data.CompletedSteps.Reverse())
+public sealed partial class OrderFulfillmentSaga(
+    OrderSagaState initialState,
+    IDispatcher dispatcher,
+    ILogger<OrderFulfillmentSaga> logger)
+    : SagaBase<OrderSagaState>(initialState, dispatcher, logger),
+      ISagaTimeout<PaymentTimeout>
 {
-    var step = GetStep(stepName);
-    await step.CompensateAsync(data, cancellationToken);
-}
-```
-
-### 3. State Persistence
-
-State is saved after each step for recovery:
-
-```csharp
-public async Task ExecuteStepAsync(OrderSagaData data, ISagaStep step)
-{
-    var success = await step.ExecuteAsync(data, cancellationToken);
-    if (success)
+    public override async Task HandleAsync(object eventMessage, CancellationToken ct)
     {
-        data.CompletedSteps.Add(step.Name);
-        data.Version++;
-        await _stateStore.SaveAsync(data, cancellationToken); // Checkpoint
+        switch (eventMessage)
+        {
+            case StartOrderProcessing start:
+                // Initialize state, schedule timeout
+                break;
+            case PaymentProcessed paid:
+                // Cancel timeout, mark step complete
+                break;
+            // ...
+        }
     }
 }
 ```
 
-### 4. Saga Resume After Restart
+### 2. Timeout Scheduling with `ISagaTimeout<T>`
+
+Schedule timeouts and handle them via a strongly-typed interface:
 
 ```csharp
-// After process restart, recover and continue from last checkpoint
-var saga = new OrderFulfillmentSaga(stateStore, timeoutStore, steps);
-await saga.ResumeAsync(sagaId, cancellationToken);
+// Schedule a timeout during saga start
+State.TimeoutId = await RequestTimeoutAsync<PaymentTimeout>(
+    TimeSpan.FromMinutes(5), cancellationToken);
+
+// Implement the timeout handler
+public Task HandleTimeoutAsync(PaymentTimeout message, CancellationToken ct)
+{
+    State.FailureReason = "Payment confirmation timed out";
+    MarkCompleted();
+    return Task.CompletedTask;
+}
 ```
 
-### 5. Monitoring Dashboard
+### 3. Saga State with Built-in Idempotency
 
-Operational visibility into saga execution:
+Extending `SagaState` provides versioning and duplicate event detection:
 
 ```csharp
-var dashboard = await dashboardService.GetDashboardAsync(cancellationToken);
-// dashboard.TotalSagas, RunningCount, CompletedCount, FailedCount, SuccessRate
+public sealed class OrderSagaState : SagaState
+{
+    public string OrderId { get; set; } = string.Empty;
+    public decimal TotalAmount { get; set; }
+    // ... domain-specific state
+}
+```
 
-var stuckSagas = await dashboardService.GetStuckSagasAsync(
-    TimeSpan.FromMinutes(30), cancellationToken);
-// Sagas with no progress for 30+ minutes
+### 4. Framework DI Registration
+
+```csharp
+services.AddExcaliburOrchestration();    // Coordinator + middleware + store
+services.AddSagaTimeoutDelivery();       // Timeout infrastructure
+services.AddSaga<OrderFulfillmentSaga, OrderSagaState>();  // Register saga type
+
+SagaRegistry.Register<OrderFulfillmentSaga, OrderSagaState>(info =>
+{
+    info.StartsWith<StartOrderProcessing>();
+    info.Handles<InventoryReserved>();
+    info.Handles<PaymentProcessed>();
+    info.Handles<OrderShipped>();
+    info.Handles<PaymentFailed>();
+    info.Handles<PaymentTimeout>();
+});
 ```
 
 ## Project Structure
@@ -94,19 +102,13 @@ var stuckSagas = await dashboardService.GetStuckSagasAsync(
 SagaOrchestration/
 ├── SagaOrchestration.csproj
 ├── README.md
-├── Program.cs                           # Demo entry point
+├── Program.cs                           # Demo entry point with two scenarios
 ├── Sagas/
-│   ├── OrderSagaData.cs                # Saga state data
-│   └── OrderFulfillmentSaga.cs         # Main orchestrator
-├── Steps/
-│   ├── ISagaStep.cs                    # Step interface
-│   ├── ReserveInventoryStep.cs         # Step 1: Reserve inventory
-│   ├── ProcessPaymentStep.cs           # Step 2: Process payment
-│   └── ShipOrderStep.cs                # Step 3: Ship order
+│   ├── OrderSagaState.cs               # Saga state (extends SagaState)
+│   ├── OrderSagaEvents.cs             # ISagaEvent implementations
+│   └── OrderFulfillmentSaga.cs         # Saga logic (extends SagaBase<T>)
 ├── Timeouts/
-│   └── SagaTimeouts.cs                 # Timeout markers & store
-├── Monitoring/
-│   └── SagaDashboardService.cs         # Dashboard & monitoring
+│   └── SagaTimeouts.cs                 # PaymentTimeout (ISagaEvent)
 └── Configuration/
     └── SagaConfiguration.cs            # DI setup
 ```
@@ -121,80 +123,48 @@ dotnet run
 ### Expected Output
 
 ```
-╔═══════════════════════════════════════════════════════════╗
-║         SAGA ORCHESTRATION PATTERNS EXAMPLE               ║
-╚═══════════════════════════════════════════════════════════╝
+====================================================================
+       SAGA ORCHESTRATION PATTERNS EXAMPLE (Excalibur.Saga)
+====================================================================
 
-┌─────────────────────────────────────────────────────────┐
-│  DEMO 1: Happy Path (All Steps Succeed)                 │
-└─────────────────────────────────────────────────────────┘
+--------------------------------------------------------------------
+  DEMO 1: Happy Path (Event-Driven Saga)
+--------------------------------------------------------------------
 
-Starting saga for Order: ORD-2024-001
-Customer: CUST-12345, Amount: $299.99
+[1] Dispatching StartOrderProcessing (SagaId: abc12345...)
+[2] Dispatching InventoryReserved
+[3] Dispatching PaymentProcessed
+[4] Dispatching OrderShipped
 
-info: SagaOrchestration.Sagas.OrderFulfillmentSaga[0]
-      Saga saga-xxx started for order ORD-2024-001
-info: SagaOrchestration.Steps.ReserveInventoryStep[0]
-      Reserving inventory for order ORD-2024-001, SKU: SKU-WIDGET-100
-info: SagaOrchestration.Steps.ProcessPaymentStep[0]
-      Processing payment for order ORD-2024-001, Amount: $299.99
-info: SagaOrchestration.Steps.ShipOrderStep[0]
-      Creating shipment for order ORD-2024-001
+Saga completed through event-driven choreography.
 
-Result: Completed
-Completed Steps: ReserveInventory → ProcessPayment → ShipOrder
-Tracking Number: TRK-20241223-XXXXXXXX
+--------------------------------------------------------------------
+  DEMO 2: Payment Failure (Graceful Handling)
+--------------------------------------------------------------------
 
-┌─────────────────────────────────────────────────────────┐
-│  DEMO 2: Compensation (Payment Fails → LIFO Rollback)   │
-└─────────────────────────────────────────────────────────┘
+[1] Dispatching StartOrderProcessing (SagaId: def67890...)
+[2] Dispatching InventoryReserved
+[3] Dispatching PaymentFailed
 
-(Shows inventory reservation being released after payment failure)
-
-┌─────────────────────────────────────────────────────────┐
-│  DEMO 3: Monitoring Dashboard                           │
-└─────────────────────────────────────────────────────────┘
-
-╔═══════════════════════════════════════════════════════════╗
-║                  SAGA DASHBOARD                           ║
-╠═══════════════════════════════════════════════════════════╣
-║  Total Sagas:          7                                 ║
-║  Running:              2                                 ║
-║  Completed:            3                                 ║
-║  Failed:               1                                 ║
-║  Compensating:         1                                 ║
-║  Success Rate:        75%                                ║
-╚═══════════════════════════════════════════════════════════╝
+Saga handled payment failure gracefully.
 ```
 
-## Configuration
+## Framework Types Used
 
-```csharp
-builder.Services.AddSagaOrchestration(options =>
-{
-    options.MaxCompensationRetries = 3;
-    options.InventoryReservationTimeout = TimeSpan.FromMinutes(5);
-    options.PaymentConfirmationTimeout = TimeSpan.FromMinutes(10);
-    options.StuckSagaThreshold = TimeSpan.FromMinutes(30);
-});
-```
+| Type | Package | Purpose |
+|------|---------|---------|
+| `SagaBase<TSagaState>` | Excalibur.Saga | Abstract saga base class |
+| `SagaState` | Excalibur.Dispatch.Abstractions | Base state with versioning + idempotency |
+| `ISagaEvent` | Excalibur.Dispatch.Abstractions | Event marker for saga routing |
+| `ISagaTimeout<T>` | Excalibur.Saga | Typed timeout handler interface |
+| `SagaRegistry` | Excalibur.Saga | Static event-to-saga mapping |
+| `SagaCoordinator` | Excalibur.Saga | Routes events to saga instances |
+| `IDispatcher` | Excalibur.Dispatch.Abstractions | Dispatches messages through pipeline |
 
 ## Best Practices
 
-1. **Always persist state after each step** - Enables recovery after process restart
-2. **Use version/optimistic concurrency** - Prevents concurrent updates from corrupting state
-3. **Compensate in LIFO order** - Ensures proper rollback semantics
-4. **Schedule timeouts for resource reservations** - Prevents holding resources indefinitely
-5. **Monitor for stuck sagas** - Alert when sagas haven't progressed in N minutes
-
-## Related Patterns
-
-- [CDC Anti-Corruption Layer](../../09-advanced/CdcAntiCorruption/) - Translating CDC events to commands
-- [Saga Functional Tests](../../../tests/functional/Excalibur.Dispatch.Tests.Functional/Workflows/) - Comprehensive test patterns
-
-## Sprint 197 Reference
-
-This example was created as part of Sprint 197 (Saga Orchestration Advanced Tests).
-
-See: `management/sprints/sprint-197-plan.md`
-
+1. **Use `ISagaEvent` for all saga messages** -- enables automatic routing via the middleware
+2. **Set `StepId` on events** -- enables idempotent deduplication per step
+3. **Schedule timeouts for expected responses** -- prevents sagas from hanging indefinitely
+4. **Use `MarkCompletedAsync` (not `MarkCompleted`)** -- cancels all pending timeouts automatically
+5. **Register all handled events in `SagaRegistry`** -- the coordinator only routes registered events

@@ -308,4 +308,49 @@ public sealed class CosmosDbProjectionStoreOptionsShould
 	}
 
 	#endregion
+
+	#region AOT-Safe JsonSerializerOptions (bd-yd29oo)
+
+	[Fact]
+	public void JsonSerializerOptions_DefaultsToNull()
+	{
+		// Arrange & Act
+		var options = new CosmosDbProjectionStoreOptions();
+
+		// Assert — null means store uses internal camelCase options
+		options.JsonSerializerOptions.ShouldBeNull();
+	}
+
+	[Fact]
+	public void JsonSerializerOptions_AcceptsCustomValue()
+	{
+		// Arrange
+		var options = new CosmosDbProjectionStoreOptions();
+		var custom = new System.Text.Json.JsonSerializerOptions
+		{
+			PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+		};
+
+		// Act
+		options.JsonSerializerOptions = custom;
+
+		// Assert
+		options.JsonSerializerOptions.ShouldBeSameAs(custom);
+	}
+
+	[Fact]
+	public void JsonSerializerOptions_CanBeSetToNullExplicitly()
+	{
+		// Arrange
+		var options = new CosmosDbProjectionStoreOptions();
+		options.JsonSerializerOptions = new System.Text.Json.JsonSerializerOptions();
+
+		// Act — consumer resets to null (back to default behavior)
+		options.JsonSerializerOptions = null;
+
+		// Assert
+		options.JsonSerializerOptions.ShouldBeNull();
+	}
+
+	#endregion
 }

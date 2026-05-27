@@ -31,7 +31,7 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 	private IColdEventStore? _store;
 	private bool _available;
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -64,7 +64,7 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		try
 		{

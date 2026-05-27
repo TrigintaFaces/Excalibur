@@ -184,6 +184,7 @@ services.AddDispatch(dispatch =>
 Transport routing selects the message bus for each message type. This is the first tier evaluated during routing.
 
 :::info IIntegrationEvent Constraint
+
 Transport routing is restricted to `IIntegrationEvent` types only. This enforces the DDD principle that only integration events should cross service boundaries:
 
 - **Commands** are handled locally by a single handler (request-response semantics)

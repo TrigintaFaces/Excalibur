@@ -36,7 +36,7 @@ public sealed class PostgresSagaStoreConformanceShould : IAsyncLifetime
 	}
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
 
@@ -57,7 +57,7 @@ public sealed class PostgresSagaStoreConformanceShould : IAsyncLifetime
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 	}

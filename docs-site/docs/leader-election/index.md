@@ -191,6 +191,7 @@ services.AddExcalibur(excalibur => excalibur.AddLeaderElection(options));
 ```
 
 :::note
+
 The pre-built options overload uses `Options.Create()` directly, which bypasses `ValidateOnStart`. Ensure your options are valid before passing them.
 :::
 
@@ -212,6 +213,7 @@ The pre-built options overload uses `Options.Create()` directly, which bypasses 
 | `WithOptions(configure)` | `Excalibur.LeaderElection` | Configures `LeaderElectionOptions` |
 
 :::note
+
 Previous standalone `AddRedisLeaderElection` methods have been removed. Use the builder API shown above for all new registrations.
 :::
 
@@ -727,6 +729,7 @@ builder.Services.AddInMemoryLeaderElection();
 ```
 
 :::note
+
 `AddInMemoryLeaderElection` registers `ILeaderElectionFactory`, not `ILeaderElection` directly.
 Use the factory to create election instances for specific resources:
 

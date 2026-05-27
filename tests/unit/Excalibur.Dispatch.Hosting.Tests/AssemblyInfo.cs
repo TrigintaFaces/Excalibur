@@ -3,4 +3,4 @@
 
 using Xunit;
 
-[assembly: AssemblyTrait("Category", "Unit")]
+// xUnit v3: removed — [assembly: AssemblyTrait("Category", "Unit")]

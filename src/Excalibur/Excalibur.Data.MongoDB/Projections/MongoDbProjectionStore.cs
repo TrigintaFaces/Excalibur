@@ -30,7 +30,7 @@ namespace Excalibur.Data.MongoDB.Projections;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionStore<TProjection>, IAsyncDisposable
+public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>, IAsyncDisposable
 	where TProjection : class
 {
 	/// <summary>
@@ -272,6 +272,48 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 		return await _collection!.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async Task<PagedResult<TProjection>> QueryPagedAsync(
+		IDictionary<string, object>? filters,
+		int pageNumber,
+		int pageSize,
+		QueryOptions? options,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var filter = BuildFilter(filters);
+		var sort = BuildSort(options);
+		var offset = (pageNumber - 1) * pageSize;
+
+		// Execute data + count queries concurrently for single-roundtrip semantics
+		var dataTask = _collection!.Find(filter)
+			.Sort(sort)
+			.Skip(offset)
+			.Limit(pageSize)
+			.ToListAsync(cancellationToken);
+
+		var countTask = _collection!.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+
+		await Task.WhenAll(dataTask, countTask).ConfigureAwait(false);
+
+		var documents = await dataTask.ConfigureAwait(false);
+		var totalCount = await countTask.ConfigureAwait(false);
+
+		var results = new List<TProjection>(documents.Count);
+		foreach (var doc in documents)
+		{
+			StripProjectionMetadata(doc);
+			results.Add(BsonSerializer.Deserialize<TProjection>(doc));
+		}
+
+		return new PagedResult<TProjection>(results, pageNumber, pageSize, totalCount);
 	}
 
 	/// <inheritdoc/>

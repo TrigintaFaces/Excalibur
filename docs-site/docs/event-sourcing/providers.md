@@ -131,6 +131,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 ```
 
 :::tip Connection overloads
+
 The Postgres builder supports 5 connection methods (last-wins if multiple are called):
 
 ```csharp
@@ -218,6 +219,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 All three use the same `Excalibur.EventSourcing.Postgres` package, DDL, and query paths. Tenant sharding (`UsePostgresTenantEventStore`) and parallel catch-up (`PostgresRangeQueryEventStore`) also work with wire-compatible databases.
 
 :::tip
+
 For CockroachDB, set `options.SchemaName = "public"` (CockroachDB does not support custom schemas in the same way as PostgreSQL). For YugabyteDB, the default `public` schema works as expected.
 :::
 
@@ -265,6 +267,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 ```
 
 :::tip Connection overloads
+
 The CosmosDb builder supports 5 connection methods (last-wins if multiple are called):
 
 ```csharp
@@ -422,6 +425,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 ```
 
 :::tip Connection overloads
+
 The MongoDB builder supports 4 connection methods (last-wins if multiple are called):
 
 ```csharp
@@ -478,6 +482,7 @@ Registers both `IEventStore` and `ISnapshotStore` backed by SQLite.
 | `SnapshotStoreTable` | `"Snapshots"` | Table name for snapshots |
 
 :::tip When to use SQLite
+
 SQLite is ideal for **local development**, **quick prototyping**, and **unit/integration tests** where you want a real database without Docker. For production workloads, use SQL Server, PostgreSQL, or a cloud provider.
 :::
 

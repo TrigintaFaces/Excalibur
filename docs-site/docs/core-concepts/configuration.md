@@ -120,6 +120,7 @@ builder.Services.AddDispatch(dispatch =>
 ```
 
 :::info Automatic Default Pipeline
+
 When you use `UseMiddleware<T>()` without explicitly calling `ConfigurePipeline()`, Dispatch automatically creates a **"Default" pipeline** containing your global middleware. This means you don't need to configure pipelines for simple scenarios—your middleware is applied to all messages automatically.
 :::
 
@@ -191,6 +192,7 @@ builder.Services.AddDispatch(dispatch =>
 ```
 
 :::tip Short names on the builder
+
 When called on `IDispatchBuilder`, the `Dispatch` prefix is dropped since it's redundant.
 For example, `services.AddDispatchObservability()` becomes `dispatch.UseObservability()`.
 :::

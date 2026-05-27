@@ -81,7 +81,7 @@ public sealed class DynamoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 	public string TableName { get; } = "events";
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -208,7 +208,7 @@ public sealed class DynamoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		Dispose();
 

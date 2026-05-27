@@ -31,9 +31,9 @@ public sealed class FirestoreEventStoreTelemetryShould : IClassFixture<Firestore
 		_fixture = fixture;
 	}
 
-	public Task InitializeAsync() => Task.CompletedTask;
+	public ValueTask InitializeAsync() => default;
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_fixture.IsInitialized)
 		{
