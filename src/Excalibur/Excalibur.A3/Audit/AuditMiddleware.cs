@@ -8,18 +8,17 @@ using Excalibur.A3.Audit.Events;
 using Excalibur.A3.Diagnostics;
 using Excalibur.Application.Requests;
 using Excalibur.Application.Requests.Jobs;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Domain;
-
-using ExcaliburHeaderNames = Excalibur.Application.ExcaliburHeaderNames;
 
 using Microsoft.Extensions.Logging;
 
-using ApiException = Excalibur.Dispatch.Abstractions.ApiException;
+using ApiException = Excalibur.Dispatch.ApiException;
+using ExcaliburHeaderNames = Excalibur.Application.ExcaliburHeaderNames;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 using OutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
-using TenantId = Excalibur.Dispatch.Abstractions.TenantId;
+using TenantId = Excalibur.Dispatch.TenantId;
 
 namespace Excalibur.A3.Audit;
 

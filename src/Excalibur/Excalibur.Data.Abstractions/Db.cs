@@ -5,7 +5,7 @@
 using System.Data;
 using System.Data.Common;
 
-namespace Excalibur.Data.Abstractions;
+namespace Excalibur.Data;
 
 /// <summary>
 /// Abstract base class that implements the <see cref="IDb" /> interface for managing a database connection.

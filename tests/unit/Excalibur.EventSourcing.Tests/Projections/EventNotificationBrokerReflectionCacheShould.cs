@@ -3,7 +3,7 @@
 
 #pragma warning disable CA1506 // Excessive class coupling -- tests for reflection-heavy broker require many DI types
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Projections;
 

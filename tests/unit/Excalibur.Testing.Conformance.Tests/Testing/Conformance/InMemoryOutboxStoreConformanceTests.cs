@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Outbox.InMemory;
 using Excalibur.Testing.Conformance;
@@ -17,7 +17,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 /// Conformance tests for <see cref="InMemoryOutboxStore"/> validating IOutboxStore contract compliance.
 /// </summary>
 /// <remarks>
-/// InMemoryOutboxStore directly implements <see cref="IOutboxStore"/> from Excalibur.Dispatch.Abstractions.Outbox.
+/// InMemoryOutboxStore directly implements <see cref="IOutboxStore"/> from Excalibur.Dispatch.Outbox.
 /// A minimal NullUtf8JsonSerializer is used since conformance tests use StageMessageAsync (not EnqueueAsync).
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]

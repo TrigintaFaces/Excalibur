@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Amazon.S3;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.AwsS3;
 using Excalibur.EventSourcing.AwsS3.DependencyInjection;
 using Excalibur.EventSourcing.DependencyInjection;

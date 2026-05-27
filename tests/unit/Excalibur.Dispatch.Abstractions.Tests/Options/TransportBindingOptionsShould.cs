@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Options;
+using Excalibur.Dispatch.Options;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Options;
+namespace Excalibur.Dispatch.Tests.Options;
 
 /// <summary>
 /// Unit tests for <see cref="TransportBindingOptions"/>.

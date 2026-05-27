@@ -5,11 +5,11 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Observability.Context;
 using Excalibur.Dispatch.Observability.Sanitization;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Dispatch.Testing;
 
 using Microsoft.Extensions.Logging.Abstractions;

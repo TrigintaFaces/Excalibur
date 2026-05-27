@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Channels;
 using Excalibur.Dispatch.Options.Channels;
 using Excalibur.Dispatch.Transport;

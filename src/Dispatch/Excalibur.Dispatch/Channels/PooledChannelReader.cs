@@ -5,11 +5,7 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.Extensions.ObjectPool;
-
-using MessageEnvelope = Excalibur.Dispatch.Abstractions.MessageEnvelope;
 
 namespace Excalibur.Dispatch.Channels;
 

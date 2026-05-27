@@ -7,8 +7,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport;

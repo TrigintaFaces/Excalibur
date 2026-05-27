@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Grants;
 using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.SeparationOfDuties;
 
-using GrantRecord = Excalibur.A3.Abstractions.Authorization.Grant;
+using GrantRecord = Excalibur.A3.Authorization.Grant;
 
 namespace Excalibur.A3.Governance.Tests.SeparationOfDuties;
 

@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 namespace Testing.ProductionCode;
 

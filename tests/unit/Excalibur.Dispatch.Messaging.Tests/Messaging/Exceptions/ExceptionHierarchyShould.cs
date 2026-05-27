@@ -3,8 +3,8 @@
 
 using System.Net;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Data;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Exceptions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// Tests for the unified exception hierarchy to verify correct inheritance chain
 /// and ensure all specialized exceptions are catchable as ApiException.
 /// Sprint 438: Exception Hierarchy Consolidation (bd-0fkmg)
-/// Sprint 585: Persistence exceptions moved to Excalibur.Data.Abstractions
+/// Sprint 585: Persistence exceptions moved to Excalibur.Data
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
@@ -94,7 +94,7 @@ public sealed class ExceptionHierarchyShould
 	[Fact]
 	public void MaintainResourceExceptionHierarchy()
 	{
-		// ResourceException hierarchy (now in Excalibur.Data.Abstractions):
+		// ResourceException hierarchy (now in Excalibur.Data):
 		// ApiException
 		// └── ResourceException
 		//     ├── ResourceNotFoundException

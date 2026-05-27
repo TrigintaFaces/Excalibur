@@ -3,8 +3,6 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions.Transport;
-
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
@@ -47,7 +45,7 @@ internal sealed class MessageMapperRegistry : IMessageMapperRegistry
 		foreach (var mapper in _mappers.Values)
 		{
 			if (string.Equals(mapper.SourceTransport, sourceTransport, StringComparison.OrdinalIgnoreCase) &&
-			    string.Equals(mapper.TargetTransport, targetTransport, StringComparison.OrdinalIgnoreCase))
+				string.Equals(mapper.TargetTransport, targetTransport, StringComparison.OrdinalIgnoreCase))
 			{
 				return mapper;
 			}

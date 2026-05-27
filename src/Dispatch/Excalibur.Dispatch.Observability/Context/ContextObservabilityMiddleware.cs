@@ -8,8 +8,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Observability.Diagnostics;
 
 using Microsoft.Extensions.Logging;

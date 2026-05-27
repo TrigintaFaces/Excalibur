@@ -7,25 +7,25 @@ Excalibur.Data.InMemory.InMemoryPersistenceProvider.Clear() -> void
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.ConnectionString.get -> string!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.CreateConnection() -> System.Data.IDbConnection!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.CreateConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Data.IDbConnection!>
-Excalibur.Data.InMemory.InMemoryPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.Dispose() -> void
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.InMemory.InMemoryPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.InMemory.InMemoryPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetCollection(string! collectionName) -> System.Collections.Concurrent.ConcurrentDictionary<string!, object!>!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetMetadata() -> System.Collections.Generic.IDictionary<string!, object!>!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.InMemoryPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.InMemory.InMemoryProviderOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.InMemory.InMemoryPersistenceProvider!>! logger) -> void
-Excalibur.Data.InMemory.InMemoryPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.IsReadOnly.get -> bool
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.Name.get -> string!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.ProviderType.get -> string!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.Remove(string! collectionName, string! key) -> bool
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.Retrieve<T>(string! collectionName, string! key) -> T?
-Excalibur.Data.InMemory.InMemoryPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.Store<T>(string! collectionName, string! key, T item) -> void
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.InMemory.InMemoryPoolingOptions
@@ -158,7 +158,7 @@ const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.UnexpectedErrorPer
 static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions.AddExcaliburInMemory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions.AddExcaliburInMemory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.InMemoryProviderOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.AddInMemorySnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.UseInMemorySnapshotStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.UseInMemorySnapshotStore(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 Excalibur.Data.InMemory.IInMemoryDataBuilder
 Excalibur.Data.InMemory.IInMemoryDataBuilder.EnableDetailedLogging(bool enable = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
 Excalibur.Data.InMemory.IInMemoryDataBuilder.EnableMetrics(bool enable = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!

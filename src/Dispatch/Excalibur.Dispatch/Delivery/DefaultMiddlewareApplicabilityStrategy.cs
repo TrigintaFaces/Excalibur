@@ -5,8 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Delivery;
 
 /// <summary>

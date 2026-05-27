@@ -8,7 +8,6 @@ using Azure;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Logic;
 
-using Excalibur.Jobs.Abstractions;
 using Excalibur.Jobs.Azure.Internal;
 
 using Microsoft.Extensions.Logging;

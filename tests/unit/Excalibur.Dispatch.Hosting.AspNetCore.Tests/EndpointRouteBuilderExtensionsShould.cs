@@ -4,8 +4,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 
 using Microsoft.AspNetCore.Builder;

@@ -1,4 +1,4 @@
-// Global using directives for Excalibur.Dispatch.Abstractions.Tests
+// Global using directives for Excalibur.Dispatch.Tests
 
 global using Xunit;
 global using Shouldly;

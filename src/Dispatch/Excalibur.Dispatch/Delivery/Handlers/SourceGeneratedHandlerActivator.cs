@@ -4,8 +4,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Delivery.Handlers;

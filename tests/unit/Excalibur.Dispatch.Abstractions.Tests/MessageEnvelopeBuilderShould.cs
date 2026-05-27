@@ -1,4 +1,4 @@
-namespace Excalibur.Dispatch.Abstractions.Tests;
+namespace Excalibur.Dispatch.Tests;
 
 /// <summary>
 /// Unit tests for MessageEnvelopeBuilder.
@@ -64,6 +64,7 @@ public sealed class MessageEnvelopeBuilderShould : UnitTestBase
 	public void Build_WithoutContext_ThrowsInvalidOperationException()
 	{
 		// Arrange
+		using var context = new MessageEnvelope();
 		var builder = new MessageEnvelopeBuilder<TestMessage>()
 			.WithMessage(new TestMessage());
 

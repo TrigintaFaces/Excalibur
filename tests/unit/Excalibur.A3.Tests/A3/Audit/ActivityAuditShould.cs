@@ -3,7 +3,7 @@
 
 using Excalibur.A3;
 using Excalibur.A3.Audit;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain;
 
 using Microsoft.Extensions.Configuration;

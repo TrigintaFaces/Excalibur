@@ -5,7 +5,7 @@ using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Inbox.Observability;
 
 using Microsoft.Extensions.Logging;

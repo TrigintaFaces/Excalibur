@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.ParallelCatchUp;
 using Excalibur.EventSourcing.Snapshots;
 using Excalibur.EventSourcing.Sharding;
@@ -119,7 +119,7 @@ public sealed class OptionsValidatorsShould
 		// Deferred-registration scenario: validator activates before ITenantShardMap
 		// is added. Passes cleanly so downstream startup can continue. [bd-51k0mc]
 		var result = new ShardMapOptionsValidator().Validate(null,
-			new Data.Abstractions.Sharding.ShardMapOptions());
+			new Data.Sharding.ShardMapOptions());
 		result.Succeeded.ShouldBeTrue();
 	}
 
@@ -128,7 +128,7 @@ public sealed class OptionsValidatorsShould
 	{
 		var shardMap = new FakeTenantShardMap(["shard-1"]);
 		var result = new ShardMapOptionsValidator(shardMap).Validate(null,
-			new Data.Abstractions.Sharding.ShardMapOptions { DefaultShardId = "shard-1" });
+			new Data.Sharding.ShardMapOptions { DefaultShardId = "shard-1" });
 		result.Succeeded.ShouldBeTrue();
 	}
 
@@ -137,7 +137,7 @@ public sealed class OptionsValidatorsShould
 	{
 		var shardMap = new FakeTenantShardMap(["shard-1"]);
 		var result = new ShardMapOptionsValidator(shardMap).Validate(null,
-			new Data.Abstractions.Sharding.ShardMapOptions { DefaultShardId = "shard-missing" });
+			new Data.Sharding.ShardMapOptions { DefaultShardId = "shard-missing" });
 		result.Failed.ShouldBeTrue();
 	}
 
@@ -146,13 +146,13 @@ public sealed class OptionsValidatorsShould
 	{
 		var shardMap = new FakeTenantShardMap([]);
 		var result = new ShardMapOptionsValidator(shardMap).Validate(null,
-			new Data.Abstractions.Sharding.ShardMapOptions());
+			new Data.Sharding.ShardMapOptions());
 		result.Failed.ShouldBeTrue();
 	}
 
-	private sealed class FakeTenantShardMap(IReadOnlyCollection<string> shards) : Data.Abstractions.Sharding.ITenantShardMap
+	private sealed class FakeTenantShardMap(IReadOnlyCollection<string> shards) : Data.Sharding.ITenantShardMap
 	{
-		public Data.Abstractions.Sharding.ShardInfo GetShardInfo(string tenantId) =>
+		public Data.Sharding.ShardInfo GetShardInfo(string tenantId) =>
 			throw new NotSupportedException();
 
 		public IReadOnlyCollection<string> GetRegisteredShardIds() => shards;

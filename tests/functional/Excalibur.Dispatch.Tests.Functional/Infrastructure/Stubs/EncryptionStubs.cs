@@ -3,7 +3,7 @@
 
 #nullable enable
 
-namespace Excalibur.Dispatch.Abstractions.Encryption
+namespace Excalibur.Dispatch.Encryption
 {
 	/// <summary>
 	/// Stub interface for encryption provider (removed from main codebase).
@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Messaging.Encryption
 	{
 		public static IServiceCollection AddEncryptionProvider(
 			this IServiceCollection services,
-			Abstractions.Encryption.IEncryptionProvider provider)
+			Dispatch.Encryption.IEncryptionProvider provider)
 		{
 			return services.AddSingleton(provider);
 		}
@@ -34,7 +34,7 @@ namespace Excalibur.Dispatch.Messaging.Encryption
 	/// <summary>
 	/// Stub XOR encryption provider for tests.
 	/// </summary>
-	public sealed class XorEncryptionProvider : Abstractions.Encryption.IEncryptionProvider
+	public sealed class XorEncryptionProvider : Dispatch.Encryption.IEncryptionProvider
 	{
 		private readonly byte _key;
 

@@ -6,8 +6,7 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data;
 
 namespace Excalibur.EventSourcing.SqlServer.Requests;
 

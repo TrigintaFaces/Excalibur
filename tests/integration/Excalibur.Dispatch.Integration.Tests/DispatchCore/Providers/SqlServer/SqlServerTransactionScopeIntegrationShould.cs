@@ -6,7 +6,7 @@ using System.Reflection;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.SqlServer.Persistence;
 
 using Microsoft.Data.SqlClient;
@@ -18,7 +18,7 @@ using Tests.Shared;
 using Tests.Shared.Categories;
 using Tests.Shared.Fixtures;
 
-using TransactionStatus = Excalibur.Data.Abstractions.Persistence.TransactionStatus;
+using TransactionStatus = Excalibur.Data.Persistence.TransactionStatus;
 
 namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 

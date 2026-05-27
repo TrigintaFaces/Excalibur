@@ -3,7 +3,7 @@
 
 using CosmosDbEventStoreSample.Domain.Events;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Domain.Model;
 

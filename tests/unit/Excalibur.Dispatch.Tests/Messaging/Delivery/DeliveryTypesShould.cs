@@ -29,33 +29,6 @@ public sealed class DeliveryTypesShould
 		flags.HasFlag(MessageFlags.Persistent).ShouldBeFalse();
 	}
 
-	// --- MessageVersionMetadata ---
-
-	[Fact]
-	public void MessageVersionMetadata_DefaultsToZero()
-	{
-		var metadata = new MessageVersionMetadata();
-
-		metadata.SchemaVersion.ShouldBe(0);
-		metadata.SerializerVersion.ShouldBe(0);
-		metadata.Version.ShouldBe(0);
-	}
-
-	[Fact]
-	public void MessageVersionMetadata_SetAllProperties()
-	{
-		var metadata = new MessageVersionMetadata
-		{
-			SchemaVersion = 3,
-			SerializerVersion = 2,
-			Version = 5,
-		};
-
-		metadata.SchemaVersion.ShouldBe(3);
-		metadata.SerializerVersion.ShouldBe(2);
-		metadata.Version.ShouldBe(5);
-	}
-
 	// --- MessageEnvelopePoolStats ---
 
 	[Fact]

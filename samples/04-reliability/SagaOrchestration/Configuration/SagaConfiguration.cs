@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Orchestration;
 
 using Microsoft.Extensions.DependencyInjection;

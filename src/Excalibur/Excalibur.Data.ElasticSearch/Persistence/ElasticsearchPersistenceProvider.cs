@@ -3,8 +3,8 @@
 
 using Elastic.Clients.Elasticsearch;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data;
+using Excalibur.Data.Persistence;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

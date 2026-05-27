@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Timing;
 
 using Microsoft.Extensions.Configuration;

@@ -95,8 +95,8 @@ public sealed class HandlerDiscoverabilityAnalyzer : DiagnosticAnalyzer
 		Compilation compilation)
 	{
 		// Look for IDispatchHandler<T> interface
-		var dispatchHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.Abstractions.IDispatchHandler`1")
-			?? compilation.GetTypeByMetadataName("Excalibur.Dispatch.Abstractions.Delivery.IDispatchHandler`1");
+		var dispatchHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.IDispatchHandler`1")
+			?? compilation.GetTypeByMetadataName("Excalibur.Dispatch.Delivery.IDispatchHandler`1");
 
 		foreach (var iface in namedType.AllInterfaces)
 		{
@@ -108,7 +108,7 @@ public sealed class HandlerDiscoverabilityAnalyzer : DiagnosticAnalyzer
 		}
 
 		// Also check for IActionHandler<T> and IStreamingDocumentHandler<T,U>
-		var actionHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.Abstractions.IActionHandler`1");
+		var actionHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.IActionHandler`1");
 		if (actionHandlerInterface != null)
 		{
 			foreach (var iface in namedType.AllInterfaces)
@@ -121,7 +121,7 @@ public sealed class HandlerDiscoverabilityAnalyzer : DiagnosticAnalyzer
 			}
 		}
 
-		var streamingHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.Abstractions.IStreamingDocumentHandler`2");
+		var streamingHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.IStreamingDocumentHandler`2");
 		if (streamingHandlerInterface != null)
 		{
 			foreach (var iface in namedType.AllInterfaces)

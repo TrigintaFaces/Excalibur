@@ -7,16 +7,16 @@ namespace Excalibur.Data.MongoDB.Authorization;
 
 internal sealed class MongoDbAuthorizationOptionsValidator : IValidateOptions<MongoDbAuthorizationOptions>
 {
-    public ValidateOptionsResult Validate(string? name, MongoDbAuthorizationOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, MongoDbAuthorizationOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

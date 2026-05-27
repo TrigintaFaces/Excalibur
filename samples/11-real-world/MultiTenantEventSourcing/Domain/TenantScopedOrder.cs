@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Domain.Model;
 
@@ -14,7 +14,7 @@ namespace MultiTenantEventSourcing.Domain;
 /// <remarks>
 /// Two ways to encode tenant isolation in event-sourced aggregates:
 /// 1. Composite aggregate id (shown here) -- simple, works across providers.
-/// 2. Separate <see cref="Excalibur.Dispatch.Abstractions.ITenantId"/> +
+/// 2. Separate <see cref="Excalibur.Dispatch.ITenantId"/> +
 ///    <c>EnableTenantSharding()</c> -- framework-managed, picks the right shard
 ///    per operation.
 /// This sample uses approach (2) and keeps the aggregate id tenant-free.

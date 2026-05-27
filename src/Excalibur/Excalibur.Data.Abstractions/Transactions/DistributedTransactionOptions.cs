@@ -5,7 +5,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 
-namespace Excalibur.Data.Abstractions.Transactions;
+namespace Excalibur.Data.Transactions;
 
 /// <summary>
 /// Configuration options for distributed transaction coordination.

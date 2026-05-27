@@ -5,7 +5,7 @@
 
 using Dapper;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.SqlServer;
 
 using Microsoft.Data.SqlClient;

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Caching;
 using FakeItEasy;
 using Microsoft.Extensions.Configuration;
@@ -255,7 +255,7 @@ public sealed class CachingDispatchBuilderExtensionsShould : UnitTestBase
 	}
 
 	// Test helper classes
-	private sealed class TestMessage : Abstractions.IDispatchMessage
+	private sealed class TestMessage : IDispatchMessage
 	{
 		public string MessageId { get; set; } = Guid.NewGuid().ToString();
 	}

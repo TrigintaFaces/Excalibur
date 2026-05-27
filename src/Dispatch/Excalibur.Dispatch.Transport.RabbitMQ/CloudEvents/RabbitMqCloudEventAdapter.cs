@@ -12,14 +12,13 @@ using CloudNative.CloudEvents;
 using CloudNative.CloudEvents.SystemTextJson;
 
 using Excalibur.Dispatch.CloudEvents;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.CloudEvents;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using RabbitMQ.Client;
-
-using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 

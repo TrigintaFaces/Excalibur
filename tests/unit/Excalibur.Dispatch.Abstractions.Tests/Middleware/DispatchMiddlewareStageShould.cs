@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Middleware;
+namespace Excalibur.Dispatch.Tests.Middleware;
 
 /// <summary>
 /// Unit tests for <see cref="DispatchMiddlewareStage"/>.

@@ -411,8 +411,8 @@ public static partial class ResultFactoryRegistry
     {
         return result switch
         {
-            global::Excalibur.Dispatch.Abstractions.IMessageResult<Guid> r => r.ReturnValue,
-            global::Excalibur.Dispatch.Abstractions.IMessageResult<OrderDto> r => r.ReturnValue,
+            global::Excalibur.Dispatch.IMessageResult<Guid> r => r.ReturnValue,
+            global::Excalibur.Dispatch.IMessageResult<OrderDto> r => r.ReturnValue,
             _ => null
         };
     }
@@ -421,7 +421,7 @@ public static partial class ResultFactoryRegistry
 
 Under `#if AOT_ENABLED`, `FinalDispatchHandler.CreateTypedResult()` calls `ResultFactoryRegistry.GetFactory()` instead of using reflection. The existing `ResultFactoryCache` remains as the JIT fallback.
 
-**Generated code uses `IMessageResult<T>` interface matching** — return value extraction uses pattern matching on the `Excalibur.Dispatch.Abstractions.IMessageResult<T>` interface, accessing `ReturnValue` directly.
+**Generated code uses `IMessageResult<T>` interface matching** — return value extraction uses pattern matching on the `Excalibur.Dispatch.IMessageResult<T>` interface, accessing `ReturnValue` directly.
 
 ---
 
@@ -434,7 +434,7 @@ Generates DI registration code for types marked with `[AutoRegister]` attribute.
 **Quick Start:**
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // 1. Mark services for auto-registration
 [AutoRegister]
@@ -540,8 +540,8 @@ public void HandlerRegistry_WithActionHandler_GeneratesPrecompiledHandlerRegistr
         using System;
         using System.Threading;
         using System.Threading.Tasks;
-        using Excalibur.Dispatch.Abstractions;
-        using Excalibur.Dispatch.Abstractions.Delivery;
+        using Excalibur.Dispatch;
+        using Excalibur.Dispatch.Delivery;
 
         namespace TestApp
         {
@@ -590,7 +590,7 @@ See `tests/unit/Excalibur.Dispatch.SourceGenerators.Tests/Generators/Integration
 1. Ensure `Excalibur.Dispatch.SourceGenerators` package is referenced
 2. Clean and rebuild the solution
 3. Check for analyzer errors in build output
-4. Verify handler interfaces are from `Excalibur.Dispatch.Abstractions`
+4. Verify handler interfaces are from `Excalibur.Dispatch.Delivery`
 
 ### Duplicate Registration Errors
 

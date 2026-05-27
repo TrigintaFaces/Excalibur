@@ -5,8 +5,6 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Cdc.SqlServer;

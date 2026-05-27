@@ -51,7 +51,7 @@ services.AddExcaliburSagaSqlServer(connectionString);
 ### 2. Define Saga State
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Messaging.Delivery;
+using Excalibur.Dispatch.Messaging;
 
 public class OrderFulfillmentState : SagaState
 {
@@ -78,7 +78,7 @@ public class OrderFulfillmentState : SagaState
 ### 3. Implement Saga Orchestrator
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Messaging.Delivery;
+using Excalibur.Dispatch.Messaging;
 
 public class OrderFulfillmentSaga : Saga<OrderFulfillmentState>
 {

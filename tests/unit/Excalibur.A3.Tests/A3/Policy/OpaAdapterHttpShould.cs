@@ -5,7 +5,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.A3.Policy.Opa;
 
 namespace Excalibur.Tests.A3.Policy;

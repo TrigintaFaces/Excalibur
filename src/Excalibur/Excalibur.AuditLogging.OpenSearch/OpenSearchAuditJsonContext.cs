@@ -6,9 +6,9 @@ using System.Text.Json.Serialization;
 namespace Excalibur.AuditLogging.OpenSearch;
 
 [JsonSourceGenerationOptions(
-    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    WriteIndented = false)]
+	PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+	DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+	WriteIndented = false)]
 [JsonSerializable(typeof(OpenSearchAuditExporter.OpenSearchAuditPayload))]
 [JsonSerializable(typeof(OpenSearchAuditExporter.BulkActionMeta))]
 [JsonSerializable(typeof(OpenSearchAuditExporter.BulkIndexAction))]

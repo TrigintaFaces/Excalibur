@@ -5,8 +5,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Routing.Builder;
 
 /// <summary>

@@ -90,31 +90,31 @@ Excalibur.Saga.Handlers.LoggingNotFoundHandler<TSaga>.HandleAsync(object! messag
 Excalibur.Saga.Handlers.LoggingNotFoundHandler<TSaga>.LoggingNotFoundHandler(Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Handlers.LoggingNotFoundHandler<TSaga!>!>! logger) -> void
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.CancelTimeoutAsync(string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Orchestration.SagaBase<TSagaState>.Dispatcher.get -> Excalibur.Dispatch.Abstractions.IDispatcher!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.Dispatcher.get -> Excalibur.Dispatch.IDispatcher!
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.Id.get -> System.Guid
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.IsCompleted.get -> bool
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.Logger.get -> Microsoft.Extensions.Logging.ILogger!
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.MarkCompleted() -> void
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.MarkCompletedAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Orchestration.SagaBase<TSagaState>.PublishEventAsync<TEvent>(TEvent event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.PublishEventAsync<TEvent>(TEvent event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.IMessageResult!>!
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.RequestTimeoutAsync<TTimeout>(System.TimeSpan delay, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.RequestTimeoutAsync<TTimeout>(System.TimeSpan delay, TTimeout? timeoutData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
-Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SagaBase(TSagaState! initialState, Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher, Microsoft.Extensions.Logging.ILogger! logger) -> void
-Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SendCommandAsync<TCommand>(TCommand command, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SagaBase(TSagaState! initialState, Excalibur.Dispatch.IDispatcher! dispatcher, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SendCommandAsync<TCommand>(TCommand command, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.IMessageResult!>!
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.State.get -> TSagaState!
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.TimeoutStore.get -> Excalibur.Saga.Abstractions.ISagaTimeoutStore?
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.TimeoutStore.set -> void
 Excalibur.Saga.Orchestration.SagaCoordinator
-Excalibur.Saga.Orchestration.SagaCoordinator.HandleEventInternalAsync<TSaga, TSagaState>(Excalibur.Dispatch.Abstractions.IMessageContext! messageContext, Excalibur.Dispatch.Abstractions.ISagaEvent! evt, Excalibur.Dispatch.Abstractions.Messaging.SagaInfo! sagaInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Orchestration.SagaCoordinator.ProcessEventAsync(Excalibur.Dispatch.Abstractions.IMessageContext! messageContext, Excalibur.Dispatch.Abstractions.ISagaEvent! evt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Orchestration.SagaCoordinator.SagaCoordinator(System.IServiceProvider! serviceProvider, Excalibur.Dispatch.Abstractions.Messaging.ISagaStore! sagaStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaCoordinator!>! logger) -> void
+Excalibur.Saga.Orchestration.SagaCoordinator.HandleEventInternalAsync<TSaga, TSagaState>(Excalibur.Dispatch.IMessageContext! messageContext, Excalibur.Dispatch.ISagaEvent! evt, Excalibur.Dispatch.Messaging.SagaInfo! sagaInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Orchestration.SagaCoordinator.ProcessEventAsync(Excalibur.Dispatch.IMessageContext! messageContext, Excalibur.Dispatch.ISagaEvent! evt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Orchestration.SagaCoordinator.SagaCoordinator(System.IServiceProvider! serviceProvider, Excalibur.Dispatch.Messaging.ISagaStore! sagaStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaCoordinator!>! logger) -> void
 Excalibur.Saga.Orchestration.SagaHandlingMiddleware
-Excalibur.Saga.Orchestration.SagaHandlingMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
-Excalibur.Saga.Orchestration.SagaHandlingMiddleware.SagaHandlingMiddleware(Excalibur.Dispatch.Abstractions.Messaging.ISagaCoordinator! coordinator, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaHandlingMiddleware!>! logger) -> void
-Excalibur.Saga.Orchestration.SagaHandlingMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Saga.Orchestration.SagaHandlingMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
+Excalibur.Saga.Orchestration.SagaHandlingMiddleware.SagaHandlingMiddleware(Excalibur.Dispatch.Messaging.ISagaCoordinator! coordinator, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaHandlingMiddleware!>! logger) -> void
+Excalibur.Saga.Orchestration.SagaHandlingMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Saga.Orchestration.SagaRegistry
 Excalibur.Saga.Outbox.SagaOutboxOptions
-Excalibur.Saga.Outbox.SagaOutboxOptions.PublishDelegate.get -> System.Func<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent!>!, string!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+Excalibur.Saga.Outbox.SagaOutboxOptions.PublishDelegate.get -> System.Func<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.IDomainEvent!>!, string!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
 Excalibur.Saga.Outbox.SagaOutboxOptions.PublishDelegate.set -> void
 Excalibur.Saga.Outbox.SagaOutboxOptions.SagaOutboxOptions() -> void
 Excalibur.Saga.Reminders.SagaReminderOptions
@@ -180,7 +180,7 @@ Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentState.get -> string!
 Excalibur.Saga.StateMachine.ProcessManager<TData>.During(string! stateName, System.Action<Excalibur.Saga.StateMachine.IStateDefinition<TData!>!>! configure) -> void
 Excalibur.Saga.StateMachine.ProcessManager<TData>.Finally(System.Action<Excalibur.Saga.StateMachine.IStateDefinition<TData!>!>! configure) -> void
 Excalibur.Saga.StateMachine.ProcessManager<TData>.Initially(System.Action<Excalibur.Saga.StateMachine.IStateDefinition<TData!>!>! configure) -> void
-Excalibur.Saga.StateMachine.ProcessManager<TData>.ProcessManager(TData! initialState, Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Saga.StateMachine.ProcessManager<TData>.ProcessManager(TData! initialState, Excalibur.Dispatch.IDispatcher! dispatcher, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Saga.StateMachine.ProcessManager<TData>.TransitionTo(string! stateName) -> void
 Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>
 Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.Data.get -> TData!
@@ -327,9 +327,9 @@ const Excalibur.Saga.Telemetry.SagaMetrics.MeterName = "Excalibur.Dispatch.Sagas
 const Excalibur.Saga.Telemetry.SagaMetrics.MeterVersion = "1.0.0" -> string!
 override Excalibur.Saga.StateMachine.ProcessManager<TData>.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 override Excalibur.Saga.StateMachine.ProcessManager<TData>.HandlesEvent(object! eventMessage) -> bool
-static Excalibur.Saga.Orchestration.SagaRegistry.GetSagaInfo(System.Type! sagaType) -> Excalibur.Dispatch.Abstractions.Messaging.SagaInfo?
+static Excalibur.Saga.Orchestration.SagaRegistry.GetSagaInfo(System.Type! sagaType) -> Excalibur.Dispatch.Messaging.SagaInfo?
 static Excalibur.Saga.Orchestration.SagaRegistry.GetSagaTypeForEvent(System.Type! eventType) -> System.Type?
-static Excalibur.Saga.Orchestration.SagaRegistry.Register<TSaga, TSagaState>(System.Action<Excalibur.Dispatch.Abstractions.Messaging.SagaInfo!>! configure) -> void
+static Excalibur.Saga.Orchestration.SagaRegistry.Register<TSaga, TSagaState>(System.Action<Excalibur.Dispatch.Messaging.SagaInfo!>! configure) -> void
 static Excalibur.Saga.SagaActivitySource.Instance.get -> System.Diagnostics.ActivitySource!
 static Excalibur.Saga.SagaActivitySource.StartActivity(string! name, System.Diagnostics.ActivityKind kind = System.Diagnostics.ActivityKind.Internal) -> System.Diagnostics.Activity?
 static Excalibur.Saga.Telemetry.SagaMetrics.DecrementActive(string! sagaType) -> void
@@ -343,7 +343,7 @@ static Excalibur.Saga.Telemetry.SagaMetrics.RecordSagaFailed(string! sagaType) -
 static Excalibur.Saga.Telemetry.SagaMetrics.RecordSagaStarted(string! sagaType) -> void
 static Excalibur.Saga.Telemetry.SagaMetrics.ResetActiveCounts() -> void
 static Microsoft.Extensions.DependencyInjection.DispatchOrchestrationExtensions.AddExcaliburOrchestration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.OrchestrationDispatchBuilderExtensions.AddExcaliburOrchestration(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.OrchestrationDispatchBuilderExtensions.AddExcaliburOrchestration(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions.WithCoordination(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
 static Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions.WithInstrumentation(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
 static Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions.WithOutbox(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Outbox.SagaOutboxOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!

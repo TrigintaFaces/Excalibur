@@ -7,16 +7,16 @@ namespace Excalibur.Compliance.Postgres.Erasure;
 
 internal sealed class PostgresLegalHoldStoreOptionsValidator : IValidateOptions<PostgresLegalHoldStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, PostgresLegalHoldStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, PostgresLegalHoldStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

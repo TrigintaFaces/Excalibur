@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.Runtime;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Dispatch.Middleware;
 
@@ -18,7 +18,6 @@ using Microsoft.Extensions.Options;
 
 using Shouldly;
 
-using Xunit;
 using Xunit;
 
 namespace Excalibur.Dispatch.Tests.Performance;

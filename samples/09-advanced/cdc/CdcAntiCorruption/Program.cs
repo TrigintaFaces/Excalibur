@@ -7,7 +7,7 @@ using CdcAntiCorruption.Backfill;
 
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Data.DataProcessing;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Configuration;
 
 using Microsoft.Extensions.DependencyInjection;

@@ -63,9 +63,13 @@ public sealed class PostgresDataChangeEvent
 	{
 		return new PostgresDataChangeEvent
 		{
-			Position = position, SchemaName = schemaName, TableName = tableName,
-			TransactionId = transactionId, CommitTime = commitTime,
-			ChangeType = PostgresDataChangeType.Insert, Changes = newValues,
+			Position = position,
+			SchemaName = schemaName,
+			TableName = tableName,
+			TransactionId = transactionId,
+			CommitTime = commitTime,
+			ChangeType = PostgresDataChangeType.Insert,
+			Changes = newValues,
 			KeyColumns = newValues.Where(c => c.IsPrimaryKey).ToList(),
 		};
 	}
@@ -80,9 +84,14 @@ public sealed class PostgresDataChangeEvent
 	{
 		return new PostgresDataChangeEvent
 		{
-			Position = position, SchemaName = schemaName, TableName = tableName,
-			TransactionId = transactionId, CommitTime = commitTime,
-			ChangeType = PostgresDataChangeType.Update, Changes = changes, KeyColumns = keyColumns,
+			Position = position,
+			SchemaName = schemaName,
+			TableName = tableName,
+			TransactionId = transactionId,
+			CommitTime = commitTime,
+			ChangeType = PostgresDataChangeType.Update,
+			Changes = changes,
+			KeyColumns = keyColumns,
 		};
 	}
 
@@ -95,9 +104,14 @@ public sealed class PostgresDataChangeEvent
 	{
 		return new PostgresDataChangeEvent
 		{
-			Position = position, SchemaName = schemaName, TableName = tableName,
-			TransactionId = transactionId, CommitTime = commitTime,
-			ChangeType = PostgresDataChangeType.Delete, Changes = keyColumns, KeyColumns = keyColumns,
+			Position = position,
+			SchemaName = schemaName,
+			TableName = tableName,
+			TransactionId = transactionId,
+			CommitTime = commitTime,
+			ChangeType = PostgresDataChangeType.Delete,
+			Changes = keyColumns,
+			KeyColumns = keyColumns,
 		};
 	}
 
@@ -110,9 +124,14 @@ public sealed class PostgresDataChangeEvent
 	{
 		return new PostgresDataChangeEvent
 		{
-			Position = position, SchemaName = schemaName, TableName = tableName,
-			TransactionId = transactionId, CommitTime = commitTime,
-			ChangeType = PostgresDataChangeType.Truncate, Changes = [], KeyColumns = [],
+			Position = position,
+			SchemaName = schemaName,
+			TableName = tableName,
+			TransactionId = transactionId,
+			CommitTime = commitTime,
+			ChangeType = PostgresDataChangeType.Truncate,
+			Changes = [],
+			KeyColumns = [],
 		};
 	}
 }

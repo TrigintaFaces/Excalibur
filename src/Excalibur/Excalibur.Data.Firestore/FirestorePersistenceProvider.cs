@@ -5,10 +5,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.CloudNative;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
 
 using Google.Cloud.Firestore;
 

@@ -26,8 +26,8 @@ dotnet add package Excalibur.Dispatch
 ```
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -98,10 +98,10 @@ dotnet add package Excalibur.Dispatch.SqlServer
 One metapackage includes Dispatch + EventSourcing + SqlServer + Hosting.
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -221,8 +221,8 @@ dotnet add package Excalibur.Dispatch.Resilience.Polly
 ```
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -286,10 +286,10 @@ dotnet add package Excalibur.Dispatch.SqlServer
 ```
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 var builder = WebApplication.CreateBuilder(args);
 

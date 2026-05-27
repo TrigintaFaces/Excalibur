@@ -4,8 +4,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>

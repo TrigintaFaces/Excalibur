@@ -5,7 +5,7 @@
 using System.Collections.ObjectModel;
 using System.Transactions;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Application.Requests.Queries;
 

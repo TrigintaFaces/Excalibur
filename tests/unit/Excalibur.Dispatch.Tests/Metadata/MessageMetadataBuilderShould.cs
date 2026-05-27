@@ -3,7 +3,7 @@
 
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Metadata;
 
 namespace Excalibur.Dispatch.Tests.Metadata;

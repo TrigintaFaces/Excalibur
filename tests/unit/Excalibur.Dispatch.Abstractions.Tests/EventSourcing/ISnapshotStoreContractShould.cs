@@ -1,7 +1,7 @@
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.EventSourcing;
+namespace Excalibur.Dispatch.Tests.EventSourcing;
 
 /// <summary>
 /// Contract tests for ISnapshotStore interface.

@@ -64,11 +64,11 @@ public sealed class HandlerSealedAnalyzer : DiagnosticAnalyzer
 	{
 		var handlerInterfaceNames = new[]
 		{
-			"Excalibur.Dispatch.Abstractions.Delivery.IActionHandler`1",
-			"Excalibur.Dispatch.Abstractions.Delivery.IActionHandler`2",
-			"Excalibur.Dispatch.Abstractions.Delivery.IEventHandler`1",
-			"Excalibur.Dispatch.Abstractions.Delivery.IDocumentHandler`1",
-			"Excalibur.Dispatch.Abstractions.IDispatchHandler`1",
+			"Excalibur.Dispatch.Delivery.IActionHandler`1",
+			"Excalibur.Dispatch.Delivery.IActionHandler`2",
+			"Excalibur.Dispatch.Delivery.IEventHandler`1",
+			"Excalibur.Dispatch.Delivery.IDocumentHandler`1",
+			"Excalibur.Dispatch.IDispatchHandler`1",
 		};
 
 		foreach (var interfaceName in handlerInterfaceNames)

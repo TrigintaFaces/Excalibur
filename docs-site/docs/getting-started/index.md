@@ -22,7 +22,7 @@ This guide gets you up and running with Excalibur.Dispatch in under 5 minutes. B
 Actions are messages that trigger handlers. They can be commands (no return value) or queries (with return value).
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // Action without return value
 public record CreateOrderAction(string CustomerId, List<string> Items) : IDispatchAction;
@@ -36,7 +36,7 @@ public record GetOrderAction(Guid OrderId) : IDispatchAction<Order>;
 Handlers process actions. Use `IActionHandler<TAction>` for commands or `IActionHandler<TAction, TResult>` for queries.
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 // Handler for action without return value
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>
@@ -103,7 +103,7 @@ var app = builder.Build();
 Inject `IDispatcher` and send messages. No explicit context is needed — the framework manages context automatically:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public class OrderController : ControllerBase
 {
@@ -153,8 +153,8 @@ public class OrderController : ControllerBase
 Here's a complete minimal example:
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Validation.FluentValidation;
 
 using FluentValidation;
 
-using ValidationResult = global::FluentValidation.Results.ValidationResult;
+using FluentValidationResult = global::FluentValidation.Results.ValidationResult;
 
 namespace Excalibur.Dispatch.Validation.FluentValidation.Tests;
 
@@ -21,7 +21,7 @@ public sealed class ValidationResultExtensionsShould
     public void ThrowWhenFluentResultIsNull()
     {
         // Act & Assert
-        ValidationResult? nullResult = null;
+        FluentValidationResult? nullResult = null;
         Should.Throw<ArgumentNullException>(() => nullResult!.ToDispatchResult());
     }
 
@@ -29,7 +29,7 @@ public sealed class ValidationResultExtensionsShould
     public void ReturnSuccessResultForValidFluentResult()
     {
         // Arrange
-        var fluentResult = new ValidationResult();
+        var fluentResult = new FluentValidationResult();
 
         // Act
         var result = fluentResult.ToDispatchResult();
@@ -43,7 +43,7 @@ public sealed class ValidationResultExtensionsShould
     public void ReturnFailedResultForInvalidFluentResult()
     {
         // Arrange
-        var fluentResult = new ValidationResult(
+        var fluentResult = new FluentValidationResult(
         [
             new global::FluentValidation.Results.ValidationFailure("Name", "Name is required"),
         ]);
@@ -60,7 +60,7 @@ public sealed class ValidationResultExtensionsShould
     public void PreservePropertyNameInDispatchResult()
     {
         // Arrange
-        var fluentResult = new ValidationResult(
+        var fluentResult = new FluentValidationResult(
         [
             new global::FluentValidation.Results.ValidationFailure("Email", "Invalid email format"),
         ]);
@@ -69,7 +69,7 @@ public sealed class ValidationResultExtensionsShould
         var result = fluentResult.ToDispatchResult();
 
         // Assert
-        var error = result.Errors.First().ShouldBeOfType<Excalibur.Dispatch.Abstractions.Validation.ValidationError>();
+        var error = result.Errors.First().ShouldBeOfType<Excalibur.Dispatch.Validation.ValidationError>();
         error.PropertyName.ShouldBe("Email");
     }
 
@@ -77,7 +77,7 @@ public sealed class ValidationResultExtensionsShould
     public void PreserveErrorMessageInDispatchResult()
     {
         // Arrange
-        var fluentResult = new ValidationResult(
+        var fluentResult = new FluentValidationResult(
         [
             new global::FluentValidation.Results.ValidationFailure("Name", "Name cannot be empty"),
         ]);
@@ -86,7 +86,7 @@ public sealed class ValidationResultExtensionsShould
         var result = fluentResult.ToDispatchResult();
 
         // Assert
-        var error = result.Errors.First().ShouldBeOfType<Excalibur.Dispatch.Abstractions.Validation.ValidationError>();
+        var error = result.Errors.First().ShouldBeOfType<Excalibur.Dispatch.Validation.ValidationError>();
         error.Message.ShouldBe("Name cannot be empty");
     }
 
@@ -94,7 +94,7 @@ public sealed class ValidationResultExtensionsShould
     public void PreserveErrorCodeInDispatchResult()
     {
         // Arrange
-        var fluentResult = new ValidationResult(
+        var fluentResult = new FluentValidationResult(
         [
             new global::FluentValidation.Results.ValidationFailure("Name", "Name is required") { ErrorCode = "NotEmptyValidator" },
         ]);
@@ -103,7 +103,7 @@ public sealed class ValidationResultExtensionsShould
         var result = fluentResult.ToDispatchResult();
 
         // Assert
-        var error = result.Errors.First().ShouldBeOfType<Excalibur.Dispatch.Abstractions.Validation.ValidationError>();
+        var error = result.Errors.First().ShouldBeOfType<Excalibur.Dispatch.Validation.ValidationError>();
         error.ErrorCode.ShouldBe("NotEmptyValidator");
     }
 
@@ -111,7 +111,7 @@ public sealed class ValidationResultExtensionsShould
     public void MapMultipleErrorsCorrectly()
     {
         // Arrange
-        var fluentResult = new ValidationResult(
+        var fluentResult = new FluentValidationResult(
         [
             new global::FluentValidation.Results.ValidationFailure("Name", "Name is required"),
             new global::FluentValidation.Results.ValidationFailure("Email", "Email is invalid"),
@@ -130,7 +130,7 @@ public sealed class ValidationResultExtensionsShould
     public void ReturnSerializableValidationResultType()
     {
         // Arrange
-        var fluentResult = new ValidationResult();
+        var fluentResult = new FluentValidationResult();
 
         // Act
         var result = fluentResult.ToDispatchResult();
@@ -145,7 +145,7 @@ public sealed class ValidationResultExtensionsShould
     public void ReturnSameResultAsToDispatchResult()
     {
         // Arrange
-        var fluentResult = new ValidationResult(
+        var fluentResult = new FluentValidationResult(
         [
             new global::FluentValidation.Results.ValidationFailure("Field", "Error"),
         ]);

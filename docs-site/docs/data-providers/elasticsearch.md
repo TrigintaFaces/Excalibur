@@ -369,7 +369,7 @@ Cursors are Base64url-encoded (URL-safe, no padding) and opaque to consumers —
 
 ### Design Notes
 
-- **Backend-agnostic**: `CursorEncoder` and `CursorPagedResult<T>` live in `Excalibur.EventSourcing.Abstractions` with no Elasticsearch dependency. They work with any store that supports keyset pagination (SQL Server, CosmosDB, etc.).
+- **Backend-agnostic**: `CursorEncoder` and `CursorPagedResult<T>` live in the `Excalibur.EventSourcing` namespace (package `Excalibur.EventSourcing.Abstractions`) with no Elasticsearch dependency. They work with any store that supports keyset pagination (SQL Server, CosmosDB, etc.).
 - **Corrupt cursors are safe**: Invalid or tampered cursors return `null` from `DecodeCursor`, causing the query to start from the beginning rather than failing.
 - **Always include a tiebreaker sort**: Use `_id` or another unique field as the last sort criterion to ensure deterministic ordering when primary sort values are identical.
 

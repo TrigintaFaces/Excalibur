@@ -5,7 +5,7 @@ using System.Reflection;
 
 using BenchmarkDotNet.Attributes;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery.Handlers;
 
 namespace Excalibur.Dispatch.Benchmarks.Diagnostics;

@@ -1,6 +1,6 @@
 #nullable enable
 Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>
-Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>.Build() -> (TCommand Command, Excalibur.Dispatch.Abstractions.IMessageContext! Context)
+Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>.Build() -> (TCommand Command, Excalibur.Dispatch.IMessageContext! Context)
 Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>.BuildCommand() -> TCommand
 Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>.CommandBuilder() -> void
 Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>.WithCausationId(string! causationId) -> Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>!
@@ -83,12 +83,12 @@ Excalibur.Dispatch.Testing.Diagnostics.TestMeterFactory.Create(System.Diagnostic
 Excalibur.Dispatch.Testing.Diagnostics.TestMeterFactory.Dispose() -> void
 Excalibur.Dispatch.Testing.Diagnostics.TestMeterFactory.TestMeterFactory() -> void
 Excalibur.Dispatch.Testing.DispatchTestHarness
-Excalibur.Dispatch.Testing.DispatchTestHarness.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>! configure) -> Excalibur.Dispatch.Testing.DispatchTestHarness!
+Excalibur.Dispatch.Testing.DispatchTestHarness.ConfigureDispatch(System.Action<Excalibur.Dispatch.Configuration.IDispatchBuilder!>! configure) -> Excalibur.Dispatch.Testing.DispatchTestHarness!
 Excalibur.Dispatch.Testing.DispatchTestHarness.ConfigureServices(System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>! configure) -> Excalibur.Dispatch.Testing.DispatchTestHarness!
 Excalibur.Dispatch.Testing.DispatchTestHarness.CreateScope() -> Microsoft.Extensions.DependencyInjection.IServiceScope!
 Excalibur.Dispatch.Testing.DispatchTestHarness.DispatchTestHarness() -> void
 Excalibur.Dispatch.Testing.DispatchTestHarness.Dispatched.get -> Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog!
-Excalibur.Dispatch.Testing.DispatchTestHarness.Dispatcher.get -> Excalibur.Dispatch.Abstractions.IDispatcher!
+Excalibur.Dispatch.Testing.DispatchTestHarness.Dispatcher.get -> Excalibur.Dispatch.IDispatcher!
 Excalibur.Dispatch.Testing.DispatchTestHarness.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Testing.DispatchTestHarness.Services.get -> System.IServiceProvider!
 Excalibur.Dispatch.Testing.HandlerTestHarness<THandler>
@@ -101,7 +101,7 @@ Excalibur.Dispatch.Testing.HandlerTestHarness<THandler>.Handler.get -> THandler!
 Excalibur.Dispatch.Testing.HandlerTestHarness<THandler>.HandlerTestHarness() -> void
 Excalibur.Dispatch.Testing.HandlerTestHarness<THandler>.Services.get -> System.IServiceProvider!
 Excalibur.Dispatch.Testing.MessageContextBuilder
-Excalibur.Dispatch.Testing.MessageContextBuilder.Build() -> Excalibur.Dispatch.Abstractions.IMessageContext!
+Excalibur.Dispatch.Testing.MessageContextBuilder.Build() -> Excalibur.Dispatch.IMessageContext!
 Excalibur.Dispatch.Testing.MessageContextBuilder.MessageContextBuilder() -> void
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithCausationId(string! causationId) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithContentType(string! contentType) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
@@ -109,7 +109,7 @@ Excalibur.Dispatch.Testing.MessageContextBuilder.WithCorrelationId(string! corre
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithDeliveryCount(int deliveryCount) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithExternalId(string! externalId) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithItem(string! key, object! value) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
-Excalibur.Dispatch.Testing.MessageContextBuilder.WithMessage(Excalibur.Dispatch.Abstractions.IDispatchMessage! message) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithMessage(Excalibur.Dispatch.IDispatchMessage! message) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithMessageId(string! messageId) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithMessageType(string! messageType) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
 Excalibur.Dispatch.Testing.MessageContextBuilder.WithPartitionKey(string! partitionKey) -> Excalibur.Dispatch.Testing.MessageContextBuilder!
@@ -132,12 +132,12 @@ Excalibur.Dispatch.Testing.SagaTestHarness<TSaga>.SagaTestHarness() -> void
 Excalibur.Dispatch.Testing.SagaTestHarness<TSaga>.SendAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Testing.SagaTestHarness<TSaga>.Services.get -> System.IServiceProvider!
 Excalibur.Dispatch.Testing.Tracking.DispatchedMessage
-Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Context.get -> Excalibur.Dispatch.Abstractions.IMessageContext!
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Context.get -> Excalibur.Dispatch.IMessageContext!
 Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Context.init -> void
-Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.DispatchedMessage(Excalibur.Dispatch.Abstractions.IDispatchMessage! Message, Excalibur.Dispatch.Abstractions.IMessageContext! Context, System.DateTimeOffset Timestamp, Excalibur.Dispatch.Abstractions.IMessageResult? Result) -> void
-Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Message.get -> Excalibur.Dispatch.Abstractions.IDispatchMessage!
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.DispatchedMessage(Excalibur.Dispatch.IDispatchMessage! Message, Excalibur.Dispatch.IMessageContext! Context, System.DateTimeOffset Timestamp, Excalibur.Dispatch.IMessageResult? Result) -> void
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Message.get -> Excalibur.Dispatch.IDispatchMessage!
 Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Message.init -> void
-Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Result.get -> Excalibur.Dispatch.Abstractions.IMessageResult?
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Result.get -> Excalibur.Dispatch.IMessageResult?
 Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Result.init -> void
 Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Timestamp.get -> System.DateTimeOffset
 Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Timestamp.init -> void

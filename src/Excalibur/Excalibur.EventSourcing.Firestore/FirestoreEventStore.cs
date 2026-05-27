@@ -5,12 +5,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Data.Abstractions.Observability;
+using Excalibur.Data.CloudNative;
 using Excalibur.Data.Firestore;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.EventSourcing.Observability;
 
 using Google.Cloud.Firestore;
@@ -525,7 +524,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			}
 
 			if (@event.Metadata.TryGetValue("CorrelationId", out var correlationId) ||
-			    @event.Metadata.TryGetValue("correlationId", out correlationId))
+				@event.Metadata.TryGetValue("correlationId", out correlationId))
 			{
 				return correlationId?.ToString();
 			}
@@ -591,13 +590,13 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 
 		if (!string.IsNullOrWhiteSpace(_options.CredentialsJson))
 		{
-			#pragma warning disable CS0618 // Obsolete CredentialsPath/JsonCredentials -- no replacement available yet
+#pragma warning disable CS0618 // Obsolete CredentialsPath/JsonCredentials -- no replacement available yet
 			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, JsonCredentials = _options.CredentialsJson };
 #pragma warning restore CS0618
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
 		{
-			#pragma warning disable CS0618
+#pragma warning disable CS0618
 			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, CredentialsPath = _options.CredentialsPath };
 #pragma warning restore CS0618
 		}

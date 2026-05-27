@@ -3,7 +3,7 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.InMemory;
 
 using FakeItEasy;

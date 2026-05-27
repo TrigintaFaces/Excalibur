@@ -8,8 +8,8 @@
 // Press any key to simulate order events, ESC to exit.
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 

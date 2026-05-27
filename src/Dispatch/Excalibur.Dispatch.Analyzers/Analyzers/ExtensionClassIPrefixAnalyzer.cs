@@ -15,56 +15,56 @@ namespace Excalibur.Dispatch.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ExtensionClassIPrefixAnalyzer : DiagnosticAnalyzer
 {
-    /// <inheritdoc />
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(AnalyzerDiagnosticDescriptors.ExtensionClassIPrefixNaming);
+	/// <inheritdoc />
+	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
+		ImmutableArray.Create(AnalyzerDiagnosticDescriptors.ExtensionClassIPrefixNaming);
 
-    /// <inheritdoc />
-    public override void Initialize(AnalysisContext context)
-    {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.EnableConcurrentExecution();
+	/// <inheritdoc />
+	public override void Initialize(AnalysisContext context)
+	{
+		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+		context.EnableConcurrentExecution();
 
-        context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
-    }
+		context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
+	}
 
-    private static void AnalyzeNamedType(SymbolAnalysisContext context)
-    {
-        var namedType = (INamedTypeSymbol)context.Symbol;
+	private static void AnalyzeNamedType(SymbolAnalysisContext context)
+	{
+		var namedType = (INamedTypeSymbol)context.Symbol;
 
-        // Only analyze static classes (extension method containers)
-        if (!namedType.IsStatic)
-        {
-            return;
-        }
+		// Only analyze static classes (extension method containers)
+		if (!namedType.IsStatic)
+		{
+			return;
+		}
 
-        // Check if it has any extension methods
-        var hasExtensionMethods = false;
-        foreach (var member in namedType.GetMembers())
-        {
-            if (member is IMethodSymbol { IsExtensionMethod: true })
-            {
-                hasExtensionMethods = true;
-                break;
-            }
-        }
+		// Check if it has any extension methods
+		var hasExtensionMethods = false;
+		foreach (var member in namedType.GetMembers())
+		{
+			if (member is IMethodSymbol { IsExtensionMethod: true })
+			{
+				hasExtensionMethods = true;
+				break;
+			}
+		}
 
-        if (!hasExtensionMethods)
-        {
-            return;
-        }
+		if (!hasExtensionMethods)
+		{
+			return;
+		}
 
-        // Check for 'I' prefix followed by uppercase letter
-        var name = namedType.Name;
-        if (name.Length >= 2 && name[0] == 'I' && char.IsUpper(name[1]))
-        {
-            var suggestedName = name.Substring(1);
-            context.ReportDiagnostic(
-                Diagnostic.Create(
-                    AnalyzerDiagnosticDescriptors.ExtensionClassIPrefixNaming,
-                    namedType.Locations[0],
-                    name,
-                    suggestedName));
-        }
-    }
+		// Check for 'I' prefix followed by uppercase letter
+		var name = namedType.Name;
+		if (name.Length >= 2 && name[0] == 'I' && char.IsUpper(name[1]))
+		{
+			var suggestedName = name.Substring(1);
+			context.ReportDiagnostic(
+				Diagnostic.Create(
+					AnalyzerDiagnosticDescriptors.ExtensionClassIPrefixNaming,
+					namedType.Locations[0],
+					name,
+					suggestedName));
+		}
+	}
 }

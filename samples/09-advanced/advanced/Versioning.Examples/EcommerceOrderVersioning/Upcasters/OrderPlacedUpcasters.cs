@@ -3,7 +3,7 @@
 
 using EcommerceOrderVersioning.Events;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace EcommerceOrderVersioning.Upcasters;
 

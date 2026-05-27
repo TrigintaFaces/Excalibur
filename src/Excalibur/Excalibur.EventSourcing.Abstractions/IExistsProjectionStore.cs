@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 /// <summary>
 /// ISP sub-interface for projection stores that support optimized existence checks.
@@ -23,17 +23,17 @@ namespace Excalibur.EventSourcing.Abstractions;
 /// </remarks>
 /// <typeparam name="TProjection">The projection type. Must be a reference type.</typeparam>
 public interface IExistsProjectionStore<TProjection> : IProjectionStore<TProjection>
-    where TProjection : class
+	where TProjection : class
 {
-    /// <summary>
-    /// Checks whether a projection with the specified identifier exists
-    /// using a provider-optimized query that avoids full deserialization.
-    /// </summary>
-    /// <param name="id">The projection identifier to check.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>
-    /// <see langword="true"/> if a projection with the specified <paramref name="id"/> exists;
-    /// otherwise, <see langword="false"/>.
-    /// </returns>
-    Task<bool> ExistsAsync(string id, CancellationToken cancellationToken);
+	/// <summary>
+	/// Checks whether a projection with the specified identifier exists
+	/// using a provider-optimized query that avoids full deserialization.
+	/// </summary>
+	/// <param name="id">The projection identifier to check.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>
+	/// <see langword="true"/> if a projection with the specified <paramref name="id"/> exists;
+	/// otherwise, <see langword="false"/>.
+	/// </returns>
+	Task<bool> ExistsAsync(string id, CancellationToken cancellationToken);
 }

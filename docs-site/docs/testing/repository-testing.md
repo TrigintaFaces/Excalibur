@@ -35,7 +35,7 @@ For fast integration tests without external dependencies:
 
 ```csharp
 using Excalibur.EventSourcing;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 public class OrderRepositoryTests : IDisposable
 {

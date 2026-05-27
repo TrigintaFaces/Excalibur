@@ -3,7 +3,7 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Tests.Messaging.Streaming.TestTypes;
@@ -118,6 +118,7 @@ public sealed class StreamingHandlerRegistrationShould
 
 		// Act
 		using var provider = services.BuildServiceProvider();
+		using var scope = provider.CreateScope();
 
 		// Create two scopes and verify handlers are different instances
 		using var scope1 = provider.CreateScope();

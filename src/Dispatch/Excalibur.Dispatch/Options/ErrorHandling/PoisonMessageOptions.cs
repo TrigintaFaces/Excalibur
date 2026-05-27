@@ -3,6 +3,7 @@
 
 
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Options.ErrorHandling;

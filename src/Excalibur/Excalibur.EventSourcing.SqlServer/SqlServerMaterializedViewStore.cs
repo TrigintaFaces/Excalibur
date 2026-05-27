@@ -7,8 +7,7 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions.Validation;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Validation;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

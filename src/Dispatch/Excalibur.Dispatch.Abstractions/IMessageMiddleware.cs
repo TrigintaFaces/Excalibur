@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Represents middleware in the message processing pipeline.

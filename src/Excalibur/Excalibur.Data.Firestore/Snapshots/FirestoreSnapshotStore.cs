@@ -5,11 +5,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 
-using Excalibur.Data.Abstractions.Observability;
 using Excalibur.Data.Firestore.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Google.Cloud.Firestore;
 

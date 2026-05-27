@@ -3,7 +3,7 @@
 
 using System.Text.Json;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Postgres;
 
 using Microsoft.Extensions.Logging.Abstractions;

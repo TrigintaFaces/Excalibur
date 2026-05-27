@@ -7,16 +7,16 @@ namespace Excalibur.Cdc.MongoDB;
 
 internal sealed class MongoDbCdcRecoveryOptionsValidator : IValidateOptions<MongoDbCdcRecoveryOptions>
 {
-    public ValidateOptionsResult Validate(string? name, MongoDbCdcRecoveryOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, MongoDbCdcRecoveryOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

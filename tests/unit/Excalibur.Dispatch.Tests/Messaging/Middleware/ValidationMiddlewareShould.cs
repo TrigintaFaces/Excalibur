@@ -5,8 +5,8 @@
 
 using System.ComponentModel.DataAnnotations;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Middleware.Validation;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware;
@@ -15,7 +15,7 @@ using Excalibur.Dispatch.Options.Middleware;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 

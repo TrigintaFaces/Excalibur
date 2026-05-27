@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Amazon.DynamoDBv2;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 using Excalibur.Outbox;
 using Excalibur.Outbox.DynamoDb;
 

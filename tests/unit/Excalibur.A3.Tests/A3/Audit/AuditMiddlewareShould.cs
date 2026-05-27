@@ -3,8 +3,8 @@
 using Excalibur.A3.Audit;
 using Excalibur.A3.Audit.Events;
 using Excalibur.Application.Requests;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Domain;
 
 using Microsoft.Extensions.Logging.Abstractions;

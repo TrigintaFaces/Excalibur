@@ -10,8 +10,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Middleware;
 
@@ -416,7 +415,7 @@ public sealed partial class InputSanitizationMiddleware : IDispatchMiddleware
 
 		// Check for bypass attribute
 		if (_bypassAttributeCache.GetOrAdd(messageType, static type =>
-			    type.GetCustomAttributes(typeof(BypassSanitizationAttribute), inherit: true).Length != 0))
+				type.GetCustomAttributes(typeof(BypassSanitizationAttribute), inherit: true).Length != 0))
 		{
 			return true;
 		}
@@ -432,7 +431,7 @@ public sealed partial class InputSanitizationMiddleware : IDispatchMiddleware
 	{
 		// Skip properties with NoSanitize attribute
 		if (_noSanitizeAttributeCache.GetOrAdd(property, static p =>
-			    p.GetCustomAttributes(typeof(NoSanitizeAttribute), inherit: true).Length != 0))
+				p.GetCustomAttributes(typeof(NoSanitizeAttribute), inherit: true).Length != 0))
 		{
 			return true;
 		}

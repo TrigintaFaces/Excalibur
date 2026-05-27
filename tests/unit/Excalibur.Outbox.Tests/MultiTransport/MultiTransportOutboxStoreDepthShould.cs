@@ -3,7 +3,7 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Outbox.MultiTransport;
 
 using Microsoft.Extensions.Logging.Abstractions;

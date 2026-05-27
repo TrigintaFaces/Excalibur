@@ -4,8 +4,6 @@
 using Dapper;
 
 using Excalibur.Dispatch.Extensions;
-
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 using Excalibur.EventSourcing.SqlServer.Requests;

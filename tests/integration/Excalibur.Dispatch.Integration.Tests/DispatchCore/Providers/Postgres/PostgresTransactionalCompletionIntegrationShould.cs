@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 using Dapper;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 using Excalibur.Outbox.Postgres;
 
 using FakeItEasy;

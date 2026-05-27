@@ -43,7 +43,7 @@ public sealed class CircuitBreakerOptionsShould
     [Fact]
     public void InvokeCircuitKeySelector()
     {
-        var message = A.Fake<Excalibur.Dispatch.Abstractions.IDispatchMessage>();
+        var message = A.Fake<Excalibur.Dispatch.IDispatchMessage>();
         var options = new CircuitBreakerOptions
         {
             CircuitKeySelector = _ => "custom-circuit",

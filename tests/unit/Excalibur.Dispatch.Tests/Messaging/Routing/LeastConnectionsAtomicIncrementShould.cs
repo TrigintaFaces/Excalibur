@@ -7,7 +7,7 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch.Routing;
 using Excalibur.Dispatch.Routing.LoadBalancing;
 using Excalibur.Dispatch.Routing.Strategies;
 

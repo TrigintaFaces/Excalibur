@@ -9,8 +9,8 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions.Validation;
 using Excalibur.Data.SqlServer.Diagnostics;
+using Excalibur.Data.Validation;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Data.SqlClient;

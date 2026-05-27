@@ -5,8 +5,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>

@@ -14,7 +14,7 @@
 //
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Compliance;
 
 using GdprCompliance.Commands;

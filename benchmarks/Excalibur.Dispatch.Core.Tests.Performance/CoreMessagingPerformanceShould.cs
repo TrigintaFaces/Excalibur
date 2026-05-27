@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
@@ -290,7 +290,7 @@ public sealed class CoreMessagingPerformanceShould : IDisposable, IAsyncDisposab
 						var batchKey = options.BatchKeySelector(msg);
 						batchingMetrics.Add((batchKey, 1, processingStopwatch.ElapsedMilliseconds));
 
-						return Excalibur.Dispatch.Abstractions.MessageResult.Success();
+						return Excalibur.Dispatch.MessageResult.Success();
 					}
 
 					var task = middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask();
@@ -444,7 +444,7 @@ public sealed class CoreMessagingPerformanceShould : IDisposable, IAsyncDisposab
 					{
 						// Step 3: Downstream batch processing
 						await batchProcessor.AddAsync(messageId, ct);
-						return Excalibur.Dispatch.Abstractions.MessageResult.Success();
+						return Excalibur.Dispatch.MessageResult.Success();
 					}
 
 					var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);

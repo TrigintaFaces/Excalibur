@@ -382,7 +382,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 
 		// Try to get pod name from environment (set by Kubernetes)
 		var podName = Environment.GetEnvironmentVariable("HOSTNAME") ??
-		              Environment.GetEnvironmentVariable("POD_NAME");
+					  Environment.GetEnvironmentVariable("POD_NAME");
 
 		if (!string.IsNullOrEmpty(podName))
 		{
@@ -418,13 +418,17 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 					NamespaceProperty = _namespace,
 					Labels = new Dictionary<string, string>(StringComparer.Ordinal)
 					{
-						["app.kubernetes.io/managed-by"] = "excalibur-leader-election", ["excalibur.io/resource"] = _resourceName,
+						["app.kubernetes.io/managed-by"] = "excalibur-leader-election",
+						["excalibur.io/resource"] = _resourceName,
 					},
 					Annotations = new Dictionary<string, string>(StringComparer.Ordinal),
 				},
 				Spec = new V1LeaseSpec
 				{
-					HolderIdentity = null, LeaseDurationSeconds = _options.LeaseDurationSeconds, AcquireTime = null, RenewTime = null,
+					HolderIdentity = null,
+					LeaseDurationSeconds = _options.LeaseDurationSeconds,
+					AcquireTime = null,
+					RenewTime = null,
 				},
 			};
 

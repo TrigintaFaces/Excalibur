@@ -4,7 +4,6 @@
 #pragma warning disable IL2026, IL3050 // AOT: Configuration binding uses reflection
 
 using Excalibur.Cdc.SqlServer;
-using Excalibur.Jobs.Abstractions;
 using Excalibur.Jobs.Core;
 using Excalibur.Jobs.Diagnostics;
 

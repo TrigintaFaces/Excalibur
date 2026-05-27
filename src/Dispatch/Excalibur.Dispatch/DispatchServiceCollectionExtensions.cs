@@ -5,18 +5,14 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Middleware;
-using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
@@ -92,8 +88,8 @@ public static class DispatchServiceCollectionExtensions
 		services.TryAddSingleton<IEventSerializer>(static _ => new JsonEventSerializer());
 
 		// Default no-op telemetry sanitizer — overridden by AddDispatchObservability() with HashingTelemetrySanitizer
-		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.Telemetry.ITelemetrySanitizer>(
-			static _ => Excalibur.Dispatch.Abstractions.Telemetry.NullTelemetrySanitizer.Instance);
+		services.TryAddSingleton<Excalibur.Dispatch.Telemetry.ITelemetrySanitizer>(
+			static _ => Excalibur.Dispatch.Telemetry.NullTelemetrySanitizer.Instance);
 
 		// Register telemetry provider by default so metrics and traces are emitted
 		// automatically when the consumer adds OpenTelemetry with AddDispatchInstrumentation().

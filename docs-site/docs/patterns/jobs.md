@@ -31,7 +31,7 @@ Excalibur.Jobs provides background job scheduling, multi-step workflows, and dis
 Implement `IBackgroundJob` for simple jobs, or `IBackgroundJob<TContext>` when you need typed input:
 
 ```csharp
-using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs;
 
 public class CleanupJob : IBackgroundJob
 {
@@ -139,7 +139,7 @@ The `IJobConfigurator` supports chaining:
 For jobs that need input data, implement `IBackgroundJob<TContext>`:
 
 ```csharp
-using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs;
 
 public class ReportJob : IBackgroundJob<ReportContext>
 {

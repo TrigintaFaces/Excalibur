@@ -4,8 +4,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Delivery.Handlers;
 
 /// <summary>
@@ -18,17 +16,17 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// </remarks>
 public sealed class HandlerInvokerAot : IHandlerInvoker, IValueTaskHandlerInvoker
 {
-/// <summary>
-/// Invokes a handler's HandleAsync method using AOT-compatible source-generated code.
-/// </summary>
-/// <param name="handler"> The handler instance to invoke. </param>
-/// <param name="message"> The message to handle. </param>
-/// <param name="cancellationToken"> Cancellation token for the operation. </param>
-/// <returns> The result of handler execution, or null for void handlers. </returns>
-/// <remarks>
-/// This method uses source-generated code to avoid reflection and expression compilation. The <see cref="HandlerInvokerRegistry"/>
-/// is populated at compile time by scanning all handler types and generating optimized invocation code for each handler and message type combination.
-/// </remarks>
+	/// <summary>
+	/// Invokes a handler's HandleAsync method using AOT-compatible source-generated code.
+	/// </summary>
+	/// <param name="handler"> The handler instance to invoke. </param>
+	/// <param name="message"> The message to handle. </param>
+	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
+	/// <returns> The result of handler execution, or null for void handlers. </returns>
+	/// <remarks>
+	/// This method uses source-generated code to avoid reflection and expression compilation. The <see cref="HandlerInvokerRegistry"/>
+	/// is populated at compile time by scanning all handler types and generating optimized invocation code for each handler and message type combination.
+	/// </remarks>
 	[RequiresUnreferencedCode("Handler invocation may require reflection to call handler methods")]
 	public Task<object?> InvokeAsync(object handler, IDispatchMessage message, CancellationToken cancellationToken)
 	{

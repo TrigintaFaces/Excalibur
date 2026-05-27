@@ -3,12 +3,10 @@
 
 using System.Globalization;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.Logging;

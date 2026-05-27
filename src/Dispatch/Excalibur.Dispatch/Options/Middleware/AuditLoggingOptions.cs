@@ -4,8 +4,6 @@
 
 using System.ComponentModel.DataAnnotations;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Options.Middleware;
 
 /// <summary>

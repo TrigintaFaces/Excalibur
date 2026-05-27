@@ -3,11 +3,10 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly - acceptable in tests
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Transport;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Tests.Shared.TestFakes;
 
@@ -65,7 +64,7 @@ public sealed class DispatcherShould
 	public async Task DispatchMessageThroughMiddlewarePipeline()
 	{
 		// Arrange
-		var successResult = Excalibur.Dispatch.Abstractions.MessageResult.Success();
+		var successResult = Excalibur.Dispatch.MessageResult.Success();
 		A.CallTo(() => _invoker.InvokeAsync(
 				A<IDispatchMessage>._,
 				A<IMessageContext>._,
@@ -89,7 +88,7 @@ public sealed class DispatcherShould
 	public async Task SetCorrelationIdIfNotSet()
 	{
 		// Arrange
-		var successResult = Excalibur.Dispatch.Abstractions.MessageResult.Success();
+		var successResult = Excalibur.Dispatch.MessageResult.Success();
 		A.CallTo(() => _invoker.InvokeAsync(
 				A<IDispatchMessage>._,
 				A<IMessageContext>._,
@@ -112,7 +111,7 @@ public sealed class DispatcherShould
 	public async Task SetCausationIdIfNotSet()
 	{
 		// Arrange
-		var successResult = Excalibur.Dispatch.Abstractions.MessageResult.Success();
+		var successResult = Excalibur.Dispatch.MessageResult.Success();
 		A.CallTo(() => _invoker.InvokeAsync(
 				A<IDispatchMessage>._,
 				A<IMessageContext>._,
@@ -135,7 +134,7 @@ public sealed class DispatcherShould
 	public async Task SetMessageTypeOnContext()
 	{
 		// Arrange
-		var successResult = Excalibur.Dispatch.Abstractions.MessageResult.Success();
+		var successResult = Excalibur.Dispatch.MessageResult.Success();
 		A.CallTo(() => _invoker.InvokeAsync(
 				A<IDispatchMessage>._,
 				A<IMessageContext>._,
@@ -161,7 +160,7 @@ public sealed class DispatcherShould
 		var binding = A.Fake<ITransportBinding>();
 		A.CallTo(() => _transportContextProvider.GetTransportBinding(A<IMessageContext>._)).Returns(binding);
 
-		var successResult = Excalibur.Dispatch.Abstractions.MessageResult.Success();
+		var successResult = Excalibur.Dispatch.MessageResult.Success();
 		A.CallTo(() => _invoker.InvokeAsync(
 				A<IDispatchMessage>._,
 				A<IMessageContext>._,

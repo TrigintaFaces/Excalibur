@@ -8,8 +8,6 @@ using Avro;
 using Avro.IO;
 using Avro.Specific;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
 namespace Excalibur.Dispatch.Serialization.Avro;
 
 /// <summary>

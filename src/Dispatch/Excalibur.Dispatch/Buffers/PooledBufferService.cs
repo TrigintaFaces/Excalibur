@@ -4,8 +4,6 @@
 
 using System.Buffers;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Buffers;
 
 /// <summary>

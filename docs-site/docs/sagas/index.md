@@ -68,7 +68,7 @@ public class OrderSagaState : SagaState
 Events must implement `ISagaEvent` so the coordinator can route them:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // Start event — creates a new saga instance
 public record StartOrderProcessing(
@@ -86,8 +86,8 @@ public record PaymentFailed(string SagaId, string Reason) : ISagaEvent;
 ### 3. Implement the Saga
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Saga.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.Saga;
 using Excalibur.Saga.Orchestration;
 using Microsoft.Extensions.Logging;
 
@@ -155,7 +155,7 @@ public sealed partial class OrderFulfillmentSaga(
 ### 4. Register and Configure
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Orchestration;
 using Microsoft.Extensions.DependencyInjection;
 

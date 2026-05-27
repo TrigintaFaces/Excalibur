@@ -131,7 +131,7 @@ public sealed class ElasticSearchProjectionsEventSourcingBuilderExtensionsShould
 
 		// Assert
 		var descriptor = services.FirstOrDefault(
-			s => s.ServiceType == typeof(Excalibur.EventSourcing.Abstractions.IProjectionStore<TestProjection>));
+			s => s.ServiceType == typeof(Excalibur.EventSourcing.IProjectionStore<TestProjection>));
 		descriptor.ShouldNotBeNull();
 	}
 
@@ -191,7 +191,7 @@ public sealed class ElasticSearchProjectionsEventSourcingBuilderExtensionsShould
 
 		// Assert
 		var descriptor = services.FirstOrDefault(
-			s => s.ServiceType == typeof(Excalibur.EventSourcing.Abstractions.IProjectionStore<TestProjection>));
+			s => s.ServiceType == typeof(Excalibur.EventSourcing.IProjectionStore<TestProjection>));
 		descriptor.ShouldNotBeNull();
 	}
 
@@ -235,11 +235,11 @@ public sealed class ElasticSearchProjectionsEventSourcingBuilderExtensionsShould
 		result.ShouldBeSameAs(esBuilder);
 
 		services.Where(s =>
-			s.ServiceType == typeof(Excalibur.EventSourcing.Abstractions.IProjectionStore<TestProjection>))
+			s.ServiceType == typeof(Excalibur.EventSourcing.IProjectionStore<TestProjection>))
 			.ShouldNotBeEmpty();
 
 		services.Where(s =>
-			s.ServiceType == typeof(Excalibur.EventSourcing.Abstractions.IProjectionStore<AnotherProjection>))
+			s.ServiceType == typeof(Excalibur.EventSourcing.IProjectionStore<AnotherProjection>))
 			.ShouldNotBeEmpty();
 	}
 

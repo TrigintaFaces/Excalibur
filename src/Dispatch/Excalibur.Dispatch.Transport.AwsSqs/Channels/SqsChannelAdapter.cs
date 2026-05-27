@@ -7,7 +7,6 @@ using System.Threading.Channels;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
-using Excalibur.Dispatch.Channels;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.Logging;
@@ -487,7 +486,7 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			_batchSendStarted.TrySetResult(); // Ensure StopAsync doesn't hang
-			// Expected during shutdown
+											  // Expected during shutdown
 		}
 
 		// Send any remaining messages

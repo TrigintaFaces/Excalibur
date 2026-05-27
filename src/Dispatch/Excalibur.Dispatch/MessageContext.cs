@@ -3,11 +3,9 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Validation;
 
 namespace Excalibur.Dispatch.Messaging;
 
@@ -22,7 +20,7 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 {
 	private static readonly IMessageVersionMetadata DefaultVersionMetadata = new MessageVersionMetadata();
 	private static readonly IValidationResult DefaultValidationResult = SerializableValidationResult.Success();
-	private static readonly IAuthorizationResult DefaultAuthorizationResult = Abstractions.AuthorizationResult.Success();
+	private static readonly IAuthorizationResult DefaultAuthorizationResult = Excalibur.Dispatch.AuthorizationResult.Success();
 
 	/// <summary>
 	/// Lazily initialized items dictionary. Only allocated when first write occurs.

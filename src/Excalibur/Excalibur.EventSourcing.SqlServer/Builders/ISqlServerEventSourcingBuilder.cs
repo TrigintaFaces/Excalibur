@@ -136,7 +136,7 @@ public interface ISqlServerEventSourcingBuilder
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// Registers <see cref="Excalibur.EventSourcing.Abstractions.IMaterializedViewStore"/>
+	/// Registers <see cref="Excalibur.EventSourcing.IMaterializedViewStore"/>
 	/// backed by <see cref="SqlServerMaterializedViewStore"/>.
 	/// Uses "MaterializedViews" and "MaterializedViewPositions" as default table names.
 	/// </para>

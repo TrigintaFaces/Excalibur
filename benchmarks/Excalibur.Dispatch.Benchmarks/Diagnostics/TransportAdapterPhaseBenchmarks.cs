@@ -5,12 +5,11 @@ using System.Collections.Concurrent;
 
 using BenchmarkDotNet.Attributes;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;

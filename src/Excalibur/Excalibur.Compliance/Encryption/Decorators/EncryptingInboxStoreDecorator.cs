@@ -3,8 +3,8 @@
 
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Compliance.Configuration;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Options;
 

@@ -117,7 +117,7 @@ public sealed class SqlServerRetryPolicyShould
 		// Arrange
 		var options = new RealOptions { RetryCount = 3 };
 		var sut = new SqlServerRetryPolicy(options, NullLogger.Instance);
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<object, string>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<object, string>>();
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(() =>
@@ -134,7 +134,7 @@ public sealed class SqlServerRetryPolicyShould
 		var sut = new SqlServerRetryPolicy(options, NullLogger.Instance);
 
 		// Assert
-		sut.ShouldBeAssignableTo<Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy>();
+		sut.ShouldBeAssignableTo<Excalibur.Data.Resilience.IDataRequestRetryPolicy>();
 	}
 
 	[Fact]

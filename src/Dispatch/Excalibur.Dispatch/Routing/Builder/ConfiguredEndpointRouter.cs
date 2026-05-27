@@ -3,10 +3,7 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Routing;
-
-using AbstractionRouteInfo = Excalibur.Dispatch.Abstractions.Routing.RouteInfo;
+using AbstractionRouteInfo = Excalibur.Dispatch.Routing.RouteInfo;
 
 namespace Excalibur.Dispatch.Routing.Builder;
 

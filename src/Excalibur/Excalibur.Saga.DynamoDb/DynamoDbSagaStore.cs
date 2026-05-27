@@ -11,7 +11,7 @@ using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 
 using Excalibur.Data.DynamoDb.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;

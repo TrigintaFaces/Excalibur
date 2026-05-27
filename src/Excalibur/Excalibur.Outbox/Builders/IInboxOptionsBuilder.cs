@@ -39,10 +39,10 @@ namespace Excalibur.Outbox;
 /// </example>
 public interface IInboxOptionsBuilder : IInboxOptionsCoreBuilder, IInboxOptionsAdvancedBuilder
 {
-    /// <summary>
-    /// Builds the immutable <see cref="InboxOptions"/> instance.
-    /// </summary>
-    /// <returns>The configured inbox options.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the configuration is invalid.</exception>
-    InboxOptions Build();
+	/// <summary>
+	/// Builds the immutable <see cref="InboxOptions"/> instance.
+	/// </summary>
+	/// <returns>The configured inbox options.</returns>
+	/// <exception cref="InvalidOperationException">Thrown if the configuration is invalid.</exception>
+	InboxOptions Build();
 }

@@ -57,7 +57,7 @@ public static class ExcaliburDataSqlServerServiceCollectionExtensions
 
 		foreach (var typeHandler in additionalTypeHandlers)
 		{
-			#pragma warning disable IL2026, IL3050 // RegisterTypeHandler uses reflection for Dapper type handler registration
+#pragma warning disable IL2026, IL3050 // RegisterTypeHandler uses reflection for Dapper type handler registration
 			RegisterTypeHandler(typeHandler);
 #pragma warning restore IL2026, IL3050
 		}

@@ -6,7 +6,6 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Dispatch.Messaging;

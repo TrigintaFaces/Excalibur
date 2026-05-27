@@ -4,8 +4,7 @@
 
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.AspNetCore.Http;

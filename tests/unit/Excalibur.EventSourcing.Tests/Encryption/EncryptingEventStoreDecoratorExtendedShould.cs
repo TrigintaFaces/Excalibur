@@ -3,10 +3,10 @@
 
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Encryption.Decorators;
 
 using FakeItEasy;

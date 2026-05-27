@@ -4,7 +4,7 @@
 using System.Reflection;
 using System.Threading.Channels;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 using Excalibur.EventSourcing.CosmosDb;
 
 using Microsoft.Azure.Cosmos;
@@ -82,7 +82,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscriptionShould : UnitTestBas
 				DocumentId = "doc-1"
 			},
 			"doc-1",
-			new Excalibur.Data.Abstractions.CloudNative.PartitionKey("Order:agg-1"),
+			new Excalibur.Data.CloudNative.PartitionKey("Order:agg-1"),
 			DateTimeOffset.UtcNow,
 			"ct-1",
 			1L);
@@ -187,7 +187,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscriptionShould : UnitTestBas
 			Timestamp = timestamp,
 			PartitionKeyValue = "Order:agg-42"
 		};
-		var partitionKey = new Excalibur.Data.Abstractions.CloudNative.PartitionKey("Order:agg-42");
+		var partitionKey = new Excalibur.Data.CloudNative.PartitionKey("Order:agg-42");
 
 		var instance = Activator.CreateInstance(
 			changeFeedEventType!,

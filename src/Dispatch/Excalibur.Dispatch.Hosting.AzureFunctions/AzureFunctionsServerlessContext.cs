@@ -3,8 +3,6 @@
 
 using Microsoft.Azure.Functions.Worker;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Hosting.AzureFunctions;
 
 /// <summary>

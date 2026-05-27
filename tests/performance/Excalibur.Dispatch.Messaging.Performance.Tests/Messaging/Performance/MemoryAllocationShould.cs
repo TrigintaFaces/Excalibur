@@ -3,7 +3,7 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Inbox.InMemory;
 using Excalibur.Dispatch.Middleware;
@@ -12,7 +12,7 @@ using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Tests.Shared.TestFakes;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Performance;
 

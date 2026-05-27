@@ -3,7 +3,7 @@
 
 using System.Text.Json.Serialization;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Tests.Shared.TestFakes;
 

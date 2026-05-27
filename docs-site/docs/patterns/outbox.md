@@ -155,7 +155,7 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Custom()
 Inject `IOutboxWriter` into your handler and call `WriteAsync` to stage outbound messages. The consistency guarantee (eventually-consistent vs. transactional) is determined by configuration -- your handler code stays the same regardless of mode:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Outbox;
+using Excalibur.Dispatch.Outbox;
 
 public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
 {

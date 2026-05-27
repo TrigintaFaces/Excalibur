@@ -5,6 +5,7 @@
 using System.Data;
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Data.SqlServer.ErrorHandling;
 using Excalibur.Dispatch.ErrorHandling;
 

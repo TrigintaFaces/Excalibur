@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using NpgsqlTypes;
 
@@ -27,7 +27,8 @@ public readonly struct PostgresCdcPosition : IEquatable<PostgresCdcPosition>, IC
 	/// </summary>
 	public PostgresCdcPosition(string lsnString)
 	{
-		if (string.IsNullOrWhiteSpace(lsnString)) { Lsn = NpgsqlLogSequenceNumber.Invalid; return; }
+		if (string.IsNullOrWhiteSpace(lsnString))
+		{ Lsn = NpgsqlLogSequenceNumber.Invalid; return; }
 		Lsn = NpgsqlLogSequenceNumber.Parse(lsnString);
 	}
 
@@ -54,9 +55,12 @@ public readonly struct PostgresCdcPosition : IEquatable<PostgresCdcPosition>, IC
 	/// <summary>Tries to parse an LSN string to a <see cref="PostgresCdcPosition"/>.</summary>
 	public static bool TryParse(string? lsnString, out PostgresCdcPosition position)
 	{
-		if (string.IsNullOrWhiteSpace(lsnString)) { position = Start; return false; }
-		if (NpgsqlLogSequenceNumber.TryParse(lsnString, out var lsn)) { position = new PostgresCdcPosition(lsn); return true; }
-		position = Start; return false;
+		if (string.IsNullOrWhiteSpace(lsnString))
+		{ position = Start; return false; }
+		if (NpgsqlLogSequenceNumber.TryParse(lsnString, out var lsn))
+		{ position = new PostgresCdcPosition(lsn); return true; }
+		position = Start;
+		return false;
 	}
 
 	/// <summary>Determines whether two positions are equal.</summary>

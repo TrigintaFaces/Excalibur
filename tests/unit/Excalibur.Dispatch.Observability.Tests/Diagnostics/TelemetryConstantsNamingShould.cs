@@ -4,7 +4,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.ElasticSearch.Diagnostics;
 using Excalibur.Data.SqlServer.Diagnostics;
 using Excalibur.Compliance.Diagnostics;

@@ -13,9 +13,9 @@
 // - Dispatching events that get enriched with CloudEvents metadata
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;

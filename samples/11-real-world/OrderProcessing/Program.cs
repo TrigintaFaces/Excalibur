@@ -21,11 +21,11 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Validation;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using FluentValidation;
 
@@ -395,7 +395,7 @@ static void PrintValidationResult(IMessageResult result)
 		{
 			foreach (var error in errors)
 			{
-				if (error is Excalibur.Dispatch.Abstractions.Validation.ValidationError ve)
+				if (error is Excalibur.Dispatch.Validation.ValidationError ve)
 				{
 					var prop = string.IsNullOrEmpty(ve.PropertyName) ? "(General)" : ve.PropertyName;
 					Console.WriteLine($"    - [{prop}]: {ve.Message}");

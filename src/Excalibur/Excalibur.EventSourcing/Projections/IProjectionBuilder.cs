@@ -3,8 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.Projections;
 
@@ -109,7 +108,7 @@ public interface IProjectionBuilder<TProjection>
 	/// <typeparam name="TEvent">The domain event type to handle.</typeparam>
 	/// <typeparam name="THandler">
 	/// The handler type implementing
-	/// <see cref="Excalibur.EventSourcing.Abstractions.IProjectionEventHandler{TProjection, TEvent}"/>.
+	/// <see cref="Excalibur.EventSourcing.IProjectionEventHandler{TProjection, TEvent}"/>.
 	/// </typeparam>
 	/// <returns>This builder for fluent chaining.</returns>
 	/// <remarks>
@@ -124,7 +123,7 @@ public interface IProjectionBuilder<TProjection>
 #pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
 	IProjectionBuilder<TProjection> WhenHandledBy<TEvent,
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-		THandler>()
+	THandler>()
 		where TEvent : IDomainEvent
 		where THandler : IProjectionEventHandler<TProjection, TEvent>;
 
@@ -132,7 +131,7 @@ public interface IProjectionBuilder<TProjection>
 
 	/// <summary>
 	/// Scans the specified assembly for all implementations of
-	/// <see cref="Excalibur.EventSourcing.Abstractions.IProjectionEventHandler{TProjection, TEvent}"/>
+	/// <see cref="Excalibur.EventSourcing.IProjectionEventHandler{TProjection, TEvent}"/>
 	/// and registers them as handlers for this projection.
 	/// </summary>
 	/// <param name="assembly">The assembly to scan.</param>
@@ -205,12 +204,12 @@ public interface IProjectionBuilder<TProjection>
 	IProjectionBuilder<TProjection> WhenDeleted(Func<string, CancellationToken, Task> deleteAction);
 
 	/// <summary>
-	/// Overrides the default DI-resolved <see cref="Excalibur.EventSourcing.Abstractions.IProjectionStore{TProjection}"/>
+	/// Overrides the default DI-resolved <see cref="Excalibur.EventSourcing.IProjectionStore{TProjection}"/>
 	/// with a specific store implementation type. The store is resolved from DI by its concrete type.
 	/// </summary>
 	/// <typeparam name="TStore">
 	/// The concrete store implementation type. Must implement
-	/// <see cref="Excalibur.EventSourcing.Abstractions.IProjectionStore{TProjection}"/>.
+	/// <see cref="Excalibur.EventSourcing.IProjectionStore{TProjection}"/>.
 	/// </typeparam>
 	/// <returns>This builder for fluent chaining.</returns>
 	/// <remarks>

@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Outbox.SqlServer;
 
@@ -120,7 +120,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		var duplicate = CreateTestMessage();
 		duplicate.Id = message.Id;
 
-		_ = await Assert.ThrowsAsync<Excalibur.Data.Abstractions.OperationFailedException>(async () =>
+		_ = await Assert.ThrowsAsync<Excalibur.Data.OperationFailedException>(async () =>
 			await outboxStore.StageMessageAsync(duplicate, CancellationToken.None));
 	}
 

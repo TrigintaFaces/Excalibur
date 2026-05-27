@@ -10,13 +10,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
-using MessageProblemDetails = Excalibur.Dispatch.Abstractions.MessageProblemDetails;
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageProblemDetails = Excalibur.Dispatch.MessageProblemDetails;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Security;
 

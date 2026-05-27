@@ -24,7 +24,7 @@ internal sealed class OpenSearchHealthMonitor(
 	IOptions<OpenSearchMonitoringOptions> options) : BackgroundService
 {
 	private readonly OpenSearchClient _client = client ?? throw new ArgumentNullException(nameof(client));
-	#pragma warning disable CA2213 // Metrics lifetime is managed by DI container
+#pragma warning disable CA2213 // Metrics lifetime is managed by DI container
 	private readonly OpenSearchMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
 #pragma warning restore CA2213
 	private readonly ILogger<OpenSearchHealthMonitor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -69,7 +69,10 @@ internal sealed class OpenSearchHealthMonitor(
 			_logger.LogError(ex, "Failed to perform cluster health check");
 			var errorHealth = new OpenSearchClusterHealth
 			{
-				IsHealthy = false, Status = "red", ErrorMessage = ex.Message, Timestamp = DateTimeOffset.UtcNow,
+				IsHealthy = false,
+				Status = "red",
+				ErrorMessage = ex.Message,
+				Timestamp = DateTimeOffset.UtcNow,
 			};
 			_metrics.UpdateHealthStatus(isHealthy: false, "error");
 			_lastClusterHealth = errorHealth;
@@ -102,7 +105,8 @@ internal sealed class OpenSearchHealthMonitor(
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error during health monitoring execution");
-				try { await Task.Delay(_settings.HealthCheckInterval, stoppingToken).ConfigureAwait(false); }
+				try
+				{ await Task.Delay(_settings.HealthCheckInterval, stoppingToken).ConfigureAwait(false); }
 				catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
 			}
 		}
@@ -114,7 +118,10 @@ internal sealed class OpenSearchHealthMonitor(
 	{
 		var nodeHealth = new NodeHealthInfo
 		{
-			NodeId = nodeId, NodeName = nodeInfo.Name, IsHealthy = statsResponse.IsValid, LastUpdated = DateTimeOffset.UtcNow,
+			NodeId = nodeId,
+			NodeName = nodeInfo.Name,
+			IsHealthy = statsResponse.IsValid,
+			LastUpdated = DateTimeOffset.UtcNow,
 		};
 
 		if (!statsResponse.IsValid)
@@ -251,8 +258,11 @@ internal sealed class OpenSearchHealthMonitor(
 					_logger.LogError(ex, "Failed to get health for node {NodeId}", nodeId);
 					var errorHealth = new NodeHealthInfo
 					{
-						NodeId = nodeId, NodeName = nodeInfo.Name, IsHealthy = false,
-						ErrorMessage = ex.Message, LastUpdated = DateTimeOffset.UtcNow,
+						NodeId = nodeId,
+						NodeName = nodeInfo.Name,
+						IsHealthy = false,
+						ErrorMessage = ex.Message,
+						LastUpdated = DateTimeOffset.UtcNow,
 					};
 					_ = _nodeHealthCache.AddOrUpdate(nodeId, static (_, nh) => nh, static (_, _, nh) => nh, errorHealth);
 					return errorHealth;

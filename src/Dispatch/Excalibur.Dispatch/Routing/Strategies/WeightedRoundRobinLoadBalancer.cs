@@ -3,7 +3,6 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Routing.LoadBalancing;
 

@@ -5,8 +5,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Delivery.Pipeline;
 
 /// <summary>

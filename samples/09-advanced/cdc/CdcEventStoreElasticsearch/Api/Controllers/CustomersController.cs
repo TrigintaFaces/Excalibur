@@ -4,7 +4,7 @@
 using CdcEventStoreElasticsearch.Api.Models;
 using CdcEventStoreElasticsearch.Projections;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.AspNetCore.Mvc;
 

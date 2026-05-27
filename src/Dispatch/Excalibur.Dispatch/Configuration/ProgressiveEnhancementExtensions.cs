@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Validation;
@@ -48,7 +48,7 @@ public static class ProgressiveEnhancementExtensions
 	/// Context enrichment enables full message context tracking including:
 	/// </para>
 	/// <list type="bullet">
-	///   <item>Full <see cref="Excalibur.Dispatch.Abstractions.IMessageContext"/> with Items dictionary</item>
+	///   <item>Full <see cref="Excalibur.Dispatch.IMessageContext"/> with Items dictionary</item>
 	///   <item>Correlation ID propagation across message flows</item>
 	///   <item>AsyncLocal context flow via <see cref="IMessageContextAccessor"/></item>
 	/// </list>

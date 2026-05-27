@@ -3,9 +3,9 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Compliance.Diagnostics;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

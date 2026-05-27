@@ -10,17 +10,17 @@ namespace Excalibur.Dispatch.Options.Middleware;
 /// </summary>
 internal sealed class TimeoutOptionsValidator : IValidateOptions<TimeoutOptions>
 {
-    /// <inheritdoc/>
-    public ValidateOptionsResult Validate(string? name, TimeoutOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	/// <inheritdoc/>
+	public ValidateOptionsResult Validate(string? name, TimeoutOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

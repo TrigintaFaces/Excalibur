@@ -3,8 +3,8 @@
 
 
 
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.SqlServer;
@@ -94,9 +94,9 @@ public static class SqlServerSagaExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server saga store using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// Adds SQL Server saga store using a typed <see cref="Excalibur.Data.IDb"/> marker for connection resolution.
 	/// </summary>
-	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.IDb"/>.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The service collection for chaining.</returns>
@@ -110,7 +110,7 @@ public static class SqlServerSagaExtensions
 	public static IServiceCollection AddSqlServerSagaStore<TDb>(
 		this IServiceCollection services,
 		Action<SqlServerSagaStoreOptions>? configure = null)
-		where TDb : class, Excalibur.Data.Abstractions.IDb
+		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

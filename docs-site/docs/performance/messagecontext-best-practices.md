@@ -43,7 +43,7 @@ context.Features            // IDictionary<Type, object>
 Cross-cutting concerns are accessed via typed feature interfaces. Cache the feature reference when accessing multiple properties:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Features;
 
 // Good - cache the feature reference
 var processing = context.GetOrCreateProcessingFeature();

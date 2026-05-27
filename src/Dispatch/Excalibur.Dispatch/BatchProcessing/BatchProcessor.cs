@@ -7,7 +7,6 @@ using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Performance;
 

@@ -9,8 +9,8 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions.Validation;
 using Excalibur.Compliance.Encryption;
+using Excalibur.Data.Validation;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

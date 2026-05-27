@@ -6,7 +6,6 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
 using Excalibur.Domain.Model;
 
 namespace Excalibur.Data.Postgres.Snapshots;

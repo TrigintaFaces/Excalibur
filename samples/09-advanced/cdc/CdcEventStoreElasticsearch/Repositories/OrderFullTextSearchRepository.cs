@@ -29,7 +29,7 @@ using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Excalibur.Data.ElasticSearch;
 using Excalibur.Data.ElasticSearch.Projections;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Options;
 

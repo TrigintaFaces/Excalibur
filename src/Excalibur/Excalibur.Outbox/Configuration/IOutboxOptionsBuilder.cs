@@ -39,19 +39,19 @@ namespace Excalibur.Outbox;
 /// </example>
 public interface IOutboxOptionsBuilder : IOutboxOptionsCoreBuilder, IOutboxOptionsReliabilityBuilder
 {
-    /// <summary>
-    /// Builds the immutable <see cref="OutboxOptions"/> instance.
-    /// </summary>
-    /// <returns>The configured options.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when the configuration is invalid (e.g., RetentionPeriod is less than CleanupInterval).
-    /// </exception>
-    /// <remarks>
-    /// <para>
-    /// This method validates all configured settings and returns an immutable
-    /// <see cref="OutboxOptions"/> instance. After calling <see cref="Build"/>,
-    /// the options cannot be modified.
-    /// </para>
-    /// </remarks>
-    OutboxOptions Build();
+	/// <summary>
+	/// Builds the immutable <see cref="OutboxOptions"/> instance.
+	/// </summary>
+	/// <returns>The configured options.</returns>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown when the configuration is invalid (e.g., RetentionPeriod is less than CleanupInterval).
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This method validates all configured settings and returns an immutable
+	/// <see cref="OutboxOptions"/> instance. After calling <see cref="Build"/>,
+	/// the options cannot be modified.
+	/// </para>
+	/// </remarks>
+	OutboxOptions Build();
 }

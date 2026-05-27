@@ -12,13 +12,13 @@ internal abstract record ExpressionNode;
 /// A comparison between a property reference and a value (e.g., <c>subject.Role == 'admin'</c>).
 /// </summary>
 internal sealed record ComparisonNode(
-    PropertyRef Property, ComparisonOp Op, ConditionValue Value) : ExpressionNode;
+	PropertyRef Property, ComparisonOp Op, ConditionValue Value) : ExpressionNode;
 
 /// <summary>
 /// A binary logical operation (AND / OR) combining two sub-expressions.
 /// </summary>
 internal sealed record BinaryNode(
-    ExpressionNode Left, BinaryOp Op, ExpressionNode Right) : ExpressionNode;
+	ExpressionNode Left, BinaryOp Op, ExpressionNode Right) : ExpressionNode;
 
 /// <summary>
 /// A logical NOT applied to an inner expression.
@@ -30,8 +30,8 @@ internal sealed record NotNode(ExpressionNode Inner) : ExpressionNode;
 /// </summary>
 internal enum BinaryOp
 {
-    And,
-    Or,
+	And,
+	Or,
 }
 
 /// <summary>
@@ -39,14 +39,14 @@ internal enum BinaryOp
 /// </summary>
 internal enum ComparisonOp
 {
-    Equal,
-    NotEqual,
-    GreaterThan,
-    LessThan,
-    GreaterOrEqual,
-    LessOrEqual,
-    Contains,
-    StartsWith,
+	Equal,
+	NotEqual,
+	GreaterThan,
+	LessThan,
+	GreaterOrEqual,
+	LessOrEqual,
+	Contains,
+	StartsWith,
 }
 
 /// <summary>
@@ -59,9 +59,9 @@ internal readonly record struct PropertyRef(PropertyScope Scope, string Name);
 /// </summary>
 internal enum PropertyScope
 {
-    Subject,
-    Action,
-    Resource,
+	Subject,
+	Action,
+	Resource,
 }
 
 /// <summary>

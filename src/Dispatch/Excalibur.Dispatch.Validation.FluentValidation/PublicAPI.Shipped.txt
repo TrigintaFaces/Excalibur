@@ -1,17 +1,17 @@
 #nullable enable
 Excalibur.Dispatch.Validation.FluentValidation.AotFluentValidatorResolver
 Excalibur.Dispatch.Validation.FluentValidation.AotFluentValidatorResolver.AotFluentValidatorResolver(System.IServiceProvider! provider) -> void
-Excalibur.Dispatch.Validation.FluentValidation.AotFluentValidatorResolver.TryValidate(Excalibur.Dispatch.Abstractions.IDispatchMessage! message) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult?
+Excalibur.Dispatch.Validation.FluentValidation.AotFluentValidatorResolver.TryValidate(Excalibur.Dispatch.IDispatchMessage! message) -> Excalibur.Dispatch.Validation.IValidationResult?
 Excalibur.Dispatch.Validation.FluentValidation.FluentValidatorResolver
 Excalibur.Dispatch.Validation.FluentValidation.FluentValidatorResolver.FluentValidatorResolver(System.IServiceProvider! provider) -> void
-Excalibur.Dispatch.Validation.FluentValidation.FluentValidatorResolver.TryValidate(Excalibur.Dispatch.Abstractions.IDispatchMessage! message) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult?
+Excalibur.Dispatch.Validation.FluentValidation.FluentValidatorResolver.TryValidate(Excalibur.Dispatch.IDispatchMessage! message) -> Excalibur.Dispatch.Validation.IValidationResult?
 Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher
-Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher.TryValidate(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.IServiceProvider! provider) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult?
+Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher.TryValidate(Excalibur.Dispatch.IDispatchMessage! message, System.IServiceProvider! provider) -> Excalibur.Dispatch.Validation.IValidationResult?
 Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions
 Microsoft.Extensions.DependencyInjection.FluentValidationServiceCollectionExtensions
-static Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions.ToDispatchResult(this FluentValidation.Results.ValidationResult! fluentResult) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult!
-static Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions.ToExcaliburResult(this FluentValidation.Results.ValidationResult! fluentResult) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult!
-static Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions.ValidateWith<TMessage, TValidator>(this TMessage message) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult!
-static Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions.ValidateWithAsync<TMessage, TValidator>(this TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Serialization.SerializableValidationResult!>!
-static Microsoft.Extensions.DependencyInjection.FluentValidationServiceCollectionExtensions.WithAotFluentValidation(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.FluentValidationServiceCollectionExtensions.WithFluentValidation(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions.ToDispatchResult(this FluentValidation.Results.ValidationResult! fluentResult) -> Excalibur.Dispatch.Validation.IValidationResult!
+static Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions.ToExcaliburResult(this FluentValidation.Results.ValidationResult! fluentResult) -> Excalibur.Dispatch.Validation.IValidationResult!
+static Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions.ValidateWith<TMessage, TValidator>(this TMessage message) -> Excalibur.Dispatch.Validation.IValidationResult!
+static Excalibur.Dispatch.Validation.FluentValidation.ValidationResultExtensions.ValidateWithAsync<TMessage, TValidator>(this TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Serialization.SerializableValidationResult!>!
+static Microsoft.Extensions.DependencyInjection.FluentValidationServiceCollectionExtensions.WithAotFluentValidation(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.FluentValidationServiceCollectionExtensions.WithFluentValidation(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!

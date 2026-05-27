@@ -40,7 +40,7 @@ IDictionary<Type, object> Features { get; }   // Typed feature collection
 Cross-cutting concerns are accessed via typed feature interfaces:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Features;
 
 // Identity & multi-tenancy (IMessageIdentityFeature)
 var tenantId = context.GetTenantId();
@@ -227,7 +227,7 @@ public class OrderHandler : IDispatchHandler<PlaceOrderCommand>
 ### Using Feature Extensions in Tests
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Features;
 
 [Fact]
 public async Task Handler_ShouldUseUserIdFromContext()

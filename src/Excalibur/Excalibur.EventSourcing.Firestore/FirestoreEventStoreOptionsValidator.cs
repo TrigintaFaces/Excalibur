@@ -7,16 +7,16 @@ namespace Excalibur.EventSourcing.Firestore;
 
 internal sealed class FirestoreEventStoreOptionsValidator : IValidateOptions<FirestoreEventStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, FirestoreEventStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, FirestoreEventStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

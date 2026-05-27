@@ -18,7 +18,6 @@ using Microsoft.Extensions.Options;
 using Shouldly;
 
 using Xunit;
-using Xunit;
 
 namespace Excalibur.Dispatch.Tests.Smoke;
 

@@ -7,8 +7,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Middleware.Auth;
 
 namespace Excalibur.Dispatch.Delivery.Pipeline;

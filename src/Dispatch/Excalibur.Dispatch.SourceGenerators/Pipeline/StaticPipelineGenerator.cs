@@ -351,8 +351,8 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("using System.Runtime.CompilerServices;");
 		_ = sb.AppendLine("using System.Threading;");
 		_ = sb.AppendLine("using System.Threading.Tasks;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions.Delivery;");
+		_ = sb.AppendLine("using Excalibur.Dispatch;");
+		_ = sb.AppendLine("using Excalibur.Dispatch.Delivery;");
 		_ = sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
 		_ = sb.AppendLine();
 
@@ -515,11 +515,11 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("                // PERF-23: Pipeline-level exception handling");
 		if (callSite.HasResult && callSite.ResultTypeFullName != null)
 		{
-			_ = sb.AppendLine($"                return Excalibur.Dispatch.Abstractions.MessageResult.Failed<{callSite.ResultTypeFullName}>(ex);");
+			_ = sb.AppendLine($"                return Excalibur.Dispatch.MessageResult.Failed<{callSite.ResultTypeFullName}>(ex);");
 		}
 		else
 		{
-			_ = sb.AppendLine("                return Excalibur.Dispatch.Abstractions.MessageResult.Failed(ex);");
+			_ = sb.AppendLine("                return Excalibur.Dispatch.MessageResult.Failed(ex);");
 		}
 		_ = sb.AppendLine("            }");
 		_ = sb.AppendLine("        }");

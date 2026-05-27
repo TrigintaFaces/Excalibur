@@ -4,16 +4,14 @@
 
 using CloudNative.CloudEvents;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Metadata;
 using Excalibur.Dispatch.Options.CloudEvents;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-using MessageEnvelope = Excalibur.Dispatch.Abstractions.MessageEnvelope;
 
 namespace Excalibur.Dispatch.CloudEvents;
 

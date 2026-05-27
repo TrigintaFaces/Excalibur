@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Kafka;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

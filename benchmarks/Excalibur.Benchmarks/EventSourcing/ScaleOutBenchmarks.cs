@@ -5,9 +5,9 @@ using System.Reflection;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 
 namespace Excalibur.Benchmarks.EventSourcing;
 

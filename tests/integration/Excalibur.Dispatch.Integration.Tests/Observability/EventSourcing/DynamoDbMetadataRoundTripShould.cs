@@ -3,9 +3,9 @@
 
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 

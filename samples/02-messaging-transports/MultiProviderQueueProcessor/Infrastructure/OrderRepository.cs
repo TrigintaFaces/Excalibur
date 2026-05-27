@@ -1,6 +1,6 @@
 // Order Repository
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using MultiProviderQueueProcessor.Domain;
 

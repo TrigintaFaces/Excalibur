@@ -1,7 +1,6 @@
 // Copyright (c) TrigintaFaces. All rights reserved.
 
 using Excalibur.Security;
-using Excalibur.Security.Abstractions;
 
 namespace Excalibur.Tests.Security;
 

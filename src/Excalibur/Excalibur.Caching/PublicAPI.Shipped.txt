@@ -243,6 +243,6 @@ const Excalibur.Caching.Diagnostics.CachingEventId.ResolverInvocationFailed = 15
 const Excalibur.Caching.Diagnostics.CachingEventId.RuleBasedMetricsUpdated = 151901 -> int
 const Excalibur.Caching.Diagnostics.CachingEventId.RuleBasedTtlCalculated = 151900 -> int
 const Excalibur.Caching.Diagnostics.CachingEventId.SetCacheKey = 151802 -> int
-static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolvers(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, params System.Type![]! resolverTypes) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolversFromAssembly(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolvers(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, params System.Type![]! resolverTypes) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolversFromAssembly(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingBuilderProjectionCachingExtensions.AddProjectionCaching(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

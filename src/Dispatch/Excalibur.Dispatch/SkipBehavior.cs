@@ -47,7 +47,7 @@ public enum SkipBehavior
 
 	/// <summary>
 	/// Throw an exception when a duplicate message is detected. Enables the calling code to catch the
-	/// <see cref="Excalibur.Dispatch.Abstractions.Exceptions.DuplicateMessageException"/> and take specific action.
+	/// <see cref="Excalibur.Dispatch.Exceptions.DuplicateMessageException"/> and take specific action.
 	/// </summary>
 	/// <remarks>
 	/// <para>

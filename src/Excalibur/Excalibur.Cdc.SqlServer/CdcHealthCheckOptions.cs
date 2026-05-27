@@ -5,6 +5,6 @@ namespace Excalibur.Cdc.SqlServer;
 
 /// <summary>
 /// SQL Server-specific configuration options for the CDC processor health check.
-/// Inherits general CDC health check thresholds from <see cref="Excalibur.Data.Abstractions.CloudNative.CdcHealthCheckOptions"/>.
+/// Inherits general CDC health check thresholds from <see cref="Excalibur.Data.CloudNative.CdcHealthCheckOptions"/>.
 /// </summary>
-public sealed class CdcHealthCheckOptions : Excalibur.Data.Abstractions.CloudNative.CdcHealthCheckOptions;
+public sealed class CdcHealthCheckOptions : Excalibur.Data.CloudNative.CdcHealthCheckOptions;

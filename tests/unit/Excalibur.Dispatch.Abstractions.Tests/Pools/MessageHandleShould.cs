@@ -1,4 +1,4 @@
-namespace Excalibur.Dispatch.Abstractions.Tests.Pools;
+namespace Excalibur.Dispatch.Tests.Pools;
 
 /// <summary>
 /// Unit tests for MessageHandle struct.

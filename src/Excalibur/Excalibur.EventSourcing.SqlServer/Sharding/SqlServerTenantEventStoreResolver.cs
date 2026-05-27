@@ -3,9 +3,8 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Sharding;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -24,44 +23,44 @@ namespace Excalibur.EventSourcing.SqlServer.Sharding;
 /// </remarks>
 internal sealed class SqlServerTenantEventStoreResolver : ITenantStoreResolver<IEventStore>
 {
-    private readonly ITenantShardMap _shardMap;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly ISerializer? _serializer;
-    private readonly IPayloadSerializer? _payloadSerializer;
-    private readonly ConcurrentDictionary<string, IEventStore> _storeCache = new(StringComparer.Ordinal);
+	private readonly ITenantShardMap _shardMap;
+	private readonly ILoggerFactory _loggerFactory;
+	private readonly ISerializer? _serializer;
+	private readonly IPayloadSerializer? _payloadSerializer;
+	private readonly ConcurrentDictionary<string, IEventStore> _storeCache = new(StringComparer.Ordinal);
 
-    internal SqlServerTenantEventStoreResolver(
-        ITenantShardMap shardMap,
-        ILoggerFactory loggerFactory,
-        ISerializer? serializer,
-        IPayloadSerializer? payloadSerializer)
-    {
-        ArgumentNullException.ThrowIfNull(shardMap);
-        ArgumentNullException.ThrowIfNull(loggerFactory);
+	internal SqlServerTenantEventStoreResolver(
+		ITenantShardMap shardMap,
+		ILoggerFactory loggerFactory,
+		ISerializer? serializer,
+		IPayloadSerializer? payloadSerializer)
+	{
+		ArgumentNullException.ThrowIfNull(shardMap);
+		ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        _shardMap = shardMap;
-        _loggerFactory = loggerFactory;
-        _serializer = serializer;
-        _payloadSerializer = payloadSerializer;
-    }
+		_shardMap = shardMap;
+		_loggerFactory = loggerFactory;
+		_serializer = serializer;
+		_payloadSerializer = payloadSerializer;
+	}
 
-    /// <inheritdoc />
-    public IEventStore Resolve(string tenantId)
-    {
-        var shardInfo = _shardMap.GetShardInfo(tenantId);
-        return _storeCache.GetOrAdd(shardInfo.ShardId, _ => CreateStore(shardInfo));
-    }
+	/// <inheritdoc />
+	public IEventStore Resolve(string tenantId)
+	{
+		var shardInfo = _shardMap.GetShardInfo(tenantId);
+		return _storeCache.GetOrAdd(shardInfo.ShardId, _ => CreateStore(shardInfo));
+	}
 
-    private IEventStore CreateStore(ShardInfo shardInfo)
-    {
-        var schema = shardInfo.SchemaName ?? "dbo";
-        var connectionString = shardInfo.ConnectionString;
+	private IEventStore CreateStore(ShardInfo shardInfo)
+	{
+		var schema = shardInfo.SchemaName ?? "dbo";
+		var connectionString = shardInfo.ConnectionString;
 
-        return new SqlServerEventStore(
-            () => new SqlConnection(connectionString),
-            _loggerFactory.CreateLogger<SqlServerEventStore>(),
-            _serializer,
-            _payloadSerializer,
-            schema);
-    }
+		return new SqlServerEventStore(
+			() => new SqlConnection(connectionString),
+			_loggerFactory.CreateLogger<SqlServerEventStore>(),
+			_serializer,
+			_payloadSerializer,
+			schema);
+	}
 }

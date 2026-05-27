@@ -2,7 +2,7 @@
 #pragma warning disable IL3050 // Members annotated with RequiresDynamicCodeAttribute
 
 using Excalibur.A3.Audit.Events;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Tests.A3.Audit;
 

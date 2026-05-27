@@ -4,9 +4,9 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Resilience;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Provides transaction coordination capabilities for persistence providers.

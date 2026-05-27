@@ -10,11 +10,11 @@ namespace Excalibur.Data.OpenSearch.IndexManagement;
 /// </summary>
 internal sealed record IsmRetryRequest
 {
-    /// <summary>
-    /// Gets the target ISM state name.
-    /// </summary>
-    [JsonPropertyName("state")]
-    public required string State { get; init; }
+	/// <summary>
+	/// Gets the target ISM state name.
+	/// </summary>
+	[JsonPropertyName("state")]
+	public required string State { get; init; }
 }
 
 /// <summary>

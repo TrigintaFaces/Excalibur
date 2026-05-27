@@ -37,8 +37,8 @@ You can safely ignore all of these unless your requirements grow:
 This is a production-ready ASP.NET Core application with commands, queries, events, and pipeline middleware:
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 

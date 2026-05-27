@@ -10,8 +10,6 @@ using Excalibur.Dispatch.Options.Channels;
 
 using Microsoft.Extensions.Logging;
 
-using MessageEnvelope = Excalibur.Dispatch.Abstractions.MessageEnvelope;
-
 namespace Excalibur.Dispatch.Channels;
 
 /// <summary>

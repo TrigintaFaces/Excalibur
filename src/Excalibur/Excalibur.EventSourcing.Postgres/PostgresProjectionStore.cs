@@ -7,8 +7,6 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.EventSourcing.Abstractions;
-
 using Microsoft.Extensions.Logging;
 
 using Npgsql;

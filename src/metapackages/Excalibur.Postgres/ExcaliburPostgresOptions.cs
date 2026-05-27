@@ -3,9 +3,9 @@
 
 using System.ComponentModel.DataAnnotations;
 
-using Excalibur.Compliance.Postgres.Erasure;
-using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.AuditLogging.Postgres;
+using Excalibur.Compliance.Postgres.Erasure;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Inbox.Postgres;
 using Excalibur.LeaderElection.Postgres;
 using Excalibur.Saga.Postgres;

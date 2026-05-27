@@ -4,7 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;

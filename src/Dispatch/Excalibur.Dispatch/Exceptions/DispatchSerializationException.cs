@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions;
-
-using SerializationOperationType = Excalibur.Dispatch.Abstractions.Serialization.SerializationOperation;
+using SerializationOperationType = Excalibur.Dispatch.Serialization.SerializationOperation;
 
 namespace Excalibur.Dispatch.Exceptions;
 
@@ -14,7 +12,7 @@ namespace Excalibur.Dispatch.Exceptions;
 /// <remarks>
 /// <para>
 /// This exception provides Dispatch-specific error handling features on top of the base
-/// <see cref="Abstractions.Serialization.SerializationException"/>. It adds:
+/// <see cref="Serialization.SerializationException"/>. It adds:
 /// </para>
 /// <list type="bullet">
 ///   <item>Error code categorization</item>
@@ -24,9 +22,9 @@ namespace Excalibur.Dispatch.Exceptions;
 /// </list>
 /// <para>
 /// For code in the Dispatch package or consumers who need DispatchException features,
-/// use this class. For code in Excalibur.Dispatch.Abstractions or serializer packages that only
+/// use this class. For code in Excalibur.Dispatch or serializer packages that only
 /// need basic serialization exception functionality, use
-/// <see cref="Abstractions.Serialization.SerializationException"/>.
+/// <see cref="Serialization.SerializationException"/>.
 /// </para>
 /// </remarks>
 public sealed class DispatchSerializationException : DispatchException

@@ -6,7 +6,7 @@ using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch.Benchmarks.Patterns;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.InMemory;
 
 namespace Excalibur.Dispatch.Benchmarks.LoadTests;

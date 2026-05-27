@@ -1,5 +1,5 @@
 using Excalibur.A3.Authorization.Events;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Tests.A3.Authorization.Events;
 

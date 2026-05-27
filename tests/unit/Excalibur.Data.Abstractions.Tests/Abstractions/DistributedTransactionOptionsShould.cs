@@ -1,4 +1,4 @@
-using Excalibur.Data.Abstractions.Transactions;
+using Excalibur.Data.Transactions;
 
 namespace Excalibur.Data.Tests.Abstractions;
 

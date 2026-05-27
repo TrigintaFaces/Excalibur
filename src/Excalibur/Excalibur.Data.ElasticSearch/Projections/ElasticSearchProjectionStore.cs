@@ -14,7 +14,7 @@ using Elastic.Transport;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
 using Excalibur.Data.ElasticSearch.Exceptions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

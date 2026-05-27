@@ -5,10 +5,9 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Validation;
 
 namespace Excalibur.Dispatch.Delivery.Pipeline;
 
@@ -105,7 +104,7 @@ internal sealed class MiddlewareAdapter(IDispatchMiddleware middleware) : IZeroA
 		public string? Error { get; } = error;
 
 		/// <summary>
-		/// Explicit interface implementations for compatibility with Excalibur.Dispatch.Abstractions.
+		/// Explicit interface implementations for compatibility with Excalibur.Dispatch.
 		/// </summary>
 		object? IMessageResult.ValidationResult => ValidationResult;
 

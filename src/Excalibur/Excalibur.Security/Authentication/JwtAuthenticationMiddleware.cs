@@ -9,15 +9,15 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-using MessageProblemDetails = Excalibur.Dispatch.Abstractions.MessageProblemDetails;
+using MessageProblemDetails = Excalibur.Dispatch.MessageProblemDetails;
 
 namespace Excalibur.Security;
 

@@ -8,12 +8,11 @@ using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
 using Excalibur.Data.SqlServer.Diagnostics;
 using Excalibur.Data.SqlServer.TypeHandlers;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

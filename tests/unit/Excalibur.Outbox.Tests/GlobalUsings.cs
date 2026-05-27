@@ -18,7 +18,7 @@ global using Microsoft.Extensions.Logging;
 global using Microsoft.Extensions.Options;
 
 // Cloud-native abstractions (from DynamoDb, Firestore)
-global using Excalibur.Data.Abstractions.CloudNative;
+global using Excalibur.Data.CloudNative;
 
 // Provider-specific namespaces (from CosmosDb, DynamoDb, Firestore)
 global using Excalibur.Outbox.CosmosDb;

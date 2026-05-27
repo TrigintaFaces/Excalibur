@@ -5,19 +5,15 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 // Common namespace is deprecated - using Messaging.Abstractions instead
-using IMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
-using IMessageResult = Excalibur.Dispatch.Abstractions.IMessageResult;
-using MessageKinds = Excalibur.Dispatch.Abstractions.MessageKinds;
 
 namespace Excalibur.Dispatch.Middleware.Validation;
 

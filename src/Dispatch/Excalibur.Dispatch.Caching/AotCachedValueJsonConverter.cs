@@ -91,11 +91,11 @@ internal sealed class AotCachedValueJsonConverter : JsonConverter<CachedValue>
 					typeName = reader.GetString();
 					break;
 				case CachedValueJsonConverter.ValuePropertyName:
-					#pragma warning disable IL2026, IL3050 // Deserialize<JsonElement> is safe -- JsonElement is a primitive STJ type
-				value = reader.TokenType == JsonTokenType.Null
-						? null
-						: JsonSerializer.Deserialize<JsonElement>(ref reader, options);
-				#pragma warning restore IL2026, IL3050
+#pragma warning disable IL2026, IL3050 // Deserialize<JsonElement> is safe -- JsonElement is a primitive STJ type
+					value = reader.TokenType == JsonTokenType.Null
+							? null
+							: JsonSerializer.Deserialize<JsonElement>(ref reader, options);
+#pragma warning restore IL2026, IL3050
 					break;
 				default:
 					reader.Skip();

@@ -6,7 +6,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Observability;
 

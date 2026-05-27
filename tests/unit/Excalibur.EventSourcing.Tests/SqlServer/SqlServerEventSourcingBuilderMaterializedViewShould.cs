@@ -205,7 +205,7 @@ public sealed class SqlServerEventSourcingBuilderMaterializedViewShould
 
 		// Assert — IMaterializedViewStore should be registered
 		var descriptor = services.FirstOrDefault(
-			s => s.ServiceType == typeof(Excalibur.EventSourcing.Abstractions.IMaterializedViewStore));
+			s => s.ServiceType == typeof(Excalibur.EventSourcing.IMaterializedViewStore));
 		descriptor.ShouldNotBeNull();
 		descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
@@ -227,7 +227,7 @@ public sealed class SqlServerEventSourcingBuilderMaterializedViewShould
 
 		// Assert — IMaterializedViewStore should NOT be registered
 		var descriptor = services.FirstOrDefault(
-			s => s.ServiceType == typeof(Excalibur.EventSourcing.Abstractions.IMaterializedViewStore));
+			s => s.ServiceType == typeof(Excalibur.EventSourcing.IMaterializedViewStore));
 		descriptor.ShouldBeNull();
 	}
 }

@@ -35,7 +35,7 @@ public sealed class LayeringTests
             "Excalibur.Dispatch.Patterns.Abstractions",
             "Excalibur.Dispatch.Transport.Abstractions",
             "Excalibur.Dispatch.Hosting.Serverless.Abstractions",
-            "Excalibur.Data.Abstractions",
+            "Excalibur.Data",
             "Excalibur.Jobs.Abstractions"
         };
 

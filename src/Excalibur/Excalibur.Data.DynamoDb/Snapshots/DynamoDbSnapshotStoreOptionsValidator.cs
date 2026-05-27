@@ -7,16 +7,16 @@ namespace Excalibur.Data.DynamoDb.Snapshots;
 
 internal sealed class DynamoDbSnapshotStoreOptionsValidator : IValidateOptions<DynamoDbSnapshotStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, DynamoDbSnapshotStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, DynamoDbSnapshotStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

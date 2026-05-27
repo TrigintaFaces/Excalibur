@@ -3,7 +3,7 @@
 
 #pragma warning disable CA2213 // Disposable fields should be disposed -- TestMeterFactory is test-scoped
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Caching;
 
 using Microsoft.Extensions.Caching.Hybrid;

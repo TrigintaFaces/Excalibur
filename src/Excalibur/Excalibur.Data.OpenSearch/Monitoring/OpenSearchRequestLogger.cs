@@ -310,9 +310,9 @@ internal sealed partial class OpenSearchRequestLogger
 		try
 		{
 			var requestType = request.GetType();
-			#pragma warning disable IL2075 // GetProperty uses reflection
+#pragma warning disable IL2075 // GetProperty uses reflection
 			var routeValuesProperty = requestType.GetProperty("RouteValues");
-			#pragma warning restore IL2075
+#pragma warning restore IL2075
 
 			if (routeValuesProperty?.GetValue(request) is IDictionary<string, object> routeValues)
 			{

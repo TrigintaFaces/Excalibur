@@ -10,5 +10,5 @@ global using Microsoft.Extensions.Options;
 global using Excalibur.Application;
 global using Excalibur.Application.Requests;
 global using Excalibur.Application.Requests.Jobs;
-global using Excalibur.Dispatch.Abstractions;
+global using Excalibur.Dispatch;
 global using Excalibur.Domain;

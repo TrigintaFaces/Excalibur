@@ -6,13 +6,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
-using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+using MR = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Transport;
 
@@ -213,10 +211,10 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 
 	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
-	public async Task<IDictionary<string, Abstractions.Transport.HealthCheckResult>> CheckAdapterHealthAsync(
+	public async Task<IDictionary<string, HealthCheckResult>> CheckAdapterHealthAsync(
 		CancellationToken cancellationToken)
 	{
-		var healthResults = new Dictionary<string, Abstractions.Transport.HealthCheckResult>(StringComparer.Ordinal);
+		var healthResults = new Dictionary<string, HealthCheckResult>(StringComparer.Ordinal);
 
 		foreach (var kvp in _registeredAdapters)
 		{
@@ -242,8 +240,8 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 				}
 
 				healthResults[adapterId] = isHealthy
-					? Abstractions.Transport.HealthCheckResult.Healthy(description)
-					: Abstractions.Transport.HealthCheckResult.Unhealthy(description);
+					? HealthCheckResult.Healthy(description)
+					: HealthCheckResult.Unhealthy(description);
 
 				LogHealthCheck(adapterId, isHealthy, description);
 			}
@@ -251,7 +249,7 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 			{
 				LogHealthCheckFailed(adapterId, ex);
 
-				healthResults[adapterId] = Abstractions.Transport.HealthCheckResult.Unhealthy(
+				healthResults[adapterId] = HealthCheckResult.Unhealthy(
 					string.Format(
 						CultureInfo.InvariantCulture,
 						Resources.TransportAdapterRouter_HealthCheckFailed,

@@ -7,16 +7,16 @@ namespace Excalibur.Data.Postgres.Audit;
 
 internal sealed class PostgresAuditOptionsValidator : IValidateOptions<PostgresAuditOptions>
 {
-    public ValidateOptionsResult Validate(string? name, PostgresAuditOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, PostgresAuditOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

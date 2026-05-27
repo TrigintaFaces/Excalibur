@@ -3,8 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.EventSourcing.Abstractions;
-
 namespace Excalibur.EventSourcing.Snapshots;
 
 /// <summary>

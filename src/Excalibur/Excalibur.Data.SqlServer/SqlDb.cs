@@ -4,8 +4,6 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions;
-
 namespace Excalibur.Data.SqlServer;
 
 /// <summary>

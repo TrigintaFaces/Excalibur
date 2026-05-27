@@ -7,16 +7,16 @@ namespace Excalibur.Cdc.Firestore;
 
 internal sealed class FirestoreCdcRecoveryOptionsValidator : IValidateOptions<FirestoreCdcRecoveryOptions>
 {
-    public ValidateOptionsResult Validate(string? name, FirestoreCdcRecoveryOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, FirestoreCdcRecoveryOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

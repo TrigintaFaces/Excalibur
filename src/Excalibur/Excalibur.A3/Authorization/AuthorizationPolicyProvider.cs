@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization.PolicyData;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Options.Serialization;
 using Excalibur.Dispatch.Serialization;
 
@@ -55,9 +55,9 @@ internal sealed class AuthorizationPolicyProvider(
 
 		// NOTE: IPolicyProvider<T>.GetPolicyAsync() does not accept CancellationToken.
 		// CancellationToken.None is used here because the interface contract does not support cancellation.
-		#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 		var authData = await LoadPolicyDataAsync(currentUser.UserId, CancellationToken.None).ConfigureAwait(false);
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 
 		return new AuthorizationPolicy(
 			authData.Grants,
@@ -161,9 +161,9 @@ internal sealed class AuthorizationPolicyProvider(
 			options.WriteIndented = defaultOptions.WriteIndented;
 		});
 		var cacheOptions = new DistributedCacheEntryOptions { SlidingExpiration = slidingExpiration };
-		#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 		var serialized = await serializer.SerializeAsync(item, typeof(IDictionary<string, object>)).ConfigureAwait(false);
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 
 		await cache.SetStringAsync(key, serialized, cacheOptions).ConfigureAwait(false);
 	}

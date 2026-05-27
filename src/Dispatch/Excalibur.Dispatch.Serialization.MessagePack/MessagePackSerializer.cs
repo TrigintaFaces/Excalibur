@@ -4,8 +4,6 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
 using Mp = MessagePack.MessagePackSerializer;
 using MpOptions = MessagePack.MessagePackSerializerOptions;
 

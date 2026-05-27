@@ -34,7 +34,7 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 			MetadataReference.CreateFromFile(typeof(IServiceProvider).Assembly.Location),
 		};
 
-		var abstractionsAssembly = typeof(Abstractions.IDispatchMessage).Assembly;
+		var abstractionsAssembly = typeof(Excalibur.Dispatch.IDispatchMessage).Assembly;
 		references.Add(MetadataReference.CreateFromFile(abstractionsAssembly.Location));
 
 		var runtimeDir = System.IO.Path.GetDirectoryName(typeof(object).Assembly.Location);
@@ -85,7 +85,7 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 	{
 		const string source = """
 			using System;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -127,7 +127,7 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 	public void MessageType_WithDispatchMessage_GeneratesTypeRegistration()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -144,7 +144,7 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 	public void MessageType_WithMultipleMessages_GeneratesAllTypes()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -167,7 +167,7 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 	public void MessageType_ExcludesAbstractMessages()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -205,8 +205,8 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -245,8 +245,8 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -288,8 +288,8 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -374,7 +374,7 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 	public void CacheInfo_WithCacheableMessage_GeneratesCacheInfo()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -408,7 +408,7 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 	public void CachePolicy_WithCacheableMessage_GeneratesPolicy()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -442,7 +442,7 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 	public void ProjectionTagResolver_WithMessage_Generates()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -515,8 +515,8 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{

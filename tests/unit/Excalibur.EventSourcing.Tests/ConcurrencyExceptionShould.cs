@@ -3,7 +3,7 @@
 
 using System.Net;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 using Shouldly;
 

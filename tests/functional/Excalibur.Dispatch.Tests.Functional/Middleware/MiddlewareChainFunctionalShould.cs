@@ -3,11 +3,11 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
-using DispatchRequestDelegate = Excalibur.Dispatch.Abstractions.DispatchRequestDelegate;
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using DispatchRequestDelegate = Excalibur.Dispatch.DispatchRequestDelegate;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Functional.Middleware;
 

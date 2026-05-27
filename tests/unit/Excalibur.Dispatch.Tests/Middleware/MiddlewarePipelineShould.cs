@@ -4,7 +4,7 @@
 #pragma warning disable CA1861 // Prefer 'static readonly' fields - acceptable in tests
 #pragma warning disable CA2201 // Exception type is not sufficiently specific - acceptable in tests
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery.Pipeline;
 
 namespace Excalibur.Dispatch.Tests.Middleware;

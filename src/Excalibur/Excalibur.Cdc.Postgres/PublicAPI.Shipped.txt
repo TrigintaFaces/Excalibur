@@ -62,7 +62,7 @@ Excalibur.Cdc.Postgres.PostgresCdcPosition.PostgresCdcPosition() -> void
 Excalibur.Cdc.Postgres.PostgresCdcPosition.PostgresCdcPosition(NpgsqlTypes.NpgsqlLogSequenceNumber lsn) -> void
 Excalibur.Cdc.Postgres.PostgresCdcPosition.PostgresCdcPosition(string! lsnString) -> void
 Excalibur.Cdc.Postgres.PostgresCdcPosition.PostgresCdcPosition(ulong lsnValue) -> void
-Excalibur.Cdc.Postgres.PostgresCdcPosition.ToChangePosition() -> Excalibur.Dispatch.Abstractions.ChangePosition!
+Excalibur.Cdc.Postgres.PostgresCdcPosition.ToChangePosition() -> Excalibur.Dispatch.ChangePosition!
 Excalibur.Cdc.Postgres.PostgresCdcProcessor
 Excalibur.Cdc.Postgres.PostgresCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.Postgres.PostgresCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Postgres.PostgresCdcProcessor.Dispose() -> void
@@ -206,7 +206,7 @@ override Excalibur.Cdc.Postgres.PostgresCdcPosition.GetHashCode() -> int
 override Excalibur.Cdc.Postgres.PostgresCdcPosition.ToString() -> string!
 static Excalibur.Cdc.Postgres.CdcBuilderPostgresExtensions.UsePostgres(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.Postgres.IPostgresCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
 static Excalibur.Cdc.Postgres.PostgresCdcConnectionBuilderExtensions.StateConnectionFactory(this Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-static Excalibur.Cdc.Postgres.PostgresCdcPosition.FromChangePosition(Excalibur.Dispatch.Abstractions.ChangePosition? position) -> Excalibur.Cdc.Postgres.PostgresCdcPosition
+static Excalibur.Cdc.Postgres.PostgresCdcPosition.FromChangePosition(Excalibur.Dispatch.ChangePosition? position) -> Excalibur.Cdc.Postgres.PostgresCdcPosition
 static Excalibur.Cdc.Postgres.PostgresCdcPosition.Parse(string! lsnString) -> Excalibur.Cdc.Postgres.PostgresCdcPosition
 static Excalibur.Cdc.Postgres.PostgresCdcPosition.TryParse(string? lsnString, out Excalibur.Cdc.Postgres.PostgresCdcPosition position) -> bool
 static Excalibur.Cdc.Postgres.PostgresCdcPosition.operator !=(Excalibur.Cdc.Postgres.PostgresCdcPosition left, Excalibur.Cdc.Postgres.PostgresCdcPosition right) -> bool

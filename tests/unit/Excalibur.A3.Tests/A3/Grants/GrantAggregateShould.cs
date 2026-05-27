@@ -1,6 +1,6 @@
 using Excalibur.A3.Authorization.Events;
 using Excalibur.A3.Authorization.Grants;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain;
 
 namespace Excalibur.Tests.A3.Grants;

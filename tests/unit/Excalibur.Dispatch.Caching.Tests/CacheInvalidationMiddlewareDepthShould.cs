@@ -3,7 +3,7 @@
 
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Caching;
 
 using Microsoft.Extensions.Caching.Distributed;

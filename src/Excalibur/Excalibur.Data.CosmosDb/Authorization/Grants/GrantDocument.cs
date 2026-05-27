@@ -4,7 +4,7 @@
 
 using System.Text.Json.Serialization;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 
 namespace Excalibur.Data.CosmosDb.Authorization;
 

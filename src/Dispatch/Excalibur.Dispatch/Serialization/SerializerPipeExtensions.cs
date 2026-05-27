@@ -3,7 +3,6 @@
 
 
 using System.IO.Pipelines;
-using Excalibur.Dispatch.Abstractions.Serialization;
 
 namespace Excalibur.Dispatch.Serialization;
 

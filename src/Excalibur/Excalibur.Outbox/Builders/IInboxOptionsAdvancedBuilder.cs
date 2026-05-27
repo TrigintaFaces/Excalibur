@@ -15,40 +15,40 @@ namespace Excalibur.Outbox;
 /// </remarks>
 public interface IInboxOptionsAdvancedBuilder
 {
-    /// <summary>
-    /// Sets the degree of parallelism for batch processing.
-    /// </summary>
-    /// <param name="maxDegree">The maximum parallel processing degree.</param>
-    /// <returns>This builder for method chaining.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="maxDegree"/> is less than 1.</exception>
-    IInboxOptionsBuilder WithParallelism(int maxDegree);
+	/// <summary>
+	/// Sets the degree of parallelism for batch processing.
+	/// </summary>
+	/// <param name="maxDegree">The maximum parallel processing degree.</param>
+	/// <returns>This builder for method chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="maxDegree"/> is less than 1.</exception>
+	IInboxOptionsBuilder WithParallelism(int maxDegree);
 
-    /// <summary>
-    /// Sets the timeout for processing a batch of messages.
-    /// </summary>
-    /// <param name="timeout">The processing timeout.</param>
-    /// <returns>This builder for method chaining.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is not positive.</exception>
-    IInboxOptionsBuilder WithBatchProcessingTimeout(TimeSpan timeout);
+	/// <summary>
+	/// Sets the timeout for processing a batch of messages.
+	/// </summary>
+	/// <param name="timeout">The processing timeout.</param>
+	/// <returns>This builder for method chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is not positive.</exception>
+	IInboxOptionsBuilder WithBatchProcessingTimeout(TimeSpan timeout);
 
-    /// <summary>
-    /// Sets the default time-to-live for messages.
-    /// </summary>
-    /// <param name="ttl">The message TTL, or null for no expiration.</param>
-    /// <returns>This builder for method chaining.</returns>
-    IInboxOptionsBuilder WithDefaultMessageTtl(TimeSpan? ttl);
+	/// <summary>
+	/// Sets the default time-to-live for messages.
+	/// </summary>
+	/// <param name="ttl">The message TTL, or null for no expiration.</param>
+	/// <returns>This builder for method chaining.</returns>
+	IInboxOptionsBuilder WithDefaultMessageTtl(TimeSpan? ttl);
 
-    /// <summary>
-    /// Enables dynamic batch sizing based on throughput.
-    /// </summary>
-    /// <param name="minBatchSize">The minimum batch size.</param>
-    /// <param name="maxBatchSize">The maximum batch size.</param>
-    /// <returns>This builder for method chaining.</returns>
-    IInboxOptionsBuilder EnableDynamicBatchSizing(int minBatchSize = 10, int maxBatchSize = 1000);
+	/// <summary>
+	/// Enables dynamic batch sizing based on throughput.
+	/// </summary>
+	/// <param name="minBatchSize">The minimum batch size.</param>
+	/// <param name="maxBatchSize">The maximum batch size.</param>
+	/// <returns>This builder for method chaining.</returns>
+	IInboxOptionsBuilder EnableDynamicBatchSizing(int minBatchSize = 10, int maxBatchSize = 1000);
 
-    /// <summary>
-    /// Disables batch database operations (use single-message operations).
-    /// </summary>
-    /// <returns>This builder for method chaining.</returns>
-    IInboxOptionsBuilder DisableBatchDatabaseOperations();
+	/// <summary>
+	/// Disables batch database operations (use single-message operations).
+	/// </summary>
+	/// <returns>This builder for method chaining.</returns>
+	IInboxOptionsBuilder DisableBatchDatabaseOperations();
 }

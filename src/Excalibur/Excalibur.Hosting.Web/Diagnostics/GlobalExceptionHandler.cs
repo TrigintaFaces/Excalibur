@@ -4,10 +4,9 @@
 using System.Diagnostics;
 using System.Globalization;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Extensions;
-
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Hosting.Diagnostics;
 
 using Microsoft.AspNetCore.Diagnostics;

@@ -7,7 +7,6 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.Loader;
 
-using Excalibur.Jobs.Abstractions;
 using Excalibur.Jobs.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -138,9 +137,9 @@ public sealed partial class QuartzJobAdapter(
 		if (!string.IsNullOrWhiteSpace(assemblyName))
 		{
 			var assembly = FindLoadedAssembly(assemblyName) ?? TryLoadAssembly(assemblyName);
-			#pragma warning disable IL2026 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026 // Serialization/reflection inherently not AOT-safe
 			var resolvedFromAssembly = assembly?.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
-			#pragma warning restore IL2026
+#pragma warning restore IL2026
 			if (resolvedFromAssembly is not null)
 			{
 				return resolvedFromAssembly;
@@ -152,12 +151,12 @@ public sealed partial class QuartzJobAdapter(
 			if (assembly.IsDynamic)
 			{
 				continue;
-			#pragma warning disable IL2026 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026 // Serialization/reflection inherently not AOT-safe
 			}
 
 			var resolved = assembly.GetType(typeName, throwOnError: false, ignoreCase: false)
 				?? assembly.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
-			#pragma warning restore IL2026
+#pragma warning restore IL2026
 			if (resolved is not null)
 			{
 				return resolved;

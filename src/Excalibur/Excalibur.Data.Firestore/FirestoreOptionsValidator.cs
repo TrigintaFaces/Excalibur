@@ -7,16 +7,16 @@ namespace Excalibur.Data.Firestore;
 
 internal sealed class FirestoreOptionsValidator : IValidateOptions<FirestoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, FirestoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, FirestoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

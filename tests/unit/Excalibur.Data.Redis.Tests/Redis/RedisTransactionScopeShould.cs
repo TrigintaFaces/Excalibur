@@ -4,7 +4,7 @@
 using System.Data;
 using System.Reflection;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 
 using Excalibur.Data.Redis;
 namespace Excalibur.Data.Tests.Redis;

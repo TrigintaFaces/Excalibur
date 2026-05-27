@@ -211,7 +211,7 @@ Console.WriteLine();
 // ──────────────────────────────────────────────────────────────────────
 //
 // Register the OpenSearch persistence provider for keyed DI resolution.
-// This integrates with Excalibur.Data.Abstractions' IPersistenceProvider.
+// This integrates with Excalibur.Data's IPersistenceProvider.
 
 Console.WriteLine("--- Section 5: Persistence Provider ---");
 Console.WriteLine();

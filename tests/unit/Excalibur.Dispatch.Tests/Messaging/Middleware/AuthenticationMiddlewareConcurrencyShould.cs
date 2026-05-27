@@ -9,17 +9,17 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.Logging;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
-using IMessageResult = Excalibur.Dispatch.Abstractions.IMessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
+using IMessageResult = Excalibur.Dispatch.IMessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 

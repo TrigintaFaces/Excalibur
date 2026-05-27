@@ -7,16 +7,16 @@ namespace Excalibur.Saga.MongoDB;
 
 internal sealed class MongoDbSagaOptionsValidator : IValidateOptions<MongoDbSagaOptions>
 {
-    public ValidateOptionsResult Validate(string? name, MongoDbSagaOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, MongoDbSagaOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

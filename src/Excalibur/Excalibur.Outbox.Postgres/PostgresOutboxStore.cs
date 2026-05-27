@@ -5,9 +5,9 @@ using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Data;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Outbox.Postgres.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -389,9 +389,9 @@ public sealed partial class PostgresOutboxStore(
 		var outboxMessage = new OutboxMessage(
 			message.Id,
 			message.MessageType,
-			#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 			System.Text.Json.JsonSerializer.Serialize(message.Headers ?? new Dictionary<string, object>(StringComparer.Ordinal)),
-			#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 			System.Text.Encoding.UTF8.GetString(message.Payload),
 			DateTimeOffset.UtcNow);
 
@@ -429,9 +429,9 @@ public sealed partial class PostgresOutboxStore(
 			var outboxMsg = new OutboxMessage(
 				message.Id,
 				message.MessageType,
-				#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 				System.Text.Json.JsonSerializer.Serialize(message.Headers ?? new Dictionary<string, object>(StringComparer.Ordinal)),
-				#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 				System.Text.Encoding.UTF8.GetString(message.Payload),
 				DateTimeOffset.UtcNow);
 

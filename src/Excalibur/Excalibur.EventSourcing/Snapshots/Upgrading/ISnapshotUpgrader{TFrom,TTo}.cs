@@ -15,7 +15,7 @@ namespace Excalibur.EventSourcing.Snapshots.Upgrading;
 /// automatic chained upgrading through multiple versions.
 /// </para>
 /// <para>
-/// This interface complements the existing <see cref="Abstractions.ISnapshotUpgrader"/>
+/// This interface complements the existing <see cref="ISnapshotUpgrader"/>
 /// (which operates on raw bytes) by providing a higher-level, type-safe abstraction.
 /// </para>
 /// </remarks>

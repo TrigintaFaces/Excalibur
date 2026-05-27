@@ -10,16 +10,16 @@ namespace Excalibur.Data.DynamoDb.Caching;
 /// </summary>
 internal sealed class DaxCacheOptionsValidator : IValidateOptions<DaxCacheOptions>
 {
-    /// <inheritdoc/>
-    public ValidateOptionsResult Validate(string? name, DaxCacheOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
+	/// <inheritdoc/>
+	public ValidateOptionsResult Validate(string? name, DaxCacheOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
 
-        if (string.IsNullOrWhiteSpace(options.ClusterEndpoint))
-        {
-            return ValidateOptionsResult.Fail($"{nameof(options.ClusterEndpoint)} is required.");
-        }
+		if (string.IsNullOrWhiteSpace(options.ClusterEndpoint))
+		{
+			return ValidateOptionsResult.Fail($"{nameof(options.ClusterEndpoint)} is required.");
+		}
 
-        return ValidateOptionsResult.Success;
-    }
+		return ValidateOptionsResult.Success;
+	}
 }

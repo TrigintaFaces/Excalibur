@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Orchestration;
 
@@ -342,7 +342,7 @@ public sealed class SagaBaseShould : UnitTestBase
 
 	#region Test Doubles
 
-	private sealed class TestSagaState : Dispatch.Abstractions.Messaging.SagaState
+	private sealed class TestSagaState : Dispatch.Messaging.SagaState
 	{
 	}
 

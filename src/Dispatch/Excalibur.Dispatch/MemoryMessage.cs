@@ -5,8 +5,6 @@
 using System.Buffers;
 using System.Collections.ObjectModel;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Messaging;
 
 /// <summary>

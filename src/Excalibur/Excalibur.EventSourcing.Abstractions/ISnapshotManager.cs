@@ -4,7 +4,7 @@
 
 using Excalibur.Domain.Model;
 
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 /// <summary>
 /// Manages snapshot creation and restoration for aggregates.

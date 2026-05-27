@@ -7,8 +7,8 @@ using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Data;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Saga.SqlServer.Requests;

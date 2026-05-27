@@ -3,7 +3,7 @@
 
 using ElasticSearch_Projections.ReadModels;
 using Excalibur.Data.ElasticSearch.Projections;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 

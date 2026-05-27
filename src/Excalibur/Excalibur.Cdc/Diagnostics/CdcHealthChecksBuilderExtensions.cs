@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Cdc.Diagnostics;
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;

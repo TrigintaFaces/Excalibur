@@ -5,7 +5,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Snapshots.Compression;
 
 using Microsoft.Extensions.Options;

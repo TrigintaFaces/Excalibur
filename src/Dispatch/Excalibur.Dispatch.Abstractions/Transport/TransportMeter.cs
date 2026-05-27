@@ -5,7 +5,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace Excalibur.Dispatch.Abstractions.Transport;
+namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
 /// Provides OpenTelemetry-compatible metrics for transport adapter operations using System.Diagnostics.Metrics.

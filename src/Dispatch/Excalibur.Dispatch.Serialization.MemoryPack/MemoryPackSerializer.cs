@@ -5,8 +5,6 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
 using Mp = global::MemoryPack.MemoryPackSerializer;
 
 namespace Excalibur.Dispatch.Serialization.MemoryPack;

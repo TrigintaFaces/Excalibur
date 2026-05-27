@@ -5,7 +5,7 @@
 #pragma warning disable IDE0270 // Null check can be simplified
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace Excalibur.Testing.Conformance;
 

@@ -3,7 +3,7 @@
 
 using CdcEventStoreElasticsearch.Domain;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace CdcEventStoreElasticsearch.Projections;
 

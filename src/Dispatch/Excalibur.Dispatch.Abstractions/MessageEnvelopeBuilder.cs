@@ -3,9 +3,10 @@
 
 
 using System.Buffers;
-using Excalibur.Dispatch.Abstractions.Messaging;
 
-namespace Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Messaging;
+
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Builder for constructing message envelopes with fluent API.

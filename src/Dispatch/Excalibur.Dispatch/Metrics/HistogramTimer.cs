@@ -4,7 +4,7 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 namespace Excalibur.Dispatch.Metrics;
 

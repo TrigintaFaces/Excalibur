@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch.Serialization;
 
 using FluentValidation;
 
-using ValidationResult = FluentValidation.Results.ValidationResult;
+using FluentValidationResult = FluentValidation.Results.ValidationResult;
 
 namespace Excalibur.Dispatch.Validation.FluentValidation;
 
@@ -59,7 +57,7 @@ public static class ValidationResultExtensions
 	/// </summary>
 	/// <param name="fluentResult">The FluentValidation result to convert.</param>
 	/// <returns>A Dispatch-compatible validation result.</returns>
-	public static IValidationResult ToDispatchResult(this ValidationResult fluentResult)
+	public static IValidationResult ToDispatchResult(this FluentValidationResult fluentResult)
 	{
 		ArgumentNullException.ThrowIfNull(fluentResult);
 
@@ -81,6 +79,6 @@ public static class ValidationResultExtensions
 	/// <param name="fluentResult">The FluentValidation result to convert.</param>
 	/// <returns>A Dispatch-compatible validation result.</returns>
 	/// <remarks>Alias for <see cref="ToDispatchResult"/> for backward compatibility.</remarks>
-	public static IValidationResult ToExcaliburResult(this ValidationResult fluentResult) =>
+	public static IValidationResult ToExcaliburResult(this FluentValidationResult fluentResult) =>
 		ToDispatchResult(fluentResult);
 }

@@ -15,7 +15,7 @@ namespace MultiTenantEventSourcing.Commands;
 /// Uses the Excalibur <see cref="CommandBase{TResponse}"/> CQRS base so the
 /// tenant id captured from the inbound HTTP request flows through the command
 /// envelope (via <see cref="IAmMultiTenant.TenantId"/>) in addition to the
-/// scoped <see cref="Excalibur.Dispatch.Abstractions.ITenantId"/> consumed by
+/// scoped <see cref="Excalibur.Dispatch.ITenantId"/> consumed by
 /// the <c>TenantRoutingEventStore</c> decorator. Marking the command as
 /// <see cref="IAmAuditable"/> opts it in to <c>Excalibur.A3.AuditMiddleware</c>
 /// so every tenant-scoped write is audited.

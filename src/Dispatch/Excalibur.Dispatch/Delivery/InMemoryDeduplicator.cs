@@ -4,8 +4,6 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Delivery;
 

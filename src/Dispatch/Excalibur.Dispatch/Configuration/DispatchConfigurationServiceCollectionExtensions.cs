@@ -3,9 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Messaging;
@@ -252,7 +250,7 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		// Register IOutboxWriter -- default is DeferredOutboxWriter (eventually-consistent mode).
 		// TransactionalOutboxWriter is registered by Excalibur.Outbox provider extensions
 		// when ConsistencyMode == Transactional.
-		services.TryAddScoped<Excalibur.Dispatch.Abstractions.Outbox.IOutboxWriter,
+		services.TryAddScoped<Excalibur.Dispatch.Outbox.IOutboxWriter,
 			DeferredOutboxWriter>();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions>,

@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
@@ -68,7 +68,7 @@ public sealed class DispatchBuilderSmokeTests
 		{
 			state.WasExecuted = true;
 			// Return success directly to verify middleware executed without needing full bus setup
-			return new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Success());
+			return new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Success());
 		}
 	}
 }

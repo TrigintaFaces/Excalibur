@@ -3,9 +3,9 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Abstractions.Tests;
+namespace Excalibur.Dispatch.Tests;
 
 /// <summary>
 /// Unit tests for the <see cref="ProblemDetailsTypes"/> constants class.
@@ -212,7 +212,7 @@ public sealed class ProblemDetailsTypesShould : UnitTestBase
 		var type = typeof(ProblemDetailsTypes);
 
 		// Act & Assert
-		type.Namespace.ShouldBe("Excalibur.Dispatch.Abstractions");
+		type.Namespace.ShouldBe("Excalibur.Dispatch");
 	}
 
 	#endregion

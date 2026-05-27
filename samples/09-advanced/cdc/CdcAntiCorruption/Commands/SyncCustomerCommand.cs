@@ -3,7 +3,7 @@
 
 using CdcAntiCorruption.Models;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace CdcAntiCorruption.Commands;
 

@@ -4,7 +4,7 @@
 
 using System.Data;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Provides advanced transaction scope capabilities including savepoints and nested scopes.

@@ -44,7 +44,7 @@ This page is optimized for LLM coding agents (Cursor, Copilot, Claude Code, etc.
 
 ## Dispatch Core Types
 
-All message types are in namespace `Excalibur.Dispatch.Abstractions`. Handler types are in `Excalibur.Dispatch.Abstractions.Delivery`.
+All message types are in namespace `Excalibur.Dispatch`. Handler types are in `Excalibur.Dispatch.Delivery`.
 
 | Type | Kind | Key Members |
 |---|---|---|
@@ -54,7 +54,7 @@ All message types are in namespace `Excalibur.Dispatch.Abstractions`. Handler ty
 | `IDispatchEvent` | Event (pub/sub) | Extends `IDispatchMessage`. Multiple handlers allowed. |
 | `IDispatchDocument` | Document/batch | Extends `IDispatchMessage`. For ETL, bulk processing. |
 | `IDomainEvent` | Domain event | Extends `IDispatchEvent`. Has `EventId`, `AggregateId`, `Version`, `OccurredAt`, `EventType`, `Metadata`. |
-| `DomainEvent` | Base record | Abstract record implementing `IDomainEvent` with auto-generated `EventId` (UUID v7). Namespace: `Excalibur.Dispatch.Abstractions`. |
+| `DomainEvent` | Base record | Abstract record implementing `IDomainEvent` with auto-generated `EventId` (UUID v7). Namespace: `Excalibur.Dispatch`. |
 | `IActionHandler<TAction>` | Command handler | 1 method: `Task HandleAsync(TAction action, CancellationToken cancellationToken)` |
 | `IActionHandler<TAction, TResult>` | Query handler | 1 method: `Task<TResult> HandleAsync(TAction action, CancellationToken cancellationToken)` |
 | `IEventHandler<TEvent>` | Event handler | 1 method: `Task HandleAsync(TEvent eventMessage, CancellationToken cancellationToken)` |
@@ -73,7 +73,7 @@ Domain building blocks are in namespace `Excalibur.Domain.Model`.
 | `EntityBase<TKey>` | Entity base | Abstract `Key` property, equality by type + key |
 | `EntityBase` | String-key shorthand | Extends `EntityBase<string>` |
 | `ValueObjectBase` | Value object base | Abstract `GetEqualityComponents()`, component-based equality, `==`/`!=` operators |
-| `DomainEvent` | Domain event base | Abstract record. Auto-generates `EventId` (UUID v7), `OccurredAt` (UTC via `TimeProvider`), `EventType` (class name). Override `AggregateId`. Fluent API: `WithMetadata()`, `WithCorrelationId()`, `WithCausationId()`. Namespace: `Excalibur.Dispatch.Abstractions`. |
+| `DomainEvent` | Domain event base | Abstract record. Auto-generates `EventId` (UUID v7), `OccurredAt` (UTC via `TimeProvider`), `EventType` (class name). Override `AggregateId`. Fluent API: `WithMetadata()`, `WithCorrelationId()`, `WithCausationId()`. Namespace: `Excalibur.Dispatch`. |
 | `ISnapshot` | Snapshot interface | `SnapshotId`, `AggregateId`, `AggregateType`, `Version`, `CreatedAt`, `Data` |
 
 :::note Two DomainEvent base types
@@ -175,8 +175,8 @@ Data-access primitives (`IDataRequest`, `IDb`) are registered as part of the uni
 ### Dispatch Handlers (lightweight)
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 // 1. Command (no return value)
 public record CreateOrder(string CustomerId, List<string> Items) : IDispatchAction;
@@ -281,7 +281,7 @@ The 2-parameter `DispatchAsync(message, cancellationToken)` extension methods us
 
 ```csharp
 using Excalibur.Domain.Model;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // 1. Define domain events
 public record OrderCreated(string OrderId, string CustomerId) : DomainEvent
@@ -355,13 +355,13 @@ Key points:
 
 ## Common LLM Mistakes
 
-1. **Wrong handler namespace**: Handlers are in `Excalibur.Dispatch.Abstractions.Delivery`, not `Excalibur.Dispatch.Abstractions`.
+1. **Wrong handler namespace**: Handlers are in `Excalibur.Dispatch.Delivery`, not `Excalibur.Dispatch`.
 2. **Optional CancellationToken**: Framework requires `CancellationToken cancellationToken` as required parameter (no `= default`).
 3. **Missing ConfigureAwait**: Library code must use `await task.ConfigureAwait(false)`.
 4. **Confusing Action vs Event**: `IDispatchAction` routes to exactly 1 handler. `IDispatchEvent` supports multiple handlers (pub/sub).
 5. **Explicit context creation**: Most code should use the 2-parameter `DispatchAsync(message, ct)` extensions. Only create `IMessageContext` explicitly when you need to set correlation IDs or tenant context.
 6. **DomainEvent is parameterless**: `DomainEvent` uses `virtual init` properties with sensible defaults. Override `AggregateId` in derived records. Put event data in your record's own properties.
-7. **Only ONE DomainEvent base**: `DomainEvent` in `Excalibur.Dispatch.Abstractions`. The old `DomainEventBase` from `Excalibur.Domain.Model` was removed (ADR-201).
+7. **Only ONE DomainEvent base**: `DomainEvent` in `Excalibur.Dispatch`. The old `DomainEventBase` from `Excalibur.Domain.Model` was removed (ADR-201).
 8. **No EntityFramework**: This framework uses **Dapper** for SQL, not EF Core. Never suggest EF migrations or DbContext.
 9. **Blocking async in Dispose**: Use `IAsyncDisposable` with `DisposeAsync()`, never `task.GetAwaiter().GetResult()`.
 10. **Missing aggregate factory**: `AddRepository` requires a factory function: `es.AddRepository<MyAggregate>(key => new MyAggregate(key))`.

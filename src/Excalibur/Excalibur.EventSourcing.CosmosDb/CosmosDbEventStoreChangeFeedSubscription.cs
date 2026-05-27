@@ -4,7 +4,7 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
@@ -48,7 +48,9 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 		_channel = Channel.CreateBounded<IChangeFeedEvent<CloudStoredEvent>>(
 			new BoundedChannelOptions(_options.MaxBatchSize * 10)
 			{
-				FullMode = BoundedChannelFullMode.Wait, SingleReader = true, SingleWriter = true
+				FullMode = BoundedChannelFullMode.Wait,
+				SingleReader = true,
+				SingleWriter = true
 			});
 	}
 
@@ -201,7 +203,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 							ChangeFeedEventType.Created,
 							cloudEvent,
 							cloudEvent.DocumentId ?? doc.Id,
-							new Data.Abstractions.CloudNative.PartitionKey(doc.StreamId),
+							new Data.CloudNative.PartitionKey(doc.StreamId),
 							cloudEvent.Timestamp,
 							response.ContinuationToken,
 							seqNum);

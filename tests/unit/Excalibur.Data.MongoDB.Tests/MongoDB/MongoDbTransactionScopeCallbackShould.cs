@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 
 using Excalibur.Data.MongoDB;
 

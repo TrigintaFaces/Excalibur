@@ -7,16 +7,16 @@ namespace Excalibur.Data.ElasticSearch.MaterializedViews;
 
 internal sealed class ElasticSearchMaterializedViewStoreOptionsValidator : IValidateOptions<ElasticSearchMaterializedViewStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, ElasticSearchMaterializedViewStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, ElasticSearchMaterializedViewStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

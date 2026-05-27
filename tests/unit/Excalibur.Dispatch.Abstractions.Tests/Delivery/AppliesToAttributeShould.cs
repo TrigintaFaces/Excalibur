@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Licensed under the Excalibur License 1.0 - see LICENSE files for details.
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Delivery;
+namespace Excalibur.Dispatch.Tests.Delivery;
 
 /// <summary>
 /// Unit tests for the <see cref="AppliesToAttribute"/> class.

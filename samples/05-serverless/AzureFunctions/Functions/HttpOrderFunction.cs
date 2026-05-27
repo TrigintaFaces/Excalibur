@@ -5,7 +5,7 @@ using System.Net;
 
 using AzureFunctionsSample.Messages;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Azure.Functions.Worker;

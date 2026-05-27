@@ -8,8 +8,7 @@ using System.Globalization;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Validation;
+using Excalibur.Data.Validation;
 
 namespace Excalibur.Cdc.SqlServer;
 

@@ -34,7 +34,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 		};
 
 		// Add Excalibur.Dispatch.Abstractions assembly for handler interfaces
-		var abstractionsAssembly = typeof(Abstractions.IDispatchMessage).Assembly;
+		var abstractionsAssembly = typeof(Excalibur.Dispatch.IDispatchMessage).Assembly;
 		references.Add(MetadataReference.CreateFromFile(abstractionsAssembly.Location));
 
 		// Add system runtime references needed for compilation
@@ -87,8 +87,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -117,8 +117,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -150,8 +150,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -182,8 +182,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -242,8 +242,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -269,8 +269,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -296,8 +296,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -323,8 +323,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 		const string source = """
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -358,7 +358,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void JsonSerialization_WithMessageType_GeneratesTypeRegistry()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -377,7 +377,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void JsonSerialization_WithMessageType_GeneratesMetadata()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -395,7 +395,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void JsonSerialization_WithMessageType_ContainsIsMessageType()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -417,7 +417,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void JsonSerialization_WithMessageType_ContainsGetTypeInfo()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -439,7 +439,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void JsonSerialization_WithMessageType_ContainsTypeName()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -461,7 +461,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void JsonSerialization_ExcludesAbstractTypes()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -485,7 +485,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void JsonSerialization_ExcludesNonPublicTypes()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -535,8 +535,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -563,8 +563,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -594,8 +594,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -626,8 +626,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -684,8 +684,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -715,8 +715,8 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -755,7 +755,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	{
 		const string source = """
 			using System;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -778,7 +778,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	{
 		const string source = """
 			using System;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -804,7 +804,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	{
 		const string source = """
 			using System;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -846,7 +846,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void ServiceRegistration_EmitsSRG001Diagnostic_WhenRegistrationsFound()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -867,7 +867,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void ServiceRegistration_EmitsSRG002Diagnostic_WhenAsInterfacesButNoInterfaces()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -887,7 +887,7 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	public void ServiceRegistration_GeneratedCode_ContainsAddSourceGenerated()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{

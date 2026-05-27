@@ -4,10 +4,10 @@
 using System.Diagnostics.Metrics;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Messaging;
 

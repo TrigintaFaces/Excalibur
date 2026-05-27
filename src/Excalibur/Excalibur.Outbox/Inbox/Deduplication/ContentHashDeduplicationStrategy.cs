@@ -5,7 +5,6 @@
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Options.Delivery;
 
 namespace Excalibur.Dispatch.Delivery;

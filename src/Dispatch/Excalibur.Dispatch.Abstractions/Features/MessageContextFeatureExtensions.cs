@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Routing;
 
-namespace Excalibur.Dispatch.Abstractions.Features;
+namespace Excalibur.Dispatch.Features;
 
 /// <summary>
 /// Extension methods for accessing feature interfaces on <see cref="IMessageContext"/>.

@@ -104,7 +104,7 @@ builder.Services.AddComplianceTelemetrySanitizer(opt =>
 ## ITelemetrySanitizer Interface
 
 ```csharp
-namespace Excalibur.Dispatch.Abstractions.Telemetry;
+namespace Excalibur.Dispatch.Telemetry;
 
 public interface ITelemetrySanitizer
 {

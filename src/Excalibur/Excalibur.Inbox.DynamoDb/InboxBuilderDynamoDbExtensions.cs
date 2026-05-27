@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Amazon.DynamoDBv2;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Inbox.DependencyInjection;
 using Excalibur.Inbox.DynamoDb;
 

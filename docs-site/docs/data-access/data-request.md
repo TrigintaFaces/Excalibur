@@ -85,7 +85,7 @@ protected CommandDefinition CreateCommand(
 
 ```csharp
 using Dapper;
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 public class GetOrderByIdQuery : DataRequest<Order?>
 {

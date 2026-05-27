@@ -3,8 +3,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions.Persistence;
 using Excalibur.Data.MySql;
+using Excalibur.Data.Persistence;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;

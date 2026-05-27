@@ -1,6 +1,6 @@
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Saga.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Saga;
 using Excalibur.Saga.Orchestration;
 
 using Company.ExcaliburSaga.Messages;

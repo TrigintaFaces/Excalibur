@@ -5,7 +5,7 @@ using System.Security.Claims;
 
 using Excalibur.A3;
 using Excalibur.A3.Authorization;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using FakeItEasy;
 
@@ -47,7 +47,7 @@ public sealed class ConditionMiddlewareIntegrationShould
                 A<ClaimsPrincipal>.Ignored,
                 A<string>.Ignored,
                 A<IAuthorizationRequirement[]>.Ignored))
-            .Returns(Excalibur.Dispatch.Abstractions.AuthorizationResult.Success());
+            .Returns(Excalibur.Dispatch.AuthorizationResult.Success());
     }
 
     // ──────────────────────────────────────────────

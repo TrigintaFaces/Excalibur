@@ -7,7 +7,6 @@ using System.Text;
 using System.Text.Json;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
 
 namespace Excalibur.EventSourcing.Snapshots;
 

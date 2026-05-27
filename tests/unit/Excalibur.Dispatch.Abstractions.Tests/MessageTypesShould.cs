@@ -3,7 +3,7 @@
 
 using System.Text.Json;
 
-namespace Excalibur.Dispatch.Abstractions.Tests;
+namespace Excalibur.Dispatch.Tests;
 
 /// <summary>
 /// Unit tests for message types including MessageKinds, MessageEnvelope, and CausationId.

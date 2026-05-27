@@ -3,8 +3,6 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.A3.Abstractions.Authorization;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Options.Middleware;
@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
-using AuthorizationResult = Excalibur.Dispatch.Middleware.Auth.AuthorizationResult;
+using MiddlewareAuthResult = global::Excalibur.Dispatch.Middleware.Auth.AuthorizationResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
@@ -206,7 +206,7 @@ public sealed class AuthorizationMiddlewareShould
 			A<IMessageContext>._,
 			A<object>._,
 			A<CancellationToken>._))
-			.Returns(AuthorizationResult.Success());
+			.Returns(MiddlewareAuthResult.Success());
 
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
@@ -239,7 +239,7 @@ public sealed class AuthorizationMiddlewareShould
 			A<IMessageContext>._,
 			A<object>._,
 			A<CancellationToken>._))
-			.Returns(AuthorizationResult.Failure("Access denied"));
+			.Returns(MiddlewareAuthResult.Failure("Access denied"));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<UnauthorizedAccessException>(
@@ -404,7 +404,7 @@ public sealed class AuthorizationMiddlewareShould
 			A<IMessageContext>._,
 			A<object>._,
 			A<CancellationToken>._))
-			.Returns(AuthorizationResult.Success());
+			.Returns(MiddlewareAuthResult.Success());
 
 		// Act
 		_ = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
@@ -436,7 +436,7 @@ public sealed class AuthorizationMiddlewareShould
 			A<IMessageContext>._,
 			A<object>._,
 			A<CancellationToken>._))
-			.Returns(AuthorizationResult.Success());
+			.Returns(MiddlewareAuthResult.Success());
 
 		// Act
 		_ = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
@@ -468,7 +468,7 @@ public sealed class AuthorizationMiddlewareShould
 			A<IMessageContext>._,
 			A<object>._,
 			A<CancellationToken>._))
-			.Returns(AuthorizationResult.Success());
+			.Returns(MiddlewareAuthResult.Success());
 
 		// Act
 		_ = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);

@@ -5,8 +5,7 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -146,12 +145,12 @@ public sealed class SqliteEventStore : IEventStore
 			foreach (var @event in eventList)
 			{
 				version++;
-				#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 				var eventData = JsonSerializer.SerializeToUtf8Bytes(@event, @event.GetType(), _jsonOptions);
 				var metadata = @event.Metadata != null
 					? JsonSerializer.SerializeToUtf8Bytes(@event.Metadata, _jsonOptions)
 					: null;
-				#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 
 				var sql = $"""
 					INSERT INTO [{_table}] (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp)

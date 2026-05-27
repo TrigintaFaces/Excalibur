@@ -2,7 +2,7 @@
 // Demonstrates creating a provisioning request, risk scoring, approval chain,
 // and grant creation using in-memory stores.
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.A3.Governance.Provisioning;
 
 using Microsoft.Extensions.DependencyInjection;

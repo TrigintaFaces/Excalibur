@@ -5,8 +5,6 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Resilience;

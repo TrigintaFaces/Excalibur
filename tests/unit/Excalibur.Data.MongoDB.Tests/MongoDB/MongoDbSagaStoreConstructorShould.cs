@@ -245,7 +245,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 	/// <summary>
 	/// Test saga state for verifying store operations.
 	/// </summary>
-	private sealed class TestSagaState : Dispatch.Abstractions.Messaging.SagaState
+	private sealed class TestSagaState : Dispatch.Messaging.SagaState
 	{
 		public string OrderId { get; set; } = string.Empty;
 	}

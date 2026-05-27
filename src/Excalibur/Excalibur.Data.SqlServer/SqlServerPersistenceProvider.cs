@@ -4,9 +4,8 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
 using Excalibur.Data.SqlServer.Diagnostics;
 using Excalibur.Data.SqlServer.Persistence;
 

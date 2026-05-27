@@ -68,13 +68,13 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		IAuditLogger logger1;
 		IAuditLogger logger2;
 
-		using (var scope1 = provider.CreateScope())
 		{
+			using var scope1 = provider.CreateScope();
 			logger1 = scope1.ServiceProvider.GetRequiredService<IAuditLogger>();
 		}
 
-		using (var scope2 = provider.CreateScope())
 		{
+			using var scope2 = provider.CreateScope();
 			logger2 = scope2.ServiceProvider.GetRequiredService<IAuditLogger>();
 		}
 
@@ -277,13 +277,13 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		IAuditStore store1;
 		IAuditStore store2;
 
-		using (var scope1 = provider.CreateScope())
 		{
+			using var scope1 = provider.CreateScope();
 			store1 = scope1.ServiceProvider.GetRequiredService<IAuditStore>();
 		}
 
-		using (var scope2 = provider.CreateScope())
 		{
+			using var scope2 = provider.CreateScope();
 			store2 = scope2.ServiceProvider.GetRequiredService<IAuditStore>();
 		}
 

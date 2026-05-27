@@ -3,7 +3,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-using Excalibur.Data.Abstractions.Validation;
+using Excalibur.Data.Validation;
 
 namespace Excalibur.Data.DataProcessing;
 

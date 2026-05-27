@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 
 namespace Excalibur.Data.Tests.Abstractions.CloudNative;
 

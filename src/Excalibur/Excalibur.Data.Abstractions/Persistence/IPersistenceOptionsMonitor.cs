@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.Extensions.Options;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Monitors persistence options for runtime configuration changes.

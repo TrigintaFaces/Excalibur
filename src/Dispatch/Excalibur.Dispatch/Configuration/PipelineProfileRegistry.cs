@@ -6,7 +6,6 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Routing;
 
 namespace Excalibur.Dispatch.Configuration;

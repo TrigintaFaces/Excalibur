@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Domain.Model;
 
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 /// <summary>
 /// Defines the strategy for creating snapshots of aggregates.

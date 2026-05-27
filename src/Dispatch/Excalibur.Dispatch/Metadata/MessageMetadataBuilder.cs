@@ -5,8 +5,6 @@
 using System.Collections.ObjectModel;
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Metadata;
 
 /// <summary>

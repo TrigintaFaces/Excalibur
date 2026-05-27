@@ -5,13 +5,12 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Resilience;
+using Excalibur.Dispatch.Telemetry;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

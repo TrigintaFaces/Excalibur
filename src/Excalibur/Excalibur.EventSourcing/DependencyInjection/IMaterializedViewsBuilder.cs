@@ -4,8 +4,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.EventSourcing.Abstractions;
-
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.EventSourcing.DependencyInjection;

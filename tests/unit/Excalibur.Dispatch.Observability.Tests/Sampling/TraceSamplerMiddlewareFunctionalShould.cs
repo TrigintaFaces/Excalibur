@@ -3,8 +3,8 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Observability.Sampling;
 
 namespace Excalibur.Dispatch.Observability.Tests.Sampling;

@@ -43,7 +43,7 @@ Excalibur.Cdc.MongoDB.MongoDbCdcPosition.IsValid.get -> bool
 Excalibur.Cdc.MongoDB.MongoDbCdcPosition.MongoDbCdcPosition() -> void
 Excalibur.Cdc.MongoDB.MongoDbCdcPosition.MongoDbCdcPosition(MongoDB.Bson.BsonDocument? resumeToken) -> void
 Excalibur.Cdc.MongoDB.MongoDbCdcPosition.ResumeToken.get -> MongoDB.Bson.BsonDocument?
-Excalibur.Cdc.MongoDB.MongoDbCdcPosition.ToChangePosition() -> Excalibur.Dispatch.Abstractions.ChangePosition!
+Excalibur.Cdc.MongoDB.MongoDbCdcPosition.ToChangePosition() -> Excalibur.Dispatch.ChangePosition!
 Excalibur.Cdc.MongoDB.MongoDbCdcPosition.TokenString.get -> string?
 Excalibur.Cdc.MongoDB.MongoDbCdcProcessor
 Excalibur.Cdc.MongoDB.MongoDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -192,7 +192,7 @@ static Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions.UseMongoDB(this Excalib
 static Excalibur.Cdc.MongoDB.MongoDbCdcBuilderExtensions.BatchSize(this Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder! builder, int batchSize) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
 static Excalibur.Cdc.MongoDB.MongoDbCdcBuilderExtensions.ReconnectInterval(this Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder! builder, System.TimeSpan interval) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
 static Excalibur.Cdc.MongoDB.MongoDbCdcBuilderExtensions.WithStateStore(this Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder! builder, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
-static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.FromChangePosition(Excalibur.Dispatch.Abstractions.ChangePosition? position) -> Excalibur.Cdc.MongoDB.MongoDbCdcPosition
+static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.FromChangePosition(Excalibur.Dispatch.ChangePosition? position) -> Excalibur.Cdc.MongoDB.MongoDbCdcPosition
 static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.FromString(string? tokenString) -> Excalibur.Cdc.MongoDB.MongoDbCdcPosition
 static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.TryParse(string? tokenString, out Excalibur.Cdc.MongoDB.MongoDbCdcPosition result) -> bool
 static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.operator !=(Excalibur.Cdc.MongoDB.MongoDbCdcPosition left, Excalibur.Cdc.MongoDB.MongoDbCdcPosition right) -> bool

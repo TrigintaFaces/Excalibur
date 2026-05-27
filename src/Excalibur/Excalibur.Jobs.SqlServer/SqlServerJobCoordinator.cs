@@ -6,7 +6,7 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Jobs.Abstractions.Coordination;
+using Excalibur.Jobs.Coordination;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

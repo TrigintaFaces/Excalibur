@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.EventSourcing.Abstractions;
-
 namespace Excalibur.EventSourcing.Queries;
 
 /// <summary>
@@ -21,7 +19,7 @@ namespace Excalibur.EventSourcing.Queries;
 /// </para>
 /// <para>
 /// Follows the pattern from EventStoreDB's <c>$ce-{category}</c> system projection.
-/// The existing <see cref="Abstractions.IEventStore"/> already captures <c>aggregateType</c>
+/// The existing <see cref="IEventStore"/> already captures <c>aggregateType</c>
 /// on append, so category information is inherently available in the store.
 /// </para>
 /// </remarks>

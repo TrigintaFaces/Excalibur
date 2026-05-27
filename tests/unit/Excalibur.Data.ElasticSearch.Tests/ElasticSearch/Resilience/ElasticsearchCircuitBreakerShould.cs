@@ -271,4 +271,3 @@ public sealed class ElasticsearchCircuitBreakerShould : IDisposable
 
 	public void Dispose() => _sut.Dispose();
 }
-

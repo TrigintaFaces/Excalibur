@@ -19,7 +19,11 @@ internal sealed class ElasticSearchDataBuilder : IElasticSearchDataBuilder
 	{
 		ArgumentNullException.ThrowIfNull(uri);
 		NodeUriValue = uri;
-		NodeUrisValue = null; CloudIdValue = null; ClientInstance = null; ClientFactoryFunc = null; BindConfigurationPath = null;
+		NodeUrisValue = null;
+		CloudIdValue = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -27,7 +31,11 @@ internal sealed class ElasticSearchDataBuilder : IElasticSearchDataBuilder
 	{
 		ArgumentNullException.ThrowIfNull(uris);
 		NodeUrisValue = uris;
-		NodeUriValue = null; CloudIdValue = null; ClientInstance = null; ClientFactoryFunc = null; BindConfigurationPath = null;
+		NodeUriValue = null;
+		CloudIdValue = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -35,7 +43,11 @@ internal sealed class ElasticSearchDataBuilder : IElasticSearchDataBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(cloudId);
 		CloudIdValue = cloudId;
-		NodeUriValue = null; NodeUrisValue = null; ClientInstance = null; ClientFactoryFunc = null; BindConfigurationPath = null;
+		NodeUriValue = null;
+		NodeUrisValue = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -43,7 +55,11 @@ internal sealed class ElasticSearchDataBuilder : IElasticSearchDataBuilder
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ClientInstance = client;
-		NodeUriValue = null; NodeUrisValue = null; CloudIdValue = null; ClientFactoryFunc = null; BindConfigurationPath = null;
+		NodeUriValue = null;
+		NodeUrisValue = null;
+		CloudIdValue = null;
+		ClientFactoryFunc = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -51,7 +67,11 @@ internal sealed class ElasticSearchDataBuilder : IElasticSearchDataBuilder
 	{
 		ArgumentNullException.ThrowIfNull(factory);
 		ClientFactoryFunc = factory;
-		NodeUriValue = null; NodeUrisValue = null; CloudIdValue = null; ClientInstance = null; BindConfigurationPath = null;
+		NodeUriValue = null;
+		NodeUrisValue = null;
+		CloudIdValue = null;
+		ClientInstance = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -59,7 +79,11 @@ internal sealed class ElasticSearchDataBuilder : IElasticSearchDataBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 		BindConfigurationPath = sectionPath;
-		NodeUriValue = null; NodeUrisValue = null; CloudIdValue = null; ClientInstance = null; ClientFactoryFunc = null;
+		NodeUriValue = null;
+		NodeUrisValue = null;
+		CloudIdValue = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
 		return this;
 	}
 

@@ -5,7 +5,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using LocalLongPollingStatistics = Excalibur.Dispatch.Transport.LongPollingStatistics;
 

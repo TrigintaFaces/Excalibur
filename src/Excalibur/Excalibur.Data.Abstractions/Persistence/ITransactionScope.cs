@@ -4,7 +4,7 @@
 
 using System.Data;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Defines a transaction scope for managing distributed transactions across multiple providers.

@@ -3,7 +3,8 @@
 
 
 using System.Diagnostics.CodeAnalysis;
-using Excalibur.EventSourcing.Abstractions;
+
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Views;
 
@@ -100,6 +101,6 @@ public static class MaterializedViewsServiceCollectionExtensions
 	public static bool HasMaterializedViews(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
-		return services.Any(s => s.ServiceType == typeof(Excalibur.EventSourcing.Abstractions.IMaterializedViewStore));
+		return services.Any(s => s.ServiceType == typeof(Excalibur.EventSourcing.IMaterializedViewStore));
 	}
 }

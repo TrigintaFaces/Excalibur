@@ -18,7 +18,7 @@
 using MessagePackSerializer = MessagePack.MessagePackSerializer;
 
 using Excalibur.Outbox.InMemory;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Serialization;

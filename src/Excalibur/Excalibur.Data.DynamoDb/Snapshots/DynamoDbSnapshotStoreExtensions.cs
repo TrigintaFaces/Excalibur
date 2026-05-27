@@ -3,7 +3,7 @@
 
 
 using Excalibur.Data.DynamoDb.Snapshots;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;

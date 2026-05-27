@@ -39,14 +39,14 @@ Excalibur.Data.Persistence.PersistenceConfiguration.DefaultProvider.get -> strin
 Excalibur.Data.Persistence.PersistenceConfiguration.DefaultProvider.set -> void
 Excalibur.Data.Persistence.PersistenceConfiguration.DefaultProviderName.get -> string!
 Excalibur.Data.Persistence.PersistenceConfiguration.GetConfiguredProviders() -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Data.Persistence.PersistenceConfiguration.GetProviderOptions(string! providerName) -> Excalibur.Data.Abstractions.Persistence.IPersistenceOptions!
+Excalibur.Data.Persistence.PersistenceConfiguration.GetProviderOptions(string! providerName) -> Excalibur.Data.Persistence.IPersistenceOptions!
 Excalibur.Data.Persistence.PersistenceConfiguration.GlobalOptions.get -> Excalibur.Data.Persistence.PersistenceOptions!
 Excalibur.Data.Persistence.PersistenceConfiguration.PersistenceConfiguration() -> void
 Excalibur.Data.Persistence.PersistenceConfiguration.Providers.get -> System.Collections.Generic.IDictionary<string!, Excalibur.Data.Persistence.PersistenceProviderOptions!>!
-Excalibur.Data.Persistence.PersistenceConfiguration.RegisterProviderConfiguration(string! providerName, Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options) -> void
+Excalibur.Data.Persistence.PersistenceConfiguration.RegisterProviderConfiguration(string! providerName, Excalibur.Data.Persistence.IPersistenceOptions! options) -> void
 Excalibur.Data.Persistence.PersistenceConfiguration.Reload() -> void
 Excalibur.Data.Persistence.PersistenceConfiguration.RemoveProviderConfiguration(string! providerName) -> bool
-Excalibur.Data.Persistence.PersistenceConfiguration.Validate() -> System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.Persistence.ConfigurationValidationResult!>!
+Excalibur.Data.Persistence.PersistenceConfiguration.Validate() -> System.Collections.Generic.IEnumerable<Excalibur.Data.Persistence.ConfigurationValidationResult!>!
 Excalibur.Data.Persistence.PersistenceOptions
 Excalibur.Data.Persistence.PersistenceOptions.DefaultCommandTimeout.get -> int
 Excalibur.Data.Persistence.PersistenceOptions.DefaultCommandTimeout.set -> void
@@ -93,7 +93,7 @@ Excalibur.Data.Persistence.PersistenceProviderOptions.ProviderSpecificOptions.ge
 Excalibur.Data.Persistence.PersistenceProviderOptions.ProviderSpecificOptions.set -> void
 Excalibur.Data.Persistence.PersistenceProviderOptions.RetryDelayMilliseconds.get -> int
 Excalibur.Data.Persistence.PersistenceProviderOptions.RetryDelayMilliseconds.set -> void
-Excalibur.Data.Persistence.PersistenceProviderOptions.Type.get -> Excalibur.Data.Abstractions.Persistence.PersistenceProviderType
+Excalibur.Data.Persistence.PersistenceProviderOptions.Type.get -> Excalibur.Data.Persistence.PersistenceProviderType
 Excalibur.Data.Persistence.PersistenceProviderOptions.Type.set -> void
 Excalibur.Data.Persistence.PersistenceProviderOptions.Validate() -> void
 Excalibur.Data.ProjectionDb

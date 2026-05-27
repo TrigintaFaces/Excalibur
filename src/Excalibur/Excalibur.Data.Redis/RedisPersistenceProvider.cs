@@ -5,10 +5,9 @@
 using System.Data;
 using System.Net;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.Redis.Diagnostics;
+using Excalibur.Data.Resilience;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

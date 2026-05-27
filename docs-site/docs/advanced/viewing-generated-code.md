@@ -226,7 +226,7 @@ Dispatch uses incremental generators that only regenerate when relevant source c
 
 ### Files Are Empty
 
-1. Ensure handler interfaces are from `Excalibur.Dispatch.Abstractions`
+1. Ensure handler interfaces are from the `Excalibur.Dispatch.Delivery` namespace
 2. Verify classes are public and non-abstract
 3. Check for compilation errors that block generator execution
 

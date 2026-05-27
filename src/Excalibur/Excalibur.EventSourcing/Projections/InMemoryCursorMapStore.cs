@@ -3,7 +3,6 @@
 
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
-using Excalibur.EventSourcing.Abstractions;
 
 namespace Excalibur.EventSourcing.Projections;
 

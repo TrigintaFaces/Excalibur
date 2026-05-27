@@ -8,11 +8,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Delivery.BatchProcessing;
 using Excalibur.Dispatch.Delivery.Registry;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Messaging;
@@ -142,7 +140,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		_queueCapacity = options.Value.QueueCapacity;
 		_outboxMessages = Channel.CreateBounded<IOutboxMessage>(new BoundedChannelOptions(options.Value.QueueCapacity)
 		{
-			FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = false, AllowSynchronousContinuations = false,
+			FullMode = BoundedChannelFullMode.Wait,
+			SingleReader = false,
+			SingleWriter = false,
+			AllowSynchronousContinuations = false,
 		});
 		_batchMetrics = new BatchProcessingMetrics($"OutboxProcessor.{nameof(BatchProcessingMetrics)}");
 
@@ -287,7 +288,9 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					createdAt: envelope.Timestamp,
 					expiresAt: outboundMessage.ScheduledAt)
 				{
-					Attempts = outboundMessage.RetryCount, DispatcherId = null, DispatcherTimeout = null,
+					Attempts = outboundMessage.RetryCount,
+					DispatcherId = null,
+					DispatcherTimeout = null,
 				};
 			}
 		}
@@ -830,11 +833,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			stopwatch.Elapsed,
 			new Dictionary<string, object?>
 				(StringComparer.Ordinal)
-				{
-					["ProcessorType"] = "Outbox",
-					["ParallelDegree"] = _options.BatchProcessing.ParallelProcessingDegree,
-					["BatchOperationsEnabled"] = _options.EnableBatchDatabaseOperations,
-				});
+			{
+				["ProcessorType"] = "Outbox",
+				["ParallelDegree"] = _options.BatchProcessing.ParallelProcessingDegree,
+				["BatchOperationsEnabled"] = _options.EnableBatchDatabaseOperations,
+			});
 
 		return successful.Count;
 	}
@@ -990,11 +993,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Abstractions.Serialization.DispatchJsonSerializer.DeserializeAsync(String, Type)")]
+	[RequiresDynamicCode("Calls Excalibur.Dispatch.Serialization.DispatchJsonSerializer.DeserializeAsync(String, Type)")]
 	private async Task DispatchAsync(IOutboxMessage outboxMessage, CancellationToken cancellationToken)
 	{
 		if (await _serializer.DeserializeAsync(outboxMessage.MessageBody, typeof(OutboxMessage)).ConfigureAwait(false) is not OutboxMessage
-		    message)
+			message)
 		{
 			BackgroundServiceMetrics.RecordProcessingError(BackgroundServiceTypes.Outbox, "empty_message");
 			return;
@@ -1003,10 +1006,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		try
 		{
 			var type = MessageTypeRegistry.GetType(message.MessageType)
-			           ?? throw new TypeLoadException($"{ErrorConstants.TypeNotFoundInRegistry}: {message.MessageType}");
+					   ?? throw new TypeLoadException($"{ErrorConstants.TypeNotFoundInRegistry}: {message.MessageType}");
 
 			if (await _serializer.DeserializeAsync(message.MessageBody, type).ConfigureAwait(false) is not IDispatchMessage
-			    dispatchMessage)
+				dispatchMessage)
 			{
 				throw new InvalidOperationException(
 					$"{ErrorConstants.CouldNotDeserializeAsDispatchMessage}: {message.MessageType}");
@@ -1024,17 +1027,17 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 			var metaDictionary = new Dictionary<string, string?>
 				(StringComparer.Ordinal)
-				{
-					["CorrelationId"] = deliveryMetadata.CorrelationId,
-					["CausationId"] = deliveryMetadata.CausationId,
-					["TraceParent"] = deliveryMetadata.TraceParent,
-					["TenantId"] = deliveryMetadata.TenantId,
-					["UserId"] = deliveryMetadata.UserId,
-					["ContentType"] = deliveryMetadata.ContentType,
-					["SerializerVersion"] = deliveryMetadata.SerializerVersion,
-					["MessageVersion"] = deliveryMetadata.MessageVersion,
-					["ContractVersion"] = deliveryMetadata.ContractVersion,
-				};
+			{
+				["CorrelationId"] = deliveryMetadata.CorrelationId,
+				["CausationId"] = deliveryMetadata.CausationId,
+				["TraceParent"] = deliveryMetadata.TraceParent,
+				["TenantId"] = deliveryMetadata.TenantId,
+				["UserId"] = deliveryMetadata.UserId,
+				["ContentType"] = deliveryMetadata.ContentType,
+				["SerializerVersion"] = deliveryMetadata.SerializerVersion,
+				["MessageVersion"] = deliveryMetadata.MessageVersion,
+				["ContractVersion"] = deliveryMetadata.ContractVersion,
+			};
 
 			var messageContext = DispatchContextInitializer.CreateFromMetadata(metaDictionary);
 			messageContext.MessageId = message.MessageId;

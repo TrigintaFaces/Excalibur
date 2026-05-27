@@ -1,6 +1,6 @@
 // Functional tests for RateLimitingMiddleware — algorithm behavior, tenant limits, disabled bypass, key extraction
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security;
 
 #pragma warning disable CA2012

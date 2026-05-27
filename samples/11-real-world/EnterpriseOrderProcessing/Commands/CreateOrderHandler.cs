@@ -3,8 +3,8 @@
 
 using EnterpriseOrderProcessing.Domain;
 
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 

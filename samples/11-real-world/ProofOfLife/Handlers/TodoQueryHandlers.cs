@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 
 using ProofOfLife.Domain;
 using ProofOfLife.Messages;

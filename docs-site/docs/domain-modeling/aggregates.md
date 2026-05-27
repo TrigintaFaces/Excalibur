@@ -83,7 +83,7 @@ public class Order : AggregateRoot<Guid>
 Define events as immutable records extending `DomainEvent`:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
 {

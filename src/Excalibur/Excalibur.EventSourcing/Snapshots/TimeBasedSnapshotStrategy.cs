@@ -6,7 +6,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
 
 namespace Excalibur.EventSourcing.Snapshots;
 

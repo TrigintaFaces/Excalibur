@@ -7,16 +7,16 @@ namespace Excalibur.Data.Persistence;
 
 internal sealed class PersistenceProviderOptionsValidator : IValidateOptions<PersistenceProviderOptions>
 {
-    public ValidateOptionsResult Validate(string? name, PersistenceProviderOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, PersistenceProviderOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

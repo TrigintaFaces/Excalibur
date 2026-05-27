@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -235,7 +234,7 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 		BrokerUnreachableException or         // Cannot reach the broker at all
 		AlreadyClosedException or              // Channel closed but connection may recover
 		OperationInterruptedException          // Channel/connection interrupted (may be recoverable)
-			{ ShutdownReason.ReplyCode: not 404 } // 404 = NOT_FOUND (queue/exchange doesn't exist) -> permanent
+		{ ShutdownReason.ReplyCode: not 404 } // 404 = NOT_FOUND (queue/exchange doesn't exist) -> permanent
 		or System.IO.IOException               // Network-level I/O failure
 		or System.Net.Sockets.SocketException; // Socket-level connectivity failure
 

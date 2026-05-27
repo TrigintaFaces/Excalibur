@@ -10,25 +10,25 @@ namespace Excalibur.Data.Postgres.Snapshots;
 /// </summary>
 internal sealed class PostgresSnapshotStoreOptionsValidator : IValidateOptions<PostgresSnapshotStoreOptions>
 {
-    /// <inheritdoc/>
-    public ValidateOptionsResult Validate(string? name, PostgresSnapshotStoreOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
+	/// <inheritdoc/>
+	public ValidateOptionsResult Validate(string? name, PostgresSnapshotStoreOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
 
-        var failures = new List<string>();
+		var failures = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(options.SchemaName))
-        {
-            failures.Add($"{nameof(options.SchemaName)} is required.");
-        }
+		if (string.IsNullOrWhiteSpace(options.SchemaName))
+		{
+			failures.Add($"{nameof(options.SchemaName)} is required.");
+		}
 
-        if (string.IsNullOrWhiteSpace(options.TableName))
-        {
-            failures.Add($"{nameof(options.TableName)} is required.");
-        }
+		if (string.IsNullOrWhiteSpace(options.TableName))
+		{
+			failures.Add($"{nameof(options.TableName)} is required.");
+		}
 
-        return failures.Count > 0
-            ? ValidateOptionsResult.Fail(failures)
-            : ValidateOptionsResult.Success;
-    }
+		return failures.Count > 0
+			? ValidateOptionsResult.Fail(failures)
+			: ValidateOptionsResult.Success;
+	}
 }

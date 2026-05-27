@@ -33,8 +33,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </remarks>
 public static class DispatchHealthChecksBuilderExtensions
 {
-	private const string OutboxPublisherTypeName = "Excalibur.Dispatch.Abstractions.IOutboxPublisher";
-	private const string InboxStoreTypeName = "Excalibur.Dispatch.Abstractions.IInboxStore";
+	private const string OutboxPublisherTypeName = "Excalibur.Dispatch.IOutboxPublisher";
+	private const string InboxStoreTypeName = "Excalibur.Dispatch.IInboxStore";
 	private const string LeaderElectionTypeName = "Excalibur.Dispatch.LeaderElection.ILeaderElection";
 
 	private static readonly (string AssemblyName, string TypeName, string MethodName)[] HealthCheckExtensionTargets =

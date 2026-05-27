@@ -4,7 +4,7 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.InMemory;
 
 namespace Excalibur.Benchmarks.EventSourcing;

@@ -5,10 +5,9 @@
 using System.Data;
 using System.Diagnostics;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.SqlServer.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

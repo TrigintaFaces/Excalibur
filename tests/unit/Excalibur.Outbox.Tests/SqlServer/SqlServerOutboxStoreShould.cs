@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Inbox.SqlServer;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -247,7 +247,7 @@ public sealed class SqlServerOutboxStoreShould : UnitTestBase
 			ConnectionString = "Server=localhost;Database=TestDb"
 		});
 		var store = new SqlServerOutboxStore(options, _logger);
-		var context = A.Fake<Dispatch.Abstractions.IMessageContext>();
+		var context = A.Fake<Dispatch.IMessageContext>();
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -263,7 +263,7 @@ public sealed class SqlServerOutboxStoreShould : UnitTestBase
 			ConnectionString = "Server=localhost;Database=TestDb"
 		});
 		var store = new SqlServerOutboxStore(options, _logger);
-		var message = A.Fake<Dispatch.Abstractions.IDispatchMessage>();
+		var message = A.Fake<Dispatch.IDispatchMessage>();
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -433,7 +433,7 @@ public sealed class SqlServerOutboxStoreShould : UnitTestBase
 			ConnectionString = "Server=localhost;Database=TestDb"
 		});
 		var store = new SqlServerOutboxStore(options, _logger);
-		var message = new Dispatch.Abstractions.OutboundMessage("TestType", [], "dest", new Dictionary<string, object>());
+		var message = new Dispatch.OutboundMessage("TestType", [], "dest", new Dictionary<string, object>());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(

@@ -5,11 +5,11 @@
 
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Versioning;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Implementation;
 
@@ -19,12 +19,12 @@ using Shouldly;
 
 using Xunit;
 
-// Use Excalibur.EventSourcing.Abstractions as canonical source (AD-251-2)
-using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
-using IEventNotificationBroker = Excalibur.EventSourcing.Abstractions.IEventNotificationBroker;
-using EventNotificationContext = Excalibur.EventSourcing.Abstractions.EventNotificationContext;
-using StoredEvent = Excalibur.EventSourcing.Abstractions.StoredEvent;
-using AppendResult = Excalibur.EventSourcing.Abstractions.AppendResult;
+// Use Excalibur.EventSourcing as canonical namespace (AD-251-2)
+using IEventStore = Excalibur.EventSourcing.IEventStore;
+using IEventNotificationBroker = Excalibur.EventSourcing.IEventNotificationBroker;
+using EventNotificationContext = Excalibur.EventSourcing.EventNotificationContext;
+using StoredEvent = Excalibur.EventSourcing.StoredEvent;
+using AppendResult = Excalibur.EventSourcing.AppendResult;
 
 namespace Excalibur.EventSourcing.Tests;
 
@@ -537,7 +537,7 @@ public sealed class EventSourcedRepositoryShould
 			id => new TestAggregate(id));
 
 		// Act & Assert
-		var exception = await Should.ThrowAsync<Excalibur.Data.Abstractions.ResourceException>(
+		var exception = await Should.ThrowAsync<Excalibur.Data.ResourceException>(
 			async () => await repository.SaveAsync(aggregate, CancellationToken.None));
 		exception.Message.ShouldContain("Append failed");
 	}

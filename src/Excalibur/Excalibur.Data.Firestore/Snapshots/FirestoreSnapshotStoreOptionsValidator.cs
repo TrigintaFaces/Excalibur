@@ -7,16 +7,16 @@ namespace Excalibur.Data.Firestore.Snapshots;
 
 internal sealed class FirestoreSnapshotStoreOptionsValidator : IValidateOptions<FirestoreSnapshotStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, FirestoreSnapshotStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, FirestoreSnapshotStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

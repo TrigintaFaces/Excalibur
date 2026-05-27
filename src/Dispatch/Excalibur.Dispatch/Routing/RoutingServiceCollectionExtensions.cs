@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
-using Excalibur.Dispatch.Abstractions.Routing;
+
 using Excalibur.Dispatch.Options.Routing;
+using Excalibur.Dispatch.Routing;
 using Excalibur.Dispatch.Routing.Builder;
 
 using Microsoft.Extensions.Configuration;
@@ -26,7 +27,7 @@ public static class RoutingServiceCollectionExtensions
 	/// <para>
 	/// This method registers a default <see cref="IDispatchRouter"/> that routes all messages
 	/// to the "local" transport. For custom routing configuration, use <c>UseRouting()</c>
-	/// on the <see cref="Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder"/> instead.
+	/// on the <see cref="Excalibur.Dispatch.Configuration.IDispatchBuilder"/> instead.
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddDispatchRouting(this IServiceCollection services, Action<RoutingOptions>? configure = null)

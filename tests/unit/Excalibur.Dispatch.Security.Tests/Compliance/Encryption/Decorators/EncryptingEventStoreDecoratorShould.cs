@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Encryption.Decorators;
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption.Decorators;
@@ -145,7 +145,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 	{
 		_options.Mode = EncryptionMode.DecryptOnlyReadOnly;
 		var sut = CreateSut();
-		var events = new List<Dispatch.Abstractions.IDomainEvent>();
+		var events = new List<Dispatch.IDomainEvent>();
 
 		_ = await Should.ThrowAsync<InvalidOperationException>(() =>
 			sut.AppendAsync("agg-1", "TestAggregate", events, 0, CancellationToken.None).AsTask());
@@ -156,7 +156,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 	{
 		_options.Mode = EncryptionMode.Disabled;
 		var sut = CreateSut();
-		var events = new List<Dispatch.Abstractions.IDomainEvent>();
+		var events = new List<Dispatch.IDomainEvent>();
 		var expectedResult = AppendResult.CreateSuccess(1, 0);
 
 		_ = A.CallTo(() => _innerStore.AppendAsync("agg-1", "TestAggregate", events, 0L, A<CancellationToken>._))
@@ -174,7 +174,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 	{
 		_options.Mode = EncryptionMode.DecryptOnlyWritePlaintext;
 		var sut = CreateSut();
-		var events = new List<Dispatch.Abstractions.IDomainEvent>();
+		var events = new List<Dispatch.IDomainEvent>();
 		var expectedResult = AppendResult.CreateSuccess(1, 0);
 
 		_ = A.CallTo(() => _innerStore.AppendAsync("agg-1", "TestAggregate", events, 0L, A<CancellationToken>._))
@@ -190,7 +190,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 	{
 		_options.Mode = EncryptionMode.EncryptAndDecrypt;
 		var sut = CreateSut();
-		var events = new List<Dispatch.Abstractions.IDomainEvent>();
+		var events = new List<Dispatch.IDomainEvent>();
 		var expectedResult = AppendResult.CreateSuccess(1, 0);
 
 		_ = A.CallTo(() => _innerStore.AppendAsync("agg-1", "TestAggregate", events, 0L, A<CancellationToken>._))
@@ -206,7 +206,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 	{
 		_options.Mode = EncryptionMode.EncryptNewDecryptAll;
 		var sut = CreateSut();
-		var events = new List<Dispatch.Abstractions.IDomainEvent>();
+		var events = new List<Dispatch.IDomainEvent>();
 		var expectedResult = AppendResult.CreateSuccess(1, 0);
 
 		_ = A.CallTo(() => _innerStore.AppendAsync("agg-1", "TestAggregate", events, 0L, A<CancellationToken>._))

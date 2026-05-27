@@ -6,7 +6,7 @@ description: Offset-based and cursor-based pagination patterns for paging throug
 
 # Pagination
 
-Excalibur provides two pagination strategies out of the box. Both live in `Excalibur.EventSourcing.Abstractions` and are backend-agnostic — they work with any data store.
+Excalibur provides two pagination strategies out of the box. Both live in `Excalibur.EventSourcing` and are backend-agnostic — they work with any data store.
 
 | Strategy | Best for | Consistency | Performance at depth |
 |---|---|---|---|
@@ -49,7 +49,7 @@ dotnet add package Excalibur.Data.ElasticSearch
 A traditional page-number result with computed metadata:
 
 ```csharp
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 // From a query handler
 var items = await repository.GetOrdersAsync(page: 2, pageSize: 25, cancellationToken);
@@ -113,7 +113,7 @@ foreach (var order in result)
 A continuation-token result following the pattern used by Azure SDKs (`ContinuationToken`) and Google Cloud APIs (`nextPageToken`):
 
 ```csharp
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 return new CursorPagedResult<OrderDto>(items, pageSize: 25, totalRecords: 1000, nextCursor: "eyJ...");
 ```
@@ -134,7 +134,7 @@ return new CursorPagedResult<OrderDto>(items, pageSize: 25, totalRecords: 1000, 
 The `CursorEncoder` produces opaque, URL-safe Base64url strings from sort values. Consumers never parse cursors — they pass them back unchanged on the next request.
 
 ```csharp
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 // Encode sort values from the last item on the page
 string cursor = CursorEncoder.Encode("2026-04-21", 42L, "order-abc");
@@ -189,7 +189,7 @@ The `ElasticSearchCursorHelper` bridges the generic cursor types with Elasticsea
 
 ```csharp
 using Excalibur.Data.ElasticSearch;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 [HttpGet("orders")]
 public async Task<CursorPagedResult<OrderSearchProjection>> SearchOrders(

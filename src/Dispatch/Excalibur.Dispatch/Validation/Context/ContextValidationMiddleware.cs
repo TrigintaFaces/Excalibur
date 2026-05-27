@@ -3,16 +3,14 @@
 
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Validation;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+using MR = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Validation.Context;
 

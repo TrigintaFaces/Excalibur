@@ -5,9 +5,9 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.OpenSearch;
 
-using OpenSearch.Client;
-
 using Microsoft.Extensions.DependencyInjection.Extensions;
+
+using OpenSearch.Client;
 
 namespace Microsoft.Extensions.DependencyInjection;
 

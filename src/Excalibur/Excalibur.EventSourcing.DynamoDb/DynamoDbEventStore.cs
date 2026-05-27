@@ -8,11 +8,10 @@ using Amazon.DynamoDBStreams;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Data.Abstractions.Observability;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.CloudNative;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.EventSourcing.Observability;
 
 using Microsoft.Extensions.Logging;

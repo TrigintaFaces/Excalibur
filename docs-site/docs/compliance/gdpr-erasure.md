@@ -455,12 +455,12 @@ public async Task Should_Block_Erasure_With_Legal_Hold()
 
 ## Event Store Erasure
 
-When using event sourcing, GDPR erasure must extend to event stores. The `IEventStoreErasure` interface (in `Excalibur.EventSourcing.Abstractions`) enables cryptographic erasure at the event store level.
+When using event sourcing, GDPR erasure must extend to event stores. The `IEventStoreErasure` interface (in `Excalibur.EventSourcing`) enables cryptographic erasure at the event store level.
 
 ### IEventStoreErasure Interface
 
 ```csharp
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 public interface IEventStoreErasure
 {

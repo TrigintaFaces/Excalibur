@@ -5,8 +5,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch.Routing;
 
 namespace Excalibur.Dispatch.Delivery.Handlers;
 

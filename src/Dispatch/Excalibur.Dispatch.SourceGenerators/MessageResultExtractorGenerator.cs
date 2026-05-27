@@ -35,7 +35,7 @@ public sealed class MessageResultExtractorGenerator : IIncrementalGenerator
 			.Where(static m => m is not null)
 			.Collect();
 
-		// Find all global::Excalibur.Dispatch.Abstractions.MessageResult<T> usages in the codebase
+		// Find all global::Excalibur.Dispatch.MessageResult<T> usages in the codebase
 		var messageResultTypes = context.SyntaxProvider
 			.CreateSyntaxProvider(
 				predicate: static (s, _) => IsMessageResultCandidate(s),
@@ -160,7 +160,7 @@ public sealed class MessageResultExtractorGenerator : IIncrementalGenerator
 			return null;
 		}
 
-		// Check for Task<IMessageResult<T>> or Task<global::Excalibur.Dispatch.Abstractions.MessageResult<T>>
+		// Check for Task<IMessageResult<T>> or Task<global::Excalibur.Dispatch.MessageResult<T>>
 		if (namedReturnType.Name == "Task" &&
 			namedReturnType.TypeArguments.Length == 1 &&
 			namedReturnType.TypeArguments[0] is INamedTypeSymbol innerNamed &&

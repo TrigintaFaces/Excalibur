@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.A3.Abstractions.Authorization;
+namespace Excalibur.A3.Authorization;
 
 /// <summary>
 /// Evaluates whether a given <see cref="AuthorizationSubject" /> is permitted to perform an <see cref="AuthorizationAction" /> on a

@@ -7,7 +7,6 @@ using System.Globalization;
 
 using CloudNative.CloudEvents;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Options.CloudEvents;
 
 namespace Excalibur.Dispatch.CloudEvents;

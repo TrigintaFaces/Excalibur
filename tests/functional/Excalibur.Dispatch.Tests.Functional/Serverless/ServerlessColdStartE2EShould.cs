@@ -4,8 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Hosting.AwsLambda;
 using Excalibur.Dispatch.Hosting.Serverless;

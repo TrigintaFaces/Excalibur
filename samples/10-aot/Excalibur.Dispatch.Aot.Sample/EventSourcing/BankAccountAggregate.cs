@@ -11,7 +11,7 @@
 // - LoadFromHistory for aggregate reconstruction
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Domain.Model;
 

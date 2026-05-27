@@ -78,8 +78,8 @@ public sealed class JsonSerializationSourceGenerator : IIncrementalGenerator
 
 		// Check if it implements IDispatchMessage
 		var implementsDispatchMessage = typeSymbol.AllInterfaces.Any(static i =>
-			i.ToDisplayString() is "global::Excalibur.Dispatch.Abstractions.IDispatchMessage" or
-				"Excalibur.Dispatch.Abstractions.IDispatchMessage");
+			i.ToDisplayString() is "global::Excalibur.Dispatch.IDispatchMessage" or
+				"Excalibur.Dispatch.IDispatchMessage");
 
 		if (!implementsDispatchMessage)
 		{

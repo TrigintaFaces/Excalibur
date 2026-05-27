@@ -3,8 +3,8 @@ using System.Text;
 using Amazon.EventBridge;
 using Amazon.EventBridge.Model;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport.Aws;
 

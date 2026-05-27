@@ -6,7 +6,7 @@ using System.Globalization;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 using Excalibur.Data.DataProcessing;
 
 namespace CdcAntiCorruption.Backfill;

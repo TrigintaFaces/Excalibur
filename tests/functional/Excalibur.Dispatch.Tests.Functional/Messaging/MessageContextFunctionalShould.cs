@@ -3,13 +3,13 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Serialization;
 
 
-using IAuthorizationResult = Excalibur.Dispatch.Abstractions.IAuthorizationResult;
-using IValidationResult = Excalibur.Dispatch.Abstractions.Validation.IValidationResult;
+using IAuthorizationResult = Excalibur.Dispatch.IAuthorizationResult;
+using IValidationResult = Excalibur.Dispatch.Validation.IValidationResult;
 
 namespace Excalibur.Dispatch.Tests.Functional.Messaging;
 
@@ -412,13 +412,13 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 		}
 
 		/// <inheritdoc/>
-		public IEnumerable<Abstractions.Routing.RouteInfo> GetAvailableRoutes(IDispatchMessage message, IMessageContext context)
+		public IEnumerable<Routing.RouteInfo> GetAvailableRoutes(IDispatchMessage message, IMessageContext context)
 		{
 			ArgumentNullException.ThrowIfNull(message);
 			ArgumentNullException.ThrowIfNull(context);
 
 			// Return single route for diagnostics
-			yield return new Abstractions.Routing.RouteInfo("local", nameof(TestMessageHandler));
+			yield return new Routing.RouteInfo("local", nameof(TestMessageHandler));
 		}
 	}
 

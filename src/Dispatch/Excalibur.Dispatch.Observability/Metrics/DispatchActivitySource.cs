@@ -5,8 +5,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Observability.Metrics;
 
 /// <summary>

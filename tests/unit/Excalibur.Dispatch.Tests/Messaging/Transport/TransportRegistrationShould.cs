@@ -1,4 +1,3 @@
-using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Transport;

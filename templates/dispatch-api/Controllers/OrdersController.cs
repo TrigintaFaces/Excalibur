@@ -1,5 +1,5 @@
 using Company.DispatchApi.Actions;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Company.DispatchApi.Controllers;

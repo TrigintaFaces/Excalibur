@@ -70,7 +70,7 @@ public sealed class RedisOutboxStoreShould
 		await using var store = new RedisOutboxStore(options, logger);
 
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => store.EnqueueAsync(null!, A.Fake<Excalibur.Dispatch.Abstractions.IMessageContext>(), CancellationToken.None).AsTask());
+			() => store.EnqueueAsync(null!, A.Fake<Excalibur.Dispatch.IMessageContext>(), CancellationToken.None).AsTask());
 	}
 
 	[Fact]

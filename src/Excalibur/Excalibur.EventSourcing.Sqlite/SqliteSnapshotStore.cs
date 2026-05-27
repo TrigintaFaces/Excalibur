@@ -4,7 +4,6 @@
 using Dapper;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;

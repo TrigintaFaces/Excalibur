@@ -46,7 +46,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 		entry.MessageId.ShouldBe(messageId);
 		entry.MessageType.ShouldBe(messageType);
 		entry.HandlerType.ShouldBe(TestHandlerType);
-		entry.Status.ShouldBe(Excalibur.Dispatch.Abstractions.InboxStatus.Received);
+		entry.Status.ShouldBe(Excalibur.Dispatch.InboxStatus.Received);
 		entry.Payload.ShouldBe(payload);
 		entry.Metadata.ShouldContainKey("test");
 		entry.Metadata["test"].ShouldBe("value");
@@ -73,7 +73,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 
 		var entry = await _store.GetEntryAsync(messageId, TestHandlerType, CancellationToken.None).ConfigureAwait(false);
 		_ = entry.ShouldNotBeNull();
-		entry.Status.ShouldBe(Excalibur.Dispatch.Abstractions.InboxStatus.Processed);
+		entry.Status.ShouldBe(Excalibur.Dispatch.InboxStatus.Processed);
 		_ = entry.ProcessedAt.ShouldNotBeNull();
 	}
 
@@ -99,7 +99,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 
 		var entry = await _store.GetEntryAsync(messageId, TestHandlerType, CancellationToken.None).ConfigureAwait(false);
 		_ = entry.ShouldNotBeNull();
-		entry.Status.ShouldBe(Excalibur.Dispatch.Abstractions.InboxStatus.Failed);
+		entry.Status.ShouldBe(Excalibur.Dispatch.InboxStatus.Failed);
 		entry.LastError.ShouldBe(error);
 	}
 

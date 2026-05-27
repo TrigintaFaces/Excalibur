@@ -1,8 +1,8 @@
 #nullable enable
 Excalibur.Testing.AggregateTestFixture<TAggregate>
 Excalibur.Testing.AggregateTestFixture<TAggregate>.AggregateTestFixture() -> void
-Excalibur.Testing.AggregateTestFixture<TAggregate>.Given(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
-Excalibur.Testing.AggregateTestFixture<TAggregate>.Given(params Excalibur.Dispatch.Abstractions.IDomainEvent![]! events) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
+Excalibur.Testing.AggregateTestFixture<TAggregate>.Given(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
+Excalibur.Testing.AggregateTestFixture<TAggregate>.Given(params Excalibur.Dispatch.IDomainEvent![]! events) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
 Excalibur.Testing.AggregateTestFixture<TAggregate>.ShouldThrow<TException>() -> void
 Excalibur.Testing.AggregateTestFixture<TAggregate>.ShouldThrow<TException>(string! messageContains) -> void
 Excalibur.Testing.AggregateTestFixture<TAggregate>.Then() -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!

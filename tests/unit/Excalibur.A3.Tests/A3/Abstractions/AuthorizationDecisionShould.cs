@@ -1,4 +1,4 @@
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 
 namespace Excalibur.Tests.A3.Abstractions;
 

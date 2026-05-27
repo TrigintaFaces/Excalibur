@@ -5,7 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Jobs.Core;
 using Excalibur.Jobs.Quartz;

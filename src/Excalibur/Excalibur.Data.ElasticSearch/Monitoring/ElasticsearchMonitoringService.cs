@@ -454,9 +454,9 @@ public sealed class ElasticsearchMonitoringService(
 			}
 
 			var duration = DateTimeOffset.UtcNow - _startTime;
-			#pragma warning disable IL2026, IL3050 // CompleteOperation uses reflection-based monitoring
+#pragma warning disable IL2026, IL3050 // CompleteOperation uses reflection-based monitoring
 			_service.CompleteOperation(
-			#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 				_operationType,
 				response,
 				duration,

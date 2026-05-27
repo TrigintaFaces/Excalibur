@@ -191,7 +191,7 @@ public sealed class SchemaRegistryExceptionShould
 	public void InheritsFromApiException()
 	{
 		// Assert
-		typeof(SchemaRegistryException).IsSubclassOf(typeof(Excalibur.Dispatch.Abstractions.ApiException)).ShouldBeTrue();
+		typeof(SchemaRegistryException).IsSubclassOf(typeof(Excalibur.Dispatch.ApiException)).ShouldBeTrue();
 	}
 
 	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)
@@ -207,7 +207,7 @@ public sealed class SchemaRegistryExceptionShould
 		{
 			throw exception;
 		}
-		catch (Excalibur.Dispatch.Abstractions.ApiException ex)
+		catch (Excalibur.Dispatch.ApiException ex)
 		{
 			ex.ShouldBeOfType<SchemaRegistryException>();
 		}

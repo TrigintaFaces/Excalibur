@@ -28,7 +28,7 @@
 
 using System.Text.Json;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -101,7 +101,7 @@ Console.WriteLine("manual triggers, or integration with external event sources."
 Console.WriteLine();
 
 // Simulate a stream of order events
-var events = new (Excalibur.Dispatch.Abstractions.IDomainEvent Event, long Position)[]
+var events = new (Excalibur.Dispatch.IDomainEvent Event, long Position)[]
 {
     (new OrderPlaced
     {
@@ -176,7 +176,7 @@ Console.WriteLine("saving position checkpoints only after the entire batch.");
 Console.WriteLine("This is more efficient for catch-up and replay scenarios.");
 Console.WriteLine();
 
-var batchEvents = new (Excalibur.Dispatch.Abstractions.IDomainEvent Event, long Position)[]
+var batchEvents = new (Excalibur.Dispatch.IDomainEvent Event, long Position)[]
 {
     (new OrderPlaced
     {

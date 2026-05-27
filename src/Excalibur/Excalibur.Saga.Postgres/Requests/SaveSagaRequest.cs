@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Data;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Saga.Postgres;

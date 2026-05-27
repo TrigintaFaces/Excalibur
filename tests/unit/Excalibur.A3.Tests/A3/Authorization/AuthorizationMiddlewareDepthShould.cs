@@ -5,10 +5,10 @@
 
 using Excalibur.A3;
 using Excalibur.A3.Authorization;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 
-using AuthorizationResult = Excalibur.Dispatch.Abstractions.AuthorizationResult;
+using AuthorizationResult = Excalibur.Dispatch.AuthorizationResult;
 
 namespace Excalibur.Tests.A3.Authorization;
 

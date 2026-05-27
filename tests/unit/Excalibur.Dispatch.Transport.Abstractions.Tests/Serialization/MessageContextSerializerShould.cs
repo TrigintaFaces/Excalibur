@@ -1,5 +1,5 @@
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Serialization;

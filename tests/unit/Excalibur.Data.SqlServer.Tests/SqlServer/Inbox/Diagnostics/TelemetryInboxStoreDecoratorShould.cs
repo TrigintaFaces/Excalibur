@@ -3,7 +3,7 @@
 
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Inbox.Diagnostics;
 
 namespace Excalibur.Data.Tests.SqlServer.Inbox.Diagnostics;

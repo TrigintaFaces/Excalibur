@@ -5,7 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Hosting;

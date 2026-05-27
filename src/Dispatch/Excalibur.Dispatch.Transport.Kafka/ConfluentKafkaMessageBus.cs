@@ -7,9 +7,6 @@ using System.Text;
 
 using Confluent.Kafka;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
-
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Transport.Kafka;

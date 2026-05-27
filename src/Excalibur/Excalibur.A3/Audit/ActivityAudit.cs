@@ -7,10 +7,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Excalibur.A3.Audit.Events;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain;
 
-using ApiException = Excalibur.Dispatch.Abstractions.ApiException;
+using ApiException = Excalibur.Dispatch.ApiException;
 
 namespace Excalibur.A3.Audit;
 

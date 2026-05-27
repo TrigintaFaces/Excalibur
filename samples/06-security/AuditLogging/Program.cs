@@ -19,7 +19,7 @@ using AuditLoggingSample.Messages;
 using AuditLoggingSample.Middleware;
 
 using Excalibur.Outbox.InMemory;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Security;

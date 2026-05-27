@@ -11,8 +11,6 @@ using System.Text.Json;
 using Azure.Core;
 using Azure.Identity;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

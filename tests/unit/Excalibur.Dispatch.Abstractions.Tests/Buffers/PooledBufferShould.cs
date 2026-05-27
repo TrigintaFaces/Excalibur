@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Buffers;
+namespace Excalibur.Dispatch.Tests.Buffers;
 
 /// <summary>
 /// Unit tests for PooledBuffer.

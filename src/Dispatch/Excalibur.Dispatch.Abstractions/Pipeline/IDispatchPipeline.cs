@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Represents the ordered set of middleware executed when dispatching a message.

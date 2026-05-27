@@ -4,7 +4,7 @@
 
 using System.Buffers;
 
-namespace Excalibur.Dispatch.Abstractions.Serialization;
+namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
 /// Core serialization contract following the System.Text.Json pattern:

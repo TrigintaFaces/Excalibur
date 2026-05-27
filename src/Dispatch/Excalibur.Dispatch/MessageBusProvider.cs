@@ -4,8 +4,7 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
 

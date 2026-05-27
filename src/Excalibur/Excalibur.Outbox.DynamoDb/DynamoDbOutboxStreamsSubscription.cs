@@ -9,7 +9,7 @@ using Amazon.DynamoDBStreams;
 using Amazon.DynamoDBStreams.Model;
 using Amazon.DynamoDBv2;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 
 using Microsoft.Extensions.Logging;
 

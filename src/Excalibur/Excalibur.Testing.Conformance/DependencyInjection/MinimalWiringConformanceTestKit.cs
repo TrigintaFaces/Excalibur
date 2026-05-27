@@ -260,7 +260,7 @@ public abstract class MinimalWiringConformanceTestKit<TBuilderExtension>
 					}
 
 					if (captured.Message is not string msg ||
-					    !msg.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+						!msg.Contains(fragment, StringComparison.OrdinalIgnoreCase))
 					{
 						throw new TestFixtureAssertionException(
 							$"Bucket B failure message must name the missing sibling " +

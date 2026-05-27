@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions.Delivery;
+namespace Excalibur.Dispatch.Delivery;
 
 /// <summary>
 /// Defines methods for evaluating middleware applicability based on message kinds and features. Implements requirements R2.4-R2.6.

@@ -1,11 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Validation;
 
-using IDispatchMiddleware = global::Excalibur.Dispatch.Abstractions.IDispatchMiddleware;
+using IDispatchMiddleware = global::Excalibur.Dispatch.IDispatchMiddleware;
 using Excalibur.Dispatch.Middleware.Validation;
 
 using ValidationBuilderExt = Excalibur.Dispatch.Validation.ValidationDispatchBuilderExtensions;
@@ -91,7 +90,7 @@ public sealed class ValidationDispatchBuilderExtensionsShould
 
 		// Assert
 		services.Any(sd =>
-			sd.ServiceType == typeof(IValidationService))
+			sd.ServiceType == typeof(Excalibur.Dispatch.Middleware.Validation.IValidationService))
 			.ShouldBeTrue("UseValidation should register IValidationService");
 	}
 

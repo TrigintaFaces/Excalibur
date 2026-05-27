@@ -5,7 +5,7 @@
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.Postgres.Persistence;
 
 using Microsoft.Extensions.Configuration;
@@ -146,7 +146,7 @@ public static class PostgresPersistenceServiceCollectionExtensions
 		services.TryAddSingleton<PostgresPersistenceMetrics>();
 
 		// Register the persistence provider
-		#pragma warning disable IL2026, IL3050 // DI registration of persistence provider
+#pragma warning disable IL2026, IL3050 // DI registration of persistence provider
 		services.TryAddSingleton<PostgresPersistenceProvider>();
 #pragma warning restore IL2026, IL3050
 		services.TryAddSingleton<ISqlPersistenceProvider>(static provider => provider.GetRequiredService<PostgresPersistenceProvider>());

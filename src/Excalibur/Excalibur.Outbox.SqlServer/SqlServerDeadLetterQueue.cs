@@ -5,7 +5,7 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Data.SqlClient;

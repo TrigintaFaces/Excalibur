@@ -5,7 +5,6 @@ using System.Runtime.CompilerServices;
 
 using Dapper;
 
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.ParallelCatchUp;
 using Excalibur.EventSourcing.SqlServer.Requests;
 

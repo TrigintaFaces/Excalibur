@@ -1,4 +1,4 @@
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 

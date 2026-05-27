@@ -6,7 +6,6 @@ using System.ComponentModel.DataAnnotations;
 
 using CloudNative.CloudEvents;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.CloudEvents;
 
 namespace Excalibur.Dispatch.Options.CloudEvents;

@@ -9,7 +9,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -355,7 +355,7 @@ public sealed class DynamoDbProjectionStore<
 		// Encode next cursor from LastEvaluatedKey
 		string? nextCursor = null;
 		if (scanResponse.LastEvaluatedKey is { Count: > 0 } lastKey &&
-		    lastKey.TryGetValue(_options.PartitionKeyName, out var lastPk))
+			lastKey.TryGetValue(_options.PartitionKeyName, out var lastPk))
 		{
 			nextCursor = CursorEncoder.Encode(lastPk.S);
 		}

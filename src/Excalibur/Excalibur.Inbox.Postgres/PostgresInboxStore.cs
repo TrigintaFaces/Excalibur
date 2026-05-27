@@ -6,7 +6,7 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Inbox.Observability;
 

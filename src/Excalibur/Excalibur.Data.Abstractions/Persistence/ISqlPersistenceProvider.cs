@@ -4,7 +4,7 @@
 
 using System.Data;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Specialized persistence provider for SQL databases that handles DataRequest execution

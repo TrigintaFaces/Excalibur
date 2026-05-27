@@ -3,10 +3,9 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 
 namespace Excalibur.Dispatch.Tests.DependencyInjection;

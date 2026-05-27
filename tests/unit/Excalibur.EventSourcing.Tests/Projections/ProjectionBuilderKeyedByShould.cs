@@ -31,7 +31,7 @@ public sealed class ProjectionBuilderKeyedByShould
         builder.Build();
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "agg-1", Amount = 100m, Version = 1 }
         };
@@ -73,7 +73,7 @@ public sealed class ProjectionBuilderKeyedByShould
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
         var shippedAt = DateTimeOffset.UtcNow;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "order-1", Amount = 50m, Version = 1 },
             new TestOrderShipped { AggregateId = "order-1", ShippedAt = shippedAt, Version = 2 }
@@ -117,7 +117,7 @@ public sealed class ProjectionBuilderKeyedByShould
         builder.Build();
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "agg-1", Amount = 100m, Version = 1 },
             new TestOrderPlaced { AggregateId = "agg-1", Amount = 200m, Version = 2 }
@@ -163,7 +163,7 @@ public sealed class ProjectionBuilderKeyedByShould
         builder.Build();
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "agg-1", Amount = 75m, Version = 1 }
         };
@@ -204,7 +204,7 @@ public sealed class ProjectionBuilderKeyedByShould
         builder.Build();
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "agg-1", Amount = 100m, Version = 1 }
         };
@@ -268,7 +268,7 @@ public sealed class ProjectionBuilderKeyedByShould
         builder.Build();
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "agg-1", Amount = 250m, Version = 1 }
         };
@@ -300,7 +300,7 @@ public sealed class ProjectionBuilderKeyedByShould
         builder.Build();
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "order-42", Amount = 300m, Version = 1 }
         };
@@ -331,7 +331,7 @@ public sealed class ProjectionBuilderKeyedByShould
         builder.Build();
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "agg-1", Amount = 100m, Version = 1 }
         };
@@ -359,7 +359,7 @@ public sealed class ProjectionBuilderKeyedByShould
         builder.Build();
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "agg-1", Amount = 50m, Version = 1 }
         };
@@ -392,7 +392,7 @@ public sealed class ProjectionBuilderKeyedByShould
         builder.Build();
 
         var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-        var events = new List<Dispatch.Abstractions.IDomainEvent>
+        var events = new List<Dispatch.IDomainEvent>
         {
             new TestOrderPlaced { AggregateId = "agg-1", Amount = 100m, Version = 1 },
             new TestOrderShipped { AggregateId = "agg-1", ShippedAt = DateTimeOffset.UtcNow, Version = 2 }

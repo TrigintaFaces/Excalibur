@@ -3,7 +3,7 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Observability.Sampling;
 
 #pragma warning disable CA2012

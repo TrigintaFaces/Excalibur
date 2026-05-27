@@ -3,7 +3,7 @@
 
 #pragma warning disable CA1506 // Avoid excessive class coupling - acceptable for sample Program.cs
 
-using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs;
 
 using Serilog;
 

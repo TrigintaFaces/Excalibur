@@ -4,7 +4,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery.Pipeline;
 
 namespace Excalibur.Dispatch.Tests.Contracts;
@@ -15,8 +15,8 @@ public sealed partial class PublicApiContractShould
 {
 	/// <summary>
 	/// Regex to extract type names from PublicAPI.Shipped.txt entries.
-	/// Matches patterns like "Excalibur.Dispatch.Abstractions.IDispatcher" from lines like:
-	/// "Excalibur.Dispatch.Abstractions.IDispatcher.DispatchAsync(...)"
+	/// Matches patterns like "Excalibur.Dispatch.IDispatcher" from lines like:
+	/// "Excalibur.Dispatch.IDispatcher.DispatchAsync(...)"
 	/// </summary>
 	[GeneratedRegex(@"^(?:abstract |const |override |readonly |sealed |static |virtual )?(?:Excalibur\.[A-Za-z.]+)(?=\.\w+(?:\(|\.get|\.set| ->| \{))", RegexOptions.Compiled)]
 	private static partial Regex TypeNameExtractor();
@@ -117,13 +117,13 @@ public sealed partial class PublicApiContractShould
 			.ToHashSet(StringComparer.Ordinal);
 
 		// Assert -- key types MUST exist in the assembly
-		exportedTypes.ShouldContain("Excalibur.Dispatch.Abstractions.IDispatcher");
-		exportedTypes.ShouldContain("Excalibur.Dispatch.Abstractions.IDispatchMessage");
-		exportedTypes.ShouldContain("Excalibur.Dispatch.Abstractions.IMessageContext");
-		exportedTypes.ShouldContain("Excalibur.Dispatch.Abstractions.MessageResult");
-		exportedTypes.ShouldContain("Excalibur.Dispatch.Abstractions.IMessageResult");
-		exportedTypes.ShouldContain("Excalibur.Dispatch.Abstractions.MessageKinds");
-		exportedTypes.ShouldContain("Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage");
+		exportedTypes.ShouldContain("Excalibur.Dispatch.IDispatcher");
+		exportedTypes.ShouldContain("Excalibur.Dispatch.IDispatchMessage");
+		exportedTypes.ShouldContain("Excalibur.Dispatch.IMessageContext");
+		exportedTypes.ShouldContain("Excalibur.Dispatch.MessageResult");
+		exportedTypes.ShouldContain("Excalibur.Dispatch.IMessageResult");
+		exportedTypes.ShouldContain("Excalibur.Dispatch.MessageKinds");
+		exportedTypes.ShouldContain("Excalibur.Dispatch.DispatchMiddlewareStage");
 	}
 
 	[Fact]
@@ -149,7 +149,7 @@ public sealed partial class PublicApiContractShould
 			}
 
 			// Match type declarations: lines ending with type signatures
-			// e.g., "Excalibur.Dispatch.Abstractions.IDispatcher" (no parentheses, no ".get", no ".set")
+			// e.g., "Excalibur.Dispatch.IDispatcher" (no parentheses, no ".get", no ".set")
 			var typeMatch = TypeDeclarationExtractor().Match(line);
 			if (typeMatch.Success)
 			{
@@ -190,7 +190,7 @@ public sealed partial class PublicApiContractShould
 
 	/// <summary>
 	/// Matches full type declaration lines from PublicAPI.Shipped.txt.
-	/// These are lines like "Excalibur.Dispatch.Abstractions.IDispatcher" without member access patterns.
+	/// These are lines like "Excalibur.Dispatch.IDispatcher" without member access patterns.
 	/// </summary>
 	[GeneratedRegex(@"^(?:abstract |sealed |static )?(Excalibur\.[A-Za-z.]+\.[A-Z][A-Za-z0-9]*(?:<[^>]+>)?)\s*$", RegexOptions.Compiled)]
 	private static partial Regex TypeDeclarationExtractor();

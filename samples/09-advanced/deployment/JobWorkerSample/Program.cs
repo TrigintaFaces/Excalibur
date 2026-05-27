@@ -6,7 +6,7 @@
 // ============================================================================
 // For a 5-minute quickstart with zero configuration:
 //
-// using Excalibur.Jobs.Abstractions;
+// using Excalibur.Jobs;
 // using Excalibur.Jobs.Quartz;
 //
 // var builder = Host.CreateApplicationBuilder(args);

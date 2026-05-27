@@ -6,7 +6,7 @@ using System.Data;
 
 using Dapper;
 
-namespace Excalibur.Data.Abstractions;
+namespace Excalibur.Data;
 
 /// <summary>
 /// Serves as the base class for implementing database requests with a specific connection type and return model.

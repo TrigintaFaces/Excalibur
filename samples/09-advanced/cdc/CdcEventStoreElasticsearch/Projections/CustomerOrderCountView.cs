@@ -5,8 +5,8 @@ using System.Text.Json.Serialization;
 
 using CdcEventStoreElasticsearch.Domain;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 
 namespace CdcEventStoreElasticsearch.Projections;
 

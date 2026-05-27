@@ -4,7 +4,7 @@
 
 using Excalibur.A3.Audit;
 using Excalibur.A3.Exceptions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 using Microsoft.Extensions.Caching.Distributed;
 

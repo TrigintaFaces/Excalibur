@@ -9,49 +9,49 @@ namespace Excalibur.AuditLogging.Datadog;
 /// </summary>
 internal sealed class AuditLoggingDatadogBuilder : IAuditLoggingDatadogBuilder
 {
-    private readonly DatadogExporterOptions _options;
+	private readonly DatadogExporterOptions _options;
 
-    internal AuditLoggingDatadogBuilder(DatadogExporterOptions options)
-    {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-    }
+	internal AuditLoggingDatadogBuilder(DatadogExporterOptions options)
+	{
+		_options = options ?? throw new ArgumentNullException(nameof(options));
+	}
 
-    internal string? BindConfigurationPath { get; private set; }
+	internal string? BindConfigurationPath { get; private set; }
 
-    public IAuditLoggingDatadogBuilder ApiKey(string apiKey)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
-        _options.ApiKey = apiKey;
-        BindConfigurationPath = null;
-        return this;
-    }
+	public IAuditLoggingDatadogBuilder ApiKey(string apiKey)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+		_options.ApiKey = apiKey;
+		BindConfigurationPath = null;
+		return this;
+	}
 
-    public IAuditLoggingDatadogBuilder Site(string site)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(site);
-        _options.Site = site;
-        BindConfigurationPath = null;
-        return this;
-    }
+	public IAuditLoggingDatadogBuilder Site(string site)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(site);
+		_options.Site = site;
+		BindConfigurationPath = null;
+		return this;
+	}
 
-    public IAuditLoggingDatadogBuilder Service(string service)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(service);
-        _options.Service = service;
-        return this;
-    }
+	public IAuditLoggingDatadogBuilder Service(string service)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(service);
+		_options.Service = service;
+		return this;
+	}
 
-    public IAuditLoggingDatadogBuilder Source(string source)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        _options.Source = source;
-        return this;
-    }
+	public IAuditLoggingDatadogBuilder Source(string source)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(source);
+		_options.Source = source;
+		return this;
+	}
 
-    public IAuditLoggingDatadogBuilder BindConfiguration(string sectionPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
-        BindConfigurationPath = sectionPath;
-        return this;
-    }
+	public IAuditLoggingDatadogBuilder BindConfiguration(string sectionPath)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
+		BindConfigurationPath = sectionPath;
+		return this;
+	}
 }

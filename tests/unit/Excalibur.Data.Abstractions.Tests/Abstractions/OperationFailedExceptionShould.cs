@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 namespace Excalibur.Data.Tests.Abstractions;
 
@@ -283,7 +283,7 @@ public sealed class OperationFailedExceptionShould : UnitTestBase
 		var exception = new OperationFailedException("Op", "Resource");
 
 		// Assert
-		exception.ShouldBeAssignableTo<Excalibur.Data.Abstractions.ResourceException>();
+		exception.ShouldBeAssignableTo<Excalibur.Data.ResourceException>();
 	}
 
 	[Fact]

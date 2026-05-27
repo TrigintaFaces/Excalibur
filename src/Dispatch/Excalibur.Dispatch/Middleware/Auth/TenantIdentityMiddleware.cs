@@ -8,18 +8,13 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Middleware;
+using Excalibur.Dispatch.Telemetry;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-using IMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
-using IMessageResult = Excalibur.Dispatch.Abstractions.IMessageResult;
-using MessageKinds = Excalibur.Dispatch.Abstractions.MessageKinds;
 
 namespace Excalibur.Dispatch.Middleware.Auth;
 

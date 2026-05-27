@@ -3,7 +3,7 @@
 
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Dispatch.Contract.Tests;
 

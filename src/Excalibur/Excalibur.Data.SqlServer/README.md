@@ -6,7 +6,7 @@ Register services
 
 ```csharp
 using Excalibur.Data.SqlServer;
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3;
 
 services.AddExcaliburSqlServices();
 

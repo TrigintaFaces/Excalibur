@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Core interface for message metadata across the Excalibur framework. Contains only the essential
@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <para>
 /// This minimal interface follows the Microsoft design pattern of keeping interfaces small (max 5 methods + properties bag)
 /// and using extension methods for optional/domain-specific concerns. Properties that were previously on this interface
-/// are now available through typed extension methods in <c>Excalibur.Dispatch.Abstractions.Metadata</c>:
+/// are now available through typed extension methods in <c>Excalibur.Dispatch.Metadata</c>:
 /// </para>
 /// <list type="bullet">
 /// <item><description><c>MetadataIdentityExtensions</c> -- ExternalId, TraceParent, TraceState, Baggage, UserId, Roles, Claims, TenantId</description></item>

@@ -81,7 +81,7 @@ public class OrderSagaState : SagaState
 Events must implement `ISagaEvent` so the `SagaCoordinator` can route them to the correct saga instance. Each event carries a `SagaId` to identify which saga it belongs to.
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // Start event -- creates a new saga instance
 public record StartOrderProcessing(
@@ -101,7 +101,7 @@ public record PaymentFailed(string SagaId, string Reason) : ISagaEvent;
 Timeouts are also events. Define a timeout message for the payment deadline:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public sealed class PaymentTimeout : ISagaEvent
 {
@@ -115,8 +115,8 @@ public sealed class PaymentTimeout : ISagaEvent
 Extend `SagaBase<TState>` and implement `ISagaTimeout<T>` for declarative timeout handling:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Saga.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.Saga;
 using Excalibur.Saga.Orchestration;
 using Microsoft.Extensions.Logging;
 
@@ -224,7 +224,7 @@ Key points:
 ## Step 5: Register and Configure
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Orchestration;
 using Microsoft.Extensions.DependencyInjection;
 

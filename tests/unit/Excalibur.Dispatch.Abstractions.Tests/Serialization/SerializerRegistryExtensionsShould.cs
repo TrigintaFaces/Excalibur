@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Licensed under the Excalibur License 1.0 - see LICENSE files for details.
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Serialization;
+namespace Excalibur.Dispatch.Tests.Serialization;
 
 /// <summary>
 /// Unit tests for the <see cref="SerializerRegistryExtensions"/> class.

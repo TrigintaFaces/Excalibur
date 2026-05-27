@@ -2,7 +2,7 @@
 // Demonstrates creating an access review campaign, recording decisions,
 // and observing expiry policy behavior using in-memory stores.
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.A3.Governance.AccessReviews;
 
 using Microsoft.Extensions.DependencyInjection;

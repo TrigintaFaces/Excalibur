@@ -7,16 +7,16 @@ namespace Excalibur.Data.InMemory;
 
 internal sealed class InMemoryStorageOptionsValidator : IValidateOptions<InMemoryStorageOptions>
 {
-    public ValidateOptionsResult Validate(string? name, InMemoryStorageOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, InMemoryStorageOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

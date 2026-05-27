@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Licensed under multiple licenses - see LICENSE files in project root.
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 namespace EcommerceOrderVersioning.Events;
 
 #region OrderPlacedEvent Version History

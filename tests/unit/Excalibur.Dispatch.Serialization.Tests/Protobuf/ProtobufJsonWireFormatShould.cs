@@ -4,7 +4,7 @@
 using System.Buffers;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.Protobuf;
 
 using Google.Protobuf.WellKnownTypes;

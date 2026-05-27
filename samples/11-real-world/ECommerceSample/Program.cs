@@ -3,7 +3,7 @@
 
 using System.Security.Cryptography;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample.Infrastructure;
 

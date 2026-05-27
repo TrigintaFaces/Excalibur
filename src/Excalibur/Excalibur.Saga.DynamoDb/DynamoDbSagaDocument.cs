@@ -6,7 +6,7 @@ using System.Globalization;
 
 using Amazon.DynamoDBv2.Model;
 
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Saga.DynamoDb;
 

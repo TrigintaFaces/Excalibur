@@ -6,7 +6,6 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Security;
-using Excalibur.Security.Abstractions;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;

@@ -372,9 +372,9 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 
 			// Parse the token response
 			var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-			#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 			var tokenResponse = JsonSerializer.Deserialize<OAuth2TokenResponse>(responseContent);
-			#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 
 			if (tokenResponse is null || string.IsNullOrWhiteSpace(tokenResponse.AccessToken))
 			{
@@ -511,11 +511,11 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 				return false;
 			}
 
-			#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 			// Parse the token response (reuse OAuth2TokenResponse as the format is identical)
 			var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 			var tokenResponse = JsonSerializer.Deserialize<OAuth2TokenResponse>(responseContent);
-			#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 
 			if (tokenResponse is null || string.IsNullOrWhiteSpace(tokenResponse.AccessToken))
 			{

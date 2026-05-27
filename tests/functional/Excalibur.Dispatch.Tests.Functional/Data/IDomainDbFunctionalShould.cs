@@ -232,7 +232,7 @@ public sealed class IDomainDbFunctionalShould : IAsyncLifetime
 		var repository = new OrderRepository(db, _testTableName);
 
 		// Act - Insert with commit (Connection property calls Ready() which opens the connection)
-		using (var transaction = db.Connection.BeginTransaction())
+		using var transaction = db.Connection.BeginTransaction();
 		{
 			_ = await db.Connection.ExecuteAsync(
 				$"INSERT INTO [{_testTableName}] (Id, CustomerName, TotalAmount, Status) VALUES (@Id, @CustomerName, @TotalAmount, @Status)",

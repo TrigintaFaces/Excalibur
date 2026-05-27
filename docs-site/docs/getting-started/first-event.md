@@ -35,7 +35,7 @@ Make sure you've completed [Getting Started](./) and understand actions and hand
 Events implement `IDispatchEvent` and describe what happened:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // Event describing what happened
 public record OrderCreatedEvent(
@@ -57,7 +57,7 @@ public record OrderShippedEvent(
 Use `IEventHandler<TEvent>` to handle events. Multiple handlers can process the same event:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 // Handler 1: Send confirmation email
 public class OrderCreatedEmailHandler : IEventHandler<OrderCreatedEvent>
@@ -205,8 +205,8 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
 Here's a minimal working example:
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 

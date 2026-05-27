@@ -33,7 +33,7 @@ Deploy Excalibur applications to AWS Lambda for serverless, event-driven workloa
 // Function.cs
 using Amazon.Lambda.Core;
 using Amazon.Lambda.APIGatewayEvents;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using System.Text.Json;
 
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
@@ -200,7 +200,7 @@ aws lambda update-function-code \
 // SqsFunction.cs
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public class SqsFunction
 {

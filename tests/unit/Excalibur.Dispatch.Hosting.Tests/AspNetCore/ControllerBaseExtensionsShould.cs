@@ -3,11 +3,11 @@
 
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 using Excalibur.Dispatch.Messaging;
 
-using MsgResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MsgResult = Excalibur.Dispatch.MessageResult;
 
 using FakeItEasy;
 

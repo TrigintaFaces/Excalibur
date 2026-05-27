@@ -64,8 +64,8 @@ dotnet add package Excalibur.Dispatch.Abstractions
 ```
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 

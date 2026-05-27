@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace Company.ExcaliburCqrs.Infrastructure;
 

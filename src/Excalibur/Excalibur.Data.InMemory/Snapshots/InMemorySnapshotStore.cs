@@ -3,11 +3,11 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Data.Abstractions.Observability;
 using Excalibur.Data.InMemory.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

@@ -6,8 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.Extensions.ObjectPool;
 
 namespace Excalibur.Dispatch.Pooling;

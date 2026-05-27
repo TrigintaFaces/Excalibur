@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing.Sprint523;
 public sealed class LegacyRoutingTypeRemovalShould
 {
 	private static readonly Assembly AbstractionsAssembly =
-		typeof(Dispatch.Abstractions.Routing.RoutingContext).Assembly;
+		typeof(Dispatch.Routing.RoutingContext).Assembly;
 
 	private static readonly Assembly DispatchAssembly =
 		typeof(Dispatch.Metrics.MetricRegistry).Assembly;
@@ -144,7 +144,7 @@ public sealed class LegacyRoutingTypeRemovalShould
 	public void RoutingContext_ShouldNotHaveHintsProperty()
 	{
 		// Assert - Hints property was removed in S523.5
-		var hintsProperty = typeof(Dispatch.Abstractions.Routing.RoutingContext)
+		var hintsProperty = typeof(Dispatch.Routing.RoutingContext)
 			.GetProperty("Hints");
 
 		hintsProperty.ShouldBeNull(
@@ -155,7 +155,7 @@ public sealed class LegacyRoutingTypeRemovalShould
 	public void RoutingContext_ShouldStillHavePropertiesCollection()
 	{
 		// Assert - Properties collection should still exist as the modern alternative
-		var propertiesProperty = typeof(Dispatch.Abstractions.Routing.RoutingContext)
+		var propertiesProperty = typeof(Dispatch.Routing.RoutingContext)
 			.GetProperty("Properties");
 
 		propertiesProperty.ShouldNotBeNull(

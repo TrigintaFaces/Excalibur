@@ -1090,4 +1090,3 @@ public sealed class RetryPolicyShould : UnitTestBase
 
 	#endregion Backoff Calculator Implementations
 }
-

@@ -242,7 +242,7 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 	/// <summary>
 	/// Test saga state for unit testing.
 	/// </summary>
-	private sealed class TestSagaState : Dispatch.Abstractions.Messaging.SagaState
+	private sealed class TestSagaState : Dispatch.Messaging.SagaState
 	{
 		public string Data { get; set; } = string.Empty;
 	}

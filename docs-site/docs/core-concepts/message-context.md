@@ -39,8 +39,8 @@ Every message dispatch has an associated `IMessageContext` that flows through th
 Use `IMessageContextAccessor` to access the current context:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 {
@@ -137,7 +137,7 @@ Cross-cutting concerns are accessed via typed feature interfaces:
 | `IMessageTransactionFeature` | Transaction, TransactionId | Transaction context |
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Features;
 
 // Read via convenience extensions
 var tenantId = context.GetTenantId();

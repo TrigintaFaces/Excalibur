@@ -2,6 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RootNamespace>Excalibur.A3</RootNamespace>
     <Description>Abstractions for Excalibur A3 (Authentication, Authorization, Auditing) contracts.</Description>
     <PackageTags>dispatch;excalibur;authentication;authorization;access-control</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>

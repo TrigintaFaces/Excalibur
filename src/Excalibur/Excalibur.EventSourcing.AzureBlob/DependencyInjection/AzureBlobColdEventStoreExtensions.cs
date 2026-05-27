@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Azure.Storage.Blobs;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.AzureBlob;
 using Excalibur.EventSourcing.AzureBlob.DependencyInjection;
 using Excalibur.EventSourcing.DependencyInjection;

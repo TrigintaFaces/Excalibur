@@ -5,8 +5,8 @@ using System.Text;
 
 using Azure.Storage.Blobs;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 using Microsoft.Extensions.DependencyInjection;

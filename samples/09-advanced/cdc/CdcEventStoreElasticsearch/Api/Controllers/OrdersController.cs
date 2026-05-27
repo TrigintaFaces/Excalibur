@@ -7,8 +7,8 @@ using CdcEventStoreElasticsearch.Queries;
 
 using Elastic.Clients.Elasticsearch;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 
 using Microsoft.AspNetCore.Mvc;
 

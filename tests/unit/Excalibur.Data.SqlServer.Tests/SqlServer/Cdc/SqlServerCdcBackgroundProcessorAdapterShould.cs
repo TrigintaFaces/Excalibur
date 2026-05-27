@@ -59,6 +59,7 @@ public sealed class SqlServerCdcBackgroundProcessorAdapterShould : UnitTestBase
 		A.CallTo(() => processor.ProcessCdcChangesAsync(A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("CDC failure"));
 		var adapter = new SqlServerCdcBackgroundProcessorAdapter(processor);
+		using var cts = new CancellationTokenSource();
 
 		await Should.ThrowAsync<InvalidOperationException>(() =>
 			adapter.ProcessChangesAsync(CancellationToken.None));

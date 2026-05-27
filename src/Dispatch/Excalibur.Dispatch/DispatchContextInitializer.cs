@@ -4,7 +4,7 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Features;
 
 using Microsoft.Extensions.DependencyInjection;
 

@@ -3,7 +3,7 @@
 
 using System.Transactions;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Versioning;
 using Excalibur.Dispatch.Middleware.Validation;

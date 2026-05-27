@@ -10,8 +10,6 @@ using Azure.Storage.Queues.Models;
 using CloudNative.CloudEvents;
 using CloudNative.CloudEvents.SystemTextJson;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Transport.Azure;

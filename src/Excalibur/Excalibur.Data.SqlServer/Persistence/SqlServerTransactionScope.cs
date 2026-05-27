@@ -5,15 +5,15 @@
 using System.Data;
 using System.Transactions;
 
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Validation;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.SqlServer.Diagnostics;
+using Excalibur.Data.Validation;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
 using IsolationLevel = System.Data.IsolationLevel;
-using TransactionStatus = Excalibur.Data.Abstractions.Persistence.TransactionStatus;
+using TransactionStatus = Excalibur.Data.Persistence.TransactionStatus;
 
 namespace Excalibur.Data.SqlServer.Persistence;
 

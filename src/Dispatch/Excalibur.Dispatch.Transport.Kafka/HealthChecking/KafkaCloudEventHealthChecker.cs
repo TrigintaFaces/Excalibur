@@ -5,8 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Confluent.Kafka;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

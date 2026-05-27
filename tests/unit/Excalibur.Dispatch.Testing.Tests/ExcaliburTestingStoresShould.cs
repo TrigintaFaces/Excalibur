@@ -3,8 +3,8 @@
 
 using Excalibur.Inbox.InMemory;
 using Excalibur.Data.InMemory.Snapshots;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.InMemory;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

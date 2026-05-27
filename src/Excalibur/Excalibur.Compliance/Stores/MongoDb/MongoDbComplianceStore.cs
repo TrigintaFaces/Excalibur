@@ -365,7 +365,10 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 
 		public static SubjectAccessDocument FromResult(SubjectAccessResult result) => new()
 		{
-			Id = result.RequestId, Status = (int)result.Status, Deadline = result.Deadline, FulfilledAt = result.FulfilledAt
+			Id = result.RequestId,
+			Status = (int)result.Status,
+			Deadline = result.Deadline,
+			FulfilledAt = result.FulfilledAt
 		};
 	}
 }

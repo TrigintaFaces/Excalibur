@@ -4,8 +4,8 @@
 global using System.Diagnostics;
 global using System.Diagnostics.Metrics;
 
-global using Excalibur.Dispatch.Abstractions;
-global using Excalibur.Dispatch.Abstractions.Delivery;
+global using Excalibur.Dispatch;
+global using Excalibur.Dispatch.Delivery;
 
 global using FakeItEasy;
 
@@ -33,7 +33,7 @@ global using MsSqlContainer = Testcontainers.MsSql.MsSqlContainer;
 global using RabbitMqContainer = Testcontainers.RabbitMq.RabbitMqContainer;
 
 // Core types
-global using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+global using MessageResult = Excalibur.Dispatch.MessageResult;
 
 // Test base classes
 global using IntegrationTestBase = Tests.Shared.IntegrationTestBase;

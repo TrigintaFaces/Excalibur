@@ -3,11 +3,10 @@
 
 using System.Collections.Concurrent;
 
-using Amazon.DynamoDBv2;
 using Amazon.DynamoDBStreams;
+using Amazon.DynamoDBv2;
 
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Sharding;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

@@ -56,13 +56,13 @@ public static class SagaServiceCollectionExtensions
 		// Uses TryAdd so persistent stores (SqlServer, etc.) registered by
 		// AddExcaliburOrchestration() or provider-specific extensions take precedence.
 		services.TryAddSingleton<Excalibur.Saga.Orchestration.InMemorySagaStore>();
-		services.TryAddKeyedSingleton<Excalibur.Dispatch.Abstractions.Messaging.ISagaStore>(
+		services.TryAddKeyedSingleton<Excalibur.Dispatch.Messaging.ISagaStore>(
 			"default", (sp, _) => sp.GetRequiredService<Excalibur.Saga.Orchestration.InMemorySagaStore>());
 
 		// Non-keyed ISagaStore convenience alias: forwards to keyed "default" so consumers
 		// can inject ISagaStore directly without [FromKeyedServices("default")].
-		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.Messaging.ISagaStore>(sp =>
-			sp.GetRequiredKeyedService<Excalibur.Dispatch.Abstractions.Messaging.ISagaStore>("default"));
+		services.TryAddSingleton<Excalibur.Dispatch.Messaging.ISagaStore>(sp =>
+			sp.GetRequiredKeyedService<Excalibur.Dispatch.Messaging.ISagaStore>("default"));
 
 		return services;
 	}
@@ -181,7 +181,7 @@ public static class SagaServiceCollectionExtensions
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSaga,
 		TSagaState>(this IServiceCollection services)
 		where TSaga : SagaBase<TSagaState>
-		where TSagaState : Excalibur.Dispatch.Abstractions.Messaging.SagaState, new()
+		where TSagaState : Excalibur.Dispatch.Messaging.SagaState, new()
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -224,7 +224,7 @@ public static class SagaServiceCollectionExtensions
 		"No runtime code generation needed — the generic method instantiation is known at compile time.")]
 	private static Action<ISagaDispatchRegistry> CreateDispatchDelegate<TSaga, TSagaState>()
 		where TSaga : SagaBase<TSagaState>
-		where TSagaState : Excalibur.Dispatch.Abstractions.Messaging.SagaState, new()
+		where TSagaState : Excalibur.Dispatch.Messaging.SagaState, new()
 	{
 		return static registry => registry.Register(
 			typeof(TSaga),

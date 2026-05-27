@@ -5,8 +5,6 @@
 using System.Globalization;
 using System.Text;
 
-using Excalibur.EventSourcing.Abstractions;
-
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.EventSourcing.Upcasting;

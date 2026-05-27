@@ -7,16 +7,16 @@ namespace Excalibur.Cdc.SqlServer;
 
 internal sealed class SqlServerCdcOptionsValidator : IValidateOptions<SqlServerCdcOptions>
 {
-    public ValidateOptionsResult Validate(string? name, SqlServerCdcOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, SqlServerCdcOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

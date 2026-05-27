@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
@@ -294,7 +294,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 		string? viewTableName,
 		string? positionTableName)
 	{
-		services.TryAddSingleton<Excalibur.EventSourcing.Abstractions.IMaterializedViewStore>(sp =>
+		services.TryAddSingleton<Excalibur.EventSourcing.IMaterializedViewStore>(sp =>
 		{
 			var factory = connectionFactory(sp);
 			return new SqlServerMaterializedViewStore(

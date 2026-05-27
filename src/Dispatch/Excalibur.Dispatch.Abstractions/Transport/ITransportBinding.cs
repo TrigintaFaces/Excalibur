@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions.Transport;
+namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
 /// Binding between a transport endpoint and a pipeline profile.

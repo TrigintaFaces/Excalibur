@@ -3,7 +3,7 @@
 
 using System.Text.Json;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 
 namespace Excalibur.A3.Policy.Cedar;
 

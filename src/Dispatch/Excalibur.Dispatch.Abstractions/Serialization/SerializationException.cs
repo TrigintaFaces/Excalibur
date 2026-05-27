@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions.Serialization;
+namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
 /// The operation being performed when a serialization exception occurred.

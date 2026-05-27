@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 
 namespace Excalibur.Tests.A3.Authorization.Stores;
 
@@ -90,8 +90,8 @@ public sealed class StoreInterfaceContractShould
 	[InlineData(typeof(IActivityGroupGrantStore))]
 	public void BeInAuthorizationNamespace(Type type)
 	{
-		type.Namespace.ShouldBe("Excalibur.A3.Abstractions.Authorization",
-			$"{type.Name} should be in Excalibur.A3.Abstractions.Authorization namespace");
+		type.Namespace.ShouldBe("Excalibur.A3.Authorization",
+			$"{type.Name} should be in Excalibur.A3.Authorization namespace");
 	}
 
 	[Theory]

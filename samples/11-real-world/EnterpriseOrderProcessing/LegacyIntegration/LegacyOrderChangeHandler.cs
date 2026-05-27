@@ -5,7 +5,7 @@ using EnterpriseOrderProcessing.Commands;
 
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Data.IdentityMap;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.Logging;

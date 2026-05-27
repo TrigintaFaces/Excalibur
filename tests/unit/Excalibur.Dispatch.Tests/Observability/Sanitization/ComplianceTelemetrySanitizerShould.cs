@@ -4,7 +4,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Dispatch.Observability.Sanitization;
 
 using Microsoft.Extensions.DependencyInjection;

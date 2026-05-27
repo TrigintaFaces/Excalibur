@@ -22,7 +22,7 @@ using CdcEventStoreElasticsearch.Repositories;
 using Elastic.Clients.Elasticsearch;
 
 using Excalibur.Application.Requests.Queries;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace CdcEventStoreElasticsearch.Handlers;
 

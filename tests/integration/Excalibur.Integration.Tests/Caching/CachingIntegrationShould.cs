@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Resilience.Polly;
@@ -538,10 +538,10 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var testMessage1 = new TestDispatchAction();
 		var context1 = new MessageContext(testMessage1, provider);
 		// Set validation result via extension method (Items dictionary) so caching middleware can read it
-		Excalibur.Dispatch.Abstractions.MessageContextExtensions.ValidationResult(context1, SerializableValidationResult.Failed("bad"));
+		Excalibur.Dispatch.MessageContextExtensions.ValidationResult(context1, SerializableValidationResult.Failed("bad"));
 		var testMessage2 = new TestDispatchAction();
 		var context2 = new MessageContext(testMessage2, provider);
-		Excalibur.Dispatch.Abstractions.MessageContextExtensions.ValidationResult(context2, SerializableValidationResult.Failed("bad"));
+		Excalibur.Dispatch.MessageContextExtensions.ValidationResult(context2, SerializableValidationResult.Failed("bad"));
 
 		OnlyIfSuccessQueryHandler.CallCount = 0;
 		_ = await dispatcher.DispatchAsync<OnlyIfSuccessQuery, TestResult>(query, context1, cancellationToken: default);

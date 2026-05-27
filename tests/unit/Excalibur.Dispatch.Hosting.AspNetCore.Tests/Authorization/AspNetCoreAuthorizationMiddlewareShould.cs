@@ -3,7 +3,7 @@
 
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 
 using Microsoft.AspNetCore.Authorization;

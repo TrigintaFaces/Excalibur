@@ -1,5 +1,5 @@
 using Company.ExcaliburOutbox.Messages;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 namespace Company.ExcaliburOutbox.Handlers;
 

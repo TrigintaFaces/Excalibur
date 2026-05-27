@@ -147,9 +147,9 @@ public sealed class HandlerFactoryAotShould
 	[Fact]
 	public void HandlerDiscovery_ShouldUseCorrectNamespace()
 	{
-		// The namespace check was fixed from "Excalibur.Dispatch.Abstractions.Delivery.Handlers"
-		// to "Excalibur.Dispatch.Abstractions.Delivery" (where handler interfaces actually live)
-		var correctNamespace = "Excalibur.Dispatch.Abstractions.Delivery";
+		// The namespace check was fixed from "Excalibur.Dispatch.Delivery.Handlers"
+		// to "Excalibur.Dispatch.Delivery" (where handler interfaces actually live)
+		var correctNamespace = "Excalibur.Dispatch.Delivery";
 		correctNamespace.ShouldNotContain(".Handlers");
 		correctNamespace.ShouldEndWith("Delivery");
 	}
@@ -157,25 +157,25 @@ public sealed class HandlerFactoryAotShould
 	[Fact]
 	public void HandlerDiscovery_ShouldFindIActionHandler()
 	{
-		// IActionHandler is in Excalibur.Dispatch.Abstractions.Delivery namespace
-		var interfaceNamespace = typeof(Abstractions.Delivery.IActionHandler<>).Namespace;
-		interfaceNamespace.ShouldBe("Excalibur.Dispatch.Abstractions.Delivery");
+		// IActionHandler is in Excalibur.Dispatch.Delivery namespace
+		var interfaceNamespace = typeof(Excalibur.Dispatch.Delivery.IActionHandler<>).Namespace;
+		interfaceNamespace.ShouldBe("Excalibur.Dispatch.Delivery");
 	}
 
 	[Fact]
 	public void HandlerDiscovery_ShouldFindIEventHandler()
 	{
-		// IEventHandler is in Excalibur.Dispatch.Abstractions.Delivery namespace
-		var interfaceNamespace = typeof(Abstractions.Delivery.IEventHandler<>).Namespace;
-		interfaceNamespace.ShouldBe("Excalibur.Dispatch.Abstractions.Delivery");
+		// IEventHandler is in Excalibur.Dispatch.Delivery namespace
+		var interfaceNamespace = typeof(Excalibur.Dispatch.Delivery.IEventHandler<>).Namespace;
+		interfaceNamespace.ShouldBe("Excalibur.Dispatch.Delivery");
 	}
 
 	[Fact]
 	public void HandlerDiscovery_ShouldFindIDocumentHandler()
 	{
-		// IDocumentHandler is in Excalibur.Dispatch.Abstractions.Delivery namespace
-		var interfaceNamespace = typeof(Abstractions.Delivery.IDocumentHandler<>).Namespace;
-		interfaceNamespace.ShouldBe("Excalibur.Dispatch.Abstractions.Delivery");
+		// IDocumentHandler is in Excalibur.Dispatch.Delivery namespace
+		var interfaceNamespace = typeof(Excalibur.Dispatch.Delivery.IDocumentHandler<>).Namespace;
+		interfaceNamespace.ShouldBe("Excalibur.Dispatch.Delivery");
 	}
 
 	#endregion

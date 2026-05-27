@@ -4,10 +4,9 @@
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
 using Excalibur.Data.MySql.Diagnostics;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

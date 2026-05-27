@@ -11,10 +11,10 @@ namespace Excalibur.Dispatch.Resilience;
 /// </summary>
 /// <remarks>
 /// This is the canonical circuit breaker exception used across both Dispatch and Excalibur layers.
-/// It inherits from <see cref="Abstractions.ApiException"/> because a circuit-breaker rejection
+/// It inherits from <see cref="ApiException"/> because a circuit-breaker rejection
 /// represents an operational error within the Dispatch framework.
 /// </remarks>
-public sealed class CircuitBreakerOpenException : Abstractions.ApiException
+public sealed class CircuitBreakerOpenException : ApiException
 {
 	private const string DefaultMessage = "The circuit breaker is open. The operation was rejected to prevent cascading failures.";
 	private static readonly CompositeFormat NamedMessageFormat = CompositeFormat.Parse("Circuit breaker '{0}' is open.");

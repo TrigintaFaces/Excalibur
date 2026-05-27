@@ -13,17 +13,16 @@
 
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Aot.Sample.EventSourcing;
 using Excalibur.Dispatch.Aot.Sample.Handlers;
 using Excalibur.Dispatch.Aot.Sample.Messages;
 using Excalibur.Dispatch.Aot.Sample.Serialization;
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

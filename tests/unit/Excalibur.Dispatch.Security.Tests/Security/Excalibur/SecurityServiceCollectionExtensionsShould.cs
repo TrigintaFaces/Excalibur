@@ -1,10 +1,8 @@
 // Copyright (c) TrigintaFaces. All rights reserved.
 
-using Excalibur.Security.Abstractions;
+using Excalibur.Security;
 
 using Microsoft.Extensions.Configuration;
-
-using Excalibur.Security;
 namespace Excalibur.Dispatch.Security.Tests.Excalibur;
 
 /// <summary>

@@ -157,4 +157,3 @@ public sealed class LruCacheOTelShould : IDisposable
 		_hitCount.ShouldBeGreaterThanOrEqualTo(1);
 	}
 }
-

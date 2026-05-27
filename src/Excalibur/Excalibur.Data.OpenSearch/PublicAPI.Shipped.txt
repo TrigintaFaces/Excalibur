@@ -421,13 +421,13 @@ Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.DeleteAsync(string! indexName, string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.Dispose() -> void
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.GetByIdAsync<TDocument>(string! indexName, string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.IndexAsync<TDocument>(string! indexName, string! documentId, TDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.Name.get -> string!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.OpenSearchPersistenceProvider(OpenSearch.Client.OpenSearchClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider!>! logger) -> void
@@ -444,7 +444,7 @@ Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStore<TProjection>
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
-Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions.CreateIndexOnInitialize.get -> bool

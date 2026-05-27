@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Pooling;
 /// Configuration options for message context pooling.
 /// </summary>
 /// <remarks>
-/// Controls the object pool used for <see cref="Abstractions.IMessageContext"/> instances
+/// Controls the object pool used for <see cref="IMessageContext"/> instances
 /// to reduce GC pressure in high-throughput scenarios.
 /// </remarks>
 public sealed class ContextPoolingOptions

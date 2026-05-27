@@ -6,7 +6,7 @@ using System.Collections.ObjectModel;
 
 using Amazon.SQS.Model;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 namespace Excalibur.Dispatch.Transport.Aws;
 

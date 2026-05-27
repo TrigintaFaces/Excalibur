@@ -3,24 +3,24 @@
 
 using Microsoft.Extensions.Options;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Validates <see cref="ConnectionPoolSizingOptions"/> by delegating to <see cref="ConnectionPoolSizingOptions.Validate"/>.
 /// </summary>
 internal sealed class ConnectionPoolSizingOptionsValidator : IValidateOptions<ConnectionPoolSizingOptions>
 {
-    /// <inheritdoc/>
-    public ValidateOptionsResult Validate(string? name, ConnectionPoolSizingOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	/// <inheritdoc/>
+	public ValidateOptionsResult Validate(string? name, ConnectionPoolSizingOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

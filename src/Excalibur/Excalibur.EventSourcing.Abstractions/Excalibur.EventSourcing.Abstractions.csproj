@@ -4,7 +4,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.EventSourcing.Abstractions</PackageId>
     <Description>Event sourcing abstractions for the Excalibur framework.</Description>
-    <RootNamespace>Excalibur.EventSourcing.Abstractions</RootNamespace>
+    <RootNamespace>Excalibur.EventSourcing</RootNamespace>
     <PackageTags>dispatch;excalibur;event-sourcing;cqrs;ddd</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>

@@ -5,7 +5,7 @@
 using System.Text.Json;
 
 using Excalibur.Data.MongoDB.Diagnostics;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

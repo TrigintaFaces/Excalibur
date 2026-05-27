@@ -7,16 +7,16 @@ namespace Excalibur.Cdc.InMemory;
 
 internal sealed class InMemoryCdcOptionsValidator : IValidateOptions<InMemoryCdcOptions>
 {
-    public ValidateOptionsResult Validate(string? name, InMemoryCdcOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, InMemoryCdcOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

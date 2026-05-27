@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.EventSourcing.Abstractions;
+
+using Excalibur.Data.Sharding;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Sharding;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -27,7 +29,7 @@ public static class TenantShardingServiceCollectionExtensions
 	/// <para>
 	/// When enabled, <see cref="IEventStore"/> and <see cref="IProjectionStore{TProjection}"/>
 	/// are re-registered as Scoped services that route to the correct shard based on
-	/// the current tenant (via <see cref="Excalibur.Dispatch.Abstractions.ITenantId"/>).
+	/// the current tenant (via <see cref="Excalibur.Dispatch.ITenantId"/>).
 	/// </para>
 	/// <para>
 	/// Consumers must also register an <see cref="ITenantShardMap"/> implementation

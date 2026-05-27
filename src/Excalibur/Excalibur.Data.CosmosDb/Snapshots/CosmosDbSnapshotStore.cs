@@ -3,11 +3,11 @@
 
 using System.Net;
 
-using Excalibur.Data.Abstractions.Observability;
 using Excalibur.Data.CosmosDb.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;

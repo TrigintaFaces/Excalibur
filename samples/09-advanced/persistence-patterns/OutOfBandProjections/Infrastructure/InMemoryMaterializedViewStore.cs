@@ -4,7 +4,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace OutOfBandProjections.Infrastructure;
 

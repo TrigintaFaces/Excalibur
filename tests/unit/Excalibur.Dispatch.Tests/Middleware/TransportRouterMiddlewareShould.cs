@@ -3,8 +3,7 @@
 
 #pragma warning disable CA2012 // FakeItEasy .Returns() stores ValueTask
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.Logging.Abstractions;

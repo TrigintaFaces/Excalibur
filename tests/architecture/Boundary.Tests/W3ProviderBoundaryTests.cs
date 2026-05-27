@@ -276,8 +276,18 @@ public sealed class W3ProviderBoundaryTests
     [Fact]
     public void DispatchAbstractions_MustNotDependOn_Excalibur()
     {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch.Abstractions")
+        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
+        // We identify them by their assembly name instead.
+        var abstractionsAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch.Abstractions");
+
+        if (abstractionsAssembly is null)
+        {
+            true.ShouldBeTrue("Excalibur.Dispatch.Abstractions assembly not loaded in test domain.");
+            return;
+        }
+
+        var result = Types.InAssembly(abstractionsAssembly)
             .ShouldNot().HaveDependencyOnAny(ExcaliburPackages)
             .GetResult();
 

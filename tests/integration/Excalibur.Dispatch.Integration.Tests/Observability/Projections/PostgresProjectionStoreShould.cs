@@ -6,7 +6,7 @@
 using Dapper;
 
 using Excalibur.EventSourcing.Postgres;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 

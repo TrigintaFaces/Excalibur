@@ -9,49 +9,49 @@ namespace Excalibur.AuditLogging.Splunk;
 /// </summary>
 internal sealed class AuditLoggingSplunkBuilder : IAuditLoggingSplunkBuilder
 {
-    private readonly SplunkExporterOptions _options;
+	private readonly SplunkExporterOptions _options;
 
-    internal AuditLoggingSplunkBuilder(SplunkExporterOptions options)
-    {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-    }
+	internal AuditLoggingSplunkBuilder(SplunkExporterOptions options)
+	{
+		_options = options ?? throw new ArgumentNullException(nameof(options));
+	}
 
-    internal string? BindConfigurationPath { get; private set; }
+	internal string? BindConfigurationPath { get; private set; }
 
-    public IAuditLoggingSplunkBuilder HecEndpoint(Uri hecEndpoint)
-    {
-        ArgumentNullException.ThrowIfNull(hecEndpoint);
-        _options.Connection.HecEndpoint = hecEndpoint;
-        BindConfigurationPath = null;
-        return this;
-    }
+	public IAuditLoggingSplunkBuilder HecEndpoint(Uri hecEndpoint)
+	{
+		ArgumentNullException.ThrowIfNull(hecEndpoint);
+		_options.Connection.HecEndpoint = hecEndpoint;
+		BindConfigurationPath = null;
+		return this;
+	}
 
-    public IAuditLoggingSplunkBuilder HecToken(string hecToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(hecToken);
-        _options.Connection.HecToken = hecToken;
-        BindConfigurationPath = null;
-        return this;
-    }
+	public IAuditLoggingSplunkBuilder HecToken(string hecToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(hecToken);
+		_options.Connection.HecToken = hecToken;
+		BindConfigurationPath = null;
+		return this;
+	}
 
-    public IAuditLoggingSplunkBuilder Index(string index)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(index);
-        _options.Index = index;
-        return this;
-    }
+	public IAuditLoggingSplunkBuilder Index(string index)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(index);
+		_options.Index = index;
+		return this;
+	}
 
-    public IAuditLoggingSplunkBuilder SourceType(string sourceType)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceType);
-        _options.SourceType = sourceType;
-        return this;
-    }
+	public IAuditLoggingSplunkBuilder SourceType(string sourceType)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(sourceType);
+		_options.SourceType = sourceType;
+		return this;
+	}
 
-    public IAuditLoggingSplunkBuilder BindConfiguration(string sectionPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
-        BindConfigurationPath = sectionPath;
-        return this;
-    }
+	public IAuditLoggingSplunkBuilder BindConfiguration(string sectionPath)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
+		BindConfigurationPath = sectionPath;
+		return this;
+	}
 }

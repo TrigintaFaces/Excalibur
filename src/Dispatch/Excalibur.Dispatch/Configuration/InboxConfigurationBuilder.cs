@@ -3,9 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-
 namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>

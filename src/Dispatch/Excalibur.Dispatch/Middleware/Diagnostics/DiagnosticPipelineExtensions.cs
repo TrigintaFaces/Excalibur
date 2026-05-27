@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 
 namespace Excalibur.Dispatch.Middleware.PipelineDiagnostics;
 
@@ -18,7 +18,7 @@ public static class DiagnosticPipelineExtensions
 	/// <returns>The builder for fluent configuration.</returns>
 	/// <remarks>
 	/// <para>
-	/// The diagnostic middleware runs at <see cref="Abstractions.DispatchMiddlewareStage.Start"/>
+	/// The diagnostic middleware runs at <see cref="DispatchMiddlewareStage.Start"/>
 	/// and logs pipeline composition on first invocation, plus message type and ID for every dispatch.
 	/// All output is at <see cref="Microsoft.Extensions.Logging.LogLevel.Debug"/> level.
 	/// </para>

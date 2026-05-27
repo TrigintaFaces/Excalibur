@@ -617,9 +617,9 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 
 	private static string SerializeSchema(object schema)
 	{
-		#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 		return JsonSerializer.Serialize(schema);
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 	}
 
 	private static SchemaVersionRegistration ToRegistration(SchemaHistoryRecord record)
@@ -627,7 +627,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		object schema = record.SchemaJson;
 		try
 		{
-			#pragma warning disable IL2026, IL3050 // Schema deserialization uses reflection
+#pragma warning disable IL2026, IL3050 // Schema deserialization uses reflection
 			schema = JsonSerializer.Deserialize<JsonElement>(record.SchemaJson)!;
 #pragma warning restore IL2026, IL3050
 		}
@@ -858,9 +858,9 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 				continue;
 			}
 
-			#pragma warning disable IL2026, IL3050 // JSON deserialization uses reflection
+#pragma warning disable IL2026, IL3050 // JSON deserialization uses reflection
 			var result = JsonSerializer.Deserialize<SchemaMigrationResult>(record.ResultJson);
-			#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 			if (result is not null)
 			{
 				results.Add(result);

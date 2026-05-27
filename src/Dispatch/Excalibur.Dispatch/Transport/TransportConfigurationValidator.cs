@@ -4,7 +4,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 
 namespace Excalibur.Dispatch.Transport;
 

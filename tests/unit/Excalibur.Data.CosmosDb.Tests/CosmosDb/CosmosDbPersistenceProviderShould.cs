@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 
 using Microsoft.Extensions.Options;
 
@@ -162,7 +162,7 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 	{
 		var provider = new CosmosDbPersistenceProvider(_validOptions, _logger);
 
-		provider.CloudProvider.ShouldBe(Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType.CosmosDb);
+		provider.CloudProvider.ShouldBe(Excalibur.Data.CloudNative.CloudPersistenceProviderType.CosmosDb);
 	}
 
 	[Fact]
@@ -225,7 +225,7 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 		var provider = new CosmosDbPersistenceProvider(_validOptions, _logger);
 		await provider.DisposeAsync().ConfigureAwait(false);
 
-		var partitionKey = A.Fake<Excalibur.Data.Abstractions.CloudNative.IPartitionKey>();
+		var partitionKey = A.Fake<Excalibur.Data.CloudNative.IPartitionKey>();
 
 		_ = await Should.ThrowAsync<ObjectDisposedException>(async () =>
 			await provider.GetByIdAsync<object>("id", partitionKey, null, CancellationToken.None)
@@ -283,7 +283,7 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 	public async Task GetByIdAsync_WithoutInitialization_ThrowsInvalidOperationException()
 	{
 		var provider = new CosmosDbPersistenceProvider(_validOptions, _logger);
-		var partitionKey = A.Fake<Excalibur.Data.Abstractions.CloudNative.IPartitionKey>();
+		var partitionKey = A.Fake<Excalibur.Data.CloudNative.IPartitionKey>();
 
 		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
 			await provider.GetByIdAsync<object>("id", partitionKey, null, CancellationToken.None)

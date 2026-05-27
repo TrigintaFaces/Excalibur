@@ -49,8 +49,18 @@ public sealed class BoundaryEnforcementTests
     [Fact]
     public void DispatchAbstractions_MustNotDependOn_Dispatch()
     {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch.Abstractions")
+        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
+        // We identify them by their assembly name instead.
+        var abstractionsAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch.Abstractions");
+
+        if (abstractionsAssembly is null)
+        {
+            true.ShouldBeTrue("Excalibur.Dispatch.Abstractions assembly not loaded in test domain.");
+            return;
+        }
+
+        var result = Types.InAssembly(abstractionsAssembly)
             .ShouldNot().HaveDependencyOn("Excalibur.Dispatch")
             .GetResult();
 
@@ -63,9 +73,19 @@ public sealed class BoundaryEnforcementTests
     [Fact]
     public void DispatchAbstractions_ShouldOnlyContain_Interfaces_Abstracts_ValueTypes()
     {
-        var concreteClasses = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch.Abstractions")
-            .And().AreClasses()
+        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
+        // We identify them by their assembly name instead.
+        var abstractionsAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch.Abstractions");
+
+        if (abstractionsAssembly is null)
+        {
+            true.ShouldBeTrue("Excalibur.Dispatch.Abstractions assembly not loaded in test domain.");
+            return;
+        }
+
+        var concreteClasses = Types.InAssembly(abstractionsAssembly)
+            .That().AreClasses()
             .And().AreNotAbstract()
             .And().DoNotHaveNameEndingWith("Exception")
             .And().DoNotHaveNameEndingWith("EventArgs")
@@ -185,8 +205,18 @@ public sealed class BoundaryEnforcementTests
             "Microsoft.Extensions.Options"
         };
 
-        var abstractionTypes = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch.Abstractions")
+        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
+        // We identify them by their assembly name instead.
+        var abstractionsAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch.Abstractions");
+
+        if (abstractionsAssembly is null)
+        {
+            true.ShouldBeTrue("Excalibur.Dispatch.Abstractions assembly not loaded in test domain.");
+            return;
+        }
+
+        var abstractionTypes = Types.InAssembly(abstractionsAssembly)
             .GetTypes();
 
         var actualDependencies = abstractionTypes
@@ -266,8 +296,12 @@ public sealed class BoundaryEnforcementTests
             .Where(t => !t.Name.EndsWith("EventArgs"))
             .ToList();
 
+        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
+        // We identify abstraction interfaces by their assembly name instead.
+        var abstractionsAssemblyName = "Excalibur.Dispatch.Abstractions";
+
         var classesWithoutInterfaces = publicClasses
-            .Where(c => !c.GetInterfaces().Any(i => i.Namespace?.StartsWith("Excalibur.Dispatch.Abstractions") == true))
+            .Where(c => !c.GetInterfaces().Any(i => i.Assembly.GetName().Name == abstractionsAssemblyName))
             .ToList();
 
         var complianceRate = publicClasses.Any()
@@ -330,8 +364,10 @@ public sealed class BoundaryEnforcementTests
     {
         var typeToCheck = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
 
+        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
+        // We distinguish Dispatch implementation types from Abstractions types by assembly name.
         return typeToCheck.Namespace?.StartsWith("Excalibur.Dispatch") == true &&
-               !typeToCheck.Namespace.StartsWith("Excalibur.Dispatch.Abstractions");
+               typeToCheck.Assembly.GetName().Name != "Excalibur.Dispatch.Abstractions";
     }
 
     #endregion

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Serialization;
 

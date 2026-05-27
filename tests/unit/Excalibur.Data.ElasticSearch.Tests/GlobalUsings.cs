@@ -1,8 +1,8 @@
 global using Elastic.Clients.Elasticsearch;
 global using Elastic.Transport;
 
-global using Excalibur.Dispatch.Abstractions;
-global using Excalibur.Dispatch.Abstractions.Configuration;
+global using Excalibur.Dispatch;
+global using Excalibur.Dispatch.Configuration;
 
 global using FakeItEasy;
 

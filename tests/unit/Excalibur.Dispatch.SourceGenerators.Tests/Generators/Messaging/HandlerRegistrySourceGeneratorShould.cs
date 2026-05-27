@@ -160,7 +160,7 @@ public sealed class HandlerRegistrySourceGeneratorShould
 		// Handler with settable IMessageContext property should be detected
 		// Pattern: public IMessageContext? Context { get; set; }
 
-		var propertyType = "Excalibur.Dispatch.Abstractions.IMessageContext";
+		var propertyType = "Excalibur.Dispatch.IMessageContext";
 		propertyType.ShouldContain("IMessageContext");
 	}
 

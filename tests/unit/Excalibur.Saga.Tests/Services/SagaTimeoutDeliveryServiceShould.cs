@@ -3,7 +3,7 @@
 
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Services;
 
@@ -198,6 +198,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	public async Task SkipDeliveredTimeouts_WhenNoDueTimeouts()
 	{
 		// Arrange
+		using var cts = new CancellationTokenSource();
 		var firstPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
@@ -206,7 +207,6 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				return new List<SagaTimeout>();
 			});
 
-		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
 
 		// Act

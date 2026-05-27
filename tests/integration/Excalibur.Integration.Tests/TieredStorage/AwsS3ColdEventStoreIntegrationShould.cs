@@ -3,7 +3,7 @@
 
 using Amazon.S3;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.AwsS3;
 
 using Microsoft.Extensions.Logging.Abstractions;

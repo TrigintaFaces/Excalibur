@@ -32,17 +32,17 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </remarks>
 public interface IIndexMappingConvention
 {
-    /// <summary>
-    /// Configures the Elasticsearch index mappings for the specified projection type.
-    /// </summary>
-    /// <param name="projectionType">The .NET projection type being mapped.</param>
-    /// <param name="inferredProperties">
-    /// The inferred property mappings from the framework's reflection-based mapping.
-    /// Implementations may modify, augment, or replace these entirely.
-    /// </param>
-    /// <returns>
-    /// The final <see cref="Properties"/> to use for index creation.
-    /// Return <paramref name="inferredProperties"/> unchanged to accept defaults.
-    /// </returns>
-    Properties ConfigureMappings(Type projectionType, Properties inferredProperties);
+	/// <summary>
+	/// Configures the Elasticsearch index mappings for the specified projection type.
+	/// </summary>
+	/// <param name="projectionType">The .NET projection type being mapped.</param>
+	/// <param name="inferredProperties">
+	/// The inferred property mappings from the framework's reflection-based mapping.
+	/// Implementations may modify, augment, or replace these entirely.
+	/// </param>
+	/// <returns>
+	/// The final <see cref="Properties"/> to use for index creation.
+	/// Return <paramref name="inferredProperties"/> unchanged to accept defaults.
+	/// </returns>
+	Properties ConfigureMappings(Type projectionType, Properties inferredProperties);
 }

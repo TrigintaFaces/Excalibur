@@ -7,16 +7,16 @@ namespace Excalibur.Outbox.DynamoDb;
 
 internal sealed class DynamoDbOutboxOptionsValidator : IValidateOptions<DynamoDbOutboxOptions>
 {
-    public ValidateOptionsResult Validate(string? name, DynamoDbOutboxOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, DynamoDbOutboxOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

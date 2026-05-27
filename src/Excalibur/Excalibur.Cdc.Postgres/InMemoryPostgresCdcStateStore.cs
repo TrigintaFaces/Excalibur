@@ -5,7 +5,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Cdc.Postgres;
 
@@ -41,8 +41,11 @@ internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 		var key = GetKey(processorId, slotName, null);
 		var entry = new PostgresCdcStateEntry
 		{
-			ProcessorId = processorId, SlotName = slotName, TableName = null,
-			Position = position.LsnString, UpdatedAt = DateTimeOffset.UtcNow,
+			ProcessorId = processorId,
+			SlotName = slotName,
+			TableName = null,
+			Position = position.LsnString,
+			UpdatedAt = DateTimeOffset.UtcNow,
 		};
 
 		_ = _states.AddOrUpdate(key, entry, (_, existing) =>
@@ -88,7 +91,8 @@ internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
 		var keysToRemove = _states.Keys.Where(k => k.StartsWith($"{processorId}:", StringComparison.Ordinal)).ToList();
-		foreach (var key in keysToRemove) { _ = _states.TryRemove(key, out _); }
+		foreach (var key in keysToRemove)
+		{ _ = _states.TryRemove(key, out _); }
 		return Task.CompletedTask;
 	}
 

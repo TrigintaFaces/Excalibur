@@ -3,12 +3,12 @@
 
 using System.Buffers;
 using System.Collections.Concurrent;
-
-using Excalibur.Dispatch.Caching;
 using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+
+using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Serialization;
 

@@ -26,7 +26,7 @@ An action is a simple data class that implements either `IDispatchAction` or `ID
 Use `IDispatchAction` for commands that don't return data:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public record CreateOrderAction(
     string CustomerId,
@@ -81,7 +81,7 @@ Handlers contain the business logic that processes actions.
 ### Action Handler Without Return
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 {

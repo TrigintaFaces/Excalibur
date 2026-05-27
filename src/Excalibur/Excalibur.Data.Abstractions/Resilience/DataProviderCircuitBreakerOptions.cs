@@ -3,7 +3,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-namespace Excalibur.Data.Abstractions.Resilience;
+namespace Excalibur.Data.Resilience;
 
 /// <summary>
 /// Configuration options for the data provider circuit breaker.

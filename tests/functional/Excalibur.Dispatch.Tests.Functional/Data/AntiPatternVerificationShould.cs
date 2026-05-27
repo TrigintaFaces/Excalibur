@@ -4,7 +4,7 @@
 using System.Data;
 
 using Excalibur.Data;
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

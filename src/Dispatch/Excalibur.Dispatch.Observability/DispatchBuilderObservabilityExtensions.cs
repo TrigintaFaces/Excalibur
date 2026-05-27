@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Observability.Context;
 using Excalibur.Dispatch.Observability.Http;
 using Excalibur.Dispatch.Observability.Metrics;

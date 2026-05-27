@@ -16,91 +16,91 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class AwsAuditServiceCollectionExtensions
 {
-    /// <summary>
-    /// Adds AWS CloudWatch audit log exporter services to the service collection.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configure">Configuration action for the AWS audit builder.</param>
-    /// <returns>The service collection for chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-    /// <example>
-    /// <code>
-    /// services.AddAwsAuditExporter(aws =&gt;
-    /// {
-    ///     aws.LogGroupName("/dispatch/audit")
-    ///        .Region("us-east-1")
-    ///        .StreamName("my-stream");
-    /// });
-    /// </code>
-    /// </example>
-    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-        Justification = "Options validation/binding uses reflection by design.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-        Justification = "Configuration binding uses reflection by design.")]
-    public static IServiceCollection AddAwsAuditExporter(
-        this IServiceCollection services,
-        Action<IAuditLoggingAwsBuilder> configure)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configure);
+	/// <summary>
+	/// Adds AWS CloudWatch audit log exporter services to the service collection.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Configuration action for the AWS audit builder.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
+	/// <example>
+	/// <code>
+	/// services.AddAwsAuditExporter(aws =&gt;
+	/// {
+	///     aws.LogGroupName("/dispatch/audit")
+	///        .Region("us-east-1")
+	///        .StreamName("my-stream");
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	public static IServiceCollection AddAwsAuditExporter(
+		this IServiceCollection services,
+		Action<IAuditLoggingAwsBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
 
-        var options = new AwsAuditOptions
-        {
-            LogGroupName = null!,
-            Region = null!,
-        };
-        var builder = new AuditLoggingAwsBuilder(options);
-        configure(builder);
+		var options = new AwsAuditOptions
+		{
+			LogGroupName = null!,
+			Region = null!,
+		};
+		var builder = new AuditLoggingAwsBuilder(options);
+		configure(builder);
 
-        RegisterOptionsAndServices(services, builder, options);
+		RegisterOptionsAndServices(services, builder, options);
 
-        return services;
-    }
+		return services;
+	}
 
-    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-        Justification = "Options validation/binding uses reflection by design.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-        Justification = "Configuration binding uses reflection by design.")]
-    private static void RegisterOptionsAndServices(
-        IServiceCollection services,
-        AuditLoggingAwsBuilder builder,
-        AwsAuditOptions options)
-    {
-        _ = services.Configure<AwsAuditOptions>(opt =>
-        {
-            opt.LogGroupName = options.LogGroupName;
-            opt.Region = options.Region;
-            opt.StreamName = options.StreamName;
-            opt.ServiceUrl = options.ServiceUrl;
-            opt.BatchSize = options.BatchSize;
-            opt.MaxRetryAttempts = options.MaxRetryAttempts;
-            opt.RetryBaseDelay = options.RetryBaseDelay;
-            opt.Timeout = options.Timeout;
-        });
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IServiceCollection services,
+		AuditLoggingAwsBuilder builder,
+		AwsAuditOptions options)
+	{
+		_ = services.Configure<AwsAuditOptions>(opt =>
+		{
+			opt.LogGroupName = options.LogGroupName;
+			opt.Region = options.Region;
+			opt.StreamName = options.StreamName;
+			opt.ServiceUrl = options.ServiceUrl;
+			opt.BatchSize = options.BatchSize;
+			opt.MaxRetryAttempts = options.MaxRetryAttempts;
+			opt.RetryBaseDelay = options.RetryBaseDelay;
+			opt.Timeout = options.Timeout;
+		});
 
-        if (builder.BindConfigurationPath is not null)
-        {
-            _ = services.AddOptions<AwsAuditOptions>()
-                .BindConfiguration(builder.BindConfigurationPath)
-                .ValidateOnStart();
-        }
+		if (builder.BindConfigurationPath is not null)
+		{
+			_ = services.AddOptions<AwsAuditOptions>()
+				.BindConfiguration(builder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
 
-        _ = services.AddOptions<AwsAuditOptions>().ValidateOnStart();
+		_ = services.AddOptions<AwsAuditOptions>().ValidateOnStart();
 
-        RegisterAwsAuditExporterCore(services);
-    }
+		RegisterAwsAuditExporterCore(services);
+	}
 
-    private static void RegisterAwsAuditExporterCore(IServiceCollection services)
-    {
-        services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IValidateOptions<AwsAuditOptions>, AwsAuditOptionsValidator>());
+	private static void RegisterAwsAuditExporterCore(IServiceCollection services)
+	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsAuditOptions>, AwsAuditOptionsValidator>());
 
-        _ = services.AddHttpClient<AwsCloudWatchAuditExporter>((sp, client) =>
-        {
-            var options = sp.GetRequiredService<IOptions<AwsAuditOptions>>().Value;
-            client.Timeout = options.Timeout;
-        });
+		_ = services.AddHttpClient<AwsCloudWatchAuditExporter>((sp, client) =>
+		{
+			var options = sp.GetRequiredService<IOptions<AwsAuditOptions>>().Value;
+			client.Timeout = options.Timeout;
+		});
 
-        _ = services.AddSingleton<IAuditLogExporter, AwsCloudWatchAuditExporter>();
-    }
+		_ = services.AddSingleton<IAuditLogExporter, AwsCloudWatchAuditExporter>();
+	}
 }

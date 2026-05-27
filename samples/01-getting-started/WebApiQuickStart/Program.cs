@@ -14,7 +14,7 @@
 // Test endpoints with curl or your preferred HTTP client.
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using GettingStarted.Messages;
 

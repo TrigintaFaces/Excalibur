@@ -6,10 +6,9 @@ using System.Text;
 
 using Confluent.Kafka;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
 

@@ -2,6 +2,8 @@ using Excalibur.A3;
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Events;
 using Excalibur.A3.Authorization.Grants;
+
+using GrantAggregate = Excalibur.A3.Authorization.Grants.Grant;
 using Excalibur.A3.Exceptions;
 using Excalibur.Domain;
 
@@ -95,7 +97,7 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 		// Assert
 		result.Result.ShouldBeTrue();
 		result.AuditMessage.ShouldContain("Revoked from");
-		A.CallTo(() => _grantRepository.DeleteAsync(A<Grant>._, A<CancellationToken>._))
+		A.CallTo(() => _grantRepository.DeleteAsync(A<GrantAggregate>._, A<CancellationToken>._))
 			.MustHaveHappened(2, Times.Exactly);
 	}
 
@@ -119,7 +121,7 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 		// Assert
 		result.Result.ShouldBeTrue();
 		// Only the regular grant should be deleted, ActivityGroup is filtered out
-		A.CallTo(() => _grantRepository.DeleteAsync(A<Grant>._, A<CancellationToken>._))
+		A.CallTo(() => _grantRepository.DeleteAsync(A<GrantAggregate>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -131,7 +133,7 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 		var command = CreateValidCommand();
 
 		A.CallTo(() => _grantRepository.ReadAllAsync("target-user", A<CancellationToken>._))
-			.Returns(Enumerable.Empty<Grant>());
+			.Returns(Enumerable.Empty<GrantAggregate>());
 
 		// Act
 		var result = await sut.HandleAsync(command, CancellationToken.None);
@@ -181,19 +183,19 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 			.MustHaveHappenedOnceExactly();
 	}
 
-	private static Grant CreateGrant(string grantType, string qualifier)
+	private static GrantAggregate CreateGrant(string grantType, string qualifier)
 	{
 		var addedEvent = new GrantAdded(
 			"target-user", "Target User", "TestApp", "tenant-1", grantType, qualifier,
 			DateTimeOffset.UtcNow.AddDays(30), "admin", DateTimeOffset.UtcNow.AddDays(-1));
-		return Grant.FromEvents($"target-user:tenant-1:{grantType}:{qualifier}", [addedEvent]);
+		return GrantAggregate.FromEvents($"target-user:tenant-1:{grantType}:{qualifier}", [addedEvent]);
 	}
 
-	private static Grant CreateExpiredGrant(string grantType, string qualifier)
+	private static GrantAggregate CreateExpiredGrant(string grantType, string qualifier)
 	{
 		var addedEvent = new GrantAdded(
 			"target-user", "Target User", "TestApp", "tenant-1", grantType, qualifier,
 			DateTimeOffset.UtcNow.AddDays(-1), "admin", DateTimeOffset.UtcNow.AddDays(-5));
-		return Grant.FromEvents($"target-user:tenant-1:{grantType}:{qualifier}", [addedEvent]);
+		return GrantAggregate.FromEvents($"target-user:tenant-1:{grantType}:{qualifier}", [addedEvent]);
 	}
 }

@@ -5,8 +5,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Delivery.Pipeline;
 
 /// <summary>

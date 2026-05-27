@@ -3,7 +3,9 @@
 
 using Excalibur.Dispatch.Transport.Google;
 
-using PubSubRetryPolicyOptions = Excalibur.Dispatch.Transport.Google.PubSubRetryPolicyOptions;
+using GoogleBackoffType = global::Excalibur.Dispatch.Transport.Google.BackoffType;
+using GoogleRetryStrategy = global::Excalibur.Dispatch.Transport.Google.RetryStrategy;
+using PubSubRetryPolicyOptions = global::Excalibur.Dispatch.Transport.Google.PubSubRetryPolicyOptions;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 
@@ -22,7 +24,7 @@ public sealed class RetryPolicyOptionsShould
 		options.DefaultStrategy.MaxRetryAttempts.ShouldBe(5);
 		options.DefaultStrategy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(5));
 		options.DefaultStrategy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(5));
-		options.DefaultStrategy.BackoffType.ShouldBe(BackoffType.Exponential);
+		options.DefaultStrategy.BackoffType.ShouldBe(GoogleBackoffType.Exponential);
 		options.DefaultStrategy.JitterEnabled.ShouldBeTrue();
 		options.DefaultStrategy.CircuitBreakerEnabled.ShouldBeFalse();
 	}
@@ -38,7 +40,7 @@ public sealed class RetryPolicyOptionsShould
 		options.TimeoutStrategy.MaxRetryAttempts.ShouldBe(3);
 		options.TimeoutStrategy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(10));
 		options.TimeoutStrategy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(2));
-		options.TimeoutStrategy.BackoffType.ShouldBe(BackoffType.Linear);
+		options.TimeoutStrategy.BackoffType.ShouldBe(GoogleBackoffType.Linear);
 		options.TimeoutStrategy.JitterEnabled.ShouldBeTrue();
 		options.TimeoutStrategy.CircuitBreakerEnabled.ShouldBeTrue();
 		options.TimeoutStrategy.CircuitBreakerThreshold.ShouldBe(3);
@@ -56,7 +58,7 @@ public sealed class RetryPolicyOptionsShould
 		options.TransientErrorStrategy.MaxRetryAttempts.ShouldBe(6);
 		options.TransientErrorStrategy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(2));
 		options.TransientErrorStrategy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
-		options.TransientErrorStrategy.BackoffType.ShouldBe(BackoffType.DecorrelatedJitter);
+		options.TransientErrorStrategy.BackoffType.ShouldBe(GoogleBackoffType.DecorrelatedJitter);
 		options.TransientErrorStrategy.JitterEnabled.ShouldBeFalse();
 		options.TransientErrorStrategy.CircuitBreakerEnabled.ShouldBeFalse();
 	}
@@ -72,7 +74,7 @@ public sealed class RetryPolicyOptionsShould
 		options.ResourceExhaustionStrategy.MaxRetryAttempts.ShouldBe(3);
 		options.ResourceExhaustionStrategy.InitialDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		options.ResourceExhaustionStrategy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(10));
-		options.ResourceExhaustionStrategy.BackoffType.ShouldBe(BackoffType.Exponential);
+		options.ResourceExhaustionStrategy.BackoffType.ShouldBe(GoogleBackoffType.Exponential);
 		options.ResourceExhaustionStrategy.JitterEnabled.ShouldBeTrue();
 		options.ResourceExhaustionStrategy.CircuitBreakerEnabled.ShouldBeTrue();
 		options.ResourceExhaustionStrategy.CircuitBreakerThreshold.ShouldBe(2);
@@ -97,16 +99,16 @@ public sealed class RetryPolicyOptionsShould
 		var options = new PubSubRetryPolicyOptions();
 
 		// Act
-		options.CustomStrategies["custom-type"] = new RetryStrategy
+		options.CustomStrategies["custom-type"] = new GoogleRetryStrategy
 		{
 			MaxRetryAttempts = 10,
-			BackoffType = BackoffType.Constant,
+			BackoffType = GoogleBackoffType.Constant,
 			InitialDelay = TimeSpan.FromSeconds(1),
 		};
 
 		// Assert
 		options.CustomStrategies.Count.ShouldBe(1);
 		options.CustomStrategies["custom-type"].MaxRetryAttempts.ShouldBe(10);
-		options.CustomStrategies["custom-type"].BackoffType.ShouldBe(BackoffType.Constant);
+		options.CustomStrategies["custom-type"].BackoffType.ShouldBe(GoogleBackoffType.Constant);
 	}
 }

@@ -3,6 +3,9 @@
 
 using Excalibur.Dispatch.Transport.Google;
 
+using GoogleRetryStrategy = global::Excalibur.Dispatch.Transport.Google.RetryStrategy;
+using GoogleBackoffType = global::Excalibur.Dispatch.Transport.Google.BackoffType;
+
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -13,13 +16,13 @@ public sealed class DeadLetterModelsShould
 	public void CreateRetryStrategyWithDefaults()
 	{
 		// Arrange & Act
-		var strategy = new RetryStrategy();
+		var strategy = new GoogleRetryStrategy();
 
 		// Assert
 		strategy.MaxRetryAttempts.ShouldBe(0);
 		strategy.InitialDelay.ShouldBe(TimeSpan.Zero);
 		strategy.MaxDelay.ShouldBe(TimeSpan.Zero);
-		strategy.BackoffType.ShouldBe(BackoffType.Constant);
+		strategy.BackoffType.ShouldBe(GoogleBackoffType.Constant);
 		strategy.JitterEnabled.ShouldBeFalse();
 		strategy.CircuitBreakerEnabled.ShouldBeFalse();
 		strategy.CircuitBreakerThreshold.ShouldBe(0);
@@ -30,12 +33,12 @@ public sealed class DeadLetterModelsShould
 	public void CreateRetryStrategyWithValues()
 	{
 		// Arrange & Act
-		var strategy = new RetryStrategy
+		var strategy = new GoogleRetryStrategy
 		{
 			MaxRetryAttempts = 5,
 			InitialDelay = TimeSpan.FromSeconds(5),
 			MaxDelay = TimeSpan.FromMinutes(5),
-			BackoffType = BackoffType.Exponential,
+			BackoffType = GoogleBackoffType.Exponential,
 			JitterEnabled = true,
 			CircuitBreakerEnabled = true,
 			CircuitBreakerThreshold = 3,
@@ -46,7 +49,7 @@ public sealed class DeadLetterModelsShould
 		strategy.MaxRetryAttempts.ShouldBe(5);
 		strategy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(5));
 		strategy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(5));
-		strategy.BackoffType.ShouldBe(BackoffType.Exponential);
+		strategy.BackoffType.ShouldBe(GoogleBackoffType.Exponential);
 		strategy.JitterEnabled.ShouldBeTrue();
 		strategy.CircuitBreakerEnabled.ShouldBeTrue();
 		strategy.CircuitBreakerThreshold.ShouldBe(3);

@@ -4,9 +4,8 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions;
 using Excalibur.Data.DataProcessing.Requests;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

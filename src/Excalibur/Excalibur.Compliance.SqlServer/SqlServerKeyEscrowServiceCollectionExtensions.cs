@@ -3,8 +3,9 @@
 
 
 using System.Diagnostics.CodeAnalysis;
-using Excalibur.Compliance.SqlServer;
+
 using Excalibur.Compliance;
+using Excalibur.Compliance.SqlServer;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;

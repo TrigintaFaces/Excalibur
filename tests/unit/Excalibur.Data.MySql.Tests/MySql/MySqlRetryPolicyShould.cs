@@ -47,7 +47,7 @@ public sealed class MySqlRetryPolicyShould
 	public async Task ResolveAsync_RetriesOnTimeout_AndEventuallySucceeds()
 	{
 		var policy = CreatePolicy(maxRetry: 2);
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<FakeDisposableConnection, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<FakeDisposableConnection, int>>();
 		var attempts = 0;
 
 		A.CallTo(() => request.ResolveAsync)
@@ -132,7 +132,7 @@ public sealed class MySqlRetryPolicyShould
 	public async Task ResolveAsync_ThrowsWhenConnectionFactoryIsNull()
 	{
 		var policy = CreatePolicy();
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<FakeDisposableConnection, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<FakeDisposableConnection, int>>();
 		await Should.ThrowAsync<ArgumentNullException>(() =>
 			policy.ResolveAsync(
 				request,
@@ -144,7 +144,7 @@ public sealed class MySqlRetryPolicyShould
 	public async Task ResolveAsync_ReturnsResultAndDisposesConnection()
 	{
 		var policy = CreatePolicy();
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<FakeDisposableConnection, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<FakeDisposableConnection, int>>();
 
 		A.CallTo(() => request.ResolveAsync)
 			.Returns(new Func<FakeDisposableConnection, Task<int>>(_ => Task.FromResult(42)));
@@ -168,7 +168,7 @@ public sealed class MySqlRetryPolicyShould
 	public async Task ResolveAsync_DisposesConnectionWhenResolverThrows()
 	{
 		var policy = CreatePolicy();
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<FakeDisposableConnection, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<FakeDisposableConnection, int>>();
 
 		A.CallTo(() => request.ResolveAsync)
 			.Returns(new Func<FakeDisposableConnection, Task<int>>(_ => throw new InvalidOperationException("boom")));
@@ -203,7 +203,7 @@ public sealed class MySqlRetryPolicyShould
 	public async Task ResolveDocumentAsync_ThrowsWhenConnectionFactoryIsNull()
 	{
 		var policy = CreatePolicy();
-		var request = A.Fake<Excalibur.Data.Abstractions.IDocumentDataRequest<FakeDisposableConnection, int>>();
+		var request = A.Fake<Excalibur.Data.IDocumentDataRequest<FakeDisposableConnection, int>>();
 		await Should.ThrowAsync<ArgumentNullException>(() =>
 			policy.ResolveDocumentAsync(
 				request,
@@ -215,7 +215,7 @@ public sealed class MySqlRetryPolicyShould
 	public async Task ResolveDocumentAsync_ReturnsResultAndDisposesConnection()
 	{
 		var policy = CreatePolicy();
-		var request = A.Fake<Excalibur.Data.Abstractions.IDocumentDataRequest<FakeDisposableConnection, int>>();
+		var request = A.Fake<Excalibur.Data.IDocumentDataRequest<FakeDisposableConnection, int>>();
 
 		A.CallTo(() => request.ResolveAsync)
 			.Returns(new Func<FakeDisposableConnection, Task<int>>(_ => Task.FromResult(7)));
@@ -239,7 +239,7 @@ public sealed class MySqlRetryPolicyShould
 	public async Task ResolveDocumentAsync_DisposesConnectionWhenResolverThrows()
 	{
 		var policy = CreatePolicy();
-		var request = A.Fake<Excalibur.Data.Abstractions.IDocumentDataRequest<FakeDisposableConnection, int>>();
+		var request = A.Fake<Excalibur.Data.IDocumentDataRequest<FakeDisposableConnection, int>>();
 
 		A.CallTo(() => request.ResolveAsync)
 			.Returns(new Func<FakeDisposableConnection, Task<int>>(_ => throw new InvalidOperationException("boom")));

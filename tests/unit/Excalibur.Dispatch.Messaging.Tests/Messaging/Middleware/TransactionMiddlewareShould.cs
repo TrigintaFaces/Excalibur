@@ -3,7 +3,7 @@
 
 using System.Transactions;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Transaction;
 using Tests.Shared.TestFakes;
@@ -11,7 +11,7 @@ using Tests.Shared.TestFakes;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using DispatchTransactionOptions = Excalibur.Dispatch.Options.Middleware.TransactionOptions;
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;

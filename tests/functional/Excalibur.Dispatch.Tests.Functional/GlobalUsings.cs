@@ -4,8 +4,8 @@
 #nullable enable
 
 // Core Dispatch namespaces
-global using Excalibur.Dispatch.Abstractions;
-global using Excalibur.Dispatch.Abstractions.Delivery;
+global using Excalibur.Dispatch;
+global using Excalibur.Dispatch.Delivery;
 global using Excalibur.Dispatch.Messaging;
 global using Excalibur.Dispatch.Routing;
 
@@ -30,9 +30,9 @@ global using Microsoft.Extensions.Logging;
 global using ContainerBuilder = DotNet.Testcontainers.Builders.ContainerBuilder;
 global using FunctionalTestBase = Tests.Shared.FunctionalTestBase;
 global using IAlbaHost = Alba.IAlbaHost;
-global using IMessageBus = Excalibur.Dispatch.Abstractions.Transport.IMessageBus;
-global using DispatchIMessageBus = Excalibur.Dispatch.Abstractions.Transport.IMessageBus;
-global using MessageProblemDetails = Excalibur.Dispatch.Abstractions.MessageProblemDetails;
+global using IMessageBus = Excalibur.Dispatch.Transport.IMessageBus;
+global using DispatchIMessageBus = Excalibur.Dispatch.Transport.IMessageBus;
+global using MessageProblemDetails = Excalibur.Dispatch.MessageProblemDetails;
 global using PubSubContainer = Testcontainers.PubSub.PubSubContainer;
 global using RoutingOptions = Excalibur.Dispatch.Options.Routing.RoutingOptions;
 global using TestTimeouts = Tests.Shared.Infrastructure.TestTimeouts;

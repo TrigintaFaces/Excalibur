@@ -272,6 +272,7 @@ public sealed class NoOpRetryPolicyShould
 	{
 		// Arrange
 		var policy = NoOpRetryPolicy.Instance;
+		using var cts = new CancellationTokenSource();
 		CancellationToken receivedToken = default;
 
 		// Act - Call with CancellationToken.None

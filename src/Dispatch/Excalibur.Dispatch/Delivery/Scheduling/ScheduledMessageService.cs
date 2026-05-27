@@ -4,13 +4,12 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Scheduling;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -166,38 +165,38 @@ public partial class ScheduledMessageService(
 				switch (behavior)
 				{
 					case MissedExecutionBehavior.ExecuteLatestMissed:
-					{
-						var missedExecutionCount = 0;
-						foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, DateTimeOffset.UtcNow))
 						{
-							missedExecutionCount++;
-						}
+							var missedExecutionCount = 0;
+							foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, DateTimeOffset.UtcNow))
+							{
+								missedExecutionCount++;
+							}
 
-						if (missedExecutionCount > 0)
-						{
-							LogFoundMissedExecutions(missedExecutionCount, item.Id);
-							await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
-						}
+							if (missedExecutionCount > 0)
+							{
+								LogFoundMissedExecutions(missedExecutionCount, item.Id);
+								await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
+							}
 
-						break;
-					}
+							break;
+						}
 
 					case MissedExecutionBehavior.ExecuteAllMissed:
-					{
-						var missedExecutionCount = 0;
-						foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, DateTimeOffset.UtcNow))
 						{
-							missedExecutionCount++;
-							await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
-						}
+							var missedExecutionCount = 0;
+							foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, DateTimeOffset.UtcNow))
+							{
+								missedExecutionCount++;
+								await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
+							}
 
-						if (missedExecutionCount > 0)
-						{
-							LogFoundMissedExecutions(missedExecutionCount, item.Id);
-						}
+							if (missedExecutionCount > 0)
+							{
+								LogFoundMissedExecutions(missedExecutionCount, item.Id);
+							}
 
-						break;
-					}
+							break;
+						}
 
 					case MissedExecutionBehavior.SkipMissed:
 					case MissedExecutionBehavior.DisableSchedule:

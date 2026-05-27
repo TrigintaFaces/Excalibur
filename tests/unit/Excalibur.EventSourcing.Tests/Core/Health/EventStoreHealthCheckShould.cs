@@ -1,4 +1,4 @@
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Health;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;

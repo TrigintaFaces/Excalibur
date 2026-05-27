@@ -20,11 +20,11 @@
 //
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using ProofOfLife.Domain;
 using ProofOfLife.Messages;

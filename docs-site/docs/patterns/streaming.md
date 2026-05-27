@@ -44,7 +44,7 @@ Dispatch provides helper types for memory-efficient streaming scenarios where da
 ### Basic Usage
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Streaming;
+using Excalibur.Dispatch.Streaming;
 
 await foreach (var chunk in stream.WithChunkInfo())
 {
@@ -167,7 +167,7 @@ public async Task WriteJsonArrayAsync(
 ### Creating Derived Types
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Streaming;
+using Excalibur.Dispatch.Streaming;
 
 // Domain-specific streaming document
 public record ImportRecord(

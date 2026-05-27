@@ -3,7 +3,7 @@
 
 using System.Text.Json.Serialization;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 using Excalibur.Data.CosmosDb;
 
 using Microsoft.Extensions.DependencyInjection;

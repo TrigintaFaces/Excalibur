@@ -3,7 +3,7 @@
 
 using System.Security.Claims;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Extension methods for accessing identity and security metadata from <see cref="IMessageMetadata.Properties"/>.

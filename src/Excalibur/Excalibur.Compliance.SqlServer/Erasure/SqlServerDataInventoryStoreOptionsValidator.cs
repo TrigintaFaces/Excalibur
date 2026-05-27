@@ -7,16 +7,16 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 
 internal sealed class SqlServerDataInventoryStoreOptionsValidator : IValidateOptions<SqlServerDataInventoryStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, SqlServerDataInventoryStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, SqlServerDataInventoryStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

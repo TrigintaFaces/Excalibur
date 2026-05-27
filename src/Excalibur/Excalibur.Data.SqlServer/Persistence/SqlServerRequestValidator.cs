@@ -4,7 +4,6 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions;
 using Excalibur.Data.SqlServer.Diagnostics;
 
 using Microsoft.Extensions.Logging;

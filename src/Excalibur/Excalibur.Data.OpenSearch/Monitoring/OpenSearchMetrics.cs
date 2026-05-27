@@ -140,7 +140,7 @@ internal sealed class OpenSearchMetrics : IDisposable
 		ThrowIfDisposed();
 
 		// Update internal state tracking
-		#pragma warning disable CA1308 // Lowercase required for state comparison
+#pragma warning disable CA1308 // Lowercase required for state comparison
 		_circuitBreakerState = toState.ToLowerInvariant() switch
 		{
 			"closed" => 0,

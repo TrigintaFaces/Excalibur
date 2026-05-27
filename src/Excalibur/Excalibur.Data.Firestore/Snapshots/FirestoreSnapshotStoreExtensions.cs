@@ -3,7 +3,7 @@
 
 
 using Excalibur.Data.Firestore.Snapshots;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace Microsoft.Extensions.DependencyInjection;
 

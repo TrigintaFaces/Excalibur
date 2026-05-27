@@ -8,7 +8,7 @@ using Amazon.Runtime;
 using Amazon.Scheduler;
 using Amazon.Scheduler.Model;
 
-using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs;
 using Excalibur.Jobs.Aws;
 
 using FakeItEasy;

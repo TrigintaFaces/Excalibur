@@ -265,7 +265,7 @@ bool hasGrant = token.HasGrant<CreateOrderActivity>();
 For provider-neutral evaluation using structured subject/action/resource:
 
 ```csharp
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 
 public class MyService
 {

@@ -4,7 +4,7 @@
 using System.Reflection;
 using System.Text.Json;
 
-using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs;
 using Excalibur.Jobs.Azure;
 using Excalibur.Jobs.Azure.Internal;
 

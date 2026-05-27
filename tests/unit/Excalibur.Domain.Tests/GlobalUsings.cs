@@ -8,6 +8,6 @@ global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Logging;
 global using Microsoft.Extensions.Options;
 
-global using Excalibur.Dispatch.Abstractions;
+global using Excalibur.Dispatch;
 global using Excalibur.Domain;
-global using Excalibur.EventSourcing.Abstractions;
+global using Excalibur.EventSourcing;

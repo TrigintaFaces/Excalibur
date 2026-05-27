@@ -4,7 +4,7 @@
 using System.Net;
 using System.Text.Json.Serialization;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Inbox.Observability;
 
 using Microsoft.Azure.Cosmos;

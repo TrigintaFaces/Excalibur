@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Dispatch.Abstractions.Messaging;
+namespace Excalibur.Dispatch.Messaging;
 
 /// <summary>
 /// Defines the contract for saga persistence services that handle loading and saving of saga state across business process boundaries. The

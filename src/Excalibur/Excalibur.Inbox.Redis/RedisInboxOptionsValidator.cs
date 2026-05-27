@@ -7,16 +7,16 @@ namespace Excalibur.Inbox.Redis;
 
 internal sealed class RedisInboxOptionsValidator : IValidateOptions<RedisInboxOptions>
 {
-    public ValidateOptionsResult Validate(string? name, RedisInboxOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, RedisInboxOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

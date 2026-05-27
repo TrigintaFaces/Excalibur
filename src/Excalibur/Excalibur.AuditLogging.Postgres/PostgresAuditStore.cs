@@ -136,7 +136,10 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 
 		return new AuditEventId
 		{
-			EventId = auditEvent.EventId, SequenceNumber = sequenceNumber, EventHash = eventHash, RecordedAt = auditEvent.Timestamp
+			EventId = auditEvent.EventId,
+			SequenceNumber = sequenceNumber,
+			EventHash = eventHash,
+			RecordedAt = auditEvent.Timestamp
 		};
 	}
 

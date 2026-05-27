@@ -3,7 +3,7 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;

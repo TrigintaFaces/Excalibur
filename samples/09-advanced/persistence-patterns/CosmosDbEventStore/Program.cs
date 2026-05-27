@@ -23,8 +23,8 @@
 
 using CosmosDbEventStoreSample.Domain.Aggregates;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.CosmosDb;
 
 using Microsoft.Azure.Cosmos;

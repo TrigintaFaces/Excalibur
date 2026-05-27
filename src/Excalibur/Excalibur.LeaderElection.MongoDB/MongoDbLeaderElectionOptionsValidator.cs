@@ -7,16 +7,16 @@ namespace Excalibur.LeaderElection.MongoDB;
 
 internal sealed class MongoDbLeaderElectionOptionsValidator : IValidateOptions<MongoDbLeaderElectionOptions>
 {
-    public ValidateOptionsResult Validate(string? name, MongoDbLeaderElectionOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, MongoDbLeaderElectionOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

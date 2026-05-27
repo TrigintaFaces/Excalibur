@@ -4,8 +4,8 @@
 using System.Buffers;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions.Encryption;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Encryption;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Messaging.Encryption;
 
 using Tests.Shared.TestTypes.Infrastructure;

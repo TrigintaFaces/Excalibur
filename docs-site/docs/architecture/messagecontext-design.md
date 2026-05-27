@@ -75,7 +75,7 @@ IDictionary<Type, object> Features   // Typed feature collection
 Three levels of feature access are available:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Features;
 
 // 1. Generic feature access
 var identity = context.GetFeature<IMessageIdentityFeature>();

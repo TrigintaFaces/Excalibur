@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Grpc;
 
 using Grpc.Net.Client;
@@ -45,6 +45,7 @@ public sealed class GrpcTransportAdapterShould : IAsyncDisposable
 	[Fact]
 	public void ThrowWhenChannelIsNull()
 	{
+		using var channel = GrpcChannel.ForAddress("https://localhost:5001");
 		Should.Throw<ArgumentNullException>(() =>
 			new GrpcTransportAdapter(null!, _fakeSender, NullLogger<GrpcTransportAdapter>.Instance));
 	}

@@ -4,8 +4,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Delivery;
-
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Excalibur.Dispatch.Delivery;

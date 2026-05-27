@@ -245,7 +245,7 @@ services.AddMessagePackSerializer();
 
 ```csharp
 using System.Buffers;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 public class CustomSerializer : ISerializer
 {

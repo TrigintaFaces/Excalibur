@@ -3,7 +3,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Options.Resilience;
 

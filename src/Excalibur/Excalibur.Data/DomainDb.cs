@@ -4,8 +4,6 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions;
-
 // Using local Data namespace now that DataAccess is merged
 namespace Excalibur.Data;
 

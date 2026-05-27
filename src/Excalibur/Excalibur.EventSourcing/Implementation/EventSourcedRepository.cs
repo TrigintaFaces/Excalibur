@@ -9,21 +9,14 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Data;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Snapshots;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-// Use Excalibur.EventSourcing.Abstractions as canonical source (AD-251-2)
-using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
-using ISnapshotManager = Excalibur.EventSourcing.Abstractions.ISnapshotManager;
-using ISnapshotStrategy = Excalibur.EventSourcing.Abstractions.ISnapshotStrategy;
-using StoredEvent = Excalibur.EventSourcing.Abstractions.StoredEvent;
-using EventNotificationContext = Excalibur.EventSourcing.Abstractions.EventNotificationContext;
-using IEventNotificationBroker = Excalibur.EventSourcing.Abstractions.IEventNotificationBroker;
+// Use Excalibur.EventSourcing as canonical source (AD-251-2)
 
 namespace Excalibur.EventSourcing.Implementation;
 
@@ -54,7 +47,7 @@ namespace Excalibur.EventSourcing.Implementation;
 /// </code>
 /// </para>
 /// </remarks>
-public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourcedRepository<TAggregate, TKey>
+public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<TAggregate, TKey>
 	where TAggregate : class, Domain.Model.IAggregateRoot<TKey>, Domain.Model.IAggregateSnapshotSupport
 	where TKey : notnull
 {
@@ -77,7 +70,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	private readonly bool _enableAutoSnapshotUpgrade;
 	private readonly int _targetSnapshotVersion;
 	private readonly Func<TKey, TAggregate> _aggregateFactory;
-	private readonly IOptionsMonitor<Abstractions.AutoSnapshotOptions>? _autoSnapshotOptions;
+	private readonly IOptionsMonitor<AutoSnapshotOptions>? _autoSnapshotOptions;
 	private readonly IEventNotificationBroker? _eventNotificationBroker;
 	private readonly TimeProvider _timeProvider;
 	private readonly ILogger? _logger;
@@ -112,7 +105,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		Func<TKey, TAggregate> aggregateFactory,
 		IOptions<UpcastingOptions>? upcastingOptions = null,
 		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
-		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
+		IOptionsMonitor<AutoSnapshotOptions>? autoSnapshotOptions = null,
 		IUpcastingPipeline? upcastingPipeline = null,
 		ISnapshotManager? snapshotManager = null,
 		ISnapshotStrategy? snapshotStrategy = null,
@@ -166,7 +159,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		IEventSerializer eventSerializer,
 		Func<TKey, TAggregate> aggregateFactory,
 		IOptions<EventSourcedRepositoryOptions> options,
-		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
+		IOptionsMonitor<AutoSnapshotOptions>? autoSnapshotOptions = null,
 		IUpcastingPipeline? upcastingPipeline = null,
 		ISnapshotManager? snapshotManager = null,
 		ISnapshotStrategy? snapshotStrategy = null,
@@ -405,7 +398,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 				var lastVersion = tracked.Version > 0 ? (long?)tracked.Version : null;
 				var lastTimestamp = tracked.Timestamp != default ? (DateTimeOffset?)tracked.Timestamp : null;
 				var eventsSinceSnapshot = (int)(aggregate.Version - (lastVersion ?? 0));
-				var decisionContext = new Abstractions.SnapshotDecisionContext(
+				var decisionContext = new SnapshotDecisionContext(
 					stringId,
 					aggregate.AggregateType,
 					aggregate.Version,
@@ -780,7 +773,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// <summary>
 	/// Throws appropriate exception if the append result indicates failure.
 	/// </summary>
-	private void ThrowIfAppendFailed(Abstractions.AppendResult result, TAggregate aggregate)
+	private void ThrowIfAppendFailed(AppendResult result, TAggregate aggregate)
 	{
 		if (result.Success)
 		{
@@ -855,7 +848,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 /// </para>
 /// </remarks>
 public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggregate, string>,
-	Abstractions.IEventSourcedRepository<TAggregate>
+	IEventSourcedRepository<TAggregate>
 	where TAggregate : class, Domain.Model.IAggregateRoot<string>, Domain.Model.IAggregateSnapshotSupport
 {
 	/// <summary>
@@ -883,7 +876,7 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 		Func<string, TAggregate> aggregateFactory,
 		IOptions<UpcastingOptions>? upcastingOptions = null,
 		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
-		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
+		IOptionsMonitor<AutoSnapshotOptions>? autoSnapshotOptions = null,
 		IUpcastingPipeline? upcastingPipeline = null,
 		ISnapshotManager? snapshotManager = null,
 		ISnapshotStrategy? snapshotStrategy = null,

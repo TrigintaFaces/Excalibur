@@ -19,8 +19,8 @@
 
 #pragma warning disable CA1303 // Sample code uses literal strings
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.InMemory;
 using Excalibur.Jobs.Jobs;

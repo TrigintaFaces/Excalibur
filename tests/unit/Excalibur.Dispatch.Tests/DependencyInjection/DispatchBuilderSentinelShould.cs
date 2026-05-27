@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Middleware.Validation;
 
-using IDispatchMiddleware = global::Excalibur.Dispatch.Abstractions.IDispatchMiddleware;
+using IDispatchMiddleware = global::Excalibur.Dispatch.IDispatchMiddleware;
 
 using ValidationBuilderExt = Excalibur.Dispatch.Validation.ValidationDispatchBuilderExtensions;
 

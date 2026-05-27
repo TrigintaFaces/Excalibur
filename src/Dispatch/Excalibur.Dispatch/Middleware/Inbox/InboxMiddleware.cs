@@ -8,20 +8,16 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 // Common namespace is deprecated - using Messaging.Abstractions instead
-using IMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
-using IMessageResult = Excalibur.Dispatch.Abstractions.IMessageResult;
 using InboxOptions = Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions;
-using MessageKinds = Excalibur.Dispatch.Abstractions.MessageKinds;
-using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+using MR = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Middleware.Inbox;
 

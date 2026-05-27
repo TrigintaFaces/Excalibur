@@ -113,6 +113,7 @@ public sealed class CdcChangeApplierShould : UnitTestBase
 		using var processor = CreateProcessor();
 		var applier = GetChangeApplier(processor);
 		var channel = Channel.CreateUnbounded<DataChangeEvent>();
+		using var cts = new CancellationTokenSource();
 
 		// Don't complete the channel — disposal should break the loop
 		await channel.Writer.WriteAsync(CreateEvent("t", [0x01], [0x01])).ConfigureAwait(false);

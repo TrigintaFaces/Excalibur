@@ -6,8 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 
 using Azure.Storage.Queues.Models;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Transport.Azure;
 
 /// <summary>

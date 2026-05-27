@@ -447,7 +447,7 @@ public class ExecuteTransfer : IDispatchAction
 `IAuditEvent` captures structured audit data:
 
 ```csharp
-using Excalibur.A3.Abstractions.Auditing;
+using Excalibur.A3.Auditing;
 
 var auditEvent = new AuditEvent(
     timestampUtc: DateTimeOffset.UtcNow,
@@ -469,7 +469,7 @@ var auditEvent = new AuditEvent(
 Implement `IAuditSink` to persist audit events to your chosen store:
 
 ```csharp
-using Excalibur.A3.Abstractions.Auditing;
+using Excalibur.A3.Auditing;
 
 public class SqlAuditSink : IAuditSink
 {

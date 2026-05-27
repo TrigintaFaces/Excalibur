@@ -4,9 +4,9 @@
 #pragma warning disable CA1861 // Prefer 'static readonly' fields - acceptable in tests
 #pragma warning disable CA2201 // Exception type is not sufficiently specific - acceptable in tests
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Routing;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Resilience;
@@ -1534,4 +1534,3 @@ public sealed class DispatchPipelineShould : UnitTestBase
 
 	#endregion Test Fixtures
 }
-

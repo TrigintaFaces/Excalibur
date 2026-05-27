@@ -4,8 +4,6 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;

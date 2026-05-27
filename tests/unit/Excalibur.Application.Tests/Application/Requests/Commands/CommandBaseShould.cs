@@ -5,7 +5,7 @@ using System.Transactions;
 
 using Excalibur.Application.Requests;
 using Excalibur.Application.Requests.Commands;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Tests.Application.Requests.Commands;
 

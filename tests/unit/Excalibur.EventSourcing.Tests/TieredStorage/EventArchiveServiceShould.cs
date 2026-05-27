@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Reflection;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.TieredStorage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
-using StoredEvent = Excalibur.EventSourcing.Abstractions.StoredEvent;
+using IEventStore = Excalibur.EventSourcing.IEventStore;
+using StoredEvent = Excalibur.EventSourcing.StoredEvent;
 
 namespace Excalibur.EventSourcing.Tests.TieredStorage;
 

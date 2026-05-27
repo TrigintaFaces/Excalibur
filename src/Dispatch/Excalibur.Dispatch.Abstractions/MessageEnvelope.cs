@@ -5,11 +5,11 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Validation;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Validation;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Unified message envelope that consolidates all message context implementations into a single, extensible type.

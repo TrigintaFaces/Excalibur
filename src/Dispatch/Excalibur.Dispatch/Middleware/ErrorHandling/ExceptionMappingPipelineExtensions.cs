@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,13 +21,13 @@ public static class ExceptionMappingPipelineExtensions
 	/// <para>
 	/// The exception mapping middleware catches all exceptions from downstream handlers
 	/// and converts them to RFC 7807 Problem Details format using the registered
-	/// <see cref="Excalibur.Dispatch.Abstractions.IExceptionMapper"/> service.
+	/// <see cref="Excalibur.Dispatch.IExceptionMapper"/> service.
 	/// </para>
 	/// <para>
-	/// This method automatically registers the <see cref="Excalibur.Dispatch.Abstractions.IExceptionMapper"/>
+	/// This method automatically registers the <see cref="Excalibur.Dispatch.IExceptionMapper"/>
 	/// service with default configuration if not already registered. The defaults include:
 	/// <list type="bullet">
-	///   <item><description>Automatic mapping of <see cref="Excalibur.Dispatch.Abstractions.ApiException"/> hierarchy using ToProblemDetails()</description></item>
+	///   <item><description>Automatic mapping of <see cref="Excalibur.Dispatch.ApiException"/> hierarchy using ToProblemDetails()</description></item>
 	///   <item><description>Default mapper returns 500 Internal Server Error for unmapped exceptions</description></item>
 	/// </list>
 	/// </para>

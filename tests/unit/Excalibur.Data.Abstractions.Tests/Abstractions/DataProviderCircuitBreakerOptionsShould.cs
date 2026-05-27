@@ -1,4 +1,4 @@
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Resilience;
 
 namespace Excalibur.Data.Tests.Abstractions;
 

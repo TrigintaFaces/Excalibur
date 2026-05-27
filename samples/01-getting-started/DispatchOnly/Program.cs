@@ -20,8 +20,8 @@
 using DispatchMinimal.Messages;
 using DispatchMinimal.Middleware;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 

@@ -9,42 +9,42 @@ namespace Excalibur.AuditLogging.Sentinel;
 /// </summary>
 internal sealed class AuditLoggingSentinelBuilder : IAuditLoggingSentinelBuilder
 {
-    private readonly SentinelExporterOptions _options;
+	private readonly SentinelExporterOptions _options;
 
-    internal AuditLoggingSentinelBuilder(SentinelExporterOptions options)
-    {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-    }
+	internal AuditLoggingSentinelBuilder(SentinelExporterOptions options)
+	{
+		_options = options ?? throw new ArgumentNullException(nameof(options));
+	}
 
-    internal string? BindConfigurationPath { get; private set; }
+	internal string? BindConfigurationPath { get; private set; }
 
-    public IAuditLoggingSentinelBuilder WorkspaceId(string workspaceId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
-        _options.WorkspaceId = workspaceId;
-        BindConfigurationPath = null;
-        return this;
-    }
+	public IAuditLoggingSentinelBuilder WorkspaceId(string workspaceId)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+		_options.WorkspaceId = workspaceId;
+		BindConfigurationPath = null;
+		return this;
+	}
 
-    public IAuditLoggingSentinelBuilder SharedKey(string sharedKey)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sharedKey);
-        _options.SharedKey = sharedKey;
-        BindConfigurationPath = null;
-        return this;
-    }
+	public IAuditLoggingSentinelBuilder SharedKey(string sharedKey)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(sharedKey);
+		_options.SharedKey = sharedKey;
+		BindConfigurationPath = null;
+		return this;
+	}
 
-    public IAuditLoggingSentinelBuilder LogType(string logType)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(logType);
-        _options.LogType = logType;
-        return this;
-    }
+	public IAuditLoggingSentinelBuilder LogType(string logType)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(logType);
+		_options.LogType = logType;
+		return this;
+	}
 
-    public IAuditLoggingSentinelBuilder BindConfiguration(string sectionPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
-        BindConfigurationPath = sectionPath;
-        return this;
-    }
+	public IAuditLoggingSentinelBuilder BindConfiguration(string sectionPath)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
+		BindConfigurationPath = sectionPath;
+		return this;
+	}
 }

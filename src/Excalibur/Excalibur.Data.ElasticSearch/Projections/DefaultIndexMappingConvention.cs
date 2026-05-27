@@ -27,18 +27,18 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </remarks>
 public sealed class DefaultIndexMappingConvention : IIndexMappingConvention
 {
-    /// <summary>
-    /// Gets the singleton instance of the default convention.
-    /// </summary>
-    public static DefaultIndexMappingConvention Instance { get; } = new();
+	/// <summary>
+	/// Gets the singleton instance of the default convention.
+	/// </summary>
+	public static DefaultIndexMappingConvention Instance { get; } = new();
 
-    /// <inheritdoc/>
-    public Properties ConfigureMappings(Type projectionType, Properties inferredProperties)
-    {
-        ArgumentNullException.ThrowIfNull(projectionType);
-        ArgumentNullException.ThrowIfNull(inferredProperties);
+	/// <inheritdoc/>
+	public Properties ConfigureMappings(Type projectionType, Properties inferredProperties)
+	{
+		ArgumentNullException.ThrowIfNull(projectionType);
+		ArgumentNullException.ThrowIfNull(inferredProperties);
 
-        // Default convention: accept the inferred mappings as-is
-        return inferredProperties;
-    }
+		// Default convention: accept the inferred mappings as-is
+		return inferredProperties;
+	}
 }

@@ -3,8 +3,8 @@
 
 #pragma warning disable IL2026, IL3050 // Suppress for test - RequiresUnreferencedCode/RequiresDynamicCode
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Security;
 using Excalibur.Security.EventStores;
 

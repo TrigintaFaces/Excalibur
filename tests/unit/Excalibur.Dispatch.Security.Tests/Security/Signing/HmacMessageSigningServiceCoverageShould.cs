@@ -30,6 +30,7 @@ public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
             DefaultKeyId = "default-key",
             MaxSignatureAgeMinutes = 5,
         });
+        using var sut = new HmacMessageSigningService(options, _keyProvider, NullLogger<HmacMessageSigningService>.Instance);
 
         _sut = new HmacMessageSigningService(
             options,

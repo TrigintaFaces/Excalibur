@@ -3,11 +3,10 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Exceptions;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Options.Delivery;
 
 using Microsoft.Extensions.Logging;

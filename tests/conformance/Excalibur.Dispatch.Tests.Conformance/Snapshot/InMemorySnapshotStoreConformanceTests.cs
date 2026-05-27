@@ -2,7 +2,7 @@
 // Licensed under the Excalibur License 1.0
 
 using Excalibur.Data.InMemory.Snapshots;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging.Abstractions;
 

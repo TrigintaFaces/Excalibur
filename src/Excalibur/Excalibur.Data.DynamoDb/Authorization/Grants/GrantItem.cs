@@ -5,7 +5,7 @@ using System.Globalization;
 
 using Amazon.DynamoDBv2.Model;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 
 namespace Excalibur.Data.DynamoDb.Authorization;
 

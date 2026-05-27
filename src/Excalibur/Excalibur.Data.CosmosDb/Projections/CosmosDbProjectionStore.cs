@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 
 using Excalibur.Data.CosmosDb.Diagnostics;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;

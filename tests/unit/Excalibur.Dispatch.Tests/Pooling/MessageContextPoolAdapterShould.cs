@@ -67,7 +67,7 @@ public sealed class MessageContextPoolAdapterShould
 	{
 		// Arrange
 		var adapter = new MessageContextPoolAdapter(CreateServiceProvider(), CreateOptions());
-		var message = A.Fake<Excalibur.Dispatch.Abstractions.IDispatchMessage>();
+		var message = A.Fake<Excalibur.Dispatch.IDispatchMessage>();
 
 		// Act
 		var context = adapter.Rent(message);
@@ -81,7 +81,7 @@ public sealed class MessageContextPoolAdapterShould
 	{
 		// Arrange
 		var adapter = new MessageContextPoolAdapter(CreateServiceProvider(), CreateOptions());
-		var fakeContext = A.Fake<Excalibur.Dispatch.Abstractions.IMessageContext>();
+		var fakeContext = A.Fake<Excalibur.Dispatch.IMessageContext>();
 
 		// Act & Assert - should not throw for non-poolable context
 		adapter.ReturnToPool(fakeContext);
@@ -169,7 +169,7 @@ public sealed class MessageContextPoolAdapterShould
 		var adapter = new MessageContextPoolAdapter(
 			CreateServiceProvider(),
 			CreateOptions(trackMetrics: true));
-		var message = A.Fake<Excalibur.Dispatch.Abstractions.IDispatchMessage>();
+		var message = A.Fake<Excalibur.Dispatch.IDispatchMessage>();
 
 		// Act
 		_ = adapter.Rent(message);

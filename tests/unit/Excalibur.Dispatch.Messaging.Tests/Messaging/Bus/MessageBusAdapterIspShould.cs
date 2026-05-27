@@ -3,8 +3,8 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Messaging.Tests.Messaging.Bus;
 

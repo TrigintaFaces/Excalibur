@@ -9,13 +9,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using MessageProblemDetails = Excalibur.Dispatch.Abstractions.MessageProblemDetails;
+using MessageProblemDetails = Excalibur.Dispatch.MessageProblemDetails;
 
 namespace Excalibur.Security;
 

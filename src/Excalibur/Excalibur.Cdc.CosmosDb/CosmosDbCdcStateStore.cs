@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 
 using Excalibur.Data.CosmosDb.Diagnostics;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;

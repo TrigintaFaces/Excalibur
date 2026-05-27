@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Timeout;
 

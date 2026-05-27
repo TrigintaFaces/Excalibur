@@ -3,7 +3,7 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.EventSourcing.InMemory;
 
@@ -151,7 +151,7 @@ public sealed class ObservabilityIntegrationShould : IntegrationTestBase
 		_ = services.AddLogging();
 		_ = services.AddInMemoryEventStore();
 		await using var provider = services.BuildServiceProvider();
-		var eventStore = provider.GetRequiredKeyedService<Excalibur.EventSourcing.Abstractions.IEventStore>("default");
+		var eventStore = provider.GetRequiredKeyedService<Excalibur.EventSourcing.IEventStore>("default");
 
 		var aggregateId = Guid.NewGuid().ToString();
 		var aggregateType = "TestAggregate";

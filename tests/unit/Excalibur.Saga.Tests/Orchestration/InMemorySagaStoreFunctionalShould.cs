@@ -3,7 +3,7 @@
 
 using Excalibur.Saga.Orchestration;
 
-using AbstractSagaState = Excalibur.Dispatch.Abstractions.Messaging.SagaState;
+using AbstractSagaState = Excalibur.Dispatch.Messaging.SagaState;
 
 namespace Excalibur.Saga.Tests.Orchestration;
 

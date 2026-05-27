@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.SqlServer;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 
@@ -102,10 +102,10 @@ public static class SqlServerProjectionStoreExtensions
 	}
 
 	/// <summary>
-	/// Adds the SQL Server projection store using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// Adds the SQL Server projection store using a typed <see cref="Excalibur.Data.IDb"/> marker for connection resolution.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type to store.</typeparam>
-	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.IDb"/>.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configureOptions">Optional action to further configure projection store options.</param>
 	/// <returns>The service collection for chaining.</returns>
@@ -120,7 +120,7 @@ public static class SqlServerProjectionStoreExtensions
 		this IServiceCollection services,
 		Action<SqlServerProjectionStoreOptions>? configureOptions = null)
 		where TProjection : class
-		where TDb : class, Excalibur.Data.Abstractions.IDb
+		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

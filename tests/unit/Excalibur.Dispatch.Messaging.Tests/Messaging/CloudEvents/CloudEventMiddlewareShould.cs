@@ -3,15 +3,15 @@
 
 using CloudNative.CloudEvents;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Options.CloudEvents;
 using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Tests.Messaging.CloudEvents;

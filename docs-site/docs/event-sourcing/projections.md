@@ -849,7 +849,7 @@ For most use cases, `IProjectionStore<T>` is all you need. Graduate to a custom 
 Instead of constructing filter dictionaries with magic string operators, use `ProjectionFilterBuilder` for compile-time safety:
 
 ```csharp
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 var filters = new ProjectionFilterBuilder()
     .Where("CustomerId").EqualTo(customerId)
@@ -1037,7 +1037,7 @@ if (projectionStore is IVersionedProjectionStore<OrderSummary> versionedStore)
 | **Increment** | Version increments by 1 on each update |
 | **Type** | `long` (numeric, not HTTP ETag strings) |
 | **Initial insert** | Pass `expectedVersion: null` to skip the concurrency check |
-| **Mismatch** | Throws `ConcurrencyException` (from `Excalibur.Data.Abstractions`) |
+| **Mismatch** | Throws `ConcurrencyException` (namespace `Excalibur.Data`, package `Excalibur.Data.Abstractions`) |
 
 **`VersionedProjection<T>`** wraps the projection and its version:
 

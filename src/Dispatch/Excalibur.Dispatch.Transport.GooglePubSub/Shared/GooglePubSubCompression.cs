@@ -4,7 +4,7 @@ using System.IO.Compression;
 
 using Snappier;
 
-using TransportCompressionAlgorithm = Excalibur.Dispatch.Abstractions.Serialization.CompressionAlgorithm;
+using TransportCompressionAlgorithm = Excalibur.Dispatch.Serialization.CompressionAlgorithm;
 
 namespace Excalibur.Dispatch.Transport.Google;
 

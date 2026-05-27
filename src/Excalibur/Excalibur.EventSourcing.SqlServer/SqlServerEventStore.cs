@@ -5,13 +5,12 @@ using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Observability;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Data;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Observability;
 using Excalibur.EventSourcing.SqlServer.Requests;
 
@@ -316,9 +315,9 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 		{
 			version++;
 			var eventData = SerializeEventWithEnvelopeSupport(@event, aggregateId, aggregateType, version);
-			#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			var metadata = @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null;
-			#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 			var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
 
 			var position = await connection.ResolveAsync(
@@ -475,15 +474,15 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 
 		if (_internalSerializer is null)
 		{
-			#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			return SerializeEvent(@event);
-			#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 		}
 
 		// Create envelope with event data
-		#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 		var eventBytes = SerializeEvent(@event);
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 
 		var envelope = new EventEnvelope
 		{

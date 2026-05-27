@@ -36,7 +36,7 @@ One metapackage bundles Dispatch + Domain + EventSourcing + SqlServer.
 Domain events are immutable records that describe what happened. Extend the `DomainEvent` base record — it auto-generates `EventId`, `OccurredAt`, `Version`, and `EventType` for you.
 
 ```csharp title="Domain/Events.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace OrderSystem.Domain;
 
@@ -77,7 +77,7 @@ public record OrderLineData(string ProductId, string ProductName, decimal Price,
 The aggregate is the consistency boundary. It validates commands, raises events, and applies them to update internal state via pattern matching.
 
 ```csharp title="Domain/OrderAggregate.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 namespace OrderSystem.Domain;
@@ -202,8 +202,8 @@ public class OrderSummary
 Handlers load the aggregate from the repository, call command methods, and save.
 
 ```csharp title="Handlers/OrderCommandHandlers.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 using OrderSystem.Domain;
 
 namespace OrderSystem.Handlers;
@@ -241,7 +241,7 @@ public class CancelOrderHandler(
 ```
 
 ```csharp title="Messages/OrderActions.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using OrderSystem.Domain;
 using OrderSystem.ReadModels;
 
@@ -264,8 +264,8 @@ public record GetCustomerOrdersQuery(string CustomerId) : IDispatchAction<IReadO
 Query handlers read from the projection store — a denormalized, query-optimized view of the data.
 
 ```csharp title="Handlers/OrderQueryHandlers.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 using OrderSystem.ReadModels;
 
 namespace OrderSystem.Handlers;
@@ -305,8 +305,8 @@ This tutorial uses `IEventHandler<T>` for projections, which processes events th
 :::
 
 ```csharp title="Projections/OrderSummaryProjection.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 using OrderSystem.Domain;
 using OrderSystem.ReadModels;
 
@@ -369,7 +369,7 @@ public class OrderSummaryProjection(IProjectionStore<OrderSummary> store) :
 ## Step 8: Wire It Up
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 using OrderSystem.Domain;
 using OrderSystem.Handlers;

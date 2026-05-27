@@ -5,7 +5,7 @@
 using System.Globalization;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Domain.Exceptions;
 

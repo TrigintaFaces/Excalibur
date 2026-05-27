@@ -6,11 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
@@ -18,11 +13,12 @@ using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Routing;
 using Excalibur.Dispatch.Routing.Builder;
+using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+using MR = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Delivery;
 
@@ -178,32 +174,32 @@ internal sealed class Dispatcher(
 		var dispatchInfo = GetMessageDispatchInfo(messageType);
 
 		if (_directLocalNoRouterFastPath &&
-		    dispatchInfo.CanBypassMiddleware &&
-		    RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
+			dispatchInfo.CanBypassMiddleware &&
+			RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
 		{
 			if (dispatchInfo.IsAction)
 			{
 				var action = (IDispatchAction)message;
 				if (dispatchInfo.DirectLocalNoResponseEligible &&
-				    TryDispatchUltraLocalNoResponseFast(
-					    message,
-					    action,
-					    context,
-					    dispatchInfo.DirectLocalNoResponseInvoker!,
-					    out var promotedTask,
-					    cancellationToken))
+					TryDispatchUltraLocalNoResponseFast(
+						message,
+						action,
+						context,
+						dispatchInfo.DirectLocalNoResponseInvoker!,
+						out var promotedTask,
+						cancellationToken))
 				{
 					return promotedTask;
 				}
 
 				if (dispatchInfo.DirectLocalTypedEligible &&
-				    TryDispatchUltraLocalUntypedResponseFast(
-					    message,
-					    action,
-					    context,
-					    dispatchInfo.DirectLocalWithResponseInvoker!,
-					    out promotedTask,
-					    cancellationToken))
+					TryDispatchUltraLocalUntypedResponseFast(
+						message,
+						action,
+						context,
+						dispatchInfo.DirectLocalWithResponseInvoker!,
+						out promotedTask,
+						cancellationToken))
 				{
 					return promotedTask;
 				}
@@ -235,33 +231,33 @@ internal sealed class Dispatcher(
 		}
 
 		if (_directLocalActionPathEnabled &&
-		    localMessageBus is not null &&
-		    dispatchInfo.CanBypassMiddleware &&
-		    IsLocalRoute(context))
+			localMessageBus is not null &&
+			dispatchInfo.CanBypassMiddleware &&
+			IsLocalRoute(context))
 		{
 			if (dispatchInfo.IsAction)
 			{
 				var action = (IDispatchAction)message;
 				if (dispatchInfo.DirectLocalNoResponseEligible &&
-				    TryDispatchUltraLocalNoResponseFast(
-					    message,
-					    action,
-					    context,
-					    dispatchInfo.DirectLocalNoResponseInvoker!,
-					    out var promotedTask,
-					    cancellationToken))
+					TryDispatchUltraLocalNoResponseFast(
+						message,
+						action,
+						context,
+						dispatchInfo.DirectLocalNoResponseInvoker!,
+						out var promotedTask,
+						cancellationToken))
 				{
 					return promotedTask;
 				}
 
 				if (dispatchInfo.DirectLocalTypedEligible &&
-				    TryDispatchUltraLocalUntypedResponseFast(
-					    message,
-					    action,
-					    context,
-					    dispatchInfo.DirectLocalWithResponseInvoker!,
-					    out promotedTask,
-					    cancellationToken))
+					TryDispatchUltraLocalUntypedResponseFast(
+						message,
+						action,
+						context,
+						dispatchInfo.DirectLocalWithResponseInvoker!,
+						out promotedTask,
+						cancellationToken))
 				{
 					return promotedTask;
 				}
@@ -329,31 +325,31 @@ internal sealed class Dispatcher(
 			var dispatchInfo = GetMessageDispatchInfo(messageType);
 
 			if (dispatchInfo.CanBypassMiddleware &&
-			    RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
+				RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
 			{
 				if (dispatchInfo.IsAction)
 				{
 					var action = (IDispatchAction)message;
 					if (dispatchInfo.DirectLocalNoResponseEligible &&
-					    TryDispatchUltraLocalNoResponseFast(
-						    message,
-						    action,
-						    context,
-						    dispatchInfo.DirectLocalNoResponseInvoker!,
-						    out var promotedTask,
-						    cancellationToken))
+						TryDispatchUltraLocalNoResponseFast(
+							message,
+							action,
+							context,
+							dispatchInfo.DirectLocalNoResponseInvoker!,
+							out var promotedTask,
+							cancellationToken))
 					{
 						return promotedTask;
 					}
 
 					if (dispatchInfo.DirectLocalTypedEligible &&
-					    TryDispatchUltraLocalUntypedResponseFast(
-						    message,
-						    action,
-						    context,
-						    dispatchInfo.DirectLocalWithResponseInvoker!,
-						    out promotedTask,
-						    cancellationToken))
+						TryDispatchUltraLocalUntypedResponseFast(
+							message,
+							action,
+							context,
+							dispatchInfo.DirectLocalWithResponseInvoker!,
+							out promotedTask,
+							cancellationToken))
 					{
 						return promotedTask;
 					}
@@ -402,33 +398,33 @@ internal sealed class Dispatcher(
 		}
 
 		if (_directLocalActionPathEnabled &&
-		    localMessageBus is not null &&
-		    routingDispatchInfo.CanBypassMiddleware &&
-		    IsLocalRoute(context))
+			localMessageBus is not null &&
+			routingDispatchInfo.CanBypassMiddleware &&
+			IsLocalRoute(context))
 		{
 			if (routingDispatchInfo.IsAction)
 			{
 				var action = (IDispatchAction)message;
 				if (routingDispatchInfo.DirectLocalNoResponseEligible &&
-				    TryDispatchUltraLocalNoResponseFast(
-					    message,
-					    action,
-					    context,
-					    routingDispatchInfo.DirectLocalNoResponseInvoker!,
-					    out var promotedTask,
-					    cancellationToken))
+					TryDispatchUltraLocalNoResponseFast(
+						message,
+						action,
+						context,
+						routingDispatchInfo.DirectLocalNoResponseInvoker!,
+						out var promotedTask,
+						cancellationToken))
 				{
 					return promotedTask;
 				}
 
 				if (routingDispatchInfo.DirectLocalTypedEligible &&
-				    TryDispatchUltraLocalUntypedResponseFast(
-					    message,
-					    action,
-					    context,
-					    routingDispatchInfo.DirectLocalWithResponseInvoker!,
-					    out promotedTask,
-					    cancellationToken))
+					TryDispatchUltraLocalUntypedResponseFast(
+						message,
+						action,
+						context,
+						routingDispatchInfo.DirectLocalWithResponseInvoker!,
+						out promotedTask,
+						cancellationToken))
 				{
 					return promotedTask;
 				}
@@ -492,16 +488,16 @@ internal sealed class Dispatcher(
 		var canBypass = dispatchInfo.CanBypassMiddleware;
 
 		if (_directLocalNoRouterFastPath &&
-		    canBypass &&
-		    RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
+			canBypass &&
+			RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
 		{
 			if (dispatchInfo.DirectLocalTypedEligible &&
-			    TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
-				    message,
-				    context,
-				    dispatchInfo.DirectLocalWithResponseInvoker!,
-				    out var promotedTask,
-				    cancellationToken))
+				TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
+					message,
+					context,
+					dispatchInfo.DirectLocalWithResponseInvoker!,
+					out var promotedTask,
+					cancellationToken))
 			{
 				return promotedTask;
 			}
@@ -529,12 +525,12 @@ internal sealed class Dispatcher(
 			}
 
 			if (dispatchInfo.DirectLocalTypedEligible &&
-			    TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
-				    message,
-				    context,
-				    dispatchInfo.DirectLocalWithResponseInvoker!,
-				    out var promotedTask,
-				    cancellationToken))
+				TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
+					message,
+					context,
+					dispatchInfo.DirectLocalWithResponseInvoker!,
+					out var promotedTask,
+					cancellationToken))
 			{
 				return promotedTask;
 			}
@@ -570,10 +566,10 @@ internal sealed class Dispatcher(
 		}
 
 		if (localMessageBus!.TryInvokeUltraLocalNoResponse(
-			    message,
-			    cancellationToken,
-			    out var ultraLocalInvocation,
-			    out var requiresContext))
+				message,
+				cancellationToken,
+				out var ultraLocalInvocation,
+				out var requiresContext))
 		{
 			return requiresContext
 				? ValueTask.FromException(new InvalidOperationException(
@@ -584,12 +580,12 @@ internal sealed class Dispatcher(
 		}
 
 		if (requiresContext &&
-		    TryInvokeDirectNoResponseWithLazyContext(
-			    message,
-			    cancellationToken,
-			    out var contextBoundInvocation,
-			    out var rentedContext,
-			    out var contextFactory))
+			TryInvokeDirectNoResponseWithLazyContext(
+				message,
+				cancellationToken,
+				out var contextBoundInvocation,
+				out var rentedContext,
+				out var contextFactory))
 		{
 			if (contextBoundInvocation.IsCompletedSuccessfully)
 			{
@@ -630,10 +626,10 @@ internal sealed class Dispatcher(
 		}
 
 		if (localMessageBus!.TryInvokeUltraLocal(
-			    message,
-			    cancellationToken,
-			    out var ultraLocalInvocation,
-			    out var requiresContext))
+				message,
+				cancellationToken,
+				out var ultraLocalInvocation,
+				out var requiresContext))
 		{
 			if (!requiresContext)
 			{
@@ -647,12 +643,12 @@ internal sealed class Dispatcher(
 		}
 
 		if (requiresContext &&
-		    TryInvokeDirectWithLazyContext(
-			    message,
-			    cancellationToken,
-			    out var contextBoundInvocation,
-			    out var rentedContext,
-			    out var contextFactory))
+			TryInvokeDirectWithLazyContext(
+				message,
+				cancellationToken,
+				out var contextBoundInvocation,
+				out var rentedContext,
+				out var contextFactory))
 		{
 			if (contextBoundInvocation.IsCompletedSuccessfully)
 			{
@@ -693,32 +689,32 @@ internal sealed class Dispatcher(
 		var canBypass = dispatchInfo.CanBypassMiddleware;
 
 		if (_directLocalActionPathEnabled &&
-		    localMessageBus is not null &&
-		    canBypass &&
-		    dispatchInfo.IsAction &&
-		    message is IDispatchAction action &&
-		    IsLocalRoute(context))
+			localMessageBus is not null &&
+			canBypass &&
+			dispatchInfo.IsAction &&
+			message is IDispatchAction action &&
+			IsLocalRoute(context))
 		{
 			if (dispatchInfo.DirectLocalNoResponseEligible &&
-			    TryDispatchUltraLocalNoResponseFast(
-				    message,
-				    action,
-				    context,
-				    dispatchInfo.DirectLocalNoResponseInvoker!,
-				    out var promotedTask,
-				    cancellationToken))
+				TryDispatchUltraLocalNoResponseFast(
+					message,
+					action,
+					context,
+					dispatchInfo.DirectLocalNoResponseInvoker!,
+					out var promotedTask,
+					cancellationToken))
 			{
 				return await promotedTask.ConfigureAwait(false);
 			}
 
 			if (dispatchInfo.DirectLocalTypedEligible &&
-			    TryDispatchUltraLocalUntypedResponseFast(
-				    message,
-				    action,
-				    context,
-				    dispatchInfo.DirectLocalWithResponseInvoker!,
-				    out promotedTask,
-				    cancellationToken))
+				TryDispatchUltraLocalUntypedResponseFast(
+					message,
+					action,
+					context,
+					dispatchInfo.DirectLocalWithResponseInvoker!,
+					out promotedTask,
+					cancellationToken))
 			{
 				return await promotedTask.ConfigureAwait(false);
 			}
@@ -733,11 +729,11 @@ internal sealed class Dispatcher(
 		}
 
 		if (_directLocalActionPathEnabled &&
-		    localMessageBus is not null &&
-		    canBypass &&
-		    dispatchInfo.IsEvent &&
-		    message is IDispatchEvent evt &&
-		    IsLocalRoute(context))
+			localMessageBus is not null &&
+			canBypass &&
+			dispatchInfo.IsEvent &&
+			message is IDispatchEvent evt &&
+			IsLocalRoute(context))
 		{
 			return await DispatchDirectLocalEventAsync(message, evt, context, cancellationToken).ConfigureAwait(false);
 		}
@@ -770,12 +766,12 @@ internal sealed class Dispatcher(
 			}
 
 			if (dispatchInfo.DirectLocalTypedEligible &&
-			    TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
-				    message,
-				    context,
-				    dispatchInfo.DirectLocalWithResponseInvoker!,
-				    out var promotedTask,
-				    cancellationToken))
+				TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
+					message,
+					context,
+					dispatchInfo.DirectLocalWithResponseInvoker!,
+					out var promotedTask,
+					cancellationToken))
 			{
 				return await promotedTask.ConfigureAwait(false);
 			}
@@ -891,7 +887,7 @@ internal sealed class Dispatcher(
 	private bool CanUseUltraLocalPath()
 	{
 		return _directLocalActionPathEnabled &&
-		       localMessageBus is not null;
+			   localMessageBus is not null;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2070,10 +2066,10 @@ internal sealed class Dispatcher(
 
 		var value = ResolveResponseValue<TResponse>(context);
 		if (result.Succeeded &&
-		    result.ErrorMessage is null &&
-		    result.ProblemDetails is null &&
-		    result.ValidationResult is null &&
-		    result.AuthorizationResult is null)
+			result.ErrorMessage is null &&
+			result.ProblemDetails is null &&
+			result.ValidationResult is null &&
+			result.AuthorizationResult is null)
 		{
 			return new SimpleSuccessMessageResultOfT<TResponse>(value, cacheHit: result.CacheHit);
 		}
@@ -2172,8 +2168,8 @@ internal sealed class Dispatcher(
 	private MessageDispatchInfo GetMessageDispatchInfo(Type messageType)
 	{
 		if (ReferenceEquals(s_cachedDispatchInfoDispatcher, this) &&
-		    ReferenceEquals(s_cachedDispatchInfoType, messageType) &&
-		    s_cachedDispatchInfoInitialized)
+			ReferenceEquals(s_cachedDispatchInfoType, messageType) &&
+			s_cachedDispatchInfoInitialized)
 		{
 			return s_cachedDispatchInfo;
 		}
@@ -2183,7 +2179,7 @@ internal sealed class Dispatcher(
 			static (type, state) =>
 			{
 				var canBypass = state._canBypassAllMiddleware ||
-				                (state._concreteMiddlewareInvoker?.CanBypassFor(type) ?? false);
+								(state._concreteMiddlewareInvoker?.CanBypassFor(type) ?? false);
 
 				var isAction = typeof(IDispatchAction).IsAssignableFrom(type);
 				var isEvent = typeof(IDispatchEvent).IsAssignableFrom(type);
@@ -2194,13 +2190,13 @@ internal sealed class Dispatcher(
 				Func<IDispatchAction, CancellationToken, ValueTask<object?>>? directLocalWithResponseInvoker = null;
 
 				if (isAction &&
-				    state._directLocalActionPathEnabled &&
-				    state.TryGetDirectLocalFastPath(
-					    type,
-					    out var directExpectsResponse,
-					    out var directRequiresContext,
-					    out var resolvedNoResponseInvoker,
-					    out var resolvedWithResponseInvoker))
+					state._directLocalActionPathEnabled &&
+					state.TryGetDirectLocalFastPath(
+						type,
+						out var directExpectsResponse,
+						out var directRequiresContext,
+						out var resolvedNoResponseInvoker,
+						out var resolvedWithResponseInvoker))
 				{
 					expectsResponse = directExpectsResponse;
 					if (!directRequiresContext)
@@ -2410,11 +2406,11 @@ internal sealed class Dispatcher(
 
 		// Resolve the streaming handler from DI
 		var handler = serviceProvider.GetService<IStreamingDocumentHandler<TDocument, TOutput>>()
-		              ?? throw new InvalidOperationException(
-			              string.Format(
-				              CultureInfo.CurrentCulture,
-				              Resources.Dispatcher_HandlerNotFoundFormat,
-				              typeof(IStreamingDocumentHandler<TDocument, TOutput>).Name));
+					  ?? throw new InvalidOperationException(
+						  string.Format(
+							  CultureInfo.CurrentCulture,
+							  Resources.Dispatcher_HandlerNotFoundFormat,
+							  typeof(IStreamingDocumentHandler<TDocument, TOutput>).Name));
 
 		// Set ambient context
 		var previous = PushAmbientContext(context);
@@ -2439,8 +2435,8 @@ internal sealed class Dispatcher(
 
 			// Stream results from handler
 			await foreach (var item in handler.HandleAsync(document, cancellationToken)
-				               .WithCancellation(cancellationToken)
-				               .ConfigureAwait(false))
+							   .WithCancellation(cancellationToken)
+							   .ConfigureAwait(false))
 			{
 				yield return item;
 			}
@@ -2479,11 +2475,11 @@ internal sealed class Dispatcher(
 
 		// Resolve the stream consumer handler from DI
 		var handler = serviceProvider.GetService<IStreamConsumerHandler<TDocument>>()
-		              ?? throw new InvalidOperationException(
-			              string.Format(
-				              CultureInfo.CurrentCulture,
-				              Resources.Dispatcher_HandlerNotFoundFormat,
-				              typeof(IStreamConsumerHandler<TDocument>).Name));
+					  ?? throw new InvalidOperationException(
+						  string.Format(
+							  CultureInfo.CurrentCulture,
+							  Resources.Dispatcher_HandlerNotFoundFormat,
+							  typeof(IStreamConsumerHandler<TDocument>).Name));
 
 		// Set ambient context
 		var previous = PushAmbientContext(context);
@@ -2540,11 +2536,11 @@ internal sealed class Dispatcher(
 
 		// Resolve the transform handler from DI
 		var handler = serviceProvider.GetService<IStreamTransformHandler<TInput, TOutput>>()
-		              ?? throw new InvalidOperationException(
-			              string.Format(
-				              CultureInfo.CurrentCulture,
-				              Resources.Dispatcher_HandlerNotFoundFormat,
-				              typeof(IStreamTransformHandler<TInput, TOutput>).Name));
+					  ?? throw new InvalidOperationException(
+						  string.Format(
+							  CultureInfo.CurrentCulture,
+							  Resources.Dispatcher_HandlerNotFoundFormat,
+							  typeof(IStreamTransformHandler<TInput, TOutput>).Name));
 
 		// Set ambient context
 		var previous = PushAmbientContext(context);
@@ -2565,8 +2561,8 @@ internal sealed class Dispatcher(
 
 			// Stream transformed results from handler
 			await foreach (var item in handler.HandleAsync(input, cancellationToken)
-				               .WithCancellation(cancellationToken)
-				               .ConfigureAwait(false))
+							   .WithCancellation(cancellationToken)
+							   .ConfigureAwait(false))
 			{
 				yield return item;
 			}
@@ -2608,11 +2604,11 @@ internal sealed class Dispatcher(
 
 		// Resolve the progress handler from DI
 		var handler = serviceProvider.GetService<IProgressDocumentHandler<TDocument>>()
-		              ?? throw new InvalidOperationException(
-			              string.Format(
-				              CultureInfo.CurrentCulture,
-				              Resources.Dispatcher_HandlerNotFoundFormat,
-				              typeof(IProgressDocumentHandler<TDocument>).Name));
+					  ?? throw new InvalidOperationException(
+						  string.Format(
+							  CultureInfo.CurrentCulture,
+							  Resources.Dispatcher_HandlerNotFoundFormat,
+							  typeof(IProgressDocumentHandler<TDocument>).Name));
 
 		// Set ambient context
 		var previous = PushAmbientContext(context);

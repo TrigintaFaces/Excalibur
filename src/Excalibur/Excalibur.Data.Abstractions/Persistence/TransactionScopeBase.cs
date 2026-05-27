@@ -4,7 +4,7 @@
 
 using System.Data;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Provides a base implementation for <see cref="ITransactionScope"/> and <see cref="ITransactionScopeCallbacks"/>

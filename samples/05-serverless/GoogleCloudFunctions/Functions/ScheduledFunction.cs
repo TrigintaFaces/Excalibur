@@ -5,7 +5,7 @@ using System.Text.Json;
 
 using CloudNative.CloudEvents;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
 using Google.Cloud.Functions.Framework;

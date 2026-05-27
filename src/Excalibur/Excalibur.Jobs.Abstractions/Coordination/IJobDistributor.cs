@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-namespace Excalibur.Jobs.Abstractions.Coordination;
+namespace Excalibur.Jobs.Coordination;
 
 /// <summary>
 /// Distributes jobs to available instances and tracks completion.

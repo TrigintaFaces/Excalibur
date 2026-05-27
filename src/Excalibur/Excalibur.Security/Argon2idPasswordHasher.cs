@@ -5,8 +5,6 @@
 
 using System.Security.Cryptography;
 
-using Excalibur.Security.Abstractions;
-
 using Konscious.Security.Cryptography;
 
 using Microsoft.Extensions.Options;

@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-using IBindingConfigBuilder = Excalibur.Dispatch.Abstractions.Configuration.ITransportBindingBuilder;
+using IBindingConfigBuilder = Excalibur.Dispatch.Configuration.ITransportBindingBuilder;
 using Transport = Excalibur.Dispatch.Configuration.Transport;
 
 namespace Microsoft.Extensions.DependencyInjection;

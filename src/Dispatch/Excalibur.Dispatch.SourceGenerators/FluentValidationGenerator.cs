@@ -102,7 +102,7 @@ public sealed class FluentValidationGenerator : IIncrementalGenerator
 		foreach (var iface in typeSymbol.AllInterfaces)
 		{
 			if (iface.Name == "IDispatchMessage" &&
-				iface.ContainingNamespace.ToDisplayString() == "Excalibur.Dispatch.Abstractions")
+				iface.ContainingNamespace.ToDisplayString() == "Excalibur.Dispatch")
 			{
 				return true;
 			}
@@ -152,8 +152,8 @@ public sealed class FluentValidationGenerator : IIncrementalGenerator
 		sb.AppendLine("        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool> _hasValidatorsCache = new();");
 		sb.AppendLine();
 		sb.AppendLine("        /// <inheritdoc />");
-		sb.AppendLine("        public global::Excalibur.Dispatch.Abstractions.Validation.IValidationResult? TryValidate(");
-		sb.AppendLine("            global::Excalibur.Dispatch.Abstractions.IDispatchMessage message,");
+		sb.AppendLine("        public global::Excalibur.Dispatch.Validation.IValidationResult? TryValidate(");
+		sb.AppendLine("            global::Excalibur.Dispatch.IDispatchMessage message,");
 		sb.AppendLine("            global::System.IServiceProvider provider)");
 		sb.AppendLine("        {");
 		sb.AppendLine("            return message switch");
@@ -170,10 +170,10 @@ public sealed class FluentValidationGenerator : IIncrementalGenerator
 		sb.AppendLine();
 
 		// ValidateTyped<T> helper -- AOT-safe because callers supply concrete T
-		sb.AppendLine("        private static global::Excalibur.Dispatch.Abstractions.Validation.IValidationResult? ValidateTyped<TMessage>(");
+		sb.AppendLine("        private static global::Excalibur.Dispatch.Validation.IValidationResult? ValidateTyped<TMessage>(");
 		sb.AppendLine("            TMessage message,");
 		sb.AppendLine("            global::System.IServiceProvider provider)");
-		sb.AppendLine("            where TMessage : global::Excalibur.Dispatch.Abstractions.IDispatchMessage");
+		sb.AppendLine("            where TMessage : global::Excalibur.Dispatch.IDispatchMessage");
 		sb.AppendLine("        {");
 		sb.AppendLine("            var cacheKey = typeof(TMessage);");
 		sb.AppendLine("            // Cache only whether validators are registered (bool), not instances.");
@@ -204,17 +204,17 @@ public sealed class FluentValidationGenerator : IIncrementalGenerator
 		sb.AppendLine();
 		sb.AppendLine("            if (failures.Count == 0)");
 		sb.AppendLine("            {");
-		sb.AppendLine("                return global::Excalibur.Dispatch.Abstractions.Serialization.SerializableValidationResult.Success();");
+		sb.AppendLine("                return global::Excalibur.Dispatch.Serialization.SerializableValidationResult.Success();");
 		sb.AppendLine("            }");
 		sb.AppendLine();
 		sb.AppendLine("            var errors = new object[failures.Count];");
 		sb.AppendLine("            for (var i = 0; i < failures.Count; i++)");
 		sb.AppendLine("            {");
 		sb.AppendLine("                var f = failures[i];");
-		sb.AppendLine("                errors[i] = new global::Excalibur.Dispatch.Abstractions.Validation.ValidationError(f.PropertyName, f.ErrorMessage) { ErrorCode = f.ErrorCode };");
+		sb.AppendLine("                errors[i] = new global::Excalibur.Dispatch.Validation.ValidationError(f.PropertyName, f.ErrorMessage) { ErrorCode = f.ErrorCode };");
 		sb.AppendLine("            }");
 		sb.AppendLine();
-		sb.AppendLine("            return global::Excalibur.Dispatch.Abstractions.Serialization.SerializableValidationResult.Failed(errors);");
+		sb.AppendLine("            return global::Excalibur.Dispatch.Serialization.SerializableValidationResult.Failed(errors);");
 		sb.AppendLine("        }");
 		sb.AppendLine("    }");
 		sb.AppendLine("}");

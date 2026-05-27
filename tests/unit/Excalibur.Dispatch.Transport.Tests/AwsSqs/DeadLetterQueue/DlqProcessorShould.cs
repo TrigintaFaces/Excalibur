@@ -11,6 +11,8 @@ using Amazon.SQS.Model;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Aws;
 
+using IAwsRetryStrategy = global::Excalibur.Dispatch.Transport.Aws.IRetryStrategy;
+
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.DeadLetterQueue;
@@ -26,7 +28,7 @@ public sealed class DlqProcessorShould : IDisposable
 {
 	private readonly IAmazonSQS _sqsClient;
 	private readonly ILogger<DlqProcessor> _logger;
-	private readonly IRetryStrategy _retryStrategy;
+	private readonly IAwsRetryStrategy _retryStrategy;
 	private readonly IErrorTracker _errorTracker;
 	private readonly DlqProcessor _sut;
 
@@ -37,7 +39,7 @@ public sealed class DlqProcessorShould : IDisposable
 	{
 		_sqsClient = A.Fake<IAmazonSQS>();
 		_logger = A.Fake<ILogger<DlqProcessor>>();
-		_retryStrategy = A.Fake<IRetryStrategy>();
+		_retryStrategy = A.Fake<IAwsRetryStrategy>();
 		_errorTracker = A.Fake<IErrorTracker>();
 
 		var processorOptions = Microsoft.Extensions.Options.Options.Create(new DlqProcessorOptions { BatchSize = 10 });

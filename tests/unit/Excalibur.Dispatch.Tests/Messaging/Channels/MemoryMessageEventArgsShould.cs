@@ -1,6 +1,6 @@
 using Excalibur.Dispatch.Channels;
 
-using MessageEnvelope = Excalibur.Dispatch.Abstractions.MessageEnvelope;
+using MessageEnvelope = Excalibur.Dispatch.MessageEnvelope;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 
@@ -12,7 +12,7 @@ public sealed class MemoryMessageEventArgsShould
     public void StoreEnvelopeAndCancellationToken()
     {
         // Arrange
-        var envelope = new MessageEnvelope(A.Fake<Excalibur.Dispatch.Abstractions.IDispatchMessage>());
+        var envelope = new MessageEnvelope(A.Fake<Excalibur.Dispatch.IDispatchMessage>());
         using var cts = new CancellationTokenSource();
 
         // Act
@@ -26,7 +26,7 @@ public sealed class MemoryMessageEventArgsShould
     [Fact]
     public void AcceptDefaultCancellationToken()
     {
-        var envelope = new MessageEnvelope(A.Fake<Excalibur.Dispatch.Abstractions.IDispatchMessage>());
+        var envelope = new MessageEnvelope(A.Fake<Excalibur.Dispatch.IDispatchMessage>());
 
         var args = new MemoryMessageEventArgs(envelope, CancellationToken.None);
 
@@ -36,7 +36,7 @@ public sealed class MemoryMessageEventArgsShould
     [Fact]
     public void InheritFromEventArgs()
     {
-        var envelope = new MessageEnvelope(A.Fake<Excalibur.Dispatch.Abstractions.IDispatchMessage>());
+        var envelope = new MessageEnvelope(A.Fake<Excalibur.Dispatch.IDispatchMessage>());
         var args = new MemoryMessageEventArgs(envelope, CancellationToken.None);
 
         args.ShouldBeAssignableTo<EventArgs>();

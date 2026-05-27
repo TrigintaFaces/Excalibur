@@ -1,6 +1,6 @@
 using Company.DispatchMinimalApi.Actions;
 using Company.DispatchMinimalApi.Infrastructure;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 namespace Company.DispatchMinimalApi.Handlers;
 

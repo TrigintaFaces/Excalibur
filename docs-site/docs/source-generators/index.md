@@ -28,7 +28,7 @@ Dispatch includes Roslyn source generators that enable ahead-of-time (AOT) compi
 ## Quick Start
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 
 // Mark services for auto-registration

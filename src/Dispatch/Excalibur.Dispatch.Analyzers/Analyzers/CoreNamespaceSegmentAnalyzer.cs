@@ -17,60 +17,60 @@ namespace Excalibur.Dispatch.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class CoreNamespaceSegmentAnalyzer : DiagnosticAnalyzer
 {
-    /// <inheritdoc />
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(AnalyzerDiagnosticDescriptors.NamespaceContainsCoreSegment);
+	/// <inheritdoc />
+	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
+		ImmutableArray.Create(AnalyzerDiagnosticDescriptors.NamespaceContainsCoreSegment);
 
-    /// <inheritdoc />
-    public override void Initialize(AnalysisContext context)
-    {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.EnableConcurrentExecution();
+	/// <inheritdoc />
+	public override void Initialize(AnalysisContext context)
+	{
+		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+		context.EnableConcurrentExecution();
 
-        context.RegisterSyntaxNodeAction(
-            AnalyzeNamespaceDeclaration,
-            SyntaxKind.NamespaceDeclaration,
-            SyntaxKind.FileScopedNamespaceDeclaration);
-    }
+		context.RegisterSyntaxNodeAction(
+			AnalyzeNamespaceDeclaration,
+			SyntaxKind.NamespaceDeclaration,
+			SyntaxKind.FileScopedNamespaceDeclaration);
+	}
 
-    private static void AnalyzeNamespaceDeclaration(SyntaxNodeAnalysisContext context)
-    {
-        string namespaceName;
-        Location location;
+	private static void AnalyzeNamespaceDeclaration(SyntaxNodeAnalysisContext context)
+	{
+		string namespaceName;
+		Location location;
 
-        switch (context.Node)
-        {
-            case NamespaceDeclarationSyntax ns:
-                namespaceName = ns.Name.ToString();
-                location = ns.Name.GetLocation();
-                break;
-            case FileScopedNamespaceDeclarationSyntax ns:
-                namespaceName = ns.Name.ToString();
-                location = ns.Name.GetLocation();
-                break;
-            default:
-                return;
-        }
+		switch (context.Node)
+		{
+			case NamespaceDeclarationSyntax ns:
+				namespaceName = ns.Name.ToString();
+				location = ns.Name.GetLocation();
+				break;
+			case FileScopedNamespaceDeclarationSyntax ns:
+				namespaceName = ns.Name.ToString();
+				location = ns.Name.GetLocation();
+				break;
+			default:
+				return;
+		}
 
-        // Only check Excalibur/Dispatch namespaces
-        if (!namespaceName.StartsWith("Excalibur", StringComparison.Ordinal) && !namespaceName.StartsWith("Dispatch", StringComparison.Ordinal))
-        {
-            return;
-        }
+		// Only check Excalibur/Dispatch namespaces
+		if (!namespaceName.StartsWith("Excalibur", StringComparison.Ordinal) && !namespaceName.StartsWith("Dispatch", StringComparison.Ordinal))
+		{
+			return;
+		}
 
-        // Check for .Core. segment
-        if (namespaceName.IndexOf(".Core.", StringComparison.Ordinal) >= 0 || namespaceName.EndsWith(".Core", StringComparison.Ordinal))
-        {
-            var suggestedNamespace = namespaceName
-                .Replace(".Core.", ".")
-                .Replace(".Core", string.Empty);
+		// Check for .Core. segment
+		if (namespaceName.IndexOf(".Core.", StringComparison.Ordinal) >= 0 || namespaceName.EndsWith(".Core", StringComparison.Ordinal))
+		{
+			var suggestedNamespace = namespaceName
+				.Replace(".Core.", ".")
+				.Replace(".Core", string.Empty);
 
-            context.ReportDiagnostic(
-                Diagnostic.Create(
-                    AnalyzerDiagnosticDescriptors.NamespaceContainsCoreSegment,
-                    location,
-                    namespaceName,
-                    suggestedNamespace));
-        }
-    }
+			context.ReportDiagnostic(
+				Diagnostic.Create(
+					AnalyzerDiagnosticDescriptors.NamespaceContainsCoreSegment,
+					location,
+					namespaceName,
+					suggestedNamespace));
+		}
+	}
 }

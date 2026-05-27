@@ -4,7 +4,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Jobs.Abstractions;
 using Excalibur.Jobs.Diagnostics;
 
 using Microsoft.Extensions.Logging;

@@ -52,6 +52,7 @@ public sealed class JobSchedulingIntegrationShould : IntegrationTestBase
 		_ = services.AddSingleton<IJobExecutor>(new TestJobExecutor(() => executed = true));
 		using var provider = services.BuildServiceProvider();
 		var executor = provider.GetRequiredService<IJobExecutor>();
+		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
 		// Act
 		await executor.ExecuteAsync(new TestJobContext("test-job"), TestCancellationToken).ConfigureAwait(false);

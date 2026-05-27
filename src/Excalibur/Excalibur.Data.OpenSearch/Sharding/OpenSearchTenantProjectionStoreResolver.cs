@@ -3,9 +3,9 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Data.Abstractions.Sharding;
 using Excalibur.Data.OpenSearch.Projections;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Sharding;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -72,7 +72,7 @@ internal sealed class OpenSearchTenantProjectionStoreResolver<TProjection>
 			_loggerFactory.CreateLogger<OpenSearchProjectionStore<TProjection>>());
 	}
 
-	#pragma warning disable IL2091 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2091 // Serialization/reflection inherently not AOT-safe
 	private sealed class StaticOptionsMonitor<T> : IOptionsMonitor<T>
 	{
 		public StaticOptionsMonitor(T value) => CurrentValue = value;
@@ -80,5 +80,5 @@ internal sealed class OpenSearchTenantProjectionStoreResolver<TProjection>
 		public T Get(string? name) => CurrentValue;
 		public IDisposable? OnChange(Action<T, string?> listener) => null;
 	}
-	#pragma warning restore IL2091
+#pragma warning restore IL2091
 }

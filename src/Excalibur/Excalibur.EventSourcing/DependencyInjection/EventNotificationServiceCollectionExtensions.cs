@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Projections;
 
@@ -168,9 +168,9 @@ public static class EventNotificationServiceCollectionExtensions
 #pragma warning disable RS0030 // Assembly scanning requires dynamic instantiation
 				var config = Activator.CreateInstance(type)
 #pragma warning restore RS0030
-				             ?? throw new InvalidOperationException(
-					             $"Failed to create instance of {type.Name}. " +
-					             $"IProjectionConfiguration<T> implementations must have a parameterless constructor.");
+							 ?? throw new InvalidOperationException(
+								 $"Failed to create instance of {type.Name}. " +
+								 $"IProjectionConfiguration<T> implementations must have a parameterless constructor.");
 
 				// Call AddProjection<TProjection> via reflection to register
 				// the projection with the correct generic type
@@ -285,7 +285,7 @@ public static class EventNotificationServiceCollectionExtensions
 			new ProjectionRecoveryService(
 				sp.GetRequiredService<IProjectionRegistry>(),
 				sp.GetRequiredKeyedService<IEventStore>("default"),
-				sp.GetRequiredService<Excalibur.Dispatch.Abstractions.IEventSerializer>(),
+				sp.GetRequiredService<Excalibur.Dispatch.IEventSerializer>(),
 				sp,
 				sp.GetRequiredService<Logging.ILogger<ProjectionRecoveryService>>()));
 
@@ -319,7 +319,7 @@ public static class EventNotificationServiceCollectionExtensions
 		builder.Services.TryAddSingleton<IEphemeralProjectionEngine>(sp =>
 			new EphemeralProjectionEngine(
 				sp.GetRequiredKeyedService<IEventStore>("default"),
-				sp.GetRequiredService<Excalibur.Dispatch.Abstractions.IEventSerializer>(),
+				sp.GetRequiredService<Excalibur.Dispatch.IEventSerializer>(),
 				sp.GetRequiredService<IProjectionRegistry>(),
 				sp.GetRequiredService<Logging.ILogger<EphemeralProjectionEngine>>(),
 				sp.GetService<Caching.Distributed.IDistributedCache>(),

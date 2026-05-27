@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Resilience.Polly;
@@ -110,14 +110,14 @@ public sealed class DistributedCacheOnlyShould
 		result2.CacheHit.ShouldBeTrue();
 	}
 
-	private static async Task<Excalibur.Dispatch.Abstractions.IMessageResult<DistributedTestResult>> DispatchUntilCacheHitAsync(
+	private static async Task<Excalibur.Dispatch.IMessageResult<DistributedTestResult>> DispatchUntilCacheHitAsync(
 		IDispatcher dispatcher,
 		DistributedTestQuery query,
 		IServiceProvider provider,
 		TimeSpan timeout)
 	{
 		var deadline = DateTimeOffset.UtcNow + timeout;
-		Excalibur.Dispatch.Abstractions.IMessageResult<DistributedTestResult>? lastResult = null;
+		Excalibur.Dispatch.IMessageResult<DistributedTestResult>? lastResult = null;
 
 		while (DateTimeOffset.UtcNow < deadline)
 		{

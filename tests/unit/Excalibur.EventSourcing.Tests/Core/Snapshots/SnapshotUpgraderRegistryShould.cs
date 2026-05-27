@@ -3,7 +3,7 @@
 
 using System.Text;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Snapshots.Upgrading;
 
 using Microsoft.Extensions.Logging.Abstractions;

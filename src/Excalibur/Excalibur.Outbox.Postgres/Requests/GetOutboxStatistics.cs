@@ -3,8 +3,8 @@
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Data;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Outbox.Postgres;
 

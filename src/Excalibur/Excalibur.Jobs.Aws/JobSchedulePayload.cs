@@ -10,17 +10,17 @@ namespace Excalibur.Jobs.Aws;
 /// </summary>
 internal sealed record JobSchedulePayload
 {
-    /// <summary>
-    /// Gets the assembly-qualified type name of the job to execute.
-    /// </summary>
-    [JsonPropertyName("JobType")]
-    public required string JobType { get; init; }
+	/// <summary>
+	/// Gets the assembly-qualified type name of the job to execute.
+	/// </summary>
+	[JsonPropertyName("JobType")]
+	public required string JobType { get; init; }
 
-    /// <summary>
-    /// Gets the logical name of the scheduled job.
-    /// </summary>
-    [JsonPropertyName("JobName")]
-    public required string JobName { get; init; }
+	/// <summary>
+	/// Gets the logical name of the scheduled job.
+	/// </summary>
+	[JsonPropertyName("JobName")]
+	public required string JobName { get; init; }
 }
 
 /// <summary>

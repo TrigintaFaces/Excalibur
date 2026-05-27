@@ -83,7 +83,7 @@ Excalibur.Dispatch uses three message types:
 - **`IDispatchEvent`** — domain events (fan-out to multiple handlers)
 
 ```csharp title="Messages/OrderMessages.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace OrderSystem.Messages;
 
@@ -112,8 +112,8 @@ public record OrderDto(Guid Id, string CustomerId, decimal Total, string Status,
 ### Command Handlers
 
 ```csharp title="Handlers/CreateOrderHandler.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using OrderSystem.Domain;
 using OrderSystem.Messages;
 
@@ -143,8 +143,8 @@ public class CreateOrderHandler(OrderStore store, IDispatcher dispatcher) : IAct
 ```
 
 ```csharp title="Handlers/CancelOrderHandler.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using OrderSystem.Domain;
 using OrderSystem.Messages;
 
@@ -169,7 +169,7 @@ public class CancelOrderHandler(OrderStore store, IDispatcher dispatcher) : IAct
 ### Query Handlers
 
 ```csharp title="Handlers/GetOrderHandler.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using OrderSystem.Domain;
 using OrderSystem.Messages;
 
@@ -204,7 +204,7 @@ public class GetCustomerOrdersHandler(OrderStore store)
 ### Event Handler
 
 ```csharp title="Handlers/OrderEventHandlers.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using OrderSystem.Messages;
 
 namespace OrderSystem.Handlers;
@@ -230,8 +230,8 @@ public class OrderEventHandlers :
 ## Step 5: Wire It Up
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 using OrderSystem.Domain;
 using OrderSystem.Messages;

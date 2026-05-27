@@ -3,7 +3,7 @@
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 namespace Excalibur.Data.Tests.Abstractions;
 

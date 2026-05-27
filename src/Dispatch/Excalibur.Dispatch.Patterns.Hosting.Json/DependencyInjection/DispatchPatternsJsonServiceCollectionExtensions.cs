@@ -3,7 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
-using Excalibur.Dispatch.Abstractions.Serialization;
+
 using Excalibur.Dispatch.Patterns;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 using Excalibur.Dispatch.Serialization;

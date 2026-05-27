@@ -26,7 +26,7 @@ public static class SagaBuilderExtensions
 	/// but integrated into the builder pattern for discoverability.
 	/// </para>
 	/// <para>
-	/// The coordination middleware runs at the <see cref="Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.End"/>
+	/// The coordination middleware runs at the <see cref="Excalibur.Dispatch.DispatchMiddlewareStage.End"/>
 	/// stage and processes <see cref="Excalibur.Saga.EventSourced.ISagaEvent"/> messages
 	/// through the <see cref="SagaCoordinator"/>.
 	/// </para>

@@ -4,7 +4,6 @@
 using System.Data;
 
 using Excalibur.Data;
-using Excalibur.Data.Abstractions;
 
 namespace Excalibur.Tests;
 

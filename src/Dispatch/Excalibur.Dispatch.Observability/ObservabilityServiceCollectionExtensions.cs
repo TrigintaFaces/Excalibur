@@ -4,11 +4,11 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Observability;
 using Excalibur.Dispatch.Observability.Context;
 using Excalibur.Dispatch.Observability.Sanitization;
+using Excalibur.Dispatch.Telemetry;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;

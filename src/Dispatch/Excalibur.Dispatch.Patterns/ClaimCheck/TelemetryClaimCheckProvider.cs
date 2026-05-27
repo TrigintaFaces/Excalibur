@@ -4,7 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 

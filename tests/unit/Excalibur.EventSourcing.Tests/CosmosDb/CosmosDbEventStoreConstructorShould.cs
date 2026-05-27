@@ -72,7 +72,7 @@ public sealed class CosmosDbEventStoreConstructorShould : UnitTestBase
 		var sut = new CosmosDbEventStore(_cosmosClient, _validOptions, _logger);
 
 		// Assert
-		sut.CloudProvider.ShouldBe(Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType.CosmosDb);
+		sut.CloudProvider.ShouldBe(Excalibur.Data.CloudNative.CloudPersistenceProviderType.CosmosDb);
 	}
 
 	#endregion CloudProviderType Tests

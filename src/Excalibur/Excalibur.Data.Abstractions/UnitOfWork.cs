@@ -5,7 +5,7 @@
 using System.Data;
 using System.Data.Common;
 
-namespace Excalibur.Data.Abstractions;
+namespace Excalibur.Data;
 
 /// <summary>
 /// Provides a simple implementation of <see cref="IUnitOfWork" /> using an <see cref="IDbConnection" />.

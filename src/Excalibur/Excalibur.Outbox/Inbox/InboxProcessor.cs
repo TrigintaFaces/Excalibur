@@ -8,13 +8,11 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Delivery.BatchProcessing;
 using Excalibur.Dispatch.Delivery.Registry;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.ErrorHandling;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Queues;
@@ -153,7 +151,10 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		_queueCapacity = _options.Capacity.QueueCapacity;
 		_inboxMessages = Channel.CreateBounded<IInboxMessage>(new BoundedChannelOptions(_options.Capacity.QueueCapacity)
 		{
-			FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = false, AllowSynchronousContinuations = false,
+			FullMode = BoundedChannelFullMode.Wait,
+			SingleReader = false,
+			SingleWriter = false,
+			AllowSynchronousContinuations = false,
 		});
 		_batchMetrics = new BatchProcessingMetrics($"InboxProcessor.{nameof(BatchProcessingMetrics)}");
 
@@ -755,11 +756,11 @@ public sealed partial class InboxProcessor : IInboxProcessor
 			stopwatch.Elapsed,
 			new Dictionary<string, object?>
 				(StringComparer.Ordinal)
-				{
-					["ProcessorType"] = "Inbox",
-					["ParallelDegree"] = _options.Capacity.ParallelProcessingDegree,
-					["BatchOperationsEnabled"] = _options.BatchTuning.EnableBatchDatabaseOperations,
-				});
+			{
+				["ProcessorType"] = "Inbox",
+				["ParallelDegree"] = _options.Capacity.ParallelProcessingDegree,
+				["BatchOperationsEnabled"] = _options.BatchTuning.EnableBatchDatabaseOperations,
+			});
 
 		return successful.Count;
 	}
@@ -818,13 +819,13 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Abstractions.Serialization.DispatchJsonSerializer.DeserializeAsync(String, Type)")]
+	[RequiresDynamicCode("Calls Excalibur.Dispatch.Serialization.DispatchJsonSerializer.DeserializeAsync(String, Type)")]
 	private async Task DispatchAsync(IInboxMessage storedMessage, CancellationToken cancellationToken)
 	{
 		var type = MessageTypeRegistry.GetType(storedMessage.MessageType)
-		           ?? throw new TypeLoadException($"{ErrorConstants.TypeNotFoundInRegistry}: {storedMessage.MessageType}");
+				   ?? throw new TypeLoadException($"{ErrorConstants.TypeNotFoundInRegistry}: {storedMessage.MessageType}");
 		if (await _serializer.DeserializeAsync(storedMessage.MessageBody, type).ConfigureAwait(false) is not IDispatchMessage
-		    dispatchMessage)
+			dispatchMessage)
 		{
 			throw new InvalidOperationException(
 				$"{ErrorConstants.CouldNotDeserializeAsDispatchMessage}: {storedMessage.MessageType}");
@@ -840,17 +841,17 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 		var metaDict = new Dictionary<string, string?>
 			(StringComparer.Ordinal)
-			{
-				["CorrelationId"] = meta.CorrelationId,
-				["CausationId"] = meta.CausationId,
-				["TraceParent"] = meta.TraceParent,
-				["TenantId"] = meta.TenantId,
-				["UserId"] = meta.UserId,
-				["ContentType"] = meta.ContentType,
-				["SerializerVersion"] = meta.SerializerVersion,
-				["MessageVersion"] = meta.MessageVersion,
-				["ContractVersion"] = meta.ContractVersion,
-			};
+		{
+			["CorrelationId"] = meta.CorrelationId,
+			["CausationId"] = meta.CausationId,
+			["TraceParent"] = meta.TraceParent,
+			["TenantId"] = meta.TenantId,
+			["UserId"] = meta.UserId,
+			["ContentType"] = meta.ContentType,
+			["SerializerVersion"] = meta.SerializerVersion,
+			["MessageVersion"] = meta.MessageVersion,
+			["ContractVersion"] = meta.ContractVersion,
+		};
 
 		await using var scope = _serviceProvider.CreateAsyncScope();
 		var context = DispatchContextInitializer.CreateFromMetadata(metaDict);

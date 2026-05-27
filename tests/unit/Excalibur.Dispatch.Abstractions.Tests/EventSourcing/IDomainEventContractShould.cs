@@ -1,4 +1,4 @@
-namespace Excalibur.Dispatch.Abstractions.Tests.EventSourcing;
+namespace Excalibur.Dispatch.Tests.EventSourcing;
 
 /// <summary>
 /// Contract tests for IDomainEvent interface.

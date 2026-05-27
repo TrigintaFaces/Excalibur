@@ -5,7 +5,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Excalibur.Dispatch.Abstractions.Serialization;
+namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
 /// Adapts an <see cref="IDictionary{TKey,TValue}" /> of <see cref="object" /> values to expose nullable values as required by <see cref="IMessageContext" />.

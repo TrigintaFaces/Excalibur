@@ -31,8 +31,8 @@ using CloudStorageSnapshots.Domain;
 
 using Excalibur.A3.Audit;
 using Excalibur.Application;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Domain;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.SqlServer;
@@ -208,7 +208,7 @@ app.MapPost("/archive-cycle", async (
 // ----------------------------------------------------------------------------
 app.MapGet("/orders/{id:guid}", async (
 	Guid id,
-	Excalibur.EventSourcing.Abstractions.IEventSourcedRepository<OrderAggregate, Guid> repository,
+	Excalibur.EventSourcing.IEventSourcedRepository<OrderAggregate, Guid> repository,
 	CancellationToken ct) =>
 {
 	var order = await repository.GetByIdAsync(id, ct).ConfigureAwait(false);

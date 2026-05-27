@@ -5,7 +5,7 @@ using Shouldly;
 namespace Testing;
 
 /// <summary>
-/// Demonstrates creating and verifying <see cref="Excalibur.Dispatch.Abstractions.IMessageContext"/>
+/// Demonstrates creating and verifying <see cref="Excalibur.Dispatch.IMessageContext"/>
 /// instances using <see cref="MessageContextBuilder"/>.
 /// </summary>
 [Trait("Category", "Unit")]

@@ -3,10 +3,10 @@
 
 using System.ComponentModel.DataAnnotations;
 
+using Excalibur.AuditLogging.SqlServer;
 using Excalibur.Compliance.SqlServer;
 using Excalibur.Compliance.SqlServer.Erasure;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.AuditLogging.SqlServer;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Inbox.SqlServer;
 using Excalibur.LeaderElection.SqlServer;
 using Excalibur.Saga.SqlServer;

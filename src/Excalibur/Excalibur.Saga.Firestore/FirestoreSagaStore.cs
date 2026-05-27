@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.Firestore;
 using Excalibur.Data.Firestore.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
 using Google.Cloud.Firestore;
@@ -194,13 +194,13 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 
 		if (!string.IsNullOrEmpty(_options.CredentialsPath))
 		{
-			#pragma warning disable CS0618 // Obsolete CredentialsPath/JsonCredentials
+#pragma warning disable CS0618 // Obsolete CredentialsPath/JsonCredentials
 			builder.CredentialsPath = _options.CredentialsPath;
 #pragma warning restore CS0618
 		}
 		else if (!string.IsNullOrEmpty(_options.CredentialsJson))
 		{
-			#pragma warning disable CS0618
+#pragma warning disable CS0618
 			builder.JsonCredentials = _options.CredentialsJson;
 #pragma warning restore CS0618
 		}

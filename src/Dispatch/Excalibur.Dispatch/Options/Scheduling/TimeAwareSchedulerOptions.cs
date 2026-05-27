@@ -6,7 +6,6 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Delivery;
 
 namespace Excalibur.Dispatch.Options.Scheduling;

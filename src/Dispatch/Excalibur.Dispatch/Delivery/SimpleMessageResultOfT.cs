@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch.Routing;
 
 namespace Excalibur.Dispatch.Delivery;
 
@@ -79,9 +78,9 @@ internal sealed class SimpleMessageResultOfT<T> : IMessageResult<T>
 		_errorMessage = errorMessage;
 
 		if (routingDecision is not null ||
-		    validationResult is not null ||
-		    authorizationResult is not null ||
-		    problemDetails is not null)
+			validationResult is not null ||
+			authorizationResult is not null ||
+			problemDetails is not null)
 		{
 			_metadata = new ResultMetadata(routingDecision, validationResult, authorizationResult, problemDetails);
 		}
@@ -125,7 +124,7 @@ internal sealed class SimpleMessageResultOfT<T> : IMessageResult<T>
 
 	public string? Error => ProblemDetails?.Detail;
 
-	// Explicit interface implementations for compatibility with Excalibur.Dispatch.Abstractions
+	// Explicit interface implementations for compatibility with Excalibur.Dispatch
 
 	/// <inheritdoc/>
 	object? IMessageResult.ValidationResult => _metadata?.ValidationResult;

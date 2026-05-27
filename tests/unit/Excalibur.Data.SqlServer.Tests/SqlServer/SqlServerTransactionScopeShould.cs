@@ -3,12 +3,12 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.SqlServer.Persistence;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using TransactionStatus = Excalibur.Data.Abstractions.Persistence.TransactionStatus;
+using TransactionStatus = Excalibur.Data.Persistence.TransactionStatus;
 
 namespace Excalibur.Data.Tests.SqlServer;
 

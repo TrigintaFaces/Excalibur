@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 
 using QuestPDF.Infrastructure;
 
-using Excalibur.Compliance;
 using Excalibur.Compliance.Soc2;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Soc2;
 

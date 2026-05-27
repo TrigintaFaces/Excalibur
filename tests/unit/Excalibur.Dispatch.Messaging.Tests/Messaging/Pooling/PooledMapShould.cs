@@ -77,8 +77,8 @@ public sealed class PooledMapShould
 		Dictionary<string, int>? capturedDictionary;
 
 		// Act
-		using (var pooled = pool.CreatePooled())
 		{
+			using var pooled = pool.CreatePooled();
 			capturedDictionary = pooled.Dictionary;
 			pooled.Dictionary["test"] = 123;
 		}

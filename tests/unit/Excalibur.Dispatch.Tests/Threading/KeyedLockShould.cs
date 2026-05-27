@@ -20,6 +20,7 @@ public sealed class KeyedLockShould
 
 		// Act
 		using var handle = await keyedLock.AcquireAsync("key-1", CancellationToken.None);
+		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
 		// Assert
 		handle.ShouldNotBeNull();

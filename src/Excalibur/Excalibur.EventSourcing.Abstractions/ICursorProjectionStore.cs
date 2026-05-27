@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 /// <summary>
 /// Extends <see cref="IProjectionStore{TProjection}"/> with cursor-based (keyset) pagination support.
@@ -32,28 +32,28 @@ namespace Excalibur.EventSourcing.Abstractions;
 /// </remarks>
 /// <typeparam name="TProjection">The projection type. Must be a reference type.</typeparam>
 public interface ICursorProjectionStore<TProjection> : IProjectionStore<TProjection>
-    where TProjection : class
+	where TProjection : class
 {
-    /// <summary>
-    /// Queries projections with cursor-based pagination, returning a page of results
-    /// along with a continuation token for the next page.
-    /// </summary>
-    /// <param name="filters">Dictionary-based filter conditions. Pass <c>null</c> for no filtering.</param>
-    /// <param name="cursor">
-    /// An opaque continuation token from a previous call's <see cref="CursorPagedResult{T}.NextCursor"/>.
-    /// Pass <c>null</c> to start from the beginning.
-    /// </param>
-    /// <param name="pageSize">The number of items per page.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>
-    /// A <see cref="CursorPagedResult{T}"/> containing the page items and a continuation cursor.
-    /// </returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when <paramref name="pageSize"/> is less than 1.
-    /// </exception>
-    Task<CursorPagedResult<TProjection>> QueryCursorAsync(
-        IDictionary<string, object>? filters,
-        string? cursor,
-        int pageSize,
-        CancellationToken cancellationToken);
+	/// <summary>
+	/// Queries projections with cursor-based pagination, returning a page of results
+	/// along with a continuation token for the next page.
+	/// </summary>
+	/// <param name="filters">Dictionary-based filter conditions. Pass <c>null</c> for no filtering.</param>
+	/// <param name="cursor">
+	/// An opaque continuation token from a previous call's <see cref="CursorPagedResult{T}.NextCursor"/>.
+	/// Pass <c>null</c> to start from the beginning.
+	/// </param>
+	/// <param name="pageSize">The number of items per page.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>
+	/// A <see cref="CursorPagedResult{T}"/> containing the page items and a continuation cursor.
+	/// </returns>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown when <paramref name="pageSize"/> is less than 1.
+	/// </exception>
+	Task<CursorPagedResult<TProjection>> QueryCursorAsync(
+		IDictionary<string, object>? filters,
+		string? cursor,
+		int pageSize,
+		CancellationToken cancellationToken);
 }

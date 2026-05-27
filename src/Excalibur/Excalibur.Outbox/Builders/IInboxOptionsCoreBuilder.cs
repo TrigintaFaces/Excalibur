@@ -14,43 +14,43 @@ namespace Excalibur.Outbox;
 /// </remarks>
 public interface IInboxOptionsCoreBuilder
 {
-    /// <summary>
-    /// Sets the capacity of the internal message processing queue.
-    /// </summary>
-    /// <param name="capacity">The maximum number of messages that can be held in the queue.</param>
-    /// <returns>This builder for method chaining.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="capacity"/> is less than 1.</exception>
-    IInboxOptionsBuilder WithQueueCapacity(int capacity);
+	/// <summary>
+	/// Sets the capacity of the internal message processing queue.
+	/// </summary>
+	/// <param name="capacity">The maximum number of messages that can be held in the queue.</param>
+	/// <returns>This builder for method chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="capacity"/> is less than 1.</exception>
+	IInboxOptionsBuilder WithQueueCapacity(int capacity);
 
-    /// <summary>
-    /// Sets the batch size for loading messages from storage.
-    /// </summary>
-    /// <param name="batchSize">The number of messages to load per batch.</param>
-    /// <returns>This builder for method chaining.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="batchSize"/> is less than 1.</exception>
-    IInboxOptionsBuilder WithProducerBatchSize(int batchSize);
+	/// <summary>
+	/// Sets the batch size for loading messages from storage.
+	/// </summary>
+	/// <param name="batchSize">The number of messages to load per batch.</param>
+	/// <returns>This builder for method chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="batchSize"/> is less than 1.</exception>
+	IInboxOptionsBuilder WithProducerBatchSize(int batchSize);
 
-    /// <summary>
-    /// Sets the batch size for processing messages.
-    /// </summary>
-    /// <param name="batchSize">The number of messages to process together.</param>
-    /// <returns>This builder for method chaining.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="batchSize"/> is less than 1.</exception>
-    IInboxOptionsBuilder WithConsumerBatchSize(int batchSize);
+	/// <summary>
+	/// Sets the batch size for processing messages.
+	/// </summary>
+	/// <param name="batchSize">The number of messages to process together.</param>
+	/// <returns>This builder for method chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="batchSize"/> is less than 1.</exception>
+	IInboxOptionsBuilder WithConsumerBatchSize(int batchSize);
 
-    /// <summary>
-    /// Sets the maximum number of messages to process per run.
-    /// </summary>
-    /// <param name="total">The maximum messages per run.</param>
-    /// <returns>This builder for method chaining.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="total"/> is less than 1.</exception>
-    IInboxOptionsBuilder WithPerRunTotal(int total);
+	/// <summary>
+	/// Sets the maximum number of messages to process per run.
+	/// </summary>
+	/// <param name="total">The maximum messages per run.</param>
+	/// <returns>This builder for method chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="total"/> is less than 1.</exception>
+	IInboxOptionsBuilder WithPerRunTotal(int total);
 
-    /// <summary>
-    /// Sets the maximum number of processing attempts for failed messages.
-    /// </summary>
-    /// <param name="maxAttempts">The maximum retry attempts.</param>
-    /// <returns>This builder for method chaining.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="maxAttempts"/> is less than 1.</exception>
-    IInboxOptionsBuilder WithMaxAttempts(int maxAttempts);
+	/// <summary>
+	/// Sets the maximum number of processing attempts for failed messages.
+	/// </summary>
+	/// <param name="maxAttempts">The maximum retry attempts.</param>
+	/// <returns>This builder for method chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="maxAttempts"/> is less than 1.</exception>
+	IInboxOptionsBuilder WithMaxAttempts(int maxAttempts);
 }

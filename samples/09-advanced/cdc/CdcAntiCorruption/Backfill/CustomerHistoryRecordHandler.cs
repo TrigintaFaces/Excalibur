@@ -5,7 +5,7 @@ using CdcAntiCorruption.Commands;
 using CdcAntiCorruption.Models;
 
 using Excalibur.Data.DataProcessing;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 

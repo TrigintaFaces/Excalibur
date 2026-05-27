@@ -3,8 +3,6 @@
 
 using System.Text.Json;
 
-using Excalibur.Jobs.Abstractions;
-
 using Google.Api.Gax.ResourceNames;
 using Google.Cloud.Scheduler.V1;
 using Google.Protobuf;

@@ -8,15 +8,15 @@ global using System.Threading;
 global using System.Threading.Tasks;
 
 // Dispatch namespaces
-global using Excalibur.Dispatch.Abstractions;
-global using Excalibur.Dispatch.Abstractions.Messaging;
+global using Excalibur.Dispatch;
+global using Excalibur.Dispatch.Messaging;
 global using Excalibur.Dispatch.Delivery;
 global using Excalibur.Dispatch.Options.Delivery;
 
 // Excalibur namespaces
 global using Excalibur.Application;
 global using Excalibur.Domain;
-global using Excalibur.EventSourcing.Abstractions;
+global using Excalibur.EventSourcing;
 
 // Test infrastructure
 global using Excalibur.Tests.Infrastructure;
@@ -36,7 +36,7 @@ global using Tests.Shared;
 global using Xunit;
 
 // Resolve IDispatchMessage ambiguity - use the Messaging version as primary
-global using IDispatchMessage = Excalibur.Dispatch.Abstractions.IDispatchMessage;
+global using IDispatchMessage = Excalibur.Dispatch.IDispatchMessage;
 
 using System.Runtime.CompilerServices;
 

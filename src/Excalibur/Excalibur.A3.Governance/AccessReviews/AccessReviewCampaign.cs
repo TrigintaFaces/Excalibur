@@ -3,7 +3,7 @@
 
 using Excalibur.A3.Governance.AccessReviews;
 using Excalibur.A3.Governance.Events;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 namespace Excalibur.A3.Governance;
@@ -273,11 +273,21 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 	{
 		switch (@event)
 		{
-			case AccessReviewCampaignCreated e: Apply(e); break;
-			case AccessReviewCampaignStarted: ApplyStarted(); break;
-			case AccessReviewDecisionMade e: Apply(e); break;
-			case AccessReviewCampaignCompleted: ApplyCompleted(); break;
-			case AccessReviewCampaignExpired: ApplyExpired(); break;
+			case AccessReviewCampaignCreated e:
+				Apply(e);
+				break;
+			case AccessReviewCampaignStarted:
+				ApplyStarted();
+				break;
+			case AccessReviewDecisionMade e:
+				Apply(e);
+				break;
+			case AccessReviewCampaignCompleted:
+				ApplyCompleted();
+				break;
+			case AccessReviewCampaignExpired:
+				ApplyExpired();
+				break;
 		}
 	}
 

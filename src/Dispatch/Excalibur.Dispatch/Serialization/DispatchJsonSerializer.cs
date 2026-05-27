@@ -9,7 +9,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Buffers;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Delivery.Registry;

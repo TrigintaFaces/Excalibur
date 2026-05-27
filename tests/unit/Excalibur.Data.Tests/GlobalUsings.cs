@@ -2,7 +2,7 @@
 
 global using System.Data;
 
-global using Excalibur.Data.Abstractions;
+global using Excalibur.Data;
 global using Excalibur.Data.CosmosDb;
 global using Excalibur.Cdc.CosmosDb;
 global using Excalibur.Cdc.DynamoDb;

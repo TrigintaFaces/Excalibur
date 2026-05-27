@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations;
 using Azure.Identity;
 using Azure.Messaging.EventHubs.Producer;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Azure;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

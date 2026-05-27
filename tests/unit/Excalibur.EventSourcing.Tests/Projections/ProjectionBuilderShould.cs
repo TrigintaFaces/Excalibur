@@ -226,7 +226,7 @@ public sealed class ProjectionBuilderShould
 		builder.Build();
 
 		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-		var events = new List<Dispatch.Abstractions.IDomainEvent>
+		var events = new List<Dispatch.IDomainEvent>
 		{
 			new TestOrderPlaced { AggregateId = "order-1", Amount = 150m, Version = 1 },
 			new TestOrderShipped { AggregateId = "order-1", Version = 2 }
@@ -377,7 +377,7 @@ public sealed class ProjectionBuilderShould
 		builder.Build();
 
 		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-		var events = new List<Dispatch.Abstractions.IDomainEvent>
+		var events = new List<Dispatch.IDomainEvent>
 		{
 			new TestOrderPlaced { AggregateId = "agg-1", Amount = 42m, Version = 1 }
 		};
@@ -575,7 +575,7 @@ public sealed class ProjectionBuilderShould
 		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
 
 		// Act -- send only events the projection does NOT handle
-		var unrelatedEvents = new List<Dispatch.Abstractions.IDomainEvent>
+		var unrelatedEvents = new List<Dispatch.IDomainEvent>
 		{
 			new TestOrderShipped { AggregateId = "order-ghost", Version = 1 },
 			new TestOrderCancelled { AggregateId = "order-ghost", Version = 2 },
@@ -605,7 +605,7 @@ public sealed class ProjectionBuilderShould
 		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
 
 		// Act -- mix of handled and unhandled events
-		var events = new List<Dispatch.Abstractions.IDomainEvent>
+		var events = new List<Dispatch.IDomainEvent>
 		{
 			new TestOrderShipped { AggregateId = "order-mix", Version = 1 }, // unhandled
 			new TestOrderPlaced { AggregateId = "order-mix", Amount = 77m, Version = 2 }, // handled
@@ -645,7 +645,7 @@ public sealed class ProjectionBuilderShould
 		builder.Build();
 
 		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-		var events = new List<Dispatch.Abstractions.IDomainEvent>
+		var events = new List<Dispatch.IDomainEvent>
 		{
 			new TestOrderShipped { AggregateId = "order-1", Version = 2 }
 		};
@@ -830,7 +830,7 @@ public sealed class ProjectionBuilderShould
 		builder.Build();
 
 		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-		var events = new List<Dispatch.Abstractions.IDomainEvent>
+		var events = new List<Dispatch.IDomainEvent>
 		{
 			new TestOrderPlaced { AggregateId = "order-ctx", Amount = 300m, Version = 1 }
 		};

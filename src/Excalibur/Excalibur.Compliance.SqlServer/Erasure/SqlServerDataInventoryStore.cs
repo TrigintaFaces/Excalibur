@@ -5,8 +5,8 @@ using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions.Validation;
 using Excalibur.Compliance.Erasure;
+using Excalibur.Data.Validation;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

@@ -3,10 +3,11 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Elastic.Clients.Elasticsearch;
 
 using Excalibur.Data.ElasticSearch.Projections;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;

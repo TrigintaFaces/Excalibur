@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Data.Abstractions.CloudNative;
+namespace Excalibur.Data.CloudNative;
 
 /// <summary>
 /// Defines consistency options for cloud-native database operations.
