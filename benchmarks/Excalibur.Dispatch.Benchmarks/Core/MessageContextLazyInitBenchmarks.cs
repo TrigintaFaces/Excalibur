@@ -198,7 +198,7 @@ public class MessageContextLazyInitBenchmarks
 	/// Create child context from parent without Items usage.
 	/// </summary>
 	[Benchmark(Description = "CreateChildContext (no Items)")]
-	public Abstractions.IMessageContext CreateChildContext_NoItems()
+	public IMessageContext CreateChildContext_NoItems()
 	{
 		var parent = new Messaging.MessageContext
 		{
