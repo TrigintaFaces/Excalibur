@@ -277,8 +277,8 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 
 		[LoggerMessage(
 			EventId = 3701,
-			Level = LogLevel.Warning,
-			Message = "Identity binding conflict for {AggregateType} from {ExternalSystem}:{ExternalId}. Requested {RequestedAggregateId}, existing {ExistingAggregateId}.")]
+			Level = LogLevel.Debug,
+			Message = "Identity binding already exists for {AggregateType} from {ExternalSystem}:{ExternalId}. Requested {RequestedAggregateId}, existing {ExistingAggregateId}.")]
 		public static partial void BindingConflict(
 			ILogger logger,
 			string aggregateType,
