@@ -4,8 +4,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

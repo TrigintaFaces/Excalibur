@@ -5,8 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Jobs.Abstractions;
-
 using Microsoft.Extensions.DependencyInjection;
 
 using Quartz;

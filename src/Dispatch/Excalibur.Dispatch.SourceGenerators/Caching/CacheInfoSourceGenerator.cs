@@ -272,7 +272,7 @@ public sealed class CacheInfoSourceGenerator : IIncrementalGenerator
 
 		foreach (var type in types)
 		{
-			_ = sb.AppendLine($" Excalibur.Dispatch.Abstractions.IMessageResult<{type.ResultTypeName}> typedResult => typedResult.ReturnValue,");
+			_ = sb.AppendLine($" Excalibur.Dispatch.IMessageResult<{type.ResultTypeName}> typedResult => typedResult.ReturnValue,");
 		}
 
 		_ = sb.AppendLine(" _ => null");

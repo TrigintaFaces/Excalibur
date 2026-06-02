@@ -6,7 +6,7 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 

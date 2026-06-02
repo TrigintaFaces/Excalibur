@@ -7,16 +7,16 @@ namespace Excalibur.Saga.CosmosDb;
 
 internal sealed class CosmosDbSagaOptionsValidator : IValidateOptions<CosmosDbSagaOptions>
 {
-    public ValidateOptionsResult Validate(string? name, CosmosDbSagaOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, CosmosDbSagaOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

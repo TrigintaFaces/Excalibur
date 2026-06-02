@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Dispatch.Abstractions.Transport;
+namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
 /// Manages the lifecycle of transport adapters, providing runtime control over individual transports.

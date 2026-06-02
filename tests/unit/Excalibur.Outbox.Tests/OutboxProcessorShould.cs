@@ -7,14 +7,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System.Buffers;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Queues;
 using Excalibur.Dispatch.Resilience;
-using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
 
 using FakeItEasy;
@@ -24,7 +23,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 // Use alias to avoid namespace collision with Excalibur.Outbox.OutboxOptions
-using DispatchMessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using DispatchMessageResult = Excalibur.Dispatch.MessageResult;
 using DeliveryMessageMetadata = Excalibur.Dispatch.Messaging.MessageMetadata;
 using DeliveryGuaranteeOptions = Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions;
 using DeliveryOutboxDeliveryGuarantee = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryGuarantee;

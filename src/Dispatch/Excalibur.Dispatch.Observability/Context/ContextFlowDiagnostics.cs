@@ -7,10 +7,10 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Observability.Diagnostics;
+using Excalibur.Dispatch.Validation;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -321,7 +321,8 @@ public sealed partial class ContextFlowDiagnostics(
 	public void Dispose()
 	{
 		_contextHistories.Clear();
-		while (_anomalies.TryDequeue(out _)) { }
+		while (_anomalies.TryDequeue(out _))
+		{ }
 		Interlocked.Exchange(ref _anomalyCount, 0);
 	}
 

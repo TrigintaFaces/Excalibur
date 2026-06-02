@@ -3,7 +3,7 @@
 
 using Excalibur.A3.Governance.Events;
 using Excalibur.A3.Governance.Provisioning;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 namespace Excalibur.A3.Governance;
@@ -242,12 +242,24 @@ internal sealed class ProvisioningRequest : AggregateRoot, IAggregateRoot<Provis
 	{
 		switch (@event)
 		{
-			case ProvisioningRequestCreated e: Apply(e); break;
-			case ProvisioningStepAdvanced e: ApplyStepAdvanced(e); break;
-			case ProvisioningStepApproved e: ApplyStepApproved(e); break;
-			case ProvisioningStepDenied e: ApplyStepDenied(e); break;
-			case ProvisioningRequestProvisioned: Status = ProvisioningRequestStatus.Provisioned; break;
-			case ProvisioningRequestFailed e: ApplyFailed(e); break;
+			case ProvisioningRequestCreated e:
+				Apply(e);
+				break;
+			case ProvisioningStepAdvanced e:
+				ApplyStepAdvanced(e);
+				break;
+			case ProvisioningStepApproved e:
+				ApplyStepApproved(e);
+				break;
+			case ProvisioningStepDenied e:
+				ApplyStepDenied(e);
+				break;
+			case ProvisioningRequestProvisioned:
+				Status = ProvisioningRequestStatus.Provisioned;
+				break;
+			case ProvisioningRequestFailed e:
+				ApplyFailed(e);
+				break;
 		}
 	}
 

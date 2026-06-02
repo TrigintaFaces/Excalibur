@@ -5,8 +5,7 @@
 using System.Data.Common;
 using System.Net.Sockets;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Resilience;
 
 using Microsoft.Extensions.Logging;
 

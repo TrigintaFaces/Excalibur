@@ -9,11 +9,9 @@ using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.Options.CloudEvents;
 
-using MessageEnvelope = Excalibur.Dispatch.Abstractions.MessageEnvelope;
-
 namespace Excalibur.Dispatch.CloudEvents;
 
-// DUPLICATE REMOVED: Vibe AI generated MessageEnvelope class removed - use canonical Excalibur.Dispatch.Abstractions.MessageEnvelope<T> instead
+// DUPLICATE REMOVED: Vibe AI generated MessageEnvelope class removed - use canonical Excalibur.Dispatch.MessageEnvelope<T> instead
 
 /// <summary>
 /// Default implementation of ICloudEventEnvelopeConverter for DoD-compliant envelope conversion.

@@ -10,40 +10,40 @@ namespace Excalibur.Data.MongoDB;
 /// </summary>
 internal sealed class MongoDbProviderOptionsValidator : IValidateOptions<MongoDbProviderOptions>
 {
-    /// <inheritdoc/>
-    public ValidateOptionsResult Validate(string? name, MongoDbProviderOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
+	/// <inheritdoc/>
+	public ValidateOptionsResult Validate(string? name, MongoDbProviderOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
 
-        var failures = new List<string>();
+		var failures = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(options.ConnectionString))
-        {
-            failures.Add($"{nameof(options.ConnectionString)} is required.");
-        }
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			failures.Add($"{nameof(options.ConnectionString)} is required.");
+		}
 
-        if (string.IsNullOrWhiteSpace(options.DatabaseName))
-        {
-            failures.Add($"{nameof(options.DatabaseName)} is required.");
-        }
+		if (string.IsNullOrWhiteSpace(options.DatabaseName))
+		{
+			failures.Add($"{nameof(options.DatabaseName)} is required.");
+		}
 
-        if (options.ServerSelectionTimeout < 1)
-        {
-            failures.Add($"{nameof(options.ServerSelectionTimeout)} must be >= 1.");
-        }
+		if (options.ServerSelectionTimeout < 1)
+		{
+			failures.Add($"{nameof(options.ServerSelectionTimeout)} must be >= 1.");
+		}
 
-        if (options.ConnectTimeout < 1)
-        {
-            failures.Add($"{nameof(options.ConnectTimeout)} must be >= 1.");
-        }
+		if (options.ConnectTimeout < 1)
+		{
+			failures.Add($"{nameof(options.ConnectTimeout)} must be >= 1.");
+		}
 
-        if (options.RetryCount < 0)
-        {
-            failures.Add($"{nameof(options.RetryCount)} must be >= 0.");
-        }
+		if (options.RetryCount < 0)
+		{
+			failures.Add($"{nameof(options.RetryCount)} must be >= 0.");
+		}
 
-        return failures.Count > 0
-            ? ValidateOptionsResult.Fail(failures)
-            : ValidateOptionsResult.Success;
-    }
+		return failures.Count > 0
+			? ValidateOptionsResult.Fail(failures)
+			: ValidateOptionsResult.Success;
+	}
 }

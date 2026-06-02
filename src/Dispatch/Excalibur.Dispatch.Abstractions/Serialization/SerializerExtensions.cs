@@ -5,7 +5,7 @@
 using System.Buffers;
 using System.Text;
 
-namespace Excalibur.Dispatch.Abstractions.Serialization;
+namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
 /// Convenience extension methods for <see cref="ISerializer"/> providing overloads

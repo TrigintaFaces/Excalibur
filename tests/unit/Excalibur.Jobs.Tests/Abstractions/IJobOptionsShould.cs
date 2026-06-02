@@ -1,4 +1,4 @@
-using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs;
 
 namespace Excalibur.Jobs.Tests.Abstractions;
 

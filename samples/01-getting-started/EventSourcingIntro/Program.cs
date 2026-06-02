@@ -14,8 +14,8 @@
 // This is the progression from DispatchMinimal - see samples/MIGRATION.md
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 

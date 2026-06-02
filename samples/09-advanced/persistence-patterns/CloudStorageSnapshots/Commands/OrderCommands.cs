@@ -3,7 +3,7 @@
 
 using Excalibur.Application.Requests;
 using Excalibur.Application.Requests.Commands;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using CloudStorageSnapshots.Domain;
 

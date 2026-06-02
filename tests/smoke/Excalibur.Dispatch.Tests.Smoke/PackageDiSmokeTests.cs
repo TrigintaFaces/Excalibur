@@ -406,10 +406,7 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Saga [Timeout]", s => s.AddSagaTimeoutDelivery());
 		yield return Reg("Excalibur.Saga [Instrumentation]", s => s.AddSagaInstrumentation());
 		yield return Reg("Excalibur.Saga [Correlation]", s => s.AddSagaCorrelation());
-		yield return Reg("Excalibur.Saga [StateInspection]", s => s.AddSagaStateInspection());
 		yield return Reg("Excalibur.Saga [Reminders]", s => s.AddSagaReminders());
-		yield return Reg("Excalibur.Saga [Snapshots]", s => s.AddSagaSnapshots());
-		yield return Reg("Excalibur.Saga [TimeoutCleanup]", s => s.AddSagaTimeoutCleanup());
 		yield return Reg("Excalibur.Saga [Orchestration]", s => s.AddExcaliburOrchestration());
 		yield return Reg("Excalibur.Saga.SqlServer", s =>
 			s.AddSqlServerSagaStore(sql => { sql.ConnectionString = MockConnectionString; }));

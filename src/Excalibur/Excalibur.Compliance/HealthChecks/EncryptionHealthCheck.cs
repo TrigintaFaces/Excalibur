@@ -3,8 +3,8 @@
 
 using System.Security.Cryptography;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Compliance.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;

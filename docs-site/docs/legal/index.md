@@ -17,6 +17,7 @@ This section contains important legal information regarding the use of the Excal
 ## Quick Summary
 
 :::warning Framework Provides Tools, Not Compliance
+
 Excalibur provides **tools and functionality** to assist with building applications. The framework does **NOT** guarantee compliance with any law or regulation. Your compliance obligations remain your responsibility.
 :::
 

@@ -3,7 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;

@@ -9,7 +9,7 @@ using Amazon.Lambda.Core;
 
 using AwsLambdaSample.Messages;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;

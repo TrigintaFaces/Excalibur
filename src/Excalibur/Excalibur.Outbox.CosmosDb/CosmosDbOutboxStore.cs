@@ -7,9 +7,9 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Data.Abstractions.Observability;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Data.CloudNative;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;

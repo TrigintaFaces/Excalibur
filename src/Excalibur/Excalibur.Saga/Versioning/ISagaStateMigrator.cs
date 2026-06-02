@@ -37,7 +37,7 @@ namespace Excalibur.Saga.Versioning;
 /// }
 /// </code>
 /// </example>
-public interface ISagaStateMigrator<in TFrom, TTo>
+internal interface ISagaStateMigrator<in TFrom, TTo>
 	where TFrom : class
 	where TTo : class
 {

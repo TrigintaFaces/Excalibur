@@ -5,17 +5,13 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Transactions;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using DispatchTransactionOptions = Excalibur.Dispatch.Options.Middleware.TransactionOptions;
-using IMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
-using IMessageResult = Excalibur.Dispatch.Abstractions.IMessageResult;
-using MessageKinds = Excalibur.Dispatch.Abstractions.MessageKinds;
 
 namespace Excalibur.Dispatch.Middleware.Transaction;
 

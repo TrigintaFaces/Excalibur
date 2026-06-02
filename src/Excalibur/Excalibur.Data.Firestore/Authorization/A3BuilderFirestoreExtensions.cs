@@ -3,7 +3,7 @@
 
 
 using Excalibur.A3;
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.Data.Firestore.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

@@ -3,7 +3,7 @@
 
 using EventUpcasting.Events;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 namespace EventUpcasting.Domain;

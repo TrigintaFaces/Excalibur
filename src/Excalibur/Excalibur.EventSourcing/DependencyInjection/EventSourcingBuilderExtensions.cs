@@ -3,9 +3,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Versioning;
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Snapshots;
 using Excalibur.EventSourcing.Subscriptions;
@@ -13,10 +12,6 @@ using Excalibur.EventSourcing.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-
-using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
-using ISnapshotManager = Excalibur.EventSourcing.Abstractions.ISnapshotManager;
-using ISnapshotStrategy = Excalibur.EventSourcing.Abstractions.ISnapshotStrategy;
 
 namespace Excalibur.EventSourcing.DependencyInjection;
 

@@ -41,7 +41,6 @@ public static class SerilogHostApplicationBuilderExtensions
 
 		_ = builder.Logging.ClearProviders();
 		_ = builder.Logging.AddSerilog(Log.Logger, dispose: true);
-
 		_ = builder.Services.AddSerilog(Log.Logger, dispose: true);
 
 		Log.Information("Serilog logging configured successfully.");

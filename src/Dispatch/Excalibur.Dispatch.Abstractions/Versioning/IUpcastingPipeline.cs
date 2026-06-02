@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Manages automatic message version migration for ALL message types using registered upcasters.

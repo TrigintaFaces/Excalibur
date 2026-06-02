@@ -7,6 +7,7 @@ description: Reliable message publishing with transactional outbox
 # Outbox Pattern
 
 :::tip New to reliable messaging?
+
 Start with the [Idempotent Consumer Guide](idempotent-consumer.md) to understand why messages get duplicated and how the Outbox and Inbox patterns work together.
 :::
 
@@ -154,7 +155,7 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Custom()
 Inject `IOutboxWriter` into your handler and call `WriteAsync` to stage outbound messages. The consistency guarantee (eventually-consistent vs. transactional) is determined by configuration -- your handler code stays the same regardless of mode:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Outbox;
+using Excalibur.Dispatch.Outbox;
 
 public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
 {

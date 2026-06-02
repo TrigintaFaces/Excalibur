@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Hosting.AzureFunctions;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

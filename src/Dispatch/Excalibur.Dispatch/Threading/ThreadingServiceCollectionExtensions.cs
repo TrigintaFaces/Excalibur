@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Options.Threading;
 using Excalibur.Dispatch.Threading;

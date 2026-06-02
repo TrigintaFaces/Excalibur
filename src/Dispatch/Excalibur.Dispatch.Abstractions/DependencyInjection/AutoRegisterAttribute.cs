@@ -3,7 +3,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Marks a type for compile-time service registration by the source generator.

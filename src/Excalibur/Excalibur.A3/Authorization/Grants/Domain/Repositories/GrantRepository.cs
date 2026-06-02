@@ -2,15 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.A3.Diagnostics;
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 using Excalibur.Domain.Exceptions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 
-using StoreGrant = Excalibur.A3.Abstractions.Authorization.Grant;
+using StoreGrant = Excalibur.A3.Authorization.Grant;
 
 namespace Excalibur.A3.Authorization.Grants;
 

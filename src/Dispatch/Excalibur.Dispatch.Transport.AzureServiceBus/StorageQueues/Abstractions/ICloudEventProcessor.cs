@@ -6,8 +6,6 @@ using Azure.Storage.Queues.Models;
 
 using CloudNative.CloudEvents;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Transport.Azure;
 
 /// <summary>

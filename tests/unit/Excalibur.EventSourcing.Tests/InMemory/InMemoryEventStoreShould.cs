@@ -3,7 +3,7 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.Tests.InMemory;
 

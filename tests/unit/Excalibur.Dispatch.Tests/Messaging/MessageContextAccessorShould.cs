@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Tests.Messaging;

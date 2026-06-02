@@ -23,14 +23,14 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 [Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class PubSubDeadLetterQueueManagerShould : IDisposable
 {
-	private readonly SubscriberServiceApiClient _fakeSubscriber;
+	private readonly ISubscriberApiClientSeam _fakeSubscriber;
 	private readonly IPublisherClientSeam _fakePublisher;
 	private readonly PubSubDeadLetterQueueManager _sut;
 	private readonly GoogleDeadLetterOptions _options;
 
 	public PubSubDeadLetterQueueManagerShould()
 	{
-		_fakeSubscriber = A.Fake<SubscriberServiceApiClient>();
+		_fakeSubscriber = A.Fake<ISubscriberApiClientSeam>();
 		_fakePublisher = A.Fake<IPublisherClientSeam>();
 
 		_options = new GoogleDeadLetterOptions

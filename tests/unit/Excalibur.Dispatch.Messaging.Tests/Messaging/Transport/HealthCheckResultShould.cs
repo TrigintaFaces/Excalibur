@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch.Transport;
 
+using TransportHealthCheckResult = global::Excalibur.Dispatch.Transport.HealthCheckResult;
+
 namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 
 /// <summary>
@@ -16,138 +18,146 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 [Trait("Priority", "0")]
 public sealed class HealthCheckResultShould
 {
-	#region Constructor Tests
+	#region Constructor Tests (bool, string?, IReadOnlyDictionary?)
 
 	[Fact]
-	public void Constructor_Default_InitializesWithDefaults()
+	public void Constructor_WithIsHealthyTrue_SetsProperties()
 	{
-		// Arrange & Act
-		var result = new HealthCheckResult();
-
-		// Assert
-		_ = result.ShouldNotBeNull();
-		result.IsHealthy.ShouldBeFalse();
-		result.Description.ShouldBe(string.Empty);
-		result.Exception!.ShouldBeNull();
-	}
-
-	#endregion
-
-	#region IsHealthy Property Tests
-
-	[Fact]
-	public void IsHealthy_CanBeSetToTrue()
-	{
-		// Arrange
-		var result = new HealthCheckResult();
-
 		// Act
-		result.IsHealthy = true;
+		var result = new TransportHealthCheckResult(isHealthy: true);
 
 		// Assert
 		result.IsHealthy.ShouldBeTrue();
+		result.Status.ShouldBe(HealthCheckStatus.Healthy);
+		result.Description.ShouldBe("Healthy");
+		result.Data.ShouldNotBeNull();
+		result.Data.ShouldBeEmpty();
 	}
 
 	[Fact]
-	public void IsHealthy_CanBeSetToFalse()
+	public void Constructor_WithIsHealthyFalse_SetsProperties()
 	{
-		// Arrange
-		var result = new HealthCheckResult
-		{
-			IsHealthy = true,
-		};
-
 		// Act
-		result.IsHealthy = false;
+		var result = new TransportHealthCheckResult(isHealthy: false);
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-	}
-
-	#endregion
-
-	#region Description Property Tests
-
-	[Fact]
-	public void Description_CanBeSet()
-	{
-		// Arrange
-		var result = new HealthCheckResult();
-
-		// Act
-		result.Description = "Connection established";
-
-		// Assert
-		result.Description.ShouldBe("Connection established");
-	}
-
-	[Theory]
-	[InlineData("Healthy")]
-	[InlineData("Connection failed")]
-	[InlineData("Timeout occurred")]
-	[InlineData("")]
-	public void Description_WithVariousValues_Works(string description)
-	{
-		// Arrange
-		var result = new HealthCheckResult();
-
-		// Act
-		result.Description = description;
-
-		// Assert
-		result.Description.ShouldBe(description);
-	}
-
-	#endregion
-
-	#region CheckTimestamp Property Tests
-
-	[Fact]
-	public void CheckTimestamp_CanBeSet()
-	{
-		// Arrange
-		var result = new HealthCheckResult();
-		var timestamp = new DateTime(2025, 1, 15, 10, 30, 0, DateTimeKind.Utc);
-
-		// Act
-		result.CheckTimestamp = timestamp;
-
-		// Assert
-		result.CheckTimestamp.ShouldBe(timestamp);
-	}
-
-	#endregion
-
-	#region Exception Property Tests
-
-	[Fact]
-	public void Exception_CanBeSet()
-	{
-		// Arrange
-		var result = new HealthCheckResult();
-		var exception = new InvalidOperationException("Connection failed");
-
-		// Act
-		result.Exception = exception;
-
-		// Assert
-		result.Exception!.ShouldBe(exception);
+		result.Status.ShouldBe(HealthCheckStatus.Unhealthy);
+		result.Description.ShouldBe("Unhealthy");
 	}
 
 	[Fact]
-	public void Exception_CanBeCleared()
+	public void Constructor_WithDescription_SetsDescription()
+	{
+		// Act
+		var result = new TransportHealthCheckResult(isHealthy: true, description: "All good");
+
+		// Assert
+		result.Description.ShouldBe("All good");
+	}
+
+	[Fact]
+	public void Constructor_WithData_SetsData()
 	{
 		// Arrange
-		var result = new HealthCheckResult
+		var data = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
-			Exception = new InvalidOperationException("Error"),
+			["latency"] = 42,
 		};
 
 		// Act
-		result.Exception = null;
+		var result = new TransportHealthCheckResult(isHealthy: true, data: data);
 
 		// Assert
-		result.Exception!.ShouldBeNull();
+		result.Data.ShouldContainKey("latency");
+		result.Data["latency"].ShouldBe(42);
+	}
+
+	#endregion
+
+	#region Constructor Tests (HealthCheckStatus, string)
+
+	[Fact]
+	public void Constructor_WithHealthyStatus_SetsIsHealthyTrue()
+	{
+		// Act
+		var result = new TransportHealthCheckResult(HealthCheckStatus.Healthy, "OK");
+
+		// Assert
+		result.IsHealthy.ShouldBeTrue();
+		result.Status.ShouldBe(HealthCheckStatus.Healthy);
+		result.Description.ShouldBe("OK");
+	}
+
+	[Fact]
+	public void Constructor_WithDegradedStatus_SetsIsHealthyFalse()
+	{
+		// Act
+		var result = new TransportHealthCheckResult(HealthCheckStatus.Degraded, "Slow");
+
+		// Assert
+		result.IsHealthy.ShouldBeFalse();
+		result.Status.ShouldBe(HealthCheckStatus.Degraded);
+		result.Description.ShouldBe("Slow");
+	}
+
+	[Fact]
+	public void Constructor_WithUnhealthyStatus_SetsIsHealthyFalse()
+	{
+		// Act
+		var result = new TransportHealthCheckResult(HealthCheckStatus.Unhealthy, "Down");
+
+		// Assert
+		result.IsHealthy.ShouldBeFalse();
+		result.Status.ShouldBe(HealthCheckStatus.Unhealthy);
+	}
+
+	[Fact]
+	public void Constructor_WithStatusAndNullDescription_ThrowsArgumentNullException()
+	{
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() =>
+			new TransportHealthCheckResult(HealthCheckStatus.Healthy, null!));
+	}
+
+	#endregion
+
+	#region Immutability Tests
+
+	[Fact]
+	public void IsHealthy_IsReadOnly()
+	{
+		// Assert
+		var propertyInfo = typeof(TransportHealthCheckResult).GetProperty(nameof(TransportHealthCheckResult.IsHealthy));
+		_ = propertyInfo.ShouldNotBeNull();
+		propertyInfo.CanWrite.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void Description_IsReadOnly()
+	{
+		// Assert
+		var propertyInfo = typeof(TransportHealthCheckResult).GetProperty(nameof(TransportHealthCheckResult.Description));
+		_ = propertyInfo.ShouldNotBeNull();
+		propertyInfo.CanWrite.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void Status_IsReadOnly()
+	{
+		// Assert
+		var propertyInfo = typeof(TransportHealthCheckResult).GetProperty(nameof(TransportHealthCheckResult.Status));
+		_ = propertyInfo.ShouldNotBeNull();
+		propertyInfo.CanWrite.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void Data_IsReadOnly()
+	{
+		// Assert
+		var propertyInfo = typeof(TransportHealthCheckResult).GetProperty(nameof(TransportHealthCheckResult.Data));
+		_ = propertyInfo.ShouldNotBeNull();
+		propertyInfo.CanWrite.ShouldBeFalse();
 	}
 
 	#endregion
@@ -157,107 +167,66 @@ public sealed class HealthCheckResultShould
 	[Fact]
 	public void Healthy_WithDefaultDescription_ReturnsHealthyResult()
 	{
-		// Arrange & Act
-		var result = HealthCheckResult.Healthy();
+		// Act
+		var result = TransportHealthCheckResult.Healthy();
 
 		// Assert
 		result.IsHealthy.ShouldBeTrue();
+		result.Status.ShouldBe(HealthCheckStatus.Healthy);
 		result.Description.ShouldBe("Healthy");
-		result.Exception!.ShouldBeNull();
-		result.CheckTimestamp.ShouldNotBe(default);
+		result.Data.ShouldBeEmpty();
 	}
 
 	[Fact]
 	public void Healthy_WithCustomDescription_ReturnsHealthyResultWithDescription()
 	{
-		// Arrange & Act
-		var result = HealthCheckResult.Healthy("RabbitMQ connection established");
+		// Act
+		var result = TransportHealthCheckResult.Healthy("RabbitMQ connection established");
 
 		// Assert
 		result.IsHealthy.ShouldBeTrue();
 		result.Description.ShouldBe("RabbitMQ connection established");
-		result.Exception!.ShouldBeNull();
+	}
+
+	[Fact]
+	public void Healthy_WithData_ReturnsHealthyResultWithData()
+	{
+		// Arrange
+		var data = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["version"] = "3.12",
+		};
+
+		// Act
+		var result = TransportHealthCheckResult.Healthy("Connected", data);
+
+		// Assert
+		result.IsHealthy.ShouldBeTrue();
+		result.Data.ShouldContainKey("version");
 	}
 
 	[Fact]
 	public void Unhealthy_WithDescription_ReturnsUnhealthyResult()
 	{
-		// Arrange & Act
-		var result = HealthCheckResult.Unhealthy("Connection refused");
+		// Act
+		var result = TransportHealthCheckResult.Unhealthy("Connection refused");
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
+		result.Status.ShouldBe(HealthCheckStatus.Unhealthy);
 		result.Description.ShouldBe("Connection refused");
-		result.Exception!.ShouldBeNull();
-		result.CheckTimestamp.ShouldNotBe(default);
 	}
 
 	[Fact]
-	public void Unhealthy_WithDescriptionAndException_ReturnsUnhealthyResultWithException()
+	public void Degraded_WithDescription_ReturnsDegradedResult()
 	{
-		// Arrange
-		var exception = new TimeoutException("Connection timeout after 30 seconds");
-
 		// Act
-		var result = HealthCheckResult.Unhealthy("Failed to connect to broker", exception);
+		var result = TransportHealthCheckResult.Degraded("High latency detected");
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.Description.ShouldBe("Failed to connect to broker");
-		result.Exception!.ShouldBe(exception);
-	}
-
-	#endregion
-
-	#region Timestamp Tests
-
-	[Fact]
-	public void Healthy_SetsTimestamp()
-	{
-		// Arrange & Act
-		var result = HealthCheckResult.Healthy();
-
-		// Assert
-		result.CheckTimestamp.ShouldNotBe(default);
-		result.CheckTimestamp.Kind.ShouldBe(DateTimeKind.Utc);
-	}
-
-	[Fact]
-	public void Unhealthy_SetsTimestamp()
-	{
-		// Arrange & Act
-		var result = HealthCheckResult.Unhealthy("Error");
-
-		// Assert
-		result.CheckTimestamp.ShouldNotBe(default);
-		result.CheckTimestamp.Kind.ShouldBe(DateTimeKind.Utc);
-	}
-
-	#endregion
-
-	#region Full Object Tests
-
-	[Fact]
-	public void AllProperties_CanBeSetViaObjectInitializer()
-	{
-		// Arrange
-		var timestamp = DateTime.UtcNow;
-		var exception = new InvalidOperationException("Test");
-
-		// Act
-		var result = new HealthCheckResult
-		{
-			IsHealthy = false,
-			Description = "Connection failed",
-			CheckTimestamp = timestamp,
-			Exception = exception,
-		};
-
-		// Assert
-		result.IsHealthy.ShouldBeFalse();
-		result.Description.ShouldBe("Connection failed");
-		result.CheckTimestamp.ShouldBe(timestamp);
-		result.Exception!.ShouldBe(exception);
+		result.Status.ShouldBe(HealthCheckStatus.Degraded);
+		result.Description.ShouldBe("High latency detected");
 	}
 
 	#endregion
@@ -267,58 +236,60 @@ public sealed class HealthCheckResultShould
 	[Fact]
 	public void HealthyTransport_Scenario()
 	{
-		// Arrange & Act
-		var result = HealthCheckResult.Healthy("RabbitMQ: Connected to amqp://localhost:5672");
+		// Act
+		var result = TransportHealthCheckResult.Healthy("RabbitMQ: Connected to amqp://localhost:5672");
 
 		// Assert
 		result.IsHealthy.ShouldBeTrue();
 		result.Description.ShouldContain("RabbitMQ");
-		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
 	public void UnhealthyTransport_ConnectionRefused_Scenario()
 	{
-		// Arrange
-		var exception = new InvalidOperationException("Connection refused");
-
 		// Act
-		var result = HealthCheckResult.Unhealthy("Kafka: Unable to reach brokers", exception);
+		var result = TransportHealthCheckResult.Unhealthy("Kafka: Unable to reach brokers");
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
 		result.Description.ShouldContain("Kafka");
-		_ = result.Exception!.ShouldNotBeNull();
-		result.Exception!.Message.ShouldBe("Connection refused");
 	}
 
 	[Fact]
 	public void UnhealthyTransport_Timeout_Scenario()
 	{
-		// Arrange
-		var exception = new TimeoutException("Health check timed out after 10 seconds");
-
 		// Act
-		var result = HealthCheckResult.Unhealthy("Azure Service Bus: Timeout", exception);
+		var result = TransportHealthCheckResult.Unhealthy("Azure Service Bus: Timeout");
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		_ = result.Exception!.ShouldBeOfType<TimeoutException>();
+		result.Status.ShouldBe(HealthCheckStatus.Unhealthy);
 	}
 
 	[Fact]
-	public void UnhealthyTransport_AuthenticationFailed_Scenario()
+	public void DegradedTransport_Scenario()
 	{
-		// Arrange
-		var exception = new UnauthorizedAccessException("Invalid credentials");
-
 		// Act
-		var result = HealthCheckResult.Unhealthy("AWS SQS: Authentication failed", exception);
+		var result = TransportHealthCheckResult.Degraded("AWS SQS: High latency");
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.Description.ShouldContain("Authentication failed");
-		_ = result.Exception!.ShouldBeOfType<UnauthorizedAccessException>();
+		result.Status.ShouldBe(HealthCheckStatus.Degraded);
+		result.Description.ShouldContain("AWS SQS");
+	}
+
+	[Theory]
+	[InlineData("Healthy")]
+	[InlineData("Connection failed")]
+	[InlineData("Timeout occurred")]
+	[InlineData("")]
+	public void Constructor_WithVariousDescriptions_PreservesDescription(string description)
+	{
+		// Act
+		var result = new TransportHealthCheckResult(isHealthy: true, description: description);
+
+		// Assert
+		result.Description.ShouldBe(description);
 	}
 
 	#endregion

@@ -6,4 +6,4 @@ using System.Reflection;
 using Xunit;
 
 [assembly: AssemblyTitle("Excalibur.Dispatch.Tests.Functional")]
-[assembly: AssemblyTrait("Category", "Functional")]
+// xUnit v3: removed — [assembly: AssemblyTrait("Category", "Functional")]

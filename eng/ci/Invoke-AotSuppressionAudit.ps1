@@ -160,34 +160,47 @@ Write-Host "  Loaded $($baselineSuppressions.Count) baseline suppression(s)" -Fo
 # Compare: find NEW suppressions not in baseline
 # ============================================================================
 
-# Build a lookup set from baseline (file + line + warningId)
-$baselineSet = @{}
-foreach ($b in $baselineSuppressions) {
-    $key = "$($b.file)|$($b.line)|$($b.warningId)"
-    $baselineSet[$key] = $true
+# Build lookup sets using fingerprint (file + warningId + justification) instead of
+# line numbers. Line numbers shift whenever code above a suppression is edited, causing
+# false-positive "new/stale" pairs. The fingerprint is stable across line shifts.
+# Line numbers are still stored for reporting but not used for matching.
+#
+# To handle multiple identical suppressions in the same file (same warningId + justification
+# on different methods), we count occurrences and match by count.
+
+function Get-FingerprintCounts {
+    param([array]$Items, [string]$FileKey, [string]$WarningKey, [string]$JustificationKey)
+    $counts = @{}
+    foreach ($item in $Items) {
+        $key = "$($item.$FileKey)|$($item.$WarningKey)|$($item.$JustificationKey)"
+        if ($counts.ContainsKey($key)) { $counts[$key]++ } else { $counts[$key] = 1 }
+    }
+    return $counts
 }
 
-# Build a lookup set from source
-$sourceSet = @{}
-foreach ($s in $sourceSuppressions) {
-    $key = "$($s.File)|$($s.Line)|$($s.WarningId)"
-    $sourceSet[$key] = $true
-}
+$baselineCounts = Get-FingerprintCounts -Items $baselineSuppressions -FileKey 'file' -WarningKey 'warningId' -JustificationKey 'justification'
+$sourceCounts = Get-FingerprintCounts -Items $sourceSuppressions -FileKey 'File' -WarningKey 'WarningId' -JustificationKey 'Justification'
 
-# New suppressions: in source but not in baseline
+# New suppressions: fingerprints in source with a higher count than baseline
 $newSuppressions = @()
+$seenSourceCounts = @{}
 foreach ($s in $sourceSuppressions) {
-    $key = "$($s.File)|$($s.Line)|$($s.WarningId)"
-    if (-not $baselineSet.ContainsKey($key)) {
+    $key = "$($s.File)|$($s.WarningId)|$($s.Justification)"
+    if ($seenSourceCounts.ContainsKey($key)) { $seenSourceCounts[$key]++ } else { $seenSourceCounts[$key] = 1 }
+    $baselineCount = if ($baselineCounts.ContainsKey($key)) { $baselineCounts[$key] } else { 0 }
+    if ($seenSourceCounts[$key] -gt $baselineCount) {
         $newSuppressions += $s
     }
 }
 
-# Stale baseline entries: in baseline but not in source
+# Stale baseline entries: fingerprints in baseline with a higher count than source
 $staleEntries = @()
+$seenBaselineCounts = @{}
 foreach ($b in $baselineSuppressions) {
-    $key = "$($b.file)|$($b.line)|$($b.warningId)"
-    if (-not $sourceSet.ContainsKey($key)) {
+    $key = "$($b.file)|$($b.warningId)|$($b.justification)"
+    if ($seenBaselineCounts.ContainsKey($key)) { $seenBaselineCounts[$key]++ } else { $seenBaselineCounts[$key] = 1 }
+    $sourceCount = if ($sourceCounts.ContainsKey($key)) { $sourceCounts[$key] } else { 0 }
+    if ($seenBaselineCounts[$key] -gt $sourceCount) {
         $staleEntries += $b
     }
 }

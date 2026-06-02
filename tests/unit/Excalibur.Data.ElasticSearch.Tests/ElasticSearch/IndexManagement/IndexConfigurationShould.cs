@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Elastic.Clients.Elasticsearch.IndexManagement;
+using System.Text.Json;
 using Excalibur.Data.ElasticSearch.IndexManagement;
 
 namespace Excalibur.Data.Tests.ElasticSearch.IndexManagement;
@@ -12,6 +12,7 @@ namespace Excalibur.Data.Tests.ElasticSearch.IndexManagement;
 /// <remarks>
 /// Sprint 514 (S514.2): IndexManagement unit tests.
 /// Tests verify index configuration properties.
+/// Updated Sprint 837: SDK types replaced with JsonElement? (bd-b9dvfl).
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Elasticsearch")]
@@ -21,33 +22,33 @@ public sealed class IndexConfigurationShould
 	#region Default Value Tests
 
 	[Fact]
-	public void Settings_DefaultsToNull()
+	public void SettingsJson_DefaultsToNull()
 	{
 		// Arrange & Act
 		var config = new IndexConfiguration();
 
 		// Assert
-		config.Settings.ShouldBeNull();
+		config.SettingsJson.ShouldBeNull();
 	}
 
 	[Fact]
-	public void Mappings_DefaultsToNull()
+	public void MappingsJson_DefaultsToNull()
 	{
 		// Arrange & Act
 		var config = new IndexConfiguration();
 
 		// Assert
-		config.Mappings.ShouldBeNull();
+		config.MappingsJson.ShouldBeNull();
 	}
 
 	[Fact]
-	public void Aliases_DefaultsToNull()
+	public void AliasesJson_DefaultsToNull()
 	{
 		// Arrange & Act
 		var config = new IndexConfiguration();
 
 		// Assert
-		config.Aliases.ShouldBeNull();
+		config.AliasesJson.ShouldBeNull();
 	}
 
 	#endregion
@@ -58,24 +59,22 @@ public sealed class IndexConfigurationShould
 	public void AllProperties_CanBeInitialized()
 	{
 		// Arrange
-		var aliases = new Dictionary<string, Alias>
-		{
-			["events-read"] = new Alias()
-		};
+		using var settingsDoc = JsonDocument.Parse("""{"number_of_shards":1}""");
+		using var mappingsDoc = JsonDocument.Parse("""{"properties":{}}""");
+		using var aliasesDoc = JsonDocument.Parse("""{"events-read":{}}""");
 
 		// Act
 		var config = new IndexConfiguration
 		{
-			Settings = new IndexSettings(),
-			Mappings = new Elastic.Clients.Elasticsearch.Mapping.TypeMapping(),
-			Aliases = aliases
+			SettingsJson = settingsDoc.RootElement.Clone(),
+			MappingsJson = mappingsDoc.RootElement.Clone(),
+			AliasesJson = aliasesDoc.RootElement.Clone(),
 		};
 
 		// Assert
-		config.Settings.ShouldNotBeNull();
-		config.Mappings.ShouldNotBeNull();
-		config.Aliases.ShouldNotBeNull();
-		config.Aliases.Count.ShouldBe(1);
+		config.SettingsJson.ShouldNotBeNull();
+		config.MappingsJson.ShouldNotBeNull();
+		config.AliasesJson.ShouldNotBeNull();
 	}
 
 	#endregion
@@ -83,41 +82,41 @@ public sealed class IndexConfigurationShould
 	#region Aliases Tests
 
 	[Fact]
-	public void Aliases_CanContainMultipleEntries()
+	public void AliasesJson_CanContainMultipleEntries()
 	{
 		// Arrange
-		var aliases = new Dictionary<string, Alias>
-		{
-			["events-read"] = new Alias(),
-			["events-write"] = new Alias(),
-			["events-latest"] = new Alias()
-		};
+		using var aliasesDoc = JsonDocument.Parse("""{"events-read":{},"events-write":{},"events-latest":{}}""");
 
 		// Act
 		var config = new IndexConfiguration
 		{
-			Aliases = aliases
+			AliasesJson = aliasesDoc.RootElement.Clone(),
 		};
 
 		// Assert
-		config.Aliases.Count.ShouldBe(3);
-		config.Aliases.ContainsKey("events-read").ShouldBeTrue();
-		config.Aliases.ContainsKey("events-write").ShouldBeTrue();
-		config.Aliases.ContainsKey("events-latest").ShouldBeTrue();
+		config.AliasesJson.ShouldNotBeNull();
+		var obj = config.AliasesJson.Value;
+		obj.ValueKind.ShouldBe(JsonValueKind.Object);
+		obj.TryGetProperty("events-read", out _).ShouldBeTrue();
+		obj.TryGetProperty("events-write", out _).ShouldBeTrue();
+		obj.TryGetProperty("events-latest", out _).ShouldBeTrue();
 	}
 
 	[Fact]
-	public void Aliases_CanBeEmpty()
+	public void AliasesJson_CanBeEmptyObject()
 	{
-		// Arrange & Act
+		// Arrange
+		using var aliasesDoc = JsonDocument.Parse("{}");
+
+		// Act
 		var config = new IndexConfiguration
 		{
-			Aliases = new Dictionary<string, Alias>()
+			AliasesJson = aliasesDoc.RootElement.Clone(),
 		};
 
 		// Assert
-		config.Aliases.ShouldNotBeNull();
-		config.Aliases.Count.ShouldBe(0);
+		config.AliasesJson.ShouldNotBeNull();
+		config.AliasesJson.Value.ValueKind.ShouldBe(JsonValueKind.Object);
 	}
 
 	#endregion
@@ -131,9 +130,9 @@ public sealed class IndexConfigurationShould
 		var config = new IndexConfiguration();
 
 		// Assert
-		config.Settings.ShouldBeNull();
-		config.Mappings.ShouldBeNull();
-		config.Aliases.ShouldBeNull();
+		config.SettingsJson.ShouldBeNull();
+		config.MappingsJson.ShouldBeNull();
+		config.AliasesJson.ShouldBeNull();
 	}
 
 	#endregion

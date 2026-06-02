@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Represents a message stored in the inbox for idempotent processing and guaranteed delivery. The inbox pattern ensures that each message

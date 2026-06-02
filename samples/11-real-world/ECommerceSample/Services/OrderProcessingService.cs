@@ -6,7 +6,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample.Infrastructure;
 

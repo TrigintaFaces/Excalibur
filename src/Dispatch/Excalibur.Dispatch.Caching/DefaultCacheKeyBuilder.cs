@@ -6,8 +6,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;

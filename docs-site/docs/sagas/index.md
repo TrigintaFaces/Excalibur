@@ -1,12 +1,12 @@
 ---
 sidebar_position: 9
 title: Sagas & Workflows
-description: Orchestrate multi-step business processes with compensation, parallel steps, and retry policies using Excalibur.Saga.
+description: Orchestrate multi-step business processes with event-driven coordination, timeout handling, and compensation using Excalibur.Saga.
 ---
 
 # Sagas & Workflows
 
-Sagas coordinate multi-step business processes where failure in one step requires compensating (rolling back) previously completed steps. Excalibur provides two saga APIs for different scenarios.
+Sagas coordinate multi-step business processes where failure in one step requires compensating (rolling back) previously completed steps. Excalibur provides an **event-driven saga model** built on `SagaBase<T>` and `ISagaCoordinator`.
 
 ## Before You Start
 
@@ -18,31 +18,22 @@ Sagas coordinate multi-step business processes where failure in one step require
   ```
 - Familiarity with [handlers](../handlers.md) and [dependency injection](../core-concepts/dependency-injection.md)
 
-## Two Approaches
+## How Sagas Work
 
-Excalibur supports two saga patterns. Choose based on how your services communicate:
+Each saga is a class that extends `SagaBase<TState>`. The framework routes incoming events to saga instances via `ISagaCoordinator`. The saga processes one event at a time, updates its state, and suspends until the next event arrives. State is persisted between events so the saga survives process restarts.
 
-| | Step-Based | Event-Driven |
-|--|-----------|-------------|
-| **API** | `ISagaDefinition` + `ISagaStep` | `SagaBase<T>` + `ISagaCoordinator` |
-| **Execution** | Runs all steps sequentially in one process | Processes one event at a time, suspends between events |
-| **Service calls** | Steps `await` service calls directly | Steps publish commands/events via Dispatch |
-| **Best for** | In-process coordination, API gateway, modular monolith | Cross-service microservices, long-running workflows |
-| **Guide** | [Building Your First Saga](building-your-first-saga.md) | [Orchestration vs Choreography](orchestration-vs-choreography.md) |
+```
+Event arrives → SagaHandlingMiddleware → SagaCoordinator → SagaBase<T>.HandleAsync()
+                                                         → ISagaStore.SaveAsync()
+```
 
-**Step-based** sagas are simpler to write and debug. The orchestrator calls each service directly and handles compensation automatically. Use them when all participating services are reachable from a single process (e.g., a modular monolith or an API that calls internal services).
-
-**Event-driven** sagas work across independently deployed microservices. Each step publishes a command, then the saga suspends until it receives a response event. State is persisted between events so the saga survives process restarts. Use them when services are truly independent and communicate only through messages.
-
-:::tip New to sagas?
-Start with **[Building Your First Saga](building-your-first-saga.md)** to learn compensation, failure handling, and retry logic using the simpler step-based API. Then read **[Orchestration vs Choreography](orchestration-vs-choreography.md)** for the event-driven pattern used in microservice architectures.
-:::
+This event-driven model works across independently deployed microservices, long-running workflows, and modular monoliths alike.
 
 ## Packages
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Saga` | Core saga engine, orchestrator, coordinator |
+| `Excalibur.Saga` | Core saga engine, coordinator, timeout infrastructure |
 | `Excalibur.Saga.SqlServer` | SQL Server saga state persistence |
 | `Excalibur.Saga.Postgres` | PostgreSQL saga state persistence |
 | `Excalibur.Saga.CosmosDb` | Azure Cosmos DB saga state persistence |
@@ -52,351 +43,262 @@ Start with **[Building Your First Saga](building-your-first-saga.md)** to learn 
 
 ## Quick Start
 
-### 1. Define a Saga
-
-Create a saga by implementing `ISagaDefinition<TSagaData>`:
+### 1. Define Saga State
 
 ```csharp
-using Excalibur.Saga.Abstractions;
+using Excalibur.Saga.Orchestration;
 
-public class OrderSagaData
+public class OrderSagaState : SagaState
 {
-    public Guid OrderId { get; set; }
-    public Guid PaymentId { get; set; }
-    public Guid ShipmentId { get; set; }
-    public bool InventoryReserved { get; set; }
-}
+    public string OrderId { get; set; } = string.Empty;
+    public string CustomerId { get; set; } = string.Empty;
+    public decimal TotalAmount { get; set; }
 
-public class OrderSaga : ISagaDefinition<OrderSagaData>
-{
-    public string Name => "OrderSaga";
-    public TimeSpan Timeout => TimeSpan.FromMinutes(30);
-
-    public IReadOnlyList<ISagaStep<OrderSagaData>> Steps => new ISagaStep<OrderSagaData>[]
-    {
-        new ReserveInventoryStep(),
-        new ProcessPaymentStep(),
-        new ShipOrderStep()
-    };
-
-    // RetryPolicy is optional - return null for no retries
-    // To implement custom retry logic, implement ISagaRetryPolicy
-    public ISagaRetryPolicy? RetryPolicy => null;
-
-    public Task OnCompletedAsync(
-        ISagaContext<OrderSagaData> context,
-        CancellationToken cancellationToken)
-    {
-        // Called when all steps succeed
-        return Task.CompletedTask;
-    }
-
-    public Task OnFailedAsync(
-        ISagaContext<OrderSagaData> context,
-        Exception exception,
-        CancellationToken cancellationToken)
-    {
-        // Called when saga fails after compensation
-        return Task.CompletedTask;
-    }
+    // Populated as steps complete
+    public string? ReservationId { get; set; }
+    public string? PaymentTransactionId { get; set; }
+    public string? ShipmentTrackingNumber { get; set; }
+    public string? FailureReason { get; set; }
+    public List<string> CompletedSteps { get; set; } = [];
 }
 ```
 
-### 2. Define Steps
+### 2. Define Saga Events
 
-Each step implements `ISagaStep<TSagaData>` with execute and compensate logic:
+Events must implement `ISagaEvent` so the coordinator can route them:
 
 ```csharp
-public class ReserveInventoryStep : ISagaStep<OrderSagaData>
+using Excalibur.Dispatch;
+
+// Start event — creates a new saga instance
+public record StartOrderProcessing(
+    string SagaId, string OrderId, string CustomerId, decimal TotalAmount) : ISagaEvent;
+
+// Step completion events
+public record InventoryReserved(string SagaId, string ReservationId) : ISagaEvent;
+public record PaymentProcessed(string SagaId, string TransactionId) : ISagaEvent;
+public record OrderShipped(string SagaId, string TrackingNumber) : ISagaEvent;
+
+// Failure events
+public record PaymentFailed(string SagaId, string Reason) : ISagaEvent;
+```
+
+### 3. Implement the Saga
+
+```csharp
+using Excalibur.Dispatch;
+using Excalibur.Saga;
+using Excalibur.Saga.Orchestration;
+using Microsoft.Extensions.Logging;
+
+public sealed partial class OrderFulfillmentSaga(
+    OrderSagaState initialState,
+    IDispatcher dispatcher,
+    ILogger<OrderFulfillmentSaga> logger)
+    : SagaBase<OrderSagaState>(initialState, dispatcher, logger)
 {
-    public string Name => "ReserveInventory";
-    public bool CanCompensate => true;
-    public TimeSpan Timeout => TimeSpan.FromSeconds(30);
-
-    public async Task<StepResult> ExecuteAsync(
-        ISagaContext<OrderSagaData> context,
-        CancellationToken cancellationToken)
+    public override bool HandlesEvent(object eventMessage)
     {
-        // Reserve inventory for the order
-        context.Data.InventoryReserved = true;
-        return StepResult.Success();
+        return eventMessage is StartOrderProcessing
+            or InventoryReserved
+            or PaymentProcessed
+            or OrderShipped
+            or PaymentFailed;
     }
 
-    public async Task<StepResult> CompensateAsync(
-        ISagaContext<OrderSagaData> context,
-        CancellationToken cancellationToken)
+    public override async Task HandleAsync(
+        object eventMessage, CancellationToken cancellationToken)
     {
-        // Release the reserved inventory
-        context.Data.InventoryReserved = false;
-        return StepResult.Success();
-    }
-}
+        switch (eventMessage)
+        {
+            case StartOrderProcessing start:
+                State.OrderId = start.OrderId;
+                State.CustomerId = start.CustomerId;
+                State.TotalAmount = start.TotalAmount;
+                LogSagaStarted(State.SagaId, start.OrderId);
+                break;
 
-public class ProcessPaymentStep : ISagaStep<OrderSagaData>
-{
-    public string Name => "ProcessPayment";
-    public bool CanCompensate => true;
-    public TimeSpan Timeout => TimeSpan.FromSeconds(60);
+            case InventoryReserved reserved:
+                State.ReservationId = reserved.ReservationId;
+                State.CompletedSteps.Add("ReserveInventory");
+                break;
 
-    public async Task<StepResult> ExecuteAsync(
-        ISagaContext<OrderSagaData> context,
-        CancellationToken cancellationToken)
-    {
-        // Charge the customer
-        context.Data.PaymentId = Guid.NewGuid();
-        return StepResult.Success();
-    }
+            case PaymentProcessed paid:
+                State.PaymentTransactionId = paid.TransactionId;
+                State.CompletedSteps.Add("ProcessPayment");
+                break;
 
-    public async Task<StepResult> CompensateAsync(
-        ISagaContext<OrderSagaData> context,
-        CancellationToken cancellationToken)
-    {
-        // Refund the charge
-        context.Data.PaymentId = Guid.Empty;
-        return StepResult.Success();
-    }
-}
+            case OrderShipped shipped:
+                State.ShipmentTrackingNumber = shipped.TrackingNumber;
+                State.CompletedSteps.Add("ShipOrder");
+                LogSagaCompleted(State.SagaId, State.OrderId);
+                await MarkCompletedAsync(cancellationToken).ConfigureAwait(false);
+                break;
 
-public class ShipOrderStep : ISagaStep<OrderSagaData>
-{
-    public string Name => "ShipOrder";
-    public bool CanCompensate => false; // Cannot un-ship
-    public TimeSpan Timeout => TimeSpan.FromMinutes(5);
-
-    public async Task<StepResult> ExecuteAsync(
-        ISagaContext<OrderSagaData> context,
-        CancellationToken cancellationToken)
-    {
-        context.Data.ShipmentId = Guid.NewGuid();
-        return StepResult.Success();
+            case PaymentFailed failed:
+                State.FailureReason = failed.Reason;
+                MarkCompleted();
+                break;
+        }
     }
 
-    public Task<StepResult> CompensateAsync(
-        ISagaContext<OrderSagaData> context,
-        CancellationToken cancellationToken)
-    {
-        // Not compensable - CanCompensate is false
-        return Task.FromResult(StepResult.Success());
-    }
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Saga {SagaId} started for order {OrderId}")]
+    private partial void LogSagaStarted(Guid sagaId, string orderId);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Saga {SagaId} completed for order {OrderId}")]
+    private partial void LogSagaCompleted(Guid sagaId, string orderId);
 }
 ```
 
-### 3. Register and Execute
+### 4. Register and Configure
 
 ```csharp
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Saga.Orchestration;
 using Microsoft.Extensions.DependencyInjection;
 
-// Registration with SQL Server persistence
-services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
+// Register saga coordination + timeout delivery
+services.AddExcaliburOrchestration();
+services.AddSagaTimeoutDelivery();
+
+// Register your saga type
+services.AddSaga<OrderFulfillmentSaga, OrderSagaState>();
+
+// Map events to saga instances
+SagaRegistry.Register<OrderFulfillmentSaga, OrderSagaState>(info =>
+{
+    info.StartsWith<StartOrderProcessing>();
+    info.Handles<InventoryReserved>();
+    info.Handles<PaymentProcessed>();
+    info.Handles<OrderShipped>();
+    info.Handles<PaymentFailed>();
+});
+```
+
+Or use the builder pattern with a persistence provider:
+
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddSagas(saga =>
 {
     saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
-        .WithOrchestration()
+        .WithCoordination()
         .WithTimeouts();
 }));
+```
 
-// Or with Postgres persistence (5 canonical connection overloads)
-services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
+## Declarative Timeouts with ISagaTimeout&lt;T&gt;
+
+Sagas can declare strongly-typed timeout handlers using `ISagaTimeout<T>`. When a timeout fires and the saga implements a matching interface, the framework routes directly to `HandleTimeoutAsync` instead of the general `HandleAsync`:
+
+```csharp
+public sealed class PaymentTimeout : ISagaEvent
 {
+    public string SagaId { get; set; } = string.Empty;
+    public string? StepId => "PaymentTimeout";
+}
+
+public sealed partial class OrderFulfillmentSaga
+    : SagaBase<OrderSagaState>,
+      ISagaTimeout<PaymentTimeout>
+{
+    // Schedule a timeout in HandleAsync
+    // State.TimeoutId = await RequestTimeoutAsync<PaymentTimeout>(
+    //     TimeSpan.FromMinutes(5), cancellationToken);
+
+    public Task HandleTimeoutAsync(
+        PaymentTimeout message, CancellationToken cancellationToken)
+    {
+        State.FailureReason = "Payment confirmation timed out";
+        MarkCompleted();
+        return Task.CompletedTask;
+    }
+}
+```
+
+A saga can implement multiple `ISagaTimeout<T>` interfaces for different timeout types. This follows the NServiceBus `IHandleTimeouts<T>` pattern.
+
+## Idempotent Event Replay
+
+`SagaState` automatically tracks processed event IDs to prevent duplicate command dispatch. When a saga event is delivered (including crash replays or concurrent duplicates), the `SagaCoordinator` calls `SagaState.TryMarkEventProcessed(eventId)` before executing the handler:
+
+- Returns `true` — event is new, process it normally
+- Returns `false` — event already processed, skip silently
+
+The processed event set is bounded to 1,000 entries (oldest trimmed when exceeded) and persisted with the saga state.
+
+:::info NServiceBus Pattern
+
+This follows the same idempotent replay pattern used by NServiceBus sagas, where saga state includes a list of handled message IDs.
+:::
+
+## Persistence Providers
+
+Each provider plugs into the `ISagaBuilder` fluent API:
+
+```csharp
+// SQL Server
+services.AddExcalibur(x => x.AddSagas(saga =>
+    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
+        .WithCoordination()
+        .WithTimeouts()));
+
+// PostgreSQL
+services.AddExcalibur(x => x.AddSagas(saga =>
     saga.UsePostgres(pg => pg.ConnectionString(connectionString))
-        .WithOrchestration()
-        .WithTimeouts();
-}));
+        .WithCoordination()
+        .WithTimeouts()));
 
-// Cloud providers
-services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
-{
+// Azure Cosmos DB
+services.AddExcalibur(x => x.AddSagas(saga =>
     saga.UseCosmosDb(cosmos =>
     {
         cosmos.ConnectionString("AccountEndpoint=...;AccountKey=...")
               .DatabaseName("myapp")
               .ContainerName("sagas");
-    });
-}));
+    })));
 
-services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
-{
+// AWS DynamoDB
+services.AddExcalibur(x => x.AddSagas(saga =>
     saga.UseDynamoDb(options =>
     {
         options.Connection.Region = "us-east-1";
         options.TableName = "sagas";
-    });
-}));
+    })));
 
-services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
-{
+// MongoDB
+services.AddExcalibur(x => x.AddSagas(saga =>
     saga.UseMongoDB(mongo =>
     {
         mongo.ConnectionString("mongodb://localhost:27017")
              .DatabaseName("myapp")
              .CollectionName("sagas");
-    });
-}));
+    })));
 
-services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
-{
+// Google Firestore
+services.AddExcalibur(x => x.AddSagas(saga =>
     saga.UseFirestore(options =>
     {
         options.ProjectId = "my-project";
         options.CollectionName = "sagas";
-    });
-}));
-
-// Execution via ISagaOrchestrator
-public class OrderController
-{
-    private readonly ISagaOrchestrator _orchestrator;
-    private readonly OrderSaga _sagaDefinition;
-
-    public OrderController(ISagaOrchestrator orchestrator, OrderSaga sagaDefinition)
-    {
-        _orchestrator = orchestrator;
-        _sagaDefinition = sagaDefinition;
-    }
-
-    public string CreateOrder(CreateOrderRequest request)
-    {
-        var saga = _orchestrator.CreateSaga(
-            _sagaDefinition,
-            new OrderSagaData { OrderId = request.OrderId });
-
-        return saga.SagaId;
-    }
-}
+    })));
 ```
 
-## Compensation
+## Builder Extensions
 
-When a step fails, the saga engine automatically compensates previously completed steps **in reverse order**:
+The `ISagaBuilder` fluent API provides optional capabilities:
 
-```
-Step 1: ReserveInventory  ✓ (completed)
-Step 2: ProcessPayment    ✓ (completed)
-Step 3: ShipOrder         ✗ (failed)
+| Extension | Purpose |
+|-----------|---------|
+| `.WithCoordination()` | Registers `SagaCoordinator` + `SagaHandlingMiddleware` |
+| `.WithTimeouts()` | Enables timeout scheduling and delivery |
+| `.WithInstrumentation()` | Adds OpenTelemetry tracing and metrics |
+| `.WithOutbox()` | Integrates saga events with the outbox pattern |
+| `.WithCorrelation()` | Enables saga lookup by business identifiers |
+| `.WithReminders()` | Saga reminder scheduling |
 
-Compensation runs:
-  → Compensate ProcessPayment  (refund)
-  → Compensate ReserveInventory (release stock)
-```
-
-Steps with `CanCompensate = false` are skipped during compensation. Place non-compensable steps last when possible.
-
-## Saga Status
-
-Track saga progress through these statuses:
-
-| Status | Meaning |
-|--------|---------|
-| `Created` | Saga initialized, not yet started |
-| `Running` | Executing steps |
-| `Completed` | All steps succeeded |
-| `Failed` | Steps failed, compensation finished or not possible |
-| `Compensating` | Rolling back completed steps |
-| `Compensated` | All compensations succeeded |
-| `Cancelled` | Manually cancelled |
-| `Suspended` | Paused, awaiting external input |
-| `Expired` | Timed out |
-
-### Step Status
-
-| Status | Meaning |
-|--------|---------|
-| `NotStarted` | Step has not begun |
-| `Running` | Currently executing |
-| `Succeeded` | Completed successfully |
-| `Failed` | Execution failed |
-| `Skipped` | Conditionally skipped |
-| `TimedOut` | Exceeded step timeout |
-
-### Compensation Status
-
-| Status | Meaning |
-|--------|---------|
-| `NotRequired` | Step did not need compensation |
-| `Pending` | Awaiting compensation |
-| `Running` | Compensation in progress |
-| `Succeeded` | Compensation completed |
-| `Failed` | Compensation failed |
-| `NotCompensable` | Step cannot be compensated (`CanCompensate = false`) |
-
-## Managing Sagas
-
-Use `ISagaOrchestrator` to manage saga lifecycle:
-
-```csharp
-// Create a new saga (synchronous, requires saga definition)
-var saga = orchestrator.CreateSaga(sagaDefinition, data);
-var sagaId = saga.SagaId;
-
-// Query saga state (requires type parameter)
-var saga = await orchestrator.GetSagaAsync<OrderSagaData>(sagaId, ct);
-
-// List active sagas
-var active = await orchestrator.ListActiveSagasAsync(ct);
-
-// Cancel a running saga (requires reason)
-await orchestrator.CancelSagaAsync(sagaId, "User requested cancellation", ct);
-```
-
-## Event-Driven Sagas
-
-The step-based pattern shown above runs all steps in one call. For sagas that span independent microservices, use the **event-driven** pattern instead. The `ISagaCoordinator` processes incoming events to advance the saga one step at a time, persisting state between events. See [Orchestration vs Choreography](orchestration-vs-choreography.md) for the full event-driven pattern using `SagaBase<T>`.
-
-Events must implement `ISagaEvent`:
-
-```csharp
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Messaging;
-
-// Define a saga event (must implement ISagaEvent)
-public record OrderPlaced(Guid OrderId, string SagaId, string? StepId = null) : ISagaEvent;
-
-// Handle saga events via the coordinator
-public class OrderEventHandler : IEventHandler<OrderPlaced>
-{
-    private readonly ISagaCoordinator _coordinator;
-    private readonly IMessageContextAccessor _contextAccessor;
-
-    public OrderEventHandler(
-        ISagaCoordinator coordinator,
-        IMessageContextAccessor contextAccessor)
-    {
-        _coordinator = coordinator;
-        _contextAccessor = contextAccessor;
-    }
-
-    public async Task HandleAsync(OrderPlaced @event, CancellationToken ct)
-    {
-        // Get context from accessor (set by pipeline during message processing)
-        var context = _contextAccessor.MessageContext
-            ?? throw new InvalidOperationException("No message context available");
-
-        // ProcessEventAsync requires message context and ISagaEvent
-        await _coordinator.ProcessEventAsync(context, @event, ct);
-    }
-}
-```
-
-## SQL Server Saga Store
-
-Persist saga state to SQL Server for durability:
-
-```csharp
-services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
-{
-    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
-        .WithOrchestration()
-        .WithTimeouts();
-}));
-```
-
-The SQL Server store provides:
-- Durable saga state persistence
-- Concurrent saga execution safety
-- Idempotency checking via `SqlServerSagaIdempotencyProvider`
-- Correlation queries for saga lookup by business identifiers
-
-### Correlation Queries
+## SQL Server Correlation Queries
 
 Look up saga instances by business identifiers using `ISagaCorrelationQuery`:
 
@@ -408,91 +310,19 @@ var sagas = await correlationQuery.FindByCorrelationIdAsync("order-123", ct);
 var sagas = await correlationQuery.FindByPropertyAsync("CustomerId", "cust-456", ct);
 ```
 
-Register the SQL Server correlation query via the builder:
+Register via the builder:
 
 ```csharp
-services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
-{
+services.AddExcalibur(x => x.AddSagas(saga =>
     saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
-        .WithCorrelationQuery();
-}));
+        .WithCorrelationQuery()));
 ```
 
-The SQL Server implementation requires the `02-SagaCorrelationIndex.sql` migration for optimal performance. Property names in `FindByPropertyAsync` are validated against a `[GeneratedRegex]` whitelist to prevent JSON path injection.
-
-### Idempotent Event Replay
-
-`SagaState` automatically tracks processed event IDs to prevent duplicate command dispatch. When a saga event is delivered (including crash replays or concurrent duplicates), the `SagaCoordinator` calls `SagaState.TryMarkEventProcessed(eventId)` before executing the handler:
-
-- Returns `true` → event is new, process it normally
-- Returns `false` → event already processed, skip silently
-
-The processed event set is bounded to 1,000 entries (oldest trimmed when exceeded) and persisted with the saga state. If a crash occurs between `HandleAsync` and `SaveAsync`, the event ID is lost from the set, and the event replays correctly on next delivery -- the correct behavior since side-effects were also lost.
-
-:::info NServiceBus Pattern
-This follows the same idempotent replay pattern used by NServiceBus sagas, where saga state includes a list of handled message IDs.
-:::
-
-### Compensation Idempotency
-
-The saga engine also checks `ISagaIdempotencyProvider` before executing compensation steps to prevent duplicate compensation during retries or event redelivery. This provides cross-process deduplication (complementing the in-process `ProcessedEventIds` check). This is wired automatically when using `AdvancedSagaMiddleware`.
-
-For SQL Server persistence, register the idempotency provider:
-
-```csharp
-services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
-{
-    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
-        .WithSqlServerIdempotency(sql => sql.ConnectionString(connectionString));
-}));
-```
-
-## Retry Policies
-
-Configure retry behavior by implementing `ISagaRetryPolicy`:
-
-```csharp
-// No retries (default)
-public ISagaRetryPolicy? RetryPolicy => null;
-
-// Custom retry policy - implement ISagaRetryPolicy
-public class ExponentialBackoffRetryPolicy : ISagaRetryPolicy
-{
-    public int MaxAttempts { get; init; } = 3;
-    public TimeSpan Delay { get; init; } = TimeSpan.FromSeconds(2);
-
-    public bool ShouldRetry(Exception exception)
-    {
-        // Return true for transient failures
-        return exception is TimeoutException or HttpRequestException;
-    }
-}
-
-// Use in saga definition
-public ISagaRetryPolicy? RetryPolicy => new ExponentialBackoffRetryPolicy
-{
-    MaxAttempts = 3,
-    Delay = TimeSpan.FromSeconds(2)
-};
-```
-
-The `ISagaRetryPolicy` interface defines:
-
-| Member | Description |
-|--------|-------------|
-| `MaxAttempts` | Maximum number of retry attempts |
-| `Delay` | Delay between retry attempts |
-| `ShouldRetry(Exception)` | Determines if an exception should trigger a retry |
+Property names in `FindByPropertyAsync` are validated against a `[GeneratedRegex]` whitelist to prevent JSON path injection.
 
 ## What's Next
 
-- [Outbox Pattern](../patterns/outbox.md) - Reliable message publishing
-- [Inbox Pattern](../patterns/inbox.md) - Idempotent message processing
-- [Event Sourcing](../event-sourcing/index.md) - Store state as events
-- [Jobs & Workflows](../patterns/jobs.md) - Background job coordination
-
-## See Also
-
-- [Building Your First Saga](./building-your-first-saga.md) — Step-by-step guide to creating a saga with compensation and retry logic
 - [Orchestration vs Choreography](./orchestration-vs-choreography.md) — Compare centralized orchestration and decentralized choreography patterns
-- [Event Sourcing](../event-sourcing/index.md) — Store domain state as a sequence of events, often used alongside sagas
+- [Outbox Pattern](../patterns/outbox.md) — Reliable message publishing
+- [Inbox Pattern](../patterns/inbox.md) — Idempotent message processing
+- [Event Sourcing](../event-sourcing/index.md) — Store state as events

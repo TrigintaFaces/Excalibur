@@ -9,7 +9,7 @@ using System.Globalization;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 

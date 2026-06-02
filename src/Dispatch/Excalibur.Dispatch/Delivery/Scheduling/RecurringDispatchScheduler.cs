@@ -5,11 +5,9 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Scheduling;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

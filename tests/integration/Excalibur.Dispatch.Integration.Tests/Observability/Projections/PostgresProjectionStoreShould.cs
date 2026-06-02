@@ -6,7 +6,7 @@
 using Dapper;
 
 using Excalibur.EventSourcing.Postgres;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 
@@ -36,7 +36,7 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 		_logger = new LoggerFactory().CreateLogger<PostgresProjectionStore<TestOrderProjection>>();
 	}
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		// Skip if Docker is not available
 		if (!_fixture.DockerAvailable)
@@ -63,7 +63,7 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 			TableName);
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (!_fixture.DockerAvailable)
 		{

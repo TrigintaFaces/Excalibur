@@ -4,7 +4,7 @@
 using System.Buffers;
 using System.Text.Json;
 
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 /// <summary>
 /// Encodes and decodes opaque cursor strings for cursor-based (keyset) pagination.

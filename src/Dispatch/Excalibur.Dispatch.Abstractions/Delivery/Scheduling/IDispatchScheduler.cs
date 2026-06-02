@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-namespace Excalibur.Dispatch.Abstractions.Delivery;
+namespace Excalibur.Dispatch.Delivery;
 
 /// <summary>
 /// Defines the contract for scheduling message dispatch operations with support for both one-time and recurring execution patterns.

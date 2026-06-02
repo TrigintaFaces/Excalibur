@@ -2,6 +2,8 @@ using Excalibur.A3;
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Events;
 using Excalibur.A3.Authorization.Grants;
+
+using GrantAggregate = Excalibur.A3.Authorization.Grants.Grant;
 using Excalibur.A3.Exceptions;
 using Excalibur.Domain;
 
@@ -82,7 +84,7 @@ public sealed class RevokeGrantCommandHandlerShould
 		var command = CreateValidCommand();
 
 		A.CallTo(() => _grantRepository.GetByIdAsync(A<string>._, A<CancellationToken>._))
-			.Returns((Grant?)null);
+			.Returns((GrantAggregate?)null);
 
 		// Act
 		var result = await sut.HandleAsync(command, CancellationToken.None);
@@ -151,11 +153,11 @@ public sealed class RevokeGrantCommandHandlerShould
 		result.AuditMessage.ShouldContain("Admin User");
 	}
 
-	private static Grant CreateActiveGrant()
+	private static GrantAggregate CreateActiveGrant()
 	{
 		var addedEvent = new GrantAdded(
 			"target-user", "Target User", "TestApp", "tenant-1", "ActivityGroup", "orders",
 			DateTimeOffset.UtcNow.AddDays(30), "admin", DateTimeOffset.UtcNow.AddDays(-1));
-		return Grant.FromEvents("target-user:tenant-1:ActivityGroup:orders", [addedEvent]);
+		return GrantAggregate.FromEvents("target-user:tenant-1:ActivityGroup:orders", [addedEvent]);
 	}
 }

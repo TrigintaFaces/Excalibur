@@ -17,7 +17,7 @@ namespace Excalibur.Saga.Reminders;
 /// where a saga can request to be woken up after a specified delay.
 /// </para>
 /// </remarks>
-public interface ISagaReminder
+internal interface ISagaReminder
 {
 	/// <summary>
 	/// Schedules a reminder for a saga instance.

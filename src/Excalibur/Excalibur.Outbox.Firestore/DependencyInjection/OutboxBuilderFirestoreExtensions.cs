@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 using Excalibur.Outbox;
 using Excalibur.Outbox.Firestore;
 

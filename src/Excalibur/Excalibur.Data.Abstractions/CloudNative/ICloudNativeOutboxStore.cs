@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Data.Abstractions.CloudNative;
+namespace Excalibur.Data.CloudNative;
 
 /// <summary>
 /// Defines outbox operations optimized for cloud-native databases that use change-feed
@@ -12,7 +12,7 @@ namespace Excalibur.Data.Abstractions.CloudNative;
 /// <para>
 /// <strong>Relationship to <c>IOutboxStore</c>:</strong>
 /// This interface is intentionally separate from
-/// <c>Excalibur.Dispatch.Abstractions.IOutboxStore</c>. The two serve fundamentally
+/// <c>Excalibur.Dispatch.IOutboxStore</c>. The two serve fundamentally
 /// different outbox patterns:
 /// </para>
 /// <list type="bullet">

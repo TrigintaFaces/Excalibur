@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Resilience.Polly;
@@ -190,14 +190,14 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 		ConcurrencyTestQueryHandler.CallCount.ShouldBeGreaterThan(callCountBeforeInvalidation);
 	}
 
-	private static async Task<Excalibur.Dispatch.Abstractions.IMessageResult<ConcurrencyTestResult>> DispatchUntilCacheHitAsync(
+	private static async Task<Excalibur.Dispatch.IMessageResult<ConcurrencyTestResult>> DispatchUntilCacheHitAsync(
 		IDispatcher dispatcher,
 		ConcurrencyTestQuery query,
 		IServiceProvider provider,
 		TimeSpan timeout)
 	{
 		var deadline = DateTimeOffset.UtcNow + timeout;
-		Excalibur.Dispatch.Abstractions.IMessageResult<ConcurrencyTestResult>? lastResult = null;
+		Excalibur.Dispatch.IMessageResult<ConcurrencyTestResult>? lastResult = null;
 
 		while (DateTimeOffset.UtcNow < deadline)
 		{
@@ -218,7 +218,7 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 		return lastResult!;
 	}
 
-	private static async Task<Excalibur.Dispatch.Abstractions.IMessageResult<ConcurrencyTestResult>> DispatchUntilCallCountIncreasesAsync(
+	private static async Task<Excalibur.Dispatch.IMessageResult<ConcurrencyTestResult>> DispatchUntilCallCountIncreasesAsync(
 		IDispatcher dispatcher,
 		ConcurrencyTestQuery query,
 		IServiceProvider provider,
@@ -226,7 +226,7 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 		TimeSpan timeout)
 	{
 		var deadline = DateTimeOffset.UtcNow + timeout;
-		Excalibur.Dispatch.Abstractions.IMessageResult<ConcurrencyTestResult>? lastResult = null;
+		Excalibur.Dispatch.IMessageResult<ConcurrencyTestResult>? lastResult = null;
 
 		while (DateTimeOffset.UtcNow < deadline)
 		{

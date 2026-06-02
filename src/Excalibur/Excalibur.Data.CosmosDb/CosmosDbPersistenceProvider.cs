@@ -5,9 +5,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.CloudNative;
 using Excalibur.Data.CosmosDb.Resources;
+using Excalibur.Data.Persistence;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
@@ -215,7 +215,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	[UnconditionalSuppressMessage("Trimming", "IL2095", Justification = "Implementation has stricter DynamicallyAccessedMembers than interface requires")]
 	public async Task<CloudOperationResult<TDocument>> UpdateAsync<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
-		TDocument>(
+	TDocument>(
 		TDocument document,
 		IPartitionKey partitionKey,
 		string? etag,
@@ -333,8 +333,8 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 		var queryOptions = new QueryRequestOptions { PartitionKey = cosmosPartitionKey, MaxItemCount = 100 };
 
-		if (consistencyOptions?.ConsistencyLevel == Abstractions.CloudNative.ConsistencyLevel.Session &&
-		    !string.IsNullOrEmpty(consistencyOptions.SessionToken))
+		if (consistencyOptions?.ConsistencyLevel == CloudNative.ConsistencyLevel.Session &&
+			!string.IsNullOrEmpty(consistencyOptions.SessionToken))
 		{
 			queryOptions.SessionToken = consistencyOptions.SessionToken;
 		}
@@ -424,7 +424,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	[UnconditionalSuppressMessage("Trimming", "IL2095", Justification = "Implementation has stricter DynamicallyAccessedMembers than interface requires")]
 	public async Task<IChangeFeedSubscription<TDocument>> CreateChangeFeedSubscriptionAsync<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
-		TDocument>(
+	TDocument>(
 		string containerName,
 		IChangeFeedOptions? options,
 		CancellationToken cancellationToken)
@@ -446,7 +446,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public Task<TResult> ExecuteDocumentAsync<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> documentRequest,
+		IDocumentDataRequest<TConnection, TResult> documentRequest,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(ErrorMessages.UseCloudNativeMethodsInsteadOfExecuteDocument);
@@ -454,7 +454,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public Task<TResult> ExecuteDocumentInTransactionAsync<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> documentRequest,
+		IDocumentDataRequest<TConnection, TResult> documentRequest,
 		ITransactionScope transactionScope,
 		CancellationToken cancellationToken)
 	{
@@ -463,7 +463,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public Task<IEnumerable<object>> ExecuteDocumentBatchAsync<TConnection>(
-		IEnumerable<Abstractions.IDocumentDataRequest<TConnection, object>> documentRequests,
+		IEnumerable<IDocumentDataRequest<TConnection, object>> documentRequests,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(ErrorMessages.UseExecuteBatchAsyncForBatchOperations);
@@ -471,7 +471,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public Task<TResult> ExecuteBulkDocumentAsync<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> bulkDocumentRequest,
+		IDocumentDataRequest<TConnection, TResult> bulkDocumentRequest,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(ErrorMessages.UseExecuteBatchAsyncOrBulkExecution);
@@ -479,7 +479,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public Task<TResult> ExecuteAggregationAsync<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> aggregationRequest,
+		IDocumentDataRequest<TConnection, TResult> aggregationRequest,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(ErrorMessages.UseQueryAsyncForAggregations);
@@ -487,7 +487,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public Task<string> ExecuteIndexOperationAsync<TConnection>(
-		Abstractions.IDocumentDataRequest<TConnection, string> indexRequest,
+		IDocumentDataRequest<TConnection, string> indexRequest,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(ErrorMessages.IndexManagementViaContainerPolicy);
@@ -559,7 +559,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public bool ValidateDocumentRequest<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> documentRequest) =>
+		IDocumentDataRequest<TConnection, TResult> documentRequest) =>
 		documentRequest != null;
 
 	/// <inheritdoc/>
@@ -572,14 +572,14 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public string ConnectionString => _options.Client.ConnectionString
-	                                  ?? (_options.Client.AccountEndpoint != null ? $"AccountEndpoint={_options.Client.AccountEndpoint}" : string.Empty);
+									  ?? (_options.Client.AccountEndpoint != null ? $"AccountEndpoint={_options.Client.AccountEndpoint}" : string.Empty);
 
 	/// <inheritdoc/>
-	public Abstractions.Resilience.IDataRequestRetryPolicy RetryPolicy => CosmosDbRetryPolicy.Instance;
+	public Resilience.IDataRequestRetryPolicy RetryPolicy => CosmosDbRetryPolicy.Instance;
 
 	/// <inheritdoc/>
 	public Task<TResult> ExecuteAsync<TConnection, TResult>(
-		Abstractions.IDataRequest<TConnection, TResult> request,
+		IDataRequest<TConnection, TResult> request,
 		CancellationToken cancellationToken)
 		where TConnection : IDisposable
 	{
@@ -588,7 +588,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc/>
 	public Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
-		Abstractions.IDataRequest<TConnection, TResult> request,
+		IDataRequest<TConnection, TResult> request,
 		ITransactionScope transactionScope,
 		CancellationToken cancellationToken)
 		where TConnection : IDisposable
@@ -729,8 +729,8 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 		var options = new ItemRequestOptions();
 
-		if (consistencyOptions.ConsistencyLevel == Abstractions.CloudNative.ConsistencyLevel.Session &&
-		    !string.IsNullOrEmpty(consistencyOptions.SessionToken))
+		if (consistencyOptions.ConsistencyLevel == CloudNative.ConsistencyLevel.Session &&
+			!string.IsNullOrEmpty(consistencyOptions.SessionToken))
 		{
 			options.SessionToken = consistencyOptions.SessionToken;
 		}
@@ -746,7 +746,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		if (idProperty != null)
 		{
 			return idProperty.GetValue(document)?.ToString()
-			       ?? throw new InvalidOperationException(ErrorMessages.DocumentIdPropertyNull);
+				   ?? throw new InvalidOperationException(ErrorMessages.DocumentIdPropertyNull);
 		}
 
 		throw new InvalidOperationException(

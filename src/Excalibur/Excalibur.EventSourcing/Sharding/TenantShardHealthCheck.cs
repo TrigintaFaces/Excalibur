@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.Abstractions.Sharding;
+using Excalibur.Data.Sharding;
+
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Excalibur.EventSourcing.Sharding;
@@ -19,11 +20,11 @@ namespace Excalibur.EventSourcing.Sharding;
 internal sealed class TenantShardHealthCheck : IHealthCheck
 {
 	private readonly ITenantShardMap _shardMap;
-	private readonly ITenantStoreResolver<Abstractions.IEventStore>? _eventStoreResolver;
+	private readonly ITenantStoreResolver<IEventStore>? _eventStoreResolver;
 
 	internal TenantShardHealthCheck(
 		ITenantShardMap shardMap,
-		ITenantStoreResolver<Abstractions.IEventStore>? eventStoreResolver = null)
+		ITenantStoreResolver<IEventStore>? eventStoreResolver = null)
 	{
 		ArgumentNullException.ThrowIfNull(shardMap);
 		_shardMap = shardMap;

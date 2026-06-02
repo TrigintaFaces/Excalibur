@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Observability;
 using Excalibur.EventSourcing.Postgres;

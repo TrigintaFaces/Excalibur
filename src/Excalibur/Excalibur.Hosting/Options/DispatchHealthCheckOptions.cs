@@ -28,12 +28,6 @@ public sealed class DispatchHealthCheckOptions
 	public bool IncludeInbox { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to include the saga health check.
-	/// </summary>
-	/// <value><see langword="true"/> to include saga health check; otherwise, <see langword="false"/>. Default is <see langword="true"/>.</value>
-	public bool IncludeSaga { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to include the leader election health check.
 	/// </summary>
 	/// <value><see langword="true"/> to include leader election health check; otherwise, <see langword="false"/>. Default is <see langword="true"/>.</value>

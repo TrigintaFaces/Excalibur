@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.A3.Abstractions.Authorization;
+namespace Excalibur.A3.Authorization;
 
 /// <summary>
 /// Activity-group grant operations that span the grant store.
@@ -17,7 +17,7 @@ namespace Excalibur.A3.Abstractions.Authorization;
 /// <see cref="IActivityGroupStore.GetService(Type)"/>.
 /// </para>
 /// <para>
-/// Replaces <c>IActivityGroupGrantService</c> from <c>Excalibur.A3.Abstractions</c>.
+/// Replaces <c>IActivityGroupGrantService</c> from <c>Excalibur.A3</c>.
 /// </para>
 /// </remarks>
 public interface IActivityGroupGrantStore

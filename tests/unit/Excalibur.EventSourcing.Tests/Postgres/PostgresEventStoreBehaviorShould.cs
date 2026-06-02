@@ -4,8 +4,8 @@
 using System.Buffers;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing.Postgres;
 
 using Microsoft.Extensions.Logging;

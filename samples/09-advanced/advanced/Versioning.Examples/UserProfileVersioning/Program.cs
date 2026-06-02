@@ -18,7 +18,7 @@
 // compliance with data protection regulations.
 // =============================================================================
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
 

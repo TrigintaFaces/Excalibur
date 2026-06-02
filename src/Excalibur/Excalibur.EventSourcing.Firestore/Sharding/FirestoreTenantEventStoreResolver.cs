@@ -3,8 +3,7 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Sharding;
 
 using Google.Cloud.Firestore;
 

@@ -4,10 +4,9 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
 using Excalibur.Data.MongoDB.Diagnostics;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

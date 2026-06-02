@@ -3,7 +3,7 @@
 
 using Excalibur.Data.InMemory;
 using Excalibur.Outbox.InMemory;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -27,6 +27,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 			MaxMessages = 10000,
 			DefaultRetentionPeriod = TimeSpan.FromHours(24)
 		});
+		using var store = new InMemoryOutboxStore(options, NullLogger<InMemoryOutboxStore>.Instance);
 
 		_store = new InMemoryOutboxStore(options, NullLogger<InMemoryOutboxStore>.Instance);
 		_admin = _store;

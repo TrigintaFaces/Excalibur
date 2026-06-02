@@ -37,7 +37,8 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 	{
 		ArgumentNullException.ThrowIfNull(fixture);
 
-		var settings = new ElasticsearchClientSettings(new Uri(fixture.ConnectionString));
+		var settings = new ElasticsearchClientSettings(new Uri(fixture.ConnectionString))
+			.RequestTimeout(TimeSpan.FromMinutes(3));
 		_client = new ElasticsearchClient(settings);
 
 		var suffix = Guid.NewGuid().ToString("N");
@@ -56,7 +57,7 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 	/// Without this, ES auto-creates indexes with dynamic text mapping on first
 	/// document ingest, causing Term queries on eventId/projectionType to miss.
 	/// </summary>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		await _provisioning.CreateIndexAsync(_writeIndex, ConsistencyIndexKind.WriteEvents, CancellationToken.None)
 			.ConfigureAwait(false);
@@ -64,7 +65,7 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 			.ConfigureAwait(false);
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		// Clean up indexes asynchronously to avoid sync-over-async deadlock
 		// that can leave stale indexes poisoning subsequent test runs.
@@ -107,8 +108,22 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 			ProjectionType = "OrderProjection",
 			ReadTimestamp = DateTimeOffset.UtcNow,
 		};
-		(await _seed.IndexReadEventAsync(doc, $"{eventId}:{doc.ProjectionType}", CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeTrue();
+		// Retry seed write — CI runners can cause ES container resource
+		// contention leading to failed index responses.
+		var seeded = false;
+		for (var attempt = 0; attempt < 5; attempt++)
+		{
+			seeded = await _seed.IndexReadEventAsync(doc, $"{eventId}:{doc.ProjectionType}", CancellationToken.None).ConfigureAwait(false);
+
+			if (seeded)
+			{
+				break;
+			}
+
+			await Task.Delay(2000, CancellationToken.None).ConfigureAwait(false);
+		}
+
+		seeded.ShouldBeTrue();
 
 		_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);
 
@@ -149,8 +164,24 @@ public sealed class ProjectionEventScanAdapterConformanceShould : IAsyncLifetime
 				ProjectionType = projection,
 				ReadTimestamp = DateTimeOffset.UtcNow,
 			};
-			_ = await _seed.IndexReadEventAsync(doc, $"{doc.EventId}:{projection}", CancellationToken.None)
-				.ConfigureAwait(false);
+
+			// Retry seed write — CI runners can cause ES container resource
+			// contention leading to failed index responses.
+			var indexed = false;
+			for (var attempt = 0; attempt < 5; attempt++)
+			{
+				indexed = await _seed.IndexReadEventAsync(doc, $"{doc.EventId}:{projection}", CancellationToken.None)
+					.ConfigureAwait(false);
+
+				if (indexed)
+				{
+					break;
+				}
+
+				await Task.Delay(2000, CancellationToken.None).ConfigureAwait(false);
+			}
+
+			indexed.ShouldBeTrue($"Failed to seed document {doc.EventId} after 5 retries");
 		}
 
 		_ = await _client.Indices.RefreshAsync(_readIndex, CancellationToken.None).ConfigureAwait(false);

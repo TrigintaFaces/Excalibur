@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Streaming;
+using Excalibur.Dispatch.Streaming;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Streaming;
+namespace Excalibur.Dispatch.Tests.Streaming;
 
 /// <summary>
 /// Unit tests for the <see cref="Chunk{T}"/> readonly record struct.

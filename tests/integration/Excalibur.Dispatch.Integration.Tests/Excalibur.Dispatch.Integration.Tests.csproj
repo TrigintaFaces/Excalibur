@@ -14,7 +14,7 @@
     <PackageReference Include="Shouldly" />
     <PackageReference Include="FakeItEasy" />
     <PackageReference Include="coverlet.collector" />
-    <PackageReference Include="Xunit.SkippableFact" />
+    <!-- Xunit.SkippableFact removed: v3 native Assert.SkipUnless() replaces Skip.IfNot() -->
     <!-- Testcontainers -->
     <PackageReference Include="TestContainers" />
     <PackageReference Include="Testcontainers.MsSql" />

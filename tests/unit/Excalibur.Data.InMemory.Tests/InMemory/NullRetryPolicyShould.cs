@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Resilience;
 
 using Microsoft.Extensions.Options;
 

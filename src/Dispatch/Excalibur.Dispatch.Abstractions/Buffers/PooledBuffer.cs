@@ -4,7 +4,7 @@
 
 using System.Buffers;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Represents a buffer that is rented from an array pool.

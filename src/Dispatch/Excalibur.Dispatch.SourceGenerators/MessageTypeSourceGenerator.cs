@@ -113,7 +113,7 @@ public sealed class MessageTypeSourceGenerator : IIncrementalGenerator
 
 		_ = sb.AppendLine("using System.Runtime.CompilerServices;");
 		_ = sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions;");
+		_ = sb.AppendLine("using Excalibur.Dispatch;");
 		_ = sb.AppendLine();
 
 		_ = sb.AppendLine("namespace Excalibur.Dispatch.Generated;");

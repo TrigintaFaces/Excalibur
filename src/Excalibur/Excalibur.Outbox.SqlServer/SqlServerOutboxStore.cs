@@ -6,12 +6,12 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Observability;
+using Excalibur.Data;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Inbox.SqlServer;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Serialization;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -934,9 +934,9 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 	private string SerializeMetadataForInbox(IDictionary<string, object> metadata)
 	{
-		#pragma warning disable IL2026, IL3050 // JsonSerializer with Type parameter requires unreferenced code
+#pragma warning disable IL2026, IL3050 // JsonSerializer with Type parameter requires unreferenced code
 		return JsonSerializer.Serialize(metadata, _jsonOptions);
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 	}
 
 	#region Per-Transport Methods
@@ -1566,9 +1566,9 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		}
 
 		// Fallback to System.Text.Json for backward compatibility
-		#pragma warning disable IL2026, IL3050 // JsonSerializer with Type parameter requires unreferenced code
+#pragma warning disable IL2026, IL3050 // JsonSerializer with Type parameter requires unreferenced code
 		return JsonSerializer.SerializeToUtf8Bytes(message, message.GetType(), _jsonOptions);
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 	}
 
 	/// <summary>
@@ -1612,10 +1612,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		}
 
 		// Fallback to System.Text.Json for legacy payloads
-		#pragma warning disable IL2026, IL3050 // JsonSerializer with generic type requires unreferenced code
+#pragma warning disable IL2026, IL3050 // JsonSerializer with generic type requires unreferenced code
 		return JsonSerializer.Deserialize<T>(payload, _jsonOptions)
 			   ?? throw new InvalidOperationException($"Deserialization returned null for type {typeof(T).Name}.");
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 	}
 
 	private async Task InsertMessageAsync(
@@ -1671,12 +1671,12 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			Id = row.Id,
 			MessageType = row.MessageType,
 			Payload = row.Payload,
-				#pragma warning disable IL2026, IL3050
+#pragma warning disable IL2026, IL3050
 			Headers = string.IsNullOrEmpty(row.Headers)
 				? new Dictionary<string, object>(StringComparer.Ordinal)
 				: JsonSerializer.Deserialize<Dictionary<string, object>>(row.Headers, _jsonOptions)
 				  ?? new Dictionary<string, object>(StringComparer.Ordinal),
-				#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 			Destination = row.Destination,
 			CreatedAt = row.CreatedAt,
 			ScheduledAt = row.ScheduledAt,

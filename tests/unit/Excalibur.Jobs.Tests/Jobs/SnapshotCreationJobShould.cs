@@ -3,9 +3,9 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.Jobs.Jobs;
 
 using FakeItEasy;

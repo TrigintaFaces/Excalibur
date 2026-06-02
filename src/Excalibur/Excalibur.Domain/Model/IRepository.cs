@@ -13,7 +13,7 @@ namespace Excalibur.Domain.Model;
 /// This interface provides a domain-level repository abstraction for non-event-sourced
 /// entities. For event-sourced aggregates, use
 /// <c>IEventSourcedRepository&lt;TAggregate, TKey&gt;</c> from
-/// <c>Excalibur.EventSourcing.Abstractions</c> instead.
+/// <c>Excalibur.EventSourcing</c> instead.
 /// </para>
 /// <para>
 /// <see cref="SaveAsync"/> uses upsert semantics: the implementation determines whether
@@ -24,7 +24,7 @@ namespace Excalibur.Domain.Model;
 /// <para>
 /// This interface intentionally does not couple to <c>IUnitOfWork</c>. Consumers
 /// requiring transactional save-across-repositories should compose with
-/// <c>IUnitOfWork</c> from <c>Excalibur.Data.Abstractions</c> at the application layer.
+/// <c>IUnitOfWork</c> from <c>Excalibur.Data</c> at the application layer.
 /// </para>
 /// </remarks>
 /// <example>

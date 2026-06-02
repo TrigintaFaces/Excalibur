@@ -23,10 +23,10 @@ namespace FullStackAddExcalibur.Commands;
 /// </list>
 /// <para>
 /// The <see cref="CreateOrderHandler"/> creates an <see cref="Domain.OrderAggregate"/>,
-/// persists it via <see cref="Excalibur.EventSourcing.Abstractions.IEventSourcedRepository{TAggregate,TKey}"/>
+/// persists it via <see cref="Excalibur.EventSourcing.IEventSourcedRepository{TAggregate,TKey}"/>
 /// (which also enqueues the domain events in the outbox for at-least-once delivery),
 /// and then dispatches the domain events so local
-/// <see cref="Excalibur.Dispatch.Abstractions.Delivery.IEventHandler{TEvent}"/>
+/// <see cref="Excalibur.Dispatch.Delivery.IEventHandler{TEvent}"/>
 /// projection handlers can update read models.
 /// </para>
 /// </remarks>

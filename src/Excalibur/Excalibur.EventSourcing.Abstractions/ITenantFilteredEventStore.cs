@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 /// <summary>
 /// Extends <see cref="IEventStore"/> with tenant-level filtering for shared-shard scenarios
@@ -13,7 +13,7 @@ namespace Excalibur.EventSourcing.Abstractions;
 /// <para>
 /// When tenant sharding uses a shared-shard model (multiple tenants per physical database),
 /// this interface adds a <c>WHERE TenantId = @tenantId</c> clause to event store queries.
-/// This is distinct from <see cref="Excalibur.Data.Abstractions.Sharding.ITenantStoreResolver{TStore}"/>
+/// This is distinct from <see cref="Excalibur.Data.Sharding.ITenantStoreResolver{TStore}"/>
 /// which routes to entirely different databases.
 /// </para>
 /// <para>

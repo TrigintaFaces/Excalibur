@@ -7,8 +7,6 @@ using System.Reflection;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
 
-using Excalibur.EventSourcing.Abstractions;
-
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.EventSourcing.Encryption.Decorators;

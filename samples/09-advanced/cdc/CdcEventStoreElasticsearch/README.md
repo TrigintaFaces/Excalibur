@@ -199,10 +199,10 @@ docker-compose --profile visualization up -d
 |-----------|---------|---------|
 | `es.UseSqlServer(...)` | `Excalibur.EventSourcing.SqlServer` | Event store, snapshots (via builder) |
 | `AddExcaliburSqlServices` | `Excalibur.Data.SqlServer` | SQL services, Dapper handlers |
-| `AddCdcProcessor` | `Excalibur.Data.SqlServer` | CDC processor factory (unified builder) |
-| `IDataChangeEventProcessorFactory` | `Excalibur.Data.SqlServer` | Creates CDC processors |
-| `IDatabaseOptions` | `Excalibur.Data.SqlServer.Cdc` | CDC configuration |
-| `CdcRecoveryOptions` | `Excalibur.Data.SqlServer.Cdc` | Stale position recovery |
+| `AddCdcProcessor` | `Excalibur.Cdc` | CDC processor factory (unified builder) |
+| `IDataChangeEventProcessorFactory` | `Excalibur.Cdc.SqlServer` | Creates CDC processors |
+| `IDatabaseOptions` | `Excalibur.Cdc.SqlServer` | CDC configuration |
+| `CdcRecoveryOptions` | `Excalibur.Cdc.SqlServer` | Stale position recovery |
 | `ElasticSearchProjectionStore` | `Excalibur.Data.ElasticSearch` | Elasticsearch projections |
 | `AddMaterializedViews(...)` | `Excalibur.EventSourcing` | Fluent builder for materialized views |
 | `IMaterializedViewBuilder<T>` | `Excalibur.EventSourcing.Abstractions` | View contract (ViewName + GetViewId + Apply) |

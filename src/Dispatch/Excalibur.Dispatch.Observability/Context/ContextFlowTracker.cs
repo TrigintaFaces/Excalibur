@@ -5,14 +5,13 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Observability.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Observability.Context;
 
@@ -66,7 +65,7 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 	/// <param name="context"> The message context to track. </param>
 	/// <param name="stage"> The current pipeline stage. </param>
 	/// <param name="metadata"> Additional metadata about the tracking point. </param>
-public void RecordContextState(IMessageContext context, string stage, IReadOnlyDictionary<string, object>? metadata = null)
+	public void RecordContextState(IMessageContext context, string stage, IReadOnlyDictionary<string, object>? metadata = null)
 	{
 		if (context == null)
 		{
@@ -120,7 +119,7 @@ public void RecordContextState(IMessageContext context, string stage, IReadOnlyD
 	/// <param name="fromStage"> The previous pipeline stage. </param>
 	/// <param name="toStage"> The current pipeline stage. </param>
 	/// <returns> A collection of detected changes. </returns>
-public IEnumerable<ContextChange> DetectChanges(IMessageContext context, string fromStage, string toStage)
+	public IEnumerable<ContextChange> DetectChanges(IMessageContext context, string fromStage, string toStage)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(fromStage);
@@ -406,13 +405,13 @@ public IEnumerable<ContextChange> DetectChanges(IMessageContext context, string 
 		}
 	}
 
-private void DetectModifiedFields(
-		List<ContextChange> changes,
-		HashSet<string> fromFields,
-		HashSet<string> toFields,
-		ContextSnapshot fromSnapshot,
-		ContextSnapshot toSnapshot,
-		string toStage)
+	private void DetectModifiedFields(
+			List<ContextChange> changes,
+			HashSet<string> fromFields,
+			HashSet<string> toFields,
+			ContextSnapshot fromSnapshot,
+			ContextSnapshot toSnapshot,
+			string toStage)
 	{
 		foreach (var field in fromFields.Intersect(toFields, StringComparer.Ordinal))
 		{
@@ -436,7 +435,7 @@ private void DetectModifiedFields(
 		}
 	}
 
-private ContextSnapshot CreateSnapshot(IMessageContext context, string stage, IReadOnlyDictionary<string, object>? metadata)
+	private ContextSnapshot CreateSnapshot(IMessageContext context, string stage, IReadOnlyDictionary<string, object>? metadata)
 	{
 		var fields = new Dictionary<string, object?>(StringComparer.Ordinal)
 		{
@@ -518,7 +517,7 @@ private ContextSnapshot CreateSnapshot(IMessageContext context, string stage, IR
 		}
 	}
 
-private void DetectContextChanges(IMessageContext context, string currentStage)
+	private void DetectContextChanges(IMessageContext context, string currentStage)
 	{
 		// O(1) lookup for the previous snapshot using the messageId index
 		var messageId = context.MessageId ?? "unknown";

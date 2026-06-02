@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Fluent builder for configuring message processing pipelines.

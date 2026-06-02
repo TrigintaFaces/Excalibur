@@ -11,8 +11,8 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.CloudNative;
+using Excalibur.Data.Persistence;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -131,11 +131,11 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public string ConnectionString => _options.Connection.ServiceUrl
-	                                  ?? (_options.Connection.Region != null ? $"Region={_options.Connection.Region}" : string.Empty);
+									  ?? (_options.Connection.Region != null ? $"Region={_options.Connection.Region}" : string.Empty);
 
 	/// <inheritdoc />
 
-	public Abstractions.Resilience.IDataRequestRetryPolicy RetryPolicy => DynamoDbRetryPolicy.Instance;
+	public Resilience.IDataRequestRetryPolicy RetryPolicy => DynamoDbRetryPolicy.Instance;
 
 	/// <summary>
 	/// Gets the underlying DynamoDB client for advanced scenarios.
@@ -194,7 +194,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 			TableName = _options.DefaultTableName,
 			Key = CreateKey(partitionKey, id),
 			ConsistentRead = consistencyOptions?.ConsistencyLevel == ConsistencyLevel.Strong
-			                 || _options.UseConsistentReads,
+							 || _options.UseConsistentReads,
 			ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 		};
 
@@ -415,7 +415,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 			KeyConditionExpression = $"{_options.DefaultPartitionKeyAttribute} = :pk",
 			ExpressionAttributeValues = new Dictionary<string, AttributeValue> { [":pk"] = new AttributeValue { S = partitionKey.Value } },
 			ConsistentRead = consistencyOptions?.ConsistencyLevel == ConsistencyLevel.Strong
-			                 || _options.UseConsistentReads,
+							 || _options.UseConsistentReads,
 			ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 		};
 
@@ -496,7 +496,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		var request = new TransactWriteItemsRequest
 		{
-			TransactItems = transactItems, ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
+			TransactItems = transactItems,
+			ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 		};
 
 		try
@@ -547,7 +548,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	[UnconditionalSuppressMessage("Trimming", "IL2095", Justification = "DynamicallyAccessedMembers constraint is satisfied by the caller's type parameter annotation.")]
 	public async Task<IChangeFeedSubscription<TDocument>> CreateChangeFeedSubscriptionAsync<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
-		TDocument>(
+	TDocument>(
 		string containerName,
 		IChangeFeedOptions? options,
 		CancellationToken cancellationToken)
@@ -570,7 +571,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public Task<TResult> ExecuteDocumentAsync<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> documentRequest,
+		IDocumentDataRequest<TConnection, TResult> documentRequest,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(
@@ -579,7 +580,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public Task<TResult> ExecuteDocumentInTransactionAsync<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> documentRequest,
+		IDocumentDataRequest<TConnection, TResult> documentRequest,
 		ITransactionScope transactionScope,
 		CancellationToken cancellationToken)
 	{
@@ -589,7 +590,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public Task<IEnumerable<object>> ExecuteDocumentBatchAsync<TConnection>(
-		IEnumerable<Abstractions.IDocumentDataRequest<TConnection, object>> documentRequests,
+		IEnumerable<IDocumentDataRequest<TConnection, object>> documentRequests,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(
@@ -598,7 +599,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public Task<TResult> ExecuteBulkDocumentAsync<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> bulkDocumentRequest,
+		IDocumentDataRequest<TConnection, TResult> bulkDocumentRequest,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(
@@ -607,7 +608,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public Task<TResult> ExecuteAggregationAsync<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> aggregationRequest,
+		IDocumentDataRequest<TConnection, TResult> aggregationRequest,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(
@@ -616,7 +617,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public Task<string> ExecuteIndexOperationAsync<TConnection>(
-		Abstractions.IDocumentDataRequest<TConnection, string> indexRequest,
+		IDocumentDataRequest<TConnection, string> indexRequest,
 		CancellationToken cancellationToken)
 	{
 		throw new NotSupportedException(
@@ -631,7 +632,9 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		var stats = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
-			["Provider"] = "DynamoDB", ["Name"] = Name, ["IsAvailable"] = IsAvailable
+			["Provider"] = "DynamoDB",
+			["Name"] = Name,
+			["IsAvailable"] = IsAvailable
 		};
 
 		if (_options.DefaultTableName != null)
@@ -749,7 +752,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public bool ValidateDocumentRequest<TConnection, TResult>(
-		Abstractions.IDocumentDataRequest<TConnection, TResult> documentRequest) =>
+		IDocumentDataRequest<TConnection, TResult> documentRequest) =>
 		documentRequest != null;
 
 	/// <inheritdoc />
@@ -763,7 +766,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public Task<TResult> ExecuteAsync<TConnection, TResult>(
-		Abstractions.IDataRequest<TConnection, TResult> request,
+		IDataRequest<TConnection, TResult> request,
 		CancellationToken cancellationToken)
 		where TConnection : IDisposable
 	{
@@ -773,7 +776,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	public Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
-		Abstractions.IDataRequest<TConnection, TResult> request,
+		IDataRequest<TConnection, TResult> request,
 		ITransactionScope transactionScope,
 		CancellationToken cancellationToken)
 		where TConnection : IDisposable
@@ -954,7 +957,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	{
 		var config = new AmazonDynamoDBConfig
 		{
-			Timeout = TimeSpan.FromSeconds(_options.Connection.TimeoutInSeconds), MaxErrorRetry = _options.Connection.MaxRetryAttempts
+			Timeout = TimeSpan.FromSeconds(_options.Connection.TimeoutInSeconds),
+			MaxErrorRetry = _options.Connection.MaxRetryAttempts
 		};
 
 		if (!string.IsNullOrWhiteSpace(_options.Connection.ServiceUrl))
@@ -978,7 +982,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	{
 		var config = new AmazonDynamoDBStreamsConfig
 		{
-			Timeout = TimeSpan.FromSeconds(_options.Connection.TimeoutInSeconds), MaxErrorRetry = _options.Connection.MaxRetryAttempts
+			Timeout = TimeSpan.FromSeconds(_options.Connection.TimeoutInSeconds),
+			MaxErrorRetry = _options.Connection.MaxRetryAttempts
 		};
 
 		if (!string.IsNullOrWhiteSpace(_options.Connection.ServiceUrl))

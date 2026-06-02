@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Excalibur.Dispatch.Abstractions.Tests;
+namespace Excalibur.Dispatch.Tests;
 
 /// <summary>
 /// Unit tests for the <see cref="AutoRegisterAttribute"/> class.
@@ -213,6 +213,6 @@ public sealed class AutoRegisterAttributeShould : UnitTestBase
 		var type = typeof(AutoRegisterAttribute);
 
 		// Assert
-		type.Namespace.ShouldBe("Excalibur.Dispatch.Abstractions");
+		type.Namespace.ShouldBe("Excalibur.Dispatch");
 	}
 }

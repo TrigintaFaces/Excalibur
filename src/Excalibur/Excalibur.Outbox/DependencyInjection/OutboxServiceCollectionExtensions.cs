@@ -204,15 +204,15 @@ public static class OutboxServiceCollectionExtensions
 
 		// Non-keyed IOutboxStore convenience alias: forwards to keyed "default" so consumers
 		// can inject IOutboxStore directly without [FromKeyedServices("default")].
-		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.IOutboxStore>(sp =>
-			sp.GetRequiredKeyedService<Excalibur.Dispatch.Abstractions.IOutboxStore>("default"));
+		services.TryAddSingleton<Excalibur.Dispatch.IOutboxStore>(sp =>
+			sp.GetRequiredKeyedService<Excalibur.Dispatch.IOutboxStore>("default"));
 
 		// Non-keyed IOutboxStoreAdmin convenience alias. Some providers (Elasticsearch) register
 		// this as a separate keyed service; others implement it on the same class as IOutboxStore.
 		// Try keyed "default" first, then fall back to casting the IOutboxStore.
-		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.IOutboxStoreAdmin>(sp =>
-			sp.GetKeyedService<Excalibur.Dispatch.Abstractions.IOutboxStoreAdmin>("default")
-			?? (Excalibur.Dispatch.Abstractions.IOutboxStoreAdmin)sp.GetRequiredKeyedService<Excalibur.Dispatch.Abstractions.IOutboxStore>("default"));
+		services.TryAddSingleton<Excalibur.Dispatch.IOutboxStoreAdmin>(sp =>
+			sp.GetKeyedService<Excalibur.Dispatch.IOutboxStoreAdmin>("default")
+			?? (Excalibur.Dispatch.IOutboxStoreAdmin)sp.GetRequiredKeyedService<Excalibur.Dispatch.IOutboxStore>("default"));
 	}
 
 	/// <summary>

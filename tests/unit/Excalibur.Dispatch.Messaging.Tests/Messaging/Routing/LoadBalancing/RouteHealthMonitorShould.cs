@@ -3,7 +3,7 @@
 
 using System.Net;
 
-using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch.Routing;
 using Excalibur.Dispatch.Routing.LoadBalancing;
 
 using Microsoft.Extensions.Options;

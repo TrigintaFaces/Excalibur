@@ -7,16 +7,16 @@ namespace Excalibur.EventSourcing.SqlServer;
 
 internal sealed class SqlServerProjectionStoreOptionsValidator : IValidateOptions<SqlServerProjectionStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, SqlServerProjectionStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, SqlServerProjectionStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

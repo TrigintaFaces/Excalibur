@@ -5,7 +5,7 @@ using CdcJobQuartz.Domain;
 
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Data.IdentityMap;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 

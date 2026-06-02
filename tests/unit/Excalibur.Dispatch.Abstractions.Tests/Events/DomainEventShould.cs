@@ -1,4 +1,4 @@
-namespace Excalibur.Dispatch.Abstractions.Tests.Events;
+namespace Excalibur.Dispatch.Tests.Events;
 
 /// <summary>
 /// Tests for DomainEvent base record.

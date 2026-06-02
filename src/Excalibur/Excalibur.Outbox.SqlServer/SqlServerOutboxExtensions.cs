@@ -2,17 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.ErrorHandling;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Outbox.SqlServer;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-using Excalibur.Outbox.SqlServer;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -111,9 +110,9 @@ public static class SqlServerOutboxExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server outbox store using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// Adds SQL Server outbox store using a typed <see cref="Excalibur.Data.IDb"/> marker for connection resolution.
 	/// </summary>
-	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.IDb"/>.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options (used for table names, timeouts, etc.).</param>
 	/// <returns>The service collection for chaining.</returns>
@@ -127,7 +126,7 @@ public static class SqlServerOutboxExtensions
 	public static IServiceCollection AddSqlServerOutboxStore<TDb>(
 		this IServiceCollection services,
 		Action<SqlServerOutboxOptions> configure)
-		where TDb : class, Excalibur.Data.Abstractions.IDb
+		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);

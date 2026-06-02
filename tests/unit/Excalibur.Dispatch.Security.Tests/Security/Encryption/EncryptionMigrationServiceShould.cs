@@ -1181,4 +1181,3 @@ public sealed class EncryptionMigrationServiceShould
 
 	#endregion Helper Methods
 }
-

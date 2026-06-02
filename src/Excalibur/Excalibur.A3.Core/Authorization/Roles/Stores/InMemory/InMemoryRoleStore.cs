@@ -3,8 +3,6 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.A3.Abstractions.Authorization;
-
 namespace Excalibur.A3.Authorization.Stores.InMemory;
 
 /// <summary>

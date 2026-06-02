@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 using KafkaSample.Messages;
 

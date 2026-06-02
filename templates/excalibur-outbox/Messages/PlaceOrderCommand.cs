@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Company.ExcaliburOutbox.Messages;
 

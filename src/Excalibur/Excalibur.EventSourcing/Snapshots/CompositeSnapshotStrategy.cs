@@ -7,7 +7,6 @@ using System.Globalization;
 using System.Text;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
 
 namespace Excalibur.EventSourcing.Snapshots;
 

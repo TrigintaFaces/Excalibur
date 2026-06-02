@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Observability.Metrics;
 
 using Excalibur.EventSourcing.Observability;
 
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Tests.Observability;
 

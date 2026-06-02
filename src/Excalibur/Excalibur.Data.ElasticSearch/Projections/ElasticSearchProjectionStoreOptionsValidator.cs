@@ -7,16 +7,16 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 
 internal sealed class ElasticSearchProjectionStoreOptionsValidator : IValidateOptions<ElasticSearchProjectionStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, ElasticSearchProjectionStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, ElasticSearchProjectionStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

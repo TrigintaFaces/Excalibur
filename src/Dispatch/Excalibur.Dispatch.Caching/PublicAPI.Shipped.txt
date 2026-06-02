@@ -163,11 +163,11 @@ Excalibur.Dispatch.Caching.CachedValueJsonConverter
 Excalibur.Dispatch.Caching.CachedValueJsonConverter.CachedValueJsonConverter() -> void
 Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions
 Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder
-Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.CreateKey(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context) -> string!
+Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.CreateKey(Excalibur.Dispatch.IDispatchAction! action, Excalibur.Dispatch.IMessageContext! context) -> string!
 Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.DefaultCacheKeyBuilder(Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder!>? logger = null) -> void
 Excalibur.Dispatch.Caching.DefaultResultCachePolicy
-Excalibur.Dispatch.Caching.DefaultResultCachePolicy.DefaultResultCachePolicy(System.Func<Excalibur.Dispatch.Abstractions.IDispatchMessage!, object?, bool>! policy) -> void
-Excalibur.Dispatch.Caching.DefaultResultCachePolicy.ShouldCache(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, object? result) -> bool
+Excalibur.Dispatch.Caching.DefaultResultCachePolicy.DefaultResultCachePolicy(System.Func<Excalibur.Dispatch.IDispatchMessage!, object?, bool>! policy) -> void
+Excalibur.Dispatch.Caching.DefaultResultCachePolicy.ShouldCache(Excalibur.Dispatch.IDispatchMessage! message, object? result) -> bool
 Excalibur.Dispatch.Caching.DispatchMemoryCacheOptions
 Excalibur.Dispatch.Caching.DispatchMemoryCacheOptions.CompactionPercentage.get -> double
 Excalibur.Dispatch.Caching.DispatchMemoryCacheOptions.CompactionPercentage.set -> void
@@ -196,7 +196,7 @@ Excalibur.Dispatch.Caching.ICacheInvalidator
 Excalibur.Dispatch.Caching.ICacheInvalidator.GetCacheKeysToInvalidate() -> System.Collections.Generic.IEnumerable<string!>!
 Excalibur.Dispatch.Caching.ICacheInvalidator.GetCacheTagsToInvalidate() -> System.Collections.Generic.IEnumerable<string!>!
 Excalibur.Dispatch.Caching.ICacheKeyBuilder
-Excalibur.Dispatch.Caching.ICacheKeyBuilder.CreateKey(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context) -> string!
+Excalibur.Dispatch.Caching.ICacheKeyBuilder.CreateKey(Excalibur.Dispatch.IDispatchAction! action, Excalibur.Dispatch.IMessageContext! context) -> string!
 Excalibur.Dispatch.Caching.ICacheProvider
 Excalibur.Dispatch.Caching.ICacheProvider.ExistsAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Caching.ICacheProvider.GetAsync<T>(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T?>!
@@ -215,7 +215,7 @@ Excalibur.Dispatch.Caching.ICacheable<T>.GetCacheKey() -> string!
 Excalibur.Dispatch.Caching.ICacheable<T>.GetCacheTags() -> string![]?
 Excalibur.Dispatch.Caching.ICacheable<T>.ShouldCache(object? result) -> bool
 Excalibur.Dispatch.Caching.IResultCachePolicy
-Excalibur.Dispatch.Caching.IResultCachePolicy.ShouldCache(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, object? result) -> bool
+Excalibur.Dispatch.Caching.IResultCachePolicy.ShouldCache(Excalibur.Dispatch.IDispatchMessage! message, object? result) -> bool
 Excalibur.Dispatch.Caching.IResultCachePolicy<TMessage>
 Excalibur.Dispatch.Caching.IResultCachePolicy<TMessage>.ShouldCache(TMessage message, object? result) -> bool
 Excalibur.Dispatch.Caching.InMemoryCacheTagTracker
@@ -240,18 +240,18 @@ Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.LruCache(int capacity, System.
 Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Remove(TKey key) -> bool
 Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.RemoveExpiredItems() -> void
 Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Set(TKey key, TValue value, System.TimeSpan? ttl = null) -> void
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Statistics.get -> Excalibur.Dispatch.Abstractions.Messaging.CacheStatistics!
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Statistics.get -> Excalibur.Dispatch.Messaging.CacheStatistics!
 Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.TryGetValue(TKey key, out TValue? value) -> bool
 Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions
 override Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ToString() -> string!
 override Excalibur.Dispatch.Caching.CachedValueJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Excalibur.Dispatch.Caching.CachedValue?
 override Excalibur.Dispatch.Caching.CachedValueJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Excalibur.Dispatch.Caching.CachedValue! value, System.Text.Json.JsonSerializerOptions! options) -> void
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.UseCaching(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<Excalibur.Dispatch.Abstractions.IDispatchMessage!, object?, bool>! policy) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage, TPolicy>(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage>(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<TMessage!, object?, bool>! shouldCache) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.UseCaching(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Func<Excalibur.Dispatch.IDispatchMessage!, object?, bool>! policy) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage, TPolicy>(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage>(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Func<TMessage!, object?, bool>! shouldCache) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddCachePolicy<TMessage, TPolicy>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

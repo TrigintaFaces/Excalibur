@@ -1,6 +1,6 @@
 using System.Reflection;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Implementation;
 
 namespace Excalibur.EventSourcing.Tests.Core;

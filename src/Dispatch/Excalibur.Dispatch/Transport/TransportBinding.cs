@@ -4,9 +4,6 @@
 
 using System.Text.RegularExpressions;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
-
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>

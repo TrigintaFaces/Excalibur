@@ -124,11 +124,11 @@ public sealed class DataOrchestrationManagerWorkflowShould : UnitTestBase
 		{
 			// Expected — cancellation propagated correctly through Polly/Dapper
 		}
-		catch (Excalibur.Data.Abstractions.OperationFailedException ex)
+		catch (Excalibur.Data.OperationFailedException ex)
 			when (ex.InnerException is InvalidOperationException)
 		{
 			// Acceptable — Dapper's connection.Ready() rejects the fake IDbConnection
-			// before the cancellation token is checked. The Data.Abstractions layer
+			// before the cancellation token is checked. The Data layer
 			// wraps this as OperationFailedException. This is a unit test boundary
 			// limitation (no real ADO.NET connection).
 		}

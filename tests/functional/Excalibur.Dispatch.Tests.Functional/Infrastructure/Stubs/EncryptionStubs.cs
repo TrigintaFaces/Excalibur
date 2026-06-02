@@ -3,7 +3,7 @@
 
 #nullable enable
 
-namespace Excalibur.Dispatch.Abstractions.Encryption
+namespace Excalibur.Dispatch.Encryption
 {
 	/// <summary>
 	/// Stub interface for encryption provider (removed from main codebase).
@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Messaging.Encryption
 	{
 		public static IServiceCollection AddEncryptionProvider(
 			this IServiceCollection services,
-			Abstractions.Encryption.IEncryptionProvider provider)
+			Dispatch.Encryption.IEncryptionProvider provider)
 		{
 			return services.AddSingleton(provider);
 		}
@@ -34,7 +34,7 @@ namespace Excalibur.Dispatch.Messaging.Encryption
 	/// <summary>
 	/// Stub XOR encryption provider for tests.
 	/// </summary>
-	public sealed class XorEncryptionProvider : Abstractions.Encryption.IEncryptionProvider
+	public sealed class XorEncryptionProvider : Dispatch.Encryption.IEncryptionProvider
 	{
 		private readonly byte _key;
 
@@ -89,10 +89,10 @@ namespace Tests.Shared
 	/// </summary>
 	public sealed class TestOutputSink : IDisposable
 	{
-		private readonly Xunit.Abstractions.ITestOutputHelper _output;
+		private readonly Xunit.ITestOutputHelper _output;
 		private bool _disposed;
 
-		public TestOutputSink(Xunit.Abstractions.ITestOutputHelper output)
+		public TestOutputSink(Xunit.ITestOutputHelper output)
 		{
 			_output = output;
 		}
@@ -121,8 +121,8 @@ namespace Tests.Shared.Fixtures
 	{
 		public string ConnectionString { get; } = "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=test";
 
-		public Task InitializeAsync() => Task.CompletedTask;
+		public ValueTask InitializeAsync() => default;
 
-		public Task DisposeAsync() => Task.CompletedTask;
+		public ValueTask DisposeAsync() => default;
 	}
 }

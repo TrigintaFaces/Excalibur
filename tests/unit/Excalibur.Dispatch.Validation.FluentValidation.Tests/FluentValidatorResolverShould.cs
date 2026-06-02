@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Validation.FluentValidation;
 
 using FluentValidation;
@@ -194,7 +194,7 @@ public sealed class FluentValidatorResolverShould
 
         var errors = result.Errors.ToList();
         errors.ShouldNotBeEmpty();
-        var firstError = errors[0].ShouldBeOfType<Excalibur.Dispatch.Abstractions.Validation.ValidationError>();
+        var firstError = errors[0].ShouldBeOfType<Excalibur.Dispatch.Validation.ValidationError>();
         firstError.PropertyName.ShouldBe("Name");
     }
 

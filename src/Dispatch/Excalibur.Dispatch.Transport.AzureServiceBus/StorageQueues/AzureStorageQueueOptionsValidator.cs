@@ -10,17 +10,17 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </summary>
 internal sealed class AzureStorageQueueOptionsValidator : IValidateOptions<AzureStorageQueueOptions>
 {
-    /// <inheritdoc/>
-    public ValidateOptionsResult Validate(string? name, AzureStorageQueueOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	/// <inheritdoc/>
+	public ValidateOptionsResult Validate(string? name, AzureStorageQueueOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

@@ -6,8 +6,8 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Compliance;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Logging;

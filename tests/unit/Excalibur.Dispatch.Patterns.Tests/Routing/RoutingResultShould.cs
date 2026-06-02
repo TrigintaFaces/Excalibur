@@ -62,7 +62,7 @@ public sealed class RoutingResultShould
 		var result = new RoutingResult();
 
 		// Act
-		result.AlternativeRoutes.Add(new Excalibur.Dispatch.Abstractions.Routing.RouteDefinition());
+		result.AlternativeRoutes.Add(new Excalibur.Dispatch.Routing.RouteDefinition());
 
 		// Assert
 		result.AlternativeRoutes.Count.ShouldBe(1);

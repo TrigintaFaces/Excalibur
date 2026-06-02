@@ -3,11 +3,11 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.SqlServer;
 
-using IPersistenceProvider = Excalibur.Data.Abstractions.Persistence.IPersistenceProvider;
+using IPersistenceProvider = Excalibur.Data.Persistence.IPersistenceProvider;
 
 namespace Excalibur.Tests;
 

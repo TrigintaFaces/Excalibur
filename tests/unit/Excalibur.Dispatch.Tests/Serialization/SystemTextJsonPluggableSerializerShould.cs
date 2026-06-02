@@ -4,9 +4,8 @@
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Tests.Serialization.TestData;
 using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Tests.Serialization.TestData;
 
 namespace Excalibur.Dispatch.Tests.Serialization;
 

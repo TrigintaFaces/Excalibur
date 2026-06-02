@@ -7,7 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Excalibur.Dispatch.Abstractions.Configuration;
+namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>
 /// Fluent builder interface for configuring the Excalibur framework.

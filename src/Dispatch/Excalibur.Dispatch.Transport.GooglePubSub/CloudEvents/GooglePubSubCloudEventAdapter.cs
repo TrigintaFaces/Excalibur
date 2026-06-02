@@ -18,7 +18,7 @@ using Google.Protobuf;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using TransportCompressionAlgorithm = Excalibur.Dispatch.Abstractions.Serialization.CompressionAlgorithm;
+using TransportCompressionAlgorithm = Excalibur.Dispatch.Serialization.CompressionAlgorithm;
 
 namespace Excalibur.Dispatch.Transport.Google;
 

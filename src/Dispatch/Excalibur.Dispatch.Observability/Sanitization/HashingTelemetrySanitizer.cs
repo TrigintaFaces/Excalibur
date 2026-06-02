@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Telemetry;
 
 using Microsoft.Extensions.Options;
 

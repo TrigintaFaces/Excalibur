@@ -111,6 +111,7 @@ protected override void ApplyEventInternal(IDomainEvent @event)
 ```
 
 :::tip Performance Optimization
+
 This pattern-matching approach achieves **under 10 nanoseconds** per event application because:
 - No reflection is used
 - No dictionary lookups
@@ -214,7 +215,7 @@ This is semantically equivalent to our `RaiseEvent`.
 Here's a complete aggregate showing all aspects of the pattern:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 public class ShoppingCart : AggregateRoot<Guid>

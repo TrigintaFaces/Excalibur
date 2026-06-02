@@ -477,6 +477,7 @@ Dispatch uses proper AOT annotations for reflection-heavy code paths:
 | `[RequiresUnreferencedCode]` | Methods that may fail after trimming |
 
 :::note Source Generator Coverage
+
 Dispatch's 9 source generators provide complete AOT coverage for handlers, middleware, and pipelines. Manual handler registration requires additional annotations.
 :::
 
@@ -494,6 +495,7 @@ dotnet publish -c Release -r osx-arm64
 ```
 
 :::warning Visual Studio Requirement
+
 Full native AOT linking on Windows requires the Visual Studio C++ build tools. The `dotnet publish` command performs C# compilation; native linking requires additional tools.
 :::
 

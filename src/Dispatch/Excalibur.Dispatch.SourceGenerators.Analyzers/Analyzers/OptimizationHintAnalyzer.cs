@@ -112,7 +112,7 @@ public sealed class OptimizationHintAnalyzer : DiagnosticAnalyzer
 	private static bool IsHandlerType(INamedTypeSymbol namedType, Compilation compilation)
 	{
 		// Check for IDispatchHandler<T>
-		var dispatchHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.Abstractions.IDispatchHandler`1");
+		var dispatchHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.IDispatchHandler`1");
 		if (dispatchHandlerInterface != null)
 		{
 			foreach (var iface in namedType.AllInterfaces)
@@ -126,7 +126,7 @@ public sealed class OptimizationHintAnalyzer : DiagnosticAnalyzer
 		}
 
 		// Check for IActionHandler<T>
-		var actionHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.Abstractions.IActionHandler`1");
+		var actionHandlerInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.IActionHandler`1");
 		if (actionHandlerInterface != null)
 		{
 			foreach (var iface in namedType.AllInterfaces)

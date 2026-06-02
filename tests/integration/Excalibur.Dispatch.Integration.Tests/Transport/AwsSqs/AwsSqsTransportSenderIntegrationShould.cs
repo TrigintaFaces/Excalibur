@@ -55,10 +55,10 @@ public sealed class AwsSqsTransportSenderIntegrationShould
 		return response.QueueUrl;
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessage_DeliversToQueue()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -84,10 +84,10 @@ public sealed class AwsSqsTransportSenderIntegrationShould
 		sendResponse.MessageId.ShouldNotBeNullOrWhiteSpace();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendBatchMessages_AllDeliverSuccessfully()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -130,10 +130,10 @@ public sealed class AwsSqsTransportSenderIntegrationShould
 		receivedCount.ShouldBe(batchSize);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessageWithAttributes_AttributesPreserved()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -177,10 +177,10 @@ public sealed class AwsSqsTransportSenderIntegrationShould
 		received.MessageAttributes["Priority"].StringValue.ShouldBe("5");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessageToFifoQueue_OrderPreserved()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateFifoQueueAsync().ConfigureAwait(false);
@@ -224,10 +224,10 @@ public sealed class AwsSqsTransportSenderIntegrationShould
 		}
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendEmptyBody_Succeeds()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -253,10 +253,10 @@ public sealed class AwsSqsTransportSenderIntegrationShould
 		receiveResponse.Messages[0].Body.ShouldBe(" ");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task QueueUrl_IsAccessible()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueName = $"test-exists-{Guid.NewGuid():N}";
@@ -272,10 +272,10 @@ public sealed class AwsSqsTransportSenderIntegrationShould
 		getUrlResponse.QueueUrl.ShouldBe(createResponse.QueueUrl);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MessageBody_RoundTrips()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -300,10 +300,10 @@ public sealed class AwsSqsTransportSenderIntegrationShould
 		receiveResponse.Messages[0].Body.ShouldBe(jsonBody);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessage_ReturnsMessageId()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);

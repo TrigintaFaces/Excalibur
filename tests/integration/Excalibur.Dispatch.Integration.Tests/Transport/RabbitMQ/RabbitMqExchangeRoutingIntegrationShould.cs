@@ -30,7 +30,7 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
     private IChannel? _channel;
     private bool _dockerAvailable;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         try
         {
@@ -54,7 +54,7 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         var timeout = TimeSpan.FromSeconds(30);
 
@@ -105,10 +105,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
 
     #region Direct Exchange
 
-    [SkippableFact]
+    [Fact]
     public async Task DirectExchange_RoutesToExactMatchQueue()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"direct-ex-{Guid.NewGuid():N}";
@@ -137,10 +137,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
         await AssertQueueRemainsEmptyAsync(_channel, queuePayments, MessageWaitTimeout).ConfigureAwait(false);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DirectExchange_UnmatchedRoutingKey_MessageDropped()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"direct-nomatch-{Guid.NewGuid():N}";
@@ -166,10 +166,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
 
     #region Topic Exchange
 
-    [SkippableFact]
+    [Fact]
     public async Task TopicExchange_WildcardStar_MatchesSingleWord()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"topic-star-{Guid.NewGuid():N}";
@@ -203,10 +203,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
         await AssertQueueRemainsEmptyAsync(_channel, queueName, MessageWaitTimeout).ConfigureAwait(false);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task TopicExchange_WildcardHash_MatchesZeroOrMoreWords()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"topic-hash-{Guid.NewGuid():N}";
@@ -262,10 +262,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
         receivedIds.ShouldNotContain("nomatch");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task TopicExchange_MultipleBindings_MessageDuplicated()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange - two queues bound to same exchange with overlapping patterns
         var exchangeName = $"topic-multi-{Guid.NewGuid():N}";
@@ -301,10 +301,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
 
     #region Fanout Exchange
 
-    [SkippableFact]
+    [Fact]
     public async Task FanoutExchange_BroadcastsToAllBoundQueues()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"fanout-{Guid.NewGuid():N}";
@@ -343,10 +343,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
         r3.BasicProperties.MessageId.ShouldBe("fanout-msg");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task FanoutExchange_UnboundQueue_DoesNotReceive()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"fanout-unbound-{Guid.NewGuid():N}";
@@ -379,10 +379,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
 
     #region Headers Exchange
 
-    [SkippableFact]
+    [Fact]
     public async Task HeadersExchange_MatchesOnHeaders()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"headers-{Guid.NewGuid():N}";
@@ -443,10 +443,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
         await AssertQueueRemainsEmptyAsync(_channel, matchQueue, MessageWaitTimeout).ConfigureAwait(false);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task HeadersExchange_AnyMatch_MatchesPartialHeaders()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var exchangeName = $"headers-any-{Guid.NewGuid():N}";
@@ -493,10 +493,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
 
     #region Default Exchange
 
-    [SkippableFact]
+    [Fact]
     public async Task DefaultExchange_RoutesDirectlyToQueueName()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"default-ex-{Guid.NewGuid():N}";

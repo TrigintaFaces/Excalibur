@@ -9,7 +9,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 
 using Excalibur.Data.DynamoDb.Diagnostics;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

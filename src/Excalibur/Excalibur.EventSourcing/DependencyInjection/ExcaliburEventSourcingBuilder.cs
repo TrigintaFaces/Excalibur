@@ -3,9 +3,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Versioning;
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Implementation;
 
 using Excalibur.EventSourcing.Snapshots;
@@ -14,10 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-// Use Excalibur.EventSourcing.Abstractions as canonical source (AD-251-2)
-using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
-using ISnapshotManager = Excalibur.EventSourcing.Abstractions.ISnapshotManager;
-using ISnapshotStrategy = Excalibur.EventSourcing.Abstractions.ISnapshotStrategy;
+// Use Excalibur.EventSourcing as canonical source (AD-251-2)
 
 namespace Excalibur.EventSourcing.DependencyInjection;
 
@@ -95,7 +91,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				aggregateFactory,
 				upcastingOptions: sp.GetService<IOptions<UpcastingOptions>>(),
 				snapshotUpgradingOptions: sp.GetService<IOptions<SnapshotUpgradingOptions>>(),
-				autoSnapshotOptions: sp.GetService<IOptionsMonitor<Abstractions.AutoSnapshotOptions>>(),
+				autoSnapshotOptions: sp.GetService<IOptionsMonitor<AutoSnapshotOptions>>(),
 				upcastingPipeline: sp.GetService<IUpcastingPipeline>(),
 				snapshotManager: sp.GetService<ISnapshotManager>(),
 				snapshotStrategy: sp.GetService<ISnapshotStrategy>(),
@@ -138,7 +134,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				aggregateFactory,
 				upcastingOptions: sp.GetService<IOptions<UpcastingOptions>>(),
 				snapshotUpgradingOptions: sp.GetService<IOptions<SnapshotUpgradingOptions>>(),
-				autoSnapshotOptions: sp.GetService<IOptionsMonitor<Abstractions.AutoSnapshotOptions>>(),
+				autoSnapshotOptions: sp.GetService<IOptionsMonitor<AutoSnapshotOptions>>(),
 				upcastingPipeline: sp.GetService<IUpcastingPipeline>(),
 				snapshotManager: sp.GetService<ISnapshotManager>(),
 				snapshotStrategy: sp.GetService<ISnapshotStrategy>(),

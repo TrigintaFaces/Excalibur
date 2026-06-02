@@ -4,12 +4,12 @@
 using System.Collections.Concurrent;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Extensions;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
 
@@ -18,7 +18,6 @@ using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 
 using RabbitMqBasicProperties = RabbitMQ.Client.BasicProperties;
-using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 

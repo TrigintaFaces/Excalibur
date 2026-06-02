@@ -1,6 +1,6 @@
 // Outbox Processor Background Service
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace MultiProviderQueueProcessor.Infrastructure;
 

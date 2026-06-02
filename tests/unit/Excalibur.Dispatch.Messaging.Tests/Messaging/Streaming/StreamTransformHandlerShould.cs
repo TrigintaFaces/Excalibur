@@ -3,10 +3,10 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Tests.Messaging.Streaming.TestTypes;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Streaming;
@@ -24,7 +24,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register transform handler
 		_ = services.AddScoped<MappingTransformHandler>();
@@ -57,7 +57,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register filtering handler - only pass even indices
 		var filteringHandler = new FilteringTransformHandler
@@ -93,7 +93,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		var trackingHandler = new TrackingTransformHandler();
 		_ = services.AddSingleton(trackingHandler);
@@ -128,7 +128,9 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		// Use an assembly with no handlers to prevent zero-config auto-scan from
+		// discovering test handler types (xUnit v3 runs in-process).
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -155,7 +157,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<MappingTransformHandler>();
 		_ = services.AddScoped<IStreamTransformHandler<TestBatchDocument, TestDataRow>>(
@@ -184,7 +186,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<MappingTransformHandler>();
 		_ = services.AddScoped<IStreamTransformHandler<TestBatchDocument, TestDataRow>>(
@@ -213,7 +215,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		var slowHandler = new SlowTransformHandler { DelayMs = 50 };
 		_ = services.AddSingleton(slowHandler);
@@ -252,7 +254,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		var errorHandler = new ErrorThrowingTransformHandler { ThrowAfterItems = 3 };
 		_ = services.AddSingleton(errorHandler);
@@ -286,7 +288,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<MappingTransformHandler>();
 		_ = services.AddScoped<IStreamTransformHandler<TestBatchDocument, TestDataRow>>(
@@ -316,7 +318,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<MappingTransformHandler>();
 		_ = services.AddScoped<IStreamTransformHandler<TestBatchDocument, TestDataRow>>(
@@ -347,7 +349,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		_ = services.AddScoped<MappingTransformHandler>();
 		_ = services.AddScoped<IStreamTransformHandler<TestBatchDocument, TestDataRow>>(
@@ -377,7 +379,7 @@ public sealed class StreamTransformHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		var trackingHandler = new TrackingTransformHandler();
 		_ = services.AddSingleton(trackingHandler);

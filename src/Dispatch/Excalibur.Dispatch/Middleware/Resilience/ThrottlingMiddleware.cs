@@ -5,8 +5,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading.RateLimiting;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Middleware;
 

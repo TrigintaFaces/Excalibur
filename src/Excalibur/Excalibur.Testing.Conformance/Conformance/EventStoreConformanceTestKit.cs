@@ -5,8 +5,8 @@
 #pragma warning disable IDE0007 // Use implicit type (var)
 #pragma warning disable IDE0270 // Null check can be simplified
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 
 namespace Excalibur.Testing.Conformance;
 

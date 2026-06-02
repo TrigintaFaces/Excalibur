@@ -4,7 +4,7 @@
 
 using Excalibur.A3.Audit;
 using Excalibur.A3.Exceptions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 using Microsoft.Extensions.Caching.Distributed;
 
@@ -41,9 +41,9 @@ internal sealed class AddGrantCommandHandler(IGrantRepository grantRepository, I
 		var key = new GrantKey(request.UserId, request.TenantId, request.GrantType, request.Qualifier);
 
 		// Check if the grant already exists in the repository.
-		#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 		var existingGrant = await grantRepository.GetByIdAsync(key.ToString(), cancellationToken).ConfigureAwait(false);
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 
 		// If grant exists, check if it's expired or active
 		if (existingGrant is not null)
@@ -73,9 +73,9 @@ internal sealed class AddGrantCommandHandler(IGrantRepository grantRepository, I
 			request.AccessToken.FullName);
 
 		// Save the new grant to the repository.
-		#pragma warning disable IL2026, IL3050 // Repository uses reflection-based serialization
+#pragma warning disable IL2026, IL3050 // Repository uses reflection-based serialization
 		await grantRepository.SaveAsync(grant, cancellationToken).ConfigureAwait(false);
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 
 		// Remove the relevant cache entry to reflect changes.
 		await cache.RemoveAsync(AuthorizationCacheKey.ForGrants(request.UserId), cancellationToken).ConfigureAwait(false);

@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Dispatch.Observability.Context;
 using Excalibur.Dispatch.Observability.Sanitization;
 

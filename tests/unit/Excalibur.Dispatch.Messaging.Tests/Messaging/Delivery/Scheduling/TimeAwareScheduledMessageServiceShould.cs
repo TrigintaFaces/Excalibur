@@ -3,8 +3,8 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Options.Scheduling;
@@ -13,7 +13,7 @@ using Excalibur.Dispatch.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 

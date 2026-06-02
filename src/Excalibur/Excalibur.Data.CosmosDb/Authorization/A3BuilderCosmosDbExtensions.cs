@@ -3,7 +3,7 @@
 
 
 using Excalibur.A3;
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.Data.CosmosDb.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

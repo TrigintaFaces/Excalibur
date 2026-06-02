@@ -5,7 +5,7 @@ using CdcEventStoreElasticsearch.Domain;
 
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Data.IdentityMap;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace CdcEventStoreElasticsearch.AntiCorruption;
 

@@ -31,6 +31,7 @@ Excalibur intentionally avoids Entity Framework Core:
 | **AOT Support** | Limited | Full Native AOT |
 
 :::note Design Decision
+
 For a framework distributed as NuGet packages, minimal dependencies and maximum performance are critical. Dapper provides the best balance of usability and efficiency.
 :::
 
@@ -203,7 +204,7 @@ public interface IDataRequest<in TConnection, TModel> : IDataRequest
 The simplest approach is to extend `DataRequest<TModel>`, which uses `IDbConnection` by default:
 
 ```csharp
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 using Dapper;
 
 public class CreateActivityGroupRequest : DataRequest<int>
@@ -338,7 +339,7 @@ public class GetOrdersByDateRangeRequest : IDataRequest<IDbConnection, IEnumerab
 Use the `ResolveAsync` extension method on `IDbConnection` for clean execution with built-in error handling:
 
 ```csharp
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 public class OrderQueryService
 {

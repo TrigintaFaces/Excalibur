@@ -85,7 +85,66 @@ services.AddElasticSearchProjections("https://es.example.com:9200", projections 
 });
 ```
 
-See [Projections](../event-sourcing/projections.md#registering-store-backends) for index naming, multi-node clusters, and per-projection overrides.
+Projections are stored flat as the document root — no envelope wrapper. Custom repositories using `ElasticRepositoryBase<T>` can query the same index with natural field names. See [Projections — Document Storage Format](../event-sourcing/projections.md#document-storage-format) for details.
+
+#### Builder Chain Integration
+
+When using the `AddExcalibur` composition root, register ElasticSearch projections inside the event sourcing builder:
+
+```csharp
+services.AddExcalibur(excalibur => excalibur
+    .AddEventSourcing(es => es
+        .AddElasticSearchProjections("https://es.example.com:9200", projections =>
+        {
+            projections.Add<OrderSummary>();
+            projections.Add<CustomerProfile>(o => o.IndexName = "customers");
+        })));
+```
+
+Or register a single projection store directly:
+
+```csharp
+services.AddExcalibur(excalibur => excalibur
+    .AddEventSourcing(es => es
+        .AddElasticSearchProjectionStore<OrderSummary>(opts =>
+        {
+            opts.NodeUri = "https://es.example.com:9200";
+            opts.IndexPrefix = "orders";
+        })));
+```
+
+#### Index Mapping Conventions
+
+By default, Excalibur infers Elasticsearch field mappings from CLR property types using `DefaultIndexMappingConvention`:
+
+| CLR Type | Elasticsearch Type |
+|----------|-------------------|
+| `string` | `keyword` |
+| `int`, `long` | `long` |
+| `decimal`, `double` | `double` |
+| `bool` | `boolean` |
+| `DateTime`, `DateTimeOffset` | `date` |
+
+To customize mappings (e.g., full-text search with analyzers), implement `IIndexMappingConvention`:
+
+```csharp
+public class TextSearchConvention : IIndexMappingConvention
+{
+    public Properties ConfigureMappings(Type projectionType, Properties inferredProperties)
+    {
+        // Modify inferred mappings or replace entirely
+        // Example: change string fields to text+keyword multi-field
+        return inferredProperties;
+    }
+}
+
+// Apply via options
+services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
+{
+    projections.Add<ProductSearch>(o =>
+        o.IndexMappingConvention = new TextSearchConvention());
+});
+```
 
 ### Health Checks
 
@@ -310,7 +369,7 @@ Cursors are Base64url-encoded (URL-safe, no padding) and opaque to consumers —
 
 ### Design Notes
 
-- **Backend-agnostic**: `CursorEncoder` and `CursorPagedResult<T>` live in `Excalibur.EventSourcing.Abstractions` with no Elasticsearch dependency. They work with any store that supports keyset pagination (SQL Server, CosmosDB, etc.).
+- **Backend-agnostic**: `CursorEncoder` and `CursorPagedResult<T>` live in the `Excalibur.EventSourcing` namespace (package `Excalibur.EventSourcing.Abstractions`) with no Elasticsearch dependency. They work with any store that supports keyset pagination (SQL Server, CosmosDB, etc.).
 - **Corrupt cursors are safe**: Invalid or tampered cursors return `null` from `DecodeCursor`, causing the query to start from the beginning rather than failing.
 - **Always include a tiebreaker sort**: Use `_id` or another unique field as the last sort criterion to ensure deterministic ordering when primary sort values are identical.
 
@@ -341,6 +400,7 @@ services.AddElasticsearchAuditSink(configuration.GetSection("AuditSink:Elasticse
 ```
 
 :::info
+
 Elasticsearch serves as a search/analytics sink, not a compliance-grade audit store. Use SQL Server for tamper-evident hash-chained storage. See [ADR-290](../compliance/audit-logging.md#provider-compliance-boundary) and [Audit Logging Providers](../observability/audit-logging-providers.md#elasticsearch-audit-sink).
 :::
 

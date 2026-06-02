@@ -5,7 +5,7 @@ using System.Text;
 
 using Azure.Messaging.ServiceBus;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 using Microsoft.Extensions.Caching.Distributed;

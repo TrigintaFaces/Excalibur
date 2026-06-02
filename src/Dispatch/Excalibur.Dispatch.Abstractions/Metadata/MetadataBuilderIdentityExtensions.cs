@@ -3,7 +3,7 @@
 
 using System.Security.Claims;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Extension methods for setting identity and security properties on <see cref="IMessageMetadataBuilder"/>.

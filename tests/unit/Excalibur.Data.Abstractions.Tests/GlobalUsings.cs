@@ -1,6 +1,6 @@
 global using System.Data;
 
-global using Excalibur.Data.Abstractions;
+global using Excalibur.Data;
 
 global using FakeItEasy;
 

@@ -3,8 +3,7 @@
 
 using CloudNative.CloudEvents;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.CloudEvents;
 
 using Microsoft.Extensions.DependencyInjection;

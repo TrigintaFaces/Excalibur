@@ -6,8 +6,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Caching.Diagnostics;
+using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Caching;
 

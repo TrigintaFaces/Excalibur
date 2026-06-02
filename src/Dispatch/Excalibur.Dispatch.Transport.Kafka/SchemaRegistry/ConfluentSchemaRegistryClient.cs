@@ -94,7 +94,7 @@ public sealed partial class ConfluentSchemaRegistryClient : ISchemaRegistryClien
 		{
 			LogGettingSchemaId(subject);
 #pragma warning disable CS0618 // Confluent Schema Registry API evolution
-				var schemaId = await _innerClient.GetSchemaIdAsync(subject, schema).ConfigureAwait(false);
+			var schemaId = await _innerClient.GetSchemaIdAsync(subject, schema).ConfigureAwait(false);
 #pragma warning restore CS0618
 			LogSchemaIdRetrieved(subject, schemaId);
 			return schemaId;
@@ -149,7 +149,7 @@ public sealed partial class ConfluentSchemaRegistryClient : ISchemaRegistryClien
 		{
 			LogRegisteringSchema(subject);
 #pragma warning disable CS0618 // Confluent Schema Registry API evolution
-				var schemaId = await _innerClient.RegisterSchemaAsync(subject, schema).ConfigureAwait(false);
+			var schemaId = await _innerClient.RegisterSchemaAsync(subject, schema).ConfigureAwait(false);
 #pragma warning restore CS0618
 			LogSchemaRegistered(subject, schemaId);
 			return schemaId;
@@ -179,7 +179,7 @@ public sealed partial class ConfluentSchemaRegistryClient : ISchemaRegistryClien
 		{
 			LogCheckingCompatibility(subject);
 #pragma warning disable CS0618 // Confluent Schema Registry API evolution
-				var isCompatible = await _innerClient.IsCompatibleAsync(subject, schema).ConfigureAwait(false);
+			var isCompatible = await _innerClient.IsCompatibleAsync(subject, schema).ConfigureAwait(false);
 #pragma warning restore CS0618
 			LogCompatibilityResult(subject, isCompatible);
 			return isCompatible;

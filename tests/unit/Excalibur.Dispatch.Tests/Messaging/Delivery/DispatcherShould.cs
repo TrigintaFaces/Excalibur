@@ -3,16 +3,15 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly - FakeItEasy .Returns() stores ValueTask
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Transport;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery.Handlers;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 

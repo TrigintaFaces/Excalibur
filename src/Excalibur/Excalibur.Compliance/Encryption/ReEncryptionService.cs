@@ -9,7 +9,7 @@ using System.Text;
 using System.Text.Json;
 
 using Excalibur.Compliance.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 

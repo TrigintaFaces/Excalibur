@@ -11,9 +11,9 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Data.Abstractions.Observability;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Data.CloudNative;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

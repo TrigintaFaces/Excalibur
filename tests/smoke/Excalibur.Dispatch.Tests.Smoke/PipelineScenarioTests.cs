@@ -10,14 +10,14 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Excalibur.Cdc.SqlServer;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Resilience.Polly;
 using Excalibur.Dispatch.Validation;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.InMemory;
 
 using System.Diagnostics.CodeAnalysis;
@@ -28,7 +28,6 @@ using Microsoft.Extensions.Logging;
 using Shouldly;
 
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Smoke;
 
@@ -75,7 +74,6 @@ public sealed class PipelineScenarioTests
 		services.AddInMemoryEventStore();
 
 		using var provider = services.BuildServiceProvider();
-
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 		dispatcher.ShouldNotBeNull("IDispatcher should be resolvable");
 

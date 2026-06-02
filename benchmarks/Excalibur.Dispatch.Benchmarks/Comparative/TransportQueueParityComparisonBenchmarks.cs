@@ -5,13 +5,12 @@ using System.Collections.Concurrent;
 
 using BenchmarkDotNet.Attributes;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Transport;
+using Excalibur.Dispatch.Configuration;
 
 using MassTransit;
 
@@ -20,8 +19,8 @@ using Microsoft.Extensions.Hosting;
 
 using Wolverine;
 
-using DispatchMessageBus = Excalibur.Dispatch.Abstractions.Transport.IMessageBus;
-using DispatchMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
+using DispatchMessageBus = Excalibur.Dispatch.Transport.IMessageBus;
+using DispatchMessageContext = Excalibur.Dispatch.IMessageContext;
 using WolverineMessageBus = Wolverine.IMessageBus;
 
 namespace Excalibur.Dispatch.Benchmarks.Comparative;

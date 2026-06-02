@@ -3,7 +3,7 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Testing.Transport;

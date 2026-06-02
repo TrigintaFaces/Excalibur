@@ -22,7 +22,7 @@ public abstract class CacheIntegrationTestBase : IntegrationTestBase, IClassFixt
 	/// </summary>
 	protected string ConnectionString => Fixture.ConnectionString;
 
-	public override async Task InitializeAsync()
+	public override async ValueTask InitializeAsync()
 	{
 		await base.InitializeAsync();
 		await FlushCacheAsync();
@@ -68,13 +68,13 @@ public abstract class SearchIntegrationTestBase : IntegrationTestBase, IClassFix
 	/// </summary>
 	protected string ConnectionString => Fixture.ConnectionString;
 
-	public override async Task InitializeAsync()
+	public override async ValueTask InitializeAsync()
 	{
 		await base.InitializeAsync();
 		await SetupIndicesAsync();
 	}
 
-	public override async Task DisposeAsync()
+	public override async ValueTask DisposeAsync()
 	{
 		await CleanupIndicesAsync();
 		await base.DisposeAsync();

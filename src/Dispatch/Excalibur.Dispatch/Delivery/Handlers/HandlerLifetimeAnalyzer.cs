@@ -5,8 +5,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions.Delivery;
-
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Delivery.Handlers;
@@ -177,7 +175,7 @@ internal static class HandlerLifetimeAnalyzer
 
 			// Treat auto-property backing fields as mutable instance state.
 			if (field.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false) &&
-			    field.Name.Contains("k__BackingField", StringComparison.Ordinal))
+				field.Name.Contains("k__BackingField", StringComparison.Ordinal))
 			{
 				return true;
 			}

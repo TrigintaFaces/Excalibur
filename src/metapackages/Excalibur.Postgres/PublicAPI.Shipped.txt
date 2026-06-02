@@ -1,7 +1,7 @@
 #nullable enable
 Excalibur.Postgres.ExcaliburPostgresOptions
 Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureAuditLogging(System.Action<Excalibur.AuditLogging.Postgres.PostgresAuditOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
-Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureDispatch(System.Action<Excalibur.Dispatch.Configuration.IDispatchBuilder!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
 Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureErasure(System.Action<Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
 Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureInbox(System.Action<Excalibur.Inbox.Postgres.IPostgresInboxBuilder!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
 Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureLeaderElection(System.Action<Excalibur.LeaderElection.Postgres.IPostgresLeaderElectionBuilder!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!

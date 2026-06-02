@@ -5,7 +5,7 @@ using System.Net;
 
 using Amazon.DynamoDBv2;
 
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Resilience;
 
 namespace Excalibur.Data.DynamoDb;
 

@@ -4,8 +4,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 
 using Microsoft.AspNetCore.Builder;
@@ -434,23 +434,6 @@ public sealed class EndpointRouteBuilderExtensionsShould : UnitTestBase
 			IMessageContext context,
 			CancellationToken cancellationToken)
 			where TAction : IDispatchAction<TResponse>
-		{
-			LastDispatchCancellationToken = cancellationToken;
-			return Task.FromResult(MessageResult.Success(default(TResponse)!));
-		}
-
-		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
-			IDispatchAction<TResponse> message,
-			CancellationToken cancellationToken)
-		{
-			LastDispatchCancellationToken = cancellationToken;
-			return Task.FromResult(MessageResult.Success(default(TResponse)!));
-		}
-
-		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
-			IDispatchAction<TResponse> message,
-			IMessageContext context,
-			CancellationToken cancellationToken)
 		{
 			LastDispatchCancellationToken = cancellationToken;
 			return Task.FromResult(MessageResult.Success(default(TResponse)!));

@@ -220,43 +220,43 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLet
 	private static bool MatchesFilter(DeadLetterMessage message, DeadLetterFilter filter)
 	{
 		if (!string.IsNullOrWhiteSpace(filter.MessageType) &&
-		    !string.Equals(message.MessageType, filter.MessageType, StringComparison.Ordinal))
+			!string.Equals(message.MessageType, filter.MessageType, StringComparison.Ordinal))
 		{
 			return false;
 		}
 
 		if (!string.IsNullOrWhiteSpace(filter.Reason) &&
-		    !message.Reason.Contains(filter.Reason, StringComparison.OrdinalIgnoreCase))
+			!message.Reason.Contains(filter.Reason, StringComparison.OrdinalIgnoreCase))
 		{
 			return false;
 		}
 
 		if (filter.FromDate.HasValue &&
-		    message.MovedToDeadLetterAt < filter.FromDate.Value)
+			message.MovedToDeadLetterAt < filter.FromDate.Value)
 		{
 			return false;
 		}
 
 		if (filter.ToDate.HasValue &&
-		    message.MovedToDeadLetterAt > filter.ToDate.Value)
+			message.MovedToDeadLetterAt > filter.ToDate.Value)
 		{
 			return false;
 		}
 
 		if (filter.IsReplayed.HasValue &&
-		    message.IsReplayed != filter.IsReplayed.Value)
+			message.IsReplayed != filter.IsReplayed.Value)
 		{
 			return false;
 		}
 
 		if (!string.IsNullOrWhiteSpace(filter.SourceSystem) &&
-		    !string.Equals(message.SourceSystem, filter.SourceSystem, StringComparison.Ordinal))
+			!string.Equals(message.SourceSystem, filter.SourceSystem, StringComparison.Ordinal))
 		{
 			return false;
 		}
 
 		if (!string.IsNullOrWhiteSpace(filter.CorrelationId) &&
-		    !string.Equals(message.CorrelationId, filter.CorrelationId, StringComparison.Ordinal))
+			!string.Equals(message.CorrelationId, filter.CorrelationId, StringComparison.Ordinal))
 		{
 			return false;
 		}

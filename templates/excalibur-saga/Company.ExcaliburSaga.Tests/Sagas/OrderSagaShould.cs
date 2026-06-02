@@ -9,9 +9,12 @@ public class OrderSagaShould
     [Fact]
     public void InitializeWithCorrectDefaults()
     {
-        var sagaData = new OrderSagaData();
+        var sagaState = new OrderSagaState();
 
-        sagaData.OrderId.ShouldBe(Guid.Empty);
-        sagaData.IsCompleted.ShouldBeFalse();
+        sagaState.OrderId.ShouldBe(Guid.Empty);
+        sagaState.Completed.ShouldBeFalse();
+        sagaState.CompletedSteps.ShouldBeEmpty();
+        sagaState.FailureReason.ShouldBeNull();
+        sagaState.TrackingNumber.ShouldBeNull();
     }
 }

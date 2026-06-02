@@ -4,8 +4,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
@@ -15,7 +15,7 @@ using Tests.Shared.TestFakes;
 
 using Excalibur.Inbox.InMemory;
 
-using MessageResult = Tests.Shared.TestFakes.MessageResult;
+using FakeMessageResult = Tests.Shared.TestFakes.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 
@@ -616,25 +616,25 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			new
 			{
 				Name = "ValidationFailure",
-				ResultFactory = (Func<IMessageResult>)(() => MessageResult.ValidationFailure(validationError)),
+				ResultFactory = (Func<IMessageResult>)(() => FakeMessageResult.ValidationFailure(validationError)),
 				ExpectedErrorType = "Validation",
 			},
 			new
 			{
 				Name = "AuthorizationFailure",
-				ResultFactory = (Func<IMessageResult>)(() => MessageResult.AuthorizationFailure(authorizationError)),
+				ResultFactory = (Func<IMessageResult>)(() => FakeMessageResult.AuthorizationFailure(authorizationError)),
 				ExpectedErrorType = "Authorization",
 			},
 			new
 			{
 				Name = "ExceptionFailure",
-				ResultFactory = (Func<IMessageResult>)(() => MessageResult.Failure(new InvalidOperationException("Test exception"))),
+				ResultFactory = (Func<IMessageResult>)(() => FakeMessageResult.Failure(new InvalidOperationException("Test exception"))),
 				ExpectedErrorType = "Exception",
 			},
 			new
 			{
 				Name = "GenericFailure",
-				ResultFactory = (Func<IMessageResult>)(() => MessageResult.Failure("Generic error message")),
+				ResultFactory = (Func<IMessageResult>)(() => FakeMessageResult.Failure("Generic error message")),
 				ExpectedErrorType = "Error",
 			},
 		};
@@ -856,7 +856,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		}
 		catch (OperationCanceledException)
 		{
-			result = MessageResult.Failure("Operation was cancelled");
+			result = FakeMessageResult.Failure("Operation was cancelled");
 		}
 
 		// Assert - handler should not have been called due to cancellation

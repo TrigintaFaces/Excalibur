@@ -1,4 +1,4 @@
-﻿// -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // MessageContext Performance Benchmarks
 // Sprint 71 - Epic yvpn: MessageContext Performance Optimization
 // Task miii: Create baseline performance benchmarks
@@ -14,8 +14,8 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Jobs;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 
 namespace Excalibur.Dispatch.Benchmarks.Core;
 

@@ -1,11 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Transport.GooglePubSub;
+using Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 
-using Google.Api.Gax;
-using Google.Api.Gax.Grpc;
 using Google.Cloud.PubSub.V1;
 
 using Microsoft.Extensions.Logging;
@@ -22,7 +20,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </remarks>
 internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 {
-	private readonly SubscriberServiceApiClient _client;
+	private readonly ISubscriberApiClientSeam _client;
 	private readonly int _maxMessages;
 	private readonly TimeSpan _requestTimeout;
 	private readonly ILogger _logger;
@@ -38,6 +36,22 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 	/// <param name="requestTimeout">Optional request timeout.</param>
 	public PubSubTransportReceiver(
 		SubscriberServiceApiClient client,
+		string subscriptionName,
+		ILogger<PubSubTransportReceiver> logger,
+		int maxMessages = 10,
+		TimeSpan requestTimeout = default)
+		: this(new SubscriberApiClientAdapter(client ?? throw new ArgumentNullException(nameof(client))),
+			subscriptionName, logger, maxMessages, requestTimeout)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="PubSubTransportReceiver"/> class
+	/// using a pre-built subscriber adapter. Used by tests to substitute the
+	/// SDK via the <see cref="ISubscriberApiClientSeam"/> seam (ADR-142 §D7).
+	/// </summary>
+	internal PubSubTransportReceiver(
+		ISubscriberApiClientSeam client,
 		string subscriptionName,
 		ILogger<PubSubTransportReceiver> logger,
 		int maxMessages = 10,
@@ -67,7 +81,7 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 				MaxMessages = maxToPull,
 			};
 
-			var response = await _client.PullAsync(request, CreateCallSettings(cancellationToken))
+			var response = await _client.PullAsync(request, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (response.ReceivedMessages.Count == 0)
@@ -101,16 +115,10 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 
 		try
 		{
-			var request = new AcknowledgeRequest
-			{
-				Subscription = Source,
-				AckIds = { ackId },
-			};
-
 			// Ack must complete even during shutdown to prevent redelivery;
 			// use dedicated timeout instead of caller's cancellation token
 			using var ackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-			await _client.AcknowledgeAsync(request, CreateCallSettings(ackCts.Token))
+			await _client.AcknowledgeAsync(Source, [ackId], ackCts.Token)
 				.ConfigureAwait(false);
 			LogMessageAcknowledged(message.Id, Source);
 		}
@@ -136,27 +144,14 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 			if (requeue)
 			{
 				// Set ack deadline to 0 so message becomes available for redelivery immediately
-				var request = new ModifyAckDeadlineRequest
-				{
-					Subscription = Source,
-					AckIds = { ackId },
-					AckDeadlineSeconds = 0,
-				};
-
-				await _client.ModifyAckDeadlineAsync(request, CreateCallSettings(rejectCts.Token))
+				await _client.ModifyAckDeadlineAsync(Source, [ackId], 0, rejectCts.Token)
 					.ConfigureAwait(false);
 				LogMessageRejectedRequeue(message.Id, Source, reason ?? "no reason");
 			}
 			else
 			{
 				// Acknowledge the message to remove it; DLQ routing is handled by the decorator or Pub/Sub dead letter policy
-				var request = new AcknowledgeRequest
-				{
-					Subscription = Source,
-					AckIds = { ackId },
-				};
-
-				await _client.AcknowledgeAsync(request, CreateCallSettings(rejectCts.Token))
+				await _client.AcknowledgeAsync(Source, [ackId], rejectCts.Token)
 					.ConfigureAwait(false);
 				LogMessageRejected(message.Id, Source, reason ?? "no reason");
 			}
@@ -172,7 +167,7 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
-		if (serviceType == typeof(SubscriberServiceApiClient))
+		if (serviceType == typeof(ISubscriberApiClientSeam))
 		{
 			return _client;
 		}
@@ -249,17 +244,6 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 		}
 
 		throw new InvalidOperationException("Message does not contain a Pub/Sub ack ID in ProviderData.");
-	}
-
-	private CallSettings CreateCallSettings(CancellationToken cancellationToken)
-	{
-		var callSettings = CallSettings.FromCancellationToken(cancellationToken);
-		if (_requestTimeout > TimeSpan.Zero)
-		{
-			callSettings = callSettings.WithExpiration(Expiration.FromTimeout(_requestTimeout));
-		}
-
-		return callSettings;
 	}
 
 	[LoggerMessage(GooglePubSubEventId.TransportReceiverMessageReceived, LogLevel.Debug,

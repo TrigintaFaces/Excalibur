@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Buffers;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.GooglePubSub;
 

@@ -145,14 +145,14 @@ public sealed class InputSanitizationExceptionShould
 		var exception = new InputSanitizationException("test");
 
 		// Assert
-		_ = exception.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
+		_ = exception.ShouldBeAssignableTo<Excalibur.Dispatch.ApiException>();
 	}
 
 	[Fact]
 	public void CanBeCaughtAsApiException()
 	{
 		// Act & Assert
-		_ = Should.Throw<Excalibur.Dispatch.Abstractions.ApiException>(() => throw new InputSanitizationException("test"));
+		_ = Should.Throw<Excalibur.Dispatch.ApiException>(() => throw new InputSanitizationException("test"));
 	}
 
 	[Fact]

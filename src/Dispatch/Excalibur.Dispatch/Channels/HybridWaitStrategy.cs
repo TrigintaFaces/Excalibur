@@ -4,8 +4,6 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Channels;
 
 /// <summary>

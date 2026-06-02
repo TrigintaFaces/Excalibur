@@ -7,7 +7,7 @@ using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 
 using Excalibur.Data.OpenSearch.Projections;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -31,7 +31,7 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 	private IProjectionStore<TestOpenSearchProjection>? _store;
 	private bool _available;
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -84,7 +84,7 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		try
 		{

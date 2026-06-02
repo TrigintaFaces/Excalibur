@@ -3,8 +3,8 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Delivery;
 
 using Microsoft.Extensions.Logging;

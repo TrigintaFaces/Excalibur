@@ -8,8 +8,6 @@ using System.Text.Json;
 using Amazon.Scheduler;
 using Amazon.Scheduler.Model;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

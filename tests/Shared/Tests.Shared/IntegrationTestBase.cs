@@ -45,20 +45,20 @@ public abstract class IntegrationTestBase : UnitTestBase, IAsyncLifetime
 	/// Called before each test. Override to set up TestContainers or other async resources.
 	/// Base implementation creates the test cancellation token source.
 	/// </summary>
-	public virtual Task InitializeAsync()
+	public virtual ValueTask InitializeAsync()
 	{
 		_testCts = new CancellationTokenSource(TestTimeout);
-		return Task.CompletedTask;
+		return default;
 	}
 
 	/// <summary>
 	/// Called after each test. Override to tear down TestContainers or other async resources.
 	/// Base implementation disposes the cancellation token source.
 	/// </summary>
-	public virtual Task DisposeAsync()
+	public virtual ValueTask DisposeAsync()
 	{
 		Dispose();
-		return Task.CompletedTask;
+		return default;
 	}
 
 	/// <inheritdoc/>

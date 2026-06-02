@@ -3,8 +3,8 @@
 
 
 
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.SqlServer;
@@ -94,9 +94,9 @@ public static class SqlServerSagaExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server saga store using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// Adds SQL Server saga store using a typed <see cref="Excalibur.Data.IDb"/> marker for connection resolution.
 	/// </summary>
-	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.IDb"/>.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The service collection for chaining.</returns>
@@ -110,7 +110,7 @@ public static class SqlServerSagaExtensions
 	public static IServiceCollection AddSqlServerSagaStore<TDb>(
 		this IServiceCollection services,
 		Action<SqlServerSagaStoreOptions>? configure = null)
-		where TDb : class, Excalibur.Data.Abstractions.IDb
+		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -272,114 +272,6 @@ public static class SqlServerSagaExtensions
 	#endregion
 
 	#region Saga Monitoring Service Extensions
-
-	/// <summary>
-	/// Adds SQL Server saga monitoring service to the service collection.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Action to configure saga store options (connection string, schema, table names).</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This method registers <see cref="SqlServerSagaMonitoringService"/> as both its concrete type
-	/// and as <see cref="ISagaMonitoringService"/> for dependency injection.
-	/// </para>
-	/// <para>
-	/// Ensure the monitoring columns have been added using the schema script at:
-	/// <c>Scripts/02-SagaMonitoringSchema.sql</c>
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddSqlServerSagaMonitoringService(
-		this IServiceCollection services,
-		Action<SqlServerSagaStoreOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		RegisterSagaStoreOptions(services, configure);
-
-		services.TryAddSingleton(sp =>
-		{
-			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
-			var logger = sp.GetRequiredService<ILogger<SqlServerSagaMonitoringService>>();
-			return new SqlServerSagaMonitoringService(options.Value.ConnectionString!, options, logger);
-		});
-		services.TryAddSingleton<ISagaMonitoringService>(sp => sp.GetRequiredService<SqlServerSagaMonitoringService>());
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds SQL Server saga monitoring service to the service collection with a connection factory.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionFactoryProvider">
-	/// A factory function that creates <see cref="SqlConnection"/> instances from the service provider.
-	/// Useful for multi-database setups, custom connection pooling, or IDb integration.
-	/// </param>
-	/// <param name="configure">Optional action to configure saga store options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddSqlServerSagaMonitoringService(
-		this IServiceCollection services,
-		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
-		Action<SqlServerSagaStoreOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
-
-		RegisterSagaStoreOptions(services, configure);
-
-		services.TryAddSingleton(sp =>
-		{
-			var connectionFactory = connectionFactoryProvider(sp);
-			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
-			var logger = sp.GetRequiredService<ILogger<SqlServerSagaMonitoringService>>();
-			return new SqlServerSagaMonitoringService(connectionFactory, options, logger);
-		});
-		services.TryAddSingleton<ISagaMonitoringService>(sp => sp.GetRequiredService<SqlServerSagaMonitoringService>());
-
-		return services;
-	}
-
-	/// <summary>
-	/// Configures the dispatch builder to use SQL Server saga monitoring service.
-	/// </summary>
-	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="configure">Action to configure saga store options.</param>
-	/// <returns>The dispatch builder for fluent configuration.</returns>
-	public static IDispatchBuilder UseSqlServerSagaMonitoringService(
-		this IDispatchBuilder builder,
-		Action<SqlServerSagaStoreOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = builder.Services.AddSqlServerSagaMonitoringService(configure);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures the dispatch builder to use SQL Server saga monitoring service with a connection factory.
-	/// </summary>
-	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionFactoryProvider">
-	/// A factory function that creates <see cref="SqlConnection"/> instances from the service provider.
-	/// </param>
-	/// <param name="configure">Optional action to configure saga store options.</param>
-	/// <returns>The dispatch builder for fluent configuration.</returns>
-	public static IDispatchBuilder UseSqlServerSagaMonitoringService(
-		this IDispatchBuilder builder,
-		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
-		Action<SqlServerSagaStoreOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
-
-		_ = builder.Services.AddSqlServerSagaMonitoringService(connectionFactoryProvider, configure);
-
-		return builder;
-	}
 
 	#endregion
 

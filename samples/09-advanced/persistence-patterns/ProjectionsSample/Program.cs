@@ -20,8 +20,8 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -3,8 +3,8 @@
 
 using Confluent.Kafka;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Kafka;
 
 using Microsoft.Extensions.Logging.Abstractions;

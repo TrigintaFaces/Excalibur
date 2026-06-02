@@ -1,6 +1,6 @@
 // Functional tests for SecurityEventLogger — queuing, background processing, batch storage, lifecycle
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security;
 
 using Microsoft.Extensions.Logging;

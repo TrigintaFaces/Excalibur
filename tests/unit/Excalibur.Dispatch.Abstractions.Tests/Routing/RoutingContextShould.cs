@@ -1,6 +1,6 @@
-using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch.Routing;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Routing;
+namespace Excalibur.Dispatch.Tests.Routing;
 
 /// <summary>
 /// Unit tests for RoutingContext.

@@ -3,7 +3,7 @@
 
 // Copyright (c) TrigintaFaces. All rights reserved.
 
-namespace Excalibur.Security.Abstractions;
+namespace Excalibur.Security;
 
 /// <summary>
 /// Result of a password hashing operation containing all information needed

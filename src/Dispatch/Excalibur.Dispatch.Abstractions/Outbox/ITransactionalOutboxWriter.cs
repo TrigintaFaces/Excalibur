@@ -3,7 +3,7 @@
 
 using System.Data;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Extends outbox staging with external transaction participation for atomic consistency.

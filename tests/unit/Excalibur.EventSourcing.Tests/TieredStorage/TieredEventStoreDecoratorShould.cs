@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.TieredStorage;
 using Microsoft.Extensions.Logging.Abstractions;
 
-using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
-using StoredEvent = Excalibur.EventSourcing.Abstractions.StoredEvent;
-using AppendResult = Excalibur.EventSourcing.Abstractions.AppendResult;
+using IEventStore = Excalibur.EventSourcing.IEventStore;
+using StoredEvent = Excalibur.EventSourcing.StoredEvent;
+using AppendResult = Excalibur.EventSourcing.AppendResult;
 
 namespace Excalibur.EventSourcing.Tests.TieredStorage;
 
@@ -44,11 +44,11 @@ public sealed class TieredEventStoreDecoratorShould
 	public async Task RouteAppendToHotStore()
 	{
 		_ = A.CallTo(() => _hotStore.AppendAsync(
-			A<string>._, A<string>._, A<IEnumerable<Dispatch.Abstractions.IDomainEvent>>._, A<long>._, A<CancellationToken>._))
+			A<string>._, A<string>._, A<IEnumerable<Dispatch.IDomainEvent>>._, A<long>._, A<CancellationToken>._))
 			.Returns(AppendResult.CreateSuccess(1, 1));
 
 		var result = await _decorator.AppendAsync(
-			"agg-1", "Order", Array.Empty<Dispatch.Abstractions.IDomainEvent>(), 0, CancellationToken.None);
+			"agg-1", "Order", Array.Empty<Dispatch.IDomainEvent>(), 0, CancellationToken.None);
 
 		result.Success.ShouldBeTrue();
 		A.CallTo(() => _coldStore.WriteAsync(A<string>._, A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))

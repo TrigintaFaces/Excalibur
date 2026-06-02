@@ -1,8 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Transport;

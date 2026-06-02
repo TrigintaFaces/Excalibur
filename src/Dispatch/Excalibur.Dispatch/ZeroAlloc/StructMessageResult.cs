@@ -5,9 +5,8 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Validation;
 
 namespace Excalibur.Dispatch.ZeroAlloc;
 
@@ -145,7 +144,7 @@ public readonly struct StructMessageResult : IMessageResult, IEquatable<StructMe
 	/// <returns> true if the results are not equal; otherwise, false. </returns>
 	public static bool operator !=(StructMessageResult left, StructMessageResult right) => !left.Equals(right);
 
-	// Explicit interface implementations for compatibility with Excalibur.Dispatch.Abstractions
+	// Explicit interface implementations for compatibility with Excalibur.Dispatch
 
 	/// <inheritdoc/>
 	object? IMessageResult.ValidationResult => ValidationResult;
@@ -334,7 +333,7 @@ public readonly struct StructMessageResult<T>(
 	/// <returns> true if the results are not equal; otherwise, false. </returns>
 	public static bool operator !=(StructMessageResult<T> left, StructMessageResult<T> right) => !left.Equals(right);
 
-	// Explicit interface implementations for compatibility with Excalibur.Dispatch.Abstractions
+	// Explicit interface implementations for compatibility with Excalibur.Dispatch
 
 	/// <inheritdoc/>
 	object? IMessageResult.ValidationResult => ValidationResult;

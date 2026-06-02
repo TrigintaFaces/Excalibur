@@ -489,6 +489,7 @@ public class OrdersController : ControllerBase
 ## New Capabilities in Dispatch
 
 :::info Optional Features
+
 The capabilities below are optional add-ons available in separate packages. They are **not** required for a successful MediatR migration. Many teams use Excalibur.Dispatch exclusively for messaging without any of these.
 :::
 

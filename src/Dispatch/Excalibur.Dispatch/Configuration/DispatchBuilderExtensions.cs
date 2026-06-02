@@ -5,9 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

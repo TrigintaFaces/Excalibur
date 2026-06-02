@@ -3,8 +3,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

@@ -7,16 +7,16 @@ namespace Excalibur.Saga.Firestore;
 
 internal sealed class FirestoreSagaOptionsValidator : IValidateOptions<FirestoreSagaOptions>
 {
-    public ValidateOptionsResult Validate(string? name, FirestoreSagaOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, FirestoreSagaOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

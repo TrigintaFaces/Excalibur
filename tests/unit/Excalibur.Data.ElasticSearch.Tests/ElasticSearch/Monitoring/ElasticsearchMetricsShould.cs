@@ -54,6 +54,7 @@ public sealed class ElasticsearchMetricsShould : IDisposable
 	[Fact]
 	public void RecordRetryAttemptWithIndex()
 	{
+		using var context = _sut.StartOperation("index", "test-index");
 		// Should not throw
 		_sut.RecordRetryAttempt("search", 1, "test-index");
 	}

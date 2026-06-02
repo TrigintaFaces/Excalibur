@@ -100,7 +100,7 @@ public sealed class ResultFactoryAotShould
 	{
 		// Generated factory methods must use MessageResult.Success<T>()
 		// NOT new MessageResult<T>() (which doesn't exist - it's a static factory)
-		var expectedPattern = "global::Excalibur.Dispatch.Abstractions.MessageResult.Success<";
+		var expectedPattern = "global::Excalibur.Dispatch.MessageResult.Success<";
 		expectedPattern.ShouldContain("MessageResult.Success");
 	}
 
@@ -220,7 +220,7 @@ public sealed class ResultFactoryAotShould
 	public void ExtractReturnValue_ShouldUseGlobalPrefix()
 	{
 		// Type references use global:: prefix for disambiguation
-		var expectedPattern = "global::Excalibur.Dispatch.Abstractions.IMessageResult<";
+		var expectedPattern = "global::Excalibur.Dispatch.IMessageResult<";
 		expectedPattern.ShouldContain("global::");
 	}
 
@@ -232,7 +232,7 @@ public sealed class ResultFactoryAotShould
 	public void GlobalPrefix_ShouldBeUsedForMessageResult()
 	{
 		// MessageResult.Success<T> must use global:: for disambiguation
-		var prefix = "global::Excalibur.Dispatch.Abstractions.MessageResult.Success<";
+		var prefix = "global::Excalibur.Dispatch.MessageResult.Success<";
 		prefix.ShouldStartWith("global::");
 	}
 
@@ -240,7 +240,7 @@ public sealed class ResultFactoryAotShould
 	public void GlobalPrefix_ShouldBeUsedForIMessageResult()
 	{
 		// IMessageResult<T> pattern matching uses global::
-		var prefix = "global::Excalibur.Dispatch.Abstractions.IMessageResult<";
+		var prefix = "global::Excalibur.Dispatch.IMessageResult<";
 		prefix.ShouldStartWith("global::");
 	}
 

@@ -1,7 +1,7 @@
 #nullable enable
 Excalibur.Dispatch.CloudEvents.IEnvelopeCloudEventBridge (forwarded, contained in Excalibur.Dispatch)
-Excalibur.Dispatch.CloudEvents.IEnvelopeCloudEventBridge.FromTransportAsync(object! transportMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.MessageEnvelope!>! (forwarded, contained in Excalibur.Dispatch)
-Excalibur.Dispatch.CloudEvents.IEnvelopeCloudEventBridge.ToTransportAsync<TTransportMessage>(Excalibur.Dispatch.Abstractions.MessageEnvelope! envelope, Excalibur.Dispatch.CloudEvents.CloudEventMode mode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TTransportMessage>! (forwarded, contained in Excalibur.Dispatch)
+Excalibur.Dispatch.CloudEvents.IEnvelopeCloudEventBridge.FromTransportAsync(object! transportMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.MessageEnvelope!>! (forwarded, contained in Excalibur.Dispatch)
+Excalibur.Dispatch.CloudEvents.IEnvelopeCloudEventBridge.ToTransportAsync<TTransportMessage>(Excalibur.Dispatch.MessageEnvelope! envelope, Excalibur.Dispatch.CloudEvents.CloudEventMode mode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TTransportMessage>! (forwarded, contained in Excalibur.Dispatch)
 Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId
 Excalibur.Dispatch.Transport.AccessPermissions
 Excalibur.Dispatch.Transport.AccessPermissions.All = Excalibur.Dispatch.Transport.AccessPermissions.Send | Excalibur.Dispatch.Transport.AccessPermissions.Receive | Excalibur.Dispatch.Transport.AccessPermissions.Manage -> Excalibur.Dispatch.Transport.AccessPermissions
@@ -199,7 +199,7 @@ Excalibur.Dispatch.Transport.ChannelConsumeOptions.Buffer.get -> Excalibur.Dispa
 Excalibur.Dispatch.Transport.ChannelConsumeOptions.ChannelConsumeOptions() -> void
 Excalibur.Dispatch.Transport.ChannelConsumeOptions.CompleteChannelOnStop.get -> bool
 Excalibur.Dispatch.Transport.ChannelConsumeOptions.CompleteChannelOnStop.set -> void
-Excalibur.Dispatch.Transport.ChannelConsumeOptions.OrderingKeySelector.get -> System.Func<Excalibur.Dispatch.Abstractions.MessageEnvelope!, string?>?
+Excalibur.Dispatch.Transport.ChannelConsumeOptions.OrderingKeySelector.get -> System.Func<Excalibur.Dispatch.MessageEnvelope!, string?>?
 Excalibur.Dispatch.Transport.ChannelConsumeOptions.OrderingKeySelector.set -> void
 Excalibur.Dispatch.Transport.ChannelConsumeOptions.PreserveOrdering.get -> bool
 Excalibur.Dispatch.Transport.ChannelConsumeOptions.PreserveOrdering.set -> void
@@ -310,9 +310,9 @@ Excalibur.Dispatch.Transport.DeadLetterMessage.Exception.get -> System.Exception
 Excalibur.Dispatch.Transport.DeadLetterMessage.Exception.set -> void
 Excalibur.Dispatch.Transport.DeadLetterMessage.Metadata.get -> System.Collections.Generic.Dictionary<string!, string!>!
 Excalibur.Dispatch.Transport.DeadLetterMessage.Metadata.init -> void
-Excalibur.Dispatch.Transport.DeadLetterMessage.OriginalContext.get -> Excalibur.Dispatch.Abstractions.IMessageContext?
+Excalibur.Dispatch.Transport.DeadLetterMessage.OriginalContext.get -> Excalibur.Dispatch.IMessageContext?
 Excalibur.Dispatch.Transport.DeadLetterMessage.OriginalContext.set -> void
-Excalibur.Dispatch.Transport.DeadLetterMessage.OriginalEnvelope.get -> Excalibur.Dispatch.Abstractions.MessageEnvelope?
+Excalibur.Dispatch.Transport.DeadLetterMessage.OriginalEnvelope.get -> Excalibur.Dispatch.MessageEnvelope?
 Excalibur.Dispatch.Transport.DeadLetterMessage.OriginalEnvelope.set -> void
 Excalibur.Dispatch.Transport.DeadLetterMessage.OriginalMessage.get -> Excalibur.Dispatch.Transport.TransportMessage!
 Excalibur.Dispatch.Transport.DeadLetterMessage.OriginalMessage.set -> void
@@ -440,7 +440,7 @@ Excalibur.Dispatch.Transport.IMessageScheduler
 Excalibur.Dispatch.Transport.IMessageScheduler.CancelAsync(string! scheduleId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Transport.IMessageScheduler.CancelScheduledMessageAsync(string! scheduleId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.IMessageScheduler.GetScheduleAsync(string! scheduleId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ScheduleInfo?>!
-Excalibur.Dispatch.Transport.IMessageScheduler.ScheduleAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.DateTimeOffset scheduleTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Transport.IMessageScheduler.ScheduleAsync(Excalibur.Dispatch.IDispatchMessage! message, System.DateTimeOffset scheduleTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
 Excalibur.Dispatch.Transport.IMessageScheduler.ScheduleMessageAsync<T>(T message, System.DateTimeOffset scheduledTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
 Excalibur.Dispatch.Transport.ISessionCheckpointManager
 Excalibur.Dispatch.Transport.ISessionCheckpointManager.CreateCheckpointAsync(string! sessionId, string! checkpointId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -699,7 +699,7 @@ Excalibur.Dispatch.Transport.ScheduleInfo.DeliveryAttempts.get -> int
 Excalibur.Dispatch.Transport.ScheduleInfo.DeliveryAttempts.set -> void
 Excalibur.Dispatch.Transport.ScheduleInfo.LastError.get -> string?
 Excalibur.Dispatch.Transport.ScheduleInfo.LastError.set -> void
-Excalibur.Dispatch.Transport.ScheduleInfo.Message.get -> Excalibur.Dispatch.Abstractions.IDispatchMessage?
+Excalibur.Dispatch.Transport.ScheduleInfo.Message.get -> Excalibur.Dispatch.IDispatchMessage?
 Excalibur.Dispatch.Transport.ScheduleInfo.Message.set -> void
 Excalibur.Dispatch.Transport.ScheduleInfo.ScheduleId.get -> string!
 Excalibur.Dispatch.Transport.ScheduleInfo.ScheduleId.set -> void
@@ -1136,20 +1136,20 @@ static Excalibur.Dispatch.Transport.ChannelConsumeOptions.Default.get -> Excalib
 static Excalibur.Dispatch.Transport.ChannelConsumeOptions.HighThroughput.get -> Excalibur.Dispatch.Transport.ChannelConsumeOptions!
 static Excalibur.Dispatch.Transport.ChannelConsumeOptions.Ordered.get -> Excalibur.Dispatch.Transport.ChannelConsumeOptions!
 static Excalibur.Dispatch.Transport.ChannelConsumeOptions.Reliable.get -> Excalibur.Dispatch.Transport.ChannelConsumeOptions!
-static Excalibur.Dispatch.Transport.MessageBusPublishing.PublishActionAsync(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Func<string!, byte[]!, Excalibur.Dispatch.Abstractions.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! publishFunc, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-static Excalibur.Dispatch.Transport.MessageBusPublishing.PublishDocumentAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument! doc, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Func<string!, byte[]!, Excalibur.Dispatch.Abstractions.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! publishFunc, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-static Excalibur.Dispatch.Transport.MessageBusPublishing.PublishEventAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Func<string!, byte[]!, Excalibur.Dispatch.Abstractions.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! publishFunc, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-static Excalibur.Dispatch.Transport.MessageContextSerializer.DeserializeFromDictionary(System.Collections.Generic.IDictionary<string!, string!>! attributes, System.IServiceProvider! serviceProvider) -> Excalibur.Dispatch.Abstractions.IMessageContext!
-static Excalibur.Dispatch.Transport.MessageContextSerializer.SerializeToDictionary(Excalibur.Dispatch.Abstractions.IMessageContext! context) -> System.Collections.Generic.Dictionary<string!, string!>!
+static Excalibur.Dispatch.Transport.MessageBusPublishing.PublishActionAsync(Excalibur.Dispatch.IDispatchAction! action, Excalibur.Dispatch.IMessageContext! context, System.Func<string!, byte[]!, Excalibur.Dispatch.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! publishFunc, Excalibur.Dispatch.Serialization.IPayloadSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Excalibur.Dispatch.Transport.MessageBusPublishing.PublishDocumentAsync(Excalibur.Dispatch.IDispatchDocument! doc, Excalibur.Dispatch.IMessageContext! context, System.Func<string!, byte[]!, Excalibur.Dispatch.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! publishFunc, Excalibur.Dispatch.Serialization.IPayloadSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Excalibur.Dispatch.Transport.MessageBusPublishing.PublishEventAsync(Excalibur.Dispatch.IDispatchEvent! evt, Excalibur.Dispatch.IMessageContext! context, System.Func<string!, byte[]!, Excalibur.Dispatch.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! publishFunc, Excalibur.Dispatch.Serialization.IPayloadSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Excalibur.Dispatch.Transport.MessageContextSerializer.DeserializeFromDictionary(System.Collections.Generic.IDictionary<string!, string!>! attributes, System.IServiceProvider! serviceProvider) -> Excalibur.Dispatch.IMessageContext!
+static Excalibur.Dispatch.Transport.MessageContextSerializer.SerializeToDictionary(Excalibur.Dispatch.IMessageContext! context) -> System.Collections.Generic.Dictionary<string!, string!>!
 static Excalibur.Dispatch.Transport.SendError.FromException(System.Exception! exception, bool isRetryable = false) -> Excalibur.Dispatch.Transport.SendError!
 static Excalibur.Dispatch.Transport.SendResult.Failure(Excalibur.Dispatch.Transport.SendError! error) -> Excalibur.Dispatch.Transport.SendResult!
 static Excalibur.Dispatch.Transport.SendResult.Success(string! messageId) -> Excalibur.Dispatch.Transport.SendResult!
 static Excalibur.Dispatch.Transport.TransportMessage.FromBytes(byte[]! body) -> Excalibur.Dispatch.Transport.TransportMessage!
 static Excalibur.Dispatch.Transport.TransportMessage.FromString(string! body) -> Excalibur.Dispatch.Transport.TransportMessage!
-static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddAllCloudProviders(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddAwsProviders(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddAzureProviders(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddGoogleCloudProviders(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddAllCloudProviders(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddAwsProviders(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddAzureProviders(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddGoogleCloudProviders(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 virtual Excalibur.Dispatch.Transport.DelegatingTransportReceiver.AcknowledgeAsync(Excalibur.Dispatch.Transport.TransportReceivedMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual Excalibur.Dispatch.Transport.DelegatingTransportReceiver.DisposeAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Dispatch.Transport.DelegatingTransportReceiver.GetService(System.Type! serviceType) -> object?

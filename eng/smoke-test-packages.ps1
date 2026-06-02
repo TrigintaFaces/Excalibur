@@ -209,7 +209,7 @@ function Invoke-ConsumerPhase {
     # Generate Program.cs (inline, per AD-309-1)
     # This code exercises basic Dispatch functionality without Excalibur
     $programContent = @'
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -236,7 +236,7 @@ Console.WriteLine("Verifying core services...");
 var dispatcher = provider.GetRequiredService<IDispatcher>();
 Console.WriteLine($"  ✅ IDispatcher resolved: {dispatcher.GetType().Name}");
 
-// Verify core types are available from Excalibur.Dispatch.Abstractions
+// Verify core types are available from Excalibur.Dispatch (namespace, package is still Excalibur.Dispatch.Abstractions)
 Console.WriteLine($"  ✅ IDispatchMessage interface available: {typeof(IDispatchMessage).FullName}");
 Console.WriteLine($"  ✅ IDomainEvent interface available: {typeof(IDomainEvent).FullName}");
 Console.WriteLine($"  ✅ IIntegrationEvent interface available: {typeof(IIntegrationEvent).FullName}");

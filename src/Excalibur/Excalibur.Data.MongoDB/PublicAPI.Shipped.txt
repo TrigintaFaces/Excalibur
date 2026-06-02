@@ -47,15 +47,27 @@ Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore
 Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.FindUserGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
-Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
-Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Abstractions.Authorization.Grant?>!
-Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
+Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
+Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.MongoDbGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.Authorization.MongoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore!>! logger) -> void
 Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.MongoDbGrantStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.Authorization.MongoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore!>! logger) -> void
-Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.SaveGrantAsync(Excalibur.A3.Abstractions.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.MongoDB.Authorization.MongoDbGrantStore.SaveGrantAsync(Excalibur.A3.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId
+Excalibur.Data.MongoDB.IMongoDBDataBuilder
+Excalibur.Data.MongoDB.IMongoDBDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
+Excalibur.Data.MongoDB.IMongoDBDataBuilder.Client(MongoDB.Driver.IMongoClient! client) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
+Excalibur.Data.MongoDB.IMongoDBDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
+Excalibur.Data.MongoDB.IMongoDBDataBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
+Excalibur.Data.MongoDB.IMongoDBDataBuilder.DatabaseName(string! databaseName) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
+Excalibur.Data.MongoDB.IMongoDbRepositoryBase<TDocument>
+Excalibur.Data.MongoDB.IMongoDbRepositoryBase<TDocument>.AddOrUpdateAsync(string! documentId, TDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.MongoDB.IMongoDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
+Excalibur.Data.MongoDB.IMongoDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.MongoDB.IMongoDbRepositoryBaseQuery<TDocument>
+Excalibur.Data.MongoDB.IMongoDbRepositoryBaseQuery<TDocument>.FindAsync(MongoDB.Driver.FilterDefinition<MongoDB.Bson.BsonDocument!>! filter, MongoDB.Driver.SortDefinition<MongoDB.Bson.BsonDocument!>? sort, int? skip, int? limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewExtensions
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStore
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStore.DeleteAsync(string! viewName, string! viewId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -88,19 +100,19 @@ Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.Vie
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.BeginSessionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<MongoDB.Driver.IClientSessionHandle!>!
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ConnectionString.get -> string!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.Dispose() -> void
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.DocumentStoreType.get -> string!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteAggregationAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! aggregationRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteBulkDocumentAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! bulkDocumentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteDocumentAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! documentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteDocumentBatchAsync<TConnection>(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, object!>!>! documentRequests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteDocumentInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! documentRequest, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteIndexOperationAsync<TConnection>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, string!>! indexRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteAggregationAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! aggregationRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteBulkDocumentAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! bulkDocumentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteDocumentAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! documentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteDocumentBatchAsync<TConnection>(System.Collections.Generic.IEnumerable<Excalibur.Data.IDocumentDataRequest<TConnection, object!>!>! documentRequests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteDocumentInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! documentRequest, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ExecuteIndexOperationAsync<TConnection>(Excalibur.Data.IDocumentDataRequest<TConnection, string!>! indexRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.GetCollection<T>(string! collectionName) -> MongoDB.Driver.IMongoCollection<T>!
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.GetCollectionInfoAsync(string! collectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
@@ -109,15 +121,15 @@ Excalibur.Data.MongoDB.MongoDbPersistenceProvider.GetDocumentStoreStatisticsAsyn
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.GetSupportedOperationTypes() -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.MongoDbPersistenceProvider(Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.MongoDbPersistenceProvider!>! logger) -> void
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.MongoDbPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.MongoDbProviderOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.MongoDbPersistenceProvider!>! logger) -> void
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.Name.get -> string!
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ProviderType.get -> string!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 Excalibur.Data.MongoDB.MongoDbPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ValidateDocumentRequest<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! documentRequest) -> bool
+Excalibur.Data.MongoDB.MongoDbPersistenceProvider.ValidateDocumentRequest<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! documentRequest) -> bool
 Excalibur.Data.MongoDB.MongoDbPoolingOptions
 Excalibur.Data.MongoDB.MongoDbPoolingOptions.MaxPoolSize.get -> int
 Excalibur.Data.MongoDB.MongoDbPoolingOptions.MaxPoolSize.set -> void
@@ -146,6 +158,12 @@ Excalibur.Data.MongoDB.MongoDbProviderOptions.UseSsl.get -> bool
 Excalibur.Data.MongoDB.MongoDbProviderOptions.UseSsl.set -> void
 Excalibur.Data.MongoDB.MongoDbProviderOptions.UseTransactions.get -> bool
 Excalibur.Data.MongoDB.MongoDbProviderOptions.UseTransactions.set -> void
+Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>
+Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.Client.get -> MongoDB.Driver.IMongoClient!
+Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.Collection.get -> MongoDB.Driver.IMongoCollection<MongoDB.Bson.BsonDocument!>!
+Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.CollectionName.get -> string!
+Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.MongoDbRepositoryBase(MongoDB.Driver.IMongoClient! client, string! databaseName, string! collectionName) -> void
+Excalibur.Data.MongoDB.Projections.MongoDbProjectionCollectionConvention
 Excalibur.Data.MongoDB.Projections.MongoDbProjectionRegistrar
 Excalibur.Data.MongoDB.Projections.MongoDbProjectionRegistrar.Add<TProjection>(System.Action<Excalibur.Data.MongoDB.Projections.MongoDbProjectionStoreOptions!>? configureOptions = null) -> Excalibur.Data.MongoDB.Projections.MongoDbProjectionRegistrar!
 Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>
@@ -155,7 +173,7 @@ Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>.DisposeAs
 Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
 Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>.MongoDbProjectionStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.Projections.MongoDbProjectionStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection!>!>! logger) -> void
 Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>.MongoDbProjectionStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.Projections.MongoDbProjectionStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection!>!>! logger) -> void
-Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
 Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.MongoDB.Projections.MongoDbProjectionStoreOptions
 Excalibur.Data.MongoDB.Projections.MongoDbProjectionStoreOptions.CollectionName.get -> string!
@@ -206,6 +224,7 @@ Microsoft.Extensions.DependencyInjection.MongoDbAuthorizationExtensions
 Microsoft.Extensions.DependencyInjection.MongoDbProjectionStoreExtensions
 Microsoft.Extensions.DependencyInjection.MongoDbServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MongoDbSnapshotStoreExtensions
+abstract Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.InitializeCollectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.ActivityGroupAllGrantsDeleted = 104976 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.ActivityGroupGrantDeleted = 104971 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.ActivityGroupGrantNotFound = 104972 -> int
@@ -326,6 +345,8 @@ const Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptio
 const Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.DefaultViewsCollectionName = "materialized_views" -> string!
 static Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewExtensions.UseMongoDb(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, System.Action<Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 static Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewExtensions.UseMongoDb(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, string! connectionString, string! databaseName) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+static Excalibur.Data.MongoDB.Projections.MongoDbProjectionCollectionConvention.GetCollectionName(Excalibur.Data.MongoDB.Projections.MongoDbProjectionStoreOptions! options, string! projectionTypeName) -> string!
+static Excalibur.Data.MongoDB.Projections.MongoDbProjectionCollectionConvention.GetCollectionName<TProjection>(Excalibur.Data.MongoDB.Projections.MongoDbProjectionStoreOptions! options) -> string!
 static Microsoft.Extensions.DependencyInjection.A3BuilderMongoDbExtensions.UseMongoDB(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.Data.MongoDB.Authorization.MongoDbAuthorizationOptions!>! configure) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.MongoDbAuthorizationExtensions.AddMongoDbActivityGroupGrantStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MongoDB.Authorization.MongoDbAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbAuthorizationExtensions.AddMongoDbAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MongoDB.Authorization.MongoDbAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -336,13 +357,13 @@ static Microsoft.Extensions.DependencyInjection.MongoDbProjectionStoreExtensions
 static Microsoft.Extensions.DependencyInjection.MongoDbProjectionStoreExtensions.AddMongoDbProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName, System.Action<Excalibur.Data.MongoDB.Projections.MongoDbProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbProjectionStoreExtensions.AddMongoDbProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MongoDB.Projections.MongoDbProjectionStoreOptions!>! configureShared, System.Action<Excalibur.Data.MongoDB.Projections.MongoDbProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbProjectionStoreExtensions.AddMongoDbProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName, System.Action<Excalibur.Data.MongoDB.Projections.MongoDbProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Data.MongoDB.IMongoDBDataBuilder
-Excalibur.Data.MongoDB.IMongoDBDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
-Excalibur.Data.MongoDB.IMongoDBDataBuilder.Client(MongoDB.Driver.IMongoClient! client) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
-Excalibur.Data.MongoDB.IMongoDBDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
-Excalibur.Data.MongoDB.IMongoDBDataBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
-Excalibur.Data.MongoDB.IMongoDBDataBuilder.DatabaseName(string! databaseName) -> Excalibur.Data.MongoDB.IMongoDBDataBuilder!
 static Microsoft.Extensions.DependencyInjection.MongoDbServiceCollectionExtensions.AddExcaliburMongoDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MongoDB.IMongoDBDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbSnapshotStoreExtensions.AddMongoDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbSnapshotStoreExtensions.AddMongoDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory, System.Action<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbSnapshotStoreExtensions.AddMongoDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName, System.Action<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+virtual Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.AddOrUpdateAsync(string! documentId, TDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+virtual Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.FindAsync(MongoDB.Driver.FilterDefinition<MongoDB.Bson.BsonDocument!>! filter, MongoDB.Driver.SortDefinition<MongoDB.Bson.BsonDocument!>? sort, int? skip, int? limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
+virtual Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
+virtual Excalibur.Data.MongoDB.MongoDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+
+Excalibur.Data.MongoDB.Projections.MongoDbProjectionStore<TProjection>.QueryPagedAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, int pageNumber, int pageSize, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.PagedResult<TProjection!>!>!

@@ -3,7 +3,7 @@
 
 using System.Text.RegularExpressions;
 
-namespace Excalibur.Data.Abstractions.Validation;
+namespace Excalibur.Data.Validation;
 
 /// <summary>
 /// Provides centralized SQL identifier validation to prevent SQL injection

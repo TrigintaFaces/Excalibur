@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Tests.Shared.TestDoubles;
 
@@ -17,7 +17,7 @@ namespace Tests.Shared.TestDoubles;
 /// Properties that were moved to feature interfaces (e.g., UserId, TenantId, TraceParent) are kept
 /// as convenience members for backward compatibility with existing tests but are no longer part of
 /// <see cref="IMessageContext"/>. For feature-based access, use the extension methods in
-/// <c>Excalibur.Dispatch.Abstractions.Features</c>.
+/// <c>Excalibur.Dispatch.Features</c>.
 /// </para>
 /// </remarks>
 public sealed class TestMessageContext : IMessageContext

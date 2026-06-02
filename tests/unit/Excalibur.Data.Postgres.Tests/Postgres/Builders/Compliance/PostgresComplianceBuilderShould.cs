@@ -35,6 +35,7 @@ public sealed class PostgresComplianceBuilderShould : UnitTestBase
     public void ConnectionString_SetOnAllThreeSubStores()
     {
         var (builder, erasure, inventory, legalHold) = CreateBuilder();
+        using var ds = NpgsqlDataSource.Create(TestConnectionString);
         builder.ConnectionString(TestConnectionString);
 
         erasure.ConnectionString.ShouldBe(TestConnectionString);

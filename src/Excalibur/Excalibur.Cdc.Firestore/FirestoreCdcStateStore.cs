@@ -4,7 +4,7 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Google.Cloud.Firestore;
 

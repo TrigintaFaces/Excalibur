@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 /// <summary>
 /// Options for projection queries including pagination and sorting.

@@ -13,4 +13,3 @@ global using Tests.Shared;
 global using Xunit;
 
 global using Excalibur.Dispatch.Transport;
-global using Excalibur.Dispatch.Abstractions.Transport;

@@ -11,7 +11,7 @@ using Amazon.DynamoDBStreams.Model;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 using Excalibur.EventSourcing.DynamoDb;
 
 using Microsoft.Extensions.Logging.Abstractions;

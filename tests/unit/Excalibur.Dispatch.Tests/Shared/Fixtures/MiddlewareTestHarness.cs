@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging;
@@ -76,7 +76,7 @@ public abstract class MiddlewareTestHarness
 	/// <returns>A delegate that returns a successful result.</returns>
 	protected static DispatchRequestDelegate CreateSuccessDelegate()
 	{
-		return (_, _, _) => new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Success());
+		return (_, _, _) => new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Success());
 	}
 
 	/// <summary>
@@ -91,7 +91,7 @@ public abstract class MiddlewareTestHarness
 		string title = "Test Failure",
 		int errorCode = 500)
 	{
-		return (_, _, _) => new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Failed(
+		return (_, _, _) => new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Failed(
 			new MessageProblemDetails
 			{
 				Type = type,
@@ -135,7 +135,7 @@ public abstract class MiddlewareTestHarness
 					throw exceptionToThrow;
 				}
 
-				return new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Failed(
+				return new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Failed(
 					new MessageProblemDetails
 					{
 						Type = "TestError",
@@ -145,7 +145,7 @@ public abstract class MiddlewareTestHarness
 					}));
 			}
 
-			return new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Success());
+			return new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Success());
 		}
 
 		return (Delegate, () => attemptCount);
@@ -169,7 +169,7 @@ public abstract class MiddlewareTestHarness
 
 			if (attemptCount <= failUntilAttempt)
 			{
-				return new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Failed(
+				return new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Failed(
 					new MessageProblemDetails
 					{
 						Type = "TestError",
@@ -179,7 +179,7 @@ public abstract class MiddlewareTestHarness
 					}));
 			}
 
-			return new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Success());
+			return new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Success());
 		}
 
 		return (Delegate, () => timestamps.AsReadOnly());
@@ -204,7 +204,7 @@ public abstract class MiddlewareTestHarness
 				throw exceptions[attemptCount - 1];
 			}
 
-			return new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Success());
+			return new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Success());
 		}
 
 		return (Delegate, () => attemptCount);

@@ -10,7 +10,7 @@ using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Grants;
 using Excalibur.A3.Authorization.PolicyData;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain;
 using Excalibur.Domain.Exceptions;
 

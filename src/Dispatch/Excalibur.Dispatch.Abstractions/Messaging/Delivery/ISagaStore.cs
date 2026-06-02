@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Dispatch.Abstractions.Messaging;
+namespace Excalibur.Dispatch.Messaging;
 
 /// <summary>
 /// Defines the contract for saga persistence services that handle loading and saving of saga state across business process boundaries. The
@@ -16,9 +16,8 @@ namespace Excalibur.Dispatch.Abstractions.Messaging;
 /// business process and system architecture needs.
 /// </para>
 /// <para>
-/// This is the basic saga persistence contract in the Dispatch layer. For advanced saga orchestration with
-/// CRUD operations and query capabilities, see <c>Excalibur.Saga.Abstractions.ISagaStateStore</c> and
-/// <c>Excalibur.Saga.Abstractions.ISagaStateStoreQuery</c> in the Excalibur.Saga package.
+/// This is the basic saga persistence contract in the Dispatch layer. For saga orchestration with
+/// coordination and timeout support, see the Excalibur.Saga package.
 /// </para>
 /// </remarks>
 public interface ISagaStore

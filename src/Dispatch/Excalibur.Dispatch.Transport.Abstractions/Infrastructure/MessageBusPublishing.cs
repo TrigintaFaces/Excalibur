@@ -10,14 +10,14 @@ namespace Excalibur.Dispatch.Transport;
 public static class MessageBusPublishing
 {
 	/// <summary>
-	/// Default implementation for PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchAction).
+	/// Default implementation for PublishAsync(Excalibur.Dispatch.IDispatchAction).
 	/// </summary>
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
 	public static async Task PublishActionAsync(
-		Dispatch.Abstractions.IDispatchAction action,
-		Dispatch.Abstractions.IMessageContext context,
-		Func<string, byte[], Dispatch.Abstractions.IMessageContext, CancellationToken, Task> publishFunc,
-		Dispatch.Abstractions.Serialization.IPayloadSerializer serializer,
+		IDispatchAction action,
+		IMessageContext context,
+		Func<string, byte[], IMessageContext, CancellationToken, Task> publishFunc,
+		Serialization.IPayloadSerializer serializer,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(action);
@@ -32,14 +32,14 @@ public static class MessageBusPublishing
 	}
 
 	/// <summary>
-	/// Default implementation for PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent).
+	/// Default implementation for PublishAsync(Excalibur.Dispatch.IDispatchEvent).
 	/// </summary>
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
 	public static async Task PublishEventAsync(
-		Dispatch.Abstractions.IDispatchEvent evt,
-		Dispatch.Abstractions.IMessageContext context,
-		Func<string, byte[], Dispatch.Abstractions.IMessageContext, CancellationToken, Task> publishFunc,
-		Dispatch.Abstractions.Serialization.IPayloadSerializer serializer,
+		IDispatchEvent evt,
+		IMessageContext context,
+		Func<string, byte[], IMessageContext, CancellationToken, Task> publishFunc,
+		Serialization.IPayloadSerializer serializer,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(evt);
@@ -54,14 +54,14 @@ public static class MessageBusPublishing
 	}
 
 	/// <summary>
-	/// Default implementation for PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument).
+	/// Default implementation for PublishAsync(Excalibur.Dispatch.IDispatchDocument).
 	/// </summary>
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
 	public static async Task PublishDocumentAsync(
-		Dispatch.Abstractions.IDispatchDocument doc,
-		Dispatch.Abstractions.IMessageContext context,
-		Func<string, byte[], Dispatch.Abstractions.IMessageContext, CancellationToken, Task> publishFunc,
-		Dispatch.Abstractions.Serialization.IPayloadSerializer serializer,
+		IDispatchDocument doc,
+		IMessageContext context,
+		Func<string, byte[], IMessageContext, CancellationToken, Task> publishFunc,
+		Serialization.IPayloadSerializer serializer,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(doc);

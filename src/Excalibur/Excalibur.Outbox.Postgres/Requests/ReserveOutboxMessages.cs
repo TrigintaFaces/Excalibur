@@ -6,8 +6,8 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Data;
+using Excalibur.Dispatch;
 
 using OutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
 

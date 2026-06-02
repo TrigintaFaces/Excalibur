@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Channels;
 using Excalibur.Dispatch.Options.Delivery;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Timing;
 
 using Microsoft.Extensions.Logging.Abstractions;

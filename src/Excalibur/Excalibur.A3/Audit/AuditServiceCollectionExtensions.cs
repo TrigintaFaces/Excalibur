@@ -4,7 +4,7 @@
 using Excalibur.A3.Audit;
 using Excalibur.A3.Audit.Internal;
 using Excalibur.Application;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

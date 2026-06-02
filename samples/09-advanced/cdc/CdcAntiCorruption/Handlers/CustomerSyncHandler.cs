@@ -5,7 +5,7 @@ using CdcAntiCorruption.Commands;
 using CdcAntiCorruption.SchemaAdapters;
 
 using Excalibur.Cdc.SqlServer;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 

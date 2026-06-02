@@ -25,7 +25,11 @@ internal sealed class CosmosDbInboxBuilder : ICosmosDbInboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ConnectionStringValue = connectionString;
-		ClientInstance = null; ClientFactoryFunc = null; EndpointValue = null; AuthKeyValue = null; BindConfigurationPath = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		EndpointValue = null;
+		AuthKeyValue = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -33,8 +37,12 @@ internal sealed class CosmosDbInboxBuilder : ICosmosDbInboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
 		ArgumentException.ThrowIfNullOrWhiteSpace(authKey);
-		EndpointValue = endpoint; AuthKeyValue = authKey;
-		ConnectionStringValue = null; ClientInstance = null; ClientFactoryFunc = null; BindConfigurationPath = null;
+		EndpointValue = endpoint;
+		AuthKeyValue = authKey;
+		ConnectionStringValue = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -42,7 +50,11 @@ internal sealed class CosmosDbInboxBuilder : ICosmosDbInboxBuilder
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ClientInstance = client;
-		ConnectionStringValue = null; ClientFactoryFunc = null; EndpointValue = null; AuthKeyValue = null; BindConfigurationPath = null;
+		ConnectionStringValue = null;
+		ClientFactoryFunc = null;
+		EndpointValue = null;
+		AuthKeyValue = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -50,7 +62,11 @@ internal sealed class CosmosDbInboxBuilder : ICosmosDbInboxBuilder
 	{
 		ArgumentNullException.ThrowIfNull(clientFactory);
 		ClientFactoryFunc = clientFactory;
-		ConnectionStringValue = null; ClientInstance = null; EndpointValue = null; AuthKeyValue = null; BindConfigurationPath = null;
+		ConnectionStringValue = null;
+		ClientInstance = null;
+		EndpointValue = null;
+		AuthKeyValue = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -58,7 +74,11 @@ internal sealed class CosmosDbInboxBuilder : ICosmosDbInboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 		BindConfigurationPath = sectionPath;
-		ConnectionStringValue = null; ClientInstance = null; ClientFactoryFunc = null; EndpointValue = null; AuthKeyValue = null;
+		ConnectionStringValue = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		EndpointValue = null;
+		AuthKeyValue = null;
 		return this;
 	}
 

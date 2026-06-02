@@ -3,18 +3,15 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly - acceptable in tests
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Routing;
 using Excalibur.Dispatch.Routing.Builder;
 using Tests.Shared.TestFakes;
-using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -193,7 +190,7 @@ public sealed class TransportHotPathOptimizationsShould
 
 		static ValueTask<IMessageResult> NextDelegate(
 			IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
-			=> new(Excalibur.Dispatch.Abstractions.MessageResult.Success());
+			=> new(Excalibur.Dispatch.MessageResult.Success());
 
 		// Act
 		await invoker.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
@@ -218,7 +215,7 @@ public sealed class TransportHotPathOptimizationsShould
 			IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
 			nextCalled = true;
-			return new(Excalibur.Dispatch.Abstractions.MessageResult.Success());
+			return new(Excalibur.Dispatch.MessageResult.Success());
 		}
 
 		// Act
@@ -590,7 +587,7 @@ public sealed class TransportHotPathOptimizationsShould
 				A<IMessageContext>._,
 				A<Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<IMessageResult>>>._,
 				A<CancellationToken>._))
-			.Returns(new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Success()));
+			.Returns(new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Success()));
 	}
 
 	private static FinalDispatchHandler CreateFinalHandler(IMessageBusProvider busProvider)

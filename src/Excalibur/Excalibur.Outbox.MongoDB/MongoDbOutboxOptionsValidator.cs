@@ -7,16 +7,16 @@ namespace Excalibur.Outbox.MongoDB;
 
 internal sealed class MongoDbOutboxOptionsValidator : IValidateOptions<MongoDbOutboxOptions>
 {
-    public ValidateOptionsResult Validate(string? name, MongoDbOutboxOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, MongoDbOutboxOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

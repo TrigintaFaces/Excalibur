@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 
 namespace Excalibur.Dispatch.Tests.Configuration;

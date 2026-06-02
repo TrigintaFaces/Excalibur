@@ -3,8 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.Projections;
 
@@ -77,13 +76,13 @@ public interface IImmutableProjectionBuilder<TProjection>
 	/// <returns>This builder for fluent chaining.</returns>
 	IImmutableProjectionBuilder<TProjection> WhenHandledBy<TEvent,
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-		THandler>()
+	THandler>()
 		where TEvent : IDomainEvent
 		where THandler : IImmutableProjectionHandler<TProjection, TEvent>;
 
 	/// <summary>
 	/// Scans the specified assembly for all implementations of
-	/// <see cref="Excalibur.EventSourcing.Abstractions.IImmutableProjectionHandler{TProjection, TEvent}"/>
+	/// <see cref="Excalibur.EventSourcing.IImmutableProjectionHandler{TProjection, TEvent}"/>
 	/// and registers them as handlers for this projection.
 	/// </summary>
 	/// <param name="assembly">The assembly to scan.</param>

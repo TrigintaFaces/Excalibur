@@ -178,7 +178,7 @@ const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.PartitionNotFound 
 const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.PartitionSplit = "COSMOSDB_PARTITION_SPLIT" -> string!
 const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.ThroughputChange = "COSMOSDB_THROUGHPUT_CHANGE" -> string!
 const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.Unknown = "COSMOSDB_UNKNOWN" -> string!
-override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
+override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Equals(Excalibur.Dispatch.ChangePosition? other) -> bool
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.GetHashCode() -> int
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.IsValid.get -> bool

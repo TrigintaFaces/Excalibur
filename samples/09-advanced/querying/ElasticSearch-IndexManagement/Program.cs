@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Text.Json;
+
 using Elastic.Clients.Elasticsearch.IndexManagement;
 
 using Excalibur.Data.ElasticSearch.IndexManagement;
@@ -87,11 +89,11 @@ static async Task DemoIndexOperationsAsync(IServiceProvider services, Cancellati
         Console.WriteLine("  1a. Creating index with custom settings...");
         var config = new IndexConfiguration
         {
-            Settings = new IndexSettings
+            SettingsJson = JsonSerializer.SerializeToElement(new IndexSettings
             {
                 NumberOfShards = 1,
                 NumberOfReplicas = 0,
-            },
+            }),
         };
 
         var created = await indexOps.CreateIndexAsync(indexName, config, ct).ConfigureAwait(false);
@@ -114,8 +116,8 @@ static async Task DemoIndexOperationsAsync(IServiceProvider services, Cancellati
 
         // 1d. Update index settings dynamically (e.g., add replicas for production)
         Console.WriteLine("  1d. Updating index settings (adding 1 replica)...");
-        var newSettings = new IndexSettings { NumberOfReplicas = 1 };
-        var updated = await indexOps.UpdateIndexSettingsAsync(indexName, newSettings, ct).ConfigureAwait(false);
+        var newSettingsJson = JsonSerializer.SerializeToElement(new IndexSettings { NumberOfReplicas = 1 });
+        var updated = await indexOps.UpdateIndexSettingsAsync(indexName, newSettingsJson, ct).ConfigureAwait(false);
         Console.WriteLine($"      Settings updated: {updated}");
 
         // 1e. Clean up
@@ -148,7 +150,7 @@ static async Task DemoIndexTemplatesAsync(IServiceProvider services, Cancellatio
             IndexPatterns = ["logs-*"],
             Priority = 200,
             Version = 1,
-            SettingsJson = System.Text.Json.JsonSerializer.SerializeToElement(
+            SettingsJson = JsonSerializer.SerializeToElement(
                 new { number_of_shards = 2, number_of_replicas = 1 }),
             Metadata = new Dictionary<string, object?>
             {
@@ -293,7 +295,11 @@ static async Task DemoAliasManagementAsync(IServiceProvider services, Cancellati
         Console.WriteLine("  Setup: Creating two indices for alias demonstration...");
         var minimalConfig = new IndexConfiguration
         {
-            Settings = new IndexSettings { NumberOfShards = 1, NumberOfReplicas = 0 },
+            SettingsJson = JsonSerializer.SerializeToElement(new IndexSettings
+            {
+                NumberOfShards = 1,
+                NumberOfReplicas = 0,
+            }),
         };
         await indexOps.CreateIndexAsync(indexV1, minimalConfig, ct).ConfigureAwait(false);
         await indexOps.CreateIndexAsync(indexV2, minimalConfig, ct).ConfigureAwait(false);

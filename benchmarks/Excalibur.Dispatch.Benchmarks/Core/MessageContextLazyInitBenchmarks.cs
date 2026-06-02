@@ -12,8 +12,8 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 
 namespace Excalibur.Dispatch.Benchmarks.Core;
 
@@ -198,7 +198,7 @@ public class MessageContextLazyInitBenchmarks
 	/// Create child context from parent without Items usage.
 	/// </summary>
 	[Benchmark(Description = "CreateChildContext (no Items)")]
-	public Abstractions.IMessageContext CreateChildContext_NoItems()
+	public IMessageContext CreateChildContext_NoItems()
 	{
 		var parent = new Messaging.MessageContext
 		{

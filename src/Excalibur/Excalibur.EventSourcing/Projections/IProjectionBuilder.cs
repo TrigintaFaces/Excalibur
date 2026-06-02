@@ -3,8 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.Projections;
 
@@ -71,12 +70,45 @@ public interface IProjectionBuilder<TProjection>
 #pragma warning restore RS0016
 
 	/// <summary>
+	/// Registers an event handler for the specified domain event type that receives
+	/// a <see cref="ProjectionContext"/> with replay/position awareness.
+	/// </summary>
+	/// <typeparam name="TEvent">The domain event type to handle.</typeparam>
+	/// <param name="handler">
+	/// An action that applies the event to the projection state, with access to
+	/// the projection processing context (e.g., <see cref="ProjectionContext.IsReplay"/>,
+	/// <see cref="ProjectionContext.GlobalPosition"/>).
+	/// </param>
+	/// <returns>This builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Use this overload when handlers need to distinguish between live event processing
+	/// and projection rebuild/replay scenarios. For example, skip sending notifications
+	/// during replay:
+	/// </para>
+	/// <code>
+	/// builder.When&lt;OrderPlaced&gt;((proj, e, ctx) =>
+	/// {
+	///     proj.Total = e.Amount;
+	///     if (!ctx.IsReplay)
+	///     {
+	///         // send notification
+	///     }
+	/// });
+	/// </code>
+	/// </remarks>
+#pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
+	IProjectionBuilder<TProjection> When<TEvent>(Action<TProjection, TEvent, ProjectionContext> handler)
+		where TEvent : IDomainEvent;
+#pragma warning restore RS0016
+
+	/// <summary>
 	/// Registers a DI-resolved typed event handler for the specified domain event type.
 	/// </summary>
 	/// <typeparam name="TEvent">The domain event type to handle.</typeparam>
 	/// <typeparam name="THandler">
 	/// The handler type implementing
-	/// <see cref="Excalibur.EventSourcing.Abstractions.IProjectionEventHandler{TProjection, TEvent}"/>.
+	/// <see cref="Excalibur.EventSourcing.IProjectionEventHandler{TProjection, TEvent}"/>.
 	/// </typeparam>
 	/// <returns>This builder for fluent chaining.</returns>
 	/// <remarks>
@@ -91,7 +123,7 @@ public interface IProjectionBuilder<TProjection>
 #pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
 	IProjectionBuilder<TProjection> WhenHandledBy<TEvent,
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-		THandler>()
+	THandler>()
 		where TEvent : IDomainEvent
 		where THandler : IProjectionEventHandler<TProjection, TEvent>;
 
@@ -99,7 +131,7 @@ public interface IProjectionBuilder<TProjection>
 
 	/// <summary>
 	/// Scans the specified assembly for all implementations of
-	/// <see cref="Excalibur.EventSourcing.Abstractions.IProjectionEventHandler{TProjection, TEvent}"/>
+	/// <see cref="Excalibur.EventSourcing.IProjectionEventHandler{TProjection, TEvent}"/>
 	/// and registers them as handlers for this projection.
 	/// </summary>
 	/// <param name="assembly">The assembly to scan.</param>
@@ -172,12 +204,12 @@ public interface IProjectionBuilder<TProjection>
 	IProjectionBuilder<TProjection> WhenDeleted(Func<string, CancellationToken, Task> deleteAction);
 
 	/// <summary>
-	/// Overrides the default DI-resolved <see cref="Excalibur.EventSourcing.Abstractions.IProjectionStore{TProjection}"/>
+	/// Overrides the default DI-resolved <see cref="Excalibur.EventSourcing.IProjectionStore{TProjection}"/>
 	/// with a specific store implementation type. The store is resolved from DI by its concrete type.
 	/// </summary>
 	/// <typeparam name="TStore">
 	/// The concrete store implementation type. Must implement
-	/// <see cref="Excalibur.EventSourcing.Abstractions.IProjectionStore{TProjection}"/>.
+	/// <see cref="Excalibur.EventSourcing.IProjectionStore{TProjection}"/>.
 	/// </typeparam>
 	/// <returns>This builder for fluent chaining.</returns>
 	/// <remarks>
@@ -211,5 +243,38 @@ public interface IProjectionBuilder<TProjection>
 	/// </code>
 	/// </remarks>
 	IProjectionBuilder<TProjection> WithOptions(Action<ProjectionOptions> configure);
+
+	/// <summary>
+	/// Configures automatic computed search text for this projection.
+	/// After all events in a batch are applied to a projection instance,
+	/// the engine computes the search text via <paramref name="computeSearchText"/>
+	/// and writes it back via <paramref name="setSearchText"/>.
+	/// </summary>
+	/// <param name="computeSearchText">
+	/// A function that computes the search text from the current projection state.
+	/// Called once per upsert (after all events in the batch are applied), not per event.
+	/// </param>
+	/// <param name="setSearchText">
+	/// An action that sets the computed search text on the projection instance.
+	/// Typically assigns to a <c>SearchText</c> property on the projection type.
+	/// </param>
+	/// <returns>This builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is opt-in — projections without <c>WithSearchText</c> have zero overhead.
+	/// The dual-delegate approach avoids reflection and is fully AOT-safe.
+	/// </para>
+	/// <code>
+	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
+	///     .Inline()
+	///     .WithSearchText(
+	///         proj => $"{proj.CustomerName} {proj.OrderNumber} {proj.Status}",
+	///         (proj, text) => proj.SearchText = text)
+	///     .When&lt;OrderPlaced&gt;((proj, e) => { proj.CustomerName = e.CustomerName; }));
+	/// </code>
+	/// </remarks>
+	IProjectionBuilder<TProjection> WithSearchText(
+		Func<TProjection, string> computeSearchText,
+		Action<TProjection, string> setSearchText);
 
 }

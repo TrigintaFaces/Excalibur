@@ -4,8 +4,8 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Data.CloudNative;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.CosmosDb;
 
 using Microsoft.Extensions.Logging.Abstractions;

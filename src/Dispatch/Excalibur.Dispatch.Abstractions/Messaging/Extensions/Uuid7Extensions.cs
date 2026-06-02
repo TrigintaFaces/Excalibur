@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 
 using Medo;
 
-namespace Excalibur.Dispatch.Abstractions.Messaging;
+namespace Excalibur.Dispatch.Messaging;
 
 /// <summary>
 /// Provides comprehensive extension methods for generating and working with UUID v7 strings and GUIDs.

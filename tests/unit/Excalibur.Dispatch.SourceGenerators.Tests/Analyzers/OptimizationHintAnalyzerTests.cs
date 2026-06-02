@@ -20,7 +20,7 @@ public sealed class OptimizationHintAnalyzerTests
 {
 	// Interface stubs file (separate from test code to avoid using statement issues)
 	private const string InterfaceStubs = """
-		namespace Excalibur.Dispatch.Abstractions
+		namespace Excalibur.Dispatch
 		{
 		    public interface IDispatchMessage { }
 		    public interface IDispatchHandler<in TMessage> where TMessage : IDispatchMessage
@@ -34,7 +34,7 @@ public sealed class OptimizationHintAnalyzerTests
 	/// Interface stubs including IActionHandler for testing the IActionHandler branch.
 	/// </summary>
 	private const string ActionHandlerInterfaceStubs = """
-		namespace Excalibur.Dispatch.Abstractions
+		namespace Excalibur.Dispatch
 		{
 		    public interface IDispatchMessage { }
 		    public interface IDispatchHandler<in TMessage> where TMessage : IDispatchMessage
@@ -57,9 +57,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public class {|#0:TestHandler|} : Excalibur.Dispatch.Abstractions.IDispatchHandler<TestMessage>
+			    public class {|#0:TestHandler|} : Excalibur.Dispatch.IDispatchHandler<TestMessage>
 			    {
 			        public System.Threading.Tasks.Task<object> {|#1:HandleAsync|}(TestMessage message, System.Threading.CancellationToken ct)
 			        {
@@ -100,9 +100,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public sealed class TestHandler : Excalibur.Dispatch.Abstractions.IDispatchHandler<TestMessage>
+			    public sealed class TestHandler : Excalibur.Dispatch.IDispatchHandler<TestMessage>
 			    {
 			        public System.Threading.Tasks.Task<object> {|#0:HandleAsync|}(TestMessage message, System.Threading.CancellationToken ct)
 			        {
@@ -138,7 +138,7 @@ public sealed class OptimizationHintAnalyzerTests
 	{
 		// Custom interface stub that uses ValueTask
 		const string valueTaskInterfaceStub = """
-			namespace Excalibur.Dispatch.Abstractions
+			namespace Excalibur.Dispatch
 			{
 			    public interface IDispatchMessage { }
 			    public interface IDispatchHandler<in TMessage> where TMessage : IDispatchMessage
@@ -151,9 +151,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public sealed class TestHandler : Excalibur.Dispatch.Abstractions.IDispatchHandler<TestMessage>
+			    public sealed class TestHandler : Excalibur.Dispatch.IDispatchHandler<TestMessage>
 			    {
 			        public System.Threading.Tasks.ValueTask<object> HandleAsync(TestMessage message, System.Threading.CancellationToken ct)
 			        {
@@ -184,9 +184,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public abstract class AbstractHandler : Excalibur.Dispatch.Abstractions.IDispatchHandler<TestMessage>
+			    public abstract class AbstractHandler : Excalibur.Dispatch.IDispatchHandler<TestMessage>
 			    {
 			        public abstract System.Threading.Tasks.Task<object> HandleAsync(TestMessage message, System.Threading.CancellationToken ct);
 			    }
@@ -246,9 +246,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public class {|#0:TestActionHandler|} : Excalibur.Dispatch.Abstractions.IActionHandler<TestMessage>
+			    public class {|#0:TestActionHandler|} : Excalibur.Dispatch.IActionHandler<TestMessage>
 			    {
 			        public System.Threading.Tasks.Task HandleAsync(TestMessage message, System.Threading.CancellationToken ct)
 			        {
@@ -284,9 +284,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public sealed class TestActionHandler : Excalibur.Dispatch.Abstractions.IActionHandler<TestMessage>
+			    public sealed class TestActionHandler : Excalibur.Dispatch.IActionHandler<TestMessage>
 			    {
 			        public System.Threading.Tasks.Task HandleAsync(TestMessage message, System.Threading.CancellationToken ct)
 			        {
@@ -317,9 +317,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public sealed class TestHandler : Excalibur.Dispatch.Abstractions.IDispatchHandler<TestMessage>
+			    public sealed class TestHandler : Excalibur.Dispatch.IDispatchHandler<TestMessage>
 			    {
 			        public System.Threading.Tasks.Task<object> {|#0:HandleAsync|}(TestMessage message, System.Threading.CancellationToken ct)
 			        {
@@ -360,9 +360,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public sealed class TestActionHandler : Excalibur.Dispatch.Abstractions.IActionHandler<TestMessage>
+			    public sealed class TestActionHandler : Excalibur.Dispatch.IActionHandler<TestMessage>
 			    {
 			        public System.Threading.Tasks.Task HandleAsync(TestMessage message, System.Threading.CancellationToken ct)
 			        {
@@ -394,9 +394,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public sealed class TestHandler : Excalibur.Dispatch.Abstractions.IDispatchHandler<TestMessage>
+			    public sealed class TestHandler : Excalibur.Dispatch.IDispatchHandler<TestMessage>
 			    {
 			        public System.Threading.Tasks.Task<object> {|#0:HandleAsync|}(TestMessage message, System.Threading.CancellationToken ct)
 			        {
@@ -526,9 +526,9 @@ public sealed class OptimizationHintAnalyzerTests
 		const string testCode = """
 			namespace TestNamespace
 			{
-			    public class TestMessage : Excalibur.Dispatch.Abstractions.IDispatchMessage { }
+			    public class TestMessage : Excalibur.Dispatch.IDispatchMessage { }
 
-			    public class {|#0:TestActionHandler|} : Excalibur.Dispatch.Abstractions.IActionHandler<TestMessage>
+			    public class {|#0:TestActionHandler|} : Excalibur.Dispatch.IActionHandler<TestMessage>
 			    {
 			        public System.Threading.Tasks.Task HandleAsync(TestMessage message, System.Threading.CancellationToken ct)
 			        {

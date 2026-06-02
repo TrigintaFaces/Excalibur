@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Dispatch.Abstractions.Messaging;
+namespace Excalibur.Dispatch.Messaging;
 
 /// <summary>
 /// Base class for saga state management, providing fundamental properties for workflow persistence and tracking. This abstract class serves

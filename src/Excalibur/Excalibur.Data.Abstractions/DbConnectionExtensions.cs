@@ -5,9 +5,9 @@
 using System.Data;
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Data.Abstractions;
+namespace Excalibur.Data;
 
 /// <summary>
 /// Provides extension methods for <see cref="IDbConnection" /> to enhance connection management and request execution.

@@ -4,8 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Hosting.AwsLambda;
 using Excalibur.Dispatch.Hosting.Serverless;
@@ -215,7 +214,7 @@ public sealed class ServerlessColdStartE2EShould : FunctionalTestBase
 			"IsAvailable should be false when not running in actual Lambda environment");
 	}
 
-	public override async Task DisposeAsync()
+	public override async ValueTask DisposeAsync()
 	{
 		if (_serviceProvider is not null)
 		{

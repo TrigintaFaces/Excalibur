@@ -11,7 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Test Frameworks (no runner/SDK - this is a helper library, not a test project) -->
-    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.v3" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="FakeItEasy" />
     <PackageReference Include="AutoFixture" />

@@ -3,10 +3,10 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Tests.Messaging.Streaming.TestTypes;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Streaming;
@@ -31,7 +31,7 @@ public sealed class StreamingBackpressureShould
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp =>
 			sp.GetRequiredService<SlowStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -64,7 +64,7 @@ public sealed class StreamingBackpressureShould
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp =>
 			sp.GetRequiredService<MemoryTrackingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -94,7 +94,7 @@ public sealed class StreamingBackpressureShould
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp =>
 			sp.GetRequiredService<CollectingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -121,7 +121,7 @@ public sealed class StreamingBackpressureShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register streaming handler
 		_ = services.AddScoped<SlowYieldingStreamingHandler>();

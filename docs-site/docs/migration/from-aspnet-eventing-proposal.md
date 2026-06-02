@@ -225,6 +225,7 @@ services.AddSqlServerOutboxStore(options =>
 ```
 
 :::note Package Architecture
+
 `Excalibur.Dispatch.*` focuses on messaging (dispatching, pipelines, middleware). `Excalibur.EventSourcing.*` provides persistence implementations (event stores, outbox stores, repositories). This separation keeps the messaging core lightweight while offering production-ready database integrations as optional packages.
 :::
 
@@ -440,6 +441,7 @@ dotnet add package Excalibur.EventSourcing.SqlServer   # or Postgres, MongoDB, e
 ```
 
 :::note Azure Transport Package
+
 The `Excalibur.Dispatch.Transport.AzureServiceBus` package includes support for Azure Service Bus, Azure Event Hubs, and Azure Storage Queues. You only need one package for all Azure messaging services.
 :::
 

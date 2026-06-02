@@ -1,15 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Sprint 38: bd-l7mz - Multi-Transport Integration Tests
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Bus;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Transport;
+using Excalibur.Dispatch.Bus;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Alias to avoid ambiguity with Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult
-using TransportHealthCheckResult = Excalibur.Dispatch.Abstractions.Transport.HealthCheckResult;
+using TransportHealthCheckResult = Excalibur.Dispatch.Transport.HealthCheckResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 

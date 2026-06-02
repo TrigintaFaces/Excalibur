@@ -6,7 +6,7 @@
 using Tests.Shared.Fixtures;
 using Tests.Shared.Helpers;
 
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses.PersistenceOnly;
 
@@ -55,17 +55,17 @@ public abstract class PersistenceOnlyTestBase<TFixture> : IClassFixture<TFixture
 	protected ITestOutputHelper Output { get; set; }
 
 	/// <inheritdoc />
-	public Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		_scope = ServiceProvider.CreateScope();
-		return InitializePersistenceAsync();
+		await InitializePersistenceAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public Task DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
 		_scope?.Dispose();
-		return Task.CompletedTask;
+		return default;
 	}
 
 	/// <inheritdoc />

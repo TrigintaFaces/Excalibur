@@ -43,7 +43,7 @@ namespace Excalibur.Dispatch.SourceGenerators.Interception;
 public sealed class MiddlewareInvokerInterceptorGenerator : IIncrementalGenerator
 {
 	private const string DispatchMiddlewareInterfaceName = "IDispatchMiddleware";
-	private const string DispatchMiddlewareInterfaceFullName = "Excalibur.Dispatch.Abstractions.IDispatchMiddleware";
+	private const string DispatchMiddlewareInterfaceFullName = "Excalibur.Dispatch.IDispatchMiddleware";
 
 	/// <summary>
 	/// Initializes the middleware invoker generator with the given context.
@@ -187,7 +187,7 @@ public sealed class MiddlewareInvokerInterceptorGenerator : IIncrementalGenerato
 		_ = sb.AppendLine("using System.Collections.Generic;");
 		_ = sb.AppendLine("using System.Threading;");
 		_ = sb.AppendLine("using System.Threading.Tasks;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions;");
+		_ = sb.AppendLine("using Excalibur.Dispatch;");
 		_ = sb.AppendLine();
 
 		// Invoker registry class

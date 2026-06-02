@@ -3,7 +3,7 @@
 
 
 using Excalibur.Data.MongoDB.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;

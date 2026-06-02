@@ -3,8 +3,6 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Exceptions;
 
 /// <summary>

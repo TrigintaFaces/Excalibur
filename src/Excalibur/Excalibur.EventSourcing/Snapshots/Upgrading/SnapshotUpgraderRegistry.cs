@@ -3,8 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.EventSourcing.Abstractions;
-
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.EventSourcing.Snapshots.Upgrading;

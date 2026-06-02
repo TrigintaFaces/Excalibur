@@ -86,5 +86,5 @@ This sample focuses on the **storage side** of projections. For event-driven pro
 ## Running
 
 ```bash
-dotnet run --project samples/07-data-providers/ElasticSearch-Projections
+dotnet run --project samples/09-advanced/querying/ElasticSearch-Projections
 ```

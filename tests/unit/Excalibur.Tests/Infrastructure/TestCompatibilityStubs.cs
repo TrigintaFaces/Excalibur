@@ -3,9 +3,9 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
 
 namespace Excalibur.Tests.Infrastructure;
 

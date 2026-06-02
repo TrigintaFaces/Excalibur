@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Transport;
+using Excalibur.Dispatch.Delivery;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -149,7 +148,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 	public async Task ReceiveAsync_ReturnFailedWhenNotRunning()
 	{
 		// Arrange -- adapter is not started, so IsRunning is false
-		var dispatcher = A.Fake<Excalibur.Dispatch.Abstractions.IDispatcher>();
+		var dispatcher = A.Fake<Excalibur.Dispatch.IDispatcher>();
 		var message = new CronTimerTriggerMessage { TimerName = "test" };
 
 		// Act
@@ -163,7 +162,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 	[Fact]
 	public async Task ReceiveAsync_ThrowForNullTransportMessage()
 	{
-		var dispatcher = A.Fake<Excalibur.Dispatch.Abstractions.IDispatcher>();
+		var dispatcher = A.Fake<Excalibur.Dispatch.IDispatcher>();
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => _sut.ReceiveAsync(null!, dispatcher, CancellationToken.None));
@@ -184,7 +183,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 		// Arrange -- adapter must be started for message type check to matter,
 		// but when not running it fails with "not running" first.
 		// Test with a non-CronTimerTriggerMessage object directly.
-		var dispatcher = A.Fake<Excalibur.Dispatch.Abstractions.IDispatcher>();
+		var dispatcher = A.Fake<Excalibur.Dispatch.IDispatcher>();
 
 		// Act -- pass a string (wrong type) while not running
 		var result = await _sut.ReceiveAsync("wrong-type", dispatcher, CancellationToken.None).ConfigureAwait(false);
@@ -202,8 +201,8 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 	public async Task SendAsync_CompleteWithoutError()
 	{
 		// Arrange -- SendAsync is a no-op for trigger-only transport
-		var message = A.Fake<Excalibur.Dispatch.Abstractions.IDispatchMessage>();
-		var context = A.Fake<Excalibur.Dispatch.Abstractions.IMessageContext>();
+		var message = A.Fake<Excalibur.Dispatch.IDispatchMessage>();
+		var context = A.Fake<Excalibur.Dispatch.IMessageContext>();
 
 		// Act & Assert -- should complete without throwing
 		await _sut.SendAsync(message, "destination", context, CancellationToken.None).ConfigureAwait(false);
@@ -329,11 +328,11 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 	public async Task StartAsync_ResolveDispatcherFromServiceProvider()
 	{
 		// Arrange
-		var fakeDispatcher = A.Fake<Excalibur.Dispatch.Abstractions.IDispatcher>();
+		var fakeDispatcher = A.Fake<Excalibur.Dispatch.IDispatcher>();
 		var fakeScheduler = A.Fake<ICronScheduler>();
 		var fakeServiceProvider = A.Fake<IServiceProvider>();
 
-		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.Abstractions.IDispatcher)))
+		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.IDispatcher)))
 			.Returns(fakeDispatcher);
 
 		ICronExpression? parsedExpr = A.Fake<ICronExpression>();
@@ -358,7 +357,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 		}
 
 		// Assert -- IDispatcher was requested from the service provider
-		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.Abstractions.IDispatcher)))
+		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.IDispatcher)))
 			.MustHaveHappened();
 	}
 
@@ -366,11 +365,11 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 	public async Task StartAsync_SetIsRunningToTrue()
 	{
 		// Arrange
-		var fakeDispatcher = A.Fake<Excalibur.Dispatch.Abstractions.IDispatcher>();
+		var fakeDispatcher = A.Fake<Excalibur.Dispatch.IDispatcher>();
 		var fakeScheduler = A.Fake<ICronScheduler>();
 		var fakeServiceProvider = A.Fake<IServiceProvider>();
 
-		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.Abstractions.IDispatcher)))
+		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.IDispatcher)))
 			.Returns(fakeDispatcher);
 
 		ICronExpression? parsedExpr = A.Fake<ICronExpression>();
@@ -402,11 +401,11 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 	public async Task StartAsync_IdempotentWhenCalledTwice()
 	{
 		// Arrange
-		var fakeDispatcher = A.Fake<Excalibur.Dispatch.Abstractions.IDispatcher>();
+		var fakeDispatcher = A.Fake<Excalibur.Dispatch.IDispatcher>();
 		var fakeScheduler = A.Fake<ICronScheduler>();
 		var fakeServiceProvider = A.Fake<IServiceProvider>();
 
-		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.Abstractions.IDispatcher)))
+		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.IDispatcher)))
 			.Returns(fakeDispatcher);
 
 		ICronExpression? parsedExpr = A.Fake<ICronExpression>();

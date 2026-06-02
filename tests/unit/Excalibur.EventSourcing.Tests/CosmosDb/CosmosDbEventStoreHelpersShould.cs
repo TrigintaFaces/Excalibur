@@ -4,7 +4,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.CosmosDb;
 
 namespace Excalibur.EventSourcing.Tests.CosmosDb;

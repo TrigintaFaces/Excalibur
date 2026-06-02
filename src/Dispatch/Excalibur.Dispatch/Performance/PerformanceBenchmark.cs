@@ -5,7 +5,6 @@
 // R0.8: Random.Shared is acceptable for performance benchmarking, not security
 #pragma warning disable CA5394
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;

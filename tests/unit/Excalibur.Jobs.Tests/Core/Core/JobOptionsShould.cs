@@ -143,7 +143,7 @@ public sealed class JobConfigShould : UnitTestBase
 		var config = new TestJobOptions();
 
 		// Assert
-		_ = config.ShouldBeAssignableTo<Excalibur.Jobs.Abstractions.IJobOptions>();
+		_ = config.ShouldBeAssignableTo<Excalibur.Jobs.IJobOptions>();
 	}
 
 	[Fact]

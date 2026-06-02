@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Compliance;
+using TestResult = global::Excalibur.Compliance.TestResult;
 using Microsoft.Extensions.Logging;
 
 using QuestPDF.Infrastructure;
 
-using Excalibur.Compliance;
 using Excalibur.Compliance.Soc2;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Soc2;
 

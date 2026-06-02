@@ -4,10 +4,9 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Validation;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 
 using Microsoft.Extensions.Logging;
 

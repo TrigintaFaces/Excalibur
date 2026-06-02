@@ -5,8 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
-using Excalibur.Jobs.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -106,9 +105,9 @@ public abstract class SnapshotCreationJob<TAggregate, TKey>(
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 				var aggregate = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
-				#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 				if (aggregate is null)
 				{
 					continue;

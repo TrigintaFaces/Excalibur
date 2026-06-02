@@ -8,8 +8,7 @@ using System.Globalization;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Validation;
+using Excalibur.Data.Validation;
 
 namespace Excalibur.Cdc.SqlServer;
 
@@ -178,9 +177,14 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 			var normalizedCaptureInstance = NormalizeCaptureInstanceForSql(captureInstance);
 			SqlIdentifierValidator.ThrowIfInvalid(normalizedCaptureInstance, nameof(captureInstances));
 
+			// Query the CT table directly instead of fn_cdc_get_all_changes TVF.
+			// The TVF materializes ALL rows in [fromLsn, toLsn] before TOP/WHERE filtering,
+			// causing SQL timeouts on high-volume tables. The CT table has an index on
+			// __$start_lsn, so this existence check uses an index seek — fast and predictable.
 			var commandText = $"""
 			                   SELECT TOP 1 1
-			                   FROM cdc.fn_cdc_get_all_changes_{normalizedCaptureInstance}(@from_lsn, @to_lsn, N'all update old')
+			                   FROM cdc.{normalizedCaptureInstance}_CT
+			                   WHERE __$start_lsn >= @from_lsn AND __$start_lsn <= @to_lsn
 			                   """;
 
 			var parameters = new DynamicParameters();

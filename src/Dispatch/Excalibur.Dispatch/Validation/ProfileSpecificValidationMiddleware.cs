@@ -5,18 +5,13 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-using MessageProblemDetails = Excalibur.Dispatch.Abstractions.MessageProblemDetails;
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Validation;
 

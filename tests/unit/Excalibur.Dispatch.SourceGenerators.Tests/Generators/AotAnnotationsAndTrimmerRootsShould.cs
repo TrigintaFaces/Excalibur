@@ -78,7 +78,7 @@ public sealed class AotAnnotationsAndTrimmerRootsShould
 	[Fact]
 	public void TrimmerRoots_ShouldPreserveHandlerInterfacesInDeliveryNamespace()
 	{
-		// Handler interfaces are in Excalibur.Dispatch.Abstractions.Delivery (not .Delivery.Handlers)
+		// Handler interfaces are in Excalibur.Dispatch.Delivery (not .Delivery.Handlers)
 		var doc = LoadTrimmerRoots();
 		var handlerTypes = doc.Descendants("type")
 			.Select(t => t.Attribute("fullname")?.Value)
@@ -87,7 +87,7 @@ public sealed class AotAnnotationsAndTrimmerRootsShould
 
 		foreach (var typeName in handlerTypes)
 		{
-			typeName.ShouldContain("Excalibur.Dispatch.Abstractions.Delivery.I");
+			typeName.ShouldContain("Excalibur.Dispatch.Delivery.I");
 		}
 	}
 

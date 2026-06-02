@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Postgres;
 using Excalibur.EventSourcing.Postgres.DependencyInjection;
 
@@ -10,6 +10,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Npgsql;
+
+#pragma warning disable IL2091 // DI registration methods create stores with DynamicallyAccessedMembers-annotated TProjection
+#pragma warning disable IL2026 // Projection stores use reflection-based JSON serialization as fallback; consumers can provide source-gen context
+#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -42,13 +46,11 @@ public static class PostgresProjectionStoreExtensions
 
 			options.Value.Validate();
 
-			#pragma warning disable IL2026, IL3050 // PostgresProjectionStore uses reflection-based JSON serialization
 			return new PostgresProjectionStore<TProjection>(
 				options.Value.ConnectionString ?? throw new InvalidOperationException("PostgresProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				options.Value.TableName,
 				options.Value.JsonSerializerOptions);
-			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;

@@ -74,7 +74,7 @@ dotnet add package Excalibur.Dispatch
 ### 2. Define an Action
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // Action without return value
 public record CreateOrderAction(string CustomerId, List<string> Items) : IDispatchAction;
@@ -86,7 +86,7 @@ public record GetOrderAction(Guid OrderId) : IDispatchAction<Order>;
 ### 3. Create a Handler
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 {
@@ -153,6 +153,7 @@ public class OrderController : ControllerBase
 ```
 
 :::tip Production Ready
+
 The setup above is a complete, production-ready Dispatch application.
 Everything below describes **optional capabilities** you can add later.
 For a laser-focused guide, see **[Dispatch Only](./getting-started/dispatch-only.md)**.

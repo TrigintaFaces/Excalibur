@@ -4,7 +4,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-namespace Excalibur.Dispatch.Abstractions.Transport;
+namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
 /// Base class for message bus configuration options, providing common settings for message bus instances.

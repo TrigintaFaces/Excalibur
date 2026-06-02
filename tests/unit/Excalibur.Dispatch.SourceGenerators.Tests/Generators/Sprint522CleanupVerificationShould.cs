@@ -25,16 +25,16 @@ public sealed class Sprint522CleanupVerificationShould
 	public void JsonSerializationSG_InterfaceCheck_HaveExactlyTwoUniquePatterns()
 	{
 		// Verify lines 80-82 in JsonSerializationSourceGenerator have exactly 2 unique patterns:
-		// "global::Excalibur.Dispatch.Abstractions.IDispatchMessage" and
-		// "Excalibur.Dispatch.Abstractions.IDispatchMessage"
+		// "global::Excalibur.Dispatch.IDispatchMessage" and
+		// "Excalibur.Dispatch.IDispatchMessage"
 		var sgSourcePath = FindSourceFile("JsonSerializationSourceGenerator.cs");
 		sgSourcePath.ShouldNotBeNull("JsonSerializationSourceGenerator.cs should exist");
 
 		var content = File.ReadAllText(sgSourcePath);
 
 		// Count occurrences of the pattern strings (both with and without global:: prefix)
-		var globalPattern = "global::Excalibur.Dispatch.Abstractions.IDispatchMessage";
-		var simplePattern = "\"Excalibur.Dispatch.Abstractions.IDispatchMessage\"";
+		var globalPattern = "global::Excalibur.Dispatch.IDispatchMessage";
+		var simplePattern = "\"Excalibur.Dispatch.IDispatchMessage\"";
 
 		var globalCount = CountOccurrences(content, globalPattern);
 		var simpleCount = CountOccurrences(content, simplePattern);
@@ -70,7 +70,7 @@ public sealed class Sprint522CleanupVerificationShould
 	{
 		// Verify the generator still correctly filters abstract types after cleanup
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -94,7 +94,7 @@ public sealed class Sprint522CleanupVerificationShould
 	public void JsonSerializationSG_StillFiltersGenericTypes()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -118,7 +118,7 @@ public sealed class Sprint522CleanupVerificationShould
 	public void JsonSerializationSG_EmitsJSON001Diagnostic()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -187,7 +187,7 @@ public sealed class Sprint522CleanupVerificationShould
 	{
 		// Verify that the integration test infrastructure correctly references Abstractions
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -213,8 +213,8 @@ public sealed class Sprint522CleanupVerificationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -255,8 +255,8 @@ public sealed class Sprint522CleanupVerificationShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
-			using Excalibur.Dispatch.Abstractions.Delivery;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
 
 			namespace TestApp
 			{
@@ -351,7 +351,7 @@ public sealed class Sprint522CleanupVerificationShould
 			MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IServiceProvider).Assembly.Location),
-			MetadataReference.CreateFromFile(typeof(Abstractions.IDispatchMessage).Assembly.Location),
+			MetadataReference.CreateFromFile(typeof(Excalibur.Dispatch.IDispatchMessage).Assembly.Location),
 		};
 
 		var runtimeDir = Path.GetDirectoryName(typeof(object).Assembly.Location);

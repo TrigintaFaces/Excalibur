@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Tests.Shared.Conformance.Inbox;
 
@@ -44,7 +44,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	protected IInboxStoreAdmin AdminStore { get; private set; } = null!;
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		Store = await CreateStoreAsync().ConfigureAwait(false);
 		AdminStore = Store as IInboxStoreAdmin
@@ -54,7 +54,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await CleanupAsync().ConfigureAwait(false);
 

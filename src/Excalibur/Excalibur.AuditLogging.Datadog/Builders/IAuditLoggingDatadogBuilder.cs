@@ -14,18 +14,18 @@ namespace Excalibur.AuditLogging.Datadog;
 /// </remarks>
 public interface IAuditLoggingDatadogBuilder
 {
-    /// <summary>Sets the Datadog API key (requires Logs Write permission).</summary>
-    IAuditLoggingDatadogBuilder ApiKey(string apiKey);
+	/// <summary>Sets the Datadog API key (requires Logs Write permission).</summary>
+	IAuditLoggingDatadogBuilder ApiKey(string apiKey);
 
-    /// <summary>Sets the Datadog site/region (e.g., "datadoghq.com", "datadoghq.eu").</summary>
-    IAuditLoggingDatadogBuilder Site(string site);
+	/// <summary>Sets the Datadog site/region (e.g., "datadoghq.com", "datadoghq.eu").</summary>
+	IAuditLoggingDatadogBuilder Site(string site);
 
-    /// <summary>Sets the service name for the logs.</summary>
-    IAuditLoggingDatadogBuilder Service(string service);
+	/// <summary>Sets the service name for the logs.</summary>
+	IAuditLoggingDatadogBuilder Service(string service);
 
-    /// <summary>Sets the source identifier for the logs.</summary>
-    IAuditLoggingDatadogBuilder Source(string source);
+	/// <summary>Sets the source identifier for the logs.</summary>
+	IAuditLoggingDatadogBuilder Source(string source);
 
-    /// <summary>Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.</summary>
-    IAuditLoggingDatadogBuilder BindConfiguration(string sectionPath);
+	/// <summary>Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.</summary>
+	IAuditLoggingDatadogBuilder BindConfiguration(string sectionPath);
 }

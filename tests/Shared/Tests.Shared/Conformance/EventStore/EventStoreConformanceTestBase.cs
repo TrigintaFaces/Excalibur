@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace Tests.Shared.Conformance.EventStore;
 
@@ -40,13 +40,13 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 	protected IEventStore Store { get; private set; } = null!;
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		Store = await CreateStoreAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await CleanupAsync().ConfigureAwait(false);
 

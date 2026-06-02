@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.Jobs.Abstractions.Coordination;
+namespace Excalibur.Jobs.Coordination;
 
 /// <summary>
 /// Represents a leadership token that grants coordination authority to an instance.

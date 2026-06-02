@@ -488,6 +488,7 @@ if (order.Status == OrderStatus.Pending)
 | Performance-critical hot path | C# `enum` (no allocation) |
 
 :::info AOT Compatibility
+
 SmartEnum&lt;T&gt; uses reflection to discover static fields on the derived type. It is annotated with `[RequiresUnreferencedCode]`. For AOT/trimmed scenarios, use standard C# enums or manually register values.
 :::
 

@@ -7,7 +7,6 @@ using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Routing;
 

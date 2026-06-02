@@ -55,7 +55,7 @@ Excalibur.Cdc.SqlServer.CdcPosition.Lsn.get -> byte[]!
 Excalibur.Cdc.SqlServer.CdcPosition.Lsn.init -> void
 Excalibur.Cdc.SqlServer.CdcPosition.SequenceValue.get -> byte[]?
 Excalibur.Cdc.SqlServer.CdcPosition.SequenceValue.init -> void
-Excalibur.Cdc.SqlServer.CdcPosition.ToChangePosition() -> Excalibur.Dispatch.Abstractions.ChangePosition!
+Excalibur.Cdc.SqlServer.CdcPosition.ToChangePosition() -> Excalibur.Dispatch.ChangePosition!
 Excalibur.Cdc.SqlServer.CdcProcessingState
 Excalibur.Cdc.SqlServer.CdcProcessingState.CdcProcessingState() -> void
 Excalibur.Cdc.SqlServer.CdcProcessingState.DatabaseConnectionIdentifier.get -> string!
@@ -91,7 +91,7 @@ Excalibur.Cdc.SqlServer.CdcRecoveryOptions.RecoveryStrategy.set -> void
 Excalibur.Cdc.SqlServer.CdcRecoveryOptions.Validate() -> void
 Excalibur.Cdc.SqlServer.CdcRecoveryOptionsDefaults
 Excalibur.Cdc.SqlServer.CdcRepository
-Excalibur.Cdc.SqlServer.CdcRepository.CdcRepository(Excalibur.Data.Abstractions.IDb! db) -> void
+Excalibur.Cdc.SqlServer.CdcRepository.CdcRepository(Excalibur.Data.IDb! db) -> void
 Excalibur.Cdc.SqlServer.CdcRepository.ChangesExistAsync(byte[]! fromPosition, byte[]! toPosition, System.Collections.Generic.IEnumerable<string!>! captureInstances, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Cdc.SqlServer.CdcRepository.Dispose() -> void
 Excalibur.Cdc.SqlServer.CdcRepository.DisposeAsync() -> System.Threading.Tasks.ValueTask
@@ -120,8 +120,8 @@ Excalibur.Cdc.SqlServer.CdcRow.TableName.get -> string!
 Excalibur.Cdc.SqlServer.CdcRow.TableName.init -> void
 Excalibur.Cdc.SqlServer.CdcStalePositionDetector
 Excalibur.Cdc.SqlServer.CdcStateStore
-Excalibur.Cdc.SqlServer.CdcStateStore.CdcStateStore(Excalibur.Data.Abstractions.IDb! db) -> void
-Excalibur.Cdc.SqlServer.CdcStateStore.CdcStateStore(Excalibur.Data.Abstractions.IDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions!>! options) -> void
+Excalibur.Cdc.SqlServer.CdcStateStore.CdcStateStore(Excalibur.Data.IDb! db) -> void
+Excalibur.Cdc.SqlServer.CdcStateStore.CdcStateStore(Excalibur.Data.IDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions!>! options) -> void
 Excalibur.Cdc.SqlServer.CdcStateStore.CdcStateStore(System.Data.IDbConnection! connection) -> void
 Excalibur.Cdc.SqlServer.CdcStateStore.CdcStateStore(System.Data.IDbConnection! connection, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions!>! options) -> void
 Excalibur.Cdc.SqlServer.CdcStateStore.Dispose() -> void
@@ -319,7 +319,7 @@ override Excalibur.Cdc.SqlServer.CdcPosition.GetHashCode() -> int
 override Excalibur.Cdc.SqlServer.CdcPosition.ToString() -> string!
 override Excalibur.Cdc.SqlServer.DataChange.ToString() -> string!
 static Excalibur.Cdc.SqlServer.CdcBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
-static Excalibur.Cdc.SqlServer.CdcPosition.FromChangePosition(Excalibur.Dispatch.Abstractions.ChangePosition? position) -> Excalibur.Cdc.SqlServer.CdcPosition!
+static Excalibur.Cdc.SqlServer.CdcPosition.FromChangePosition(Excalibur.Dispatch.ChangePosition? position) -> Excalibur.Cdc.SqlServer.CdcPosition!
 static Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CreateEventArgs(System.Exception! exception, string! processorId, byte[]? stalePosition = null, byte[]? newPosition = null, string? captureInstance = null, string? databaseName = null) -> Excalibur.Cdc.CdcPositionResetEventArgs!
 static Excalibur.Cdc.SqlServer.CdcStalePositionDetector.GetReasonCode(Microsoft.Data.SqlClient.SqlException? exception) -> string!
 static Excalibur.Cdc.SqlServer.CdcStalePositionDetector.GetStalePositionErrorNumber(System.Exception? exception) -> int?

@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions.Configuration;
+namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>
 /// Provides inbox configuration for handler types at runtime.
@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Abstractions.Configuration;
 /// for runtime performance.
 /// </para>
 /// <para>
-/// Configuration from this provider takes precedence over <see cref="Excalibur.Dispatch.Abstractions.IdempotentAttribute"/>
+/// Configuration from this provider takes precedence over <see cref="Excalibur.Dispatch.IdempotentAttribute"/>
 /// settings on handler classes.
 /// </para>
 /// </remarks>

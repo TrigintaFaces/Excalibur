@@ -19,8 +19,8 @@ using EventUpcasting.Domain;
 using EventUpcasting.Events;
 using EventUpcasting.Upgraders;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Upcasting;
 

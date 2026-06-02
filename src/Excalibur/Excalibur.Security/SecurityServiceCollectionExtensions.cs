@@ -4,15 +4,12 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Security;
-
-
 using Excalibur.Security.EventStores;
 
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;

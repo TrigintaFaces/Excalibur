@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs;
 using Excalibur.Jobs.Quartz;
 
 using Microsoft.Extensions.Configuration;

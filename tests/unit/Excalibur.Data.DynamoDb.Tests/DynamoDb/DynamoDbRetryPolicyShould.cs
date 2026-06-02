@@ -164,7 +164,7 @@ public sealed class DynamoDbRetryPolicyShould
 	public void ImplementsIDataRequestRetryPolicy()
 	{
 		// Arrange
-		var interfaceType = typeof(Data.Abstractions.Resilience.IDataRequestRetryPolicy);
+		var interfaceType = typeof(Data.Resilience.IDataRequestRetryPolicy);
 
 		// Assert
 		interfaceType.IsAssignableFrom(_policyType).ShouldBeTrue();

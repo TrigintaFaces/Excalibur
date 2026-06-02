@@ -12,52 +12,52 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// </remarks>
 public interface IRabbitMQTopologyBuilder
 {
-    /// <summary>
-    /// Configures an exchange for this transport.
-    /// </summary>
-    /// <param name="configure">The exchange configuration action.</param>
-    /// <returns>The builder for chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
-    /// <remarks>
-    /// Multiple exchanges can be configured by calling this method multiple times.
-    /// </remarks>
-    IRabbitMQTransportBuilder ConfigureExchange(Action<IRabbitMQExchangeBuilder> configure);
+	/// <summary>
+	/// Configures an exchange for this transport.
+	/// </summary>
+	/// <param name="configure">The exchange configuration action.</param>
+	/// <returns>The builder for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
+	/// <remarks>
+	/// Multiple exchanges can be configured by calling this method multiple times.
+	/// </remarks>
+	IRabbitMQTransportBuilder ConfigureExchange(Action<IRabbitMQExchangeBuilder> configure);
 
-    /// <summary>
-    /// Configures a queue for this transport.
-    /// </summary>
-    /// <param name="configure">The queue configuration action.</param>
-    /// <returns>The builder for chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
-    /// <remarks>
-    /// Multiple queues can be configured by calling this method multiple times.
-    /// </remarks>
-    IRabbitMQTransportBuilder ConfigureQueue(Action<IRabbitMQQueueBuilder> configure);
+	/// <summary>
+	/// Configures a queue for this transport.
+	/// </summary>
+	/// <param name="configure">The queue configuration action.</param>
+	/// <returns>The builder for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
+	/// <remarks>
+	/// Multiple queues can be configured by calling this method multiple times.
+	/// </remarks>
+	IRabbitMQTransportBuilder ConfigureQueue(Action<IRabbitMQQueueBuilder> configure);
 
-    /// <summary>
-    /// Configures a binding between an exchange and a queue.
-    /// </summary>
-    /// <param name="configure">The binding configuration action.</param>
-    /// <returns>The builder for chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
-    /// <remarks>
-    /// Multiple bindings can be configured by calling this method multiple times.
-    /// </remarks>
-    IRabbitMQTransportBuilder ConfigureBinding(Action<IRabbitMQBindingBuilder> configure);
+	/// <summary>
+	/// Configures a binding between an exchange and a queue.
+	/// </summary>
+	/// <param name="configure">The binding configuration action.</param>
+	/// <returns>The builder for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
+	/// <remarks>
+	/// Multiple bindings can be configured by calling this method multiple times.
+	/// </remarks>
+	IRabbitMQTransportBuilder ConfigureBinding(Action<IRabbitMQBindingBuilder> configure);
 
-    /// <summary>
-    /// Configures dead letter exchange handling.
-    /// </summary>
-    /// <param name="configure">The dead letter configuration action.</param>
-    /// <returns>The builder for chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
-    IRabbitMQTransportBuilder ConfigureDeadLetter(Action<IRabbitMQDeadLetterBuilder> configure);
+	/// <summary>
+	/// Configures dead letter exchange handling.
+	/// </summary>
+	/// <param name="configure">The dead letter configuration action.</param>
+	/// <returns>The builder for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
+	IRabbitMQTransportBuilder ConfigureDeadLetter(Action<IRabbitMQDeadLetterBuilder> configure);
 
-    /// <summary>
-    /// Configures CloudEvents options for the transport.
-    /// </summary>
-    /// <param name="configure">The CloudEvents configuration action.</param>
-    /// <returns>The builder for chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
-    IRabbitMQTransportBuilder ConfigureCloudEvents(Action<RabbitMqCloudEventOptions> configure);
+	/// <summary>
+	/// Configures CloudEvents options for the transport.
+	/// </summary>
+	/// <param name="configure">The CloudEvents configuration action.</param>
+	/// <returns>The builder for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
+	IRabbitMQTransportBuilder ConfigureCloudEvents(Action<RabbitMqCloudEventOptions> configure);
 }

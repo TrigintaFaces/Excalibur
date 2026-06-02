@@ -5,7 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Domain.Model;
 
@@ -44,6 +44,94 @@ public abstract class AggregateRoot : AggregateRoot<string>
 	/// <param name="id">The unique identifier of the aggregate.</param>
 	protected AggregateRoot(string id) : base(id)
 	{
+	}
+}
+
+/// <summary>
+/// Convenience base class for event-sourced aggregates that enables type inference
+/// for <c>AddRepository&lt;TAggregate, TKey&gt;()</c> zero-argument registration.
+/// </summary>
+/// <typeparam name="TAggregate">The concrete aggregate type (CRTP self-type).</typeparam>
+/// <typeparam name="TKey">The type of the aggregate identifier.</typeparam>
+/// <remarks>
+/// <para>
+/// Deriving from this class automatically implements <see cref="IAggregateRoot{TAggregate, TKey}"/>,
+/// requiring only the <c>static abstract</c> factory methods:
+/// </para>
+/// <code>
+/// public class OrderAggregate : AggregateRoot&lt;OrderAggregate, Guid&gt;
+/// {
+///     public static OrderAggregate Create(Guid id) =&gt; new() { Id = id };
+///
+///     public static OrderAggregate FromEvents(Guid id, IEnumerable&lt;IDomainEvent&gt; events)
+///     {
+///         var aggregate = Create(id);
+///         aggregate.LoadFromHistory(events);
+///         return aggregate;
+///     }
+///
+///     protected override void ApplyEventInternal(IDomainEvent @event) =&gt; _ = @event switch
+///     {
+///         OrderCreated e =&gt; Apply(e),
+///         _ =&gt; throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+///     };
+/// }
+/// </code>
+/// <para>
+/// This enables zero-argument repository registration:
+/// <code>
+/// builder.AddRepository&lt;OrderAggregate, Guid&gt;();
+/// </code>
+/// Without this base class, consumers must independently implement
+/// <see cref="IAggregateRoot{TAggregate, TKey}"/> on their aggregate class.
+/// </para>
+/// </remarks>
+public abstract class AggregateRoot<TAggregate, TKey> : AggregateRoot<TKey>, IAggregateRoot<TAggregate, TKey>
+	where TAggregate : AggregateRoot<TAggregate, TKey>, new()
+	where TKey : notnull
+{
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AggregateRoot{TAggregate, TKey}"/> class.
+	/// </summary>
+	protected AggregateRoot()
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AggregateRoot{TAggregate, TKey}"/> class with an identifier.
+	/// </summary>
+	/// <param name="id">The unique identifier of the aggregate.</param>
+	protected AggregateRoot(TKey id) : base(id)
+	{
+	}
+
+	/// <summary>
+	/// Creates a new instance of the aggregate with the specified identifier.
+	/// </summary>
+	/// <param name="id">The unique identifier for the aggregate.</param>
+	/// <returns>A new aggregate instance with its <see cref="AggregateRoot{TKey}.Id"/> set.</returns>
+	/// <remarks>
+	/// This default implementation uses the parameterless constructor and sets the Id.
+	/// Override in the concrete aggregate if custom initialization is needed.
+	/// </remarks>
+	public static TAggregate Create(TKey id)
+	{
+		var aggregate = new TAggregate();
+		aggregate.Id = id;
+		return aggregate;
+	}
+
+	/// <summary>
+	/// Rebuilds an aggregate from a stream of historical events.
+	/// </summary>
+	/// <param name="id">The unique identifier for the aggregate.</param>
+	/// <param name="events">The stream of events to replay.</param>
+	/// <returns>The aggregate rebuilt from the events.</returns>
+	public static TAggregate FromEvents(TKey id, IEnumerable<IDomainEvent> events)
+	{
+		var aggregate = Create(id);
+		aggregate.LoadFromHistory(events);
+		return aggregate;
 	}
 }
 

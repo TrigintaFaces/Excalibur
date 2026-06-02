@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Metrics;
+
 using Azure;
 using Azure.Identity;
 using Azure.Messaging.EventGrid;
-
-using System.Diagnostics;
-using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Azure;

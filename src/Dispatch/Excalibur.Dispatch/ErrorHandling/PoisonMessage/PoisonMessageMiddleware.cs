@@ -5,15 +5,13 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.ErrorHandling;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+using MR = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.ErrorHandling;
 

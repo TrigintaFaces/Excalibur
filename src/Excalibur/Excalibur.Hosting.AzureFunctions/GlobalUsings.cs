@@ -8,5 +8,3 @@
 global using Excalibur.Dispatch.Hosting.Serverless;
 
 #pragma warning restore IDE0005
-
-global using Microsoft.Extensions.Logging;

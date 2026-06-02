@@ -7,10 +7,12 @@ description: Choose the right Excalibur packages for your application architectu
 # Package Guide
 
 :::tip Framework Maturity
+
 **44,000+ automated tests** | **119 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 10.0**
 :::
 
 :::info Dispatch Stands Alone
+
 **Yes, you can use Excalibur.Dispatch by itself.** It's a complete messaging framework -- no event sourcing, domain modeling, or compliance packages required. See [Dispatch Only](getting-started/dispatch-only.md) for a focused guide.
 :::
 
@@ -30,6 +32,7 @@ Excalibur is one framework with focused package families. Install only what your
 | `Excalibur.SqlServer`, `Excalibur.Postgres` | Full-stack database metapackages: event sourcing + outbox + inbox + sagas + leader election + audit + compliance | When you want one-line database setup |
 
 :::tip Key Rule
+
 All packages share the `Excalibur.*` namespace. You never rewrite existing code when adding new capabilities -- just install additional packages.
 :::
 

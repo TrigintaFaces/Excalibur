@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.SeparationOfDuties;
 using Excalibur.A3.Governance.Stores.InMemory;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;

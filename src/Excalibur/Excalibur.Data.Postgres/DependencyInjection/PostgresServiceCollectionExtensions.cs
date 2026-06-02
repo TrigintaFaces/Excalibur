@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Data.Postgres.ErrorHandling;
 using Excalibur.Dispatch.ErrorHandling;
 

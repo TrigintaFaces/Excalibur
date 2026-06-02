@@ -3,7 +3,6 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Routing;
 
 namespace Excalibur.Dispatch.Delivery.Pipeline;

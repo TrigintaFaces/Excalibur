@@ -4,11 +4,10 @@
 // CA2012: FakeItEasy's .Returns() stores ValueTask internally - this is expected for test setup
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Routing;
 

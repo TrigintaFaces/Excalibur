@@ -3,9 +3,7 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Routing;

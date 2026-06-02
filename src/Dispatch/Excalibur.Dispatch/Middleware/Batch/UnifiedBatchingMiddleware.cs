@@ -5,10 +5,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.BatchProcessing;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;

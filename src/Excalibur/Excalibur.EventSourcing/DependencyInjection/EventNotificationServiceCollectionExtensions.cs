@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Projections;
 
@@ -72,6 +72,47 @@ public static class EventNotificationServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Registers an inline projection using a DI-resolved <see cref="IProjectionConfiguration{TProjection}"/>
+	/// implementation. The configuration class is resolved from the service provider at startup
+	/// to configure the projection's mode, event handlers, and options.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection state type.</typeparam>
+	/// <typeparam name="TConfig">
+	/// The configuration type implementing <see cref="IProjectionConfiguration{TProjection}"/>.
+	/// Must have a public parameterless constructor or be pre-registered in DI.
+	/// </typeparam>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is the preferred registration path for projections when using the class-based
+	/// configuration pattern. It avoids reflection-based assembly scanning while supporting
+	/// DI-injected configuration classes.
+	/// </para>
+	/// <para>
+	/// A second call for the same projection type replaces the first (R27.37).
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddExcalibur(x => x.AddEventSourcing(builder =>
+	/// {
+	///     builder.AddProjection&lt;OrderSummary, OrderSummaryProjectionConfig&gt;();
+	/// }));
+	/// </code>
+	/// </example>
+	public static IEventSourcingBuilder AddProjection<TProjection, TConfig>(
+		this IEventSourcingBuilder builder)
+		where TProjection : class, new()
+		where TConfig : class, IProjectionConfiguration<TProjection>, new()
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		var config = new TConfig();
+		return builder.AddProjection<TProjection>(b => config.Configure(b));
+	}
+
+	/// <summary>
 	/// Scans the specified assembly for types implementing
 	/// <see cref="IProjectionConfiguration{TProjection}"/> and registers each
 	/// discovered projection via <see cref="AddProjection{TProjection}"/>.
@@ -127,9 +168,9 @@ public static class EventNotificationServiceCollectionExtensions
 #pragma warning disable RS0030 // Assembly scanning requires dynamic instantiation
 				var config = Activator.CreateInstance(type)
 #pragma warning restore RS0030
-				             ?? throw new InvalidOperationException(
-					             $"Failed to create instance of {type.Name}. " +
-					             $"IProjectionConfiguration<T> implementations must have a parameterless constructor.");
+							 ?? throw new InvalidOperationException(
+								 $"Failed to create instance of {type.Name}. " +
+								 $"IProjectionConfiguration<T> implementations must have a parameterless constructor.");
 
 				// Call AddProjection<TProjection> via reflection to register
 				// the projection with the correct generic type
@@ -244,7 +285,7 @@ public static class EventNotificationServiceCollectionExtensions
 			new ProjectionRecoveryService(
 				sp.GetRequiredService<IProjectionRegistry>(),
 				sp.GetRequiredKeyedService<IEventStore>("default"),
-				sp.GetRequiredService<Excalibur.Dispatch.Abstractions.IEventSerializer>(),
+				sp.GetRequiredService<Excalibur.Dispatch.IEventSerializer>(),
 				sp,
 				sp.GetRequiredService<Logging.ILogger<ProjectionRecoveryService>>()));
 
@@ -278,7 +319,7 @@ public static class EventNotificationServiceCollectionExtensions
 		builder.Services.TryAddSingleton<IEphemeralProjectionEngine>(sp =>
 			new EphemeralProjectionEngine(
 				sp.GetRequiredKeyedService<IEventStore>("default"),
-				sp.GetRequiredService<Excalibur.Dispatch.Abstractions.IEventSerializer>(),
+				sp.GetRequiredService<Excalibur.Dispatch.IEventSerializer>(),
 				sp.GetRequiredService<IProjectionRegistry>(),
 				sp.GetRequiredService<Logging.ILogger<EphemeralProjectionEngine>>(),
 				sp.GetService<Caching.Distributed.IDistributedCache>(),

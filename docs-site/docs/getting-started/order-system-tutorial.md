@@ -9,6 +9,7 @@ description: Step-by-step tutorial building a complete order management system w
 This hands-on tutorial walks you through building a working order management API with Excalibur.Dispatch. You'll implement commands, queries, domain events, validation, and middleware — all running in-process with no external dependencies.
 
 :::tip Prerequisites
+
 - .NET 10.0 SDK installed
 - A code editor (VS Code, Rider, or Visual Studio)
 - Basic familiarity with ASP.NET Core minimal APIs
@@ -82,7 +83,7 @@ Excalibur.Dispatch uses three message types:
 - **`IDispatchEvent`** — domain events (fan-out to multiple handlers)
 
 ```csharp title="Messages/OrderMessages.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace OrderSystem.Messages;
 
@@ -111,8 +112,8 @@ public record OrderDto(Guid Id, string CustomerId, decimal Total, string Status,
 ### Command Handlers
 
 ```csharp title="Handlers/CreateOrderHandler.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using OrderSystem.Domain;
 using OrderSystem.Messages;
 
@@ -142,8 +143,8 @@ public class CreateOrderHandler(OrderStore store, IDispatcher dispatcher) : IAct
 ```
 
 ```csharp title="Handlers/CancelOrderHandler.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using OrderSystem.Domain;
 using OrderSystem.Messages;
 
@@ -168,7 +169,7 @@ public class CancelOrderHandler(OrderStore store, IDispatcher dispatcher) : IAct
 ### Query Handlers
 
 ```csharp title="Handlers/GetOrderHandler.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using OrderSystem.Domain;
 using OrderSystem.Messages;
 
@@ -203,7 +204,7 @@ public class GetCustomerOrdersHandler(OrderStore store)
 ### Event Handler
 
 ```csharp title="Handlers/OrderEventHandlers.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using OrderSystem.Messages;
 
 namespace OrderSystem.Handlers;
@@ -229,8 +230,8 @@ public class OrderEventHandlers :
 ## Step 5: Wire It Up
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 using OrderSystem.Domain;
 using OrderSystem.Messages;
@@ -280,6 +281,7 @@ record CancelRequest(string Reason);
 ```
 
 :::tip Railway-Oriented Programming
+
 Notice the endpoints don't use `if/else` or manual `result.IsSuccess` checks. Instead:
 - **`.ToApiResult()`** — converts success to 200/202 and failure to ProblemDetails automatically
 - **`.ToNoContentResult()`** — converts success to 204 No Content

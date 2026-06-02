@@ -7,16 +7,16 @@ namespace Excalibur.Data.CosmosDb.Snapshots;
 
 internal sealed class CosmosDbSnapshotStoreOptionsValidator : IValidateOptions<CosmosDbSnapshotStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, CosmosDbSnapshotStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, CosmosDbSnapshotStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

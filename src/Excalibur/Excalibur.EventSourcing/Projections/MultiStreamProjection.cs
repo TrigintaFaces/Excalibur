@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.Projections;
 
@@ -38,6 +37,21 @@ internal sealed class MultiStreamProjection<TProjection>
 	{
 		_handlers[typeof(TEvent)] = new ProjectionHandlerEntry(
 			(projection, domainEvent) => handler(projection, (TEvent)domainEvent),
+			SyncContextAction: null,
+			AsyncHandler: null);
+	}
+
+	/// <summary>
+	/// Registers a synchronous event handler that receives <see cref="ProjectionContext"/>.
+	/// </summary>
+	/// <typeparam name="TEvent">The event type.</typeparam>
+	/// <param name="handler">The handler action with context.</param>
+	internal void AddContextHandler<TEvent>(Action<TProjection, TEvent, ProjectionContext> handler)
+		where TEvent : IDomainEvent
+	{
+		_handlers[typeof(TEvent)] = new ProjectionHandlerEntry(
+			SyncAction: null,
+			SyncContextAction: (projection, domainEvent, ctx) => handler(projection, (TEvent)domainEvent, ctx),
 			AsyncHandler: null);
 	}
 
@@ -54,6 +68,7 @@ internal sealed class MultiStreamProjection<TProjection>
 	{
 		_handlers[typeof(TEvent)] = new ProjectionHandlerEntry(
 			SyncAction: null,
+			SyncContextAction: null,
 			handler);
 	}
 
@@ -104,17 +119,60 @@ internal sealed class MultiStreamProjection<TProjection>
 	/// <returns><see langword="true"/> if a handler was found and executed; otherwise, <see langword="false"/>.</returns>
 	public bool Apply(TProjection projection, IDomainEvent domainEvent)
 	{
+		return Apply(projection, domainEvent, ProjectionContext.Live);
+	}
+
+	/// <summary>
+	/// Applies a domain event to the projection state with context if a matching synchronous handler is registered.
+	/// </summary>
+	/// <param name="projection">The projection state to update.</param>
+	/// <param name="domainEvent">The domain event to apply.</param>
+	/// <param name="context">The projection processing context.</param>
+	/// <returns><see langword="true"/> if a handler was found and executed; otherwise, <see langword="false"/>.</returns>
+	public bool Apply(TProjection projection, IDomainEvent domainEvent, ProjectionContext context)
+	{
 		ArgumentNullException.ThrowIfNull(projection);
 		ArgumentNullException.ThrowIfNull(domainEvent);
+		ArgumentNullException.ThrowIfNull(context);
 
 		var eventType = domainEvent.GetType();
-		if (_handlers.TryGetValue(eventType, out var entry) && entry.SyncAction is not null)
+		if (!_handlers.TryGetValue(eventType, out var entry))
+		{
+			return false;
+		}
+
+		if (entry.SyncAction is not null)
 		{
 			entry.SyncAction(projection, domainEvent);
 			return true;
 		}
 
+		if (entry.SyncContextAction is not null)
+		{
+			entry.SyncContextAction(projection, domainEvent, context);
+			return true;
+		}
+
 		return false;
+	}
+
+	/// <summary>
+	/// Gets whether any context-aware synchronous handlers are registered.
+	/// </summary>
+	internal bool HasContextHandlers
+	{
+		get
+		{
+			foreach (var entry in _handlers.Values)
+			{
+				if (entry.SyncContextAction is not null)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
 	}
 
 	/// <summary>
@@ -139,9 +197,11 @@ internal sealed class MultiStreamProjection<TProjection>
 
 	/// <summary>
 	/// Represents a single handler entry in the dispatch table.
-	/// Either <see cref="SyncAction"/> or <see cref="AsyncHandler"/> is set, never both.
+	/// Exactly one of <see cref="SyncAction"/>, <see cref="SyncContextAction"/>,
+	/// or <see cref="AsyncHandler"/> is set per entry.
 	/// </summary>
 	internal readonly record struct ProjectionHandlerEntry(
 		Action<TProjection, IDomainEvent>? SyncAction,
+		Action<TProjection, IDomainEvent, ProjectionContext>? SyncContextAction,
 		Func<TProjection, IDomainEvent, ProjectionHandlerContext, IServiceProvider, CancellationToken, Task>? AsyncHandler);
 }

@@ -3,9 +3,8 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Sharding;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

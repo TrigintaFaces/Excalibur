@@ -8,10 +8,11 @@ using System.Text.RegularExpressions;
 
 using Dapper;
 
-using Excalibur.EventSourcing.Abstractions;
-
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+
+#pragma warning disable IL2026 // Dapper and JSON serialization use reflection; consumers can provide source-gen JsonSerializerOptions for AOT-safe JSON
+#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
 
 namespace Excalibur.EventSourcing.SqlServer;
 
@@ -33,7 +34,8 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionStore<TProjection>
+public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionStore<TProjection>,
+	IPageableProjectionStore<TProjection>
 	where TProjection : class
 {
 	[GeneratedRegex(@"^[a-zA-Z0-9_]+$")]
@@ -215,14 +217,12 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		#pragma warning disable IL2026, IL3050 // Dapper QueryAsync uses reflection for type mapping
 		var results = await connection.QueryAsync<string>(
 				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 		return results
 			.Select(json => JsonSerializer.Deserialize<TProjection>(json, _jsonOptions)!)
 			.ToList();
-		#pragma warning restore IL2026, IL3050
 	}
 
 	/// <inheritdoc/>
@@ -244,6 +244,73 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Uses a single-roundtrip SQL query with <c>COUNT(*) OVER()</c> window function
+	/// to return both the page data and total count in one database call.
+	/// Falls back to <c>OFFSET/FETCH</c> for pagination.
+	/// </remarks>
+	public async Task<PagedResult<TProjection>> QueryPagedAsync(
+		IDictionary<string, object>? filters,
+		int pageNumber,
+		int pageSize,
+		QueryOptions? options,
+		CancellationToken cancellationToken)
+	{
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+
+		var (whereClause, parameters) = BuildWhereClause(filters);
+		var orderByClause = BuildOrderByClause(options);
+
+		var offset = (pageNumber - 1) * pageSize;
+		parameters.Add("@PageOffset", offset);
+		parameters.Add("@PageSize", pageSize);
+
+		// Single-roundtrip: COUNT(*) OVER() returns total count alongside each row.
+		// When no rows match, we still need the count, so use a CTE approach.
+		var sql = $"""
+			SELECT Data, COUNT(*) OVER() AS TotalCount
+			FROM [{_tableName}]
+			{whereClause}
+			{orderByClause}
+			OFFSET @PageOffset ROWS FETCH NEXT @PageSize ROWS ONLY
+			""";
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var rows = await connection.QueryAsync<PagedRow>(
+				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
+
+		var rowList = rows.AsList();
+
+		if (rowList.Count == 0)
+		{
+			// No rows on this page — get the total count separately to report it
+			var countSql = $"SELECT COUNT(*) FROM [{_tableName}] {whereClause}";
+			var totalCount = await connection.ExecuteScalarAsync<long>(
+					new CommandDefinition(countSql, parameters, cancellationToken: cancellationToken))
+				.ConfigureAwait(false);
+
+			return new PagedResult<TProjection>([], pageNumber, pageSize, totalCount);
+		}
+
+		var total = rowList[0].TotalCount;
+
+		var items = rowList
+			.Select(r => JsonSerializer.Deserialize<TProjection>(r.Data, _jsonOptions)!)
+			.ToList();
+
+		return new PagedResult<TProjection>(items, pageNumber, pageSize, total);
+	}
+
+	/// <summary>
+	/// Row type for paged query results including the total count from <c>COUNT(*) OVER()</c>.
+	/// </summary>
+	private sealed record PagedRow(string Data, long TotalCount);
 
 	private static Func<SqlConnection> CreateConnectionFactory(string connectionString)
 	{

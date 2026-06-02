@@ -4,8 +4,6 @@
 
 using System.Text.Json.Serialization;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>

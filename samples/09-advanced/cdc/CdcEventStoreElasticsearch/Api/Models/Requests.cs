@@ -12,7 +12,7 @@
 // The controller maps Request DTOs → Query objects → Dispatch pipeline.
 // ============================================================================
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace CdcEventStoreElasticsearch.Api.Models;
 

@@ -5,8 +5,8 @@
 using System.Collections.Concurrent;
 using System.Data;
 
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Validation;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Validation;
 
 using Microsoft.Extensions.Logging;
 

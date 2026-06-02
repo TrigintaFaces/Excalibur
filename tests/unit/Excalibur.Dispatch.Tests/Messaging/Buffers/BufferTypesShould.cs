@@ -238,7 +238,7 @@ public sealed class BufferTypesShould
 	{
 		// Arrange
 		var buffer = new byte[100];
-		var pooledBuffer = A.Fake<Excalibur.Dispatch.Abstractions.IPooledBuffer>();
+		var pooledBuffer = A.Fake<Excalibur.Dispatch.IPooledBuffer>();
 		A.CallTo(() => pooledBuffer.Buffer).Returns(buffer);
 
 		// Act
@@ -254,6 +254,6 @@ public sealed class BufferTypesShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new BufferSegment((Excalibur.Dispatch.Abstractions.IPooledBuffer?)null, 0, 0));
+			new BufferSegment((Excalibur.Dispatch.IPooledBuffer?)null, 0, 0));
 	}
 }

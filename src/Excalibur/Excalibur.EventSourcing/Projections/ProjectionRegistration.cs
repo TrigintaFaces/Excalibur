@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.Projections;
 
@@ -30,7 +29,9 @@ internal sealed class ProjectionRegistration
 		TimeSpan? cacheTtl = null,
 		Func<string, CancellationToken, Task>? deleteAction = null,
 		Type? storeType = null,
-		ProjectionOptions? options = null)
+		ProjectionOptions? options = null,
+		Func<object, string>? searchTextComputer = null,
+		Action<object, string>? searchTextSetter = null)
 	{
 		ProjectionType = projectionType;
 		Mode = mode;
@@ -40,6 +41,8 @@ internal sealed class ProjectionRegistration
 		DeleteAction = deleteAction;
 		StoreType = storeType;
 		Options = options;
+		SearchTextComputer = searchTextComputer;
+		SearchTextSetter = searchTextSetter;
 	}
 
 	/// <summary>
@@ -87,4 +90,18 @@ internal sealed class ProjectionRegistration
 	/// Null means default options apply.
 	/// </summary>
 	internal ProjectionOptions? Options { get; }
+
+	/// <summary>
+	/// Gets the type-erased search text computation function configured via <c>WithSearchText</c>.
+	/// Accepts the projection as <c>object</c> and returns the computed search text.
+	/// Null means no search text computation is configured.
+	/// </summary>
+	internal Func<object, string>? SearchTextComputer { get; }
+
+	/// <summary>
+	/// Gets the type-erased search text setter configured via <c>WithSearchText</c>.
+	/// Accepts the projection as <c>object</c> and the computed search text string.
+	/// Null means no search text computation is configured.
+	/// </summary>
+	internal Action<object, string>? SearchTextSetter { get; }
 }

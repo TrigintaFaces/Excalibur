@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-namespace Excalibur.Dispatch.Abstractions.Diagnostics;
+namespace Excalibur.Dispatch.Diagnostics;
 
 /// <summary>
 /// A lightweight, high-performance value type stopwatch that measures elapsed time with high precision.

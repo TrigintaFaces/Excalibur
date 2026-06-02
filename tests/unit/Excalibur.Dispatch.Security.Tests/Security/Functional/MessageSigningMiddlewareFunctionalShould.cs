@@ -1,6 +1,6 @@
 // Functional tests for MessageSigningMiddleware — incoming verification, outgoing signing, disabled bypass, tenant override
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security;
 
 #pragma warning disable CA2012

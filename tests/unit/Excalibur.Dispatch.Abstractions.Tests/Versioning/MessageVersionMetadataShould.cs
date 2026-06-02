@@ -1,4 +1,4 @@
-namespace Excalibur.Dispatch.Abstractions.Tests.Versioning;
+namespace Excalibur.Dispatch.Tests.Versioning;
 
 /// <summary>
 /// Unit tests for MessageVersionMetadata.

@@ -4,18 +4,18 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+using Polly;
 
 using BackoffStrategy = Excalibur.Dispatch.Resilience.BackoffStrategy;
 using CircuitBreakerOptions = Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions;
 using ITransportCircuitBreakerRegistry = Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry;
 using RetryOptions = Excalibur.Dispatch.Resilience.Polly.RetryOptions;
-
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
-using Polly;
 
 namespace Microsoft.Extensions.DependencyInjection;
 

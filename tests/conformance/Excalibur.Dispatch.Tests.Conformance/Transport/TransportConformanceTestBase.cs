@@ -38,7 +38,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	protected TReceiver? Receiver { get; private set; }
 	protected IDeadLetterQueueManager? DlqManager { get; private set; }
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		// Fast-path: if a previous test already determined Docker is unavailable, skip immediately
 		if (s_dockerAvailabilityChecked == false)
@@ -87,7 +87,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// </summary>
 	protected bool IsTransportAvailable() => _dockerAvailable;
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_dockerAvailable)
 		{

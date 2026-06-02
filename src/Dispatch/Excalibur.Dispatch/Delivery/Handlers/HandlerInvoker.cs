@@ -9,8 +9,6 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Delivery.Handlers;
 
 /// <summary>
@@ -90,8 +88,8 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 
 		// PERF: ThreadStatic one-element cache — O(1) with no synchronization.
 		if (ReferenceEquals(s_cachedHandlerType, handlerType) &&
-		    ReferenceEquals(s_cachedMessageType, messageType) &&
-		    s_cachedInvoker is { } fastInvoker)
+			ReferenceEquals(s_cachedMessageType, messageType) &&
+			s_cachedInvoker is { } fastInvoker)
 		{
 			return fastInvoker(handler, message, cancellationToken);
 		}

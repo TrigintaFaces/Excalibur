@@ -5,7 +5,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Cdc.CosmosDb;
 

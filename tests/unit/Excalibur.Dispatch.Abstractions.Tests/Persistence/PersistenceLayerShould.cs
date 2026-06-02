@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Snapshots;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Persistence;
+namespace Excalibur.Dispatch.Tests.Persistence;
 
 /// <summary>
 /// Tests for persistence layer types and behaviors.

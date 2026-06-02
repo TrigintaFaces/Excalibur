@@ -52,7 +52,7 @@ public sealed class AliasDefinitionShould
 	#region Default Value Tests
 
 	[Fact]
-	public void Filter_DefaultsToNull()
+	public void FilterJson_DefaultsToNull()
 	{
 		// Arrange & Act
 		var alias = new AliasDefinition
@@ -62,7 +62,7 @@ public sealed class AliasDefinitionShould
 		};
 
 		// Assert
-		alias.Filter.ShouldBeNull();
+		alias.FilterJson.ShouldBeNull();
 	}
 
 	[Fact]

@@ -7,7 +7,7 @@ using Excalibur.Data.MongoDB.Authorization;
 using Excalibur.Data.MongoDB.MaterializedViews;
 using Excalibur.Data.MongoDB.Projections;
 using Excalibur.Data.MongoDB.Snapshots;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.EventSourcing.MongoDB;
 using Excalibur.Inbox.MongoDB;
 using Excalibur.Outbox.MongoDB;

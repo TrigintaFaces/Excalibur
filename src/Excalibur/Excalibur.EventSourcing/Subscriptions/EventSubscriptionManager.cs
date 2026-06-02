@@ -3,8 +3,7 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 

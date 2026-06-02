@@ -6,7 +6,7 @@
 #pragma warning disable IL2046, IL2026, IL3050, IL3051
 
 using Excalibur.Data.MongoDB.Diagnostics;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

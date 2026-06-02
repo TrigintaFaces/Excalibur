@@ -4,7 +4,7 @@
 using System.Collections.Frozen;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Caching;

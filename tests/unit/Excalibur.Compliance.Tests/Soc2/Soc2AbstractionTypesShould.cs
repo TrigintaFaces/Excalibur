@@ -1,4 +1,5 @@
 using Excalibur.Compliance;
+using TestResult = global::Excalibur.Compliance.TestResult;
 
 namespace Excalibur.Compliance.Tests.Soc2;
 

@@ -44,9 +44,9 @@ public interface IPostgresOutboxBuilder
 	IPostgresOutboxBuilder ConnectionString(string connectionString);
 
 	/// <summary>
-	/// Sets a factory function that provides an <see cref="Excalibur.Data.Abstractions.IDb"/> instance.
+	/// Sets a factory function that provides an <see cref="Excalibur.Data.IDb"/> instance.
 	/// </summary>
-	/// <param name="dbFactory">A factory function that provides an <see cref="Excalibur.Data.Abstractions.IDb"/> instance.</param>
+	/// <param name="dbFactory">A factory function that provides an <see cref="Excalibur.Data.IDb"/> instance.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="dbFactory"/> is null.
@@ -58,7 +58,7 @@ public interface IPostgresOutboxBuilder
 	/// Mutually exclusive with <see cref="ConnectionString"/>. The last one set wins.
 	/// </para>
 	/// </remarks>
-	IPostgresOutboxBuilder ConnectionFactory(Func<IServiceProvider, Excalibur.Data.Abstractions.IDb> dbFactory);
+	IPostgresOutboxBuilder ConnectionFactory(Func<IServiceProvider, Excalibur.Data.IDb> dbFactory);
 
 	/// <summary>
 	/// Sets the schema name for the outbox tables.

@@ -33,16 +33,14 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </remarks>
 public static class DispatchHealthChecksBuilderExtensions
 {
-	private const string OutboxPublisherTypeName = "Excalibur.Dispatch.Abstractions.IOutboxPublisher";
-	private const string InboxStoreTypeName = "Excalibur.Dispatch.Abstractions.IInboxStore";
-	private const string SagaMonitoringServiceTypeName = "Excalibur.Saga.Abstractions.ISagaMonitoringService";
+	private const string OutboxPublisherTypeName = "Excalibur.Dispatch.IOutboxPublisher";
+	private const string InboxStoreTypeName = "Excalibur.Dispatch.IInboxStore";
 	private const string LeaderElectionTypeName = "Excalibur.Dispatch.LeaderElection.ILeaderElection";
 
 	private static readonly (string AssemblyName, string TypeName, string MethodName)[] HealthCheckExtensionTargets =
 	[
 		("Excalibur.Outbox", "Microsoft.Extensions.DependencyInjection.BackgroundProcessorHealthChecksBuilderExtensions", "AddOutboxHealthCheck"),
 		("Excalibur.Outbox", "Microsoft.Extensions.DependencyInjection.BackgroundProcessorHealthChecksBuilderExtensions", "AddInboxHealthCheck"),
-		("Excalibur.Saga", "Microsoft.Extensions.DependencyInjection.SagaHealthChecksBuilderExtensions", "AddSagaHealthCheck"),
 		("Excalibur.LeaderElection", "Microsoft.Extensions.DependencyInjection.LeaderElectionHealthChecksBuilderExtensions", "AddLeaderElectionHealthCheck"),
 	];
 
@@ -73,11 +71,6 @@ public static class DispatchHealthChecksBuilderExtensions
 		if (options.IncludeInbox && HasService(services, InboxStoreTypeName))
 		{
 			_ = TryInvokeHealthCheckExtension(builder, "AddInboxHealthCheck");
-		}
-
-		if (options.IncludeSaga && HasService(services, SagaMonitoringServiceTypeName))
-		{
-			_ = TryInvokeHealthCheckExtension(builder, "AddSagaHealthCheck");
 		}
 
 		if (options.IncludeLeaderElection && HasService(services, LeaderElectionTypeName))

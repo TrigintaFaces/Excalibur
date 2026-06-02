@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 using Dapper;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Options;
 
@@ -141,8 +141,16 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 
 		_ = await connection
 			.ExecuteAsync(new CommandDefinition(sql,
-				new { entry.ProcessorId, entry.SlotName, entry.TableName, entry.Position,
-					entry.LastEventTime, UpdatedAt = DateTimeOffset.UtcNow, entry.EventCount },
+				new
+				{
+					entry.ProcessorId,
+					entry.SlotName,
+					entry.TableName,
+					entry.Position,
+					entry.LastEventTime,
+					UpdatedAt = DateTimeOffset.UtcNow,
+					entry.EventCount
+				},
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 	}

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Excalibur.Application.Requests.Commands;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Compliance;
 
 using GdprCompliance.Domain;

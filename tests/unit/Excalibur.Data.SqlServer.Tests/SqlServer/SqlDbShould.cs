@@ -1,4 +1,4 @@
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 using Excalibur.Data.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer;

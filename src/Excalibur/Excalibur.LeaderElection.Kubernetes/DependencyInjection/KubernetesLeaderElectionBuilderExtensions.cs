@@ -10,10 +10,10 @@ using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.Kubernetes;
 
+using k8s;
+
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-
-using k8s;
 
 using K8sClient = k8s.Kubernetes;
 

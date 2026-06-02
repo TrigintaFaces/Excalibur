@@ -1,6 +1,6 @@
 using Company.DispatchServerless.Messages;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 

@@ -3,7 +3,7 @@
 
 using System.Net;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.Data.CosmosDb.Diagnostics;
 
 using Microsoft.Azure.Cosmos;

@@ -10,24 +10,24 @@ namespace Excalibur.Jobs.GoogleCloud;
 /// </summary>
 internal sealed record JobSchedulePayload
 {
-    /// <summary>
-    /// Gets the assembly-qualified type name of the job to execute.
-    /// </summary>
-    [JsonPropertyName("JobType")]
-    public required string JobType { get; init; }
+	/// <summary>
+	/// Gets the assembly-qualified type name of the job to execute.
+	/// </summary>
+	[JsonPropertyName("JobType")]
+	public required string JobType { get; init; }
 
-    /// <summary>
-    /// Gets the logical name of the scheduled job.
-    /// </summary>
-    [JsonPropertyName("JobName")]
-    public required string JobName { get; init; }
+	/// <summary>
+	/// Gets the logical name of the scheduled job.
+	/// </summary>
+	[JsonPropertyName("JobName")]
+	public required string JobName { get; init; }
 }
 
 /// <summary>
 /// Source-generated JSON serializer context for Google Cloud Jobs package types.
 /// </summary>
 [JsonSourceGenerationOptions(
-    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    WriteIndented = false)]
+	PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+	WriteIndented = false)]
 [JsonSerializable(typeof(JobSchedulePayload))]
 internal sealed partial class JobsGcfJsonContext : JsonSerializerContext;

@@ -4,7 +4,7 @@
 using Elastic.Clients.Elasticsearch;
 
 using Excalibur.Data.ElasticSearch;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace CdcEventStoreElasticsearch.Api.Models;
 

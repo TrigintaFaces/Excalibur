@@ -3,7 +3,7 @@
 
 using System.Net.Http.Headers;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

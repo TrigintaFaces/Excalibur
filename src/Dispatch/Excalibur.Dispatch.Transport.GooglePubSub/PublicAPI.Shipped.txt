@@ -822,7 +822,7 @@ Excalibur.Dispatch.Transport.Google.PubSubCacheOptions.EnableMessageCaching.get 
 Excalibur.Dispatch.Transport.Google.PubSubCacheOptions.EnableMessageCaching.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubCacheOptions.PubSubCacheOptions() -> void
 Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions
-Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.Algorithm.get -> Excalibur.Dispatch.Abstractions.Serialization.CompressionAlgorithm
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.Algorithm.get -> Excalibur.Dispatch.Serialization.CompressionAlgorithm
 Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.Algorithm.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.CompressAlreadyCompressedContent.get -> bool
 Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.CompressAlreadyCompressedContent.set -> void
@@ -935,7 +935,7 @@ Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.EnableSchemaValid
 Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.EnableSchemaValidation.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.EnableSourceGeneration.get -> bool
 Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.EnableSourceGeneration.set -> void
-Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Format.get -> Excalibur.Dispatch.Abstractions.Serialization.SerializationFormat
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Format.get -> Excalibur.Dispatch.Serialization.SerializationFormat
 Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Format.set -> void
 Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.PubSubSerializationOptions() -> void
 Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.SchemaRegistryUrl.get -> System.Uri?
@@ -1065,7 +1065,7 @@ Excalibur.Dispatch.Transport.Google.SchemaDefinition.SchemaId.init -> void
 Excalibur.Dispatch.Transport.Google.SchemaDefinition.SchemaType.get -> string!
 Excalibur.Dispatch.Transport.Google.SchemaDefinition.SchemaType.init -> void
 Excalibur.Dispatch.Transport.Google.SchemaMetadata
-Excalibur.Dispatch.Transport.Google.SchemaMetadata.Format.get -> Excalibur.Dispatch.Abstractions.Serialization.SerializationFormat
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.Format.get -> Excalibur.Dispatch.Serialization.SerializationFormat
 Excalibur.Dispatch.Transport.Google.SchemaMetadata.Format.set -> void
 Excalibur.Dispatch.Transport.Google.SchemaMetadata.Metadata.get -> System.Collections.Generic.Dictionary<string!, string!>!
 Excalibur.Dispatch.Transport.Google.SchemaMetadata.Metadata.set -> void
@@ -1490,8 +1490,8 @@ static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExten
 static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddPoisonMessageDetection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddRetryPolicies(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.PubSubRetryPolicyOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.ConfigureDeadLetterDestination(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! projectId, string! deadLetterTopicName, string? deadLetterSubscriptionName = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DispatchBuilderGooglePubSubExtensions.UseGooglePubSub(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.DispatchBuilderGooglePubSubExtensions.UseGooglePubSub(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderGooglePubSubExtensions.UseGooglePubSub(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderGooglePubSubExtensions.UseGooglePubSub(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.GoogleCloudEventsServiceCollectionExtensions.AddGoogleCloudEventValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool enableDoDCompliance = true) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GoogleCloudEventsServiceCollectionExtensions.UseCloudEvents(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GoogleCloudEventsServiceCollectionExtensions.UseCloudEventsForPubSub(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions!>? configurePubSub = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

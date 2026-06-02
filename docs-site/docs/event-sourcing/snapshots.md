@@ -189,6 +189,7 @@ Auto-snapshot operations emit OpenTelemetry-compatible metrics via the `Excalibu
 | `excalibur.eventsourcing.auto_snapshot.evaluated` | Counter | Policy evaluation count |
 
 :::tip When to use auto-snapshots vs. manual strategies
+
 Auto-snapshots (`UseAutoSnapshots`) are the recommended approach for most applications. They integrate directly into `SaveAsync` and require no background services. Use the older `UseIntervalSnapshots` / `UseTimeBasedSnapshots` strategies only if you need the `ISnapshotStrategy` interface for custom tooling.
 :::
 

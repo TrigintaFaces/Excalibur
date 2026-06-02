@@ -13,7 +13,7 @@ namespace Excalibur.A3.Governance.AccessReviews;
 /// This store provides query access for dashboards, reports, and reviewer UIs.
 /// </para>
 /// <para>
-/// Follows the <see cref="Excalibur.A3.Abstractions.Authorization.IRoleStore"/> pattern:
+/// Follows the <see cref="Excalibur.A3.Authorization.IRoleStore"/> pattern:
 /// a focused query interface backed by <see cref="AccessReviewCampaignSummary"/> DTOs.
 /// </para>
 /// </remarks>

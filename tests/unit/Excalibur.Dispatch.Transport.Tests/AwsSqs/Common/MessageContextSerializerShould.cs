@@ -3,8 +3,8 @@
 
 using Amazon.SQS.Model;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 
 using AwsMessageContextSerializer = Excalibur.Dispatch.Transport.Aws.MessageContextSerializer;
 

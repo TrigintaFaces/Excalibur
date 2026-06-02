@@ -7,6 +7,7 @@ description: Important legal disclaimers regarding the use of Excalibur complian
 # Compliance and Liability Disclaimer
 
 :::warning Important Legal Notice
+
 This document contains legal disclaimers regarding the use of Excalibur framework packages. **Please read carefully before using any compliance-assistance features.**
 :::
 
@@ -40,6 +41,7 @@ Use of the Excalibur framework does **NOT**:
 - Ensure your specific implementation meets regulatory requirements
 
 :::danger Your Responsibility
+
 You remain **solely and fully responsible** for ensuring your applications comply with all applicable laws and regulations. The framework provides tools; compliance requires your diligence.
 :::
 
@@ -76,6 +78,7 @@ You **MUST**:
 ### GDPR (EU Data Protection)
 
 :::info EU Users
+
 The framework includes features that may assist with GDPR workflows but does **NOT** guarantee GDPR compliance.
 :::
 
@@ -93,6 +96,7 @@ The framework includes features that may assist with GDPR workflows but does **N
 ### SOC 2
 
 :::info SOC 2 Users
+
 Audit logging features may support SOC 2 efforts but do **NOT** guarantee attestation.
 :::
 
@@ -107,6 +111,7 @@ Audit logging features may support SOC 2 efforts but do **NOT** guarantee attest
 ### HIPAA (US Healthcare)
 
 :::info Healthcare Users
+
 The framework does **NOT** guarantee HIPAA compliance.
 :::
 
@@ -122,6 +127,7 @@ The framework does **NOT** guarantee HIPAA compliance.
 ### Financial Services (SOX, PCI-DSS, etc.)
 
 :::info Financial Services Users
+
 The framework is not intended to ensure compliance with financial regulations.
 :::
 
@@ -155,6 +161,7 @@ IN NO EVENT SHALL THE AUTHORS, CONTRIBUTORS, OR MAINTAINERS BE LIABLE FOR ANY:
 ## Before You Deploy
 
 :::tip Professional Review Required
+
 Before using compliance-assistance features in production:
 
 1. **Consult qualified legal counsel** in your jurisdiction(s)
@@ -183,6 +190,7 @@ Before using compliance-assistance features in production:
 - **Legal questions**: Consult qualified legal counsel in your jurisdiction
 
 :::note
+
 This disclaimer does not create any advisory relationship. For legal advice, consult qualified legal counsel.
 :::
 

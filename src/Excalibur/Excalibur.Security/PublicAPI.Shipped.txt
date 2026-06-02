@@ -15,8 +15,8 @@ Excalibur.Security.Argon2Options.Version.get -> int
 Excalibur.Security.Argon2Options.Version.set -> void
 Excalibur.Security.Argon2idPasswordHasher
 Excalibur.Security.Argon2idPasswordHasher.Argon2idPasswordHasher(Microsoft.Extensions.Options.IOptions<Excalibur.Security.Argon2Options!>! options) -> void
-Excalibur.Security.Argon2idPasswordHasher.HashPasswordAsync(string! password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.Abstractions.PasswordHashResult!>!
-Excalibur.Security.Argon2idPasswordHasher.VerifyPasswordAsync(string! password, Excalibur.Security.Abstractions.PasswordHashResult! storedHash, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.Abstractions.PasswordVerificationResult>!
+Excalibur.Security.Argon2idPasswordHasher.HashPasswordAsync(string! password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.PasswordHashResult!>!
+Excalibur.Security.Argon2idPasswordHasher.VerifyPasswordAsync(string! password, Excalibur.Security.PasswordHashResult! storedHash, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.PasswordVerificationResult>!
 Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions
 const Excalibur.Security.Argon2Options.SectionName = "Argon2" -> string!
 static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -30,11 +30,11 @@ Excalibur.Security.AuthenticationFailedResult.CacheHit.get -> bool
 Excalibur.Security.AuthenticationFailedResult.CacheHit.set -> void
 Excalibur.Security.AuthenticationFailedResult.ErrorMessage.get -> string?
 Excalibur.Security.AuthenticationFailedResult.ErrorMessage.set -> void
-Excalibur.Security.AuthenticationFailedResult.ProblemDetails.get -> Excalibur.Dispatch.Abstractions.IMessageProblemDetails?
+Excalibur.Security.AuthenticationFailedResult.ProblemDetails.get -> Excalibur.Dispatch.IMessageProblemDetails?
 Excalibur.Security.AuthenticationFailedResult.ProblemDetails.set -> void
 Excalibur.Security.AuthenticationFailedResult.Reason.get -> Excalibur.Security.AuthenticationFailureReason
 Excalibur.Security.AuthenticationFailedResult.Reason.set -> void
-Excalibur.Security.AuthenticationFailedResult.RoutingDecision.get -> Excalibur.Dispatch.Abstractions.Routing.RoutingDecision?
+Excalibur.Security.AuthenticationFailedResult.RoutingDecision.get -> Excalibur.Dispatch.Routing.RoutingDecision?
 Excalibur.Security.AuthenticationFailedResult.RoutingDecision.set -> void
 Excalibur.Security.AuthenticationFailedResult.Succeeded.get -> bool
 Excalibur.Security.AuthenticationFailedResult.Succeeded.set -> void
@@ -145,7 +145,7 @@ Excalibur.Security.HmacSignatureAlgorithmProvider.VerifyAsync(byte[]! data, byte
 Excalibur.Security.ICredentialStore
 Excalibur.Security.ICredentialStore.GetCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Security.SecureString?>!
 Excalibur.Security.IInputValidator
-Excalibur.Security.IInputValidator.ValidateAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context) -> System.Threading.Tasks.Task<Excalibur.Security.InputValidationResult!>!
+Excalibur.Security.IInputValidator.ValidateAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context) -> System.Threading.Tasks.Task<Excalibur.Security.InputValidationResult!>!
 Excalibur.Security.IKeyProvider
 Excalibur.Security.IKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Security.IKeyProvider.RotateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
@@ -171,7 +171,7 @@ Excalibur.Security.ISecureCredentialProvider.GetCredentialAsync(string! key, Sys
 Excalibur.Security.ISecureCredentialProvider.RotateCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Security.ISecureCredentialProvider.ValidateCredentialAsync(string! key, Excalibur.Security.CredentialRequirements! requirements, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.CredentialValidationResult!>!
 Excalibur.Security.ISecurityEventLogger
-Excalibur.Security.ISecurityEventLogger.LogSecurityEventAsync(Excalibur.Security.SecurityEventType eventType, string! description, Excalibur.Security.SecuritySeverity severity, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Abstractions.IMessageContext? context = null) -> System.Threading.Tasks.Task!
+Excalibur.Security.ISecurityEventLogger.LogSecurityEventAsync(Excalibur.Security.SecurityEventType eventType, string! description, Excalibur.Security.SecuritySeverity severity, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.IMessageContext? context = null) -> System.Threading.Tasks.Task!
 Excalibur.Security.ISecurityEventStore
 Excalibur.Security.ISecurityEventStore.QueryEventsAsync(Excalibur.Security.SecurityEventQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Security.SecurityEvent!>!>!
 Excalibur.Security.ISecurityEventStore.StoreEventsAsync(System.Collections.Generic.IEnumerable<Excalibur.Security.SecurityEvent!>! events, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -206,8 +206,8 @@ Excalibur.Security.InputValidationException.InputValidationException(string! mes
 Excalibur.Security.InputValidationException.ValidationErrors.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Excalibur.Security.InputValidationMiddleware
 Excalibur.Security.InputValidationMiddleware.InputValidationMiddleware(Microsoft.Extensions.Logging.ILogger<Excalibur.Security.InputValidationMiddleware!>! logger, Excalibur.Security.InputValidationOptions! options, System.Collections.Generic.IEnumerable<Excalibur.Security.IInputValidator!>! validators, Excalibur.Security.ISecurityEventLogger! securityEventLogger) -> void
-Excalibur.Security.InputValidationMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
-Excalibur.Security.InputValidationMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Security.InputValidationMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
+Excalibur.Security.InputValidationMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Security.InputValidationOptions
 Excalibur.Security.InputValidationOptions.AllowEmptyStrings.get -> bool
 Excalibur.Security.InputValidationOptions.AllowEmptyStrings.set -> void
@@ -237,10 +237,10 @@ Excalibur.Security.InputValidationResult.InputValidationResult(bool IsValid, str
 Excalibur.Security.InputValidationResult.IsValid.get -> bool
 Excalibur.Security.InputValidationResult.IsValid.init -> void
 Excalibur.Security.JwtAuthenticationMiddleware
-Excalibur.Security.JwtAuthenticationMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
-Excalibur.Security.JwtAuthenticationMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
-Excalibur.Security.JwtAuthenticationMiddleware.JwtAuthenticationMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Security.JwtAuthenticationOptions!>! options, Excalibur.Dispatch.Abstractions.Telemetry.ITelemetrySanitizer! sanitizer, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.JwtAuthenticationMiddleware!>! logger, Excalibur.Security.ICredentialStore? credentialStore = null) -> void
-Excalibur.Security.JwtAuthenticationMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Security.JwtAuthenticationMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.MessageKinds
+Excalibur.Security.JwtAuthenticationMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
+Excalibur.Security.JwtAuthenticationMiddleware.JwtAuthenticationMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Security.JwtAuthenticationOptions!>! options, Excalibur.Dispatch.Telemetry.ITelemetrySanitizer! sanitizer, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.JwtAuthenticationMiddleware!>! logger, Excalibur.Security.ICredentialStore? credentialStore = null) -> void
+Excalibur.Security.JwtAuthenticationMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Security.JwtAuthenticationOptions
 Excalibur.Security.JwtAuthenticationOptions.AllowAnonymousMessageTypes.get -> System.Collections.Generic.ISet<string!>!
 Excalibur.Security.JwtAuthenticationOptions.AllowAnonymousMessageTypes.init -> void
@@ -299,9 +299,9 @@ Excalibur.Security.JwtTokenValidationOptions.ValidateSigningKey.get -> bool
 Excalibur.Security.JwtTokenValidationOptions.ValidateSigningKey.set -> void
 Excalibur.Security.KeyProviderExtensions
 Excalibur.Security.LazyReEncryptionMiddleware
-Excalibur.Security.LazyReEncryptionMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Security.LazyReEncryptionMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Security.LazyReEncryptionMiddleware.LazyReEncryptionMiddleware(Excalibur.Compliance.IEncryptionMigrationService! migrationService, Excalibur.Compliance.IEncryptionProvider! encryptionProvider, Microsoft.Extensions.Options.IOptions<Excalibur.Security.LazyReEncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.LazyReEncryptionMiddleware!>! logger) -> void
-Excalibur.Security.LazyReEncryptionMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Security.LazyReEncryptionMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Security.LazyReEncryptionOptions
 Excalibur.Security.LazyReEncryptionOptions.ContinueOnFailure.get -> bool
 Excalibur.Security.LazyReEncryptionOptions.ContinueOnFailure.set -> void
@@ -317,15 +317,15 @@ Excalibur.Security.LazyReEncryptionOptions.TargetAlgorithm.set -> void
 Excalibur.Security.LazyReEncryptionOptions.TargetKeyId.get -> string?
 Excalibur.Security.LazyReEncryptionOptions.TargetKeyId.set -> void
 Excalibur.Security.MessageEncryptionMiddleware
-Excalibur.Security.MessageEncryptionMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
-Excalibur.Security.MessageEncryptionMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Security.MessageEncryptionMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.MessageKinds
+Excalibur.Security.MessageEncryptionMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Security.MessageEncryptionMiddleware.MessageEncryptionMiddleware(Excalibur.Security.IMessageEncryptionService! encryptionService, Microsoft.Extensions.Options.IOptions<Excalibur.Security.EncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.MessageEncryptionMiddleware!>! logger) -> void
-Excalibur.Security.MessageEncryptionMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Security.MessageEncryptionMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Security.MessageSigningMiddleware
-Excalibur.Security.MessageSigningMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
-Excalibur.Security.MessageSigningMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Security.MessageSigningMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.MessageKinds
+Excalibur.Security.MessageSigningMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Security.MessageSigningMiddleware.MessageSigningMiddleware(Excalibur.Security.IMessageSigningService! signingService, Microsoft.Extensions.Options.IOptions<Excalibur.Security.SigningOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.MessageSigningMiddleware!>! logger) -> void
-Excalibur.Security.MessageSigningMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Security.MessageSigningMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Security.RateLimitAlgorithm
 Excalibur.Security.RateLimitAlgorithm.Concurrency = 4 -> Excalibur.Security.RateLimitAlgorithm
 Excalibur.Security.RateLimitAlgorithm.FixedWindow = 3 -> Excalibur.Security.RateLimitAlgorithm
@@ -339,14 +339,14 @@ Excalibur.Security.RateLimitExceededResult.CacheHit.get -> bool
 Excalibur.Security.RateLimitExceededResult.CacheHit.set -> void
 Excalibur.Security.RateLimitExceededResult.ErrorMessage.get -> string?
 Excalibur.Security.RateLimitExceededResult.ErrorMessage.set -> void
-Excalibur.Security.RateLimitExceededResult.ProblemDetails.get -> Excalibur.Dispatch.Abstractions.IMessageProblemDetails?
+Excalibur.Security.RateLimitExceededResult.ProblemDetails.get -> Excalibur.Dispatch.IMessageProblemDetails?
 Excalibur.Security.RateLimitExceededResult.ProblemDetails.set -> void
 Excalibur.Security.RateLimitExceededResult.RateLimitExceededResult() -> void
 Excalibur.Security.RateLimitExceededResult.RateLimitKey.get -> string?
 Excalibur.Security.RateLimitExceededResult.RateLimitKey.set -> void
 Excalibur.Security.RateLimitExceededResult.RetryAfterMilliseconds.get -> int
 Excalibur.Security.RateLimitExceededResult.RetryAfterMilliseconds.set -> void
-Excalibur.Security.RateLimitExceededResult.RoutingDecision.get -> Excalibur.Dispatch.Abstractions.Routing.RoutingDecision?
+Excalibur.Security.RateLimitExceededResult.RoutingDecision.get -> Excalibur.Dispatch.Routing.RoutingDecision?
 Excalibur.Security.RateLimitExceededResult.RoutingDecision.set -> void
 Excalibur.Security.RateLimitExceededResult.Succeeded.get -> bool
 Excalibur.Security.RateLimitExceededResult.Succeeded.set -> void
@@ -354,12 +354,12 @@ Excalibur.Security.RateLimitExceededResult.ValidationResult.get -> object?
 Excalibur.Security.RateLimitExceededResult.ValidationResult.set -> void
 Excalibur.Security.RateLimitKeyPrefixes
 Excalibur.Security.RateLimitingMiddleware
-Excalibur.Security.RateLimitingMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Security.RateLimitingMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.MessageKinds
 Excalibur.Security.RateLimitingMiddleware.Dispose() -> void
 Excalibur.Security.RateLimitingMiddleware.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Security.RateLimitingMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Security.RateLimitingMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Security.RateLimitingMiddleware.RateLimitingMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Security.RateLimitingOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.RateLimitingMiddleware!>! logger) -> void
-Excalibur.Security.RateLimitingMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Security.RateLimitingMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Security.RateLimitingOptions
 Excalibur.Security.RateLimitingOptions.Algorithm.get -> Excalibur.Security.RateLimitAlgorithm
 Excalibur.Security.RateLimitingOptions.Algorithm.set -> void
@@ -814,9 +814,9 @@ static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.Add
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddMessageSigning(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.SigningOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddRateLimiting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddRateLimiting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.RateLimitingOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SecurityExcaliburBuilderExtensions.UseSecurity(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.SecurityExcaliburBuilderExtensions.UseSecurity(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddDispatchSecurity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddInputValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecureCredentialManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecurityAuditing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.UseSecurityMiddleware(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.UseSecurityMiddleware(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!

@@ -4,8 +4,6 @@
 
 using System.Collections.Frozen;
 
-using Excalibur.Dispatch.Abstractions.Configuration;
-
 namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>

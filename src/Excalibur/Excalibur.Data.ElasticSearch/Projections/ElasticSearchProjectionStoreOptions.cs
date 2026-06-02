@@ -117,6 +117,25 @@ public sealed class ElasticSearchProjectionStoreOptions
 	public bool EnableDebugMode { get; set; }
 
 	/// <summary>
+	/// Gets or sets the index mapping convention for customizing how CLR types
+	/// are mapped to Elasticsearch field types during index creation.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// When <see langword="null"/> (default), the framework applies the standard
+	/// <see cref="DefaultIndexMappingConvention"/> which maps CLR types to Elasticsearch
+	/// types via reflection (string → keyword, int → long, DateTime → date, etc.).
+	/// </para>
+	/// <para>
+	/// Set this to a custom <see cref="IIndexMappingConvention"/> to override the default
+	/// behavior — for example, mapping strings as <c>text</c> fields with keyword sub-fields,
+	/// or applying custom analyzers to specific property patterns.
+	/// </para>
+	/// </remarks>
+	/// <value>Defaults to <see langword="null"/> (uses <see cref="DefaultIndexMappingConvention"/>).</value>
+	public IIndexMappingConvention? IndexMappingConvention { get; set; }
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>

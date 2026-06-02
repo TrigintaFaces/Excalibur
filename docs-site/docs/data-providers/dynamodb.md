@@ -63,6 +63,10 @@ services.AddExcaliburDynamoDb(dynamo =>
 
 All registrations include `ValidateOnStart` for options validation.
 
+### Projection Store
+
+Projections are stored flat at the document root. Framework metadata is isolated under a `_projection` nested object to avoid collisions with your projection properties. See [Projections — Document Storage Format](../event-sourcing/projections.md#document-storage-format) for details.
+
 ### Subsystem Registration
 
 Each Excalibur subsystem supports DynamoDB via its own builder:

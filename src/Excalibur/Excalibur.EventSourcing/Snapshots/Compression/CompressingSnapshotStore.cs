@@ -4,7 +4,6 @@
 using System.IO.Compression;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Decorators;
 
 using Microsoft.Extensions.Options;

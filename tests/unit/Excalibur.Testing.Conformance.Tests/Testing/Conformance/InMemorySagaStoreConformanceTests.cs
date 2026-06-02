@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 
 using Excalibur.Saga.Orchestration;
 
@@ -15,7 +15,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 /// Conformance tests for <see cref="InMemorySagaStore"/> validating ISagaStore contract compliance.
 /// </summary>
 /// <remarks>
-/// InMemorySagaStore directly implements <see cref="ISagaStore"/> from Excalibur.Dispatch.Abstractions.Messaging.Delivery,
+/// InMemorySagaStore directly implements <see cref="ISagaStore"/> from Excalibur.Dispatch.Messaging.Delivery,
 /// so no adapter is needed. The conformance test kit validates the contract compliance.
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]

@@ -4,7 +4,7 @@
 
 using System.Text.Json.Serialization;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Application.Requests.Jobs;
 

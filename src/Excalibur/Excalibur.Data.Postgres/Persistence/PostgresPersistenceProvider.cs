@@ -7,10 +7,9 @@ using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

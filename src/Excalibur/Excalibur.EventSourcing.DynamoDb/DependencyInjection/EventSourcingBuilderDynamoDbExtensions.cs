@@ -5,8 +5,8 @@ using System.Diagnostics.CodeAnalysis;
 
 using Amazon.DynamoDBv2;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.CloudNative;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.DynamoDb;
 

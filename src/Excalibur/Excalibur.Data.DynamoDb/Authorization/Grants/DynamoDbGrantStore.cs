@@ -5,7 +5,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.Data.DynamoDb.Diagnostics;
 
 using Microsoft.Extensions.Logging;

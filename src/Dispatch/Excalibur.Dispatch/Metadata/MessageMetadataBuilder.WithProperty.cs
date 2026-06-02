@@ -3,8 +3,6 @@
 
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Metadata;
 
 public sealed partial class MessageMetadataBuilder

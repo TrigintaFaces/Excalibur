@@ -8,7 +8,7 @@
 // The aggregate sets EventId, AggregateId, Version, and OccurredAt via RaiseEvent().
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Dispatch.Aot.Sample.EventSourcing;
 

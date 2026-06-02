@@ -19,6 +19,7 @@ dotnet add package Excalibur.Dispatch.Transport.Kafka
 ```
 
 :::tip One-Line Setup with Metapackage
+
 For the fastest setup, use the **`Excalibur.Dispatch.Kafka`** experience metapackage. It bundles the Kafka transport with Polly resilience and OpenTelemetry observability in a single call:
 
 ```bash
@@ -79,6 +80,7 @@ var bus = serviceProvider.GetRequiredKeyedService<IMessageBus>("kafka");
 ### Fluent Builder Configuration
 
 :::tip Start simple
+
 For most applications, the Quick Start above is all you need. The fluent builder below is for production tuning (acknowledgment levels, compression, partitioning strategy).
 :::
 

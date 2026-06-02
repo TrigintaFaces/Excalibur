@@ -6,22 +6,22 @@
   <!-- Preserve core message abstractions -->
   <assembly fullname="Excalibur.Dispatch.Abstractions">
     <!-- Core messaging interfaces -->
-    <type fullname="Excalibur.Dispatch.Abstractions.IDispatchMessage" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.IDispatchEvent" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.IDomainEvent" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.IIntegrationEvent" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.ISagaEvent" preserve="all" />
+    <type fullname="Excalibur.Dispatch.IDispatchMessage" preserve="all" />
+    <type fullname="Excalibur.Dispatch.IDispatchEvent" preserve="all" />
+    <type fullname="Excalibur.Dispatch.IDomainEvent" preserve="all" />
+    <type fullname="Excalibur.Dispatch.IIntegrationEvent" preserve="all" />
+    <type fullname="Excalibur.Dispatch.ISagaEvent" preserve="all" />
 
     <!-- Handler interfaces -->
-    <type fullname="Excalibur.Dispatch.Abstractions.Delivery.IActionHandler`1" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.Delivery.IActionHandler`2" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.Delivery.IEventHandler`1" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.Delivery.IDocumentHandler`1" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.IDispatchHandler`1" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.IActionHandler`1" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.IActionHandler`2" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.IEventHandler`1" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.IDocumentHandler`1" preserve="all" />
+    <type fullname="Excalibur.Dispatch.IDispatchHandler`1" preserve="all" />
 
     <!-- Context and delivery types -->
-    <type fullname="Excalibur.Dispatch.Abstractions.IMessageContext" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.IMessageResult" preserve="all" />
+    <type fullname="Excalibur.Dispatch.IMessageContext" preserve="all" />
+    <type fullname="Excalibur.Dispatch.IMessageResult" preserve="all" />
   </assembly>
 
   <!-- Preserve Dispatch implementation types -->

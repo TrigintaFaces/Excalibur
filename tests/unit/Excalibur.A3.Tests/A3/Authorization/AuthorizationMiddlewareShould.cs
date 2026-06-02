@@ -5,7 +5,7 @@ using System.Security.Claims;
 
 using Excalibur.A3;
 using Excalibur.A3.Authorization;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using FakeItEasy;
 
@@ -129,7 +129,7 @@ public sealed class AuthorizationMiddlewareShould
 		A.CallTo(() => _accessToken.Claims).Returns([]);
 		A.CallTo(() => _accessToken.IsAuthenticated()).Returns(true);
 
-		var authResult = Excalibur.Dispatch.Abstractions.AuthorizationResult.Success();
+		var authResult = Excalibur.Dispatch.AuthorizationResult.Success();
 		A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<ClaimsPrincipal>.Ignored,
 			A<string>.Ignored,
@@ -160,7 +160,7 @@ public sealed class AuthorizationMiddlewareShould
 		A.CallTo(() => _accessToken.Claims).Returns([]);
 		A.CallTo(() => _accessToken.IsAuthenticated()).Returns(false);
 
-		var authResult = Excalibur.Dispatch.Abstractions.AuthorizationResult.Failed("Unauthorized");
+		var authResult = Excalibur.Dispatch.AuthorizationResult.Failed("Unauthorized");
 		A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<ClaimsPrincipal>.Ignored,
 			A<string>.Ignored,
@@ -193,7 +193,7 @@ public sealed class AuthorizationMiddlewareShould
 		A.CallTo(() => _accessToken.Claims).Returns([]);
 		A.CallTo(() => _accessToken.IsAuthenticated()).Returns(true);
 
-		var authResult = Excalibur.Dispatch.Abstractions.AuthorizationResult.Success();
+		var authResult = Excalibur.Dispatch.AuthorizationResult.Success();
 		A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<ClaimsPrincipal>.Ignored,
 			A<string>.Ignored,

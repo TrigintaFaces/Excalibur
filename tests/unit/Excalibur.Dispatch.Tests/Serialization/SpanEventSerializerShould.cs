@@ -4,8 +4,7 @@
 using System.Buffers;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 
 using FakeItEasy;

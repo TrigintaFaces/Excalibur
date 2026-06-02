@@ -10,9 +10,8 @@ using System.Threading.Channels;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport.AwsSqs;
 

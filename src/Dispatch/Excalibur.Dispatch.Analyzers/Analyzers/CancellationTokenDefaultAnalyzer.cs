@@ -15,56 +15,56 @@ namespace Excalibur.Dispatch.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class CancellationTokenDefaultAnalyzer : DiagnosticAnalyzer
 {
-    private const string CancellationTokenTypeName = "System.Threading.CancellationToken";
+	private const string CancellationTokenTypeName = "System.Threading.CancellationToken";
 
-    /// <inheritdoc />
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(AnalyzerDiagnosticDescriptors.CancellationTokenOptionalInInterface);
+	/// <inheritdoc />
+	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
+		ImmutableArray.Create(AnalyzerDiagnosticDescriptors.CancellationTokenOptionalInInterface);
 
-    /// <inheritdoc />
-    public override void Initialize(AnalysisContext context)
-    {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.EnableConcurrentExecution();
+	/// <inheritdoc />
+	public override void Initialize(AnalysisContext context)
+	{
+		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+		context.EnableConcurrentExecution();
 
-        context.RegisterSymbolAction(AnalyzeMethod, SymbolKind.Method);
-    }
+		context.RegisterSymbolAction(AnalyzeMethod, SymbolKind.Method);
+	}
 
-    private static void AnalyzeMethod(SymbolAnalysisContext context)
-    {
-        var method = (IMethodSymbol)context.Symbol;
+	private static void AnalyzeMethod(SymbolAnalysisContext context)
+	{
+		var method = (IMethodSymbol)context.Symbol;
 
-        // Only analyze interface method declarations
-        if (method.ContainingType?.TypeKind != TypeKind.Interface)
-        {
-            return;
-        }
+		// Only analyze interface method declarations
+		if (method.ContainingType?.TypeKind != TypeKind.Interface)
+		{
+			return;
+		}
 
-        // Only analyze within Excalibur namespaces
-        var namespaceName = method.ContainingType.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-        if (!namespaceName.StartsWith("Excalibur", StringComparison.Ordinal) && !namespaceName.StartsWith("Dispatch", StringComparison.Ordinal))
-        {
-            return;
-        }
+		// Only analyze within Excalibur namespaces
+		var namespaceName = method.ContainingType.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+		if (!namespaceName.StartsWith("Excalibur", StringComparison.Ordinal) && !namespaceName.StartsWith("Dispatch", StringComparison.Ordinal))
+		{
+			return;
+		}
 
-        var cancellationTokenType = context.Compilation.GetTypeByMetadataName(CancellationTokenTypeName);
-        if (cancellationTokenType == null)
-        {
-            return;
-        }
+		var cancellationTokenType = context.Compilation.GetTypeByMetadataName(CancellationTokenTypeName);
+		if (cancellationTokenType == null)
+		{
+			return;
+		}
 
-        foreach (var parameter in method.Parameters)
-        {
-            if (SymbolEqualityComparer.Default.Equals(parameter.Type, cancellationTokenType) && parameter.HasExplicitDefaultValue)
-            {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
-                        AnalyzerDiagnosticDescriptors.CancellationTokenOptionalInInterface,
-                        parameter.Locations[0],
-                        parameter.Name,
-                        method.ContainingType.Name,
-                        method.Name));
-            }
-        }
-    }
+		foreach (var parameter in method.Parameters)
+		{
+			if (SymbolEqualityComparer.Default.Equals(parameter.Type, cancellationTokenType) && parameter.HasExplicitDefaultValue)
+			{
+				context.ReportDiagnostic(
+					Diagnostic.Create(
+						AnalyzerDiagnosticDescriptors.CancellationTokenOptionalInInterface,
+						parameter.Locations[0],
+						parameter.Name,
+						method.ContainingType.Name,
+						method.Name));
+			}
+		}
+	}
 }

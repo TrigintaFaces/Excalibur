@@ -13,7 +13,7 @@
 //   6. Health check integration
 // -----------------------------------------------------------------------
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 using Excalibur.Data.Firestore;
 
 using Microsoft.Extensions.Configuration;

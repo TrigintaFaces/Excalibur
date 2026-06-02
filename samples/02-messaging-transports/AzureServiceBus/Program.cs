@@ -22,7 +22,7 @@
 using AzureServiceBusSample.Messages;
 
 using Excalibur.Outbox.InMemory;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Routing;

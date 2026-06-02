@@ -14,7 +14,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 /// Conformance tests for <see cref="InMemoryInboxStore"/> validating IInboxStore contract compliance.
 /// </summary>
 /// <remarks>
-/// InMemoryInboxStore directly implements <see cref="IInboxStore"/> from Excalibur.Dispatch.Abstractions.Inbox,
+/// InMemoryInboxStore directly implements <see cref="IInboxStore"/> from Excalibur.Dispatch.Inbox,
 /// so no adapter is needed. The conformance test kit validates the contract compliance.
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]

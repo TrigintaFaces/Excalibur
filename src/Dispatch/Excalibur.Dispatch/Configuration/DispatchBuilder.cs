@@ -4,10 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Diagnostics;
@@ -435,19 +432,6 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			CancellationToken cancellationToken)
 			where TMessage : IDispatchAction<TResponse> =>
 			holder.GetOrThrow().DispatchAsync<TMessage, TResponse>(message, context, cancellationToken);
-
-		/// <inheritdoc />
-		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
-			IDispatchAction<TResponse> message,
-			CancellationToken cancellationToken) =>
-			holder.GetOrThrow().DispatchAsync(message, cancellationToken);
-
-		/// <inheritdoc />
-		public Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
-			IDispatchAction<TResponse> message,
-			IMessageContext context,
-			CancellationToken cancellationToken) =>
-			holder.GetOrThrow().DispatchAsync(message, context, cancellationToken);
 
 		public IAsyncEnumerable<TOutput> DispatchStreamingAsync<TDocument, TOutput>(
 			TDocument document,

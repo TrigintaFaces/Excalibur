@@ -347,7 +347,6 @@ builder.Services.AddHealthChecks()
 |----------|------|---------|-------------|
 | `IncludeOutbox` | `bool` | `true` | Register outbox health check when `IOutboxPublisher` is in DI |
 | `IncludeInbox` | `bool` | `true` | Register inbox health check when `IInboxStore` is in DI |
-| `IncludeSaga` | `bool` | `true` | Register saga health check when `ISagaMonitoringService` is in DI |
 | `IncludeLeaderElection` | `bool` | `true` | Register leader election health check when `ILeaderElection` is in DI |
 
 ### Conditional Registration

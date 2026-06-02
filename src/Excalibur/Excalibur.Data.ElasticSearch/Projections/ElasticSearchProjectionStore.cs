@@ -5,7 +5,6 @@ using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Reflection;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Elastic.Clients.Elasticsearch;
@@ -15,7 +14,7 @@ using Elastic.Transport;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
 using Excalibur.Data.ElasticSearch.Exceptions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -30,8 +29,10 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// <remarks>
 /// <para>
 /// Provides projection storage using ElasticSearch indices with JSON documents.
-/// Each projection type gets a dedicated index for optimal query performance.
-/// Uses IndexAsync with the same document ID for atomic upsert operations.
+/// Each projection type gets a dedicated index (via <see cref="ElasticSearchProjectionIndexConvention"/>)
+/// for optimal query performance. The projection is stored flat as the document root —
+/// no envelope wrapper — so custom repositories using <see cref="ElasticRepositoryBase{TDocument}"/>
+/// can query the same index with natural field names.
 /// </para>
 /// <para>
 /// Supports dictionary-based filters translated to ElasticSearch Query DSL.
@@ -48,13 +49,6 @@ public sealed partial class ElasticSearchProjectionStore<
 	IAsyncDisposable
 	where TProjection : class
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-		WriteIndented = false
-	};
-
 	private static readonly IReadOnlyDictionary<string, ProjectionFieldDefinition> FieldDefinitions =
 		BuildFieldDefinitions();
 
@@ -143,12 +137,12 @@ public sealed partial class ElasticSearchProjectionStore<
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var response = await _client!
-			.GetAsync<ElasticSearchProjectionDocument>(_indexName, id, cancellationToken)
+			.GetAsync<TProjection>(_indexName, id, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (response is { IsValidResponse: true, Found: true } && response.Source is not null)
 		{
-			return response.Source.ToProjection<TProjection>();
+			return response.Source;
 		}
 
 		if (!response.Found || response.ApiCallDetails?.HttpStatusCode == (int)HttpStatusCode.NotFound)
@@ -182,11 +176,10 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = ElasticSearchProjectionDocument.FromProjection(id, _projectionType, projection);
-
-		// IndexAsync with same ID performs upsert (insert or replace)
+		// IndexAsync with same ID performs upsert (insert or replace).
+		// The projection is serialized directly — no envelope wrapper.
 		var response = await _client!
-			.IndexAsync(document, _indexName, id, cancellationToken)
+			.IndexAsync(projection, _indexName, id, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (!response.IsValidResponse)
@@ -256,7 +249,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var searchRequest = BuildSearchRequest(filters, options);
 
 		var response = await _client!
-			.SearchAsync<ElasticSearchProjectionDocument>(searchRequest, cancellationToken)
+			.SearchAsync<TProjection>(searchRequest, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (!response.IsValidResponse)
@@ -274,20 +267,10 @@ public sealed partial class ElasticSearchProjectionStore<
 				response.ApiCallDetails?.OriginalException);
 		}
 
-		var results = new List<TProjection>();
-		foreach (var hit in response.Hits)
-		{
-			if (hit.Source is not null)
-			{
-				var projection = hit.Source.ToProjection<TProjection>();
-				if (projection is not null)
-				{
-					results.Add(projection);
-				}
-			}
-		}
-
-		return results;
+		return response.Hits
+			.Where(h => h.Source is not null)
+			.Select(h => h.Source!)
+			.ToList();
 	}
 
 	/// <inheritdoc/>
@@ -302,7 +285,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var query = BuildQuery(filters);
 
 		var response = await _client!
-			.CountAsync<ElasticSearchProjectionDocument>(c => c
+			.CountAsync<TProjection>(c => c
 				.Indices(_indexName)
 				.Query(query), cancellationToken)
 			.ConfigureAwait(false);
@@ -338,7 +321,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		return ValueTask.CompletedTask;
 	}
 
-	private static Action<QueryDescriptor<ElasticSearchProjectionDocument>> BuildFilterCondition(
+	private static Action<QueryDescriptor<TProjection>> BuildFilterCondition(
 		string fieldName,
 		ProjectionFieldType fieldType,
 		FilterOperator op,
@@ -380,7 +363,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		};
 	}
 
-	private static Action<QueryDescriptor<ElasticSearchProjectionDocument>> BuildInCondition(
+	private static Action<QueryDescriptor<TProjection>> BuildInCondition(
 		string fieldName,
 		ProjectionFieldType fieldType,
 		object value)
@@ -454,7 +437,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		};
 	}
 
-	private static Action<QueryDescriptor<ElasticSearchProjectionDocument>> BuildRangeCondition(
+	private static Action<QueryDescriptor<TProjection>> BuildRangeCondition(
 		string fieldName,
 		ProjectionFieldType fieldType,
 		object value,
@@ -510,7 +493,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		};
 	}
 
-	private static Action<QueryDescriptor<ElasticSearchProjectionDocument>> MatchNoneCondition()
+	private static Action<QueryDescriptor<TProjection>> MatchNoneCondition()
 	{
 		return q => q.Term(t => t.Field("_nonexistent_field_").Value("impossible_value"));
 	}
@@ -528,7 +511,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 	private static string GetFieldPath(ProjectionFieldDefinition fieldDefinition)
 	{
-		return $"data.{fieldDefinition.JsonName}";
+		return fieldDefinition.JsonName;
 	}
 
 	private static string GetExactMatchFieldName(string fieldName, ProjectionFieldType fieldType)
@@ -615,11 +598,11 @@ public sealed partial class ElasticSearchProjectionStore<
 		return string.Concat(char.ToLowerInvariant(value[0]).ToString(), value.AsSpan(1).ToString());
 	}
 
-	private SearchRequestDescriptor<ElasticSearchProjectionDocument> BuildSearchRequest(
+	private SearchRequestDescriptor<TProjection> BuildSearchRequest(
 		IDictionary<string, object>? filters,
 		QueryOptions? options)
 	{
-		var descriptor = new SearchRequestDescriptor<ElasticSearchProjectionDocument>()
+		var descriptor = new SearchRequestDescriptor<TProjection>()
 			.Index(_indexName)
 			.Query(BuildQuery(filters));
 
@@ -655,32 +638,32 @@ public sealed partial class ElasticSearchProjectionStore<
 		return descriptor;
 	}
 
-	private Action<QueryDescriptor<ElasticSearchProjectionDocument>> BuildQuery(IDictionary<string, object>? filters)
+	private static Action<QueryDescriptor<TProjection>> BuildQuery(IDictionary<string, object>? filters)
 	{
 		return q =>
 		{
-			// Always filter by projection type
-			// With dynamic mapping, string fields get both text and .keyword subfields
-			// Use the .keyword subfield for exact term matching
-			var conditions = new List<Action<QueryDescriptor<ElasticSearchProjectionDocument>>>
+			// Each projection type gets its own index (via ElasticSearchProjectionIndexConvention),
+			// so no projectionType discriminator is needed — unlike shared-container stores
+			// (CosmosDB, MongoDB) which use a type field for multi-type indices.
+			if (filters is null || filters.Count == 0)
 			{
-				mq => mq.Term(t => t.Field("projectionType.keyword").Value(_projectionType))
-			};
+				_ = q.MatchAll(new MatchAllQuery());
+				return;
+			}
 
-			if (filters is not null && filters.Count > 0)
+			var conditions = new List<Action<QueryDescriptor<TProjection>>>();
+
+			foreach (var (key, value) in filters)
 			{
-				foreach (var (key, value) in filters)
-				{
-					var parsed = FilterParser.Parse(key);
-					var fieldDefinition = ResolveFieldDefinition(parsed.PropertyName);
-					var fieldName = GetFieldPath(fieldDefinition);
+				var parsed = FilterParser.Parse(key);
+				var fieldDefinition = ResolveFieldDefinition(parsed.PropertyName);
+				var fieldName = GetFieldPath(fieldDefinition);
 
-					conditions.Add(BuildFilterCondition(
-						fieldName,
-						fieldDefinition.FieldType,
-						parsed.Operator,
-						value));
-				}
+				conditions.Add(BuildFilterCondition(
+					fieldName,
+					fieldDefinition.FieldType,
+					parsed.Operator,
+					value));
 			}
 
 			_ = q.Bool(b => b.Must(conditions.ToArray()));
@@ -756,11 +739,19 @@ public sealed partial class ElasticSearchProjectionStore<
 		// 2. Inferred: Reflection over public properties (keyword for strings, long/double for numerics, etc.)
 		// 3. Dynamic: Elasticsearch guesses (only for unknown/complex types not covered by tiers 1-2)
 		//
-		// Projections are stored in a wrapper document with envelope fields (projectionId,
-		// projectionType, updatedAt) and the projection data nested under a "data" object.
-		// The envelope fields are always mapped explicitly; the projection fields under
-		// "data" use the tiered strategy.
-		var dataProperties = BuildProjectionDataProperties();
+		// Projections are stored flat — the TProjection is the document root. Each projection
+		// type gets its own index (via ElasticSearchProjectionIndexConvention), so no envelope
+		// metadata (projectionType discriminator, etc.) is needed.
+		var properties = ElasticIndexMappingBuilder.BuildMappingProperties<TProjection>();
+
+		// Apply convention-based customization if configured.
+		// This allows consumers to globally override mapping defaults (e.g., text + keyword
+		// multi-fields for strings) without implementing IElasticIndexConfiguration<T> per type.
+		var convention = _options.IndexMappingConvention;
+		if (convention is not null)
+		{
+			properties = convention.ConfigureMappings(typeof(TProjection), properties);
+		}
 
 		var createResponse = await _client!.Indices
 			.CreateAsync(_indexName, c => c
@@ -769,13 +760,7 @@ public sealed partial class ElasticSearchProjectionStore<
 					.NumberOfReplicas(_options.NumberOfReplicas)
 					.RefreshInterval(_options.RefreshInterval))
 				.Mappings(m => m
-					.Properties(new Properties
-					{
-						{ "projectionId", new KeywordProperty() },
-						{ "projectionType", new KeywordProperty() },
-						{ "updatedAt", new DateProperty() },
-						{ "data", new ObjectProperty { Properties = dataProperties } }
-					})), cancellationToken)
+					.Properties(properties)), cancellationToken)
 			.ConfigureAwait(false);
 
 		if (!createResponse.IsValidResponse && !createResponse.Acknowledged)
@@ -783,34 +768,6 @@ public sealed partial class ElasticSearchProjectionStore<
 			var errorMessage = createResponse.ApiCallDetails?.ToString() ?? "Unknown error";
 			LogIndexCreationFailed(_indexName, errorMessage);
 		}
-	}
-
-	/// <summary>
-	/// Builds the Elasticsearch properties for the projection data sub-object using the
-	/// three-tier mapping strategy from <see cref="ElasticIndexMappingBuilder"/>.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// The projection store wraps documents in an envelope with <c>projectionId</c>,
-	/// <c>projectionType</c>, and <c>updatedAt</c> fields. The projection's own properties
-	/// are nested under a <c>data</c> object. This method builds the mappings for the
-	/// <c>data</c> sub-object only.
-	/// </para>
-	/// <para>
-	/// Uses the full three-tier strategy:
-	/// </para>
-	/// <list type="number">
-	/// <item><b>Explicit</b>: If <typeparamref name="TProjection"/> implements
-	/// <see cref="IElasticIndexConfiguration{TSelf}"/>, its <c>ConfigureIndex</c> method
-	/// provides full control.</item>
-	/// <item><b>Inferred</b>: Otherwise, reflects public properties and maps to
-	/// keyword/long/double/date/boolean.</item>
-	/// <item><b>Dynamic</b>: Unknown/complex types fall through to ES dynamic mapping.</item>
-	/// </list>
-	/// </remarks>
-	private static Properties BuildProjectionDataProperties()
-	{
-		return ElasticIndexMappingBuilder.BuildMappingProperties<TProjection>();
 	}
 
 	[LoggerMessage(DataElasticsearchEventId.ProjectionStoreInitialized, LogLevel.Information,
@@ -826,79 +783,6 @@ public sealed partial class ElasticSearchProjectionStore<
 	[LoggerMessage(DataElasticsearchEventId.ProjectionIndexCreationFailed, LogLevel.Warning,
 		"Failed to create index '{IndexName}': {ErrorMessage}")]
 	private partial void LogIndexCreationFailed(string indexName, string errorMessage);
-
-	/// <summary>
-	/// Internal document structure for ElasticSearch storage.
-	/// </summary>
-	internal sealed class ElasticSearchProjectionDocument
-	{
-		/// <summary>
-		/// Gets or sets the original projection identifier.
-		/// </summary>
-		[JsonPropertyName("projectionId")]
-		public string ProjectionId { get; set; } = string.Empty;
-
-		/// <summary>
-		/// Gets or sets the projection type name for filtering.
-		/// </summary>
-		[JsonPropertyName("projectionType")]
-		public string ProjectionType { get; set; } = string.Empty;
-
-		/// <summary>
-		/// Gets or sets the projection data as a JSON object.
-		/// </summary>
-		[JsonPropertyName("data")]
-		public JsonElement Data { get; set; }
-
-		/// <summary>
-		/// Gets or sets the last update timestamp.
-		/// </summary>
-		[JsonPropertyName("updatedAt")]
-		public DateTimeOffset UpdatedAt { get; set; }
-
-		/// <summary>
-		/// Creates a document from a projection instance.
-		/// </summary>
-		/// <typeparam name="T">The projection type.</typeparam>
-		/// <param name="id">The projection identifier.</param>
-		/// <param name="projectionType">The projection type name.</param>
-		/// <param name="projection">The projection instance.</param>
-		/// <returns>A new document instance.</returns>
-		public static ElasticSearchProjectionDocument FromProjection<T>(string id, string projectionType, T projection)
-			where T : class
-		{
-			#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
-			var json = JsonSerializer.Serialize(projection, JsonOptions);
-			#pragma warning restore IL2026, IL3050
-			var data = JsonDocument.Parse(json).RootElement;
-
-			return new ElasticSearchProjectionDocument
-			{
-				ProjectionId = id,
-				ProjectionType = projectionType,
-				Data = data,
-				UpdatedAt = DateTimeOffset.UtcNow
-			};
-		}
-
-		/// <summary>
-		/// Converts the document back to a projection instance.
-		/// </summary>
-		/// <typeparam name="T">The projection type.</typeparam>
-		/// <returns>The deserialized projection, or null if data is empty.</returns>
-		public T? ToProjection<T>()
-			where T : class
-		{
-			if (Data.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
-			{
-				return null;
-			}
-
-			#pragma warning disable IL2026, IL3050 // JSON deserialization uses reflection
-			return JsonSerializer.Deserialize<T>(Data.GetRawText(), JsonOptions);
-			#pragma warning restore IL2026, IL3050
-		}
-	}
 
 	private sealed record ProjectionFieldDefinition(string JsonName, ProjectionFieldType FieldType);
 }

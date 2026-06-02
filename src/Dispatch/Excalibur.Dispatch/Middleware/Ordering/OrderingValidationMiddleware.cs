@@ -3,7 +3,6 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Middleware.Ordering;

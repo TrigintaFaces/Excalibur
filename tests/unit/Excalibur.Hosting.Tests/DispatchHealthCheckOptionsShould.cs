@@ -34,16 +34,6 @@ public sealed class DispatchHealthCheckOptionsShould
 	}
 
 	[Fact]
-	public void HaveIncludeSagaTrueByDefault()
-	{
-		// Act
-		var options = new DispatchHealthCheckOptions();
-
-		// Assert
-		options.IncludeSaga.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void HaveIncludeLeaderElectionTrueByDefault()
 	{
 		// Act
@@ -62,13 +52,11 @@ public sealed class DispatchHealthCheckOptionsShould
 		// Act
 		options.IncludeOutbox = false;
 		options.IncludeInbox = false;
-		options.IncludeSaga = false;
 		options.IncludeLeaderElection = false;
 
 		// Assert
 		options.IncludeOutbox.ShouldBeFalse();
 		options.IncludeInbox.ShouldBeFalse();
-		options.IncludeSaga.ShouldBeFalse();
 		options.IncludeLeaderElection.ShouldBeFalse();
 	}
 }

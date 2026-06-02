@@ -3,8 +3,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Saga.Orchestration;
 
@@ -288,7 +288,7 @@ public sealed class SagaLifecycleE2EShould : FunctionalTestBase
 		stateAfterReplay.OrderId.ShouldBe("ORD-IDEMPOTENT");
 	}
 
-	public override async Task DisposeAsync()
+	public override async ValueTask DisposeAsync()
 	{
 		if (_serviceProvider is not null)
 		{

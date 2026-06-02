@@ -3,7 +3,7 @@
 
 using Excalibur.Compliance.SqlServer;
 using Excalibur.Compliance.SqlServer.Erasure;
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.AuditLogging.SqlServer;
 using Excalibur.Inbox.SqlServer;
 using Excalibur.LeaderElection.SqlServer;

@@ -12,7 +12,7 @@ using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClass
 
 using Microsoft.AspNetCore.Builder;
 
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch;
 

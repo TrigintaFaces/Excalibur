@@ -44,7 +44,7 @@ Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.ExecuteAsync(System.Th
 Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.SnapshotCreationJob(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Jobs.Outbox.OutboxJob
 Excalibur.Jobs.Outbox.OutboxJob.Execute(Quartz.IJobExecutionContext! context) -> System.Threading.Tasks.Task!
-Excalibur.Jobs.Outbox.OutboxJob.OutboxJob(Excalibur.Dispatch.Abstractions.IOutboxDispatcher! outbox, Excalibur.Jobs.Core.JobHeartbeatTracker! heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Outbox.OutboxJob!>! logger) -> void
+Excalibur.Jobs.Outbox.OutboxJob.OutboxJob(Excalibur.Dispatch.IOutboxDispatcher! outbox, Excalibur.Jobs.Core.JobHeartbeatTracker! heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Outbox.OutboxJob!>! logger) -> void
 Excalibur.Jobs.Outbox.OutboxJobOptions
 Excalibur.Jobs.Outbox.OutboxJobOptions.OutboxJobOptions() -> void
 Excalibur.Jobs.Quartz.ApplicationBuilderExtensions

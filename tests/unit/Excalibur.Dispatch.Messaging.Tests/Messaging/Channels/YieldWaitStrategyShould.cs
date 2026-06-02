@@ -35,6 +35,7 @@ public sealed class YieldWaitStrategyShould : IDisposable
 	{
 		// Arrange & Act
 		using var strategy = new YieldWaitStrategy();
+		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
 		// Assert
 		_ = strategy.ShouldNotBeNull();
@@ -74,6 +75,7 @@ public sealed class YieldWaitStrategyShould : IDisposable
 	public async Task WaitAsync_WhenConditionBecomesTrueAfterWaiting_ReturnsTrue()
 	{
 		// Arrange
+		using var cts = new CancellationTokenSource();
 		var callCount = 0;
 
 		// Act
@@ -267,4 +269,3 @@ public sealed class YieldWaitStrategyShould : IDisposable
 
 	#endregion
 }
-

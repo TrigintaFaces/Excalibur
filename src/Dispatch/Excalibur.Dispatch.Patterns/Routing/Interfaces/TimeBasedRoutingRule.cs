@@ -4,7 +4,7 @@
 
 using System.Collections.ObjectModel;
 
-using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch.Routing;
 
 namespace Excalibur.Dispatch.Patterns;
 

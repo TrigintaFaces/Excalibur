@@ -6,7 +6,7 @@ Register services
 
 ```csharp
 using Excalibur.Data.Postgres.DependencyInjection;
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3;
 
 services.AddPostgresDataExecutors(() => new NpgsqlConnection(connString));
 

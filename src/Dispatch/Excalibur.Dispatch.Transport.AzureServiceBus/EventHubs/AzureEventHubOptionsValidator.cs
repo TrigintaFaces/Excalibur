@@ -10,17 +10,17 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </summary>
 internal sealed class AzureEventHubOptionsValidator : IValidateOptions<AzureEventHubOptions>
 {
-    /// <inheritdoc/>
-    public ValidateOptionsResult Validate(string? name, AzureEventHubOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	/// <inheritdoc/>
+	public ValidateOptionsResult Validate(string? name, AzureEventHubOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

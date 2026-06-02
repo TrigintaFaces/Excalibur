@@ -6,7 +6,7 @@ using System.Data;
 using System.Globalization;
 using System.Text;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 
 using StackExchange.Redis;
 

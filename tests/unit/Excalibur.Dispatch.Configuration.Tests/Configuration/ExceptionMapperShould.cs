@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Licensed under the Excalibur License 1.0 - see LICENSE files for details.
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 
 #pragma warning disable CA2201 // Do not raise reserved exception types - test code intentionally uses base Exception

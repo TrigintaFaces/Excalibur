@@ -304,7 +304,7 @@ rm Directory.Build.targets  # If present
 
 ```csharp
 using Dispatch;                    // Core dispatcher
-using Excalibur.Dispatch.Abstractions;       // Interfaces like IDispatcher
+using Excalibur.Dispatch;       // Interfaces like IDispatcher
 using Excalibur.Domain;            // Aggregate roots
 using Excalibur.EventSourcing;     // Event sourcing
 ```

@@ -3,7 +3,7 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery.Handlers;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;

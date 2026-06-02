@@ -36,7 +36,7 @@ public sealed class DispatchPipelineHealthCheck : IHealthCheck
 			var diagnostics = new Dictionary<string, object>();
 
 			// Check if IDispatcher is registered
-			var dispatcher = _serviceProvider.GetService<Excalibur.Dispatch.Abstractions.IDispatcher>();
+			var dispatcher = _serviceProvider.GetService<Excalibur.Dispatch.IDispatcher>();
 			if (dispatcher == null)
 			{
 				return Task.FromResult(HealthCheckResult.Unhealthy(

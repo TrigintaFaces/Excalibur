@@ -4,8 +4,8 @@
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Aws;
 
 using Microsoft.Extensions.Logging.Abstractions;

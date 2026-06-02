@@ -19,10 +19,10 @@ Excalibur.Dispatch.LeaderElection.DependencyInjection.LeaderElectionBuilder
 Excalibur.Dispatch.LeaderElection.DependencyInjection.LeaderElectionBuilder.LeaderElectionBuilder(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void
 Excalibur.Dispatch.LeaderElection.DependencyInjection.LeaderElectionBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware
-Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.MessageKinds
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenMiddleware(Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider! provider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware!>! logger) -> void
-Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
-Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.GetTokenAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long?>
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.IssueTokenAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>

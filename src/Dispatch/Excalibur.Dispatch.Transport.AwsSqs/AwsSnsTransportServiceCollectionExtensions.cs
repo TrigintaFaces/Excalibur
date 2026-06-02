@@ -3,7 +3,7 @@
 
 using Amazon.SimpleNotificationService;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Aws;
 using Excalibur.Dispatch.Transport.AwsSqs;
 

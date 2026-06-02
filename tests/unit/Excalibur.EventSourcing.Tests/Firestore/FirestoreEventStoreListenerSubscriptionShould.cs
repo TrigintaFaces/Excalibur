@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 using Excalibur.EventSourcing.Firestore;
 
 using Google.Cloud.Firestore;

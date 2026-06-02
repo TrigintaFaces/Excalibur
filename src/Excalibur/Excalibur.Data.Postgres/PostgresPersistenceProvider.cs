@@ -4,11 +4,10 @@
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.Postgres.Diagnostics;
 using Excalibur.Data.Postgres.Persistence;
+using Excalibur.Data.Resilience;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -561,13 +560,13 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 				await _dataSource.DisposeAsync().ConfigureAwait(false);
 			}
 
-				// Clear connection pool if configured
-				if (_options.Pool.ClearPoolOnDispose)
-				{
-					// ClearAllPoolsAsync doesn't exist in newer Npgsql versions.
-					NpgsqlConnection.ClearAllPools();
-					LogClearedConnectionPools();
-				}
+			// Clear connection pool if configured
+			if (_options.Pool.ClearPoolOnDispose)
+			{
+				// ClearAllPoolsAsync doesn't exist in newer Npgsql versions.
+				NpgsqlConnection.ClearAllPools();
+				LogClearedConnectionPools();
+			}
 		}
 		catch (Exception ex)
 		{

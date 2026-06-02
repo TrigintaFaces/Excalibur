@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 namespace Tests.Shared.Conformance.Integration;
 
@@ -48,14 +48,14 @@ public abstract class SagaEventSourcingIntegrationTestBase : IAsyncLifetime
 	protected ISagaStore SagaStore { get; private set; } = null!;
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		EventStore = await CreateEventStoreAsync().ConfigureAwait(false);
 		SagaStore = await CreateSagaStoreAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await CleanupAsync().ConfigureAwait(false);
 

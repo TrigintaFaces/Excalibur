@@ -4,7 +4,7 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Telemetry;
 
 namespace Excalibur.Dispatch.Extensions;
 

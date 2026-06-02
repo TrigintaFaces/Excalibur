@@ -3,11 +3,15 @@
 
 
 using Excalibur.Data.CosmosDb.Projections;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+#pragma warning disable IL2091 // DI registration methods create stores with DynamicallyAccessedMembers-annotated TProjection; consumer types are preserved by the store contract
+#pragma warning disable IL2026 // Projection stores use reflection-based JSON serialization as fallback
+#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
 
 namespace Microsoft.Extensions.DependencyInjection;
 

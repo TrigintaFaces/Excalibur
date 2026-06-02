@@ -1,7 +1,7 @@
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Validation;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Serialization;
+namespace Excalibur.Dispatch.Tests.Serialization;
 
 /// <summary>
 /// Unit tests for serializable DTO types: SerializableAuthorizationResult,

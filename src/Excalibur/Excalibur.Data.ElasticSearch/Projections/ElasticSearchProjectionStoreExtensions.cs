@@ -3,14 +3,18 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Elastic.Clients.Elasticsearch;
 
 using Excalibur.Data.ElasticSearch.Projections;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+#pragma warning disable IL2026 // Projection stores use reflection-based serialization as fallback
+#pragma warning disable IL3050 // Generic serialization may require dynamic code generation
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -51,9 +55,7 @@ public static class ElasticSearchProjectionStoreExtensions
 			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<TProjection>>>();
 
-			#pragma warning disable IL2026, IL3050 // ElasticSearchProjectionStore constructor chain uses reflection-based serialization
 			return new ElasticSearchProjectionStore<TProjection>(optionsMonitor, logger);
-			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;
@@ -116,9 +118,7 @@ public static class ElasticSearchProjectionStoreExtensions
 			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<TProjection>>>();
 
-			#pragma warning disable IL2026, IL3050 // ElasticSearchProjectionStore constructor chain uses reflection-based serialization
 			return new ElasticSearchProjectionStore<TProjection>(client, optionsMonitor, logger);
-			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;

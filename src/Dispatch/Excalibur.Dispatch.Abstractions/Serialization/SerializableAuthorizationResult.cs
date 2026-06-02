@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions.Serialization;
+namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
 /// Serializable implementation of IAuthorizationResult for AOT compatibility.

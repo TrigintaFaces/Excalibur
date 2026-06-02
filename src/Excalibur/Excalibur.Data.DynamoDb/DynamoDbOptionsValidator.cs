@@ -7,16 +7,16 @@ namespace Excalibur.Data.DynamoDb;
 
 internal sealed class DynamoDbOptionsValidator : IValidateOptions<DynamoDbOptions>
 {
-    public ValidateOptionsResult Validate(string? name, DynamoDbOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, DynamoDbOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

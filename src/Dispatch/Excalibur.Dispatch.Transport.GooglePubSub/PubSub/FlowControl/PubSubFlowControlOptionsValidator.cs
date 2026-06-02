@@ -10,17 +10,17 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </summary>
 internal sealed class PubSubFlowControlOptionsValidator : IValidateOptions<PubSubFlowControlOptions>
 {
-    /// <inheritdoc/>
-    public ValidateOptionsResult Validate(string? name, PubSubFlowControlOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	/// <inheritdoc/>
+	public ValidateOptionsResult Validate(string? name, PubSubFlowControlOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

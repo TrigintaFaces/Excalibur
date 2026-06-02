@@ -3,8 +3,8 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Data;
+using Excalibur.Dispatch;
 
 using Microsoft.Data.SqlClient;
 

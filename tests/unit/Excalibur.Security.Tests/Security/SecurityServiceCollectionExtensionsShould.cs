@@ -1,7 +1,6 @@
 // Copyright (c) TrigintaFaces. All rights reserved.
 
 using Excalibur.Security;
-using Excalibur.Security.Abstractions;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;

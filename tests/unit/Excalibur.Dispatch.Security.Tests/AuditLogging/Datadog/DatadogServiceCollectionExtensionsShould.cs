@@ -104,6 +104,7 @@ public sealed class DatadogServiceCollectionExtensionsShould
 		{
 			dd.ApiKey("test-key");
 		});
+		using var provider = services.BuildServiceProvider();
 
 		// Assert
 		result.ShouldBeSameAs(services);

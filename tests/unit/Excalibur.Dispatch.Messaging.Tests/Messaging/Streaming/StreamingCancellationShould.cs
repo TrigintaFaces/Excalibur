@@ -3,10 +3,10 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Tests.Messaging.Streaming.TestTypes;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Streaming;
@@ -26,7 +26,7 @@ public sealed class StreamingCancellationShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register cancellation-aware streaming handler
 		_ = services.AddScoped<CancellationAwareStreamingHandler>();
@@ -67,7 +67,7 @@ public sealed class StreamingCancellationShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register streaming handler
 		_ = services.AddScoped<TestCsvStreamingHandler>();
@@ -108,10 +108,14 @@ public sealed class StreamingCancellationShould
 
 		var handler = new ErrorThrowingStreamingHandler { ThrowAfterItems = 2 };
 		_ = services.AddSingleton(handler);
+
+		// Register handlers AFTER AddDispatch to ensure the test's handler wins over any
+		// auto-scanned handlers. Use an empty assembly to prevent zero-config auto-scan
+		// from discovering test handler types (xUnit v3 runs in-process, so GetEntryAssembly()
+		// returns the test assembly which contains other handler implementations).
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 		_ = services.AddScoped<IStreamingDocumentHandler<TestCsvDocument, TestDataRow>>(sp =>
 			sp.GetRequiredService<ErrorThrowingStreamingHandler>());
-
-		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -151,7 +155,7 @@ public sealed class StreamingCancellationShould
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp =>
 			sp.GetRequiredService<SlowStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -187,7 +191,7 @@ public sealed class StreamingCancellationShould
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp =>
 			sp.GetRequiredService<CollectingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -219,7 +223,7 @@ public sealed class StreamingCancellationShould
 		_ = services.AddScoped<IStreamConsumerHandler<TestBatchDocument>>(sp =>
 			sp.GetRequiredService<ErrorThrowingStreamConsumerHandler>());
 
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();

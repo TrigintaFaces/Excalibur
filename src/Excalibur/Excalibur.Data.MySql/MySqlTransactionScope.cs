@@ -4,7 +4,7 @@
 using System.Collections.Concurrent;
 using System.Data;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 
 using Microsoft.Extensions.Logging;
 

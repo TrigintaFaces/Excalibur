@@ -5,7 +5,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-using Excalibur.Jobs.Abstractions.Coordination;
+using Excalibur.Jobs.Coordination;
 
 namespace Excalibur.Jobs.Redis.Coordination;
 

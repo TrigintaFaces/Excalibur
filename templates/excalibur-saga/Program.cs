@@ -45,7 +45,7 @@ builder.Services.AddExcalibur(excalibur => excalibur
                 ?? throw new InvalidOperationException("ConnectionStrings:SagaStore is required.");
         });
 #endif
-        saga.WithOrchestration()
+        saga.WithCoordination()
             .WithCorrelation()
             .WithInstrumentation();
     }));

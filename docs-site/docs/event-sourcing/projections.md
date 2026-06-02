@@ -77,9 +77,66 @@ flowchart TD
 
 ---
 
-## Quick Start: Inline Lambda Projection
+## Quick Start: IProjectionConfiguration&lt;T&gt; (Recommended)
 
-The simplest and most common approach. Events update a read model during `SaveAsync()`:
+The preferred approach for organizing projections. Each projection gets its own configuration class, discovered automatically via assembly scanning:
+
+```csharp
+// 1. Define your projection configuration class
+public class OrderSummaryProjectionConfig : IProjectionConfiguration<OrderSummary>
+{
+    public void Configure(IProjectionBuilder<OrderSummary> builder)
+    {
+        builder.Inline()
+            .When<OrderPlaced>((proj, e) =>
+            {
+                proj.Status = "Placed";
+                proj.Total = e.Total;
+                proj.CreatedAt = e.OccurredAt;
+            })
+            .When<OrderShipped>((proj, e) =>
+            {
+                proj.Status = "Shipped";
+                proj.ShippedAt = e.ShippedAt;
+            });
+    }
+}
+
+// 2. Register all projections via assembly scanning
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
+{
+    builder.AddAggregate<OrderAggregate>(agg => agg.UseInMemoryStore());
+    builder.AddProjectionsFromAssembly(typeof(OrderSummary).Assembly);
+}));
+```
+
+After `SaveAsync`, the read model is immediately consistent:
+
+```csharp
+await repository.SaveAsync(order, cancellationToken);
+var summary = await projectionStore.GetByIdAsync(order.Id, cancellationToken);
+// summary.Status == "Placed" -- guaranteed, not eventual
+```
+
+### Why IProjectionConfiguration&lt;T&gt;?
+
+| Benefit | Description |
+|---------|-------------|
+| **Organized** | Each projection lives in its own file, easy to navigate |
+| **Testable** | Configuration classes can be unit-tested in isolation |
+| **Discoverable** | Assembly scanning finds all projections automatically |
+| **Scalable** | No single giant DI registration block as projections grow |
+
+:::warning AOT Compatibility
+
+`AddProjectionsFromAssembly` uses reflection and is annotated with `[RequiresUnreferencedCode]`. For AOT/trimming scenarios, use explicit `AddProjection<T>()` calls with inline lambdas instead.
+:::
+
+---
+
+## Quick Start: Inline Lambda (Alternative)
+
+For simple cases or AOT scenarios, register projections directly with inline lambdas:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
@@ -102,13 +159,10 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 }));
 ```
 
-After `SaveAsync`, the read model is immediately consistent:
-
-```csharp
-await repository.SaveAsync(order, cancellationToken);
-var summary = await projectionStore.GetByIdAsync(order.Id, cancellationToken);
-// summary.Status == "Placed" -- guaranteed, not eventual
-```
+This approach is best for:
+- Small projects with few projections
+- AOT/trimming scenarios where reflection is unavailable
+- Quick prototyping
 
 ---
 
@@ -163,6 +217,7 @@ All products in "Electronics" share one `CategorySummaryProjection` instance, au
 - `KeyedBy` works with both `When<T>` lambdas and `WhenHandledBy<T, THandler>` DI handlers.
 
 :::tip When to use KeyedBy vs OverrideProjectionId
+
 Use `KeyedBy` when the key can be derived purely from event data -- it works with all handler tiers and keeps registration declarative. Use `OverrideProjectionId` (Tier 3 only) when the key requires DI services, async lookups, or runtime logic beyond the event.
 :::
 
@@ -217,6 +272,7 @@ builder.AddProjection<CustomerSearchProjection>(p => p
 ```
 
 :::warning AOT Compatibility
+
 Assembly scanning uses reflection and is annotated with `[RequiresUnreferencedCode]`. For AOT/trimming scenarios, use explicit `WhenHandledBy<TEvent, THandler>()` instead.
 :::
 
@@ -260,8 +316,8 @@ public sealed class ProjectionHandlerContext
 
 | Tier | API | DI | Async | Custom ID | AOT-Safe | Best For |
 |------|-----|-----|-------|-----------|----------|----------|
-| 1 | `When<TEvent>(lambda)` | No | No | Via `KeyedBy` | Yes | Simple property mapping |
-| 2 | `IProjectionConfiguration<T>` | No | No | Via `KeyedBy` | Yes | Organized lambda groups |
+| 2 | **`IProjectionConfiguration<T>`** (recommended) | No | No | Via `KeyedBy` | No (reflection) | Organized, scalable projection definitions |
+| 1 | `When<TEvent>(lambda)` | No | No | Via `KeyedBy` | Yes | Simple property mapping, AOT scenarios |
 | 3 | `WhenHandledBy<TEvent, THandler>()` | Yes | Yes | `KeyedBy` + `OverrideProjectionId` | Yes | Complex logic, logging, cross-aggregate |
 
 ### Performance
@@ -273,6 +329,78 @@ public sealed class ProjectionHandlerContext
 | `WhenHandledBy` transient handler | ~20-50ns + constructor | Handler instance |
 
 When all handlers in a projection are Tier 1 lambdas and no `KeyedBy` selectors are registered, the pipeline uses a zero-allocation fast path. Adding `KeyedBy` selectors or any Tier 3 handler activates the multi-ID code path with `Dictionary<string, TProjection>` tracking.
+
+### Read-After-Write Consistency Guarantee
+
+Inline projections provide a **read-after-write consistency guarantee**: after `SaveAsync()` returns, any query against the projection store will reflect all events just committed. This is the strongest consistency model available in Excalibur's projection system.
+
+#### How It Works
+
+```mermaid
+sequenceDiagram
+    participant App as Application Code
+    participant Repo as EventSourcedRepository
+    participant ES as Event Store
+    participant Broker as EventNotificationBroker
+    participant IP as InlineProjectionProcessor
+    participant PS as IProjectionStore
+
+    App->>Repo: SaveAsync(aggregate)
+    Repo->>ES: AppendAsync(events)
+    ES-->>Repo: Success (events committed)
+    Repo->>Broker: NotifyAsync(events)
+    Broker->>IP: ProcessAsync(events)
+    IP->>PS: Load → Apply → Save (per projection)
+    PS-->>IP: Projection updated
+    IP-->>Broker: All projections complete
+    Broker-->>Repo: Done
+    Repo-->>App: SaveAsync returns
+    Note over App,PS: Projection is now queryable with latest state
+```
+
+#### Execution Semantics
+
+| Aspect | Behavior |
+|--------|----------|
+| **Timing** | Projections update *after* events are committed but *before* `SaveAsync` returns to the caller |
+| **Concurrency** | Multiple projection types run concurrently via `Task.WhenAll` (R27.20) |
+| **Event ordering** | Events are applied sequentially within each projection type |
+| **Failure policy** | Configurable: `Propagate` (throw to caller) or `LogAndContinue` (best-effort) |
+| **Partial failure** | If one projection fails, others still commit — only the failed projection needs recovery |
+
+#### When to Rely on This Guarantee
+
+```csharp
+// After SaveAsync returns, the OrderSummary projection is up-to-date
+await repository.SaveAsync(order, cancellationToken);
+
+// This query reflects the events just committed ✓
+var summary = await projectionStore.GetAsync<OrderSummary>(
+    order.Id.ToString(), cancellationToken);
+
+// summary.Status is guaranteed to reflect the latest event
+```
+
+:::warning Failure Policy Matters
+
+The read-after-write guarantee holds only when using `NotificationFailurePolicy.Propagate` (the default). If you configure `LogAndContinue`, projection updates become best-effort — `SaveAsync` returns successfully even if a projection update fails.
+
+```csharp
+services.Configure<EventNotificationOptions>(opts =>
+    opts.FailurePolicy = NotificationFailurePolicy.Propagate); // Default — guarantees consistency
+```
+
+:::
+
+#### Comparison with Other Modes
+
+| Mode | Consistency | Trade-off |
+|------|------------|-----------|
+| **Inline** | Read-after-write | Adds latency to `SaveAsync` (projection I/O) |
+| **Async** | Eventually consistent | No latency impact on writes; background catch-up |
+| **Ephemeral** | On-demand rebuild | No persistence; rebuilt from full event stream |
+
+Choose inline when your application reads the projection immediately after writing (e.g., returning updated state in an API response). Choose async when projection latency is acceptable and write throughput is prioritized.
 
 ### IProjectionBuilder&lt;T&gt; API Reference
 
@@ -286,9 +414,83 @@ When all handlers in a projection are Tier 1 lambdas and no `KeyedBy` selectors 
 | `.KeyedBy<TEvent>(Func<TEvent, string>)` | Derive projection ID from event data (multi-stream) |
 | `.AddProjectionHandlersFromAssembly(Assembly)` | Discover handlers via assembly scanning |
 | `.WithCacheTtl(TimeSpan)` | Optional caching for ephemeral projection results |
+| `.WithSearchText(Func, Action)` | Automatic computed search text field ([details](#automatic-search-text)) |
+| `.WithOptions(Action<ProjectionOptions>)` | Per-projection options (warning thresholds) |
+| `.WithStore<TStore>()` | Override the default DI-resolved projection store |
+| `.WhenDeleted(Func<string, CancellationToken, Task>)` | Handle aggregate deletion |
 
 :::tip
+
 A second `AddProjection<T>()` call for the same projection type **replaces** the first registration. This is useful for testing and conditional reconfiguration.
+:::
+
+---
+
+## Automatic Search Text
+
+Use `WithSearchText` to compute a denormalized search field automatically whenever the projection is updated. This is ideal for full-text search without requiring provider-specific search APIs:
+
+```csharp
+builder.AddProjection<OrderSummary>(p => p
+    .Inline()
+    .WithSearchText(
+        proj => $"{proj.CustomerName} {proj.OrderNumber} {proj.Status}",
+        (proj, text) => proj.SearchText = text)
+    .When<OrderPlaced>((proj, e) =>
+    {
+        proj.CustomerName = e.CustomerName;
+        proj.OrderNumber = e.OrderNumber;
+        proj.Status = "Placed";
+    })
+    .When<OrderShipped>((proj, e) =>
+    {
+        proj.Status = "Shipped";
+    }));
+```
+
+Your projection type needs a `SearchText` property to receive the computed value:
+
+```csharp
+public class OrderSummary
+{
+    public string CustomerName { get; set; } = "";
+    public string OrderNumber { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string SearchText { get; set; } = "";
+}
+```
+
+Then query using the standard `:contains` filter:
+
+```csharp
+var filters = new ProjectionFilterBuilder()
+    .Where("SearchText").Contains("john")
+    .Build();
+
+var results = await projectionStore.QueryAsync(filters, null, cancellationToken);
+```
+
+### How It Works
+
+| Aspect | Behavior |
+|--------|----------|
+| **Timing** | Computed **once per upsert** — after all events in the batch are applied, before the store saves |
+| **Scope** | Per projection instance — multi-stream projections (via `KeyedBy`) compute search text for each instance independently |
+| **Zero overhead** | Projections without `WithSearchText` have no performance impact |
+| **AOT-safe** | Dual-delegate approach avoids reflection — fully compatible with Native AOT |
+| **Null/empty** | If the compute function returns `null` or empty, the setter receives an empty string |
+
+### When to Use
+
+| Scenario | Approach |
+|----------|----------|
+| Simple substring search across multiple fields | **WithSearchText** — concatenate fields, query with `:contains` |
+| Full-text search with relevance scoring, fuzzy matching, stemming | [Custom repository](#custom-repositories) with native provider API |
+| Single-field substring search | `:contains` filter directly — no `WithSearchText` needed |
+
+:::tip WithSearchText vs Multi-Field Contains
+
+`WithSearchText` computes a single searchable field at write time, making reads fast (one field to search). The [multi-field `:contains` pattern](#multi-field-text-search-pattern) searches multiple fields at query time. Choose `WithSearchText` when you search frequently and want indexed performance; choose multi-field `:contains` for ad-hoc queries without schema changes.
 :::
 
 ---
@@ -332,6 +534,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 | non-null | `WhenCreating` | Factory replaces (last-wins) |
 
 :::warning
+
 If the first event for a projection ID uses `WhenTransforming` without a prior `WhenCreating` event, the pipeline throws `InvalidOperationException`. Always register a `WhenCreating` handler for the event that initializes the projection.
 :::
 
@@ -367,6 +570,7 @@ builder.AddImmutableProjection<RegionSummaryRecord>(p => p
 ```
 
 :::note Multi-ID Summary
+
 | Handler Type | Custom Projection ID | Reason |
 |---|---|---|
 | `WhenCreating` / `WhenTransforming` (lambdas) | Not supported | No `ProjectionHandlerContext` in lambda signature |
@@ -531,6 +735,7 @@ Parallel processing activates only during catch-up. Once caught up, the host aut
 **Provider support:** SQL Server (indexed `GlobalPosition` range queries). PostgreSQL planned for Phase 2. Providers without range query support fall back to sequential automatically.
 
 :::note Idempotency Requirement
+
 Projections used with parallel catch-up **must** handle duplicate events, since range boundaries may overlap slightly.
 :::
 
@@ -639,6 +844,269 @@ var summary = await projectionStore.GetByIdAsync(orderId.ToString(), cancellatio
 
 For most use cases, `IProjectionStore<T>` is all you need. Graduate to a custom repository only when you need backend-native features (full-text search, aggregations, SQL joins).
 
+### Type-Safe Filters with ProjectionFilterBuilder
+
+Instead of constructing filter dictionaries with magic string operators, use `ProjectionFilterBuilder` for compile-time safety:
+
+```csharp
+using Excalibur.EventSourcing;
+
+var filters = new ProjectionFilterBuilder()
+    .Where("CustomerId").EqualTo(customerId)
+    .Where("Status").NotEqualTo("Deleted")
+    .Where("TotalAmount").GreaterThanOrEqual(100m)
+    .Where("Category").In(new[] { "Electronics", "Books" })
+    .Where("Name").Contains("search term")
+    .Build();
+
+var results = await projectionStore.QueryAsync(filters, queryOptions, cancellationToken);
+```
+
+The builder supports all filter operators:
+
+| Method | Operator Suffix | Example |
+|--------|----------------|---------|
+| `EqualTo(value)` | *(none)* | `["Status"] = "Active"` |
+| `NotEqualTo(value)` | `:neq` | `["Status:neq"] = "Deleted"` |
+| `GreaterThan(value)` | `:gt` | `["Amount:gt"] = 100` |
+| `GreaterThanOrEqual(value)` | `:gte` | `["Amount:gte"] = 100` |
+| `LessThan(value)` | `:lt` | `["Amount:lt"] = 1000` |
+| `LessThanOrEqual(value)` | `:lte` | `["Amount:lte"] = 1000` |
+| `In(values)` | `:in` | `["Category:in"] = ["A", "B"]` |
+| `Contains(value)` | `:contains` | `["Name:contains"] = "search"` |
+
+`Build()` returns a new `IDictionary<string, object>` each time — the builder is reusable and mutations to the returned dictionary do not affect the builder state.
+
+### Multi-Field Search and OR Patterns
+
+The standard filter API uses **AND semantics** — all conditions must match. For OR-style queries and multi-field text search, use these patterns:
+
+#### Single-Field Text Search (Contains)
+
+Use the `:contains` operator for substring matching on a single field:
+
+```csharp
+var filters = new ProjectionFilterBuilder()
+    .Where("Name").Contains("search term")
+    .Build();
+
+var results = await projectionStore.QueryAsync(filters, null, cancellationToken);
+```
+
+#### Multi-Field Text Search Pattern
+
+To search across multiple fields (e.g., search by name OR email OR phone), apply the same `:contains` filter to each field you want to search. Providers interpret multiple `:contains` filters as an OR condition across those fields:
+
+```csharp
+// Search across Name, Email, and Phone — matches if ANY field contains the term
+var searchTerm = "john";
+var filters = new Dictionary<string, object>
+{
+    ["Name:contains"] = searchTerm,
+    ["Email:contains"] = searchTerm,
+    ["Phone:contains"] = searchTerm
+};
+
+var results = await projectionStore.QueryAsync(filters, queryOptions, cancellationToken);
+```
+
+:::tip Provider-Specific Behavior
+
+How multi-field `:contains` is implemented depends on the store provider:
+
+| Provider | Implementation |
+|----------|---------------|
+| **ElasticSearch** | `multi_match` query across specified fields |
+| **SQL Server** | `WHERE Name LIKE @p OR Email LIKE @p OR Phone LIKE @p` |
+| **MongoDB** | `$or` with `$regex` per field |
+| **CosmosDB** | `CONTAINS(c.Name, @p) OR CONTAINS(c.Email, @p)` |
+
+For full-text search with relevance scoring, stemming, and fuzzy matching, consider a [custom repository](./projections.md#custom-repositories) using your provider's native search API (e.g., ElasticSearch `multi_match` with `fuzziness`).
+:::
+
+#### Combining Search with Filters (AND + OR)
+
+Combine text search with standard equality/range filters. Non-`:contains` filters use AND semantics as usual:
+
+```csharp
+var filters = new ProjectionFilterBuilder()
+    .Where("Status").EqualTo("Active")           // AND: must be active
+    .Where("Region").In(new[] { "US", "EU" })    // AND: must be in US or EU
+    .Where("Name").Contains("search term")       // text search within filtered set
+    .Build();
+
+var results = await projectionStore.QueryAsync(filters, queryOptions, cancellationToken);
+```
+
+#### When to Use Custom Repositories Instead
+
+Graduate to a custom repository when you need:
+
+- **Relevance scoring** — rank results by match quality
+- **Fuzzy matching** — handle typos and misspellings
+- **Stemming** — match "running" when searching "run"
+- **Aggregations** — faceted search with count-per-category
+- **Highlighting** — show which parts of the text matched
+
+See [Custom Repositories](#custom-repositories) for ElasticSearch and SQL Server examples.
+
+### Paginated Queries
+
+For UI-facing scenarios that need pagination metadata, check if your store supports the `IPageableProjectionStore<T>` or `ICursorProjectionStore<T>` sub-interfaces via pattern matching:
+
+#### Offset-Based Pagination (IPageableProjectionStore)
+
+```csharp
+if (projectionStore is IPageableProjectionStore<OrderSummary> pagedStore)
+{
+    var page = await pagedStore.QueryPagedAsync(
+        filters,
+        pageNumber: 1,
+        pageSize: 25,
+        options: new QueryOptions { SortBy = "CreatedAt", SortDescending = true },
+        cancellationToken);
+
+    // page.Items — the current page of results
+    // page.TotalItems — total matching records
+    // page.TotalPages — computed from TotalItems / pageSize
+    // page.HasNextPage — whether more pages exist
+}
+```
+
+Best for: traditional table UIs with page numbers, small-to-medium datasets, jump-to-page-N navigation.
+
+#### Cursor-Based Pagination (ICursorProjectionStore)
+
+```csharp
+if (projectionStore is ICursorProjectionStore<OrderSummary> cursorStore)
+{
+    // First page
+    var firstPage = await cursorStore.QueryCursorAsync(
+        filters,
+        cursor: null,    // null = start from beginning
+        pageSize: 25,
+        cancellationToken);
+
+    // Subsequent pages — pass the opaque cursor from the previous result
+    if (firstPage.HasMore)
+    {
+        var nextPage = await cursorStore.QueryCursorAsync(
+            filters,
+            cursor: firstPage.NextCursor,
+            pageSize: 25,
+            cancellationToken);
+    }
+}
+```
+
+Best for: infinite scroll UIs, large datasets, Elasticsearch (avoids the 10K `max_result_window` limit), DynamoDB and CosmosDB (natively cursor-based).
+
+:::tip Choosing Between Offset and Cursor
+
+Use **offset** (`IPageableProjectionStore`) when users need to jump to arbitrary page numbers (e.g., "go to page 5"). Use **cursor** (`ICursorProjectionStore`) when scrolling forward through large result sets — it provides stable results under concurrent writes and better performance on large datasets.
+
+Both sub-interfaces follow the `IBufferDistributedCache` ISP precedent — providers implement them only when they can offer an optimized implementation.
+:::
+
+#### Optimistic Concurrency (IVersionedProjectionStore)
+
+When consumers need to read a projection, modify it, and write it back safely (e.g., in an API controller), use `IVersionedProjectionStore<T>` for optimistic concurrency:
+
+```csharp
+if (projectionStore is IVersionedProjectionStore<OrderSummary> versionedStore)
+{
+    // 1. Read projection with its version
+    var result = await versionedStore.GetVersionedAsync(orderId, cancellationToken);
+    if (result is null) return NotFound();
+
+    // 2. Modify the projection
+    var modified = result.Projection;
+    modified.Notes = "Updated by operator";
+
+    // 3. Write back with version check — throws ConcurrencyException on stale version
+    await versionedStore.UpsertVersionedAsync(
+        orderId, modified, result.Version, cancellationToken);
+}
+```
+
+**Version semantics:**
+
+| Aspect | Behavior |
+|--------|----------|
+| **Start** | Version starts at `1` on first insert |
+| **Increment** | Version increments by 1 on each update |
+| **Type** | `long` (numeric, not HTTP ETag strings) |
+| **Initial insert** | Pass `expectedVersion: null` to skip the concurrency check |
+| **Mismatch** | Throws `ConcurrencyException` (namespace `Excalibur.Data`, package `Excalibur.Data.Abstractions`) |
+
+**`VersionedProjection<T>`** wraps the projection and its version:
+
+```csharp
+public sealed class VersionedProjection<TProjection>
+{
+    public TProjection Projection { get; }
+    public long Version { get; }
+}
+```
+
+:::note Engine vs Consumer Writes
+
+The projection engine (inline/async processing) is the sole writer during event processing — it auto-increments the version without reading it. `IVersionedProjectionStore<T>` is for **consumer read-path concurrency** scenarios where application code reads, modifies, and writes back a projection outside of event processing.
+:::
+
+:::tip Pattern Matching Discovery
+
+Like `IPageableProjectionStore<T>` and `ICursorProjectionStore<T>`, `IVersionedProjectionStore<T>` is an ISP sub-interface. Not all store implementations support it. Use pattern matching (`if (store is IVersionedProjectionStore<T> versioned)`) to detect support at runtime.
+:::
+
+### Document Storage Format
+
+All document-based projection stores (ElasticSearch, Cosmos DB, DynamoDB, MongoDB) store projections **flat at the document root** — your projection properties are top-level fields, not nested under an envelope wrapper. This means custom repositories querying the same index/container/collection use natural field names without any prefix.
+
+| Provider | Projection Properties | Framework Metadata | Partition/Routing |
+|---|---|---|---|
+| **ElasticSearch** | Document root | None — completely flat | Index per projection type |
+| **Cosmos DB** | Document root | `_projection` object (id, type, updatedAt) | `projectionType` field at root (partition key) |
+| **DynamoDB** | Document root | `_projection` object (id, type, updatedAt) | PK/SK attributes |
+| **MongoDB** | Document root | `_projection` object (id, type, updatedAt) | Collection per projection type |
+
+**ElasticSearch** stores your projection with zero framework overhead:
+
+```json
+{
+  "orderId": "ORD-123",
+  "customerId": "CUST-456",
+  "status": "Shipped",
+  "total": 99.95
+}
+```
+
+**Cosmos DB, DynamoDB, and MongoDB** add a `_projection` metadata object alongside your properties:
+
+```json
+{
+  "orderId": "ORD-123",
+  "customerId": "CUST-456",
+  "status": "Shipped",
+  "total": 99.95,
+  "_projection": {
+    "id": "ORD-123",
+    "type": "OrderSummary",
+    "updatedAt": "2026-05-20T14:30:00.000Z"
+  }
+}
+```
+
+:::warning Reserved Field Name
+
+Do not define a property named `_projection` on your projection classes — it will collide with the framework metadata object. Cosmos DB also reserves `projectionType` and `id` at the document root for its partition key and document identifier.
+:::
+
+:::tip Custom Repositories
+
+Because projections are stored flat, an `ElasticRepositoryBase<OrderSummary>` targeting the same index as `IProjectionStore<OrderSummary>` can query fields like `status.keyword` directly — no `data.` prefix needed. Use `ElasticSearchProjectionIndexConvention.GetIndexName<T>()` to share the same index name.
+:::
+
 ---
 
 ## Execution and Failure Handling
@@ -714,6 +1182,7 @@ public class OrderPlacedNotificationHandler : IEventNotificationHandler<OrderPla
 ```
 
 :::note
+
 `IEventNotificationHandler<T>` is distinct from `IEventHandler<T>` in the Dispatch layer. Notification handlers are EventSourcing-level, in-process only, and invoked during `SaveAsync`.
 :::
 
@@ -874,6 +1343,7 @@ public class OrderSearchRepository : ElasticRepositoryBase<OrderSummary>
 ```
 
 :::tip
+
 `ElasticSearchProjectionIndexConvention.GetIndexName<T>()` ensures both `IProjectionStore<T>` and your custom repository resolve to the same index from a single source of truth.
 :::
 
@@ -882,6 +1352,7 @@ public class OrderSearchRepository : ElasticRepositoryBase<OrderSummary>
 Incremental snapshots reduce storage overhead by saving only the **delta** (changes) since the last full snapshot:
 
 :::info Unique Feature
+
 No competing .NET event sourcing framework offers incremental snapshots.
 :::
 

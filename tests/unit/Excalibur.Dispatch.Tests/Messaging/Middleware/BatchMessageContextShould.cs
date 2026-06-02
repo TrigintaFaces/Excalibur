@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware.Versioning;
 using Excalibur.Dispatch.Middleware.Batch;
@@ -90,7 +90,7 @@ public sealed class BatchMessageContextShould
 		// Arrange
 		var primary = CreatePrimaryContext();
 		var validation = SerializableValidationResult.Success();
-		var authorization = Excalibur.Dispatch.Abstractions.AuthorizationResult.Success();
+		var authorization = Excalibur.Dispatch.AuthorizationResult.Success();
 		var sut = new BatchMessageContext([primary]);
 		sut.ValidationResult = validation;
 		sut.AuthorizationResult = authorization;
@@ -104,7 +104,7 @@ public sealed class BatchMessageContextShould
 
 		// Authorization failure
 		sut.ValidationResult = SerializableValidationResult.Success();
-		sut.AuthorizationResult = Excalibur.Dispatch.Abstractions.AuthorizationResult.Failed("nope");
+		sut.AuthorizationResult = Excalibur.Dispatch.AuthorizationResult.Failed("nope");
 		sut.Success.ShouldBeFalse();
 	}
 
@@ -149,7 +149,7 @@ public sealed class BatchMessageContextShould
 		var requestServices = A.Fake<IServiceProvider>();
 		var message = new FakeDispatchMessage();
 		var validation = SerializableValidationResult.Success();
-		var authorization = Excalibur.Dispatch.Abstractions.AuthorizationResult.Success();
+		var authorization = Excalibur.Dispatch.AuthorizationResult.Success();
 		var routing = RoutingDecision.Success("in-memory", []);
 		var context = new MessageContext(message, requestServices)
 		{

@@ -5,8 +5,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Delivery;
 

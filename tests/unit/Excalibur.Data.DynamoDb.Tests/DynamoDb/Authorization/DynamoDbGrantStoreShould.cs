@@ -3,7 +3,7 @@
 
 using Amazon.DynamoDBv2;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.Data.DynamoDb.Authorization;
 
 using Microsoft.Extensions.Logging.Abstractions;

@@ -5,7 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Jobs.Abstractions.Coordination;
+using Excalibur.Jobs.Coordination;
 
 using Microsoft.Extensions.Logging;
 

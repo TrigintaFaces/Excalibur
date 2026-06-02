@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Saga;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Services;
@@ -9,6 +10,7 @@ using Excalibur.Saga.Storage;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -55,10 +57,12 @@ public static class SagaTimeoutServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Register options
+		// Register options with validation
 		_ = services.AddOptions<SagaTimeoutOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SagaTimeoutOptions>, SagaTimeoutOptionsValidator>());
 
 		// Register in-memory store as default (can be overridden)
 		services.TryAddSingleton<InMemorySagaTimeoutStore>();
@@ -88,10 +92,12 @@ public static class SagaTimeoutServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		// Register options
+		// Register options with validation
 		_ = services.AddOptions<SagaTimeoutOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SagaTimeoutOptions>, SagaTimeoutOptionsValidator>());
 
 		// Register in-memory store as default (can be overridden)
 		services.TryAddSingleton<InMemorySagaTimeoutStore>();
@@ -116,7 +122,7 @@ public static class SagaTimeoutServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Register options
+		// Register options with validation
 		var optionsBuilder = services.AddOptions<SagaTimeoutOptions>();
 		if (configure is not null)
 		{
@@ -124,6 +130,8 @@ public static class SagaTimeoutServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SagaTimeoutOptions>, SagaTimeoutOptionsValidator>());
 
 		// Register hosted service only (store must be registered separately)
 		_ = services.AddHostedService<SagaTimeoutDeliveryService>();
@@ -153,6 +161,8 @@ public static class SagaTimeoutServiceCollectionExtensions
 		_ = services.AddOptions<SagaTimeoutOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SagaTimeoutOptions>, SagaTimeoutOptionsValidator>());
 
 		// Register hosted service only (store must be registered separately)
 		_ = services.AddHostedService<SagaTimeoutDeliveryService>();

@@ -14,6 +14,158 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ---
 
+## May 2026 — Backlog Clear: Zero Open Issues (Sprint 837)
+
+### SDK Type Leakage Removal
+
+- **ES/OpenSearch index management models no longer expose SDK types** -- All public properties on `IndexConfiguration`, `IndexTemplateConfiguration`, `ComponentTemplateConfiguration`, `AliasDefinition`, and `AliasOperation` now use `JsonElement?` instead of Elastic/OpenSearch SDK types (`IndexSettings`, `TypeMapping`, `IAlias`, `QueryContainer`, `AliasAddAction`). Consumers serialize SDK objects to `JsonElement` before assigning — see XML docs on each property for examples.
+
+```csharp
+// Before (leaked SDK types):
+var config = new IndexConfiguration { Settings = new IndexSettings() };
+
+// After (ADR-329 compliant):
+var config = new IndexConfiguration
+{
+    SettingsJson = JsonSerializer.SerializeToElement(new IndexSettings())
+};
+```
+
+### Bug Fixes
+
+- **SecurityEventLogger dispose race fixed** -- `ObjectDisposedException` during host shutdown resolved. Uses `volatile _disposed` + `IAsyncDisposable` pattern with correct disposal ordering (channel complete → cancel CTS → wait drain → dispose CTS).
+
+### Test Infrastructure
+
+- **GCP PubSub SDK fakes replaced with interface seams** -- Test files now mock `ISubscriberApiClientSeam` instead of concrete `SubscriberServiceApiClient`, preventing test breakage on GCP SDK updates.
+
+**Sprint 837 achieves zero open Beads issues** — the second time in project history (first was S746). 46,644 tests pass across all CI shards.
+
+---
+
+## May 2026 — xUnit v3 Migration (Sprint 836)
+
+### Test Infrastructure
+
+- **xUnit 2.9→3.x migration complete** -- All test projects migrated from xUnit 2.9.3 to xUnit v3 (3.2.2) via big-bang central package swap. 185 files changed, zero shipping code modifications, ~61K+ tests pass across all CI shards. Key changes: `IAsyncLifetime` now uses `ValueTask`, `Verify.XunitV3` ecosystem swap, `OutputType=Exe` for test projects. Templates updated to `xunit.v3` with `Version="3.*"`.
+
+---
+
+## May 2026 — CodeAnalysis Upgrade (Sprint 835)
+
+### Dependency Upgrade
+
+- **Microsoft.CodeAnalysis 4.14→5.3** -- Central pin bumped for Common, CSharp, and Workspaces packages. Source generators remain at 4.14.0 for consumer SDK compatibility (VS 17.14/SDK 9.0.300). Benchmark VersionOverride workaround removed. Zero new diagnostics.
+
+---
+
+## May 2026 — Projection Enhancements (Sprint 834)
+
+### WithSearchText — Automatic Computed Search Field
+
+- **New `WithSearchText` on `IProjectionBuilder<T>`** -- Dual-delegate approach computes a denormalized search text field automatically whenever a projection is updated. AOT-safe with zero overhead when not configured. See [Projections > Automatic Search Text](./event-sourcing/projections.md#automatic-search-text).
+
+```csharp
+builder.AddProjection<OrderSummary>(p => p
+    .Inline()
+    .WithSearchText(
+        proj => $"{proj.CustomerName} {proj.OrderNumber} {proj.Status}",
+        (proj, text) => proj.SearchText = text)
+    .When<OrderPlaced>((proj, e) => { proj.CustomerName = e.CustomerName; }));
+```
+
+### IVersionedProjectionStore — Optimistic Concurrency on Read Path
+
+- **New ISP sub-interface `IVersionedProjectionStore<T>`** -- Enables read-modify-write patterns with version-based optimistic concurrency. Throws `ConcurrencyException` on version mismatch. See [Projections > Optimistic Concurrency](./event-sourcing/projections.md#optimistic-concurrency-iversionedprojectionstore).
+- **New `VersionedProjection<T>` class** -- Wraps a projection with its `long` version number. Version starts at 1 and increments on each update.
+
+---
+
+## May 2026 — Saga P2 Cleanup (Sprint 833)
+
+### Template Fix
+
+- **`dotnet new excalibur-saga` now produces compiling code** -- The saga template was rewritten from deleted Model B types (`ISagaDefinition`, `ISagaStep`) to Model A (`SagaBase<T>`, `ISagaTimeout<T>`), matching the framework sample at `samples/04-reliability/SagaOrchestration/`.
+
+### API Surface Reduction
+
+- **3 interfaces internalized** -- `ISagaReminder`, `ISagaOutboxMediator`, and `ISagaStateMigrator<TFrom, TTo>` changed from `public` to `internal`. These are implementation details not intended for direct consumer use. Consumer access is through `ISagaBuilder` extensions (`.WithReminders()`, `.WithOutbox()`).
+- **`IncludeSaga` health check property removed** -- The dead `DispatchHealthCheckOptions.IncludeSaga` property (referencing deleted `ISagaMonitoringService`) was removed from the public API.
+
+### DI Improvements
+
+- **InMemorySagaStore auto-registered** -- `AddExcaliburOrchestration()` now registers `InMemorySagaStore` as a fallback via `TryAddSingleton`, so sagas work out-of-the-box without a persistence provider for prototyping.
+- **Static ConcurrentBag eliminated** -- `SagaRegistry` pending registrations moved from a static `ConcurrentBag` to an instance-scoped `SagaPendingRegistrations` class, preventing cross-test contamination.
+
+### ValidateOnStart
+
+- **`SagaTimeoutOptionsValidator`** -- Validates `PollInterval` (≥100ms), `BatchSize` (>0), `ShutdownTimeout` (>0).
+- **`SagaReminderOptionsValidator`** -- Validates `DefaultDelay`, `MinimumDelay`, `MaximumDelay` ranges and cross-property constraints.
+
+---
+
+## May 2026 — Saga Model Unification + ISagaTimeout (Sprint 832)
+
+### Saga Model Unification (ADR-333)
+
+- **Model B deleted** -- Removed 32,608 lines of incomplete orchestration abstractions (`ISagaDefinition`, `ISagaOrchestrator`, `ISagaStateStore`, `ISagaStep`, `ISagaContext`, `ISagaRetryPolicy`, `StepResult`, `ISagaMonitoringService`, and all related types). These had zero concrete implementations and caused runtime DI resolution failures via `AddExcaliburAdvancedSagas()`.
+- **Model A is the sole saga model** -- Event-driven choreography via `SagaBase<T>`, `ISagaCoordinator`, and `ISagaStore` with 9 provider implementations (SqlServer, Postgres, MongoDB, CosmosDb, DynamoDB, Firestore, InMemory, Telemetry decorator, TenantRouting).
+- **DI consolidated** -- 17 registration surfaces reduced to a single `ISagaBuilder` golden path: `services.AddExcalibur(x => x.AddSagas(saga => saga.WithCoordination().WithTimeouts()))`.
+- **`WithOrchestration()` renamed to `WithCoordination()`** -- Reflects that the saga model uses event-driven coordination, not step-based orchestration.
+
+### ISagaTimeout&lt;T&gt; — Declarative Timeout Handling
+
+- **New `ISagaTimeout<TMessage>` interface** -- Sagas implement this to declare strongly-typed timeout handlers. When a timeout fires, the framework routes directly to `HandleTimeoutAsync` instead of the general `HandleAsync`. Follows the NServiceBus `IHandleTimeouts<T>` pattern.
+- **Contravariant type parameter** -- `ISagaTimeout<in TMessage>` supports polymorphic timeout matching.
+- **Bounded reflection cache** -- `SagaCoordinator.TryInvokeTimeoutHandler` uses a capped cache (1,024 entries) for timeout handler resolution.
+- A saga can implement multiple `ISagaTimeout<T>` interfaces for different timeout types.
+
+### Sample Rewrite
+
+- **SagaOrchestration sample** rewritten to use `SagaBase<OrderSagaState>`, `ISagaTimeout<PaymentTimeout>`, `AddExcaliburOrchestration()`, `SagaRegistry.Register`, and `[LoggerMessage]` source generation throughout.
+
+---
+
+## May 2026 — v1.0 Readiness + Proof-of-Life Validation
+
+### Proof-of-Life Consumer App (Sprint 831)
+
+- **Full-stack reference sample** -- `samples/11-real-world/ProofOfLife/` validates the complete consumer DX: message dispatching, domain aggregates, event sourcing, projections, and REST API endpoints — all using only public NuGet APIs.
+- **ProjectionRebuildJob sample** -- Demonstrates Quartz-scheduled full projection rebuild via `IJobConfigurator.AddJob<ProjectionRebuildJob>(cron)` and `IMaterializedViewBuilder<T>`.
+- **GlobalStreamProjectionHost sample** -- Demonstrates continuous global stream tailing with `IGlobalStreamProjection<TState>` and configurable `GlobalStreamProjectionOptions`.
+- **ProjectionContext.Replay guard** -- `ArgumentOutOfRangeException` now thrown for negative `globalPosition` values, preventing silent acceptance of invalid replay positions.
+
+### Consumer DX Improvements (Sprints 829–830)
+
+- **Inline projection consistency guarantee** -- Inline projections run synchronously during `SaveAsync`, guaranteeing read-after-write consistency within the same request.
+- **Event-sourced seed data pattern** -- Documented `IHostedService` recipe for seeding initial aggregates idempotently on application startup.
+- **ES builder chain integration** -- `AddExcalibur(x => x.AddEventSourcing(es => es.UseInMemory()))` composition pattern documented with provider-specific extensions.
+
+---
+
+## May 2026 — CDC Resilience + Projection Flat Storage
+
+### CDC Idempotency Filtering (Sprints 825–826)
+
+- **Opt-in event deduplication** -- New `ICdcIdempotencyFilter` with two implementations: `InMemoryCdcIdempotencyFilter` (bounded 10K cache, single-instance) and `SqlServerCdcIdempotencyFilter` (persistent, multi-instance). Register via `UseInMemoryIdempotencyFilter()` or `UseSqlServerIdempotencyFilter()` on `ICdcBuilder`.
+- **SQL Server persistent filter** -- Stores processed event keys in `[Cdc].[CdcProcessedEvents]` with composite PK `(TableName, Lsn, SeqVal)`. Configurable retention, batched cleanup, `IValidateOptions<T>` + `ValidateOnStart()`.
+- See [CDC Idempotency Filtering](./patterns/cdc.md#idempotency-filtering) for full details.
+
+### CDC Performance + Error Recovery (Sprints 824–826)
+
+- **Batch checkpoint writes** -- Per-table instead of per-event, reducing I/O by up to 50× per poll cycle.
+- **Adaptive polling** -- Skips delay when work was found for lower end-to-end latency. Exponential backoff on errors (capped at 5× polling interval) prevents tight retry storms.
+- **SQL Error 313 recovery** -- CDC table-valued function boundary errors now trigger graceful stale position recovery instead of unhandled failures. New `TvfInsufficientArguments` reason code.
+- **Point query optimization** -- Reverted `fn_cdc_get_all_changes` from range to point queries to prevent SQL execution timeouts on high-volume tables.
+- **Log noise reduction** -- Per-row success logging demoted to `Debug`; batch summary remains at `Information`.
+
+### Projection Store Flat Storage Refactor (Sprint 827)
+
+- **ElasticSearch** -- Projections stored flat as the document root (no envelope wrapper). Custom repositories using `ElasticRepositoryBase<T>` can query the same index with natural field names.
+- **Cosmos DB, DynamoDB, MongoDB** -- Framework metadata moved to a `_projection` nested object, keeping consumer properties at the document root for natural querying.
+
+---
+
 ## April 2026 — Performance + Container Deployment + AOT Epic Complete
 
 ### DI Improvements

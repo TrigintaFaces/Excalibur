@@ -7,7 +7,7 @@ using FluentMigrator.Runner;
 
 using Tests.Shared.Fixtures;
 
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Dispatch.Tests.Functional.Infrastructure.TestBaseClasses.PersistenceOnly;
 
@@ -45,17 +45,17 @@ public abstract class PersistenceOnlyTestBase<TFixture> : IClassFixture<TFixture
 	protected string TenantId { get; set; } = "TestTenant";
 
 	/// <inheritdoc/>
-	public Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		_scope = ServiceProvider.CreateScope();
-		return InitializeDatabaseAsync();
+		await InitializeDatabaseAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
-	public Task DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
 		_scope?.Dispose();
-		return Task.CompletedTask;
+		return default;
 	}
 
 	/// <inheritdoc/>

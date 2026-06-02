@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.SqlServer;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 
@@ -9,6 +9,10 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+#pragma warning disable IL2091 // DI registration methods create stores with DynamicallyAccessedMembers-annotated TProjection
+#pragma warning disable IL2026 // Projection stores use reflection-based JSON serialization as fallback; consumers can provide source-gen context
+#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -45,13 +49,11 @@ public static class SqlServerProjectionStoreExtensions
 
 			options.Value.Validate();
 
-			#pragma warning disable IL2026, IL3050 // SqlServerProjectionStore uses reflection-based JSON serialization
 			return new SqlServerProjectionStore<TProjection>(
 				options.Value.ConnectionString ?? throw new InvalidOperationException("SqlServerProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				options.Value.TableName,
 				options.Value.JsonSerializerOptions);
-			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;
@@ -100,10 +102,10 @@ public static class SqlServerProjectionStoreExtensions
 	}
 
 	/// <summary>
-	/// Adds the SQL Server projection store using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// Adds the SQL Server projection store using a typed <see cref="Excalibur.Data.IDb"/> marker for connection resolution.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type to store.</typeparam>
-	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.IDb"/>.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configureOptions">Optional action to further configure projection store options.</param>
 	/// <returns>The service collection for chaining.</returns>
@@ -118,7 +120,7 @@ public static class SqlServerProjectionStoreExtensions
 		this IServiceCollection services,
 		Action<SqlServerProjectionStoreOptions>? configureOptions = null)
 		where TProjection : class
-		where TDb : class, Excalibur.Data.Abstractions.IDb
+		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

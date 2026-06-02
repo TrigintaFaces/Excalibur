@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using QuestPDF.Infrastructure;
 
 using Excalibur.Compliance.Soc2;
+using TestResult = global::Excalibur.Compliance.TestResult;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 
 /// <summary>

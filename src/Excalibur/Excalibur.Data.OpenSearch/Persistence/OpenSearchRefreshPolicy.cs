@@ -8,21 +8,21 @@ namespace Excalibur.Data.OpenSearch.Persistence;
 /// </summary>
 public enum OpenSearchRefreshPolicy
 {
-    /// <summary>
-    /// Do not refresh after the write. Changes may not be immediately visible.
-    /// Best for high-throughput scenarios where eventual visibility is acceptable.
-    /// </summary>
-    None = 0,
+	/// <summary>
+	/// Do not refresh after the write. Changes may not be immediately visible.
+	/// Best for high-throughput scenarios where eventual visibility is acceptable.
+	/// </summary>
+	None = 0,
 
-    /// <summary>
-    /// Wait for the next automatic refresh (default 1 second) to make changes visible.
-    /// Balances write performance with reasonable visibility guarantees.
-    /// </summary>
-    WaitFor = 1,
+	/// <summary>
+	/// Wait for the next automatic refresh (default 1 second) to make changes visible.
+	/// Balances write performance with reasonable visibility guarantees.
+	/// </summary>
+	WaitFor = 1,
 
-    /// <summary>
-    /// Force an immediate refresh after the write. Changes are visible immediately.
-    /// Use sparingly as it impacts indexing throughput.
-    /// </summary>
-    Immediate = 2
+	/// <summary>
+	/// Force an immediate refresh after the write. Changes are visible immediately.
+	/// Use sparingly as it impacts indexing throughput.
+	/// </summary>
+	Immediate = 2
 }

@@ -7,8 +7,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Observability;
 using Excalibur.EventSourcing.SqlServer;
@@ -496,9 +496,9 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server event store implementation using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// Adds SQL Server event store implementation using a typed <see cref="Excalibur.Data.IDb"/> marker for connection resolution.
 	/// </summary>
-	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.IDb"/>.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <param name="schema">The schema name for the event store table. Default: "dbo".</param>
 	/// <param name="table">The event store table name. Default: "EventStoreEvents".</param>
@@ -514,7 +514,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		this IServiceCollection services,
 		string schema = "dbo",
 		string table = "EventStoreEvents")
-		where TDb : class, Excalibur.Data.Abstractions.IDb
+		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -533,9 +533,9 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server snapshot store implementation using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// Adds SQL Server snapshot store implementation using a typed <see cref="Excalibur.Data.IDb"/> marker for connection resolution.
 	/// </summary>
-	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.IDb"/>.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <param name="schema">The schema name for the snapshot store table. Default: "dbo".</param>
 	/// <param name="table">The snapshot store table name. Default: "EventStoreSnapshots".</param>
@@ -544,7 +544,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		this IServiceCollection services,
 		string schema = "dbo",
 		string table = "EventStoreSnapshots")
-		where TDb : class, Excalibur.Data.Abstractions.IDb
+		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -561,9 +561,9 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds all SQL Server event sourcing implementations using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// Adds all SQL Server event sourcing implementations using a typed <see cref="Excalibur.Data.IDb"/> marker for connection resolution.
 	/// </summary>
-	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.IDb"/>.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <param name="eventStoreSchema">The schema name for the event store table. Default: "dbo".</param>
 	/// <param name="eventStoreTable">The event store table name. Default: "EventStoreEvents".</param>
@@ -583,7 +583,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		string eventStoreTable = "EventStoreEvents",
 		string snapshotStoreSchema = "dbo",
 		string snapshotStoreTable = "EventStoreSnapshots")
-		where TDb : class, Excalibur.Data.Abstractions.IDb
+		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

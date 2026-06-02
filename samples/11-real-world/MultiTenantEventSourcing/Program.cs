@@ -24,9 +24,9 @@
 
 using Excalibur.A3.Audit;
 using Excalibur.Application;
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Domain;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.SqlServer;

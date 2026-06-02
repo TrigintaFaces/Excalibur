@@ -22,9 +22,9 @@ public sealed class PostgresEventStoreTelemetryShould : IClassFixture<PostgresEv
 		_fixture = fixture;
 	}
 
-	public Task InitializeAsync() => Task.CompletedTask;
+	public ValueTask InitializeAsync() => default;
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_fixture.IsInitialized)
 		{

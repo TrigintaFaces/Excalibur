@@ -7,16 +7,16 @@ namespace Excalibur.Outbox.Firestore;
 
 internal sealed class FirestoreOutboxOptionsValidator : IValidateOptions<FirestoreOutboxOptions>
 {
-    public ValidateOptionsResult Validate(string? name, FirestoreOutboxOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, FirestoreOutboxOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

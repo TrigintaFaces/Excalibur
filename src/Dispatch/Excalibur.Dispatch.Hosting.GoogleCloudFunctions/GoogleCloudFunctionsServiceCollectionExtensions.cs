@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Hosting.GoogleCloud;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 /// <summary>
 /// Provides serialization for aggregate snapshots.

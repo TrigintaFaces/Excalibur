@@ -30,6 +30,13 @@ dotnet_analyzer_diagnostic.category-Style.severity = warning
 dotnet_analyzer_diagnostic.category-Design.severity = warning
 dotnet_analyzer_diagnostic.category-Maintainability.severity = warning
 
+# IDE0005: Remove unnecessary using directives
+# DISABLED for dotnet format — the IDE0005 fixer has a known bug where it confuses
+# 'using var' disposal declarations with 'using' directives and deletes them.
+# Sprint 838 lost 1800+ using var lines before this was caught.
+# Unnecessary usings are still caught by the compiler (CS8019) and IDE warnings.
+dotnet_diagnostic.IDE0005.severity = none
+
 # Visual Studio XML Project Files
 [*.{csproj,vbproj,vcxproj,vcxproj.filters,proj,projitems,shproj}]
 indent_size = 2
@@ -2475,7 +2482,10 @@ dotnet_diagnostic.IDE0002.severity = warning
 dotnet_diagnostic.IDE0004.severity = error
 
 # Remove unnecessary import
-dotnet_diagnostic.IDE0005.severity = error
+# IDE0005 severity intentionally set to 'none' in root [*] section (line 33-38)
+# due to dotnet format bug that deletes 'using var' disposal statements.
+# Do NOT override to error here — see Sprint 838 incident.
+dotnet_diagnostic.IDE0005.severity = none
 
 # Remove unreachable code
 dotnet_diagnostic.IDE0035.severity = error

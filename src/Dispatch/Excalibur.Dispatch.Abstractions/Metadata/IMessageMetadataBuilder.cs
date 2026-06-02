@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Builder interface for creating immutable message metadata instances. Provides a minimal fluent API
@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <para>
 /// This interface follows the Microsoft design guideline of keeping interfaces small (max 5 methods + properties bag).
 /// Domain-specific builder methods (identity, routing, temporal, transport, event sourcing) are available as
-/// extension methods in <c>Excalibur.Dispatch.Abstractions</c>:
+/// extension methods in <c>Excalibur.Dispatch</c>:
 /// </para>
 /// <list type="bullet">
 /// <item><description><c>MetadataBuilderIdentityExtensions</c> -- WithExternalId, WithUserId, WithTenantId, WithTraceParent, WithTraceState, WithBaggage, WithRoles, WithClaims, AddRole</description></item>

@@ -249,6 +249,7 @@ public class OrderHandler
 ```
 
 :::tip Non-keyed aliases for core stores
+
 Excalibur subsystem packages (EventSourcing, Outbox, Inbox, Saga, LeaderElection, Persistence) register their primary stores as keyed singletons under `"default"`. **Non-keyed convenience aliases are registered automatically**, so you can inject `IEventStore`, `IOutboxStore`, `ISagaStore`, etc. directly — no `[FromKeyedServices]` attribute required:
 
 ```csharp

@@ -48,7 +48,7 @@ public sealed class EncryptionExceptionShould
 	{
 		var ex = new EncryptionException("test");
 
-		ex.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
+		ex.ShouldBeAssignableTo<Excalibur.Dispatch.ApiException>();
 	}
 }
 

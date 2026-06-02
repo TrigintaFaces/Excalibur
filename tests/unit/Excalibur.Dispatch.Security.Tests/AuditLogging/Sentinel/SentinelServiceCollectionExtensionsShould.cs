@@ -102,6 +102,7 @@ public sealed class SentinelServiceCollectionExtensionsShould
 			sentinel.WorkspaceId("test-workspace")
 			        .SharedKey(Convert.ToBase64String(new byte[32]));
 		});
+		using var provider = services.BuildServiceProvider();
 
 		// Assert
 		result.ShouldBeSameAs(services);

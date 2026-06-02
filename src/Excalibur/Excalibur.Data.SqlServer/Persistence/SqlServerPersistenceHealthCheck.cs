@@ -6,9 +6,8 @@ using System.Globalization;
 
 using Dapper;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-
 using Excalibur.Data.SqlServer.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Diagnostics.HealthChecks;

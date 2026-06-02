@@ -7,16 +7,16 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 
 internal sealed class SqlServerErasureStoreOptionsValidator : IValidateOptions<SqlServerErasureStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, SqlServerErasureStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, SqlServerErasureStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

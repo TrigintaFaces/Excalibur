@@ -5,8 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Transport.Kafka;

@@ -3,11 +3,11 @@
 
 #nullable enable
 
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Features;
 
 using Microsoft.Extensions.Options;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Tests.Shared.TestTypes
 {

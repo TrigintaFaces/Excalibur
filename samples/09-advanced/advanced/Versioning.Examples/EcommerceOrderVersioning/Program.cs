@@ -19,7 +19,7 @@
 using EcommerceOrderVersioning.Events;
 using EcommerceOrderVersioning.Upcasters;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
 

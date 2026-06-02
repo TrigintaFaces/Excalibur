@@ -4,7 +4,7 @@
 
 using System.Data;
 
-namespace Excalibur.Data.Abstractions;
+namespace Excalibur.Data;
 
 /// <summary>
 /// A specialized base class for database requests using an <see cref="IDbConnection" /> and a specific return model.

@@ -33,9 +33,9 @@ public sealed class KafkaTransportSenderIntegrationShould
 	}
 
 	private void EnsureKafkaAvailable() =>
-		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendSingleMessage_DeliversToTopic()
 	{
 		EnsureKafkaAvailable();
@@ -86,7 +86,7 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendBatchMessages_AllDeliverSuccessfully()
 	{
 		EnsureKafkaAvailable();
@@ -135,7 +135,7 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendEmptyBatch_ReturnsZeroCounts()
 	{
 		EnsureKafkaAvailable();
@@ -156,7 +156,7 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendToAutoCreatedTopic_Succeeds()
 	{
 		EnsureKafkaAvailable();
@@ -181,7 +181,7 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task FlushAsync_CompletesWithoutError()
 	{
 		EnsureKafkaAvailable();
@@ -205,7 +205,7 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task GetService_ReturnsUnderlyingProducer()
 	{
 		EnsureKafkaAvailable();
@@ -225,7 +225,7 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task GetService_ReturnsNullForUnknownType()
 	{
 		EnsureKafkaAvailable();
@@ -244,7 +244,7 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessage_PreservesCustomProperties()
 	{
 		EnsureKafkaAvailable();

@@ -236,35 +236,35 @@ public static class TestInfrastructure
 /// Usage: [UnitTest] instead of [Trait("Category", "Unit")]
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-public class UnitTestAttribute : Attribute, Xunit.Sdk.ITraitAttribute
+public class UnitTestAttribute : Attribute, Xunit.v3.ITraitAttribute
 {
 	public IReadOnlyCollection<KeyValuePair<string, string>> GetTraits()
 		=> [new KeyValuePair<string, string>("Category", TestCategories.Unit)];
 }
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-public class IntegrationTestAttribute : Attribute, Xunit.Sdk.ITraitAttribute
+public class IntegrationTestAttribute : Attribute, Xunit.v3.ITraitAttribute
 {
 	public IReadOnlyCollection<KeyValuePair<string, string>> GetTraits()
 		=> [new KeyValuePair<string, string>("Category", TestCategories.Integration)];
 }
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-public class FunctionalTestAttribute : Attribute, Xunit.Sdk.ITraitAttribute
+public class FunctionalTestAttribute : Attribute, Xunit.v3.ITraitAttribute
 {
 	public IReadOnlyCollection<KeyValuePair<string, string>> GetTraits()
 		=> [new KeyValuePair<string, string>("Category", TestCategories.Functional)];
 }
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-public class ArchitectureTestAttribute : Attribute, Xunit.Sdk.ITraitAttribute
+public class ArchitectureTestAttribute : Attribute, Xunit.v3.ITraitAttribute
 {
 	public IReadOnlyCollection<KeyValuePair<string, string>> GetTraits()
 		=> [new KeyValuePair<string, string>("Category", TestCategories.Architecture)];
 }
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-public class PerformanceTestAttribute : Attribute, Xunit.Sdk.ITraitAttribute
+public class PerformanceTestAttribute : Attribute, Xunit.v3.ITraitAttribute
 {
 	public IReadOnlyCollection<KeyValuePair<string, string>> GetTraits()
 		=> [new KeyValuePair<string, string>("Category", TestCategories.Performance)];

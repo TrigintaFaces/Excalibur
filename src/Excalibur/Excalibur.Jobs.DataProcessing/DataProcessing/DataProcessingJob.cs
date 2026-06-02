@@ -3,7 +3,6 @@
 
 
 using Excalibur.Data.DataProcessing;
-using Excalibur.Jobs.Abstractions;
 using Excalibur.Jobs.Core;
 using Excalibur.Jobs.Diagnostics;
 
@@ -62,7 +61,7 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
+#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
 		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobOptions>(JobConfigSectionName);
 #pragma warning restore IL2026, IL3050
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
@@ -89,7 +88,7 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
+#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
 		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobOptions>(JobConfigSectionName);
 #pragma warning restore IL2026, IL3050
 

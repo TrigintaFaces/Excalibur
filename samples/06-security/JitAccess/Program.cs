@@ -2,7 +2,7 @@
 // Demonstrates requesting temporary (just-in-time) access with automatic expiry.
 // The JitAccessExpiryService would normally auto-revoke expired grants as a BackgroundService.
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.A3.Governance.Provisioning;
 
 using Microsoft.Extensions.DependencyInjection;

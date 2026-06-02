@@ -11,14 +11,14 @@ Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.DeleteActivityGroupGr
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.DeleteAllActivityGroupGrantsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.FindUserGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
-Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
-Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Abstractions.Authorization.Grant?>!
-Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string? tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.SaveGrantAsync(Excalibur.A3.Abstractions.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.SaveGrantAsync(Excalibur.A3.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.SqlServerGrantStore(Excalibur.Data.IDomainDb! domainDb) -> void
 Excalibur.Data.SqlServer.ConfigurationExtensions
 Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId
@@ -135,32 +135,32 @@ Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ConnectionString.get -> string!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.CreateConnection() -> System.Data.IDbConnection!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.CreateConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Data.IDbConnection!>!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.DatabaseType.get -> string!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.DatabaseVersion.get -> string!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.Dispose() -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteBatchInTransactionAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteBulkAsync<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! bulkRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteStoredProcedureAsync<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! storedProcedureRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteBatchInTransactionAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteBulkAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! bulkRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ExecuteStoredProcedureAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! storedProcedureRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.GetDatabaseStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.GetSchemaInfoAsync(string! tableName, string? schemaName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.GetService(System.Type! serviceType) -> object?
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.Name.get -> string!
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ProviderType.get -> string!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.SqlServerPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider!>! logger, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics! metrics, Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy! retryPolicy, Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory! policyFactory) -> void
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.SqlServerPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider!>! logger, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics! metrics, Excalibur.Data.Resilience.IDataRequestRetryPolicy! retryPolicy, Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory! policyFactory) -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.SupportsBulkOperations.get -> bool
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.SupportsStoredProcedures.get -> bool
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ValidateRequest<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! request) -> bool
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.ValidateRequest<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! request) -> bool
 Excalibur.Data.SqlServer.Persistence.SqlServerPoolingOptions
 Excalibur.Data.SqlServer.Persistence.SqlServerPoolingOptions.EnableConnectionPooling.get -> bool
 Excalibur.Data.SqlServer.Persistence.SqlServerPoolingOptions.EnableConnectionPooling.set -> void
@@ -201,23 +201,23 @@ Excalibur.Data.SqlServer.Persistence.SqlServerSecurityOptions.TrustServerCertifi
 Excalibur.Data.SqlServer.Persistence.SqlServerSecurityOptions.TrustServerCertificate.set -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.CommitAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.CreateNestedScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.CreateNestedScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.CreateSavepointAsync(string! savepointName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.Dispose() -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.EnlistConnectionAsync(System.Data.IDbConnection! connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.EnlistProviderAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceProvider! provider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.GetEnlistedProviders() -> System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.Persistence.IPersistenceProvider!>!
+Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.EnlistProviderAsync(Excalibur.Data.Persistence.IPersistenceProvider! provider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.GetEnlistedProviders() -> System.Collections.Generic.IEnumerable<Excalibur.Data.Persistence.IPersistenceProvider!>!
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.IsolationLevel.get -> System.Data.IsolationLevel
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.OnCommit(System.Func<System.Threading.Tasks.Task!>! callback) -> void
-Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.OnComplete(System.Func<Excalibur.Data.Abstractions.Persistence.TransactionStatus, System.Threading.Tasks.Task!>! callback) -> void
+Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.OnComplete(System.Func<Excalibur.Data.Persistence.TransactionStatus, System.Threading.Tasks.Task!>! callback) -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.OnRollback(System.Func<System.Threading.Tasks.Task!>! callback) -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.ReleaseSavepointAsync(string! savepointName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.RollbackAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.RollbackToSavepointAsync(string! savepointName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.SqlServerTransactionScope(System.Data.IsolationLevel isolationLevel, System.TimeSpan timeout, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope!>! logger) -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.StartTime.get -> System.DateTimeOffset
-Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.Status.get -> Excalibur.Data.Abstractions.Persistence.TransactionStatus
+Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.Status.get -> Excalibur.Data.Persistence.TransactionStatus
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.Timeout.get -> System.TimeSpan
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.Timeout.set -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.TransactionId.get -> string!
@@ -228,8 +228,8 @@ Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory.GetComprehensivePolicy() -> 
 Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory.GetRetryPolicy() -> Polly.IAsyncPolicy!
 Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory.SqlDataAccessPolicyFactory(Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory!>! logger) -> void
 Excalibur.Data.SqlServer.SqlDataRequestResolver
-Excalibur.Data.SqlServer.SqlDataRequestResolver.ExecuteAsync(Excalibur.Data.Abstractions.IDataRequest<Microsoft.Data.SqlClient.SqlConnection!, int>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.SqlServer.SqlDataRequestResolver.QueryAsync<TModel>(Excalibur.Data.Abstractions.IDataRequest<Microsoft.Data.SqlClient.SqlConnection!, TModel>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TModel>!
+Excalibur.Data.SqlServer.SqlDataRequestResolver.ExecuteAsync(Excalibur.Data.IDataRequest<Microsoft.Data.SqlClient.SqlConnection!, int>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.SqlServer.SqlDataRequestResolver.QueryAsync<TModel>(Excalibur.Data.IDataRequest<Microsoft.Data.SqlClient.SqlConnection!, TModel>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TModel>!
 Excalibur.Data.SqlServer.SqlDataRequestResolver.SqlDataRequestResolver(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> void
 Excalibur.Data.SqlServer.SqlDataRequestResolver.SqlDataRequestResolver(string! connectionString) -> void
 Excalibur.Data.SqlServer.SqlDb
@@ -250,33 +250,33 @@ Excalibur.Data.SqlServer.SqlServerPersistenceProvider
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ConnectionString.get -> string!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.CreateConnection() -> System.Data.IDbConnection!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.CreateConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Data.IDbConnection!>
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.DatabaseType.get -> string!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.DatabaseVersion.get -> string!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.Dispose() -> void
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteBatchInTransactionAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteBulkAsync<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! bulkRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteStoredProcedureAsync<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! storedProcedureRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteBatchInTransactionAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteBulkAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! bulkRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteStoredProcedureAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! storedProcedureRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ExecuteWithRetryAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>!>! func, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.GetDatabaseStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.GetSchemaInfoAsync(string! tableName, string? schemaName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.GetService(System.Type! serviceType) -> object?
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.Name.get -> string!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ProviderType.get -> string!
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.SqlServerPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.SqlServerProviderOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.SqlServerPersistenceProvider!>! logger) -> void
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.SupportsBulkOperations.get -> bool
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.SupportsStoredProcedures.get -> bool
 Excalibur.Data.SqlServer.SqlServerPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ValidateRequest<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! request) -> bool
+Excalibur.Data.SqlServer.SqlServerPersistenceProvider.ValidateRequest<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! request) -> bool
 Excalibur.Data.SqlServer.SqlServerPoolingOptions
 Excalibur.Data.SqlServer.SqlServerPoolingOptions.ClearPoolOnDispose.get -> bool
 Excalibur.Data.SqlServer.SqlServerPoolingOptions.ClearPoolOnDispose.set -> void

@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Provides persistent storage for outbound messages in the Transactional Outbox pattern.
@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <para>
 /// For cloud-native databases that use change-feed triggers instead of polling
 /// (Cosmos DB, DynamoDB, Firestore), see
-/// <c>Excalibur.Data.Abstractions.CloudNative.ICloudNativeOutboxStore</c>.
+/// <c>Excalibur.Data.CloudNative.ICloudNativeOutboxStore</c>.
 /// The two interfaces serve fundamentally different outbox patterns and are
 /// intentionally separate:
 /// </para>

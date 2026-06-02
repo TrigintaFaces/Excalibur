@@ -4,7 +4,7 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Excalibur.EventSourcing.SqlServer;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using Testcontainers.MsSql;

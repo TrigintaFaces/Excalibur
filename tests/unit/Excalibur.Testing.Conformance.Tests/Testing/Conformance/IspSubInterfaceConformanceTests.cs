@@ -3,16 +3,15 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Encryption;
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.CloudNative;
+using Excalibur.Data.Persistence;
 
 using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Performance;
-using Excalibur.Dispatch.Transport;
 
 using Tests.Shared.Categories;
 

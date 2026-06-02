@@ -93,6 +93,7 @@ services.AddMemoryPackSerializer();
 ```
 
 :::info No attributes needed on your events
+
 Consumer event types do **not** need `[MemoryPackable]` or any serializer-specific attributes. Only the internal envelope wrapper uses MemoryPack attributes. Your domain events remain plain POCOs.
 :::
 
@@ -244,7 +245,7 @@ services.AddMessagePackSerializer();
 
 ```csharp
 using System.Buffers;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 public class CustomSerializer : ISerializer
 {

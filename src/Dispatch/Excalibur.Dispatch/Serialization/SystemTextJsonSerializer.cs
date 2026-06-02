@@ -6,8 +6,6 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>

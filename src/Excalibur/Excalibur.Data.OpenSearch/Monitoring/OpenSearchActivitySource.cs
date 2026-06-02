@@ -225,7 +225,7 @@ internal sealed class OpenSearchActivitySource(string name = "Excalibur.Data.Ope
 	{
 		ThrowIfDisposed();
 
-		#pragma warning disable CA1308 // Lowercase required for OTel semantic conventions
+#pragma warning disable CA1308 // Lowercase required for OTel semantic conventions
 		var operationName = $"opensearch.{operationType.ToLowerInvariant()}";
 #pragma warning restore CA1308
 		var activity = Source.StartActivity(operationName);
@@ -268,7 +268,7 @@ internal sealed class OpenSearchActivitySource(string name = "Excalibur.Data.Ope
 	{
 		ThrowIfDisposed();
 
-		#pragma warning disable CA1308 // Lowercase required for OTel semantic conventions
+#pragma warning disable CA1308 // Lowercase required for OTel semantic conventions
 		var operationName = $"opensearch.resilience.{resilienceType.ToLowerInvariant()}";
 #pragma warning restore CA1308
 		var activity = Source.StartActivity(operationName);

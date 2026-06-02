@@ -49,7 +49,7 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 		_fixture = fixture;
 	}
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		if (!_fixture.DockerAvailable)
 		{
@@ -71,7 +71,7 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 		await CreateTestTableAsync();
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_testTableName != null && _fixture.DockerAvailable)
 		{
@@ -213,7 +213,7 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 		var testValue = "Commit Test Value";
 
 		// Act - Insert and commit
-		using (var connection = _provider.CreateConnection())
+		using var connection = _provider.CreateConnection();
 		{
 			connection.Open();
 			using var transaction = connection.BeginTransaction();
@@ -225,7 +225,7 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 		}
 
 		// Assert - Verify data is persisted with a new connection
-		using (var connection2 = _provider.CreateConnection())
+		using var connection2 = _provider.CreateConnection();
 		{
 			connection2.Open();
 			var selectSql = $"SELECT Value FROM [{_testTableName}] WHERE Id = @Id";
@@ -242,7 +242,7 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 		var testValue = "Rollback Test Value";
 
 		// Act - Insert and rollback
-		using (var connection = _provider.CreateConnection())
+		using var connection = _provider.CreateConnection();
 		{
 			connection.Open();
 			using var transaction = connection.BeginTransaction();

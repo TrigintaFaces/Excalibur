@@ -4,10 +4,10 @@
 
 using System.Collections.Concurrent;
 
-using OpenSearch.Client;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using OpenSearch.Client;
 
 namespace Excalibur.Data.OpenSearch.Monitoring;
 
@@ -28,7 +28,7 @@ internal sealed class OpenSearchPerformanceDiagnostics(
 	private readonly PerformanceDiagnosticsOptions _settings =
 		options?.Value?.Performance ?? throw new ArgumentNullException(nameof(options));
 
-	#pragma warning disable CA5394 // Random used for non-security sampling rate, not cryptographic purposes
+#pragma warning disable CA5394 // Random used for non-security sampling rate, not cryptographic purposes
 	private readonly Random _random = new();
 #pragma warning restore CA5394
 	private readonly ConcurrentDictionary<string, PerformanceMetrics> _operationMetrics = new(StringComparer.Ordinal);
@@ -47,7 +47,7 @@ internal sealed class OpenSearchPerformanceDiagnostics(
 		}
 
 		// Determine if this operation should be sampled
-		#pragma warning disable CA5394
+#pragma warning disable CA5394
 		var shouldSample = _random.NextDouble() < _settings.SamplingRate;
 #pragma warning restore CA5394
 

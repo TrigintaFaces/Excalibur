@@ -1,16 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Implementation;
 using Microsoft.Extensions.Options;
 
 #pragma warning disable CA1506 // Excessive class coupling -- test methods create repository with many DI parameters by design
 
-using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
-using AppendResult = Excalibur.EventSourcing.Abstractions.AppendResult;
+using IEventStore = Excalibur.EventSourcing.IEventStore;
+using AppendResult = Excalibur.EventSourcing.AppendResult;
 
 namespace Excalibur.EventSourcing.Tests.Snapshots;
 

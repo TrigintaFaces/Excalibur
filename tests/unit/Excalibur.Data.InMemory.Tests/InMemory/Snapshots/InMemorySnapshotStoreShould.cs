@@ -3,7 +3,7 @@
 
 using Excalibur.Data.InMemory.Snapshots;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using FakeItEasy;
 

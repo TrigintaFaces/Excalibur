@@ -33,15 +33,15 @@ Excalibur.Data.Postgres.Authorization.PostgresGrantStore.DeleteActivityGroupGran
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.DeleteAllActivityGroupGrantsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.FindUserGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
-Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
-Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Abstractions.Authorization.Grant?>!
-Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string? tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.PostgresGrantStore(Excalibur.Data.IDomainDb! domainDb) -> void
-Excalibur.Data.Postgres.Authorization.PostgresGrantStore.SaveGrantAsync(Excalibur.A3.Abstractions.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.SaveGrantAsync(Excalibur.A3.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions.ConnectionString.get -> string!
@@ -138,33 +138,33 @@ Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ConnectionString.get -> string!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.CreateConnection() -> System.Data.IDbConnection!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.CreateConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Data.IDbConnection!>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DatabaseType.get -> string!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DatabaseVersion.get -> string!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.Dispose() -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteAsync<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteBatchInTransactionAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteBulkAsync<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! bulkRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteInTransactionAsync<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteStoredProcedureAsync<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! storedProcedureRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteBatchInTransactionAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteBulkAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! bulkRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteInTransactionAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ExecuteStoredProcedureAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! storedProcedureRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.GetDatabaseStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.GetSchemaInfoAsync(string! tableName, string? schemaName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.Name.get -> string!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.PostgresPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider!>! logger, Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics? metrics = null, Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy? retryPolicy = null) -> void
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.PostgresPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider!>! logger, Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics? metrics = null, Excalibur.Data.Resilience.IDataRequestRetryPolicy? retryPolicy = null) -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ProviderType.get -> string!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.SupportsBulkOperations.get -> bool
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.SupportsStoredProcedures.get -> bool
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ValidateRequest<TResult>(Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TResult>! request) -> bool
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.ValidateRequest<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! request) -> bool
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.MaxRetryAttempts.get -> int
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.MaxRetryAttempts.set -> void
@@ -183,24 +183,24 @@ Excalibur.Data.Postgres.Persistence.PostgresStatementOptions.MaxPreparedStatemen
 Excalibur.Data.Postgres.Persistence.PostgresStatementOptions.PostgresStatementOptions() -> void
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.CommitAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.CreateNestedScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.CreateNestedScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.CreateSavepointAsync(string! savepointName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Dispose() -> void
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.EnlistConnectionAsync(System.Data.IDbConnection! connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.EnlistProviderAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceProvider! provider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.GetEnlistedProviders() -> System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.Persistence.IPersistenceProvider!>!
+Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.EnlistProviderAsync(Excalibur.Data.Persistence.IPersistenceProvider! provider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.GetEnlistedProviders() -> System.Collections.Generic.IEnumerable<Excalibur.Data.Persistence.IPersistenceProvider!>!
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.GetTransaction(Npgsql.NpgsqlConnection! connection) -> Npgsql.NpgsqlTransaction?
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.IsolationLevel.get -> System.Data.IsolationLevel
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.OnCommit(System.Func<System.Threading.Tasks.Task!>! callback) -> void
-Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.OnComplete(System.Func<Excalibur.Data.Abstractions.Persistence.TransactionStatus, System.Threading.Tasks.Task!>! callback) -> void
+Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.OnComplete(System.Func<Excalibur.Data.Persistence.TransactionStatus, System.Threading.Tasks.Task!>! callback) -> void
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.OnRollback(System.Func<System.Threading.Tasks.Task!>! callback) -> void
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.PostgresTransactionScope(System.Data.IsolationLevel isolationLevel, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Persistence.PostgresTransactionScope!>! logger) -> void
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.ReleaseSavepointAsync(string! savepointName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.RollbackAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.RollbackToSavepointAsync(string! savepointName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.StartTime.get -> System.DateTimeOffset
-Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Status.get -> Excalibur.Data.Abstractions.Persistence.TransactionStatus
+Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Status.get -> Excalibur.Data.Persistence.TransactionStatus
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Timeout.get -> System.TimeSpan
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Timeout.set -> void
 Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.TransactionId.get -> string!
@@ -224,21 +224,21 @@ Excalibur.Data.Postgres.PostgresPersistenceProvider
 Excalibur.Data.Postgres.PostgresPersistenceProvider.ConnectionString.get -> string!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.CreateConnection() -> System.Data.IDbConnection!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.CreateConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Data.IDbConnection!>
-Excalibur.Data.Postgres.PostgresPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.Postgres.PostgresPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.Dispose() -> void
 Excalibur.Data.Postgres.PostgresPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.Postgres.PostgresPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.PostgresPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Postgres.PostgresPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Postgres.PostgresPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.ExecuteWithRetryAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>!>! func, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.GetService(System.Type! serviceType) -> object?
-Excalibur.Data.Postgres.PostgresPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Postgres.PostgresPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.Postgres.PostgresPersistenceProvider.Name.get -> string!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.PostgresPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.PostgresProviderOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.PostgresPersistenceProvider!>! logger) -> void
 Excalibur.Data.Postgres.PostgresPersistenceProvider.ProviderType.get -> string!
-Excalibur.Data.Postgres.PostgresPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.Postgres.PostgresPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 Excalibur.Data.Postgres.PostgresPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.Postgres.PostgresPoolOptions
 Excalibur.Data.Postgres.PostgresPoolOptions.ClearPoolOnDispose.get -> bool

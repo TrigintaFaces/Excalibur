@@ -9,9 +9,8 @@ using System.Text.Json;
 
 using Azure.Storage.Queues.Models;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -7,6 +7,7 @@ description: Idempotent message processing with deduplication
 # Inbox Pattern
 
 :::tip New to idempotent messaging?
+
 Start with the [Idempotent Consumer Guide](idempotent-consumer.md) to understand why messages get duplicated and how the Outbox and Inbox patterns work together.
 :::
 

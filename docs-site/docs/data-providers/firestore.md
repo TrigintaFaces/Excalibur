@@ -73,6 +73,7 @@ services.AddExcaliburFirestore(firestore =>
 All registrations include `ValidateOnStart` for options validation.
 
 :::tip Additive Credentials
+
 Unlike other providers where connection methods are strictly last-wins, Firestore credential methods are **additive** — `ProjectId()` and `CredentialsPath()`/`CredentialsJson()` can coexist. Only `Client()` and `ClientFactory()` clear all other connection state (last-wins).
 :::
 

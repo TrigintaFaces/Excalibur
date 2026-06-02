@@ -4,7 +4,7 @@
 
 using System.Collections.Concurrent;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Default in-memory implementation of <see cref="IMessageFeatures" /> that avoids any ASP.NET dependencies.

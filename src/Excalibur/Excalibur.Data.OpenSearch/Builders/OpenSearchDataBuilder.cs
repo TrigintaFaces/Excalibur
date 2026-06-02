@@ -18,7 +18,10 @@ internal sealed class OpenSearchDataBuilder : IOpenSearchDataBuilder
 	{
 		ArgumentNullException.ThrowIfNull(uri);
 		NodeUriValue = uri;
-		NodeUrisValue = null; ClientInstance = null; ClientFactoryFunc = null; BindConfigurationPath = null;
+		NodeUrisValue = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -26,7 +29,10 @@ internal sealed class OpenSearchDataBuilder : IOpenSearchDataBuilder
 	{
 		ArgumentNullException.ThrowIfNull(uris);
 		NodeUrisValue = uris;
-		NodeUriValue = null; ClientInstance = null; ClientFactoryFunc = null; BindConfigurationPath = null;
+		NodeUriValue = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -34,7 +40,10 @@ internal sealed class OpenSearchDataBuilder : IOpenSearchDataBuilder
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ClientInstance = client;
-		NodeUriValue = null; NodeUrisValue = null; ClientFactoryFunc = null; BindConfigurationPath = null;
+		NodeUriValue = null;
+		NodeUrisValue = null;
+		ClientFactoryFunc = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -42,7 +51,10 @@ internal sealed class OpenSearchDataBuilder : IOpenSearchDataBuilder
 	{
 		ArgumentNullException.ThrowIfNull(factory);
 		ClientFactoryFunc = factory;
-		NodeUriValue = null; NodeUrisValue = null; ClientInstance = null; BindConfigurationPath = null;
+		NodeUriValue = null;
+		NodeUrisValue = null;
+		ClientInstance = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 
@@ -50,7 +62,10 @@ internal sealed class OpenSearchDataBuilder : IOpenSearchDataBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 		BindConfigurationPath = sectionPath;
-		NodeUriValue = null; NodeUrisValue = null; ClientInstance = null; ClientFactoryFunc = null;
+		NodeUriValue = null;
+		NodeUrisValue = null;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
 		return this;
 	}
 

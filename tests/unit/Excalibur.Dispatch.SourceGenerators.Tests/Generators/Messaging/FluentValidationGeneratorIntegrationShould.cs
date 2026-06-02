@@ -29,7 +29,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 			MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(IServiceProvider).Assembly.Location),
-			MetadataReference.CreateFromFile(typeof(Abstractions.IDispatchMessage).Assembly.Location),
+			MetadataReference.CreateFromFile(typeof(Excalibur.Dispatch.IDispatchMessage).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(FluentValidation.AbstractValidator<>).Assembly.Location),
 		};
 
@@ -75,7 +75,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	public void GenerateDispatcherForSingleValidator()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 			using FluentValidation;
 
 			namespace TestApp;
@@ -106,7 +106,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	public void GenerateDispatcherForMultipleValidators()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 			using FluentValidation;
 
 			namespace TestApp;
@@ -146,7 +146,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	public void DeduplicateMessageTypesWithMultipleValidatorsPerType()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 			using FluentValidation;
 
 			namespace TestApp;
@@ -178,7 +178,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	public void GenerateNothingWhenNoValidatorsExist()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp;
 
@@ -217,7 +217,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	public void IgnoreAbstractValidatorSubclasses()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 			using FluentValidation;
 
 			namespace TestApp;
@@ -237,7 +237,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	public void GenerateDiExtensionMethod()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 			using FluentValidation;
 
 			namespace TestApp;
@@ -262,7 +262,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	public void GenerateValidateTypedHelperMethod()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 			using FluentValidation;
 
 			namespace TestApp;
@@ -289,7 +289,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	public void HandleValidatorsInDeeperInheritanceChain()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 			using FluentValidation;
 
 			namespace TestApp;
@@ -317,7 +317,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	public void IncludeGeneratedCodeAttribute()
 	{
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 			using FluentValidation;
 
 			namespace TestApp;
@@ -343,7 +343,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 		// in a ConcurrentDictionary to avoid repeated DI probing per message type.
 		// Validator instances are resolved fresh each call to respect DI scoping.
 		const string source = """
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 			using FluentValidation;
 
 			namespace TestApp;

@@ -3,7 +3,7 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 
 using MongoDB.Driver;
 

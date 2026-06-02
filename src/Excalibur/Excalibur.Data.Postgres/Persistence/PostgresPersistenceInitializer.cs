@@ -27,9 +27,9 @@ internal sealed class PostgresPersistenceInitializer(
 		try
 		{
 			_logger.LogInformation("Initializing Postgres persistence provider");
-			#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 			await _provider.InitializeAsync(_options.Value, cancellationToken).ConfigureAwait(false);
-			#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 			_logger.LogInformation("Postgres persistence provider initialized successfully");
 		}
 		catch (Exception ex)

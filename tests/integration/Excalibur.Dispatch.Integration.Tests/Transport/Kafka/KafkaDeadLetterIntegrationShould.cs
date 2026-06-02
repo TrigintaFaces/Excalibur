@@ -43,9 +43,9 @@ public sealed class KafkaDeadLetterIntegrationShould
 	}
 
 	private void EnsureKafkaAvailable() =>
-		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
 
-	[SkippableFact]
+	[Fact]
 	public async Task ProduceAsync_SendsMessageToDlqTopic()
 	{
 		EnsureKafkaAvailable();
@@ -106,7 +106,7 @@ public sealed class KafkaDeadLetterIntegrationShould
 		GetHeaderValue(consumed.Message.Headers, "dlq_stack_trace").ShouldNotBeNull();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ProduceAsync_WithoutException_OmitsExceptionHeaders()
 	{
 		EnsureKafkaAvailable();
@@ -146,7 +146,7 @@ public sealed class KafkaDeadLetterIntegrationShould
 		GetHeaderValue(consumed.Message.Headers, "dlq_exception_message").ShouldBeNull();
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task DlqConsumer_ConsumesFromDlqTopic()
 	{
 		EnsureKafkaAvailable();
@@ -208,7 +208,7 @@ public sealed class KafkaDeadLetterIntegrationShould
 		dlqMessage.Metadata.ShouldContainKey("kafka_offset");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task DlqConsumer_PeekDoesNotCommitOffset()
 	{
 		EnsureKafkaAvailable();
@@ -278,7 +278,7 @@ public sealed class KafkaDeadLetterIntegrationShould
 		consumed[0].Reason.ShouldBe("Peek test");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task DlqTopicNaming_UsesConfiguredSuffix()
 	{
 		// Arrange
@@ -296,7 +296,7 @@ public sealed class KafkaDeadLetterIntegrationShould
 		await Task.CompletedTask.ConfigureAwait(false);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task ProduceToOriginalTopicAsync_ReprocessesMessage()
 	{
 		EnsureKafkaAvailable();

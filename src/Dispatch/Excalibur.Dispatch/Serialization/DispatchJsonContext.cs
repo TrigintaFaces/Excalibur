@@ -3,9 +3,8 @@
 
 using System.Text.Json.Serialization;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.ErrorHandling;
+using Excalibur.Dispatch.Validation;
 
 namespace Excalibur.Dispatch.Serialization;
 
@@ -26,7 +25,7 @@ namespace Excalibur.Dispatch.Serialization;
 [JsonSerializable(typeof(object))]
 
 // Message results (concrete types only) - MessageResult types excluded due to IValidationResult interface serialization issues
-[JsonSerializable(typeof(Abstractions.MessageProblemDetails))]
+[JsonSerializable(typeof(MessageProblemDetails))]
 
 // Validation types (concrete types only)
 [JsonSerializable(typeof(ValidationResult))]

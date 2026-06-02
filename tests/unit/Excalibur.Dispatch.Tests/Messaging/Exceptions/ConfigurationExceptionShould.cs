@@ -96,6 +96,6 @@ public sealed class ConfigurationExceptionShould
 	{
 		var ex = new ConfigurationException("test");
 
-		ex.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
+		ex.ShouldBeAssignableTo<Excalibur.Dispatch.ApiException>();
 	}
 }

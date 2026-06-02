@@ -3,7 +3,7 @@
 
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Aws;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Sqs;

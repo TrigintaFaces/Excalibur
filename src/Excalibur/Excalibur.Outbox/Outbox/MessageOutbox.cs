@@ -6,8 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Serialization;
 
@@ -124,7 +123,7 @@ public sealed partial class MessageOutbox(
 	/// <param name="cancellationToken"> Cancellation token for operation timeout and shutdown support. </param>
 	/// <returns> Task representing the asynchronous event saving operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when integrationEvents is null. </exception>
-	/// <exception cref="Excalibur.Dispatch.Abstractions.Serialization.SerializationException"> Thrown when event or metadata serialization fails. </exception>
+	/// <exception cref="Excalibur.Dispatch.Serialization.SerializationException"> Thrown when event or metadata serialization fails. </exception>
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL3050:Using RequiresDynamicCode member in AOT",

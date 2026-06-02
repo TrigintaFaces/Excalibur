@@ -9,54 +9,54 @@ namespace Excalibur.AuditLogging.GoogleCloud;
 /// </summary>
 internal sealed class AuditLoggingGoogleCloudBuilder : IAuditLoggingGoogleCloudBuilder
 {
-    private readonly GoogleCloudAuditOptions _options;
+	private readonly GoogleCloudAuditOptions _options;
 
-    internal AuditLoggingGoogleCloudBuilder(GoogleCloudAuditOptions options)
-    {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-    }
+	internal AuditLoggingGoogleCloudBuilder(GoogleCloudAuditOptions options)
+	{
+		_options = options ?? throw new ArgumentNullException(nameof(options));
+	}
 
-    internal string? BindConfigurationPath { get; private set; }
+	internal string? BindConfigurationPath { get; private set; }
 
-    public IAuditLoggingGoogleCloudBuilder ProjectId(string projectId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
-        _options.ProjectId = projectId;
-        BindConfigurationPath = null;
-        return this;
-    }
+	public IAuditLoggingGoogleCloudBuilder ProjectId(string projectId)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+		_options.ProjectId = projectId;
+		BindConfigurationPath = null;
+		return this;
+	}
 
-    public IAuditLoggingGoogleCloudBuilder LogName(string logName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(logName);
-        _options.LogName = logName;
-        return this;
-    }
+	public IAuditLoggingGoogleCloudBuilder LogName(string logName)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(logName);
+		_options.LogName = logName;
+		return this;
+	}
 
-    public IAuditLoggingGoogleCloudBuilder CredentialsPath(string credentialsPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(credentialsPath);
-        // Credentials path can be used by the exporter to load ADC or service account
-        // Store via environment convention -- the exporter reads GOOGLE_APPLICATION_CREDENTIALS
-        Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
-        return this;
-    }
+	public IAuditLoggingGoogleCloudBuilder CredentialsPath(string credentialsPath)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(credentialsPath);
+		// Credentials path can be used by the exporter to load ADC or service account
+		// Store via environment convention -- the exporter reads GOOGLE_APPLICATION_CREDENTIALS
+		Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
+		return this;
+	}
 
-    public IAuditLoggingGoogleCloudBuilder CredentialsJson(string credentialsJson)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(credentialsJson);
-        // Store inline JSON credentials -- the exporter can consume via temp file or env
-        // This is a convenience for test/dev scenarios
-        var tempPath = Path.Combine(Path.GetTempPath(), $"gcloud-audit-{Guid.NewGuid():N}.json");
-        File.WriteAllText(tempPath, credentialsJson);
-        Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", tempPath);
-        return this;
-    }
+	public IAuditLoggingGoogleCloudBuilder CredentialsJson(string credentialsJson)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(credentialsJson);
+		// Store inline JSON credentials -- the exporter can consume via temp file or env
+		// This is a convenience for test/dev scenarios
+		var tempPath = Path.Combine(Path.GetTempPath(), $"gcloud-audit-{Guid.NewGuid():N}.json");
+		File.WriteAllText(tempPath, credentialsJson);
+		Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", tempPath);
+		return this;
+	}
 
-    public IAuditLoggingGoogleCloudBuilder BindConfiguration(string sectionPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
-        BindConfigurationPath = sectionPath;
-        return this;
-    }
+	public IAuditLoggingGoogleCloudBuilder BindConfiguration(string sectionPath)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
+		BindConfigurationPath = sectionPath;
+		return this;
+	}
 }

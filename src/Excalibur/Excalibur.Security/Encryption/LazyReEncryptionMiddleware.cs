@@ -5,8 +5,8 @@
 using System.Globalization;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Logging;

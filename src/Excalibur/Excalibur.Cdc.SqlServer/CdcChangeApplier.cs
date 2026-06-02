@@ -7,8 +7,8 @@ using System.Diagnostics.Metrics;
 using System.Threading.Channels;
 
 using Excalibur.Data.SqlServer.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Delivery.BatchProcessing;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 

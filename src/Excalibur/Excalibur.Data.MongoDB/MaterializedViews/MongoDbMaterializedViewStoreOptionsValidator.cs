@@ -7,16 +7,16 @@ namespace Excalibur.Data.MongoDB.MaterializedViews;
 
 internal sealed class MongoDbMaterializedViewStoreOptionsValidator : IValidateOptions<MongoDbMaterializedViewStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, MongoDbMaterializedViewStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, MongoDbMaterializedViewStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

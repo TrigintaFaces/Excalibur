@@ -3,8 +3,8 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
 
 namespace Tests.Shared.Conformance;
 

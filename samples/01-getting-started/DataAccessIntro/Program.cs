@@ -64,7 +64,6 @@ using (var connection = connectionFactory())
 Console.WriteLine();
 Console.WriteLine("-- Get a product by ID --");
 var getRequest = new GetProductById(1);
-using (var connection = connectionFactory())
 {
 	Console.WriteLine($"  SQL: SELECT Id, Name, Price FROM Products WHERE Id = 1");
 	Console.WriteLine($"  Returns: Product? (null if not found)");
@@ -74,7 +73,6 @@ using (var connection = connectionFactory())
 Console.WriteLine();
 Console.WriteLine("-- Get all products --");
 var getAllRequest = new GetAllProducts();
-using (var connection = connectionFactory())
 {
 	Console.WriteLine($"  SQL: SELECT Id, Name, Price FROM Products ORDER BY Name");
 	Console.WriteLine($"  Returns: IEnumerable<Product>");

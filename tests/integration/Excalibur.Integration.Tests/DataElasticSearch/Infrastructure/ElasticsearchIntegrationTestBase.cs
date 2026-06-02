@@ -85,7 +85,7 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 	/// <summary>
 	///     Initializes the test environment.
 	/// </summary>
-	public virtual async Task InitializeAsync()
+	public virtual async ValueTask InitializeAsync()
 	{
 		// Start Elasticsearch container
 		await StartContainerAsync().ConfigureAwait(false);
@@ -138,7 +138,7 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 	/// <summary>
 	///     Disposes of test resources.
 	/// </summary>
-	public virtual async Task DisposeAsync()
+	public virtual async ValueTask DisposeAsync()
 	{
 		try
 		{

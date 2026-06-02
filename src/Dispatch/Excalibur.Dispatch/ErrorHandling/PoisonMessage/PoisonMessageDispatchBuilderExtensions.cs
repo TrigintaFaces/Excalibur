@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.ErrorHandling;
 
 using Microsoft.Extensions.Configuration;

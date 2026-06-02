@@ -3,8 +3,8 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;

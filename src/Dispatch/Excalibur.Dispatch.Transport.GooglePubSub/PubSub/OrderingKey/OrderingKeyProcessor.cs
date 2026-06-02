@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
 using System.Threading.Channels;
 
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Metrics;
 using Excalibur.Dispatch.Transport.GooglePubSub;
 
@@ -75,12 +75,12 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 		_processingDuration = new ValueHistogram();
 		_queueDepth = new ValueHistogram();
 
-			// Start worker tasks
-			for (var i = 0; i < workerCount; i++)
-			{
-				var workerId = i;
-				_workerTasks[i] = StartBackgroundTask(() => ProcessorWorkerAsync(workerId, _shutdownTokenSource.Token));
-			}
+		// Start worker tasks
+		for (var i = 0; i < workerCount; i++)
+		{
+			var workerId = i;
+			_workerTasks[i] = StartBackgroundTask(() => ProcessorWorkerAsync(workerId, _shutdownTokenSource.Token));
+		}
 
 		LogProcessorStarted(workerCount, _options.MaxConcurrentOrderingKeys);
 	}
@@ -277,7 +277,7 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			_workersStarted.TrySetResult(); // Ensure DisposeAsync doesn't hang
-			// Expected during shutdown
+											// Expected during shutdown
 		}
 		catch (Exception ex)
 		{

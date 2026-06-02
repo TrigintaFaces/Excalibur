@@ -3,7 +3,7 @@
 
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 
 using Excalibur.Saga.Diagnostics;
 

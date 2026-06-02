@@ -109,11 +109,11 @@ It is generated from project files; licenses remain with their respective owners
 | Microsoft.Azure.Functions.Worker.Extensions.ServiceBus | 5.24.0 |
 | Microsoft.Azure.Functions.Worker.Extensions.Storage.Blobs | 6.8.1 |
 | Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues | 5.5.4 |
-| Microsoft.CodeAnalysis.Analyzers | 3.11.0 |
-| Microsoft.CodeAnalysis.Common | 4.14.0 |
-| Microsoft.CodeAnalysis.CSharp | 4.14.0 |
-| Microsoft.CodeAnalysis.CSharp.Workspaces | 4.14.0 |
-| Microsoft.CodeAnalysis.Workspaces.Common | 4.14.0 |
+| Microsoft.CodeAnalysis.Analyzers | 5.3.0 |
+| Microsoft.CodeAnalysis.Common | 5.3.0 |
+| Microsoft.CodeAnalysis.CSharp | 5.3.0 |
+| Microsoft.CodeAnalysis.CSharp.Workspaces | 5.3.0 |
+| Microsoft.CodeAnalysis.Workspaces.Common | 5.3.0 |
 | Microsoft.Data.SqlClient | 7.0.0 |
 | Microsoft.Data.Sqlite | 10.0.7 |
 | Microsoft.Extensions.Caching.Abstractions | 10.0.7 |

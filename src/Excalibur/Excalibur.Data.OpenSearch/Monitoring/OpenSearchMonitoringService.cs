@@ -5,10 +5,10 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-using OpenSearch.Client;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using OpenSearch.Client;
 
 namespace Excalibur.Data.OpenSearch.Monitoring;
 
@@ -439,9 +439,9 @@ internal sealed class OpenSearchMonitoringService(
 			}
 
 			var duration = DateTimeOffset.UtcNow - _startTime;
-			#pragma warning disable IL2026, IL3050 // CompleteOperation uses reflection-based monitoring
+#pragma warning disable IL2026, IL3050 // CompleteOperation uses reflection-based monitoring
 			_service.CompleteOperation(
-			#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 				_operationType,
 				response,
 				duration,

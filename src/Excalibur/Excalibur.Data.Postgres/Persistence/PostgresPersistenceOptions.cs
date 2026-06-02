@@ -5,7 +5,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 
 using Npgsql;
 

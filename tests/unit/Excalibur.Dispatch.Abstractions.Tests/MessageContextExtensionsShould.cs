@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Licensed under the Excalibur License 1.0 - see LICENSE files for details.
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Abstractions.Tests;
+namespace Excalibur.Dispatch.Tests;
 
 /// <summary>
 /// Unit tests for the <see cref="MessageContextExtensions"/> class.

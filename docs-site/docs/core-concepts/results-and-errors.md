@@ -9,6 +9,7 @@ description: Handle success and failure patterns in Dispatch using the MessageRe
 Dispatch provides a comprehensive result type system for handling operation outcomes without relying on exceptions for control flow. The `IMessageResult` and `IMessageResult<T>` interfaces enable clean error handling with full support for railway-oriented programming patterns.
 
 :::info Why Should I Care?
+
 Throwing exceptions for business validation ("order not found", "insufficient stock") is expensive and makes error paths invisible in your code. `IMessageResult` makes success and failure **first-class values** -- you can pattern-match, chain with `.Map()` and `.Match()`, and convert directly to HTTP responses with `.ToApiResult()`. Your handlers return results, not throw exceptions.
 :::
 
@@ -613,7 +614,7 @@ public interface IMessageProblemDetails
 ### Creating Problem Details
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 var problemDetails = new MessageProblemDetails
 {
@@ -640,7 +641,7 @@ Dispatch provides standardized Type URIs via the `ProblemDetailsTypes` class. Th
 All Type URIs use the format: `urn:dispatch:error:{type}` with lowercase kebab-case suffixes.
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // Use constants instead of inline strings
 var problemDetails = new MessageProblemDetails
@@ -779,7 +780,7 @@ Exception
 The simplest exception with RFC 7807 support:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // Throw a simple API exception
 throw new ApiException(404, "Resource not found", null);
@@ -813,7 +814,7 @@ throw new DispatchException("ORDER_FAILED", "Failed to process order")
 #### ResourceNotFoundException (404)
 
 ```csharp
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 // Simple usage
 throw new ResourceNotFoundException("Order", orderId.ToString());
@@ -851,7 +852,7 @@ throw new ValidationException("Validation failed")
 #### ConflictException (409)
 
 ```csharp
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 // Resource conflict
 throw new ConflictException("Order", "duplicate-order",
@@ -861,7 +862,7 @@ throw new ConflictException("Order", "duplicate-order",
 #### ConcurrencyException (409)
 
 ```csharp
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 // Optimistic locking failure with numeric versions
 throw new ConcurrencyException("Order", orderId.ToString(),

@@ -6,8 +6,7 @@ using System.Buffers;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Dispatch.Benchmarks.Serialization;

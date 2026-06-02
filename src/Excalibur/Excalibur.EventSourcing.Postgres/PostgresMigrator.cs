@@ -8,7 +8,6 @@ using System.Text;
 
 using Dapper;
 
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Diagnostics;
 
 using Microsoft.Extensions.Logging;

@@ -1,12 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-
-using Excalibur.Data.Abstractions.Persistence;
 
 namespace Excalibur.Data.Persistence;
 
@@ -234,7 +231,6 @@ internal sealed class DefaultPersistenceMetrics : IPersistenceMetrics, IPersiste
 	// R0.8: Remove unused parameter - interface contract requires duration and success parameters even though this implementation delegates to RecordRowsAffected
 
 	public void RecordCommand(string commandType, TimeSpan duration, bool success) => RecordRowsAffected(0, commandType, "default");
-
 
 	/// <inheritdoc />
 	public void RecordConnectionOpen(string providerName) => IncrementCustomMetric($"connection_open_{providerName}");

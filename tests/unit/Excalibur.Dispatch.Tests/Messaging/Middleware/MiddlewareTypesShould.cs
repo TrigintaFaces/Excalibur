@@ -1,6 +1,8 @@
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Auth;
 
+using MiddlewareAuthorizationResult = Excalibur.Dispatch.Middleware.Auth.AuthorizationResult;
+
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -12,7 +14,7 @@ public sealed class MiddlewareTypesShould
 	[Fact]
 	public void AuthorizationResult_Success_IsAuthorized()
 	{
-		var result = AuthorizationResult.Success();
+		var result = MiddlewareAuthorizationResult.Success();
 
 		result.IsAuthorized.ShouldBeTrue();
 		result.Reason.ShouldBeNull();
@@ -21,7 +23,7 @@ public sealed class MiddlewareTypesShould
 	[Fact]
 	public void AuthorizationResult_Failure_IsNotAuthorized()
 	{
-		var result = AuthorizationResult.Failure("Insufficient permissions");
+		var result = MiddlewareAuthorizationResult.Failure("Insufficient permissions");
 
 		result.IsAuthorized.ShouldBeFalse();
 		result.Reason.ShouldBe("Insufficient permissions");

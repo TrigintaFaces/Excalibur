@@ -4,11 +4,10 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Pooling;
 using Excalibur.Dispatch.Serialization;

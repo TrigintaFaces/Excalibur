@@ -3,10 +3,10 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly - acceptable in tests
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Validation;
 using Excalibur.Dispatch.Messaging;
 using Tests.Shared.TestFakes;
 

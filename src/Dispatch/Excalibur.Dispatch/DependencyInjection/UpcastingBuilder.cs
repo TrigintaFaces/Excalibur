@@ -5,8 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Versioning;

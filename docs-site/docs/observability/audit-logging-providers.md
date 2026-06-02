@@ -1,4 +1,4 @@
-﻿---
+---
 sidebar_position: 8
 title: Audit Logging Providers
 description: Per-provider setup for Elasticsearch, OpenSearch, Datadog, Splunk, Sentinel, and SQL Server audit backends.
@@ -9,6 +9,7 @@ description: Per-provider setup for Elasticsearch, OpenSearch, Datadog, Splunk, 
 Dispatch audit logging uses `IAuditStore` as its core abstraction for compliance-grade storage and `IAuditLogExporter` / audit sinks for search and analytics projections. Provider-specific backends ship audit events to external platforms for analysis, alerting, and compliance reporting.
 
 :::info Compliance Boundary (ADR-290)
+
 Only SQL Server (and Postgres) backends implement `IAuditStore` with tamper-evident hash chains. Elasticsearch and OpenSearch serve as **audit sinks** -- write-only, search-optimized projections. They are not compliance-grade stores. See [Compliance Audit Logging](../compliance/audit-logging.md#provider-compliance-boundary) for details.
 :::
 
@@ -92,6 +93,7 @@ services.AddElasticsearchAuditSink(configuration.GetSection("AuditSink:Elasticse
 ```
 
 :::tip ApplicationName Preference
+
 The indexed `application_name` field uses `AuditEvent.ApplicationName` when set, falling back to the options-level `ApplicationName`. Set it once on the event via `ApplicationContext.ApplicationName` (automatic via DI) and all sinks pick it up.
 :::
 

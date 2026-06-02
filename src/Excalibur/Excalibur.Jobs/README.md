@@ -17,7 +17,7 @@ dotnet add package Excalibur.Jobs
 ### 2. Add minimal Program.cs
 
 ```csharp
-using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs;
 using Excalibur.Jobs.Quartz;
 
 var builder = Host.CreateApplicationBuilder(args);

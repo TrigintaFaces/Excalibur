@@ -3,8 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Jobs.Abstractions;
-
 namespace Excalibur.Jobs.Quartz;
 
 /// <summary>

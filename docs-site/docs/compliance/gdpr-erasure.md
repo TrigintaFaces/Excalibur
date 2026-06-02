@@ -59,6 +59,7 @@ services.AddErasureScheduler();
 ```
 
 :::tip Minimal wiring (Sprint 790 `bd-20ft0e` FIX 2)
+
 `AddGdprErasure(...)` now `TryAdd`-registers a default `IKeyManagementAdmin` (the in-memory `InMemoryKeyManagementProvider`), so the call above is sufficient for a working minimal wiring in samples, tests, or local development. Calling `AddComplianceEncryption(...)` later wins via first-registrant-TryAdd semantics when a real KMS provider is required. This closes a class of "hidden sibling dependency" defects where consumers were required to register a provider the public entry point never advertised.
 :::
 
@@ -179,6 +180,7 @@ switch (status?.Status)
 ```
 
 :::warning Partial Failure Handling
+
 If any contributor erasure fails, the request is marked `PartiallyCompleted` (not `Completed`). A compliance certificate is **not** generated for partially completed erasures. Monitor the `ErasurePartiallyCompleted` event (ID 92729) and investigate failed contributors.
 :::
 
@@ -295,6 +297,7 @@ services.AddInMemoryDataInventoryStore(); // or SQL Server store for production
 ```
 
 :::note
+
 The `IDataInventoryService` provides registration and discovery of personal data locations across your system, enabling comprehensive erasure and Records of Processing Activities (RoPA) documentation.
 :::
 
@@ -365,6 +368,7 @@ public class ErasureFunction
 ```
 
 :::tip
+
 For serverless deployments, `AddErasureScheduler()` registers the background service that automatically processes requests past their grace period. The execution logic is internal to the framework — consumers only need to submit requests and monitor status.
 
 ## Database Schema
@@ -451,12 +455,12 @@ public async Task Should_Block_Erasure_With_Legal_Hold()
 
 ## Event Store Erasure
 
-When using event sourcing, GDPR erasure must extend to event stores. The `IEventStoreErasure` interface (in `Excalibur.EventSourcing.Abstractions`) enables cryptographic erasure at the event store level.
+When using event sourcing, GDPR erasure must extend to event stores. The `IEventStoreErasure` interface (in `Excalibur.EventSourcing`) enables cryptographic erasure at the event store level.
 
 ### IEventStoreErasure Interface
 
 ```csharp
-namespace Excalibur.EventSourcing.Abstractions;
+namespace Excalibur.EventSourcing;
 
 public interface IEventStoreErasure
 {
@@ -543,6 +547,7 @@ public class MyEventStore : IEventStore, IEventStoreErasure
 ```
 
 :::tip Key Design Decision
+
 Event store erasure uses **tombstoning** (replacing payloads) rather than **deletion** (removing events). This preserves the event sequence and version numbers for other aggregates that may reference these events, while making the personal data irrecoverable.
 :::
 

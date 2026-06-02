@@ -5,7 +5,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Domain;
 using Excalibur.Domain.Concurrency;

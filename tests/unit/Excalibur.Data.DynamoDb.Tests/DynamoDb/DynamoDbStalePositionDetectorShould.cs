@@ -97,7 +97,7 @@ public sealed class DynamoDbStalePositionDetectorShould
 	public void IsStalePositionException_ReturnsTrue_ForResourceNotFoundException()
 	{
 		// Arrange
-		var exception = new ResourceNotFoundException("Resource not found");
+		var exception = new Amazon.DynamoDBStreams.Model.ResourceNotFoundException("Resource not found");
 
 		// Act
 		var result = DynamoDbStalePositionDetector.IsStalePositionException(exception);
@@ -232,7 +232,7 @@ public sealed class DynamoDbStalePositionDetectorShould
 	public void GetStalePositionExceptionType_ReturnsResourceNotFoundException()
 	{
 		// Arrange
-		var exception = new ResourceNotFoundException("Resource not found");
+		var exception = new Amazon.DynamoDBStreams.Model.ResourceNotFoundException("Resource not found");
 
 		// Act
 		var result = DynamoDbStalePositionDetector.GetStalePositionExceptionType(exception);
@@ -312,7 +312,7 @@ public sealed class DynamoDbStalePositionDetectorShould
 	public void GetReasonCode_ReturnsShardNotFound_ForResourceNotFoundException()
 	{
 		// Arrange
-		var exception = new ResourceNotFoundException("Resource not found");
+		var exception = new Amazon.DynamoDBStreams.Model.ResourceNotFoundException("Resource not found");
 
 		// Act
 		var result = DynamoDbStalePositionDetector.GetReasonCode(exception);

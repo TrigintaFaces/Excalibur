@@ -25,14 +25,17 @@ Runtime: .NET 10.0.6 (10.0.626.17701), X64 RyuJIT x86-64-v3
 **Prior baselines** (superseded, not cross-diffable due to BDN 0.15.4 → 0.15.8 InvocationCount semantic shift): `dispatch-comparative-20260302/`, `dispatch-all/` (2026-04-13). Ratios within each report remain apples-to-apples; **do not cross-diff individual Mean values** across epoch boundaries.
 
 :::info Scope
+
 These are microbenchmarks for framework overhead and path cost. They are not end-to-end production latency claims.
 :::
 
 :::info Methodology
+
 All comparisons use lean `AddDispatch()` registration with no middleware enabled, matching each competitor's minimal configuration. A fresh `IMessageContext` is created and returned per iteration. Handler and pipeline caches are warmed up and frozen before measurement.
 :::
 
 :::tip Dual Benchmark Methodology
+
 This project uses two benchmark configurations for different purposes:
 
 - **WarmPath** (`WarmPathBenchmarkConfig`): BDN defaults with auto-calibrated InvocationCount and UnrollFactor. Measures steady-state throughput with warm JIT and caches. Used for published competitor comparisons (Tracks A, B above).
@@ -51,6 +54,7 @@ WarmPath numbers reflect what users experience in production; ColdPath numbers c
 | Pipeline parity (3 middleware each) | See `PipelineComparisonBenchmarks` for current ratios (μs scale, 20260420 epoch) |
 
 :::note April 20, 2026 Epoch
+
 Ultra-local dispatch remains the standout path: **34.56 ns / 24 B** — 1.28x faster than MediatR with 6.3x less memory. Numbers below reflect the 20260420 WarmPath baseline (BDN 0.15.8 literal `InvocationCount=1`-compatible configuration). LightMode opt-in disables correlation ID generation for workloads that don't need it. Hot-path breakdown (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13 — not in current epoch): handler activation 24.4 ns / 0 B, handler invocation 6.0 ns / 0 B — all zero-allocation internals. See `benchmarks/experiments/` for optimization experiment details.
 
 One WarmPath row under investigation: `Dispatch: 100 concurrent commands` allocation vs MediatR — a methodology-matched rerun is queued for a future sprint. No claim is made on this tier until that rerun completes.
@@ -102,10 +106,12 @@ Source: `PipelineComparisonBenchmarks-report-github.md` (20260420 baseline, μs 
 ## Track C: Queued/Bus End-to-End Parity
 
 :::note Track C methodology
+
 Track C benchmarks use `InvocationCount=1`, `UnrollFactor=1`, `IterationCount=3` with `InProcessEmitToolchain`. Error margins are higher with fewer iterations; treat relative ratios as directional rather than precise. Run `*TransportQueueParityWarmPathComparisonBenchmarks*` to regenerate.
 :::
 
 :::warning Interpretation Guardrail
+
 Use Track A for closest in-process handler overhead parity. Use Track B when comparing middleware/pipeline cost across frameworks. Use Track C when comparing queued/bus completion semantics.
 :::
 
@@ -123,6 +129,7 @@ Excalibur.Dispatch offers multiple dispatch paths with different allocation char
 | MessageContext pool rent+return | **0 B** | ~9 ns | Pool infrastructure cost only (not refreshed in 20260420 — see `DispatchHotPathBreakdownBenchmarks` 2026-04-13) |
 
 :::tip Allocation Guidance
+
 - **"Near-zero allocation"**: Ultra-local and singleton-promoted paths (24 B per dispatch)
 - **"Low-allocation"**: Standard path (240 B -- context + routing metadata + ambient context flow)
 - **"Zero-allocation internals"**: Handler activation (24.4 ns / 0 B), invocation (6.0 ns / 0 B)
@@ -131,6 +138,7 @@ Excalibur.Dispatch offers multiple dispatch paths with different allocation char
 ## Routing-First Local + Hybrid Parity
 
 :::note
+
 Routing-first numbers below are from the 20260420 baseline (`RoutingFirstParityBenchmarks-report-github.md`). These paths were not affected by the S810 dep bumps or S811 Uuid7 v3 port since routing occurs before the dispatch fast path.
 :::
 

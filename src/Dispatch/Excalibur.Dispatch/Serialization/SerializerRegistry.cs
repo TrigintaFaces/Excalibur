@@ -4,8 +4,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>

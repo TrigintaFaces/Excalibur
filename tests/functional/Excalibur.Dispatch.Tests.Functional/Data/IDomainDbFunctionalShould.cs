@@ -43,7 +43,7 @@ public sealed class IDomainDbFunctionalShould : IAsyncLifetime
 		_fixture = fixture;
 	}
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		if (!_fixture.DockerAvailable)
 		{
@@ -55,7 +55,7 @@ public sealed class IDomainDbFunctionalShould : IAsyncLifetime
 		await CreateTestTableAsync();
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_testTableName != null && _fixture.DockerAvailable)
 		{
@@ -232,7 +232,7 @@ public sealed class IDomainDbFunctionalShould : IAsyncLifetime
 		var repository = new OrderRepository(db, _testTableName);
 
 		// Act - Insert with commit (Connection property calls Ready() which opens the connection)
-		using (var transaction = db.Connection.BeginTransaction())
+		using var transaction = db.Connection.BeginTransaction();
 		{
 			_ = await db.Connection.ExecuteAsync(
 				$"INSERT INTO [{_testTableName}] (Id, CustomerName, TotalAmount, Status) VALUES (@Id, @CustomerName, @TotalAmount, @Status)",

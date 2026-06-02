@@ -3,8 +3,8 @@
 
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Diagnostics;
 
 namespace Excalibur.Outbox.Diagnostics;
 

@@ -6,7 +6,7 @@ using System.Security.Claims;
 
 using Microsoft.AspNetCore.Authorization;
 
-using AuthorizationResult = Excalibur.Dispatch.Abstractions.AuthorizationResult;
+using AuthorizationResult = Excalibur.Dispatch.AuthorizationResult;
 
 namespace Excalibur.A3.Authorization;
 

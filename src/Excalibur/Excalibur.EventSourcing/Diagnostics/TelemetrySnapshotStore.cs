@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Decorators;
 using Excalibur.EventSourcing.Observability;
 

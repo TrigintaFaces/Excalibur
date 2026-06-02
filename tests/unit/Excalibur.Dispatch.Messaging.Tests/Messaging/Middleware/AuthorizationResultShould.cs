@@ -4,6 +4,8 @@
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Auth;
 
+using MiddlewareAuthResult = global::Excalibur.Dispatch.Middleware.Auth.AuthorizationResult;
+
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
 /// <summary>
@@ -23,7 +25,7 @@ public sealed class AuthorizationResultShould
 	public void Success_ReturnsAuthorizedResult()
 	{
 		// Act
-		var result = AuthorizationResult.Success();
+		var result = MiddlewareAuthResult.Success();
 
 		// Assert
 		result.IsAuthorized.ShouldBeTrue();
@@ -33,7 +35,7 @@ public sealed class AuthorizationResultShould
 	public void Success_ReturnsNullReason()
 	{
 		// Act
-		var result = AuthorizationResult.Success();
+		var result = MiddlewareAuthResult.Success();
 
 		// Assert
 		result.Reason.ShouldBeNull();
@@ -43,8 +45,8 @@ public sealed class AuthorizationResultShould
 	public void Success_MultipleCallsReturnIndependentInstances()
 	{
 		// Act
-		var result1 = AuthorizationResult.Success();
-		var result2 = AuthorizationResult.Success();
+		var result1 = MiddlewareAuthResult.Success();
+		var result2 = MiddlewareAuthResult.Success();
 
 		// Assert
 		result1.ShouldNotBeSameAs(result2);
@@ -58,7 +60,7 @@ public sealed class AuthorizationResultShould
 	public void Failure_ReturnsUnauthorizedResult()
 	{
 		// Act
-		var result = AuthorizationResult.Failure("Access denied");
+		var result = MiddlewareAuthResult.Failure("Access denied");
 
 		// Assert
 		result.IsAuthorized.ShouldBeFalse();
@@ -71,7 +73,7 @@ public sealed class AuthorizationResultShould
 		const string reason = "User does not have required role";
 
 		// Act
-		var result = AuthorizationResult.Failure(reason);
+		var result = MiddlewareAuthResult.Failure(reason);
 
 		// Assert
 		result.Reason.ShouldBe(reason);
@@ -81,7 +83,7 @@ public sealed class AuthorizationResultShould
 	public void Failure_WithEmptyReason_AcceptsEmptyString()
 	{
 		// Act
-		var result = AuthorizationResult.Failure(string.Empty);
+		var result = MiddlewareAuthResult.Failure(string.Empty);
 
 		// Assert
 		result.IsAuthorized.ShouldBeFalse();
@@ -95,7 +97,7 @@ public sealed class AuthorizationResultShould
 		const string detailedReason = "User 'john.doe@example.com' lacks 'Admin' role required for operation 'DeleteUser'";
 
 		// Act
-		var result = AuthorizationResult.Failure(detailedReason);
+		var result = MiddlewareAuthResult.Failure(detailedReason);
 
 		// Assert
 		result.Reason.ShouldBe(detailedReason);
@@ -109,10 +111,10 @@ public sealed class AuthorizationResultShould
 	public void IsAuthorized_IsReadOnly()
 	{
 		// Arrange
-		var result = AuthorizationResult.Success();
+		var result = MiddlewareAuthResult.Success();
 
 		// Assert - Property has no setter (compile-time check implied)
-		var propertyInfo = typeof(AuthorizationResult).GetProperty(nameof(AuthorizationResult.IsAuthorized));
+		var propertyInfo = typeof(MiddlewareAuthResult).GetProperty(nameof(MiddlewareAuthResult.IsAuthorized));
 		_ = propertyInfo.ShouldNotBeNull();
 		propertyInfo.CanWrite.ShouldBeFalse();
 	}
@@ -121,10 +123,10 @@ public sealed class AuthorizationResultShould
 	public void Reason_IsReadOnly()
 	{
 		// Arrange
-		var result = AuthorizationResult.Failure("test");
+		var result = MiddlewareAuthResult.Failure("test");
 
 		// Assert - Property has no setter (compile-time check implied)
-		var propertyInfo = typeof(AuthorizationResult).GetProperty(nameof(AuthorizationResult.Reason));
+		var propertyInfo = typeof(MiddlewareAuthResult).GetProperty(nameof(MiddlewareAuthResult.Reason));
 		_ = propertyInfo.ShouldNotBeNull();
 		propertyInfo.CanWrite.ShouldBeFalse();
 	}
@@ -137,8 +139,8 @@ public sealed class AuthorizationResultShould
 	public void CanBeUsedInConditionalCheck()
 	{
 		// Arrange
-		var successResult = AuthorizationResult.Success();
-		var failureResult = AuthorizationResult.Failure("Not allowed");
+		var successResult = MiddlewareAuthResult.Success();
+		var failureResult = MiddlewareAuthResult.Failure("Not allowed");
 
 		// Act & Assert
 		if (successResult.IsAuthorized)
@@ -166,8 +168,8 @@ public sealed class AuthorizationResultShould
 	public void SuccessAndFailure_AreMutuallyExclusive()
 	{
 		// Arrange
-		var success = AuthorizationResult.Success();
-		var failure = AuthorizationResult.Failure("reason");
+		var success = MiddlewareAuthResult.Success();
+		var failure = MiddlewareAuthResult.Failure("reason");
 
 		// Assert
 		success.IsAuthorized.ShouldNotBe(failure.IsAuthorized);
@@ -181,7 +183,7 @@ public sealed class AuthorizationResultShould
 	public void Failure_AcceptsVariousReasons(string reason)
 	{
 		// Act
-		var result = AuthorizationResult.Failure(reason);
+		var result = MiddlewareAuthResult.Failure(reason);
 
 		// Assert
 		result.IsAuthorized.ShouldBeFalse();

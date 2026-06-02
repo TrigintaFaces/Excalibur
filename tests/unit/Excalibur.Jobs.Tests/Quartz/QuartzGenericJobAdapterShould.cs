@@ -3,7 +3,7 @@
 
 using System.Text.Json;
 
-using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs;
 using Excalibur.Jobs.Quartz;
 
 using FakeItEasy;

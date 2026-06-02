@@ -40,16 +40,16 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 	/// Creates the queues needed by sender tests. Called once per test instance,
 	/// but queue creation is idempotent (catches conflict if already exists).
 	/// </summary>
-	public Task InitializeAsync() => Task.CompletedTask;
+	public ValueTask InitializeAsync() => default;
 	// Queues are pre-created by the emulator's Config.json (servicebus-emulator-config.json)
 	// loaded via AzureServiceBusContainerFixture.WithConfig().
 
-	public Task DisposeAsync() => Task.CompletedTask;
+	public ValueTask DisposeAsync() => default;
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessage_DeliversToQueue()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		await using var sender = _fixture.Client.CreateSender(TestQueueName);
@@ -76,10 +76,10 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 		await receiver.CompleteMessageAsync(received).ConfigureAwait(false);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendBatchMessages_AllDeliverSuccessfully()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		await using var sender = _fixture.Client.CreateSender(TestQueueName);
@@ -115,10 +115,10 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 		receivedCount.ShouldBe(batchSize);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessageWithProperties_PropertiesPreserved()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		await using var sender = _fixture.Client.CreateSender(TestQueueName);
@@ -149,10 +149,10 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 		await receiver.CompleteMessageAsync(received).ConfigureAwait(false);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendScheduledMessage_ReturnsSequenceNumber()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		await using var sender = _fixture.Client.CreateSender(TestQueueName);
@@ -173,10 +173,10 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 		await sender.CancelScheduledMessageAsync(sequenceNumber).ConfigureAwait(false);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessageWithSessionId_SessionPreserved()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		await using var sender = _fixture.Client.CreateSender(SessionQueueName);
@@ -207,10 +207,10 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 		received.Body.ToString().ShouldBe("session message");
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task SendMessageWithSubject_SubjectPreserved()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		await using var sender = _fixture.Client.CreateSender(TestQueueName);
@@ -234,10 +234,10 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 		await receiver.CompleteMessageAsync(received).ConfigureAwait(false);
 	}
 
-	[SkippableFact]
+	[Fact]
 	public async Task MessageBody_RoundTrips()
 	{
-		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
+		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		await using var sender = _fixture.Client.CreateSender(TestQueueName);

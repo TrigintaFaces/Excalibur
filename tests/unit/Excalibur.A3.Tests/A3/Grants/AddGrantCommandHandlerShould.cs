@@ -1,6 +1,8 @@
 using Excalibur.A3;
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Grants;
+
+using GrantAggregate = Excalibur.A3.Authorization.Grants.Grant;
 using Excalibur.A3.Exceptions;
 using Excalibur.Domain;
 
@@ -114,7 +116,7 @@ public sealed class AddGrantCommandHandlerShould
 		result.Result.ShouldBeTrue();
 		A.CallTo(() => _grantRepository.DeleteAsync(expiredGrant, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _grantRepository.SaveAsync(A<Grant>._, A<CancellationToken>._))
+		A.CallTo(() => _grantRepository.SaveAsync(A<GrantAggregate>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -126,7 +128,7 @@ public sealed class AddGrantCommandHandlerShould
 		var command = CreateValidCommand();
 
 		A.CallTo(() => _grantRepository.GetByIdAsync(A<string>._, A<CancellationToken>._))
-			.Returns((Grant?)null);
+			.Returns((GrantAggregate?)null);
 
 		// Act
 		var result = await sut.HandleAsync(command, CancellationToken.None);
@@ -134,7 +136,7 @@ public sealed class AddGrantCommandHandlerShould
 		// Assert
 		result.Result.ShouldBeTrue();
 		result.AuditMessage.ShouldContain("Granted to");
-		A.CallTo(() => _grantRepository.SaveAsync(A<Grant>._, A<CancellationToken>._))
+		A.CallTo(() => _grantRepository.SaveAsync(A<GrantAggregate>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -146,7 +148,7 @@ public sealed class AddGrantCommandHandlerShould
 		var command = CreateValidCommand();
 
 		A.CallTo(() => _grantRepository.GetByIdAsync(A<string>._, A<CancellationToken>._))
-			.Returns((Grant?)null);
+			.Returns((GrantAggregate?)null);
 
 		// Act
 		await sut.HandleAsync(command, CancellationToken.None);
@@ -164,7 +166,7 @@ public sealed class AddGrantCommandHandlerShould
 		var command = CreateValidCommand(fullName: "Jane Smith");
 
 		A.CallTo(() => _grantRepository.GetByIdAsync(A<string>._, A<CancellationToken>._))
-			.Returns((Grant?)null);
+			.Returns((GrantAggregate?)null);
 
 		// Act
 		var result = await sut.HandleAsync(command, CancellationToken.None);
@@ -175,19 +177,19 @@ public sealed class AddGrantCommandHandlerShould
 		result.AuditMessage.ShouldContain("Admin User");
 	}
 
-	private static Grant CreateActiveGrant()
+	private static GrantAggregate CreateActiveGrant()
 	{
 		var addedEvent = new Excalibur.A3.Authorization.Events.GrantAdded(
 			"target-user", "Target User", "TestApp", "tenant-1", "ActivityGroup", "orders",
 			DateTimeOffset.UtcNow.AddDays(30), "admin", DateTimeOffset.UtcNow.AddDays(-1));
-		return Grant.FromEvents("target-user:tenant-1:ActivityGroup:orders", [addedEvent]);
+		return GrantAggregate.FromEvents("target-user:tenant-1:ActivityGroup:orders", [addedEvent]);
 	}
 
-	private static Grant CreateExpiredGrant()
+	private static GrantAggregate CreateExpiredGrant()
 	{
 		var addedEvent = new Excalibur.A3.Authorization.Events.GrantAdded(
 			"target-user", "Target User", "TestApp", "tenant-1", "ActivityGroup", "orders",
 			DateTimeOffset.UtcNow.AddDays(-1), "admin", DateTimeOffset.UtcNow.AddDays(-5));
-		return Grant.FromEvents("target-user:tenant-1:ActivityGroup:orders", [addedEvent]);
+		return GrantAggregate.FromEvents("target-user:tenant-1:ActivityGroup:orders", [addedEvent]);
 	}
 }

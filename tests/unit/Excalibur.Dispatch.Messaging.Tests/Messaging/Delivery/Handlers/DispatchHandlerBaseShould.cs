@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Validation;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery.Handlers;
-using Excalibur.Dispatch.Routing;
 
 using FakeItEasy;
 

@@ -214,6 +214,7 @@ public class OrderCreatedPublisher : IEventHandler<OrderCreated>
 ```
 
 :::tip Context Propagation
+
 `CreateChildContext()` ensures correlation chains flow through your system:
 - **CorrelationId** groups all messages in a business transaction
 - **CausationId** links each message to its direct cause
@@ -294,6 +295,7 @@ services.AddMessagePackSerializer();
 ```
 
 :::info No serializer-specific attributes needed
+
 Consumer event types do **not** need `[MemoryPackable]`, `[MessagePackObject]`, or any other serializer-specific attributes. Only the internal envelope wrapper uses these attributes. Your domain events remain plain POCOs regardless of which serializer you choose.
 :::
 

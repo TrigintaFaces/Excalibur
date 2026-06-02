@@ -4,13 +4,12 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Data.Abstractions.Observability;
 using Excalibur.Data.MongoDB.Diagnostics;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Observability;
 
 using Microsoft.Extensions.Logging;

@@ -7,7 +7,8 @@ description: Compare saga orchestration and choreography patterns with code exam
 # Orchestration vs Choreography
 
 :::info Event-driven pattern
-This page covers the **event-driven** saga pattern using `SagaBase<T>`, where the saga suspends between events and can span independently deployed microservices. If you are coordinating services within a single process (modular monolith, API gateway), the simpler **[step-based pattern](building-your-first-saga.md)** using `ISagaDefinition` + `ISagaStep` may be a better fit.
+
+This page covers the **event-driven** saga pattern using `SagaBase<T>`, where the saga suspends between events and can span independently deployed microservices. For a step-by-step introduction to building your first saga, see **[Building Your First Saga](building-your-first-saga.md)**.
 :::
 
 Sagas can be implemented using two fundamentally different coordination approaches: **orchestration** and **choreography**. This guide compares both patterns with practical code examples to help you choose the right approach for your use case.

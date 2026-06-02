@@ -4,8 +4,6 @@
 
 using CloudNative.CloudEvents;
 
-using MessageEnvelope = Excalibur.Dispatch.Abstractions.MessageEnvelope;
-
 namespace Excalibur.Dispatch.CloudEvents;
 
 /// <summary>

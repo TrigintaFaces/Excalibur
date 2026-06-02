@@ -3,14 +3,13 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly - test assertions call HandleAsync inside lambdas
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Features;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Resilience;
-using Excalibur.Dispatch.Routing;
 using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging;

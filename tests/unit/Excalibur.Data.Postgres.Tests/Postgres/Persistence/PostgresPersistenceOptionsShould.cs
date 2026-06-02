@@ -4,7 +4,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.Postgres.Persistence;
 
 namespace Excalibur.Data.Tests.Postgres.Persistence;

@@ -3,7 +3,7 @@
 
 using Amazon.DynamoDBv2;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.DynamoDb;
 
 using Microsoft.Extensions.Options;
@@ -213,7 +213,7 @@ public sealed class DynamoDbPersistenceProviderShould : UnitTestBase
 		var provider = new DynamoDbPersistenceProvider(fakeClient, _validOptions, _logger);
 		await provider.DisposeAsync().ConfigureAwait(false);
 
-		var partitionKey = A.Fake<Excalibur.Data.Abstractions.CloudNative.IPartitionKey>();
+		var partitionKey = A.Fake<Excalibur.Data.CloudNative.IPartitionKey>();
 
 		_ = await Should.ThrowAsync<ObjectDisposedException>(async () =>
 			await provider.GetByIdAsync<object>("id", partitionKey, null, CancellationToken.None)

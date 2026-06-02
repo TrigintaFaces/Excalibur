@@ -124,7 +124,7 @@ logger.LogInformation("");
 var orderId = $"ORD-{DateTime.UtcNow:yyyyMMdd}-001";
 logger.LogInformation("Placing order: {OrderId}", orderId);
 
-var dispatcher = host.Services.GetRequiredService<Excalibur.Dispatch.Abstractions.IDispatcher>();
+var dispatcher = host.Services.GetRequiredService<Excalibur.Dispatch.IDispatcher>();
 var context = Excalibur.Dispatch.Messaging.DispatchContextInitializer.CreateDefaultContext();
 
 var orderPlaced = new OrderPlacedEvent

@@ -64,6 +64,15 @@ const config: Config = {
   // Locally, they will only warn to avoid blocking development
   onBrokenLinks: isStrictMode ? 'throw' : 'warn',
   markdown: {
+    format: 'mdx',
+    mermaid: true,
+    mdx1Compat: {
+      // Required: v4 future flag disables MDX1 compat by default,
+      // which breaks :::info/:::tip/:::warning admonition syntax.
+      // Keep admonitions enabled until full MDX2+ migration.
+      admonitions: true,
+      comments: true,
+    },
     hooks: {
       onBrokenMarkdownLinks: isStrictMode ? 'throw' : 'warn',
     },
@@ -147,8 +156,9 @@ const config: Config = {
     ],
   ],
 
-  // Themes - including local search
+  // Themes - including Mermaid diagrams and local search
   themes: [
+    '@docusaurus/theme-mermaid',
     [
       '@easyops-cn/docusaurus-search-local',
       {

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Excalibur.Application.Requests.Commands;
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 

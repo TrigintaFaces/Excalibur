@@ -3,8 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.CloudNative;
 using Excalibur.EventSourcing.DependencyInjection;
 
 using Microsoft.Azure.Cosmos;

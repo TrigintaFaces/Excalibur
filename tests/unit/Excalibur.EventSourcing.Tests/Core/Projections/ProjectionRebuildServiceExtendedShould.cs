@@ -4,8 +4,8 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 #pragma warning disable CA1506 // Excessive class coupling -- integration-style tests require many DI types
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Tests.Projections;

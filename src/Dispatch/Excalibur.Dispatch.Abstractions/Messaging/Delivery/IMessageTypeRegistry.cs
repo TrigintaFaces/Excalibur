@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-namespace Excalibur.Dispatch.Abstractions.Messaging;
+namespace Excalibur.Dispatch.Messaging;
 
 /// <summary>
 /// Defines the contract for message type registration and resolution,

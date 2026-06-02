@@ -3,7 +3,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-namespace Excalibur.A3.Abstractions.Authorization;
+namespace Excalibur.A3.Authorization;
 
 /// <summary>
 /// Configuration options for role management.

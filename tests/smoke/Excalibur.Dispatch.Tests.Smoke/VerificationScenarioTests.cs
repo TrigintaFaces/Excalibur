@@ -10,8 +10,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Middleware;
@@ -19,7 +19,7 @@ using Excalibur.Dispatch.Resilience.Polly;
 using Excalibur.Security;
 using Excalibur.Dispatch.Validation;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.InMemory;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -30,7 +30,6 @@ using Microsoft.Extensions.Options;
 using Shouldly;
 
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Smoke;
 
@@ -73,7 +72,7 @@ public sealed class VerificationScenarioTests
 		});
 
 		// Ensure validation uses DataAnnotations (default = true, but explicit for clarity)
-		services.Configure<ValidationOptions>(opt =>
+		services.Configure<Excalibur.Dispatch.Options.Middleware.ValidationOptions>(opt =>
 		{
 			opt.Enabled = true;
 			opt.UseDataAnnotations = true;

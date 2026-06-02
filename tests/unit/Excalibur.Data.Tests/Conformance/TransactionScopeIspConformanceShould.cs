@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 
 namespace Excalibur.Data.Tests.Conformance;
 

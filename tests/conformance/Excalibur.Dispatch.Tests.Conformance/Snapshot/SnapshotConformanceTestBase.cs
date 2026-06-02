@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Snapshots;
 
 using FakeItEasy;
@@ -51,14 +51,14 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 	protected ISnapshotStrategy? SnapshotStrategy { get; private set; }
 
 	/// <inheritdoc />
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		SnapshotStore = await CreateSnapshotStoreAsync().ConfigureAwait(false);
 		SnapshotStrategy = await CreateSnapshotStrategyAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await DisposeSnapshotStoreAsync().ConfigureAwait(false);
 	}

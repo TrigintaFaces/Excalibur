@@ -7,7 +7,7 @@ using System.Diagnostics.Metrics;
 
 using Microsoft.Extensions.Logging;
 
-namespace Excalibur.Data.Abstractions.Observability;
+namespace Excalibur.Data.Observability;
 
 /// <summary>
 /// Standard telemetry helpers for write-side stores.

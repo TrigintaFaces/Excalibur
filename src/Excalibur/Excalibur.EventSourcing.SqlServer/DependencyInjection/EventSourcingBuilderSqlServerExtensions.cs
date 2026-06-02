@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
@@ -210,6 +210,16 @@ public static class EventSourcingBuilderSqlServerExtensions
 		RegisterSnapshotStore(builder.Services, connectionFactory, options.SnapshotStoreSchema, options.SnapshotStoreTable);
 		RegisterGlobalStreamQuery(builder.Services, connectionFactory);
 
+		// Register materialized view store if enabled via UseMaterializedViewStore()
+		if (sqlBuilder.EnableMaterializedViewStore)
+		{
+			RegisterMaterializedViewStore(
+				builder.Services,
+				connectionFactory,
+				sqlBuilder.MaterializedViewTableName,
+				sqlBuilder.MaterializedViewPositionTableName);
+		}
+
 		// Register health checks if enabled and connection string is available
 		if (options.HealthChecks.RegisterHealthChecks && !string.IsNullOrWhiteSpace(options.ConnectionString))
 		{
@@ -275,6 +285,23 @@ public static class EventSourcingBuilderSqlServerExtensions
 			return new SqlServerGlobalStreamQuery(
 				factory,
 				sp.GetRequiredService<IOptions<SqlServerEventSourcingOptions>>());
+		});
+	}
+
+	private static void RegisterMaterializedViewStore(
+		IServiceCollection services,
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
+		string? viewTableName,
+		string? positionTableName)
+	{
+		services.TryAddSingleton<Excalibur.EventSourcing.IMaterializedViewStore>(sp =>
+		{
+			var factory = connectionFactory(sp);
+			return new SqlServerMaterializedViewStore(
+				factory,
+				sp.GetRequiredService<ILogger<SqlServerMaterializedViewStore>>(),
+				viewTableName,
+				positionTableName);
 		});
 	}
 }

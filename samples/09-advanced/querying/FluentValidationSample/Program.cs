@@ -17,7 +17,7 @@
 // - Validation error handling
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Validation;
@@ -281,7 +281,7 @@ static void PrintResult(IMessageResult result)
 			foreach (var error in errors)
 			{
 				// Cast to ValidationError to get property name and message
-				if (error is Excalibur.Dispatch.Abstractions.Validation.ValidationError ve)
+				if (error is Excalibur.Dispatch.Validation.ValidationError ve)
 				{
 					var prop = string.IsNullOrEmpty(ve.PropertyName) ? "(General)" : ve.PropertyName;
 					Console.WriteLine($"    - [{prop}]: {ve.Message}");

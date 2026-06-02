@@ -3,8 +3,7 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Sharding;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;

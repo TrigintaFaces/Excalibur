@@ -4,7 +4,7 @@
 
 using Dapper;
 
-namespace Excalibur.Data.Abstractions;
+namespace Excalibur.Data;
 
 /// <summary>
 /// Non-generic base interface for data requests.

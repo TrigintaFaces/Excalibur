@@ -5,12 +5,12 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
-using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Data.CloudNative;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 
-using CloudPartitionKey = Excalibur.Data.Abstractions.CloudNative.PartitionKey;
+using CloudPartitionKey = Excalibur.Data.CloudNative.PartitionKey;
 
 namespace Excalibur.Outbox.CosmosDb;
 

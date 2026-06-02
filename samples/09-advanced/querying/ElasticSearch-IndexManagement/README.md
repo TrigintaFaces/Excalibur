@@ -39,7 +39,7 @@ docker run -d --name es -p 9200:9200 \
 ## Running
 
 ```bash
-dotnet run --project samples/07-data-providers/ElasticSearch-IndexManagement
+dotnet run --project samples/09-advanced/querying/ElasticSearch-IndexManagement
 ```
 
 ## DI Registration

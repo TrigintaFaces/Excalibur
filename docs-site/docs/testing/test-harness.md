@@ -31,7 +31,7 @@ Key characteristics:
 ## Quick Start
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Testing;
 using Excalibur.Dispatch.Testing.Tracking;
 
@@ -226,7 +226,7 @@ context.GetItem<string>("RequestId").ShouldBe("req-abc-123");
 A full test showing handler registration, dispatching, and assertion:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Testing;
 using Excalibur.Dispatch.Testing.Tracking;
 using Microsoft.Extensions.DependencyInjection;
@@ -301,6 +301,7 @@ public class PlaceOrderHandlerShould : IAsyncDisposable
 ```
 
 :::tip
+
 When testing with FakeItEasy, register fakes via `ConfigureServices` so they are resolved by the DI container during handler construction.
 :::
 

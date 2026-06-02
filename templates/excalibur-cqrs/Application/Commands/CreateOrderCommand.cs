@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Company.ExcaliburCqrs.Application.Commands;
 

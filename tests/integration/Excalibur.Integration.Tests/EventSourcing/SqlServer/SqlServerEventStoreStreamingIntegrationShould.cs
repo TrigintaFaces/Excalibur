@@ -3,9 +3,9 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.SqlServer;
 
 using Microsoft.Data.SqlClient;
@@ -33,7 +33,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 	private string? _connectionString;
 	private bool _dockerAvailable;
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -55,7 +55,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 		}
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_container != null)
 		{

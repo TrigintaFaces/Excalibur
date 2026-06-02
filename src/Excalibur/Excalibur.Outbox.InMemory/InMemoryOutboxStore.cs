@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 
 using Excalibur.Data.InMemory.Diagnostics;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -472,7 +472,7 @@ public sealed partial class InMemoryOutboxStore : IOutboxStore, IOutboxStoreAdmi
 			}
 
 			if (oldestSentMessage is null ||
-			    Nullable.Compare(message.SentAt, oldestSentAt) < 0)
+				Nullable.Compare(message.SentAt, oldestSentAt) < 0)
 			{
 				oldestSentMessage = message;
 				oldestSentAt = message.SentAt;

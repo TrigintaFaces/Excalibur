@@ -5,7 +5,6 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
 using Excalibur.Data.SqlServer.Diagnostics;
 
 using Microsoft.Data.SqlClient;

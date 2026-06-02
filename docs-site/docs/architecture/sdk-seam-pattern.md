@@ -11,6 +11,7 @@ When a framework package calls into a third-party SDK (Azure, AWS, GCP, etc.) an
 This page is reference material for contributors extending the framework. Consumers of Excalibur do not see or use these seams.
 
 :::info Where this is specified
+
 The normative rule lives in [ADR-142 §D7](https://github.com/dean-excalibur/Excalibur.Dispatch/blob/main/management/architecture/adr-142-sprint-555-testing-infrastructure-consumer-dx.md). This page is an illustrated companion to that decision, not a substitute.
 :::
 

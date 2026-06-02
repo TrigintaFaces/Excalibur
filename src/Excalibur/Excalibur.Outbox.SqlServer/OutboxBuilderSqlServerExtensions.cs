@@ -3,9 +3,9 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;

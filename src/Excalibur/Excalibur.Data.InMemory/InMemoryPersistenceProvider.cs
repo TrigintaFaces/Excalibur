@@ -9,10 +9,9 @@ using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Data.Abstractions.Persistence;
-using Excalibur.Data.Abstractions.Resilience;
 using Excalibur.Data.InMemory.Diagnostics;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -406,9 +405,9 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 					{
 						try
 						{
-							#pragma warning disable IL2026, IL3050 // PersistToDiskAsync uses JSON serialization
+#pragma warning disable IL2026, IL3050 // PersistToDiskAsync uses JSON serialization
 							await PersistToDiskAsync(CancellationToken.None).ConfigureAwait(false);
-							#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 						}
 						catch (Exception ex)
 						{

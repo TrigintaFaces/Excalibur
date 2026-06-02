@@ -97,20 +97,23 @@ Excalibur.Domain.IClientAddress.Value.set -> void
 Excalibur.Domain.Model.AggregateRoot
 Excalibur.Domain.Model.AggregateRoot.AggregateRoot() -> void
 Excalibur.Domain.Model.AggregateRoot.AggregateRoot(string! id) -> void
+Excalibur.Domain.Model.AggregateRoot<TAggregate, TKey>
+Excalibur.Domain.Model.AggregateRoot<TAggregate, TKey>.AggregateRoot() -> void
+Excalibur.Domain.Model.AggregateRoot<TAggregate, TKey>.AggregateRoot(TKey id) -> void
 Excalibur.Domain.Model.AggregateRoot<TKey>
 Excalibur.Domain.Model.AggregateRoot<TKey>.AggregateRoot() -> void
 Excalibur.Domain.Model.AggregateRoot<TKey>.AggregateRoot(TKey id) -> void
-Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEvent(Excalibur.Dispatch.Abstractions.IDomainEvent! eventData) -> void
+Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEvent(Excalibur.Dispatch.IDomainEvent! eventData) -> void
 Excalibur.Domain.Model.AggregateRoot<TKey>.ETag.get -> string?
 Excalibur.Domain.Model.AggregateRoot<TKey>.ETag.set -> void
 Excalibur.Domain.Model.AggregateRoot<TKey>.GetService(System.Type! serviceType) -> object?
-Excalibur.Domain.Model.AggregateRoot<TKey>.GetUncommittedEvents() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent!>!
+Excalibur.Domain.Model.AggregateRoot<TKey>.GetUncommittedEvents() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.IDomainEvent!>!
 Excalibur.Domain.Model.AggregateRoot<TKey>.HasUncommittedEvents.get -> bool
 Excalibur.Domain.Model.AggregateRoot<TKey>.Id.get -> TKey
 Excalibur.Domain.Model.AggregateRoot<TKey>.Id.set -> void
-Excalibur.Domain.Model.AggregateRoot<TKey>.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! history) -> void
+Excalibur.Domain.Model.AggregateRoot<TKey>.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! history) -> void
 Excalibur.Domain.Model.AggregateRoot<TKey>.MarkEventsAsCommitted() -> void
-Excalibur.Domain.Model.AggregateRoot<TKey>.RaiseEvent(Excalibur.Dispatch.Abstractions.IDomainEvent! event) -> void
+Excalibur.Domain.Model.AggregateRoot<TKey>.RaiseEvent(Excalibur.Dispatch.IDomainEvent! event) -> void
 Excalibur.Domain.Model.AggregateRoot<TKey>.Version.get -> long
 Excalibur.Domain.Model.AggregateRoot<TKey>.Version.set -> void
 Excalibur.Domain.Model.EntityBase
@@ -118,15 +121,15 @@ Excalibur.Domain.Model.EntityBase.EntityBase() -> void
 Excalibur.Domain.Model.EntityBase<TKey>
 Excalibur.Domain.Model.EntityBase<TKey>.EntityBase() -> void
 Excalibur.Domain.Model.IAggregateRoot
-Excalibur.Domain.Model.IAggregateRoot.ApplyEvent(Excalibur.Dispatch.Abstractions.IDomainEvent! eventData) -> void
+Excalibur.Domain.Model.IAggregateRoot.ApplyEvent(Excalibur.Dispatch.IDomainEvent! eventData) -> void
 Excalibur.Domain.Model.IAggregateRoot.GetService(System.Type! serviceType) -> object?
-Excalibur.Domain.Model.IAggregateRoot.GetUncommittedEvents() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent!>!
+Excalibur.Domain.Model.IAggregateRoot.GetUncommittedEvents() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.IDomainEvent!>!
 Excalibur.Domain.Model.IAggregateRoot.Id.get -> string!
 Excalibur.Domain.Model.IAggregateRoot.MarkEventsAsCommitted() -> void
 Excalibur.Domain.Model.IAggregateRoot.Version.get -> long
 Excalibur.Domain.Model.IAggregateRoot<TAggregate, TKey>
 Excalibur.Domain.Model.IAggregateRoot<TAggregate, TKey>.Create(TKey id) -> TAggregate
-Excalibur.Domain.Model.IAggregateRoot<TAggregate, TKey>.FromEvents(TKey id, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events) -> TAggregate
+Excalibur.Domain.Model.IAggregateRoot<TAggregate, TKey>.FromEvents(TKey id, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events) -> TAggregate
 Excalibur.Domain.Model.IAggregateRoot<TKey>
 Excalibur.Domain.Model.IAggregateRoot<TKey>.Id.get -> TKey
 Excalibur.Domain.Model.IAggregateSnapshotSupport
@@ -134,10 +137,10 @@ Excalibur.Domain.Model.IAggregateSnapshotSupport.AggregateType.get -> string!
 Excalibur.Domain.Model.IAggregateSnapshotSupport.CreateSnapshot() -> Excalibur.Domain.Model.ISnapshot!
 Excalibur.Domain.Model.IAggregateSnapshotSupport.ETag.get -> string?
 Excalibur.Domain.Model.IAggregateSnapshotSupport.ETag.set -> void
-Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! history) -> void
+Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! history) -> void
 Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromSnapshot(Excalibur.Domain.Model.ISnapshot! snapshot) -> void
 Excalibur.Domain.Model.IDomainEventEnricher
-Excalibur.Domain.Model.IDomainEventEnricher.EnrichAsync(Excalibur.Dispatch.Abstractions.IDomainEvent! event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IDomainEvent!>!
+Excalibur.Domain.Model.IDomainEventEnricher.EnrichAsync(Excalibur.Dispatch.IDomainEvent! event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.IDomainEvent!>!
 Excalibur.Domain.Model.IEntity
 Excalibur.Domain.Model.IEntity<TKey>
 Excalibur.Domain.Model.IEntity<TKey>.Key.get -> TKey
@@ -156,6 +159,10 @@ Excalibur.Domain.Model.ISnapshot.Version.get -> long
 Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>
 Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.KeyedAggregateRoot() -> void
 Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.KeyedAggregateRoot(TKey id) -> void
+Excalibur.Domain.Model.SmartEnum<T>
+Excalibur.Domain.Model.SmartEnum<T>.Id.get -> int
+Excalibur.Domain.Model.SmartEnum<T>.Name.get -> string!
+Excalibur.Domain.Model.SmartEnum<T>.SmartEnum(int id, string! name) -> void
 Excalibur.Domain.Model.Snapshot
 Excalibur.Domain.Model.Snapshot.AggregateId.get -> string!
 Excalibur.Domain.Model.Snapshot.AggregateId.init -> void
@@ -206,12 +213,15 @@ Excalibur.Domain.OrderedEventProcessor.ProcessAsync(System.Func<System.Threading
 Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions
-abstract Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEventInternal(Excalibur.Dispatch.Abstractions.IDomainEvent! event) -> void
+abstract Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEventInternal(Excalibur.Dispatch.IDomainEvent! event) -> void
 abstract Excalibur.Domain.Model.EntityBase<TKey>.Key.get -> TKey
 abstract Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.BusinessKey.get -> TBusinessKey
 abstract Excalibur.Domain.Model.ValueObjects.ValueObjectBase.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
 override Excalibur.Domain.Model.EntityBase<TKey>.Equals(object? obj) -> bool
 override Excalibur.Domain.Model.EntityBase<TKey>.GetHashCode() -> int
+override Excalibur.Domain.Model.SmartEnum<T>.Equals(object? obj) -> bool
+override Excalibur.Domain.Model.SmartEnum<T>.GetHashCode() -> int
+override Excalibur.Domain.Model.SmartEnum<T>.ToString() -> string!
 override Excalibur.Domain.Model.ValueObjects.Address.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
 override Excalibur.Domain.Model.ValueObjects.Address.ToString() -> string!
 override Excalibur.Domain.Model.ValueObjects.Money.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
@@ -245,6 +255,13 @@ static Excalibur.Domain.Extensions.StringExtensions.ToSnakeCaseLower(this string
 static Excalibur.Domain.Extensions.StringExtensions.ToSnakeCaseUpper(this string! str, bool clean = false) -> string!
 static Excalibur.Domain.Extensions.TaskExtensions.TimeoutAfterAsync(this System.Threading.Tasks.Task! task, System.TimeSpan timeout) -> System.Threading.Tasks.Task!
 static Excalibur.Domain.Extensions.TaskExtensions.TimeoutAfterAsync<T>(this System.Threading.Tasks.Task<T>! task, System.TimeSpan timeout) -> System.Threading.Tasks.Task<T>!
+static Excalibur.Domain.Model.AggregateRoot<TAggregate, TKey>.Create(TKey id) -> TAggregate!
+static Excalibur.Domain.Model.AggregateRoot<TAggregate, TKey>.FromEvents(TKey id, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events) -> TAggregate!
+static Excalibur.Domain.Model.SmartEnum<T>.FromId(int id) -> T!
+static Excalibur.Domain.Model.SmartEnum<T>.FromName(string! name) -> T!
+static Excalibur.Domain.Model.SmartEnum<T>.GetAll() -> System.Collections.Generic.IReadOnlyCollection<T!>!
+static Excalibur.Domain.Model.SmartEnum<T>.TryFromId(int id, out T? result) -> bool
+static Excalibur.Domain.Model.SmartEnum<T>.TryFromName(string! name, out T? result) -> bool
 static Excalibur.Domain.Model.Snapshot.Create(string! aggregateId, long version, byte[]! data, string! aggregateType, System.Collections.Generic.IDictionary<string!, object!>? metadata = null) -> Excalibur.Domain.Model.Snapshot!
 static Excalibur.Domain.Model.ValueObjects.Money.AUD(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.Add(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!
@@ -293,16 +310,4 @@ virtual Excalibur.Domain.Model.AggregateRoot<TKey>.AggregateType.get -> string!
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.ApplySnapshot(Excalibur.Domain.Model.ISnapshot! snapshot) -> void
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.CreateSnapshot() -> Excalibur.Domain.Model.ISnapshot!
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.LoadFromSnapshot(Excalibur.Domain.Model.ISnapshot! snapshot) -> void
-Excalibur.Domain.Model.SmartEnum<T>
-Excalibur.Domain.Model.SmartEnum<T>.Id.get -> int
-Excalibur.Domain.Model.SmartEnum<T>.Name.get -> string!
-Excalibur.Domain.Model.SmartEnum<T>.SmartEnum(int id, string! name) -> void
-override Excalibur.Domain.Model.SmartEnum<T>.Equals(object? obj) -> bool
-override Excalibur.Domain.Model.SmartEnum<T>.GetHashCode() -> int
-override Excalibur.Domain.Model.SmartEnum<T>.ToString() -> string!
-static Excalibur.Domain.Model.SmartEnum<T>.FromId(int id) -> T!
-static Excalibur.Domain.Model.SmartEnum<T>.FromName(string! name) -> T!
-static Excalibur.Domain.Model.SmartEnum<T>.GetAll() -> System.Collections.Generic.IReadOnlyCollection<T!>!
-static Excalibur.Domain.Model.SmartEnum<T>.TryFromId(int id, out T? result) -> bool
-static Excalibur.Domain.Model.SmartEnum<T>.TryFromName(string! name, out T? result) -> bool
 virtual Excalibur.Domain.Model.EntityBase<TKey>.Equals(Excalibur.Domain.Model.IEntity<TKey>? other) -> bool

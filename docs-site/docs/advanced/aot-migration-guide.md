@@ -50,7 +50,7 @@ This enables AOT analysis during build. You will see IL2xxx/IL3xxx warnings for 
 The source generator discovers handlers at compile time. Mark each handler:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 // Before: handler discovered via assembly scanning (reflection)
 public class CreateOrderHandler : IActionHandler<CreateOrderCommand>

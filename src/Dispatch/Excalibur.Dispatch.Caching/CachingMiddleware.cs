@@ -10,10 +10,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Caching.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Validation;
 
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
@@ -122,7 +121,7 @@ internal sealed class CachingMiddleware(
 		var key = keyBuilder.CreateKey(action, context);
 
 		// Check if message implements any ICacheable<T> interface
-		#pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetCacheableInterface
+#pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetCacheableInterface
 		var messageType = message.GetType();
 		var cacheableInterface = GetCacheableInterface(messageType);
 #pragma warning restore IL2072
@@ -170,7 +169,7 @@ internal sealed class CachingMiddleware(
 				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>));
 		}
 
-		#pragma warning disable IL2111 // DynamicallyAccessedMembers on lambda parameter
+#pragma warning disable IL2111 // DynamicallyAccessedMembers on lambda parameter
 		return _cacheableInterfaceCache.GetOrAdd(messageType, static ([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type) =>
 			type.GetInterfaces()
 				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>)));
@@ -196,7 +195,7 @@ internal sealed class CachingMiddleware(
 				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>));
 		}
 
-		#pragma warning disable IL2111 // DynamicallyAccessedMembers on lambda parameter
+#pragma warning disable IL2111 // DynamicallyAccessedMembers on lambda parameter
 		return _actionInterfaceCache.GetOrAdd(messageType, static ([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type) =>
 			type.GetInterfaces()
 				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>)));
@@ -228,7 +227,7 @@ internal sealed class CachingMiddleware(
 		Justification = "ICacheable interface members are accessed via nameof for stability")]
 	private static CacheableInfo? GetCacheableInfo(IDispatchMessage message)
 	{
-		#pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetCacheableInterface
+#pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetCacheableInterface
 		var messageType = message.GetType();
 		var cacheableInterface = GetCacheableInterface(messageType);
 #pragma warning restore IL2072
@@ -346,11 +345,11 @@ internal sealed class CachingMiddleware(
 					return resultInstance;
 				}
 
-				#pragma warning disable IL2075 // GetInterfaces on runtime type for diagnostic message only
+#pragma warning disable IL2075 // GetInterfaces on runtime type for diagnostic message only
 				var implementedInterfaces = string.Join(
 					", ",
 					messageType.GetInterfaces().Select(static i => i.Name));
-				#pragma warning restore IL2075
+#pragma warning restore IL2075
 				throw new InvalidOperationException(
 					string.Format(
 						CultureInfo.CurrentCulture,

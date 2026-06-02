@@ -6,7 +6,6 @@ using System.Globalization;
 using System.Text;
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Options.Channels;
 
 namespace Excalibur.Dispatch.Channels;

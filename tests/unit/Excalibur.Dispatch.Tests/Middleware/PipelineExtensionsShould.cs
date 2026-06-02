@@ -3,10 +3,9 @@
 
 using CloudNative.CloudEvents;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.CloudEvents;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Middleware.Batch;

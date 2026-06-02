@@ -1,7 +1,7 @@
 ﻿using Company.ExcaliburCqrs.Domain.Events;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 
 namespace Company.ExcaliburCqrs.ReadModel;
 

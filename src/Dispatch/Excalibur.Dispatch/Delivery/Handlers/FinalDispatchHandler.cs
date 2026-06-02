@@ -9,18 +9,16 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Transport;
+using Excalibur.Dispatch.Validation;
 
 using Microsoft.Extensions.Logging;
 
-using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+using MR = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Delivery.Handlers;
 

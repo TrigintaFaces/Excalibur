@@ -6,7 +6,7 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 using Excalibur.Domain.Model;
 
 namespace Excalibur.EventSourcing.Postgres.Requests;

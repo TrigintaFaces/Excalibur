@@ -4,7 +4,7 @@
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Defines health check capabilities for persistence providers.

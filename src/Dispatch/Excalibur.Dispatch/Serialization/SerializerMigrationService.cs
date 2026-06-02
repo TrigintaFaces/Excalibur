@@ -4,8 +4,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Serialization;

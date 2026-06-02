@@ -3,9 +3,9 @@
 
 using Dapper;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 using OutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
 using Excalibur.Outbox.Postgres;

@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.EventSourcing;
+namespace Excalibur.Dispatch.Tests.EventSourcing;
 
 /// <summary>
 /// Tests verifying JsonEventSerializer type cache is bounded at 1024 entries (S543.7).

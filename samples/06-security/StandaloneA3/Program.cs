@@ -2,7 +2,7 @@
 // Demonstrates using Excalibur.A3.Core for grant management and authorization
 // without any database, event sourcing, outbox, or Dispatch pipeline dependencies.
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

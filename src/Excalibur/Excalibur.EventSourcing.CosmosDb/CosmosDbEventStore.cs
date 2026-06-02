@@ -4,11 +4,10 @@
 using System.Net;
 using System.Text.Json;
 
-using Excalibur.Data.Abstractions.CloudNative;
-using Excalibur.Data.Abstractions.Observability;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Diagnostics;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.CloudNative;
+using Excalibur.Data.Observability;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.EventSourcing.Observability;
 
 using Microsoft.Azure.Cosmos;
@@ -351,7 +350,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		string aggregateType,
 		CancellationToken cancellationToken)
 	{
-		var partitionKey = new Data.Abstractions.CloudNative.PartitionKey(BuildStreamId(aggregateType, aggregateId));
+		var partitionKey = new Data.CloudNative.PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await LoadAsync(aggregateId, aggregateType, partitionKey, null, cancellationToken)
 			.ConfigureAwait(false);
 		return result.Events.Select(ToStoredEvent).ToList();
@@ -364,7 +363,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
-		var partitionKey = new Data.Abstractions.CloudNative.PartitionKey(BuildStreamId(aggregateType, aggregateId));
+		var partitionKey = new Data.CloudNative.PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await LoadFromVersionAsync(aggregateId, aggregateType, partitionKey, fromVersion, null, cancellationToken)
 			.ConfigureAwait(false);
 		return result.Events.Select(ToStoredEvent).ToList();
@@ -378,7 +377,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
-		var partitionKey = new Data.Abstractions.CloudNative.PartitionKey(BuildStreamId(aggregateType, aggregateId));
+		var partitionKey = new Data.CloudNative.PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await AppendAsync(aggregateId, aggregateType, partitionKey, events, expectedVersion, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -446,7 +445,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			}
 
 			if (@event.Metadata.TryGetValue("CorrelationId", out var correlationId) ||
-			    @event.Metadata.TryGetValue("correlationId", out correlationId))
+				@event.Metadata.TryGetValue("correlationId", out correlationId))
 			{
 				return correlationId?.ToString();
 			}

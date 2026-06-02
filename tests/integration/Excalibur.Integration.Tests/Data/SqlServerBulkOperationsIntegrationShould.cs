@@ -5,7 +5,7 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 using Excalibur.Data.SqlServer;
 
 using Microsoft.Data.SqlClient;
@@ -32,7 +32,7 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 		_fixture = fixture;
 	}
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		_tableName = $"BulkTest_{Guid.NewGuid():N}"[..30];
 
@@ -47,7 +47,7 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 			)");
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		await using var conn = new SqlConnection(_fixture.ConnectionString);
 		await conn.OpenAsync();

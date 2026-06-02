@@ -7,10 +7,9 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Validation;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Options.Validation;
 
 using Microsoft.Extensions.Logging;

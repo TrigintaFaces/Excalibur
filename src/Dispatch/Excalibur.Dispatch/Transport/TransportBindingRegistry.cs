@@ -4,8 +4,6 @@
 
 using System.Collections.Concurrent;
 
-using Excalibur.Dispatch.Abstractions.Transport;
-
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>

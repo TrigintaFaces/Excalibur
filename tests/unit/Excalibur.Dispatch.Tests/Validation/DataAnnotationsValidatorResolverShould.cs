@@ -3,9 +3,9 @@
 
 using System.ComponentModel.DataAnnotations;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Validation;
 using Excalibur.Dispatch.Validation.DataAnnotations;
 
 namespace Excalibur.Dispatch.Tests.Validation;

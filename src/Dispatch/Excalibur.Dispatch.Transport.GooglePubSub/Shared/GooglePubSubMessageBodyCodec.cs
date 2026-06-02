@@ -3,7 +3,7 @@
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 
-using TransportCompressionAlgorithm = Excalibur.Dispatch.Abstractions.Serialization.CompressionAlgorithm;
+using TransportCompressionAlgorithm = Excalibur.Dispatch.Serialization.CompressionAlgorithm;
 
 namespace Excalibur.Dispatch.Transport.Google;
 

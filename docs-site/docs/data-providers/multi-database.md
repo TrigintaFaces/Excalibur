@@ -59,6 +59,7 @@ public interface IProjectionDb : IDb; // SQL read-side projections
 ```
 
 :::note
+
 The typed `IDb` interfaces are for **SQL databases** that use `IDbConnection` (SQL Server, Postgres). Document databases (Elasticsearch, CosmosDB, MongoDB, Firestore) use their own SDK clients and are configured through `IOptions<T>` instead -- see [Document Database Projections](#document-database-projections) below.
 :::
 
@@ -216,6 +217,7 @@ The `AddDataProcessing` method registers the orchestration `Func<IDbConnection>`
 Individual `DataProcessor<TRecord>` subclasses are responsible for fetching their own data from whatever database they need.
 
 :::tip Well-Known Key for Orchestration Connection
+
 Use `DataProcessingKeys.OrchestrationConnection` with `[FromKeyedServices]` when you need to explicitly resolve the orchestration connection factory in new code:
 
 ```csharp
@@ -469,6 +471,7 @@ public class CustomerMigrationProcessor : DataProcessor<CustomerRecord>
 ## Data Processing Databases
 
 :::caution Removed in Sprint 657
+
 `IDataProcessorDb`, `IDataToProcessDb`, `DataProcessorDb`, and `DataToProcessDb` have been removed. Data processing now uses `Func<IDbConnection>` connection factories directly. See [Data Processing Multi-Database](#data-processing-multi-database) above for the replacement pattern.
 :::
 

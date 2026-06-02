@@ -9,6 +9,7 @@ description: Extend the order system with CommandBase, grant-based authorization
 This tutorial extends the [Event-Sourced Order System](./event-sourcing-tutorial.md) with enterprise security: structured commands via `CommandBase`, grant-based authorization via Excalibur.A3, and compliance-grade audit logging.
 
 :::tip Prerequisites
+
 - Completed the [Event-Sourced Order System](./event-sourcing-tutorial.md) tutorial
 - SQL Server available (LocalDB, Docker, or remote instance)
 - Familiarity with authorization concepts (roles, permissions, grants)
@@ -164,8 +165,8 @@ public static class OrderGrants
 Handlers now receive structured commands. The authorization check happens in middleware *before* the handler — if the caller lacks the required grant, the handler never runs.
 
 ```csharp title="Handlers/CreateOrderHandler.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 using OrderSystem.Domain;
 using OrderSystem.Messages;
 
@@ -189,8 +190,8 @@ public class CreateOrderHandler(
 ```
 
 ```csharp title="Handlers/CancelOrderHandler.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 using OrderSystem.Domain;
 using OrderSystem.Messages;
 
@@ -218,12 +219,13 @@ public class CancelOrderHandler(
 Inject `IAuditLogger` to log security-sensitive operations explicitly. Commands marked with `IAmAuditable` are also logged automatically by the A3 audit middleware.
 
 :::tip Skip this on first read
+
 The grant management endpoints below are **admin-only plumbing**. If you just want to see the security flow end-to-end, skip ahead to [Step 6: Wire It Up](#step-6-wire-it-up) and come back here when you need to manage grants programmatically.
 :::
 
 ```csharp title="Handlers/GrantManagementEndpoints.cs"
 using Excalibur.A3.Authorization.Grants;  // AddGrantCommand, RevokeGrantCommand (from Excalibur.A3 package)
-using Excalibur.Dispatch.Abstractions;    // IDispatcher
+using Excalibur.Dispatch;    // IDispatcher
 using Excalibur.Compliance;      // IAuditLogger, AuditEvent, AuditEventType, AuditOutcome
 
 namespace OrderSystem.Handlers;
@@ -319,7 +321,7 @@ public record RevokeRequest(
 ## Step 6: Wire It Up
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 using OrderSystem.Domain;
 using OrderSystem.Handlers;

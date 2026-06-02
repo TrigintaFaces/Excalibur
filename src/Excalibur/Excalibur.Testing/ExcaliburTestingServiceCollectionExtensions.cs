@@ -22,10 +22,10 @@ public static class ExcaliburTestingServiceCollectionExtensions
 	/// <para>
 	/// This is a convenience method that registers:
 	/// <list type="bullet">
-	///   <item><description><see cref="Excalibur.EventSourcing.InMemory.InMemoryEventStore"/> as <see cref="Excalibur.EventSourcing.Abstractions.IEventStore"/></description></item>
-	///   <item><description><see cref="Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore"/> as <see cref="Excalibur.EventSourcing.Abstractions.ISnapshotStore"/></description></item>
-	///   <item><description><see cref="Excalibur.Inbox.InMemory.InMemoryInboxStore"/> as <see cref="Excalibur.Dispatch.Abstractions.IInboxStore"/></description></item>
-	///   <item><description><see cref="Excalibur.Outbox.InMemory.InMemoryOutboxStore"/> as <see cref="Excalibur.Dispatch.Abstractions.IOutboxStore"/></description></item>
+	///   <item><description><see cref="Excalibur.EventSourcing.InMemory.InMemoryEventStore"/> as <see cref="Excalibur.EventSourcing.IEventStore"/></description></item>
+	///   <item><description><see cref="Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore"/> as <see cref="Excalibur.EventSourcing.ISnapshotStore"/></description></item>
+	///   <item><description><see cref="Excalibur.Inbox.InMemory.InMemoryInboxStore"/> as <see cref="Excalibur.Dispatch.IInboxStore"/></description></item>
+	///   <item><description><see cref="Excalibur.Outbox.InMemory.InMemoryOutboxStore"/> as <see cref="Excalibur.Dispatch.IOutboxStore"/></description></item>
 	/// </list>
 	/// </para>
 	/// <para>

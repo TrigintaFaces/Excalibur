@@ -33,7 +33,7 @@ Deploy Excalibur applications to Azure Functions for serverless, event-driven wo
 // Function.cs
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public class DispatchFunction
 {
@@ -159,7 +159,7 @@ func azure functionapp publish your-function-app
 ```csharp
 // ServiceBusFunction.cs
 using Microsoft.Azure.Functions.Worker;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public class IntegrationEventProcessor
 {

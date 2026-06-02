@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Hosting.Serverless;
 
 using Microsoft.Extensions.Configuration;

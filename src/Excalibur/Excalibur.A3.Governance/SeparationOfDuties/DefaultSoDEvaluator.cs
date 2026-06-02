@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Grants;
 using Excalibur.A3.Authorization.Roles;
 using Excalibur.A3.Governance.SeparationOfDuties;
@@ -82,7 +82,7 @@ internal sealed class DefaultSoDEvaluator(
 
 	private async Task<IReadOnlyList<SoDConflict>> EvaluatePoliciesAsync(
 		string userId,
-		IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant> grants,
+		IReadOnlyList<Excalibur.A3.Authorization.Grant> grants,
 		string? additionalScope,
 		string? additionalGrantType,
 		IReadOnlyList<SoDPolicy> policies,

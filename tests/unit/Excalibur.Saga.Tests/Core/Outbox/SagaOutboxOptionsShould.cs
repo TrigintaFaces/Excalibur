@@ -24,7 +24,7 @@ public sealed class SagaOutboxOptionsShould
 	{
 		// Arrange
 		var options = new SagaOutboxOptions();
-		Func<IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent>, string, CancellationToken, Task> del =
+		Func<IReadOnlyList<Excalibur.Dispatch.IDomainEvent>, string, CancellationToken, Task> del =
 			(_, _, _) => Task.CompletedTask;
 
 		// Act

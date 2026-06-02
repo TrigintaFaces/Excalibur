@@ -5,7 +5,7 @@ using System.Buffers;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
@@ -112,6 +112,7 @@ public sealed class JsonClaimCheckSerializerShould
 		// Arrange
 		var json = "{\"Id\":10,\"Name\":\"Deserialized\"}";
 		var bytes = Encoding.UTF8.GetBytes(json);
+		using var stream = new MemoryStream(bytes);
 
 		// Act — uses Deserialize<T>(byte[]) extension which calls Deserialize<T>(ReadOnlySpan<byte>)
 		var result = _serializer.Deserialize<TestMessage>(bytes);

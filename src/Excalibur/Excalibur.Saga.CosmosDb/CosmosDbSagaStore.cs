@@ -7,7 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 
 using Excalibur.Data.CosmosDb.Diagnostics;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Azure.Cosmos;

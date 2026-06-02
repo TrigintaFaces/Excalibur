@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.MySql;
 
 
@@ -288,7 +288,7 @@ public sealed class MySqlPersistenceProviderShould
 		var provider = CreateProvider();
 		await provider.DisposeAsync();
 
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<System.IDisposable, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<System.IDisposable, int>>();
 		await Should.ThrowAsync<ObjectDisposedException>(() =>
 			provider.ExecuteAsync(request, CancellationToken.None));
 	}
@@ -310,7 +310,7 @@ public sealed class MySqlPersistenceProviderShould
 	public async Task ExecuteInTransactionAsync_ThrowsWhenTransactionScopeIsNull()
 	{
 		using var provider = CreateProvider();
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<System.IDisposable, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<System.IDisposable, int>>();
 
 		await Should.ThrowAsync<ArgumentNullException>(() =>
 			provider.ExecuteInTransactionAsync(
@@ -325,7 +325,7 @@ public sealed class MySqlPersistenceProviderShould
 		var provider = CreateProvider();
 		await provider.DisposeAsync();
 
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<System.IDisposable, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<System.IDisposable, int>>();
 		var tx = A.Fake<ITransactionScope>();
 		await Should.ThrowAsync<ObjectDisposedException>(() =>
 			provider.ExecuteInTransactionAsync(
@@ -425,7 +425,7 @@ public sealed class MySqlPersistenceProviderShould
 			options.MaxRetryCount = 0;
 		});
 
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<System.IDisposable, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<System.IDisposable, int>>();
 		A.CallTo(() => request.ResolveAsync).Returns(new Func<System.IDisposable, Task<int>>(_ => Task.FromResult(1)));
 
 		await Should.ThrowAsync<Exception>(() =>
@@ -442,7 +442,7 @@ public sealed class MySqlPersistenceProviderShould
 			options.MaxRetryCount = 0;
 		});
 
-		var request = A.Fake<Excalibur.Data.Abstractions.IDataRequest<System.IDisposable, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<System.IDisposable, int>>();
 		A.CallTo(() => request.ResolveAsync).Returns(new Func<System.IDisposable, Task<int>>(_ => Task.FromResult(1)));
 
 		var tx = A.Fake<ITransactionScope>();

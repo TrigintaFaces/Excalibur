@@ -7,16 +7,16 @@ namespace Excalibur.Cdc.DynamoDb;
 
 internal sealed class DynamoDbCdcOptionsValidator : IValidateOptions<DynamoDbCdcOptions>
 {
-    public ValidateOptionsResult Validate(string? name, DynamoDbCdcOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, DynamoDbCdcOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

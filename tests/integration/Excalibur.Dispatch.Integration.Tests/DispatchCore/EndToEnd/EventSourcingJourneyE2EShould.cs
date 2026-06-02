@@ -4,9 +4,9 @@
 #pragma warning disable CA1034 // Nested types should not be visible - acceptable in test classes
 #pragma warning disable IL2026 // RequiresUnreferencedCode -- test code, not AOT-published
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection;
 

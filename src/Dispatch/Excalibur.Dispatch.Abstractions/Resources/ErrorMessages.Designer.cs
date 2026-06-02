@@ -19,7 +19,7 @@ using System.Globalization;
 using System.Resources;
 using System.Runtime.CompilerServices;
 
-namespace Excalibur.Dispatch.Abstractions {
+namespace Excalibur.Dispatch {
 /// <summary>
 /// A strongly-typed resource class, for looking up localized strings, etc.
 /// </summary>
@@ -50,7 +50,7 @@ namespace Excalibur.Dispatch.Abstractions {
 		internal static ResourceManager ResourceManager {
 			get {
 				if (ReferenceEquals(resourceMan, null)) {
-					ResourceManager temp = new ResourceManager("Excalibur.Dispatch.Abstractions.Resources.ErrorMessages", typeof(ErrorMessages).Assembly);
+					ResourceManager temp = new ResourceManager("Excalibur.Dispatch.Resources.ErrorMessages", typeof(ErrorMessages).Assembly);
 					resourceMan = temp;
 				}
 				return resourceMan;

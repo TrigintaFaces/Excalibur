@@ -4,7 +4,7 @@
 
 using Microsoft.Extensions.Configuration;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Defines configuration management for persistence providers.

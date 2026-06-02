@@ -386,6 +386,7 @@ services.AddCdcProcessor(cdc =>
 ```
 
 :::warning Development Environments
+
 In environments where databases are frequently restored from production backups, use `FallbackToEarliest` or `FallbackToLatest` instead of the default `Throw` strategy. Ensure your event handlers are idempotent to safely handle reprocessed events.
 :::
 

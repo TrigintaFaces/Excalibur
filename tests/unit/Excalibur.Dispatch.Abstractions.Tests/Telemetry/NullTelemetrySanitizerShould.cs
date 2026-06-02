@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Licensed under the Excalibur License 1.0 - see LICENSE files for details.
 
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Telemetry;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Telemetry;
+namespace Excalibur.Dispatch.Tests.Telemetry;
 
 /// <summary>
 /// Unit tests for the <see cref="NullTelemetrySanitizer"/> class.

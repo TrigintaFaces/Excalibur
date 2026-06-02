@@ -163,7 +163,7 @@ public sealed class CachePolicySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("using System;");
 		_ = sb.AppendLine("using System.Collections.Generic;");
 		_ = sb.AppendLine("using Excalibur.Dispatch.Caching;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions;");
+		_ = sb.AppendLine("using Excalibur.Dispatch;");
 		_ = sb.AppendLine();
 		_ = sb.AppendLine("namespace Excalibur.Dispatch.Generated;");
 		_ = sb.AppendLine();
@@ -432,7 +432,7 @@ public sealed class CachePolicySourceGenerator : IIncrementalGenerator
 		foreach (var returnType in returnTypes)
 		{
 			var typeName = returnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			_ = sb.AppendLine($" Excalibur.Dispatch.Abstractions.MessageResult<{typeName}> typed => typed.ReturnValue,");
+			_ = sb.AppendLine($" Excalibur.Dispatch.MessageResult<{typeName}> typed => typed.ReturnValue,");
 		}
 
 		_ = sb.AppendLine(" _ => null");

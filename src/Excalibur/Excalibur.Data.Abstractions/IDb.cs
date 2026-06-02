@@ -4,7 +4,7 @@
 
 using System.Data;
 
-namespace Excalibur.Data.Abstractions;
+namespace Excalibur.Data;
 
 /// <summary>
 /// Defines a contract for database access, providing basic operations to manage a database connection.

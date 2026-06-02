@@ -42,7 +42,7 @@ The `[AutoRegister]` attribute is included in `Excalibur.Dispatch.Abstractions`,
 Add the `[AutoRegister]` attribute to classes you want automatically registered:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 
 // Basic usage - registers as Scoped by default
@@ -301,7 +301,7 @@ If `GeneratedServiceCount` is 0:
 
 1. Verify classes have `[AutoRegister]` attribute
 2. Ensure classes are not abstract or static
-3. Check that the attribute namespace `Excalibur.Dispatch.Abstractions` is imported
+3. Check that the attribute namespace `Excalibur.Dispatch` is imported
 
 ## Next Steps
 

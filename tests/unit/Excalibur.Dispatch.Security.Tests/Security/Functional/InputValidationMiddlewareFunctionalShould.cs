@@ -1,6 +1,6 @@
 // Functional tests for InputValidationMiddleware -- injection detection, size limits, custom validators, context validation
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Functional;

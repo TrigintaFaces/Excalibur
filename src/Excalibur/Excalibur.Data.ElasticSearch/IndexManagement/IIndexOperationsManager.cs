@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Elastic.Clients.Elasticsearch.IndexManagement;
+using System.Text.Json;
 
 
 namespace Excalibur.Data.ElasticSearch.IndexManagement;
@@ -49,9 +49,9 @@ public interface IIndexOperationsManager
 	/// Updates index settings dynamically.
 	/// </summary>
 	/// <param name="indexName"> The name of the index to update. </param>
-	/// <param name="settings"> The new settings to apply. </param>
+	/// <param name="settingsJson"> The new settings to apply as opaque JSON. </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{Boolean}" /> indicating whether the operation was successful. </returns>
-	Task<bool> UpdateIndexSettingsAsync(string indexName, IndexSettings settings, CancellationToken cancellationToken);
+	Task<bool> UpdateIndexSettingsAsync(string indexName, JsonElement settingsJson, CancellationToken cancellationToken);
 
 }

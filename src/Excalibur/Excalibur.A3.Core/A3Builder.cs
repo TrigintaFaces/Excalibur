@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

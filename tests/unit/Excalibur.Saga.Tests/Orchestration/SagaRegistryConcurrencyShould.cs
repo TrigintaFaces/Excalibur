@@ -4,8 +4,8 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Orchestration;
 
 using Microsoft.Extensions.Logging;

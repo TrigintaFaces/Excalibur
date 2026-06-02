@@ -9,11 +9,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -984,8 +983,8 @@ internal sealed partial class LocalMessageBus(
 	{
 		// PERF: ThreadStatic one-element cache for repeated same-type dispatches.
 		if (ReferenceEquals(s_cachedPlanBus, this) &&
-		    ReferenceEquals(s_cachedPlanType, actionType) &&
-		    s_cachedPlanValid)
+			ReferenceEquals(s_cachedPlanType, actionType) &&
+			s_cachedPlanValid)
 		{
 			resolvedPlan = s_cachedPlan;
 			return true;
@@ -1059,7 +1058,7 @@ internal sealed partial class LocalMessageBus(
 		}
 
 		if (registry is HandlerRegistry concreteRegistry &&
-		    concreteRegistry.TryGetHandlerSnapshot(messageType, out var concreteEntries))
+			concreteRegistry.TryGetHandlerSnapshot(messageType, out var concreteEntries))
 		{
 			_ = _eventHandlersCache.TryAdd(messageType, concreteEntries);
 			return concreteEntries;
@@ -1202,7 +1201,7 @@ internal sealed partial class LocalMessageBus(
 		}
 
 		if (!TryGetActionResponseType(entry.MessageType, out var responseType) ||
-		    !TryCreateTypedWithResponseAsyncInvoker(entry.MessageType, entry.HandlerType, responseType, out var invokeWithResponseAsync))
+			!TryCreateTypedWithResponseAsyncInvoker(entry.MessageType, entry.HandlerType, responseType, out var invokeWithResponseAsync))
 		{
 			plan = default;
 			return false;
@@ -1225,7 +1224,7 @@ internal sealed partial class LocalMessageBus(
 		foreach (var candidate in actionType.GetInterfaces())
 		{
 			if (candidate.IsGenericType &&
-			    candidate.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
+				candidate.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
 			{
 				responseType = candidate.GetGenericArguments()[0];
 				return true;
@@ -1244,7 +1243,7 @@ internal sealed partial class LocalMessageBus(
 		out DirectActionNoResponseAsyncInvoker invoker)
 	{
 		if (!typeof(IDispatchAction).IsAssignableFrom(actionType) ||
-		    !typeof(IActionHandler<>).MakeGenericType(actionType).IsAssignableFrom(handlerType))
+			!typeof(IActionHandler<>).MakeGenericType(actionType).IsAssignableFrom(handlerType))
 		{
 			invoker = null!;
 			return false;
@@ -1306,7 +1305,7 @@ internal sealed partial class LocalMessageBus(
 		out EventHandlerAsyncInvoker invoker)
 	{
 		if (!typeof(IDispatchEvent).IsAssignableFrom(eventType) ||
-		    !typeof(IEventHandler<>).MakeGenericType(eventType).IsAssignableFrom(handlerType))
+			!typeof(IEventHandler<>).MakeGenericType(eventType).IsAssignableFrom(handlerType))
 		{
 			invoker = null!;
 			return false;
@@ -1642,7 +1641,7 @@ internal sealed partial class LocalMessageBus(
 	private ValueTask InvokeTypedNoResponse<
 		TAction,
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
-		THandler>(
+	THandler>(
 		IDispatchAction action,
 		IMessageContext? context,
 		CancellationToken cancellationToken)
@@ -1662,7 +1661,7 @@ internal sealed partial class LocalMessageBus(
 	private ValueTask<object?> InvokeTypedWithResponse<
 		TAction,
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
-		THandler,
+	THandler,
 		TResponse>(
 		IDispatchAction action,
 		IMessageContext? context,
@@ -1683,7 +1682,7 @@ internal sealed partial class LocalMessageBus(
 	private ValueTask InvokeTypedEvent<
 		TEvent,
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
-		THandler>(
+	THandler>(
 		IDispatchEvent evt,
 		IMessageContext? context,
 		CancellationToken cancellationToken)
@@ -1705,8 +1704,8 @@ internal sealed partial class LocalMessageBus(
 		Type handlerType)
 	{
 		if (ReferenceEquals(s_cachedNoContextBus, this) &&
-		    ReferenceEquals(s_cachedNoContextHandlerType, handlerType) &&
-		    s_cachedNoContextResolver is { } cachedResolver)
+			ReferenceEquals(s_cachedNoContextHandlerType, handlerType) &&
+			s_cachedNoContextResolver is { } cachedResolver)
 		{
 			return cachedResolver();
 		}
@@ -1745,8 +1744,8 @@ internal sealed partial class LocalMessageBus(
 	private static bool IsCacheHit(IMessageContext context)
 	{
 		if (context is MessageContext messageContext &&
-		    messageContext.TryGetItemFast(CacheHitContextKey, out var fastValue) &&
-		    fastValue is bool fastFlag)
+			messageContext.TryGetItemFast(CacheHitContextKey, out var fastValue) &&
+			fastValue is bool fastFlag)
 		{
 			return fastFlag;
 		}
@@ -1763,7 +1762,7 @@ internal sealed partial class LocalMessageBus(
 		}
 
 		if (context is MessageContext messageContext &&
-		    messageContext.TryGetItemFast(ResultContextKey, out var fastValue))
+			messageContext.TryGetItemFast(ResultContextKey, out var fastValue))
 		{
 			return fastValue is not null;
 		}
@@ -1803,7 +1802,7 @@ internal sealed partial class LocalMessageBus(
 	{
 		var message = exception.Message;
 		return message.Contains("No service for type", StringComparison.Ordinal) ||
-		       message.Contains("Unable to resolve service for type", StringComparison.Ordinal);
+			   message.Contains("Unable to resolve service for type", StringComparison.Ordinal);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2031,9 +2030,9 @@ internal sealed partial class LocalMessageBus(
 		}
 
 		var eligible = IsSelfRegisteredHandler(handlerType) &&
-		               !HandlerActivator.RequiresContextInjection(handlerType) &&
-		               HasParameterlessConstructor(handlerType) &&
-		               !HasInstanceFields(handlerType);
+					   !HandlerActivator.RequiresContextInjection(handlerType) &&
+					   HasParameterlessConstructor(handlerType) &&
+					   !HasInstanceFields(handlerType);
 		_ = _parameterlessStatelessPromotionEligibilityCache.TryAdd(handlerType, eligible);
 		return eligible;
 	}

@@ -4,8 +4,6 @@
 
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Exceptions;
 
 /// <summary>

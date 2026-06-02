@@ -4,7 +4,7 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using Google.Cloud.PubSub.V1;
 

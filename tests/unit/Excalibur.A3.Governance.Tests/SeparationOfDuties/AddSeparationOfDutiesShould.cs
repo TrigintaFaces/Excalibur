@@ -134,7 +134,7 @@ public sealed class AddSeparationOfDutiesShould : UnitTestBase
 			.AddGovernance(g => g.AddSeparationOfDuties());
 
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(Excalibur.Dispatch.Abstractions.IDispatchMiddleware) &&
+			sd.ServiceType == typeof(Excalibur.Dispatch.IDispatchMiddleware) &&
 			sd.ImplementationType != null &&
 			sd.ImplementationType.Name == "SoDPreventiveMiddleware");
 	}

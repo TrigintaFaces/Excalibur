@@ -167,7 +167,7 @@ public sealed class CosmosDbRetryPolicyShould
 	public void ImplementsIDataRequestRetryPolicy()
 	{
 		// Arrange
-		var interfaceType = typeof(Data.Abstractions.Resilience.IDataRequestRetryPolicy);
+		var interfaceType = typeof(Excalibur.Data.Resilience.IDataRequestRetryPolicy);
 
 		// Assert
 		interfaceType.IsAssignableFrom(_policyType).ShouldBeTrue();

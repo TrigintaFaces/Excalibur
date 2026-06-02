@@ -137,7 +137,7 @@ public sealed class CosmosDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 	public string ContainerName { get; } = "events";
 
 	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -262,7 +262,7 @@ public sealed class CosmosDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 	}
 
 	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		Dispose();
 

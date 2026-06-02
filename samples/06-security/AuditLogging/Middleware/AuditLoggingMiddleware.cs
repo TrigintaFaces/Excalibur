@@ -4,7 +4,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security;
 
 using Microsoft.Extensions.Logging;

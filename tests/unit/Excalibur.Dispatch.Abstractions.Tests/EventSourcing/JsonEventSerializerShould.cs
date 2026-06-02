@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.EventSourcing;
+namespace Excalibur.Dispatch.Tests.EventSourcing;
 
 /// <summary>
 /// Unit tests for JsonEventSerializer.

@@ -14,15 +14,15 @@ namespace Excalibur.AuditLogging.Sentinel;
 /// </remarks>
 public interface IAuditLoggingSentinelBuilder
 {
-    /// <summary>Sets the Log Analytics workspace ID (GUID).</summary>
-    IAuditLoggingSentinelBuilder WorkspaceId(string workspaceId);
+	/// <summary>Sets the Log Analytics workspace ID (GUID).</summary>
+	IAuditLoggingSentinelBuilder WorkspaceId(string workspaceId);
 
-    /// <summary>Sets the primary or secondary shared key for the workspace.</summary>
-    IAuditLoggingSentinelBuilder SharedKey(string sharedKey);
+	/// <summary>Sets the primary or secondary shared key for the workspace.</summary>
+	IAuditLoggingSentinelBuilder SharedKey(string sharedKey);
 
-    /// <summary>Sets the custom log type name (becomes table name with '_CL' suffix).</summary>
-    IAuditLoggingSentinelBuilder LogType(string logType);
+	/// <summary>Sets the custom log type name (becomes table name with '_CL' suffix).</summary>
+	IAuditLoggingSentinelBuilder LogType(string logType);
 
-    /// <summary>Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.</summary>
-    IAuditLoggingSentinelBuilder BindConfiguration(string sectionPath);
+	/// <summary>Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.</summary>
+	IAuditLoggingSentinelBuilder BindConfiguration(string sectionPath);
 }

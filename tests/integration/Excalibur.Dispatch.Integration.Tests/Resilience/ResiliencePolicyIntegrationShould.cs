@@ -217,7 +217,6 @@ public sealed class ResiliencePolicyIntegrationShould : IntegrationTestBase
 				return Task.FromResult(true);
 			}
 		};
-
 		var result = await service.ExecuteWithDegradationAsync(context, TestCancellationToken).ConfigureAwait(false);
 
 		// Assert
@@ -264,7 +263,6 @@ public sealed class ResiliencePolicyIntegrationShould : IntegrationTestBase
 				}
 			}
 		};
-
 		var result = await service.ExecuteWithDegradationAsync(context, TestCancellationToken).ConfigureAwait(false);
 
 		// Assert
@@ -297,7 +295,6 @@ public sealed class ResiliencePolicyIntegrationShould : IntegrationTestBase
 			IsCritical = false,
 			PrimaryOperation = () => Task.FromResult(true)
 		};
-
 		// Assert
 		_ = await Should.ThrowAsync<DegradationRejectedException>(
 			() => service.ExecuteWithDegradationAsync(context, TestCancellationToken)).ConfigureAwait(false);

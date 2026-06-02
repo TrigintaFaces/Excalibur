@@ -22,7 +22,7 @@ namespace Excalibur.Saga.DependencyInjection;
 /// <example>
 /// <code>
 /// services.AddExcalibur(x => x.AddSagas(saga => saga
-///     .WithOrchestration(opts => opts.MaxRetryAttempts = 5)
+///     .WithCoordination()
 ///     .WithTimeouts(opts => opts.PollInterval = TimeSpan.FromSeconds(30))
 ///     .WithInstrumentation()));
 /// </code>

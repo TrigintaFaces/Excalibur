@@ -7,9 +7,9 @@ using Excalibur.A3.Audit;
 using Excalibur.A3.Audit.Events;
 using Excalibur.Application.Requests;
 using Excalibur.Application.Requests.Commands;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Domain;
 
 using Microsoft.Extensions.Logging.Abstractions;

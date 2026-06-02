@@ -3,8 +3,8 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Dispatch.Observability.Metrics;
 
 using Microsoft.Extensions.Options;

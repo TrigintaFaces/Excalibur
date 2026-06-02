@@ -6,10 +6,10 @@
 
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Versioning;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Implementation;
 
 using FakeItEasy;
@@ -20,11 +20,11 @@ using Shouldly;
 
 using Xunit;
 
-using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
-using ISnapshotManager = Excalibur.EventSourcing.Abstractions.ISnapshotManager;
-using ISnapshotStrategy = Excalibur.EventSourcing.Abstractions.ISnapshotStrategy;
-using StoredEvent = Excalibur.EventSourcing.Abstractions.StoredEvent;
-using AppendResult = Excalibur.EventSourcing.Abstractions.AppendResult;
+using IEventStore = Excalibur.EventSourcing.IEventStore;
+using ISnapshotManager = Excalibur.EventSourcing.ISnapshotManager;
+using ISnapshotStrategy = Excalibur.EventSourcing.ISnapshotStrategy;
+using StoredEvent = Excalibur.EventSourcing.StoredEvent;
+using AppendResult = Excalibur.EventSourcing.AppendResult;
 
 namespace Excalibur.EventSourcing.Tests;
 

@@ -20,7 +20,7 @@
 // integration events to the latest version before delivery to handlers.
 // =============================================================================
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using IntegrationEventVersioning.Events;
 using IntegrationEventVersioning.Upcasters;

@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Resilience;
 
-namespace Excalibur.Data.Abstractions.Resilience;
+namespace Excalibur.Data.Resilience;
 
 /// <summary>
 /// Defines a circuit breaker for data provider operations, protecting against cascading

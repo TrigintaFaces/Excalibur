@@ -25,9 +25,8 @@
 // design.
 // ============================================================================
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;

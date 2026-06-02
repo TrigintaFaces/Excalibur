@@ -3,7 +3,7 @@
 
 
 using Excalibur.Data.MongoDB.Projections;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;

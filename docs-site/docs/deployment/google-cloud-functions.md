@@ -33,7 +33,7 @@ Deploy Excalibur applications to Google Cloud Functions for serverless, event-dr
 // Function.cs
 using Google.Cloud.Functions.Framework;
 using Microsoft.AspNetCore.Http;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using System.Text.Json;
 
 public class DispatchFunction : IHttpFunction
@@ -148,7 +148,7 @@ curl https://us-central1-PROJECT_ID.cloudfunctions.net/dispatch-function \
 using Google.Cloud.Functions.Framework;
 using Google.Events.Protobuf.Cloud.PubSub.V1;
 using CloudNative.CloudEvents;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public class IntegrationEventProcessor : ICloudEventFunction<MessagePublishedData>
 {
@@ -218,7 +218,7 @@ gcloud functions deploy pubsub-processor \
 using Google.Cloud.Functions.Framework;
 using Google.Events.Protobuf.Cloud.Scheduler.V1;
 using CloudNative.CloudEvents;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public class OutboxProcessorFunction : ICloudEventFunction<SchedulerJobData>
 {

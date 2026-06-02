@@ -7,10 +7,9 @@ using System.Reflection;
 
 using BenchmarkDotNet.Attributes;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Benchmarks.Diagnostics.Support;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Benchmarks.Diagnostics.Support;
 using Excalibur.Dispatch.Delivery.Handlers;
 
 using Microsoft.Extensions.DependencyInjection;

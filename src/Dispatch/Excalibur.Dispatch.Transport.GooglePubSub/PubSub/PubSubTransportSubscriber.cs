@@ -3,7 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Transport.GooglePubSub;
 using Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 

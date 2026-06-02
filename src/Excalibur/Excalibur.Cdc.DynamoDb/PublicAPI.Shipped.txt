@@ -146,7 +146,7 @@ const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.StreamDisabled = "
 const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.StreamNotFound = "DYNAMODB_STREAM_NOT_FOUND" -> string!
 const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.TrimmedData = "DYNAMODB_TRIMMED_DATA" -> string!
 const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.Unknown = "DYNAMODB_UNKNOWN" -> string!
-override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
+override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(Excalibur.Dispatch.ChangePosition? other) -> bool
 override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.GetHashCode() -> int
 override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.IsValid.get -> bool

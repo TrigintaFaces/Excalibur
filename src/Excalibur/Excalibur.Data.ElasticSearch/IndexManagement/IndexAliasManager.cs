@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.IndexManagement;
+using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Microsoft.Extensions.Logging;
 
@@ -22,7 +26,7 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 	private readonly ILogger<IndexAliasManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	public async Task<bool> CreateAliasAsync(string aliasName, IEnumerable<string> indexNames, Alias? aliasConfiguration,
+	public async Task<bool> CreateAliasAsync(string aliasName, IEnumerable<string> indexNames, JsonElement? aliasConfigurationJson,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aliasName);
@@ -158,7 +162,7 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 							{
 								AliasName = alias.Key,
 								Indices = [indexEntry.Key.ToString()],
-								Filter = alias.Value.Filter,
+								FilterJson = SerializeOrNull(alias.Value.Filter),
 								IndexRouting = alias.Value.IndexRouting,
 								SearchRouting = alias.Value.SearchRouting,
 								IsWriteIndex = alias.Value.IsWriteIndex,
@@ -195,23 +199,36 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 		{
 			_logger.LogInformation("Executing {Count} alias operations", operationsList.Count);
 
-			var actions = operationsList.Select(static op =>
-				op.OperationType == AliasOperationType.Add
-					? new IndexUpdateAliasesAction
+			var actions = new List<IndexUpdateAliasesAction>();
+			foreach (var op in operationsList)
+			{
+				if (op.OperationType == AliasOperationType.Add)
+				{
+					var addAction = new AddAction
 					{
-						Add = new AddAction
-						{
-							Index = op.IndexName,
-							Alias = op.AliasName,
-							Filter = op.AliasConfiguration?.Filter,
-							IndexRouting = op.AliasConfiguration?.IndexRouting,
-							SearchRouting = op.AliasConfiguration?.SearchRouting,
-							IsWriteIndex = op.AliasConfiguration?.IsWriteIndex,
-						},
-					}
-					: new IndexUpdateAliasesAction { Remove = new RemoveAction { Index = op.IndexName, Alias = op.AliasName } });
+						Index = op.IndexName,
+						Alias = op.AliasName,
+					};
 
-			var request = new UpdateAliasesRequest { Actions = [.. actions] };
+					// Deserialize configuration from opaque JSON if provided
+					var config = DeserializeOrNull<Alias>(op.ConfigurationJson);
+					if (config is not null)
+					{
+						addAction.Filter = config.Filter;
+						addAction.IndexRouting = config.IndexRouting;
+						addAction.SearchRouting = config.SearchRouting;
+						addAction.IsWriteIndex = config.IsWriteIndex;
+					}
+
+					actions.Add(new IndexUpdateAliasesAction { Add = addAction });
+				}
+				else
+				{
+					actions.Add(new IndexUpdateAliasesAction { Remove = new RemoveAction { Index = op.IndexName, Alias = op.AliasName } });
+				}
+			}
+
+			var request = new UpdateAliasesRequest { Actions = actions };
 
 			var response = await _client.Indices.UpdateAliasesAsync(request, cancellationToken).ConfigureAwait(false);
 
@@ -230,4 +247,14 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 			return false;
 		}
 	}
+
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Elastic SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Elastic SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	private static T? DeserializeOrNull<T>(JsonElement? element) where T : class =>
+		element.HasValue ? JsonSerializer.Deserialize<T>(element.Value) : null;
+
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Elastic SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Elastic SDK types are inherently reflection-based; this adapter layer already depends on them.")]
+	private static JsonElement? SerializeOrNull<T>(T? value) where T : class =>
+		value is not null ? JsonSerializer.SerializeToElement(value) : null;
 }

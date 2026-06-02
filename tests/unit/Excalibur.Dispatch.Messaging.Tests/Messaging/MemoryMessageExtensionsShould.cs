@@ -4,7 +4,7 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Dispatch.Messaging.Tests.Messaging;

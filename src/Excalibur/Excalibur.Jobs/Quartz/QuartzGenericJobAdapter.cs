@@ -6,8 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 
-using Excalibur.Jobs.Abstractions;
-
 using Microsoft.Extensions.Logging;
 
 using Quartz;
@@ -53,9 +51,9 @@ public sealed class QuartzGenericJobAdapter<TJob, TContext>(
 		{
 			try
 			{
-				#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 				jobContext = JsonSerializer.Deserialize<TContext>(jsonContext);
-				#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 			}
 			catch (JsonException ex)
 			{

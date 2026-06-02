@@ -112,7 +112,7 @@ services.AddGooglePubSubTransport("orders", g => g.ProjectId("my-project").Subsc
   — Framework positioning: how `AddCronTimerTransport<T>` + `AddEventBindings`
   compare to ASP.NET Core hosted services, IHostedService timers, and
   Quartz.NET.
-- `samples/04-reliability/Outbox/` — reliability patterns on the publish side.
+- `samples/04-reliability/OutboxPattern/` — reliability patterns on the publish side.
 - `samples/11-real-world/EnterpriseOrderProcessing/` — full L3 composition
   using these transports end-to-end.
 

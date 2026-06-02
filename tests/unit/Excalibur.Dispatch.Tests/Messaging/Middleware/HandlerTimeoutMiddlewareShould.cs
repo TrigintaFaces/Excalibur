@@ -3,9 +3,9 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly - acceptable in tests
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware.Timeout;
 using Tests.Shared.TestFakes;
@@ -14,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 

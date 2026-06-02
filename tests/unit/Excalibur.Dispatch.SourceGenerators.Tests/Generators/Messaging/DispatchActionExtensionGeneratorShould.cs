@@ -58,7 +58,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -83,7 +83,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -106,7 +106,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -128,7 +128,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -150,7 +150,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -172,7 +172,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -183,7 +183,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 		var result = RunGenerator(source);
 		var text = GetGeneratedText(result, "TypedDispatchExtensions.g.cs");
 
-		text.ShouldContain("namespace Excalibur.Dispatch.Abstractions;");
+		text.ShouldContain("namespace Excalibur.Dispatch;");
 	}
 
 	[Fact]
@@ -193,7 +193,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -218,7 +218,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -246,7 +246,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -294,7 +294,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -320,7 +320,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -347,7 +347,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp.Orders
 			{
@@ -375,7 +375,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -402,7 +402,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -425,7 +425,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -446,7 +446,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -467,7 +467,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -494,7 +494,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -516,7 +516,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 			using System;
 			using System.Threading;
 			using System.Threading.Tasks;
-			using Excalibur.Dispatch.Abstractions;
+			using Excalibur.Dispatch;
 
 			namespace TestApp
 			{
@@ -552,7 +552,7 @@ public sealed class DispatchActionExtensionGeneratorShould
 		};
 
 		// Add Excalibur.Dispatch.Abstractions assembly for IDispatchAction<T>
-		var abstractionsAssembly = typeof(Abstractions.IDispatchMessage).Assembly;
+		var abstractionsAssembly = typeof(Excalibur.Dispatch.IDispatchMessage).Assembly;
 		references.Add(MetadataReference.CreateFromFile(abstractionsAssembly.Location));
 
 		// Add system runtime references needed for compilation

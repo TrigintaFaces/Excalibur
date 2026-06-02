@@ -199,7 +199,7 @@ public sealed class ProjectionBuilderShould
 	{
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 		Should.Throw<ArgumentNullException>(() =>
-			builder.When<TestOrderPlaced>(null!));
+			builder.When<TestOrderPlaced>((Action<OrderSummary, TestOrderPlaced>)null!));
 	}
 
 	[Fact]
@@ -226,7 +226,7 @@ public sealed class ProjectionBuilderShould
 		builder.Build();
 
 		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-		var events = new List<Dispatch.Abstractions.IDomainEvent>
+		var events = new List<Dispatch.IDomainEvent>
 		{
 			new TestOrderPlaced { AggregateId = "order-1", Amount = 150m, Version = 1 },
 			new TestOrderShipped { AggregateId = "order-1", Version = 2 }
@@ -377,7 +377,7 @@ public sealed class ProjectionBuilderShould
 		builder.Build();
 
 		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-		var events = new List<Dispatch.Abstractions.IDomainEvent>
+		var events = new List<Dispatch.IDomainEvent>
 		{
 			new TestOrderPlaced { AggregateId = "agg-1", Amount = 42m, Version = 1 }
 		};
@@ -559,6 +559,70 @@ public sealed class ProjectionBuilderShould
 	}
 
 	[Fact]
+	public async Task SyncOnlyFastPathShouldNotCreateGhostProjectionsForUnrelatedEvents()
+	{
+		// Arrange -- projection handles only TestOrderPlaced, NOT TestOrderShipped
+		var store = new InMemoryProjectionStore<OrderSummary>();
+		var services = new ServiceCollection()
+			.AddSingleton<IProjectionStore<OrderSummary>>(store)
+			.BuildServiceProvider();
+
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+
+		// Act -- send only events the projection does NOT handle
+		var unrelatedEvents = new List<Dispatch.IDomainEvent>
+		{
+			new TestOrderShipped { AggregateId = "order-ghost", Version = 1 },
+			new TestOrderCancelled { AggregateId = "order-ghost", Version = 2 },
+		};
+		var context = new EventNotificationContext("order-ghost", "Order", 2, DateTimeOffset.UtcNow);
+
+		await registration.InlineApply!(unrelatedEvents, context, services, CancellationToken.None);
+
+		// Assert -- no ghost projection created in the store
+		store.Get("order-ghost").ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task SyncOnlyFastPathShouldOnlyProjectMatchingEvents()
+	{
+		// Arrange -- projection handles TestOrderPlaced but NOT TestOrderShipped
+		var store = new InMemoryProjectionStore<OrderSummary>();
+		var services = new ServiceCollection()
+			.AddSingleton<IProjectionStore<OrderSummary>>(store)
+			.BuildServiceProvider();
+
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+
+		// Act -- mix of handled and unhandled events
+		var events = new List<Dispatch.IDomainEvent>
+		{
+			new TestOrderShipped { AggregateId = "order-mix", Version = 1 }, // unhandled
+			new TestOrderPlaced { AggregateId = "order-mix", Amount = 77m, Version = 2 }, // handled
+			new TestOrderCancelled { AggregateId = "order-mix", Version = 3 }, // unhandled
+		};
+		var context = new EventNotificationContext("order-mix", "Order", 3, DateTimeOffset.UtcNow);
+
+		await registration.InlineApply!(events, context, services, CancellationToken.None);
+
+		// Assert -- projection created with only the matched event applied
+		var projected = store.Get("order-mix");
+		projected.ShouldNotBeNull();
+		projected.Total.ShouldBe(77m);
+		projected.EventCount.ShouldBe(0); // When<TestOrderPlaced> only sets Total, not EventCount
+	}
+
+	[Fact]
 	public async Task InlineApplyDelegateMergesWithExistingState()
 	{
 		// Arrange -- pre-seed store with existing projection state
@@ -581,7 +645,7 @@ public sealed class ProjectionBuilderShould
 		builder.Build();
 
 		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
-		var events = new List<Dispatch.Abstractions.IDomainEvent>
+		var events = new List<Dispatch.IDomainEvent>
 		{
 			new TestOrderShipped { AggregateId = "order-1", Version = 2 }
 		};
@@ -596,5 +660,218 @@ public sealed class ProjectionBuilderShould
 		projected.Total.ShouldBe(50m); // preserved from pre-seed
 		projected.ShippedAt.ShouldNotBeNull();
 		projected.EventCount.ShouldBe(2); // incremented
+	}
+
+	// --- Context-aware When<TEvent>(Action<T, TEvent, ProjectionContext>) tests (bd-vh3mov) ---
+
+	[Fact]
+	public void RegisterContextAwareHandler()
+	{
+		// Arrange
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+
+		// Act
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e, ctx) => proj.Total = e.Amount);
+		builder.Build();
+
+		// Assert
+		var registration = _registry.GetRegistration(typeof(OrderSummary));
+		registration.ShouldNotBeNull();
+		var projection = (MultiStreamProjection<OrderSummary>)registration.Projection;
+		projection.HandledEventTypes.ShouldContain(typeof(TestOrderPlaced));
+		projection.HasContextHandlers.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void ThrowOnNullContextAwareHandler()
+	{
+		// Arrange
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() =>
+			builder.When<TestOrderPlaced>((Action<OrderSummary, TestOrderPlaced, ProjectionContext>)null!));
+	}
+
+	[Fact]
+	public void ReturnBuilderForFluentChainingWithContextAwareHandler()
+	{
+		// Arrange
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+
+		// Act
+		var result = builder.When<TestOrderPlaced>((proj, e, ctx) => proj.Total = e.Amount);
+
+		// Assert
+		result.ShouldBeSameAs(builder);
+	}
+
+	[Fact]
+	public void ContextAwareHandlerAppliesViaMultiStreamProjectionApply()
+	{
+		// Arrange
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e, ctx) =>
+		{
+			proj.Total = ctx.IsReplay ? 0m : e.Amount;
+		});
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+		var projection = (MultiStreamProjection<OrderSummary>)registration.Projection;
+		var state = new OrderSummary();
+		var @event = new TestOrderPlaced { Amount = 250m };
+
+		// Act -- Apply with Live context (IsReplay=false)
+		var applied = projection.Apply(state, @event, ProjectionContext.Live);
+
+		// Assert
+		applied.ShouldBeTrue();
+		state.Total.ShouldBe(250m);
+	}
+
+	[Fact]
+	public void ContextAwareHandlerReceivesReplayContextCorrectly()
+	{
+		// Arrange
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e, ctx) =>
+		{
+			proj.Total = ctx.IsReplay ? -1m : e.Amount;
+			proj.EventCount = (int)(ctx.GlobalPosition ?? 0);
+		});
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+		var projection = (MultiStreamProjection<OrderSummary>)registration.Projection;
+		var state = new OrderSummary();
+		var @event = new TestOrderPlaced { Amount = 500m };
+
+		// Act -- Apply with Replay context
+		var applied = projection.Apply(state, @event, ProjectionContext.Replay(42L));
+
+		// Assert
+		applied.ShouldBeTrue();
+		state.Total.ShouldBe(-1m); // IsReplay=true path
+		state.EventCount.ShouldBe(42); // GlobalPosition captured
+	}
+
+	[Fact]
+	public void ApplyWithoutContextDefaultsToLiveContext()
+	{
+		// Arrange -- use context-aware handler but call Apply without explicit context
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		ProjectionContext? capturedContext = null;
+		builder.When<TestOrderPlaced>((proj, e, ctx) =>
+		{
+			capturedContext = ctx;
+			proj.Total = e.Amount;
+		});
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+		var projection = (MultiStreamProjection<OrderSummary>)registration.Projection;
+		var state = new OrderSummary();
+		var @event = new TestOrderPlaced { Amount = 100m };
+
+		// Act -- Apply without context uses the overload that defaults to Live
+		projection.Apply(state, @event);
+
+		// Assert
+		capturedContext.ShouldNotBeNull();
+		capturedContext!.IsReplay.ShouldBeFalse();
+		capturedContext.GlobalPosition.ShouldBeNull();
+		state.Total.ShouldBe(100m);
+	}
+
+	[Fact]
+	public void ApplyReturnsFalseForUnhandledEventTypes()
+	{
+		// Arrange
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e, ctx) => proj.Total = e.Amount);
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+		var projection = (MultiStreamProjection<OrderSummary>)registration.Projection;
+		var state = new OrderSummary();
+		var unhandledEvent = new TestOrderCancelled();
+
+		// Act
+		var applied = projection.Apply(state, unhandledEvent, ProjectionContext.Live);
+
+		// Assert
+		applied.ShouldBeFalse();
+		state.Total.ShouldBe(0m);
+	}
+
+	[Fact]
+	public async Task InlineApplyWithContextHandlerPassesLiveContext()
+	{
+		// Arrange
+		var store = new InMemoryProjectionStore<OrderSummary>();
+		var services = new ServiceCollection()
+			.AddSingleton<IProjectionStore<OrderSummary>>(store)
+			.BuildServiceProvider();
+
+		ProjectionContext? capturedContext = null;
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e, ctx) =>
+		{
+			capturedContext = ctx;
+			proj.Total = e.Amount;
+		});
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+		var events = new List<Dispatch.IDomainEvent>
+		{
+			new TestOrderPlaced { AggregateId = "order-ctx", Amount = 300m, Version = 1 }
+		};
+		var context = new EventNotificationContext("order-ctx", "Order", 1, DateTimeOffset.UtcNow);
+
+		// Act
+		await registration.InlineApply!(events, context, services, CancellationToken.None);
+
+		// Assert -- inline apply passes Live context for sync context handlers
+		capturedContext.ShouldNotBeNull();
+		capturedContext!.IsReplay.ShouldBeFalse();
+		store.Get("order-ctx")!.Total.ShouldBe(300m);
+	}
+
+	[Fact]
+	public void MixSyncAndContextHandlersOnDifferentEventTypes()
+	{
+		// Arrange -- sync handler for one event type, context handler for another
+		var builder = new ProjectionBuilder<OrderSummary>(_registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount); // sync
+		builder.When<TestOrderShipped>((proj, e, ctx) =>                  // context-aware
+		{
+			proj.ShippedAt = ctx.IsReplay ? null : e.ShippedAt;
+		});
+		builder.Build();
+
+		var registration = _registry.GetRegistration(typeof(OrderSummary))!;
+		var projection = (MultiStreamProjection<OrderSummary>)registration.Projection;
+
+		// Act & Assert -- both handlers registered
+		projection.HandledEventTypes.Count.ShouldBe(2);
+		projection.HasContextHandlers.ShouldBeTrue();
+
+		// Apply sync handler
+		var state = new OrderSummary();
+		projection.Apply(state, new TestOrderPlaced { Amount = 50m });
+		state.Total.ShouldBe(50m);
+
+		// Apply context-aware handler with Replay
+		projection.Apply(state, new TestOrderShipped(), ProjectionContext.Replay(10L));
+		state.ShippedAt.ShouldBeNull(); // IsReplay=true, so set to null
 	}
 }

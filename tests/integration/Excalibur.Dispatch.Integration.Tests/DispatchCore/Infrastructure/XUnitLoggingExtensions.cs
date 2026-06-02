@@ -1,4 +1,4 @@
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Infrastructure;
 

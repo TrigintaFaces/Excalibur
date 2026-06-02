@@ -3,7 +3,7 @@
 
 using Excalibur.Data.InMemory;
 using Excalibur.Outbox.InMemory;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Outbox;
 
 using FakeItEasy;

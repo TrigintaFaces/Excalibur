@@ -4,9 +4,8 @@
 using System.Collections.Frozen;
 using System.Globalization;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.Logging;
 

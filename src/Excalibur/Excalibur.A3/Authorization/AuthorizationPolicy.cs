@@ -5,7 +5,7 @@
 using System.Diagnostics;
 
 using Excalibur.A3.Authorization.Grants;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.A3.Authorization;
 

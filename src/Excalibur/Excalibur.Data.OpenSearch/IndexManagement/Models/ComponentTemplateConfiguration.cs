@@ -2,13 +2,21 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using OpenSearch.Client;
+using System.Text.Json;
 
 namespace Excalibur.Data.OpenSearch.IndexManagement;
 
 /// <summary>
 /// Represents the configuration for an OpenSearch component template.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The <see cref="SettingsJson"/> and <see cref="MappingsJson"/> properties accept
+/// opaque JSON payloads so that consumers are not coupled to a specific OpenSearch
+/// SDK version. Consumers who need typed configuration can serialize SDK types to
+/// <see cref="JsonElement"/> before assigning them.
+/// </para>
+/// </remarks>
 public sealed class ComponentTemplateConfiguration
 {
 	/// <summary>
@@ -18,16 +26,16 @@ public sealed class ComponentTemplateConfiguration
 	public long? Version { get; init; }
 
 	/// <summary>
-	/// Gets the template settings.
+	/// Gets the template settings as opaque JSON.
 	/// </summary>
-	/// <value> The index settings configuration. </value>
-	public IIndexSettings? Template { get; init; }
+	/// <value> The index settings configuration as a JSON element, or <see langword="null"/> if not specified. </value>
+	public JsonElement? SettingsJson { get; init; }
 
 	/// <summary>
-	/// Gets the field mappings for documents.
+	/// Gets the field mappings as opaque JSON.
 	/// </summary>
-	/// <value> The type mapping configuration. </value>
-	public ITypeMapping? Mappings { get; init; }
+	/// <value> The type mapping configuration as a JSON element, or <see langword="null"/> if not specified. </value>
+	public JsonElement? MappingsJson { get; init; }
 
 	/// <summary>
 	/// Gets custom metadata associated with this component template.

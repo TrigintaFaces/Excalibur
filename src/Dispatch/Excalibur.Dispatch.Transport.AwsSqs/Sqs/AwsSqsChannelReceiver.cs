@@ -7,7 +7,7 @@ using System.Collections.Concurrent;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Channels;
 
 using Microsoft.Extensions.Logging;

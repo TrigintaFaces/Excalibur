@@ -3,7 +3,7 @@
 
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Dispatch.Observability.Metrics;
 
 using Microsoft.AspNetCore.Http;

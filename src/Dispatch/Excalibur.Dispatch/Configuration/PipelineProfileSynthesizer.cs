@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Middleware.Logging;
@@ -13,6 +11,7 @@ using Excalibur.Dispatch.Middleware.Transaction;
 using Excalibur.Dispatch.Middleware.Validation;
 using Excalibur.Dispatch.Middleware.Versioning;
 using Excalibur.Dispatch.Options.Configuration;
+using Excalibur.Dispatch.Validation;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

@@ -66,6 +66,6 @@ public sealed class BulkheadRejectedExceptionShould : UnitTestBase
 		var exception = new BulkheadRejectedException();
 
 		// Assert
-		exception.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
+		exception.ShouldBeAssignableTo<Excalibur.Dispatch.ApiException>();
 	}
 }

@@ -1,7 +1,7 @@
 ﻿using Company.ExcaliburDdd.Domain.Aggregates;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 
 namespace Company.ExcaliburDdd.Application.Queries;
 

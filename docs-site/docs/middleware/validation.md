@@ -88,7 +88,7 @@ For AOT scenarios, use `WithAotFluentValidation()` instead, which registers `Aot
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public record CreateOrderAction(
     [Required]
@@ -229,7 +229,7 @@ Messages can validate themselves by implementing `IValidate`. The middleware cal
 
 ```csharp
 using Excalibur.Dispatch.Validation;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 public record CreateOrderCommand(decimal Amount, string Currency)
     : IDispatchAction, IValidate
@@ -264,7 +264,7 @@ if (!result.IsSuccess && result.ProblemDetails is { } problem)
 
 ### ValidationError
 
-Errors are represented as `ValidationError` instances (namespace `Excalibur.Dispatch.Abstractions.Validation`):
+Errors are represented as `ValidationError` instances (namespace `Excalibur.Dispatch.Validation`):
 
 ```csharp
 public sealed class ValidationError

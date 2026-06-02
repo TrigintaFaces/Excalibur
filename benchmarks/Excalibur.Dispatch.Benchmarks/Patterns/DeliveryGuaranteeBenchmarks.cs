@@ -3,7 +3,7 @@
 
 using BenchmarkDotNet.Attributes;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Options.Delivery;
 
 namespace Excalibur.Dispatch.Benchmarks.Patterns;

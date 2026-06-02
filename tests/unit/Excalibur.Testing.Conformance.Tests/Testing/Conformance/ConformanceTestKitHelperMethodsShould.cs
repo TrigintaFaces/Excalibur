@@ -5,7 +5,7 @@ using System.Text;
 
 using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Testing.Conformance;
 
 using Microsoft.Extensions.Logging.Abstractions;

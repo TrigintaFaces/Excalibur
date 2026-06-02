@@ -1,6 +1,6 @@
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.Messaging;
+namespace Excalibur.Dispatch.Tests.Messaging;
 
 /// <summary>
 /// Unit tests for CacheStatistics.

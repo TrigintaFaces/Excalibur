@@ -4,8 +4,8 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Diagnostics;
 
 namespace Excalibur.EventSourcing.Tests.Core.Diagnostics;

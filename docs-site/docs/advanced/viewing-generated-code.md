@@ -95,6 +95,7 @@ obj/
 4. Run with debugging (F5)
 
 :::tip
+
 Generated code supports full debugging including step-through, watch expressions, and conditional breakpoints.
 :::
 
@@ -199,6 +200,7 @@ Generated files are recreated when:
 - Clean/rebuild is performed
 
 :::note Incremental Generators
+
 Dispatch uses incremental generators that only regenerate when relevant source changes. This ensures fast build times even with many generators.
 :::
 
@@ -224,7 +226,7 @@ Dispatch uses incremental generators that only regenerate when relevant source c
 
 ### Files Are Empty
 
-1. Ensure handler interfaces are from `Excalibur.Dispatch.Abstractions`
+1. Ensure handler interfaces are from the `Excalibur.Dispatch.Delivery` namespace
 2. Verify classes are public and non-abstract
 3. Check for compilation errors that block generator execution
 

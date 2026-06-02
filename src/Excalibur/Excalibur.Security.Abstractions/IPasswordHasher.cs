@@ -3,7 +3,7 @@
 
 // Copyright (c) TrigintaFaces. All rights reserved.
 
-namespace Excalibur.Security.Abstractions;
+namespace Excalibur.Security;
 
 /// <summary>
 /// Provides password hashing and verification using secure algorithms.

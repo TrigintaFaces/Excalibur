@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery.Pipeline;
 
 using FakeItEasy;
@@ -240,6 +240,7 @@ public sealed class ZeroAllocationMiddlewareShould
 		// Arrange
 		IDispatchMiddleware middleware = new ZeroAllocationValidationMiddleware();
 		var context = new Dispatch.Messaging.MessageContext { MessageId = "test-id" };
+		using var cts = new CancellationTokenSource();
 
 		DispatchRequestDelegate nextDelegate = (msg, ctx, ct) =>
 			new ValueTask<IMessageResult>(A.Fake<IMessageResult>());

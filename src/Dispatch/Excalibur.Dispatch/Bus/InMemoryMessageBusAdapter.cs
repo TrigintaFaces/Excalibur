@@ -5,12 +5,11 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.Logging;
-using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Bus;
 

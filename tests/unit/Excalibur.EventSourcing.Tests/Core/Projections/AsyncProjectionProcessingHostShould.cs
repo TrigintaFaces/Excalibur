@@ -3,7 +3,7 @@
 
 #pragma warning disable CA1506 // Excessive class coupling -- integration-style tests for BackgroundService require many DI types
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;

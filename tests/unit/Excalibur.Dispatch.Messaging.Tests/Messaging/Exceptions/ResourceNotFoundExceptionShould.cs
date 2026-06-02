@@ -3,8 +3,8 @@
 
 using System.Net;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Data;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 

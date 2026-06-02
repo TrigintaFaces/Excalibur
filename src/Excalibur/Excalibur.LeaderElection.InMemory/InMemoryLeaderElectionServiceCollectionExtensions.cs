@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.LeaderElection.InMemory;
 

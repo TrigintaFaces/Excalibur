@@ -1,4 +1,4 @@
-namespace Excalibur.Dispatch.Abstractions.Tests.Features;
+namespace Excalibur.Dispatch.Tests.Features;
 
 /// <summary>
 /// Unit tests for DefaultMessageFeatures.

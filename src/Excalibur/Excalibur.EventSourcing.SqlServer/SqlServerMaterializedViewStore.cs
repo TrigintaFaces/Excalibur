@@ -7,8 +7,7 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions.Validation;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Validation;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -201,8 +200,10 @@ public sealed partial class SqlServerMaterializedViewStore : IMaterializedViewSt
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
 
+		// ROWLOCK hint: prevents page-level escalation from blocking other views'
+		// position reads. Consistent with the UPDLOCK pattern in SavePositionAsync.
 		var sql = $"""
-			SELECT Position FROM [{_positionTableName}]
+			SELECT Position FROM [{_positionTableName}] WITH (ROWLOCK)
 			WHERE ViewName = @ViewName
 			""";
 
@@ -229,8 +230,10 @@ public sealed partial class SqlServerMaterializedViewStore : IMaterializedViewSt
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
 
+		// UPDLOCK + ROWLOCK: prevent concurrent processors from reading stale positions
+		// during catch-up/rebuild. The row-level lock minimizes contention across views.
 		var sql = $"""
-			MERGE [{_positionTableName}] AS target
+			MERGE [{_positionTableName}] WITH (UPDLOCK, ROWLOCK) AS target
 			USING (SELECT @ViewName AS ViewName, @Position AS Position, @UpdatedAt AS UpdatedAt) AS source
 			ON target.ViewName = source.ViewName
 			WHEN MATCHED THEN
@@ -253,6 +256,66 @@ public sealed partial class SqlServerMaterializedViewStore : IMaterializedViewSt
 			.ConfigureAwait(false);
 
 		LogPositionSaved(viewName, position);
+	}
+
+	/// <summary>
+	/// Ensures the materialized view tables exist in the database. Creates them if they do not exist.
+	/// </summary>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>A task representing the asynchronous operation.</returns>
+	/// <remarks>
+	/// <para>
+	/// Creates two tables:
+	/// <list type="bullet">
+	/// <item>
+	/// <c>[ViewTableName]</c> — Stores serialized view data with composite key (ViewName, ViewId).
+	/// </item>
+	/// <item>
+	/// <c>[PositionTableName]</c> — Tracks the last processed global stream position per view,
+	/// enabling catch-up and rebuild scenarios.
+	/// </item>
+	/// </list>
+	/// </para>
+	/// <para>
+	/// This method is idempotent — it uses <c>IF NOT EXISTS</c> guards and can be called
+	/// safely at application startup.
+	/// </para>
+	/// </remarks>
+	public async Task EnsureSchemaAsync(CancellationToken cancellationToken)
+	{
+		var sql = $"""
+			IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{_viewTableName}')
+			BEGIN
+				CREATE TABLE [{_viewTableName}] (
+					ViewName   NVARCHAR(256)  NOT NULL,
+					ViewId     NVARCHAR(256)  NOT NULL,
+					Data       NVARCHAR(MAX)  NOT NULL,
+					CreatedAt  DATETIMEOFFSET NOT NULL,
+					UpdatedAt  DATETIMEOFFSET NOT NULL,
+					CONSTRAINT PK_{_viewTableName} PRIMARY KEY CLUSTERED (ViewName, ViewId)
+				);
+			END
+
+			IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{_positionTableName}')
+			BEGIN
+				CREATE TABLE [{_positionTableName}] (
+					ViewName   NVARCHAR(256)  NOT NULL,
+					Position   BIGINT         NOT NULL,
+					CreatedAt  DATETIMEOFFSET NOT NULL,
+					UpdatedAt  DATETIMEOFFSET NOT NULL,
+					CONSTRAINT PK_{_positionTableName} PRIMARY KEY CLUSTERED (ViewName)
+				);
+			END
+			""";
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		_ = await connection.ExecuteAsync(
+			new CommandDefinition(sql, cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
+
+		LogSchemaEnsured(_viewTableName, _positionTableName);
 	}
 
 	private static Func<SqlConnection> CreateConnectionFactory(string connectionString)
@@ -298,6 +361,12 @@ public sealed partial class SqlServerMaterializedViewStore : IMaterializedViewSt
 		Level = LogLevel.Debug,
 		Message = "Position for {ViewName} saved: {Position}")]
 	private partial void LogPositionSaved(string viewName, long position);
+
+	[LoggerMessage(
+		EventId = 3106,
+		Level = LogLevel.Information,
+		Message = "Materialized view schema ensured: tables [{ViewTable}] and [{PositionTable}]")]
+	private partial void LogSchemaEnsured(string viewTable, string positionTable);
 
 	#endregion
 }

@@ -74,7 +74,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 					continue;
 				}
 
-				var isHandler = iface.ContainingNamespace.ToDisplayString() == "Excalibur.Dispatch.Abstractions.Delivery"
+				var isHandler = iface.ContainingNamespace.ToDisplayString() == "Excalibur.Dispatch.Delivery"
 								&& (((string?)iface.Name == "IActionHandler" && iface.TypeArguments.Length is 1 or 2)
 									|| ((string?)iface.Name == "IEventHandler" && iface.TypeArguments.Length == 1)
 									|| ((string?)iface.Name == "IDocumentHandler" && iface.TypeArguments.Length == 1));
@@ -357,7 +357,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("#nullable enable");
 		_ = sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
 		_ = sb.AppendLine("using System.Runtime.CompilerServices;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions;");
+		_ = sb.AppendLine("using Excalibur.Dispatch;");
 		_ = sb.AppendLine("using Excalibur.Dispatch.Delivery.Handlers;");
 		_ = sb.AppendLine();
 		_ = sb.AppendLine("namespace Excalibur.Dispatch.Generated;");
@@ -416,7 +416,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("using System;");
 		_ = sb.AppendLine("using System.Threading;");
 		_ = sb.AppendLine("using System.Threading.Tasks;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions;");
+		_ = sb.AppendLine("using Excalibur.Dispatch;");
 		_ = sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
 		_ = sb.AppendLine();
 		_ = sb.AppendLine("namespace Excalibur.Dispatch.Generated;");
@@ -590,7 +590,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("using System;");
 		_ = sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
 		_ = sb.AppendLine("using Microsoft.Extensions.DependencyInjection.Extensions;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Abstractions.Configuration;");
+		_ = sb.AppendLine("using Excalibur.Dispatch.Configuration;");
 		_ = sb.AppendLine();
 		_ = sb.AppendLine("namespace Excalibur.Dispatch.Configuration;");
 		_ = sb.AppendLine();
@@ -667,7 +667,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 
 	private IPropertySymbol? FindMessageContextProperty(INamedTypeSymbol handlerType)
 	{
-		var contextType = "Excalibur.Dispatch.Abstractions.IMessageContext";
+		var contextType = "Excalibur.Dispatch.IMessageContext";
 		var nullableContextType = $"{contextType}?";
 
 		foreach (var member in handlerType.GetMembers())

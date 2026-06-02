@@ -3,7 +3,7 @@
 
 using System.Diagnostics.Metrics;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 

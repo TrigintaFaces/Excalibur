@@ -222,6 +222,7 @@ builder.Services.AddDispatch(dispatch =>
 ```
 
 :::warning Performance Trade-off
+
 The hot-path profile bypasses all middleware including validation, authorization, and error handling. Only use for trusted, pre-validated messages where latency is critical.
 :::
 

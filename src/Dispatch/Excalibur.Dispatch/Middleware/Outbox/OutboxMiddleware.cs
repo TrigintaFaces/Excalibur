@@ -5,15 +5,14 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-using Excalibur.Dispatch.Options.Middleware;
 
 namespace Excalibur.Dispatch.Middleware.Outbox;
 

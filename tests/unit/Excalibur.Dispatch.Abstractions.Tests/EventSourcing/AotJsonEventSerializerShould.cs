@@ -5,9 +5,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Abstractions.Tests.EventSourcing;
+namespace Excalibur.Dispatch.Tests.EventSourcing;
 
 /// <summary>
 /// Tests for <see cref="AotJsonEventSerializer"/> covering AOT-safe event serialization,

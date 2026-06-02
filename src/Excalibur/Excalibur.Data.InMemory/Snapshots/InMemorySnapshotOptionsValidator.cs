@@ -10,25 +10,25 @@ namespace Excalibur.Data.InMemory.Snapshots;
 /// </summary>
 internal sealed class InMemorySnapshotOptionsValidator : IValidateOptions<InMemorySnapshotOptions>
 {
-    /// <inheritdoc/>
-    public ValidateOptionsResult Validate(string? name, InMemorySnapshotOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
+	/// <inheritdoc/>
+	public ValidateOptionsResult Validate(string? name, InMemorySnapshotOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
 
-        var failures = new List<string>();
+		var failures = new List<string>();
 
-        if (options.MaxSnapshots < 0)
-        {
-            failures.Add($"{nameof(options.MaxSnapshots)} must be >= 0.");
-        }
+		if (options.MaxSnapshots < 0)
+		{
+			failures.Add($"{nameof(options.MaxSnapshots)} must be >= 0.");
+		}
 
-        if (options.MaxSnapshotsPerAggregate < 0)
-        {
-            failures.Add($"{nameof(options.MaxSnapshotsPerAggregate)} must be >= 0.");
-        }
+		if (options.MaxSnapshotsPerAggregate < 0)
+		{
+			failures.Add($"{nameof(options.MaxSnapshotsPerAggregate)} must be >= 0.");
+		}
 
-        return failures.Count > 0
-            ? ValidateOptionsResult.Fail(failures)
-            : ValidateOptionsResult.Success;
-    }
+		return failures.Count > 0
+			? ValidateOptionsResult.Fail(failures)
+			: ValidateOptionsResult.Success;
+	}
 }

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.DeadLetterQueue;

@@ -342,6 +342,9 @@
       "samples/09-advanced/persistence-patterns/CosmosDbEventStore/CosmosDbEventStore.csproj",
       "samples/09-advanced/persistence-patterns/InboxIdempotency/InboxIdempotency.csproj",
       "samples/09-advanced/persistence-patterns/MultiDatabase/MultiDatabase.csproj",
+      "samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj",
+      "samples/09-advanced/persistence-patterns/OutOfBandProjections/OutOfBandProjections.csproj",
+      "samples/09-advanced/persistence-patterns/ProjectionRebuildJob/ProjectionRebuildJob.csproj",
       "samples/09-advanced/persistence-patterns/ProjectionsSample/ProjectionsSample.csproj",
       "samples/09-advanced/persistence-patterns/SessionManagement/SessionManagementExample.csproj",
       "samples/09-advanced/persistence-patterns/SnapshotStrategies/SnapshotStrategies.csproj",
@@ -370,7 +373,8 @@
       "samples/11-real-world/FullStackAddExcalibur/FullStackAddExcalibur.csproj",
       "samples/11-real-world/HealthcareApi/HealthcareApi.csproj",
       "samples/11-real-world/MultiTenantEventSourcing/MultiTenantEventSourcing.csproj",
-      "samples/11-real-world/OrderProcessing/OrderProcessing.csproj"
+      "samples/11-real-world/OrderProcessing/OrderProcessing.csproj",
+      "samples/11-real-world/ProofOfLife/ProofOfLife.csproj"
     ],
     "quarantined": [],
     "smokeProfiles": [
@@ -670,6 +674,21 @@
         "timeoutSeconds": null
       },
       {
+        "project": "samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/persistence-patterns/OutOfBandProjections/OutOfBandProjections.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/persistence-patterns/ProjectionRebuildJob/ProjectionRebuildJob.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
         "project": "samples/09-advanced/persistence-patterns/ProjectionsSample/ProjectionsSample.csproj",
         "mode": "build",
         "timeoutSeconds": null
@@ -811,6 +830,11 @@
       },
       {
         "project": "samples/11-real-world/OrderProcessing/OrderProcessing.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/11-real-world/ProofOfLife/ProofOfLife.csproj",
         "mode": "build",
         "timeoutSeconds": null
       }

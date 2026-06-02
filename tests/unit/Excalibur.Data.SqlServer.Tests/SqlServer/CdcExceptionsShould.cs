@@ -159,7 +159,7 @@ public sealed class CdcExceptionsShould : UnitTestBase
 	{
 		// Sprint 698 T.56: CdcStalePositionException reparented to ResourceException
 		var exception = new CdcStalePositionException();
-		_ = exception.ShouldBeAssignableTo<Excalibur.Data.Abstractions.ResourceException>();
+		_ = exception.ShouldBeAssignableTo<Excalibur.Data.ResourceException>();
 	}
 
 	[Fact]
@@ -167,7 +167,7 @@ public sealed class CdcExceptionsShould : UnitTestBase
 	{
 		// Sprint 698 T.56: CdcMappingException reparented to ResourceException
 		var exception = new CdcMappingException("test mapping error");
-		_ = exception.ShouldBeAssignableTo<Excalibur.Data.Abstractions.ResourceException>();
+		_ = exception.ShouldBeAssignableTo<Excalibur.Data.ResourceException>();
 	}
 
 	#endregion CdcStalePositionException Tests

@@ -6,8 +6,6 @@ using System.Threading.Channels;
 
 using Excalibur.Dispatch.Options.Channels;
 
-using MessageEnvelope = Excalibur.Dispatch.Abstractions.MessageEnvelope;
-
 namespace Excalibur.Dispatch.Channels;
 
 /// <summary>

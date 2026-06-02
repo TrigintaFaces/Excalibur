@@ -6,7 +6,7 @@ using System.Text;
 
 using Excalibur.Data.InMemory.Snapshots;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Snapshots.Compression;
 
 using FakeItEasy;

@@ -76,6 +76,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 
 		await WaitUntilSubscribedAsync(TimeSpan.FromSeconds(2));
 
+		using var pushCts = new CancellationTokenSource();
 		var msg = new TransportReceivedMessage { Id = "msg-1" };
 		await _subscriber.PushAsync(msg, CancellationToken.None);
 

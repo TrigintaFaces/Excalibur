@@ -25,13 +25,13 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 	private InMemoryClaimCheckCleanupService? _cleanupService;
 	private CancellationTokenSource? _cts;
 
-	public Task InitializeAsync()
+	public ValueTask InitializeAsync()
 	{
 		_cts = new CancellationTokenSource();
-		return Task.CompletedTask;
+		return default;
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_cleanupService != null)
 		{

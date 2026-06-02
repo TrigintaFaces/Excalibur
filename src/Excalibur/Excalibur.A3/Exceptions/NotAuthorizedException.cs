@@ -3,7 +3,7 @@
 
 
 using Excalibur.A3.Authentication;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace Excalibur.A3.Exceptions;
 

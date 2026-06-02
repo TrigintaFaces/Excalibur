@@ -8,7 +8,7 @@ using Amazon.SQS.Model;
 
 using CloudNative.CloudEvents;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Options.CloudEvents;
 using Excalibur.Dispatch.Transport;

@@ -7,8 +7,8 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Compliance.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

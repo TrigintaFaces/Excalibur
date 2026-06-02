@@ -7,6 +7,7 @@ description: Handle messages that fail processing repeatedly with dead letter qu
 # Dead Letter Handling
 
 :::tip Start with the guide
+
 For a narrative walkthrough of how retries, circuit breakers, and dead letter queues compose together, see the **[Error Handling & Recovery Guide](error-handling.md)**.
 :::
 

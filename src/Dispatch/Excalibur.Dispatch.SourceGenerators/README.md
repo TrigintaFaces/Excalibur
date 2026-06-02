@@ -13,7 +13,7 @@ dotnet add package Excalibur.Dispatch.SourceGenerators
 ### 2. Mark Services with `[AutoRegister]`
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 
 // Basic usage - Scoped lifetime, registers as self and interfaces

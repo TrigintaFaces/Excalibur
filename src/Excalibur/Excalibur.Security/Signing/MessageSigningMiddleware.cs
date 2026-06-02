@@ -6,14 +6,14 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using MessageProblemDetails = Excalibur.Dispatch.Abstractions.MessageProblemDetails;
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageProblemDetails = Excalibur.Dispatch.MessageProblemDetails;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Security;
 

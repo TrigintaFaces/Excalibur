@@ -3,13 +3,13 @@
 
 #pragma warning disable CA1861 // Prefer 'static readonly' fields - acceptable in tests
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 

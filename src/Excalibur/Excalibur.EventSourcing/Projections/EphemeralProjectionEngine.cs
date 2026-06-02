@@ -3,8 +3,9 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+
+using Excalibur.Dispatch;
+
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 

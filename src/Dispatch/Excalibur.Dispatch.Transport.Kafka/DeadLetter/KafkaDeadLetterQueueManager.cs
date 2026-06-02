@@ -3,7 +3,7 @@
 
 using Confluent.Kafka;
 
-using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;

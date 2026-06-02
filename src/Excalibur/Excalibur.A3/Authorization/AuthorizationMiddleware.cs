@@ -3,12 +3,12 @@
 
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 
-using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+using MR = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.A3.Authorization;
 
@@ -146,8 +146,8 @@ internal sealed class AuthorizationMiddleware(
 					Detail = result.FailureMessage ?? "Authorization failed",
 					Instance = string.Empty,
 				},
-				Dispatch.Abstractions.Serialization.SerializableValidationResult.Success(),
-				Dispatch.Abstractions.AuthorizationResult.Failed(
+				Dispatch.Serialization.SerializableValidationResult.Success(),
+				Dispatch.AuthorizationResult.Failed(
 					result.FailureMessage ?? "Authorization failed"));
 		}
 
@@ -258,8 +258,8 @@ internal sealed class AuthorizationMiddleware(
 				Detail = reason,
 				Instance = string.Empty,
 			},
-			Dispatch.Abstractions.Serialization.SerializableValidationResult.Success(),
-			Dispatch.Abstractions.AuthorizationResult.Failed(reason));
+			Dispatch.Serialization.SerializableValidationResult.Success(),
+			Dispatch.AuthorizationResult.Failed(reason));
 	}
 
 	private static ClaimsPrincipal BuildPrincipal(IAccessToken accessToken)

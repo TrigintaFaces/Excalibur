@@ -3,7 +3,7 @@
 
 using DispatchMinimal.Messages;
 
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 namespace DispatchMinimal.Handlers;
 

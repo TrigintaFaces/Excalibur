@@ -200,8 +200,8 @@ Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition
 Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.AliasDefinition() -> void
 Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.AliasName.get -> string!
 Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.AliasName.init -> void
-Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.Filter.get -> Elastic.Clients.Elasticsearch.QueryDsl.Query?
-Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.Filter.set -> void
+Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.FilterJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.FilterJson.set -> void
 Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.IndexRouting.get -> string?
 Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.IndexRouting.set -> void
 Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.Indices.get -> System.Collections.Generic.IEnumerable<string!>!
@@ -211,8 +211,8 @@ Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.IsWriteIndex.set ->
 Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.SearchRouting.get -> string?
 Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.SearchRouting.set -> void
 Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation
-Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation.AliasConfiguration.get -> Elastic.Clients.Elasticsearch.IndexManagement.Alias?
-Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation.AliasConfiguration.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation.ConfigurationJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation.ConfigurationJson.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation.AliasName.get -> string!
 Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation.AliasName.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation.AliasOperation() -> void
@@ -285,7 +285,7 @@ Excalibur.Data.ElasticSearch.IndexManagement.HotPhaseConfiguration.Rollover.get 
 Excalibur.Data.ElasticSearch.IndexManagement.HotPhaseConfiguration.Rollover.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager.AliasExistsAsync(string! aliasName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager.CreateAliasAsync(string! aliasName, System.Collections.Generic.IEnumerable<string!>! indexNames, Elastic.Clients.Elasticsearch.IndexManagement.Alias? aliasConfiguration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager.CreateAliasAsync(string! aliasName, System.Collections.Generic.IEnumerable<string!>! indexNames, System.Text.Json.JsonElement? aliasConfigurationJson, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager.DeleteAliasAsync(string! aliasName, System.Collections.Generic.IEnumerable<string!>? indexNames, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager.GetAliasesAsync(string? aliasPattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition!>!>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager.UpdateAliasesAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation!>! operations, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -300,7 +300,7 @@ Excalibur.Data.ElasticSearch.IndexManagement.IIndexOperationsManager.CreateIndex
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexOperationsManager.DeleteIndexAsync(string! indexName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexOperationsManager.GetIndexHealthAsync(string? indexPattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.IndexManagement.IndexHealthStatus!>!>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexOperationsManager.IndexExistsAsync(string! indexName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.IndexManagement.IIndexOperationsManager.UpdateIndexSettingsAsync(string! indexName, Elastic.Clients.Elasticsearch.IndexManagement.IndexSettings! settings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.IndexManagement.IIndexOperationsManager.UpdateIndexSettingsAsync(string! indexName, System.Text.Json.JsonElement settingsJson, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.CreateOrUpdateTemplateAsync(string! templateName, Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.DeleteTemplateAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -309,19 +309,19 @@ Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.TemplateExist
 Excalibur.Data.ElasticSearch.IndexManagement.IIndexTemplateManager.ValidateTemplateAsync(Excalibur.Data.ElasticSearch.IndexManagement.IndexTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.IndexManagement.TemplateValidationResult!>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager
 Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager.AliasExistsAsync(string! aliasName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager.CreateAliasAsync(string! aliasName, System.Collections.Generic.IEnumerable<string!>! indexNames, Elastic.Clients.Elasticsearch.IndexManagement.Alias? aliasConfiguration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager.CreateAliasAsync(string! aliasName, System.Collections.Generic.IEnumerable<string!>! indexNames, System.Text.Json.JsonElement? aliasConfigurationJson, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager.DeleteAliasAsync(string! aliasName, System.Collections.Generic.IEnumerable<string!>? indexNames, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager.GetAliasesAsync(string? aliasPattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition!>!>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager.IndexAliasManager(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager!>! logger) -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexAliasManager.UpdateAliasesAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation!>! operations, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration
-Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.Aliases.get -> System.Collections.Generic.Dictionary<string!, Elastic.Clients.Elasticsearch.IndexManagement.Alias!>?
-Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.Aliases.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.AliasesJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.AliasesJson.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.IndexConfiguration() -> void
-Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.Mappings.get -> Elastic.Clients.Elasticsearch.Mapping.TypeMapping?
-Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.Mappings.init -> void
-Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.Settings.get -> Elastic.Clients.Elasticsearch.IndexManagement.IndexSettings?
-Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.Settings.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.MappingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.MappingsJson.init -> void
+Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.SettingsJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.ElasticSearch.IndexManagement.IndexConfiguration.SettingsJson.init -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexHealthStatus
 Excalibur.Data.ElasticSearch.IndexManagement.IndexHealthStatus.DocumentCount.get -> long
 Excalibur.Data.ElasticSearch.IndexManagement.IndexHealthStatus.DocumentCount.init -> void
@@ -381,7 +381,7 @@ Excalibur.Data.ElasticSearch.IndexManagement.IndexOperationsManager.GetIndexHeal
 Excalibur.Data.ElasticSearch.IndexManagement.IndexOperationsManager.IndexExistsAsync(string! indexName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexOperationsManager.IndexOperationsManager(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.IndexManagement.IndexOperationsManager!>! logger) -> void
 Excalibur.Data.ElasticSearch.IndexManagement.IndexOperationsManager.OptimizeIndexAsync(string! indexName, Excalibur.Data.ElasticSearch.IndexManagement.IndexOptimizationOptions! optimizationOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.IndexManagement.IndexOptimizationResult!>!
-Excalibur.Data.ElasticSearch.IndexManagement.IndexOperationsManager.UpdateIndexSettingsAsync(string! indexName, Elastic.Clients.Elasticsearch.IndexManagement.IndexSettings! settings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.IndexManagement.IndexOperationsManager.UpdateIndexSettingsAsync(string! indexName, System.Text.Json.JsonElement settingsJson, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.IndexManagement.IndexOperationsManagerExtensions
 Excalibur.Data.ElasticSearch.IndexManagement.IndexOptimizationOptions
 Excalibur.Data.ElasticSearch.IndexManagement.IndexOptimizationOptions.ForceMerge.get -> bool
@@ -806,13 +806,13 @@ Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.Delete
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.Dispose() -> void
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.ElasticsearchPersistenceProvider(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider!>! logger) -> void
-Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.GetByIdAsync<TDocument>(string! indexName, string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.IndexAsync<TDocument>(string! indexName, string! documentId, TDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.Name.get -> string!
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceProvider.ProviderType.get -> string!
@@ -987,7 +987,7 @@ Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjectio
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.ElasticSearchProjectionStore(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Options.IOptionsMonitor<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! optionsMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection!>!>! logger) -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.ElasticSearchProjectionStore(Microsoft.Extensions.Options.IOptionsMonitor<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! optionsMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection!>!>! logger) -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Auth.get -> Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionAuthOptions!
@@ -3115,7 +3115,17 @@ virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.UpdateAsyn
 Excalibur.Data.ElasticSearch.ElasticSearchCursorHelper
 static Excalibur.Data.ElasticSearch.ElasticSearchCursorHelper.DecodeCursor(string? cursor) -> System.Collections.Generic.IList<Elastic.Clients.Elasticsearch.FieldValue>?
 static Excalibur.Data.ElasticSearch.ElasticSearchCursorHelper.EncodeCursor(System.Collections.Generic.IReadOnlyCollection<Elastic.Clients.Elasticsearch.FieldValue>! sortValues) -> string!
-static Excalibur.Data.ElasticSearch.ElasticSearchCursorHelper.ToCursorResult<T>(Elastic.Clients.Elasticsearch.SearchResponse<T>! response, int pageSize, bool reverseItems = false) -> Excalibur.EventSourcing.Abstractions.CursorPagedResult<T>!
+static Excalibur.Data.ElasticSearch.ElasticSearchCursorHelper.ToCursorResult<T>(Elastic.Clients.Elasticsearch.SearchResponse<T>! response, int pageSize, bool reverseItems = false) -> Excalibur.EventSourcing.CursorPagedResult<T>!
 Excalibur.Data.ElasticSearch.IElasticIndexConfiguration<TSelf>
 Excalibur.Data.ElasticSearch.IElasticIndexConfiguration<TSelf>.ConfigureIndex() -> Elastic.Clients.Elasticsearch.Mapping.Properties!
 Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.InitializeIndexWithMappingsAsync(int numberOfShards = 1, int numberOfReplicas = 1, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Excalibur.Data.ElasticSearch.Projections.DefaultIndexMappingConvention
+Excalibur.Data.ElasticSearch.Projections.DefaultIndexMappingConvention.ConfigureMappings(System.Type! projectionType, Elastic.Clients.Elasticsearch.Mapping.Properties! inferredProperties) -> Elastic.Clients.Elasticsearch.Mapping.Properties!
+Excalibur.Data.ElasticSearch.Projections.DefaultIndexMappingConvention.DefaultIndexMappingConvention() -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexMappingConvention.get -> Excalibur.Data.ElasticSearch.Projections.IIndexMappingConvention?
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexMappingConvention.set -> void
+Excalibur.Data.ElasticSearch.Projections.IIndexMappingConvention
+Excalibur.Data.ElasticSearch.Projections.IIndexMappingConvention.ConfigureMappings(System.Type! projectionType, Elastic.Clients.Elasticsearch.Mapping.Properties! inferredProperties) -> Elastic.Clients.Elasticsearch.Mapping.Properties!
+static Excalibur.Data.ElasticSearch.Projections.DefaultIndexMappingConvention.Instance.get -> Excalibur.Data.ElasticSearch.Projections.DefaultIndexMappingConvention!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSourcingBuilderExtensions.AddElasticSearchProjectionStore<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, string! nodeUri, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>? configureOptions = null) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSourcingBuilderExtensions.AddElasticSearchProjectionStore<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! configureOptions) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

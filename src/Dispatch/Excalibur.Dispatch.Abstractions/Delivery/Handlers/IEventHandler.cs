@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-namespace Excalibur.Dispatch.Abstractions.Delivery;
+namespace Excalibur.Dispatch.Delivery;
 
 /// <summary>
 /// Defines a handler for processing events in the messaging pipeline.

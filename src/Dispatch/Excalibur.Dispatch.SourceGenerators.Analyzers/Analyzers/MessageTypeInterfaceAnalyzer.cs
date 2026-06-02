@@ -84,7 +84,7 @@ public sealed class MessageTypeInterfaceAnalyzer : DiagnosticAnalyzer
 			return false;
 		}
 
-		var dispatcherInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.Abstractions.IDispatcher");
+		var dispatcherInterface = compilation.GetTypeByMetadataName("Excalibur.Dispatch.IDispatcher");
 		if (dispatcherInterface == null)
 		{
 			return false;
@@ -98,11 +98,11 @@ public sealed class MessageTypeInterfaceAnalyzer : DiagnosticAnalyzer
 	{
 		var dispatchInterfaces = new[]
 		{
-			"Excalibur.Dispatch.Abstractions.IDispatchMessage",
-			"Excalibur.Dispatch.Abstractions.IDispatchAction`1",
-			"Excalibur.Dispatch.Abstractions.IDispatchEvent",
-			"Excalibur.Dispatch.Abstractions.IDomainEvent",
-			"Excalibur.Dispatch.Abstractions.IIntegrationEvent",
+			"Excalibur.Dispatch.IDispatchMessage",
+			"Excalibur.Dispatch.IDispatchAction`1",
+			"Excalibur.Dispatch.IDispatchEvent",
+			"Excalibur.Dispatch.IDomainEvent",
+			"Excalibur.Dispatch.IIntegrationEvent",
 		};
 
 		foreach (var interfaceName in dispatchInterfaces)

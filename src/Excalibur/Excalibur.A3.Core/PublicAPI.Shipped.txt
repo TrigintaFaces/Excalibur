@@ -133,12 +133,12 @@ Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions
 override Excalibur.A3.Authorization.Grants.GrantKey.ToString() -> string!
 override Excalibur.A3.Authorization.Grants.GrantScope.ToString() -> string!
 static Excalibur.A3.Authorization.Grants.Grant.Create(string! id) -> Excalibur.A3.Authorization.Grants.Grant!
-static Excalibur.A3.Authorization.Grants.Grant.FromEvents(string! id, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events) -> Excalibur.A3.Authorization.Grants.Grant!
+static Excalibur.A3.Authorization.Grants.Grant.FromEvents(string! id, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events) -> Excalibur.A3.Authorization.Grants.Grant!
 static Excalibur.A3.Authorization.Grants.GrantScope.FromString(string! scope) -> Excalibur.A3.Authorization.Grants.GrantScope!
 static Excalibur.A3.Authorization.Grants.GrantScope.Validate(string! tenantId, string! grantType, string! qualifier, out string? error) -> bool
 static Microsoft.Extensions.DependencyInjection.A3CoreServiceCollectionExtensions.AddExcaliburA3Core(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions.AddRoles(this Excalibur.A3.IA3Builder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.A3.IA3Builder!
-static Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions.AddRoles(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.A3.Abstractions.Authorization.RoleOptions!>? configure = null) -> Excalibur.A3.IA3Builder!
+static Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions.AddRoles(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.A3.Authorization.RoleOptions!>? configure = null) -> Excalibur.A3.IA3Builder!
 static readonly Excalibur.A3.Authorization.Grants.GrantType.Activity -> string!
 static readonly Excalibur.A3.Authorization.Grants.GrantType.ActivityGroup -> string!
 static readonly Excalibur.A3.Authorization.Grants.GrantType.Role -> string!

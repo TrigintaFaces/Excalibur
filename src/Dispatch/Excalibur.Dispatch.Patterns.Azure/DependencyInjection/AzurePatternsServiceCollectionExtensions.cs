@@ -4,6 +4,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 using Microsoft.Extensions.Configuration;

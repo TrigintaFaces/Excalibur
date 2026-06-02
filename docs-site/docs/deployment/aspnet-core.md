@@ -423,6 +423,7 @@ curl -H "Accept: application/x-msgpack" https://api.example.com/orders/123
 ```
 
 :::note
+
 Content negotiation requires the Dispatch serialization infrastructure to be configured first via `AddDispatchSerialization()`. The formatters are registered at position 0 in the MVC formatter list, so they take priority over default formatters for matching content types.
 :::
 

@@ -1,4 +1,4 @@
-namespace Excalibur.Data.Abstractions.Tests.Abstractions;
+namespace Excalibur.Data.Tests.Abstractions;
 
 [Trait("Category", "Unit")]
 [Trait(TraitNames.Component, TestComponents.Core)]

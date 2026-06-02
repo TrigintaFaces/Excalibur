@@ -2,7 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RootNamespace>Excalibur.Security.Abstractions</RootNamespace>
+    <RootNamespace>Excalibur.Security</RootNamespace>
     <AssemblyName>Excalibur.Security.Abstractions</AssemblyName>
     <!-- NuGet Package Metadata -->
     <PackageId>Excalibur.Security.Abstractions</PackageId>

@@ -3,9 +3,9 @@
 
 #pragma warning disable CA2213 // Disposable fields should be disposed -- FakeItEasy fakes do not require disposal
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery;
 
 using Microsoft.Extensions.Logging;

@@ -1,6 +1,6 @@
 using Company.DispatchMinimalApi.Actions;
 using Company.DispatchMinimalApi.Infrastructure;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 var builder = WebApplication.CreateBuilder(args);
 

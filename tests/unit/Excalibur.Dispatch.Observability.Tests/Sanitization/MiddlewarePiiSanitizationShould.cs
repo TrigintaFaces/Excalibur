@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Observability.Sanitization;
 

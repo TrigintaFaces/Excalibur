@@ -4,7 +4,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Excalibur.Inbox.InMemory;
 

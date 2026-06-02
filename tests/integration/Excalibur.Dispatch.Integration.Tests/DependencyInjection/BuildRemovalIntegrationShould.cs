@@ -3,8 +3,8 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
 
 using Microsoft.Extensions.DependencyInjection;
 

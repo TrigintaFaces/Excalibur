@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.Json;
 
 using Excalibur.Data.Redis.Diagnostics;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

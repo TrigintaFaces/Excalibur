@@ -16,23 +16,23 @@ Excalibur.Data.Redis.RedisConnectionPoolOptions.SyncTimeout.get -> int
 Excalibur.Data.Redis.RedisConnectionPoolOptions.SyncTimeout.set -> void
 Excalibur.Data.Redis.RedisPersistenceProvider
 Excalibur.Data.Redis.RedisPersistenceProvider.ConnectionString.get -> string!
-Excalibur.Data.Redis.RedisPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.Redis.RedisPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.Redis.RedisPersistenceProvider.Dispose() -> void
 Excalibur.Data.Redis.RedisPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.Redis.RedisPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Redis.RedisPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Redis.RedisPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Redis.RedisPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.Redis.RedisPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.Redis.RedisPersistenceProvider.GetDatabase(int? databaseId = null) -> StackExchange.Redis.IDatabase!
 Excalibur.Data.Redis.RedisPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.Redis.RedisPersistenceProvider.GetServer(System.Net.EndPoint? endPoint = null) -> StackExchange.Redis.IServer!
 Excalibur.Data.Redis.RedisPersistenceProvider.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.Redis.RedisPersistenceProvider.GetSubscriber() -> StackExchange.Redis.ISubscriber!
-Excalibur.Data.Redis.RedisPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Redis.RedisPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Redis.RedisPersistenceProvider.IsAvailable.get -> bool
 Excalibur.Data.Redis.RedisPersistenceProvider.Name.get -> string!
 Excalibur.Data.Redis.RedisPersistenceProvider.ProviderType.get -> string!
 Excalibur.Data.Redis.RedisPersistenceProvider.RedisPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Redis.RedisProviderOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Redis.RedisPersistenceProvider!>! logger) -> void
-Excalibur.Data.Redis.RedisPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.Redis.RedisPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 Excalibur.Data.Redis.RedisPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.Redis.RedisProviderOptions
 Excalibur.Data.Redis.RedisProviderOptions.AllowAdmin.get -> bool

@@ -7,7 +7,7 @@ using System.Diagnostics.Metrics;
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Azure;
 using Excalibur.Dispatch.Transport.Builders;

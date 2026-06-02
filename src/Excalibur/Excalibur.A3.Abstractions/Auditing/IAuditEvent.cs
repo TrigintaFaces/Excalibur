@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-namespace Excalibur.A3.Abstractions.Auditing;
+namespace Excalibur.A3.Auditing;
 
 /// <summary>
 /// Represents an immutable, provider-neutral audit event.

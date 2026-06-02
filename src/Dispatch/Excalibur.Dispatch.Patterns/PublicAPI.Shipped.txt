@@ -32,7 +32,7 @@ Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.EnableCompre
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.MinCompressionRatio.get -> double
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.MinCompressionRatio.set -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer
-Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! claimCheckProvider, Excalibur.Dispatch.Abstractions.Serialization.ISerializer! baseSerializer, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions? options = null) -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! claimCheckProvider, Excalibur.Dispatch.Serialization.ISerializer! baseSerializer, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions? options = null) -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! claimCheckProvider, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions? options = null) -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ContentType.get -> string!
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.Deserialize<T>(System.ReadOnlySpan<byte> data) -> T
@@ -167,14 +167,14 @@ Excalibur.Dispatch.Patterns.DateRange.StartDate.get -> System.DateOnly
 Excalibur.Dispatch.Patterns.DateRange.StartDate.set -> void
 Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId
 Excalibur.Dispatch.Patterns.IRoutingStrategy
-Excalibur.Dispatch.Patterns.IRoutingStrategy.CanHandle(Excalibur.Dispatch.Abstractions.Routing.RoutingContext! context) -> bool
+Excalibur.Dispatch.Patterns.IRoutingStrategy.CanHandle(Excalibur.Dispatch.Routing.RoutingContext! context) -> bool
 Excalibur.Dispatch.Patterns.IRoutingStrategy.Name.get -> string!
-Excalibur.Dispatch.Patterns.IRoutingStrategy.SelectRoutesAsync(System.Collections.Generic.IReadOnlyCollection<Excalibur.Dispatch.Abstractions.Routing.RouteDefinition!>! availableRoutes, Excalibur.Dispatch.Abstractions.Routing.RoutingContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.Routing.RouteDefinition!>!>!
+Excalibur.Dispatch.Patterns.IRoutingStrategy.SelectRoutesAsync(System.Collections.Generic.IReadOnlyCollection<Excalibur.Dispatch.Routing.RouteDefinition!>! availableRoutes, Excalibur.Dispatch.Routing.RoutingContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Routing.RouteDefinition!>!>!
 Excalibur.Dispatch.Patterns.RouteEvaluation
 Excalibur.Dispatch.Patterns.RouteEvaluation.MatchingRules.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.TimeBasedRoutingRule!>!
 Excalibur.Dispatch.Patterns.RouteEvaluation.Reason.get -> string!
 Excalibur.Dispatch.Patterns.RouteEvaluation.Reason.set -> void
-Excalibur.Dispatch.Patterns.RouteEvaluation.Route.get -> Excalibur.Dispatch.Abstractions.Routing.RouteDefinition!
+Excalibur.Dispatch.Patterns.RouteEvaluation.Route.get -> Excalibur.Dispatch.Routing.RouteDefinition!
 Excalibur.Dispatch.Patterns.RouteEvaluation.Route.set -> void
 Excalibur.Dispatch.Patterns.RouteEvaluation.RouteEvaluation() -> void
 Excalibur.Dispatch.Patterns.RouteEvaluation.Score.get -> double
@@ -194,7 +194,7 @@ Excalibur.Dispatch.Patterns.RoutingMetrics.SuccessfulRoutings.set -> void
 Excalibur.Dispatch.Patterns.RoutingMetrics.TotalRoutingDecisions.get -> long
 Excalibur.Dispatch.Patterns.RoutingMetrics.TotalRoutingDecisions.set -> void
 Excalibur.Dispatch.Patterns.RoutingResult
-Excalibur.Dispatch.Patterns.RoutingResult.AlternativeRoutes.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Abstractions.Routing.RouteDefinition!>!
+Excalibur.Dispatch.Patterns.RoutingResult.AlternativeRoutes.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Routing.RouteDefinition!>!
 Excalibur.Dispatch.Patterns.RoutingResult.AppliedRule.get -> Excalibur.Dispatch.Patterns.TimeBasedRoutingRule?
 Excalibur.Dispatch.Patterns.RoutingResult.AppliedRule.set -> void
 Excalibur.Dispatch.Patterns.RoutingResult.FailureReason.get -> string?
@@ -203,7 +203,7 @@ Excalibur.Dispatch.Patterns.RoutingResult.IsSuccess.get -> bool
 Excalibur.Dispatch.Patterns.RoutingResult.IsSuccess.set -> void
 Excalibur.Dispatch.Patterns.RoutingResult.Metadata.get -> System.Collections.Generic.Dictionary<string!, object!>!
 Excalibur.Dispatch.Patterns.RoutingResult.RoutingResult() -> void
-Excalibur.Dispatch.Patterns.RoutingResult.SelectedRoute.get -> Excalibur.Dispatch.Abstractions.Routing.RouteDefinition?
+Excalibur.Dispatch.Patterns.RoutingResult.SelectedRoute.get -> Excalibur.Dispatch.Routing.RouteDefinition?
 Excalibur.Dispatch.Patterns.RoutingResult.SelectedRoute.set -> void
 Excalibur.Dispatch.Patterns.RoutingResult.Timestamp.get -> System.DateTimeOffset
 Excalibur.Dispatch.Patterns.RoutingResult.Timestamp.set -> void
@@ -231,7 +231,7 @@ Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Name.get -> string!
 Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Name.set -> void
 Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Priority.get -> int
 Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Priority.set -> void
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Routes.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Abstractions.Routing.RouteDefinition!>!
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Routes.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Routing.RouteDefinition!>!
 Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.TimeBasedRoutingRule() -> void
 Excalibur.Dispatch.Patterns.TimeConditions
 Excalibur.Dispatch.Patterns.TimeConditions.ActiveDates.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.DateRange!>!

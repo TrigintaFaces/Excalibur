@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Caches typed dispatch delegates for convenience overloads that infer <c>TResponse</c>
@@ -29,9 +29,9 @@ namespace Excalibur.Dispatch.Abstractions;
 /// </para>
 /// </remarks>
 [RequiresUnreferencedCode("Uses MakeGenericMethod for typed dispatch delegate creation. " +
-                           "Use source-generated typed dispatch overloads for AOT/trimming compatibility.")]
+						   "Use source-generated typed dispatch overloads for AOT/trimming compatibility.")]
 [RequiresDynamicCode("Uses MakeGenericMethod which requires runtime code generation. " +
-                     "Use source-generated typed dispatch overloads for AOT/trimming compatibility.")]
+					 "Use source-generated typed dispatch overloads for AOT/trimming compatibility.")]
 internal static class TypedDispatchDelegateCache<TResponse>
 {
 	private static readonly ConcurrentDictionary<Type, Func<IDispatcher, IDispatchAction<TResponse>, CancellationToken, Task<IMessageResult<TResponse>>>>

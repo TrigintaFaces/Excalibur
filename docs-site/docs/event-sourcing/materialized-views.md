@@ -713,30 +713,170 @@ services.AddSqlServerMaterializedViewStore(sqlConnectionString);
 ```
 
 :::tip Hybrid Architectures
+
 If you need views in multiple stores (e.g., SQL Server for transactional queries + Elasticsearch for full-text search), use [projections](projections.md) for the secondary store — each projection store is registered per `TProjection` type and doesn't conflict.
 :::
 
-### Custom Processors
+### The Default Processor (MaterializedViewProcessor)
 
-Implement `IMaterializedViewProcessor` for custom processing logic:
+The framework provides a built-in `MaterializedViewProcessor` that handles the full lifecycle:
+
+- **Event routing** — builds an event-type → builder routing map at startup from `HandledEventTypes`
+- **Single event processing** — routes one event to all matching builders, saves position per view
+- **Batch processing** — processes multiple events with deferred position saves (one per batch, not per event)
+- **Catch-up** — reads the global event stream from the last saved position for a specific view
+- **Rebuild** — resets all positions to zero and replays the entire global stream
+
+The processor is registered automatically when you call `AddMaterializedViews`:
 
 ```csharp
-public class CustomProcessor : IMaterializedViewProcessor
+services.AddMaterializedViews(builder =>
 {
-    public Task CatchUpAsync(string viewName, CancellationToken ct)
+    builder.AddBuilder<OrderSummaryView, OrderSummaryViewBuilder>()
+           .AddBuilder<CustomerStatsView, CustomerStatsViewBuilder>();
+});
+```
+
+#### Catch-Up and Rebuild
+
+Use the processor directly for on-demand operations:
+
+```csharp
+public class ViewMaintenanceController : ControllerBase
+{
+    private readonly IMaterializedViewProcessor _processor;
+
+    public ViewMaintenanceController(IMaterializedViewProcessor processor)
+        => _processor = processor;
+
+    [HttpPost("views/{viewName}/catch-up")]
+    public async Task<IActionResult> CatchUp(string viewName, CancellationToken ct)
     {
-        // Custom catch-up logic
+        // Reads from last saved position + 1 for this view
+        await _processor.CatchUpAsync(viewName, ct);
+        return Ok();
     }
 
-    public Task ProcessEventAsync(IDomainEvent @event, CancellationToken ct)
+    [HttpPost("views/rebuild")]
+    public async Task<IActionResult> RebuildAll(CancellationToken ct)
     {
-        // Custom event processing
+        // Resets ALL view positions to 0 and replays the entire global stream
+        await _processor.RebuildAsync(ct);
+        return Ok();
     }
 }
-
-// Register
-builder.UseProcessor<CustomProcessor>();
 ```
+
+#### Batch Processing
+
+For high-throughput scenarios (e.g., CDC integration), use the batch API:
+
+```csharp
+var events = new List<(IDomainEvent Event, long Position)>
+{
+    (orderCreated, 100),
+    (orderItemAdded, 101),
+    (orderShipped, 102)
+};
+
+// Processes all events, saves position once per affected view at the end
+await processor.ProcessEventsAsync(events, cancellationToken);
+```
+
+The batch API defers position saves until the entire batch is processed — significantly more efficient than processing events one at a time.
+
+#### Configuration
+
+```csharp
+services.AddMaterializedViews(builder =>
+{
+    builder.AddBuilder<OrderSummaryView, OrderSummaryViewBuilder>();
+
+    // Configure batch processing options
+    builder.Configure(options =>
+    {
+        options.BatchSize = 500;                           // Events per batch during catch-up/rebuild
+        options.BatchDelay = TimeSpan.FromMilliseconds(50); // Delay between batches to avoid overwhelming the store
+    });
+});
+```
+
+### Scheduled Rebuilds with ProjectionRebuildJob
+
+For periodic full rebuilds of all materialized views, use `ProjectionRebuildJob` from the `Excalibur.Jobs` package. This job resolves `IMaterializedViewProcessor` from DI and calls `RebuildAsync()`, which resets all view positions to zero and replays the entire global event stream.
+
+```bash
+dotnet add package Excalibur.Jobs
+```
+
+**Registration:**
+
+```csharp
+services.AddQuartzWithJobs(quartz =>
+{
+    // Rebuild all materialized views daily at 3 AM
+    quartz.AddJob<ProjectionRebuildJob>("0 0 3 * * ?");
+
+    // Or weekly on Sunday at midnight
+    // quartz.AddJob<ProjectionRebuildJob>("0 0 0 ? * SUN");
+});
+```
+
+**How it works:**
+
+1. The job creates a DI scope and resolves `IMaterializedViewProcessor`
+2. If no processor is registered, it logs a warning and exits gracefully
+3. Calls `processor.RebuildAsync(cancellationToken)` which:
+   - Resets all view positions to 0
+   - Replays the entire global event stream
+   - Regenerates all materialized view data
+
+:::warning Long-Running Operation
+
+`ProjectionRebuildJob` replays **all events** in the global stream. For large event stores (millions+ events), this can take significant time. Schedule during low-traffic periods and monitor via the materialized view metrics.
+:::
+
+**When to use scheduled rebuilds:**
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Schema migration (new view fields) | One-time rebuild via `AddOneTimeJob<ProjectionRebuildJob>()` |
+| Data integrity assurance | Weekly or daily scheduled rebuild |
+| Bug fix in view builder logic | One-time rebuild after deploying the fix |
+| New view added to existing system | The refresh service catches up automatically — no rebuild needed |
+
+**Graceful degradation:** If `IMaterializedViewProcessor` is not registered (e.g., materialized views are disabled in a deployment), the job logs a warning and completes without error. This makes it safe to include in all deployment configurations.
+
+---
+
+### Custom Processors
+
+To replace the default processor with custom logic, implement `IMaterializedViewProcessor`:
+
+```csharp
+public interface IMaterializedViewProcessor
+{
+    Task ProcessEventAsync(IDomainEvent @event, long position, CancellationToken cancellationToken);
+    Task ProcessEventsAsync(IEnumerable<(IDomainEvent Event, long Position)> events, CancellationToken cancellationToken);
+    Task CatchUpAsync(string viewName, CancellationToken cancellationToken);
+    Task RebuildAsync(CancellationToken cancellationToken);
+}
+```
+
+Register your custom processor:
+
+```csharp
+services.AddMaterializedViews(builder =>
+{
+    builder.AddBuilder<OrderSummaryView, OrderSummaryViewBuilder>();
+    builder.UseProcessor<MyCustomProcessor>();  // Replaces the default MaterializedViewProcessor
+});
+```
+
+:::note DI Registration Order
+
+`UseProcessor<T>()` must be called inside the `AddMaterializedViews` configure action. The default processor registers after the configure action runs, using `TryAddSingleton` — so your custom processor takes precedence.
+:::
 
 ## Next Steps
 

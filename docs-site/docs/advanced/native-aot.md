@@ -45,7 +45,7 @@ Dispatch achieves AOT compatibility by generating all handler discovery, invocat
 ### 2. Mark Handlers with `[AutoRegister]`
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 [AutoRegister]
 public class CreateOrderHandler : IActionHandler<CreateOrderCommand>
@@ -167,8 +167,8 @@ public static partial class ResultFactoryRegistry
     {
         return result switch
         {
-            global::Excalibur.Dispatch.Abstractions.IMessageResult<Guid> r => r.ReturnValue,
-            global::Excalibur.Dispatch.Abstractions.IMessageResult<OrderDto> r => r.ReturnValue,
+            global::Excalibur.Dispatch.IMessageResult<Guid> r => r.ReturnValue,
+            global::Excalibur.Dispatch.IMessageResult<OrderDto> r => r.ReturnValue,
             _ => null
         };
     }
@@ -189,7 +189,7 @@ public static class GeneratedServiceCollectionExtensions
     public static IServiceCollection AddGeneratedServices(this IServiceCollection services)
     {
         services.AddScoped<global::MyApp.CreateOrderHandler>();
-        services.AddScoped<global::Excalibur.Dispatch.Abstractions.Delivery.IActionHandler<global::MyApp.CreateOrderCommand>,
+        services.AddScoped<global::Excalibur.Dispatch.Delivery.IActionHandler<global::MyApp.CreateOrderCommand>,
             global::MyApp.CreateOrderHandler>();
         return services;
     }
@@ -272,8 +272,8 @@ The AOT validation CI gate (`aot-validation.yml`) runs on every push and pull re
 ```xml
 <linker>
   <assembly fullname="Excalibur.Dispatch.Abstractions">
-    <type fullname="Excalibur.Dispatch.Abstractions.IDispatchMessage" preserve="all" />
-    <type fullname="Excalibur.Dispatch.Abstractions.Delivery.IActionHandler`1" preserve="all" />
+    <type fullname="Excalibur.Dispatch.IDispatchMessage" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.IActionHandler`1" preserve="all" />
     <!-- ... -->
   </assembly>
 
@@ -406,7 +406,7 @@ If you see trimming warnings:
 
 1. Handlers must be `public`, non-abstract classes
 2. Handlers must implement `IActionHandler<T>`, `IEventHandler<T>`, or `IDocumentHandler<T>`
-3. Handler interfaces must be from `Excalibur.Dispatch.Abstractions.Delivery` namespace
+3. Handler interfaces must be from `Excalibur.Dispatch.Delivery` namespace
 4. Clean and rebuild after adding new handlers
 
 ### Result Factory Not Working Under AOT

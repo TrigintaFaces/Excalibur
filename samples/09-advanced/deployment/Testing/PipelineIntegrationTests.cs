@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Testing;
 

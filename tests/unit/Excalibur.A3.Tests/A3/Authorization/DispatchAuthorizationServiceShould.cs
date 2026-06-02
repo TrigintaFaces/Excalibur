@@ -4,7 +4,7 @@ using Excalibur.A3.Authorization;
 
 using Microsoft.AspNetCore.Authorization;
 
-using AuthorizationResult = Excalibur.Dispatch.Abstractions.AuthorizationResult;
+using AuthorizationResult = Excalibur.Dispatch.AuthorizationResult;
 using MsAuthorizationResult = Microsoft.AspNetCore.Authorization.AuthorizationResult;
 
 namespace Excalibur.Tests.A3.Authorization;

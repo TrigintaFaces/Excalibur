@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Bulk;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Observability;

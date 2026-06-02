@@ -2,7 +2,7 @@
 // Demonstrates defining SoD policies, evaluating conflicts,
 // and showing how the preventive middleware would block conflicting grants.
 
-using Excalibur.A3.Abstractions.Authorization;
+using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Grants;
 using Excalibur.A3.Governance.SeparationOfDuties;
 
@@ -69,12 +69,12 @@ Console.WriteLine("--- Step 2: Assign Role Grants ---");
 var now = DateTimeOffset.UtcNow;
 
 await grantStore.SaveGrantAsync(
-	new Excalibur.A3.Abstractions.Authorization.Grant("user-1", "Jane Doe", "tenant-1", GrantType.Role, "PaymentCreator", null, "admin", now),
+	new Excalibur.A3.Authorization.Grant("user-1", "Jane Doe", "tenant-1", GrantType.Role, "PaymentCreator", null, "admin", now),
 	CancellationToken.None);
 Console.WriteLine("  Granted PaymentCreator to user-1");
 
 await grantStore.SaveGrantAsync(
-	new Excalibur.A3.Abstractions.Authorization.Grant("user-1", "Jane Doe", "tenant-1", GrantType.Role, "FinanceManager", null, "admin", now),
+	new Excalibur.A3.Authorization.Grant("user-1", "Jane Doe", "tenant-1", GrantType.Role, "FinanceManager", null, "admin", now),
 	CancellationToken.None);
 Console.WriteLine("  Granted FinanceManager to user-1");
 

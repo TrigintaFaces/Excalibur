@@ -16,76 +16,76 @@ namespace Excalibur.AuditLogging.OpenSearch;
 /// </remarks>
 public sealed class OpenSearchExporterOptions
 {
-    /// <summary>
-    /// Gets or sets the OpenSearch base URL.
-    /// </summary>
-    /// <remarks>
-    /// Example: "https://my-cluster.os.example.com:9200"
-    /// </remarks>
-    [Required]
-    public required string OpenSearchUrl { get; set; }
+	/// <summary>
+	/// Gets or sets the OpenSearch base URL.
+	/// </summary>
+	/// <remarks>
+	/// Example: "https://my-cluster.os.example.com:9200"
+	/// </remarks>
+	[Required]
+	public required string OpenSearchUrl { get; set; }
 
-    /// <summary>
-    /// Gets or sets the cluster node URLs for multi-node OpenSearch deployments.
-    /// </summary>
-    /// <remarks>
-    /// If both <see cref="NodeUrls"/> and <see cref="OpenSearchUrl"/> are set,
-    /// <see cref="NodeUrls"/> takes precedence. Use this for cluster-aware round-robin
-    /// request distribution.
-    /// </remarks>
-    public List<string>? NodeUrls { get; set; }
+	/// <summary>
+	/// Gets or sets the cluster node URLs for multi-node OpenSearch deployments.
+	/// </summary>
+	/// <remarks>
+	/// If both <see cref="NodeUrls"/> and <see cref="OpenSearchUrl"/> are set,
+	/// <see cref="NodeUrls"/> takes precedence. Use this for cluster-aware round-robin
+	/// request distribution.
+	/// </remarks>
+	public List<string>? NodeUrls { get; set; }
 
-    /// <summary>
-    /// Gets or sets the index name prefix for audit documents.
-    /// </summary>
-    /// <remarks>
-    /// Documents are indexed to "{IndexPrefix}-{yyyy.MM.dd}" for time-based partitioning.
-    /// </remarks>
-    public string IndexPrefix { get; set; } = "dispatch-audit";
+	/// <summary>
+	/// Gets or sets the index name prefix for audit documents.
+	/// </summary>
+	/// <remarks>
+	/// Documents are indexed to "{IndexPrefix}-{yyyy.MM.dd}" for time-based partitioning.
+	/// </remarks>
+	public string IndexPrefix { get; set; } = "dispatch-audit";
 
-    /// <summary>
-    /// Gets or sets the maximum number of events to send in a single bulk request.
-    /// </summary>
-    public int BulkBatchSize { get; set; } = 500;
+	/// <summary>
+	/// Gets or sets the maximum number of events to send in a single bulk request.
+	/// </summary>
+	public int BulkBatchSize { get; set; } = 500;
 
-    /// <summary>
-    /// Gets or sets the refresh policy for index operations.
-    /// </summary>
-    /// <remarks>
-    /// Valid values: "true" (immediate), "wait_for" (wait until refreshed), "false" (no refresh).
-    /// Default is "false" for optimal performance.
-    /// </remarks>
-    public string RefreshPolicy { get; set; } = "false";
+	/// <summary>
+	/// Gets or sets the refresh policy for index operations.
+	/// </summary>
+	/// <remarks>
+	/// Valid values: "true" (immediate), "wait_for" (wait until refreshed), "false" (no refresh).
+	/// Default is "false" for optimal performance.
+	/// </remarks>
+	public string RefreshPolicy { get; set; } = "false";
 
-    /// <summary>
-    /// Gets or sets the optional API key for authentication.
-    /// </summary>
-    public string? ApiKey { get; set; }
+	/// <summary>
+	/// Gets or sets the optional API key for authentication.
+	/// </summary>
+	public string? ApiKey { get; set; }
 
-    /// <summary>
-    /// Gets or sets the maximum number of retry attempts for transient failures.
-    /// </summary>
-    public int MaxRetryAttempts { get; set; } = 3;
+	/// <summary>
+	/// Gets or sets the maximum number of retry attempts for transient failures.
+	/// </summary>
+	public int MaxRetryAttempts { get; set; } = 3;
 
-    /// <summary>
-    /// Gets or sets the base delay between retries.
-    /// </summary>
-    /// <remarks>
-    /// Actual delay uses exponential backoff: baseDelay * 2^(attempt-1).
-    /// </remarks>
-    public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(1);
+	/// <summary>
+	/// Gets or sets the base delay between retries.
+	/// </summary>
+	/// <remarks>
+	/// Actual delay uses exponential backoff: baseDelay * 2^(attempt-1).
+	/// </remarks>
+	public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(1);
 
-    /// <summary>
-    /// Gets or sets the HTTP request timeout.
-    /// </summary>
-    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+	/// <summary>
+	/// Gets or sets the HTTP request timeout.
+	/// </summary>
+	public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>
-    /// Gets or sets the application name to include in exported audit events.
-    /// </summary>
-    /// <remarks>
-    /// Used as a fallback when <see cref="Compliance.AuditEvent.ApplicationName"/> is not set
-    /// on individual events. The event-level value takes precedence over this option.
-    /// </remarks>
-    public string? ApplicationName { get; set; }
+	/// <summary>
+	/// Gets or sets the application name to include in exported audit events.
+	/// </summary>
+	/// <remarks>
+	/// Used as a fallback when <see cref="Compliance.AuditEvent.ApplicationName"/> is not set
+	/// on individual events. The event-level value takes precedence over this option.
+	/// </remarks>
+	public string? ApplicationName { get; set; }
 }

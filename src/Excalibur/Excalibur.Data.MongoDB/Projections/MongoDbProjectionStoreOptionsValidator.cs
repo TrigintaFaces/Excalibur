@@ -7,16 +7,16 @@ namespace Excalibur.Data.MongoDB.Projections;
 
 internal sealed class MongoDbProjectionStoreOptionsValidator : IValidateOptions<MongoDbProjectionStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, MongoDbProjectionStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, MongoDbProjectionStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

@@ -3,7 +3,7 @@
 
 using System;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -66,7 +66,7 @@ public sealed class StackCompositionTests
 		var dispatcher = provider.GetService<IDispatcher>();
 		dispatcher.ShouldNotBeNull("IDispatcher should be resolvable from Event Sourcing stack");
 
-		var snapshotStrategy = provider.GetService<Excalibur.EventSourcing.Abstractions.ISnapshotStrategy>();
+		var snapshotStrategy = provider.GetService<Excalibur.EventSourcing.ISnapshotStrategy>();
 		snapshotStrategy.ShouldNotBeNull("ISnapshotStrategy should be resolvable from Event Sourcing stack");
 	}
 

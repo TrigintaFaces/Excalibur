@@ -4,7 +4,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Pooling;
 
 using Microsoft.Extensions.ObjectPool;

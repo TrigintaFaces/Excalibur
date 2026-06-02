@@ -9,6 +9,7 @@ description: Copy-paste-ready Program.cs files for the most common Excalibur sce
 Copy-paste-ready starting points for the most common scenarios. Each template is a complete, working `Program.cs` that you can paste into a new project and run immediately.
 
 :::tip How to use
+
 1. Create a new project: `dotnet new web -n MyProject`
 2. Install the listed packages
 3. Replace the generated `Program.cs` with the template below
@@ -25,8 +26,8 @@ dotnet add package Excalibur.Dispatch
 ```
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -97,10 +98,10 @@ dotnet add package Excalibur.Dispatch.SqlServer
 One metapackage includes Dispatch + EventSourcing + SqlServer + Hosting.
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -220,8 +221,8 @@ dotnet add package Excalibur.Dispatch.Resilience.Polly
 ```
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -285,10 +286,10 @@ dotnet add package Excalibur.Dispatch.SqlServer
 ```
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 var builder = WebApplication.CreateBuilder(args);
 

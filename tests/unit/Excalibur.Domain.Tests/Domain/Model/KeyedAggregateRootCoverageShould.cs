@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 namespace Excalibur.Tests.Domain.Model;

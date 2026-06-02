@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Tests.Conformance.Snapshot;
 
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing;
 
 using Excalibur.Data.Postgres.Snapshots;
 
@@ -57,8 +57,8 @@ public sealed class PostgresSnapshotStoreConformanceShould : SnapshotConformance
 			options,
 			logger);
 
-		// Adapt Excalibur.EventSourcing.Abstractions.ISnapshotStore to
-		// Excalibur.Dispatch.Abstractions.EventSourcing.ISnapshotStore for conformance testing
+		// Adapt Excalibur.EventSourcing.ISnapshotStore to
+		// Excalibur.Dispatch.EventSourcing.ISnapshotStore for conformance testing
 		return new SnapshotStoreAdapter(excaliburStore);
 	}
 

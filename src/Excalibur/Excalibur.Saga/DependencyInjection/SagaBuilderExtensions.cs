@@ -3,7 +3,6 @@
 
 using Excalibur.Saga;
 using Excalibur.Saga.DependencyInjection;
-using Excalibur.Saga.Orchestration;
 using Excalibur.Saga.Outbox;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -16,46 +15,6 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class SagaBuilderExtensions
 {
 	/// <summary>
-	/// Adds advanced saga orchestration services including state management, retry policies,
-	/// and the <see cref="AdvancedSagaMiddleware"/>.
-	/// </summary>
-	/// <param name="builder">The saga builder.</param>
-	/// <param name="configure">Optional action to configure advanced saga options.</param>
-	/// <returns>The saga builder for chaining.</returns>
-	/// <remarks>
-	/// This is equivalent to calling <see cref="AdvancedSagaServiceCollectionExtensions.AddExcaliburAdvancedSagas(IServiceCollection, Action{AdvancedSagaOptions}?)"/>
-	/// but integrated into the builder pattern for discoverability.
-	/// </remarks>
-	public static ISagaBuilder WithOrchestration(
-		this ISagaBuilder builder,
-		Action<AdvancedSagaOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		_ = builder.Services.AddExcaliburAdvancedSagas(configure);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Adds advanced saga orchestration services with fluent builder configuration.
-	/// </summary>
-	/// <param name="builder">The saga builder.</param>
-	/// <param name="configure">Action to configure the advanced saga builder.</param>
-	/// <returns>The saga builder for chaining.</returns>
-	public static ISagaBuilder WithOrchestration(
-		this ISagaBuilder builder,
-		Action<AdvancedSagaBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = builder.Services.AddExcaliburAdvancedSagas(configure);
-
-		return builder;
-	}
-
-	/// <summary>
 	/// Adds saga event coordination services including the in-memory saga store,
 	/// saga coordinator, and the <see cref="SagaHandlingMiddleware"/>.
 	/// </summary>
@@ -67,7 +26,7 @@ public static class SagaBuilderExtensions
 	/// but integrated into the builder pattern for discoverability.
 	/// </para>
 	/// <para>
-	/// The coordination middleware runs at the <see cref="Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.End"/>
+	/// The coordination middleware runs at the <see cref="Excalibur.Dispatch.DispatchMiddlewareStage.End"/>
 	/// stage and processes <see cref="Excalibur.Saga.EventSourced.ISagaEvent"/> messages
 	/// through the <see cref="SagaCoordinator"/>.
 	/// </para>

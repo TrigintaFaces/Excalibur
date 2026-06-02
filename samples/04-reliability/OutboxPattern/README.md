@@ -38,44 +38,56 @@ The outbox pattern solves a common distributed systems problem: how to reliably 
 
 ## Key Concepts
 
+### Middleware Pipeline
+
+The recommended approach uses dispatch middleware for outbox and inbox integration:
+
+```csharp
+builder.Services.AddDispatch(dispatch =>
+{
+    // Add inbox middleware first -- deduplicates before processing
+    dispatch.UseInbox();
+
+    // Add outbox middleware -- stages integration events for reliable delivery
+    dispatch.UseOutbox();
+
+    // Register handlers from this assembly
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+});
+```
+
 ### Outbox Configuration
 
-Uses the preset-based fluent API (ADR-098). Start with a preset (`Balanced`, `HighThroughput`, `HighReliability`) then override specific settings:
+Uses the builder pattern to configure storage, processing, and cleanup:
 
 ```csharp
-builder.Services.AddExcalibur(excalibur => excalibur
-    .AddOutbox(
-        OutboxOptions.Balanced()                                    // Sensible defaults
-            .WithBatchSize(50)                                      // Messages per batch
-            .WithPollingInterval(TimeSpan.FromSeconds(2))           // Check interval
-            .WithMaxRetries(3)                                      // Max retries
-            .WithRetryDelay(TimeSpan.FromSeconds(10))               // Retry delay
-            .WithRetentionPeriod(TimeSpan.FromHours(1))             // Keep messages for 1 hour
-            .WithCleanupInterval(TimeSpan.FromMinutes(5))           // Cleanup every 5 minutes
-            .Build()));
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+{
+    outbox.UseInMemory()                                    // In-memory for demo; use UseSqlServer() in production
+        .WithProcessing(processing =>
+        {
+            processing.BatchSize(50)                        // Process 50 messages per batch
+                .PollingInterval(TimeSpan.FromSeconds(2))   // Check for messages every 2 seconds
+                .MaxRetryCount(3)                           // Retry failed messages up to 3 times
+                .RetryDelay(TimeSpan.FromSeconds(10));      // Wait 10 seconds between retries
+        })
+        .WithCleanup(cleanup =>
+        {
+            cleanup.EnableAutoCleanup(true)
+                .RetentionPeriod(TimeSpan.FromHours(1))     // Keep messages for 1 hour
+                .CleanupInterval(TimeSpan.FromMinutes(5));  // Run cleanup every 5 minutes
+        })
+        .EnableBackgroundProcessing();                      // Start the background processor hosted service
+}));
 ```
 
-### Store Registration
+### Inbox Configuration
 
 ```csharp
-// Development: In-memory stores
-builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
-
-// Production: Durable stores
-// builder.Services.AddExcalibur(excalibur => excalibur
-//     .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
-// builder.Services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
-```
-
-### Background Services
-
-```csharp
-// Process outbox messages
-builder.Services.AddOutboxHostedService();
-
-// Deduplicate inbox messages
-builder.Services.AddInboxHostedService();
+builder.Services.AddExcaliburInbox(inbox =>
+{
+    inbox.UseInMemory(); // In-memory for demo; use UseSqlServer() in production
+});
 ```
 
 ## Running the Sample

@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Factory for creating and managing persistence providers.

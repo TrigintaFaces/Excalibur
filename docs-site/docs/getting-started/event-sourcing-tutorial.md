@@ -9,6 +9,7 @@ description: Extend the order system tutorial with AggregateRoot, event store, a
 This tutorial extends the [Order System Tutorial](./order-system-tutorial.md) with event sourcing. Instead of storing current state, you'll store the sequence of events that produced the state — enabling full audit trails, temporal queries, and rebuild-from-history.
 
 :::tip Prerequisites
+
 - Completed the [Order System Tutorial](./order-system-tutorial.md)
 - SQL Server available (LocalDB, Docker, or remote instance)
 - Familiarity with domain-driven design concepts (aggregates, events)
@@ -35,7 +36,7 @@ One metapackage bundles Dispatch + Domain + EventSourcing + SqlServer.
 Domain events are immutable records that describe what happened. Extend the `DomainEvent` base record — it auto-generates `EventId`, `OccurredAt`, `Version`, and `EventType` for you.
 
 ```csharp title="Domain/Events.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace OrderSystem.Domain;
 
@@ -76,7 +77,7 @@ public record OrderLineData(string ProductId, string ProductName, decimal Price,
 The aggregate is the consistency boundary. It validates commands, raises events, and applies them to update internal state via pattern matching.
 
 ```csharp title="Domain/OrderAggregate.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 namespace OrderSystem.Domain;
@@ -173,6 +174,7 @@ public enum OrderStatus { Pending, Confirmed, Cancelled }
 ```
 
 :::info Why Pattern Matching?
+
 `ApplyEventInternal` uses a `switch` expression — no reflection, no virtual dispatch overhead. This is a deliberate design choice for performance. The aggregate knows all its event types at compile time.
 :::
 
@@ -200,8 +202,8 @@ public class OrderSummary
 Handlers load the aggregate from the repository, call command methods, and save.
 
 ```csharp title="Handlers/OrderCommandHandlers.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 using OrderSystem.Domain;
 
 namespace OrderSystem.Handlers;
@@ -239,7 +241,7 @@ public class CancelOrderHandler(
 ```
 
 ```csharp title="Messages/OrderActions.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using OrderSystem.Domain;
 using OrderSystem.ReadModels;
 
@@ -262,8 +264,8 @@ public record GetCustomerOrdersQuery(string CustomerId) : IDispatchAction<IReadO
 Query handlers read from the projection store — a denormalized, query-optimized view of the data.
 
 ```csharp title="Handlers/OrderQueryHandlers.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 using OrderSystem.ReadModels;
 
 namespace OrderSystem.Handlers;
@@ -298,12 +300,13 @@ public class GetCustomerOrdersHandler(
 An event handler listens to domain events and updates the read model. This is the "projection" -- it projects events into a queryable shape.
 
 :::tip Inline projections for immediate consistency
+
 This tutorial uses `IEventHandler<T>` for projections, which processes events through the Dispatch pipeline (eventually consistent). For **immediate read-after-write consistency**, use the `AddProjection<T>().Inline()` builder API instead -- see [Inline Projections](../event-sourcing/projections.md#inline-projections-mutable) and the [CQRS Program.cs template](./program-cs-templates.md#cqrs-with-event-sourcing-and-projections) for a complete example.
 :::
 
 ```csharp title="Projections/OrderSummaryProjection.cs"
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 using OrderSystem.Domain;
 using OrderSystem.ReadModels;
 
@@ -366,7 +369,7 @@ public class OrderSummaryProjection(IProjectionStore<OrderSummary> store) :
 ## Step 8: Wire It Up
 
 ```csharp title="Program.cs"
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 using OrderSystem.Domain;
 using OrderSystem.Handlers;

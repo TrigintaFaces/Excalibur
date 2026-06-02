@@ -3,10 +3,9 @@
 
 using BenchmarkDotNet.Attributes;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 
@@ -19,7 +18,7 @@ using Microsoft.Extensions.Hosting;
 
 using Wolverine;
 
-using IMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
+using IMessageContext = Excalibur.Dispatch.IMessageContext;
 
 namespace Excalibur.Dispatch.Benchmarks.Comparative;
 

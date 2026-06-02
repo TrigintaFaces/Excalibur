@@ -11,7 +11,7 @@ using Excalibur.Dispatch.Observability.Context;
 
 using Tests.Shared.Helpers;
 
-using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
+using MessageResult = Excalibur.Dispatch.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Functional.Observability;
 

@@ -66,7 +66,7 @@ public sealed class DispatchActionExtensionGenerator : IIncrementalGenerator
 
 		// Skip abstract, static, and open generic types
 		if (typeSymbol.IsAbstract || typeSymbol.IsStatic ||
-		    typeSymbol.TypeParameters.Length > 0)
+			typeSymbol.TypeParameters.Length > 0)
 		{
 			return null;
 		}
@@ -80,7 +80,7 @@ public sealed class DispatchActionExtensionGenerator : IIncrementalGenerator
 			}
 
 			if (@interface.Name != "IDispatchAction" ||
-			    @interface.ContainingNamespace?.ToDisplayString() != "Excalibur.Dispatch.Abstractions")
+				@interface.ContainingNamespace?.ToDisplayString() != "Excalibur.Dispatch")
 			{
 				continue;
 			}
@@ -169,7 +169,7 @@ public sealed class DispatchActionExtensionGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("using System.Threading;");
 		_ = sb.AppendLine("using System.Threading.Tasks;");
 		_ = sb.AppendLine();
-		_ = sb.AppendLine("namespace Excalibur.Dispatch.Abstractions;");
+		_ = sb.AppendLine("namespace Excalibur.Dispatch;");
 		_ = sb.AppendLine();
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Source-generated typed dispatch extension methods that enable <c>TResponse</c>");

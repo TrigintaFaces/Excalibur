@@ -150,7 +150,7 @@ const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.PermissionDenied
 const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.ResourceExhausted = "FIRESTORE_RESOURCE_EXHAUSTED" -> string!
 const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.Unavailable = "FIRESTORE_UNAVAILABLE" -> string!
 const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.Unknown = "FIRESTORE_UNKNOWN" -> string!
-override Excalibur.Cdc.Firestore.FirestoreCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
+override Excalibur.Cdc.Firestore.FirestoreCdcPosition.Equals(Excalibur.Dispatch.ChangePosition? other) -> bool
 override Excalibur.Cdc.Firestore.FirestoreCdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.Firestore.FirestoreCdcPosition.GetHashCode() -> int
 override Excalibur.Cdc.Firestore.FirestoreCdcPosition.IsValid.get -> bool

@@ -7,16 +7,16 @@ namespace Excalibur.Data.MongoDB.Snapshots;
 
 internal sealed class MongoDbSnapshotStoreOptionsValidator : IValidateOptions<MongoDbSnapshotStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, MongoDbSnapshotStoreOptions options)
-    {
-        try
-        {
-            options.Validate();
-            return ValidateOptionsResult.Success;
-        }
-        catch (Exception ex)
-        {
-            return ValidateOptionsResult.Fail(ex.Message);
-        }
-    }
+	public ValidateOptionsResult Validate(string? name, MongoDbSnapshotStoreOptions options)
+	{
+		try
+		{
+			options.Validate();
+			return ValidateOptionsResult.Success;
+		}
+		catch (Exception ex)
+		{
+			return ValidateOptionsResult.Fail(ex.Message);
+		}
+	}
 }

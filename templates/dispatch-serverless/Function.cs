@@ -3,7 +3,7 @@ using System.Net;
 
 using Company.DispatchServerless.Messages;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Azure.Functions.Worker;
@@ -58,7 +58,7 @@ using Amazon.Lambda.Core;
 
 using Company.DispatchServerless.Messages;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -122,7 +122,7 @@ using System.Text.Json;
 
 using Company.DispatchServerless.Messages;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
 using Google.Cloud.Functions.Framework;

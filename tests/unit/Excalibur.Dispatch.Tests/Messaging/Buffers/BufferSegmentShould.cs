@@ -153,7 +153,7 @@ public sealed class BufferSegmentShould
     [Fact]
     public void ThrowOnNullPooledBuffer()
     {
-        Excalibur.Dispatch.Abstractions.IPooledBuffer? nullPooled = null;
+        Excalibur.Dispatch.IPooledBuffer? nullPooled = null;
         Should.Throw<ArgumentNullException>(() => new BufferSegment(nullPooled, 0, 0));
     }
 }

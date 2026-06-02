@@ -59,7 +59,7 @@ public sealed class SigningExceptionShould
 	{
 		// Assert
 		// Sprint 697 T.13: reparented to ApiException
-		typeof(SigningException).BaseType.ShouldBe(typeof(global::Excalibur.Dispatch.Abstractions.ApiException));
+		typeof(SigningException).BaseType.ShouldBe(typeof(global::Excalibur.Dispatch.ApiException));
 	}
 
 	[Fact]

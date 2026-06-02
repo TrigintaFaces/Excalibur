@@ -5,7 +5,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Defines metrics collection capabilities for persistence operations.

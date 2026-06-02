@@ -1,5 +1,5 @@
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Decorators;
 
 namespace Excalibur.EventSourcing.Tests.Core.Decorators;

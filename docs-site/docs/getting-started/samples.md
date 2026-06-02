@@ -47,7 +47,9 @@ What are you building?
 ├── Observability
 │   ├── OpenTelemetry             → 07-observability/OpenTelemetry
 │   └── Health checks             → 07-observability/HealthChecks
-└── Production reference          → 10-real-world/EnterpriseOrderProcessing
+├── Full-stack reference app      → 11-real-world/ProofOfLife
+├── Projection rebuild (Quartz)   → 09-advanced/persistence-patterns/ProjectionRebuildJob
+└── Global stream projection      → 09-advanced/persistence-patterns/GlobalStreamProjectionHost
 ```
 
 All samples are in the `samples/` directory.
@@ -101,6 +103,7 @@ All samples are certified and build in CI. The quarantine list was cleared acros
 
 | Sample | Where | Highlights |
 |--------|-------|------------|
+| **Proof-of-Life (Full Stack)** | `samples/11-real-world/ProofOfLife/` | ASP.NET Core Minimal API demonstrating the complete Excalibur consumer DX: Dispatch handlers, AggregateRoot, event sourcing, projections, and REST endpoints. Uses only public APIs — validates the NuGet consumer experience. |
 | **Healthcare Vertical Slice API** | `samples/11-real-world/HealthcareApi/` | Minimal API with Dispatch hosting bridge, vertical slice + screaming folder structure. 4 feature slices (Patients, Appointments, Prescriptions, Notifications), cross-slice events, `[Authorize]` bridge, per-slice DI. |
 
 See [Minimal API Hosting Bridge](../deployment/minimal-api-bridge.md) and [Vertical Slice Architecture](../architecture/vertical-slice-architecture.md) for related documentation.
@@ -112,6 +115,7 @@ The `samples/` folder also contains reference implementations for common pattern
 | Folder | Pattern |
 |--------|---------|
 | `samples/09-advanced/persistence-patterns/SqlServerEventStore/`, `samples/09-advanced/persistence-patterns/CosmosDbEventStore/`, `samples/09-advanced/persistence-patterns/SnapshotStrategies/` | Event sourcing, snapshot strategies, and schema evolution |
+| `samples/09-advanced/persistence-patterns/ProjectionRebuildJob/`, `samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/` | Quartz-scheduled projection rebuild and continuous global stream tailing |
 | `samples/04-reliability/SagaOrchestration/` | Saga orchestration + compensation handlers |
 | `samples/02-messaging-transports/TransportBindings/` | Transport bindings and routing |
 | `samples/05-serverless/` | Azure/AWS/GCP serverless integrations (hosting packages) |

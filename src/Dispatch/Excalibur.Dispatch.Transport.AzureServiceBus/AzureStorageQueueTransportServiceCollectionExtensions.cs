@@ -8,7 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 using Azure.Identity;
 using Azure.Storage.Queues;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Transport.Azure;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;

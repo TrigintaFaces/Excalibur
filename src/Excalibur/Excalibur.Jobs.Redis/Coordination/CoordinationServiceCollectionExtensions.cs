@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Jobs.Abstractions.Coordination;
+using Excalibur.Jobs.Coordination;
 using Excalibur.Jobs.Redis.Coordination;
 
 using Microsoft.Extensions.Logging;

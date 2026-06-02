@@ -4,13 +4,13 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Excalibur.Dispatch.Abstractions;
+namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Extension methods for <see cref="IDispatcher" /> that provide context-aware dispatch operations.
@@ -48,8 +48,8 @@ public static class DispatcherContextExtensions
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
 		if (MessageContextHolder.Current is null &&
-		    message is IDispatchAction localAction &&
-		    dispatcher is IDirectLocalDispatcher directLocalDispatcher)
+			message is IDispatchAction localAction &&
+			dispatcher is IDirectLocalDispatcher directLocalDispatcher)
 		{
 			return DispatchUltraLocalAsync(directLocalDispatcher, localAction, cancellationToken);
 		}
@@ -89,7 +89,7 @@ public static class DispatcherContextExtensions
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
 		if (MessageContextHolder.Current is null &&
-		    dispatcher is IDirectLocalDispatcher directLocalDispatcher)
+			dispatcher is IDirectLocalDispatcher directLocalDispatcher)
 		{
 			return DispatchUltraLocalWithResponseAsync<TMessage, TResponse>(
 				directLocalDispatcher,
@@ -142,8 +142,8 @@ public static class DispatcherContextExtensions
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
 		var currentContext = MessageContextHolder.Current
-		                     ?? throw new InvalidOperationException(
-			                     Resources.DispatcherContextExtensions_ChildMessageRequiresContext);
+							 ?? throw new InvalidOperationException(
+								 Resources.DispatcherContextExtensions_ChildMessageRequiresContext);
 
 		var childContext = currentContext.CreateChildContext();
 		return dispatcher.DispatchAsync(message, childContext, cancellationToken);
@@ -191,8 +191,8 @@ public static class DispatcherContextExtensions
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
 		var currentContext = MessageContextHolder.Current
-		                     ?? throw new InvalidOperationException(
-			                     Resources.DispatcherContextExtensions_ChildActionRequiresContext);
+							 ?? throw new InvalidOperationException(
+								 Resources.DispatcherContextExtensions_ChildActionRequiresContext);
 
 		var childContext = currentContext.CreateChildContext();
 		return dispatcher.DispatchAsync<TMessage, TResponse>(message, childContext, cancellationToken);
@@ -227,10 +227,10 @@ public static class DispatcherContextExtensions
 	/// </remarks>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
-		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+						"C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
-		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+						"C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
 		this IDispatcher dispatcher,
@@ -270,10 +270,10 @@ public static class DispatcherContextExtensions
 	/// </remarks>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
-		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+						"C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
-		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+						"C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult<TResponse>> DispatchAsync<TResponse>(
 		this IDispatcher dispatcher,
@@ -316,10 +316,10 @@ public static class DispatcherContextExtensions
 	/// </remarks>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
-		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+						"C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Source-generated typed overloads in TypedDispatchExtensions shadow this method via " +
-		                "C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
+						"C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult<TResponse>> DispatchChildAsync<TResponse>(
 		this IDispatcher dispatcher,

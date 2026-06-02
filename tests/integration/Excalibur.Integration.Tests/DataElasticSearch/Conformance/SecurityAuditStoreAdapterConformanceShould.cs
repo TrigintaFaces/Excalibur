@@ -43,7 +43,8 @@ public sealed class SecurityAuditStoreAdapterConformanceShould : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(fixture);
 
-		var settings = new ElasticsearchClientSettings(new Uri(fixture.ConnectionString));
+		var settings = new ElasticsearchClientSettings(new Uri(fixture.ConnectionString))
+			.RequestTimeout(TimeSpan.FromMinutes(3));
 		_client = new ElasticsearchClient(settings);
 		_adapter = new SecurityAuditStoreAdapter(_client);
 	}
@@ -105,9 +106,23 @@ public sealed class SecurityAuditStoreAdapterConformanceShould : IDisposable
 
 		// Act — adapter constructs a BulkRequest + BulkIndexOperation<T>
 		// internally and dispatches through _inner.BulkAsync.
-		var result = await _adapter
-			.BulkAppendEventsAsync(events, CancellationToken.None)
-			.ConfigureAwait(false);
+		// Retry on transient failures — CI runners can cause ES container
+		// resource contention leading to slow or failed bulk responses
+		// (observed 90s latency + IsValidResponse=false on 200 status).
+		var result = default(AuditBulkAppendResult);
+		for (var attempt = 0; attempt < 5; attempt++)
+		{
+			result = await _adapter
+				.BulkAppendEventsAsync(events, CancellationToken.None)
+				.ConfigureAwait(false);
+
+			if (result.Success)
+			{
+				break;
+			}
+
+			await Task.Delay(2000, CancellationToken.None).ConfigureAwait(false);
+		}
 
 		// Assert — real ES accepts the batch; passthrough reports success
 		// and the submitted count.

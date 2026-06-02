@@ -4,7 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace Excalibur.Data.Abstractions.Persistence;
+namespace Excalibur.Data.Persistence;
 
 /// <summary>
 /// Shared OpenTelemetry constants for persistence provider telemetry.

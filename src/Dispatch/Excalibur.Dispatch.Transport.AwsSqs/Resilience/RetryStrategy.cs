@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.AwsSqs;
 /// </summary>
 /// <remarks>
 /// Renamed from <c>RetryStrategy</c> to avoid collision with
-/// <c>Excalibur.Dispatch.Abstractions.Transport.RetryStrategy</c> which defines
+/// <c>Excalibur.Dispatch.Transport.RetryStrategy</c> which defines
 /// generic retry strategies (FixedDelay, ExponentialBackoff).
 /// </remarks>
 public enum SqsRetryStrategy

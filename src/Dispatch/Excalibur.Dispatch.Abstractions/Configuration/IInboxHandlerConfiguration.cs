@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Abstractions.Configuration;
+namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>
 /// Configuration for a specific handler's inbox (idempotency) behavior.

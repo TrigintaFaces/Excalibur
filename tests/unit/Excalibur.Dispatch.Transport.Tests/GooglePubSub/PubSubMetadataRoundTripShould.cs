@@ -31,14 +31,14 @@ public sealed class PubSubMetadataRoundTripShould : IAsyncDisposable
     private const string TestSubscription = "projects/test-project/subscriptions/orders-sub";
 
     private readonly IPublisherClientSeam _fakePublisher;
-    private readonly SubscriberServiceApiClient _fakeSubscriber;
+    private readonly ISubscriberApiClientSeam _fakeSubscriber;
     private readonly PubSubTransportSender _senderSut;
     private readonly PubSubTransportReceiver _receiverSut;
 
     public PubSubMetadataRoundTripShould()
     {
         _fakePublisher = A.Fake<IPublisherClientSeam>();
-        _fakeSubscriber = A.Fake<SubscriberServiceApiClient>();
+        _fakeSubscriber = A.Fake<ISubscriberApiClientSeam>();
 
         _senderSut = new PubSubTransportSender(
             _fakePublisher,
@@ -129,7 +129,7 @@ public sealed class PubSubMetadataRoundTripShould : IAsyncDisposable
             DeliveryAttempt = 2,
         };
 
-        A.CallTo(() => _fakeSubscriber.PullAsync(A<PullRequest>._, A<CallSettings>._))
+        A.CallTo(() => _fakeSubscriber.PullAsync(A<PullRequest>._, A<CancellationToken>._))
             .Returns(new PullResponse { ReceivedMessages = { receivedMessage } });
 
         // Act
@@ -183,7 +183,7 @@ public sealed class PubSubMetadataRoundTripShould : IAsyncDisposable
             Message = pubsubMessage,
         };
 
-        A.CallTo(() => _fakeSubscriber.PullAsync(A<PullRequest>._, A<CallSettings>._))
+        A.CallTo(() => _fakeSubscriber.PullAsync(A<PullRequest>._, A<CancellationToken>._))
             .Returns(new PullResponse { ReceivedMessages = { receivedMessage } });
 
         // Act
@@ -437,7 +437,7 @@ public sealed class PubSubMetadataRoundTripShould : IAsyncDisposable
             Message = pubsubMessage,
         };
 
-        A.CallTo(() => _fakeSubscriber.PullAsync(A<PullRequest>._, A<CallSettings>._))
+        A.CallTo(() => _fakeSubscriber.PullAsync(A<PullRequest>._, A<CancellationToken>._))
             .Returns(new PullResponse { ReceivedMessages = { receivedMessage } });
 
         // Act
@@ -473,7 +473,7 @@ public sealed class PubSubMetadataRoundTripShould : IAsyncDisposable
             Message = pubsubMessage,
         };
 
-        A.CallTo(() => _fakeSubscriber.PullAsync(A<PullRequest>._, A<CallSettings>._))
+        A.CallTo(() => _fakeSubscriber.PullAsync(A<PullRequest>._, A<CancellationToken>._))
             .Returns(new PullResponse { ReceivedMessages = { receivedMessage } });
 
         // Act

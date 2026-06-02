@@ -1,4 +1,4 @@
-namespace Excalibur.Dispatch.Abstractions.Tests.Transport;
+namespace Excalibur.Dispatch.Tests.Transport;
 
 /// <summary>
 /// Unit tests for MessageContextTransportExtensions.

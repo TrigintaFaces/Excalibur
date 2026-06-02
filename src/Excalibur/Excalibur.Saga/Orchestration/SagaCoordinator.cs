@@ -7,9 +7,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 
+using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,8 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!;
 
 	private static readonly ConcurrentDictionary<(Type SagaType, Type StateType), MethodInfo> GenericMethodCache = new();
+
+	private static readonly ConcurrentDictionary<(Type SagaType, Type EventType), MethodInfo?> TimeoutHandlerCache = new();
 
 	/// <summary>
 	/// Processes a saga event by routing it to the appropriate saga instance and managing state transitions. This method handles saga
@@ -176,13 +179,6 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 
 		var saga = ActivatorUtilities.CreateInstance<TSaga>(serviceProvider, sagaState);
 
-		if (!saga.HandlesEvent(evt))
-		{
-			LogSagaNotHandled(evt.SagaId, evt.GetType().Name);
-
-			return;
-		}
-
 		// Idempotent replay guard: derive a unique event ID and check if already processed.
 		// The ID is added to the in-memory set BEFORE HandleAsync, but only persisted when SaveAsync succeeds.
 		// If SaveAsync fails or crashes, the ID is lost from the set on reload, allowing correct replay.
@@ -193,7 +189,24 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			return;
 		}
 
-		await saga.HandleAsync(evt, cancellationToken).ConfigureAwait(false);
+		// Check for ISagaTimeout<TEvent> strongly-typed handler first.
+		// If the saga implements ISagaTimeout<T> for this event type, use the timeout handler.
+		// Otherwise, fall through to the general HandleAsync path.
+		if (TryInvokeTimeoutHandler(saga, evt, cancellationToken, out var timeoutTask))
+		{
+			await timeoutTask.ConfigureAwait(false);
+		}
+		else
+		{
+			if (!saga.HandlesEvent(evt))
+			{
+				LogSagaNotHandled(evt.SagaId, evt.GetType().Name);
+
+				return;
+			}
+
+			await saga.HandleAsync(evt, cancellationToken).ConfigureAwait(false);
+		}
 
 		await sagaStore.SaveAsync(sagaState, cancellationToken).ConfigureAwait(false);
 
@@ -201,6 +214,55 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		{
 			LogSagaCompleted(evt.SagaId);
 		}
+	}
+
+	/// <summary>
+	/// Attempts to invoke a strongly-typed timeout handler (<see cref="ISagaTimeout{TMessage}"/>)
+	/// on the saga for the given event. Returns true if the saga implements the timeout handler
+	/// interface for this event type.
+	/// </summary>
+	/// <param name="saga">The saga instance.</param>
+	/// <param name="evt">The event that may be a timeout message.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <param name="task">The task from the timeout handler invocation, or null if not handled.</param>
+	/// <returns>True if a timeout handler was found and invoked; false otherwise.</returns>
+	[RequiresUnreferencedCode("Uses reflection to resolve ISagaTimeout<T> interface and invoke HandleTimeoutAsync")]
+	[RequiresDynamicCode("Uses MakeGenericType with runtime event types")]
+	private static bool TryInvokeTimeoutHandler(
+		object saga,
+		ISagaEvent evt,
+		CancellationToken cancellationToken,
+		[System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Task? task)
+	{
+		var sagaType = saga.GetType();
+		var evtType = evt.GetType();
+		var cacheKey = (sagaType, evtType);
+
+		// Check cache for the HandleTimeoutAsync method (null = not a timeout handler)
+		if (!TimeoutHandlerCache.TryGetValue(cacheKey, out var method))
+		{
+			var timeoutInterfaceType = typeof(ISagaTimeout<>).MakeGenericType(evtType);
+
+			if (timeoutInterfaceType.IsAssignableFrom(sagaType))
+			{
+				method = timeoutInterfaceType.GetMethod(nameof(ISagaTimeout<>.HandleTimeoutAsync));
+			}
+
+			// Cache the result (null means "not a timeout handler for this event type")
+			if (TimeoutHandlerCache.Count < MaxCacheEntries)
+			{
+				TimeoutHandlerCache.TryAdd(cacheKey, method);
+			}
+		}
+
+		if (method is null)
+		{
+			task = null;
+			return false;
+		}
+
+		task = (Task)method.Invoke(saga, [evt, cancellationToken])!;
+		return true;
 	}
 
 	/// <summary>

@@ -270,6 +270,7 @@ Tamper-evident logging with hash chain integrity.
 [Learn more about Audit Logging →](audit-logging.md)
 
 :::info Recommendation
+
 For new implementations, use the comprehensive compliance capabilities described in the [Quick Start Guide](quick-start.md) and certification checklists rather than the legacy features.
 :::
 

@@ -26,7 +26,7 @@ Action handlers process actions (commands and queries) dispatched through the pi
 Use `IActionHandler<TAction>` for commands that don't return data:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 public record CreateOrderAction(string CustomerId, List<string> Items) : IDispatchAction;
 
@@ -61,7 +61,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 Use `IActionHandler<TAction, TResult>` for queries that return data:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 public record GetOrderAction(Guid OrderId) : IDispatchAction<Order>;
 
@@ -88,8 +88,8 @@ public class GetOrderHandler : IActionHandler<GetOrderAction, Order>
 Event handlers subscribe to domain events for pub-sub messaging. Multiple handlers can process the same event.
 
 ```csharp
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 
 public record OrderCreatedEvent(Guid OrderId, string CustomerId, DateTime CreatedAt)
     : IDispatchEvent;
@@ -310,7 +310,7 @@ Dispatch provides specialized handlers for processing large documents and data s
 Use `IStreamingDocumentHandler<TDocument, TOutput>` when a single document produces multiple outputs:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using System.Runtime.CompilerServices;
 
 public record CsvDocument(string Content) : IDispatchDocument;
@@ -343,7 +343,7 @@ public class CsvRowHandler : IStreamingDocumentHandler<CsvDocument, DataRow>
 Use `IStreamConsumerHandler<TDocument>` to consume an incoming stream of documents:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 public class BatchImportHandler : IStreamConsumerHandler<DataRow>
 {
@@ -384,7 +384,7 @@ public class BatchImportHandler : IStreamConsumerHandler<DataRow>
 Use `IStreamTransformHandler<TInput, TOutput>` for stream-to-stream transformations:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 using System.Runtime.CompilerServices;
 
 public class EnrichmentHandler : IStreamTransformHandler<CustomerRecord, EnrichedCustomer>
@@ -417,7 +417,7 @@ public class EnrichmentHandler : IStreamTransformHandler<CustomerRecord, Enriche
 Use `IProgressDocumentHandler<TDocument>` for long-running operations with progress reporting:
 
 ```csharp
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 public class PdfExportHandler : IProgressDocumentHandler<ExportDocument>
 {

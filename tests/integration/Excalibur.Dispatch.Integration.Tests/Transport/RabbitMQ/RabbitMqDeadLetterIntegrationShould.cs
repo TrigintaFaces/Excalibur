@@ -30,7 +30,7 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
     private IChannel? _channel;
     private bool _dockerAvailable;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         try
         {
@@ -54,7 +54,7 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         var timeout = TimeSpan.FromSeconds(30);
 
@@ -103,10 +103,10 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task RejectedMessage_RoutedToDeadLetterExchange()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange - set up DLX infrastructure
         var dlxExchange = $"dlx-{Guid.NewGuid():N}";
@@ -166,10 +166,10 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
         Encoding.UTF8.GetString(dlqResult.Body.ToArray()).ShouldBe("dead letter test");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DeadLetteredMessage_ContainsXDeathHeaders()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var dlxExchange = $"dlx-xdeath-{Guid.NewGuid():N}";
@@ -232,10 +232,10 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
         dlqResult.BasicProperties.Type.ShouldBe("TestEvent");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DirectPublishToDlq_MessageArrives()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange - DLX exchange + DLQ queue
         var dlxExchange = $"dlx-direct-{Guid.NewGuid():N}";
@@ -288,10 +288,10 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
         result.BasicProperties.Headers.ShouldContainKey("dlq_original_source");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MessageTtlExpiry_RoutedToDeadLetterExchange()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange - main queue with per-message TTL and DLX
         var dlxExchange = $"dlx-ttl-{Guid.NewGuid():N}";
@@ -346,10 +346,10 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
         mainResult.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task PurgeDlqQueue_RemovesAllMessages()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var dlqQueue = $"dlq-purge-{Guid.NewGuid():N}";
@@ -391,10 +391,10 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
         result.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DlqWithRoutingKey_RoutesToCorrectQueue()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange - DLX with direct exchange and routing key
         var dlxExchange = $"dlx-routed-{Guid.NewGuid():N}";
@@ -448,10 +448,10 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
         lowResult.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task QueueDeclarePassive_ReportsMessageCount()
     {
-        Skip.IfNot(_dockerAvailable, "Docker is not available");
+        Assert.SkipUnless(_dockerAvailable, "Docker is not available");
 
         // Arrange
         var queueName = $"dlq-stats-{Guid.NewGuid():N}";

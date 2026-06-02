@@ -28,7 +28,7 @@ public sealed class ScheduleInfoShould
         // Arrange
         var scheduled = DateTimeOffset.UtcNow.AddHours(1);
         var created = DateTimeOffset.UtcNow;
-        var message = A.Fake<Excalibur.Dispatch.Abstractions.IDispatchMessage>();
+        var message = A.Fake<Excalibur.Dispatch.IDispatchMessage>();
 
         // Act
         var sut = new ScheduleInfo

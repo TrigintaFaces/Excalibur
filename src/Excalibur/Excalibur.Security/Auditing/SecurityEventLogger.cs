@@ -5,7 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Hosting;
@@ -17,13 +17,14 @@ namespace Excalibur.Security;
 /// Provides centralized security event logging for audit trails and compliance. All security-related events are logged through this service
 /// for consistent tracking.
 /// </summary>
-internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHostedService, IDisposable
+internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHostedService, IAsyncDisposable, IDisposable
 {
 	private readonly ILogger<SecurityEventLogger> _logger;
 	private readonly ISecurityEventStore _eventStore;
 	private readonly Channel<SecurityEvent> _eventChannel;
 	private readonly CancellationTokenSource _shutdownTokenSource;
 	private Task? _processingTask;
+	private volatile bool _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SecurityEventLogger" /> class.
@@ -114,6 +115,11 @@ internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHoste
 	/// <returns>A task that completes when shutdown work is complete.</returns>
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
+		if (_disposed)
+		{
+			return;
+		}
+
 		LogStopping();
 
 		// Signal no more events will be written — this allows ProcessEventsAsync
@@ -137,16 +143,83 @@ internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHoste
 			}
 		}
 
-		// Cancel background processing as final cleanup
-		await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
+		// Cancel background processing as final cleanup — guard against disposed CTS
+		if (!_disposed)
+		{
+			try
+			{
+				await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
+			}
+			catch (ObjectDisposedException)
+			{
+				// CTS already disposed by concurrent Dispose() call — safe to ignore
+			}
+		}
 
 		LogStopped();
 	}
 
 	/// <summary>
-	/// Disposes resources used by the security event logger.
+	/// Asynchronously disposes resources used by the security event logger.
+	/// Cancels background processing before disposing the cancellation token source.
 	/// </summary>
-	public void Dispose() => _shutdownTokenSource?.Dispose();
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		// Complete the channel to stop accepting new events
+		_ = _eventChannel.Writer.TryComplete();
+
+		// Cancel background processing before disposing the CTS
+		try
+		{
+			await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
+		}
+		catch (ObjectDisposedException)
+		{
+			// Already disposed — safe to ignore
+		}
+
+		// Wait briefly for the processing task to complete
+		if (_processingTask != null)
+		{
+			try
+			{
+				await _processingTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+			}
+			catch (TimeoutException)
+			{
+				// Processing did not complete in time — proceed with disposal
+			}
+			catch (OperationCanceledException)
+			{
+				// Expected after cancellation
+			}
+		}
+
+		_shutdownTokenSource.Dispose();
+	}
+
+	/// <summary>
+	/// Disposes resources used by the security event logger.
+	/// Prefer <see cref="DisposeAsync"/> for proper shutdown sequencing.
+	/// </summary>
+	public void Dispose()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+		_ = _eventChannel.Writer.TryComplete();
+		_shutdownTokenSource.Dispose();
+	}
 
 	private static Dictionary<string, object?> ExtractAdditionalData(IMessageContext? context)
 	{

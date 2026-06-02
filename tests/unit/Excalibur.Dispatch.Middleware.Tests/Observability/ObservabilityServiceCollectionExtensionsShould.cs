@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Telemetry;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Dispatch.Observability.Sanitization;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -158,7 +158,7 @@ public sealed class ObservabilityServiceCollectionExtensionsShould : UnitTestBas
 	[Fact]
 	public void UseContextObservability_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
-		Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder = null!;
+		Excalibur.Dispatch.Configuration.IDispatchBuilder builder = null!;
 
 		Should.Throw<ArgumentNullException>(() => builder.UseContextObservability());
 	}

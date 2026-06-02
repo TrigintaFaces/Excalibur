@@ -4,8 +4,6 @@
 
 using System.Diagnostics;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Observability.Context;
 
 /// <summary>

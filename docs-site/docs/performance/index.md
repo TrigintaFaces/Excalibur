@@ -27,6 +27,7 @@ Source baseline: `benchmarks/baselines/net10.0/dispatch-comparative-20260420/res
 | Dispatch vs Wolverine InvokeAsync | 74.83 ns vs 197.75 ns (**2.64x faster**) | WolverineInProcessWarmPathComparisonBenchmarks |
 
 :::warning Epoch boundary
+
 These numbers are from the **20260420 epoch** (BenchmarkDotNet 0.15.8 literal `InvocationCount=1`). Prior baselines (20260302, dispatch-all 20260413) used BDN 0.15.4 which auto-tuned `InvocationCount`, producing numerically different (but qualitatively equivalent) ns-scale numbers. **Do not cross-diff individual Mean values between the two epochs** — ratios within each report remain apples-to-apples. See `benchmarks/RUNBOOK.md` for the methodology shift.
 :::
 
@@ -44,6 +45,7 @@ These numbers are from the **20260420 epoch** (BenchmarkDotNet 0.15.8 literal `I
 | Handler registry lookup | 6.1 ns | 0 B |
 
 :::info Breakdown vs Comparison
+
 The diagnostics baseline above is from `DispatchHotPathBreakdownBenchmarks` which isolates each component (last refreshed April 13, 2026 — NOT in the April 20, 2026 epoch). The comparison numbers (70.87 ns for standard command) are from `MediatRWarmPathComparisonBenchmarks` in the 20260420 epoch and measure the full end-to-end path including context factory creation and return — matching how consumers use the framework.
 :::
 

@@ -4,8 +4,6 @@
 
 using Amazon.SQS.Model;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>

@@ -5,8 +5,6 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Delivery;
 

@@ -14,18 +14,18 @@ namespace Excalibur.AuditLogging.Splunk;
 /// </remarks>
 public interface IAuditLoggingSplunkBuilder
 {
-    /// <summary>Sets the Splunk HEC endpoint URL.</summary>
-    IAuditLoggingSplunkBuilder HecEndpoint(Uri hecEndpoint);
+	/// <summary>Sets the Splunk HEC endpoint URL.</summary>
+	IAuditLoggingSplunkBuilder HecEndpoint(Uri hecEndpoint);
 
-    /// <summary>Sets the HEC authentication token.</summary>
-    IAuditLoggingSplunkBuilder HecToken(string hecToken);
+	/// <summary>Sets the HEC authentication token.</summary>
+	IAuditLoggingSplunkBuilder HecToken(string hecToken);
 
-    /// <summary>Sets the Splunk index to send events to.</summary>
-    IAuditLoggingSplunkBuilder Index(string index);
+	/// <summary>Sets the Splunk index to send events to.</summary>
+	IAuditLoggingSplunkBuilder Index(string index);
 
-    /// <summary>Sets the source type for audit events.</summary>
-    IAuditLoggingSplunkBuilder SourceType(string sourceType);
+	/// <summary>Sets the source type for audit events.</summary>
+	IAuditLoggingSplunkBuilder SourceType(string sourceType);
 
-    /// <summary>Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.</summary>
-    IAuditLoggingSplunkBuilder BindConfiguration(string sectionPath);
+	/// <summary>Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.</summary>
+	IAuditLoggingSplunkBuilder BindConfiguration(string sectionPath);
 }

@@ -3,10 +3,10 @@
 
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Tests.Messaging.Streaming.TestTypes;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Streaming;
@@ -24,7 +24,7 @@ public sealed class StreamingDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register the streaming handler
 		_ = services.AddScoped<TestCsvStreamingHandler>();
@@ -58,7 +58,7 @@ public sealed class StreamingDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Gate: handler blocks after yielding item 1 until the test signals it
 		var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -119,7 +119,10 @@ public sealed class StreamingDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		// Use an assembly with no handlers to prevent zero-config auto-scan from
+		// discovering test handler types (xUnit v3 runs in-process, so GetEntryAssembly()
+		// returns the test assembly which contains handler implementations).
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -146,7 +149,7 @@ public sealed class StreamingDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register the streaming handler
 		_ = services.AddScoped<TestCsvStreamingHandler>();
@@ -176,7 +179,7 @@ public sealed class StreamingDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register the streaming handler
 		_ = services.AddScoped<TestCsvStreamingHandler>();
@@ -206,7 +209,7 @@ public sealed class StreamingDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register the streaming handler
 		_ = services.AddScoped<TestCsvStreamingHandler>();
@@ -238,7 +241,7 @@ public sealed class StreamingDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register the streaming handler
 		_ = services.AddScoped<TestCsvStreamingHandler>();
@@ -269,7 +272,7 @@ public sealed class StreamingDocumentHandlerShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddDispatch(_ => { });
+		_ = services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(object).Assembly));
 
 		// Register the streaming handler
 		_ = services.AddScoped<TestCsvStreamingHandler>();

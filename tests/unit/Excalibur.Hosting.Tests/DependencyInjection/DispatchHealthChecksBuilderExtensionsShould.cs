@@ -3,10 +3,9 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Hosting.Options;
-using Excalibur.Saga.Abstractions;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -33,7 +32,6 @@ public sealed class DispatchHealthCheckExtensionsShould
 		var services = new ServiceCollection();
 		services.AddSingleton(A.Fake<IOutboxPublisher>());
 		services.AddSingleton(A.Fake<IInboxStore>());
-		services.AddSingleton(A.Fake<ISagaMonitoringService>());
 		services.AddSingleton(A.Fake<ILeaderElection>());
 		services.AddLogging();
 
@@ -46,7 +44,6 @@ public sealed class DispatchHealthCheckExtensionsShould
 		var registrations = GetHealthCheckRegistrations(services);
 		registrations.ShouldContain(r => r.Name == "outbox");
 		registrations.ShouldContain(r => r.Name == "inbox");
-		registrations.ShouldContain(r => r.Name == "sagas");
 		registrations.ShouldContain(r => r.Name == "leader-election");
 	}
 
@@ -98,7 +95,6 @@ public sealed class DispatchHealthCheckExtensionsShould
 		var services = new ServiceCollection();
 		services.AddSingleton(A.Fake<IOutboxPublisher>());
 		services.AddSingleton(A.Fake<IInboxStore>());
-		services.AddSingleton(A.Fake<ISagaMonitoringService>());
 		services.AddSingleton(A.Fake<ILeaderElection>());
 		services.AddLogging();
 
@@ -115,7 +111,6 @@ public sealed class DispatchHealthCheckExtensionsShould
 		var registrations = GetHealthCheckRegistrations(services);
 		registrations.ShouldNotContain(r => r.Name == "outbox");
 		registrations.ShouldContain(r => r.Name == "inbox");
-		registrations.ShouldContain(r => r.Name == "sagas");
 		registrations.ShouldNotContain(r => r.Name == "leader-election");
 	}
 
@@ -144,7 +139,6 @@ public sealed class DispatchHealthCheckExtensionsShould
 		// Assert
 		options.IncludeOutbox.ShouldBeTrue();
 		options.IncludeInbox.ShouldBeTrue();
-		options.IncludeSaga.ShouldBeTrue();
 		options.IncludeLeaderElection.ShouldBeTrue();
 	}
 

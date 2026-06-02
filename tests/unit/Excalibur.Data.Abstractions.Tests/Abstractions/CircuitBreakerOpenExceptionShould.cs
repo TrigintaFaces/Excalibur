@@ -83,6 +83,6 @@ public sealed class CircuitBreakerOpenExceptionShould
 
         // Assert
         // Sprint 697 T.13: reparented to ApiException
-        exception.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
+        exception.ShouldBeAssignableTo<Excalibur.Dispatch.ApiException>();
     }
 }

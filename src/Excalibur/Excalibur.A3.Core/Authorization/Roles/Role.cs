@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.A3.Authorization.Roles.Events;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 namespace Excalibur.A3.Authorization.Roles;
@@ -259,12 +258,24 @@ internal sealed class Role : AggregateRoot, IAggregateRoot<Role, string>
 	{
 		switch (@event)
 		{
-			case RoleCreated e: Apply(e); break;
-			case RoleModified e: Apply(e); break;
-			case RoleActivityGroupsChanged e: Apply(e); break;
-			case RoleActivitiesChanged e: Apply(e); break;
-			case RoleParentChanged e: Apply(e); break;
-			case RoleStateChanged e: Apply(e); break;
+			case RoleCreated e:
+				Apply(e);
+				break;
+			case RoleModified e:
+				Apply(e);
+				break;
+			case RoleActivityGroupsChanged e:
+				Apply(e);
+				break;
+			case RoleActivitiesChanged e:
+				Apply(e);
+				break;
+			case RoleParentChanged e:
+				Apply(e);
+				break;
+			case RoleStateChanged e:
+				Apply(e);
+				break;
 		}
 	}
 

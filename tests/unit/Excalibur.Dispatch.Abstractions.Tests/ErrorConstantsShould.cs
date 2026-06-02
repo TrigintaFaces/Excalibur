@@ -3,9 +3,9 @@
 
 using System.Reflection;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
-namespace Excalibur.Dispatch.Abstractions.Tests;
+namespace Excalibur.Dispatch.Tests;
 
 /// <summary>
 /// Unit tests for the <see cref="ErrorConstants"/> class.

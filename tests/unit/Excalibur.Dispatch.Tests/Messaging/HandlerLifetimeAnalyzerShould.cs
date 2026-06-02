@@ -4,8 +4,8 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly - acceptable in tests
 #pragma warning disable CA1034 // Nested types should not be visible - needed for test handler types
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 
 namespace Excalibur.Dispatch.Tests.Messaging;

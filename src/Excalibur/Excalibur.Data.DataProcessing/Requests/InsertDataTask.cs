@@ -6,8 +6,6 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
-
 namespace Excalibur.Data.DataProcessing.Requests;
 
 /// <summary>

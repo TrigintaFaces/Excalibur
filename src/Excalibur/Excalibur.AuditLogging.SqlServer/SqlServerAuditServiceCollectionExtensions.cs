@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.AuditLogging.SqlServer;
 using Excalibur.Compliance;
 

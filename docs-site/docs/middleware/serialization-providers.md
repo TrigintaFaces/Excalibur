@@ -21,6 +21,7 @@ For an overview of all serialization options, see [Serialization](./serializatio
 - Familiarity with [serialization overview](./serialization.md) and [middleware concepts](./index.md)
 
 :::tip Two-layer architecture
+
 Dispatch has two independent serialization layers: **event storage** (`IEventSerializer` -- JSON by default) and **envelope transport** (`ISerializer`). The providers below configure the envelope layer. Your domain events stay as plain POCOs -- no serializer-specific attributes needed. See [Serialization Architecture](./serialization.md#two-layer-serialization-architecture) for details.
 :::
 
@@ -64,6 +65,7 @@ services.AddMemoryPackSerializer();
 ```
 
 :::info No attributes needed on your events
+
 Consumer event types do **not** need `[MemoryPackable]` or any serializer-specific attributes. Only the internal envelope wrapper uses MemoryPack attributes. Your domain events remain plain POCOs.
 :::
 

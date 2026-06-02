@@ -4,9 +4,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Data;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 
 using Excalibur.Saga.Orchestration;
 

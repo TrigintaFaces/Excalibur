@@ -5,8 +5,6 @@
 using System.Buffers;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>

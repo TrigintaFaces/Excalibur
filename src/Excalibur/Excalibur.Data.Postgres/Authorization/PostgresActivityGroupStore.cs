@@ -6,8 +6,7 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.A3.Abstractions.Authorization;
-using Excalibur.Data.Abstractions;
+using Excalibur.A3.Authorization;
 
 namespace Excalibur.Data.Postgres.Authorization;
 

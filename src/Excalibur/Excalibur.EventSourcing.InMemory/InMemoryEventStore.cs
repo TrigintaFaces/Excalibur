@@ -6,8 +6,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.Observability;
 
 namespace Excalibur.EventSourcing.InMemory;
@@ -204,10 +203,10 @@ internal sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 							AggregateId: aggregateId,
 							AggregateType: aggregateType,
 							EventType: eventTypeName,
-							#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 							EventData: SerializeEvent(@event),
 							Metadata: @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null,
-							#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 							Version: version,
 							Timestamp: @event.OccurredAt);
 

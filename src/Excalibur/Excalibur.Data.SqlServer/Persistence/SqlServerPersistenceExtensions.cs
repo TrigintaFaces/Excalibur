@@ -5,7 +5,7 @@
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.SqlServer.Persistence;
 
 using Microsoft.Extensions.Configuration;

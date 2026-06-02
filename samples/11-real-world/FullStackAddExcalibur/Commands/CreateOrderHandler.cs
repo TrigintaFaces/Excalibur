@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Excalibur.Application.Requests.Commands;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Excalibur.EventSourcing;
 
 using FullStackAddExcalibur.Domain;
 

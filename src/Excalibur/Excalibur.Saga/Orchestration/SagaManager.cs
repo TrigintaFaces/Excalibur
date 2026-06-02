@@ -4,8 +4,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Data;
+using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

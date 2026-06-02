@@ -7,7 +7,6 @@ using Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Erasure;
 

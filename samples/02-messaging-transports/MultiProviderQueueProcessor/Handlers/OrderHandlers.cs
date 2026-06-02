@@ -1,6 +1,6 @@
 // Order Event Handlers
 
-using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Delivery;
 
 using MultiProviderQueueProcessor.Events;
 using MultiProviderQueueProcessor.Projections;

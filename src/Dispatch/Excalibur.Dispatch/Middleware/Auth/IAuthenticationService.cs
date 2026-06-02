@@ -4,8 +4,6 @@
 
 using System.Security.Claims;
 
-using Excalibur.Dispatch.Abstractions;
-
 namespace Excalibur.Dispatch.Middleware.Auth;
 
 /// <summary>

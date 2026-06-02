@@ -58,6 +58,7 @@ public interface IRepository<TEntity, in TKey>
 ```
 
 :::tip When to choose
+
 Use `IEventSourcedRepository` when you need full audit trail, time-travel, and event replay. Use `IRepository` for simple CRUD entities without event history. The two are intentionally separate — `IRepository` has no event stream or concurrency ETag concepts.
 :::
 

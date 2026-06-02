@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 using EventUpcasting.Events;
 
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 namespace EventUpcasting.Upgraders;
 

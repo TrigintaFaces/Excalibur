@@ -1,5 +1,5 @@
 ﻿using Company.ExcaliburDdd.Domain.Events;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 namespace Company.ExcaliburDdd.Domain.Aggregates;

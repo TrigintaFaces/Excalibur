@@ -5,7 +5,7 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.Abstractions;
+using Excalibur.Data;
 
 namespace Excalibur.Outbox.Postgres;
 

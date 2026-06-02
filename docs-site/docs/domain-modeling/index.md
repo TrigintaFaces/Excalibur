@@ -112,7 +112,7 @@ private bool Apply(OrderSubmitted e)
 
 ```csharp
 using Excalibur.Domain.Model;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch;
 
 public class Order : AggregateRoot<Guid>
 {

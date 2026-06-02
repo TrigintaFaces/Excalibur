@@ -4,9 +4,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.EventSourcing.Abstractions;
+using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.SqlServer;
 
 using Microsoft.Data.SqlClient;
@@ -31,7 +31,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	private string? _baseConnectionString;
 	private bool _dockerAvailable;
 
-	public async Task InitializeAsync()
+	public async ValueTask InitializeAsync()
 	{
 		try
 		{
@@ -55,7 +55,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	public async Task DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		try
 		{

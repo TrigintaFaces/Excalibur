@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.SourceGenerators;
 [Generator]
 public sealed class ServiceRegistrationSourceGenerator : IIncrementalGenerator
 {
-	private const string AutoRegisterAttributeFullName = "Excalibur.Dispatch.Abstractions.AutoRegisterAttribute";
+	private const string AutoRegisterAttributeFullName = "Excalibur.Dispatch.AutoRegisterAttribute";
 
 	/// <summary>
 	/// Initializes the service registration source generator with the given context.
