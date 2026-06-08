@@ -11,6 +11,8 @@ using FakeItEasy;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Dispatch.Tests.Delivery.Scheduling;
 
 /// <summary>
@@ -45,18 +47,26 @@ public sealed class ScheduledMessageServiceTimeoutShould
 
 	/// <summary>
 	/// Creates a fake that implements both ITimePolicy and ITimePolicyConfiguration
-	/// so ShouldApplyTimeout can be controlled.
+	/// so ShouldApplyTimeout can be controlled. Optional completion sources are signalled
+	/// when the corresponding member is invoked, enabling deterministic (signal-based) waits
+	/// instead of wall-clock delays.
 	/// </summary>
-	private static ITimePolicy CreateConfigurableTimePolicy(bool shouldApply, TimeSpan timeout)
+	private static ITimePolicy CreateConfigurableTimePolicy(
+		bool shouldApply,
+		TimeSpan timeout,
+		TaskCompletionSource? shouldApplyCalled = null,
+		TaskCompletionSource? getTimeoutCalled = null)
 	{
 		// FakeItEasy: create a fake that implements both interfaces
 		var policy = A.Fake<ITimePolicy>(o => o.Implements<ITimePolicyConfiguration>());
 
 		_ = A.CallTo(() => ((ITimePolicyConfiguration)policy).ShouldApplyTimeout(
 				A<TimeoutOperationType>._, A<TimeoutContext?>._))
+			.Invokes(() => shouldApplyCalled?.TrySetResult())
 			.Returns(shouldApply);
 
 		_ = A.CallTo(() => policy.GetTimeoutFor(A<TimeoutOperationType>._))
+			.Invokes(() => getTimeoutCalled?.TrySetResult())
 			.Returns(timeout);
 
 		return policy;
@@ -88,19 +98,27 @@ public sealed class ScheduledMessageServiceTimeoutShould
 	[Fact]
 	public async Task ExecuteAsync_WithNoTimePolicy_ProcessesNormally()
 	{
-		// Arrange
+		// Arrange -- signal the moment the store is actually polled (deterministic, no wall-clock guessing).
+		var polled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var store = A.Fake<IScheduleStore>();
 		_ = A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
+			.Invokes(() => polled.TrySetResult())
 			.Returns(Task.FromResult<IEnumerable<IScheduledMessage>>(Array.Empty<IScheduledMessage>()));
 
 		var service = CreateService(store: store, timePolicy: null);
 
-		// Act
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
-		await cts.CancelAsync();
-		await service.StopAsync(CancellationToken.None);
+		// Act -- start with a non-expiring token so StopAsync alone drives shutdown.
+		// (BackgroundService links the start token into its stopping token; a short-lived
+		// token can cancel the loop before its first iteration under CI load.)
+		await service.StartAsync(CancellationToken.None);
+		try
+		{
+			await WaitHelpers.AwaitSignalAsync(polled.Task, TimeSpan.FromSeconds(30));
+		}
+		finally
+		{
+			await service.StopAsync(CancellationToken.None);
+		}
 
 		// Assert -- store was polled normally
 		A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
@@ -110,8 +128,13 @@ public sealed class ScheduledMessageServiceTimeoutShould
 	[Fact]
 	public async Task ExecuteAsync_WithActiveTimePolicy_AppliesTimeout()
 	{
-		// Arrange -- policy that says "yes, apply timeout" with generous duration
-		var timePolicy = CreateConfigurableTimePolicy(shouldApply: true, timeout: TimeSpan.FromSeconds(30));
+		// Arrange -- policy that says "yes, apply timeout" with generous duration.
+		// Signal when GetTimeoutFor runs, which only happens on the active path.
+		var getTimeoutCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var timePolicy = CreateConfigurableTimePolicy(
+			shouldApply: true,
+			timeout: TimeSpan.FromSeconds(30),
+			getTimeoutCalled: getTimeoutCalled);
 
 		var store = A.Fake<IScheduleStore>();
 		_ = A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
@@ -120,11 +143,15 @@ public sealed class ScheduledMessageServiceTimeoutShould
 		var service = CreateService(store: store, timePolicy: timePolicy);
 
 		// Act
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-		await service.StartAsync(cts.Token);
-		await Task.Delay(300);
-		await cts.CancelAsync();
-		await service.StopAsync(CancellationToken.None);
+		await service.StartAsync(CancellationToken.None);
+		try
+		{
+			await WaitHelpers.AwaitSignalAsync(getTimeoutCalled.Task, TimeSpan.FromSeconds(30));
+		}
+		finally
+		{
+			await service.StopAsync(CancellationToken.None);
+		}
 
 		// Assert -- time policy was consulted and timeout was applied
 		A.CallTo(() => ((ITimePolicyConfiguration)timePolicy).ShouldApplyTimeout(
@@ -137,8 +164,14 @@ public sealed class ScheduledMessageServiceTimeoutShould
 	[Fact]
 	public async Task ExecuteAsync_WithInactiveTimePolicy_SkipsGetTimeoutFor()
 	{
-		// Arrange -- policy that says "no, don't apply timeout"
-		var timePolicy = CreateConfigurableTimePolicy(shouldApply: false, timeout: TimeSpan.FromSeconds(5));
+		// Arrange -- policy that says "no, don't apply timeout".
+		// Signal when ShouldApplyTimeout is consulted so we can wait for the real call
+		// rather than a fixed delay.
+		var shouldApplyCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var timePolicy = CreateConfigurableTimePolicy(
+			shouldApply: false,
+			timeout: TimeSpan.FromSeconds(5),
+			shouldApplyCalled: shouldApplyCalled);
 
 		var store = A.Fake<IScheduleStore>();
 		_ = A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
@@ -147,13 +180,19 @@ public sealed class ScheduledMessageServiceTimeoutShould
 		var service = CreateService(store: store, timePolicy: timePolicy);
 
 		// Act
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
-		await cts.CancelAsync();
-		await service.StopAsync(CancellationToken.None);
+		await service.StartAsync(CancellationToken.None);
+		try
+		{
+			await WaitHelpers.AwaitSignalAsync(shouldApplyCalled.Task, TimeSpan.FromSeconds(30));
+		}
+		finally
+		{
+			await service.StopAsync(CancellationToken.None);
+		}
 
-		// Assert -- ShouldApplyTimeout consulted, but GetTimeoutFor NOT called
+		// Assert -- ShouldApplyTimeout consulted, but GetTimeoutFor NOT called.
+		// GetTimeoutFor is unreachable while ShouldApplyTimeout returns false, so this holds
+		// regardless of how many poll iterations elapse before shutdown.
 		A.CallTo(() => ((ITimePolicyConfiguration)timePolicy).ShouldApplyTimeout(
 				A<TimeoutOperationType>._, A<TimeoutContext?>._))
 			.MustHaveHappened();

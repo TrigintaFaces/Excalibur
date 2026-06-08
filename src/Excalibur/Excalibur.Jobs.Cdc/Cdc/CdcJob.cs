@@ -86,6 +86,16 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 	/// <c>new SqlConnection(connectionString)</c> directly. Prefer this constructor when
 	/// <c>Func&lt;string, SqlConnection&gt;</c> is not explicitly registered in DI.
 	/// </remarks>
+	/// <remarks>
+	/// Marked <see cref="ActivatorUtilitiesConstructorAttribute"/> so container activation
+	/// (Quartz's <c>MicrosoftDependencyInjectionJobFactory</c> via <c>ActivatorUtilities</c>)
+	/// deterministically selects this constructor. Both public constructors are equally
+	/// satisfiable from DI when a <c>Func&lt;string, SqlConnection&gt;</c> is registered, which
+	/// otherwise throws "Multiple constructors accepting all given argument types". This one is
+	/// preferred because <see cref="IConfiguration"/> is always registered by the host, so
+	/// activation succeeds without requiring a <c>Func&lt;string, SqlConnection&gt;</c> registration.
+	/// </remarks>
+	[ActivatorUtilitiesConstructor]
 	public CdcJob(
 		IDataChangeEventProcessorFactory factory,
 		IConfiguration configuration,
