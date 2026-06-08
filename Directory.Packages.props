@@ -178,6 +178,10 @@
 		     transitively pulls these at 5.0.0, whose exact-match (= 5.0.0) deps on Common/CSharp/Workspaces
 		     conflict with the 5.3.0 pins (NU1608, fatal under -warnaserror). Keep the whole family in lockstep. -->
 		<PackageVersion Include="Microsoft.CodeAnalysis" Version="5.3.0" />
+		<!-- Meta scripting package (note: no .Common). JasperFx.RuntimeCompiler pulls it at 5.0.0, whose
+		     exact dep on CSharp.Scripting [5.0.0] collides with the 5.3.0 pin → NU1102 under locked restore.
+		     Must be pinned alongside CSharp.Scripting/Scripting.Common to keep the family in lockstep. -->
+		<PackageVersion Include="Microsoft.CodeAnalysis.Scripting" Version="5.3.0" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="5.3.0" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.Scripting.Common" Version="5.3.0" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.VisualBasic" Version="5.3.0" />
