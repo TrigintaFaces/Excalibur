@@ -10,6 +10,7 @@ using FakeItEasy;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -146,6 +147,29 @@ public sealed class CdcJobShould
 		var job = ActivatorUtilities.CreateInstance<CdcJob>(provider);
 
 		// Assert — [ActivatorUtilitiesConstructor] on the IConfiguration ctor disambiguates.
+		_ = job.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void RegisterProcessorFactoryViaAddSqlServerCdcJob()
+	{
+		// Arrange — only the host-level prerequisites a job worker already has.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSingleton(A.Fake<IHostApplicationLifetime>());
+		_ = services.AddSingleton(_heartbeatTracker);
+		var configuration = new ConfigurationBuilder().Build();
+		_ = services.AddSingleton<IConfiguration>(configuration);
+
+		// Act — the single feature-registration entry point.
+		_ = services.AddSqlServerCdcJob(configuration);
+		using var provider = services.BuildServiceProvider();
+
+		// Assert — the previously-unregistered factory is now resolvable...
+		_ = provider.GetService<IDataChangeEventProcessorFactory>().ShouldNotBeNull();
+
+		// ...and CdcJob activates through the exact path Quartz uses.
+		var job = ActivatorUtilities.CreateInstance<CdcJob>(provider);
 		_ = job.ShouldNotBeNull();
 	}
 

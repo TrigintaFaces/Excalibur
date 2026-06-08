@@ -175,25 +175,28 @@ Excalibur ships with several ready-to-use jobs. Each implements the Quartz `IJob
 
 Processes the [outbox table](outbox.md), publishing pending messages to transports. Use this for reliable at-least-once message delivery.
 
-```csharp
-services.AddExcalibur(excalibur => excalibur.AddJobs(configureQuartz: q =>
-{
-    // Register OutboxJob with its configuration section
-    OutboxJob.ConfigureJob(q, builder.Configuration.GetSection("Jobs:Outbox"));
-}));
+`ConfigureJob` only **schedules** the job — you must also register the outbox subsystem so `OutboxJob`'s `IOutboxDispatcher` dependency can be resolved, otherwise the job fails to activate at trigger time.
 
-// Add its health check
-builder.Services.AddHealthChecks();
+```csharp
+builder.Services.AddExcalibur(excalibur => excalibur
+    // Register the outbox subsystem — provides the IOutboxDispatcher OutboxJob needs.
+    .AddOutbox(o => o.UseSqlServer(sql => sql.ConnectionString(connectionString)))
+    .AddJobs(configureQuartz: q =>
+    {
+        // Reads the "Jobs:OutboxJob" section from the root configuration.
+        OutboxJob.ConfigureJob(q, builder.Configuration);
+    }));
+
+// Add its health check (signature: IHealthChecksBuilder, IConfiguration).
 OutboxJob.ConfigureHealthChecks(
     builder.Services.AddHealthChecks(),
-    builder.Configuration.GetSection("Jobs:Outbox"),
-    loggerFactory);
+    builder.Configuration);
 ```
 
 ```json title="appsettings.json"
 {
   "Jobs": {
-    "Outbox": {
+    "OutboxJob": {
       "JobName": "outbox-processor",
       "CronSchedule": "0/10 * * * * ?",
       "DegradedThreshold": "00:05:00",
@@ -207,18 +210,37 @@ OutboxJob.ConfigureHealthChecks(
 
 Runs [change data capture](cdc.md) processing to detect and publish database changes.
 
+Register the services `CdcJob` depends on (`AddSqlServerCdcJob` binds the `Jobs:CdcJob`
+section and registers the change-event processor factory + SQL Server policy factory), then
+schedule it. `ConfigureJob` only schedules — it does not register dependencies.
+
 ```csharp
-CdcJob.ConfigureJob(q, builder.Configuration.GetSection("Jobs:Cdc"));
-CdcJob.ConfigureHealthChecks(healthChecks, builder.Configuration.GetSection("Jobs:Cdc"), loggerFactory);
+// Service registration:
+builder.Services.AddExcaliburSqlServices();
+builder.Services.AddSqlServerCdcJob(builder.Configuration);
+
+// Scheduling, inside AddJobs(configureQuartz: q => ...):
+CdcJob.ConfigureJob(q, builder.Configuration);
+CdcJob.ConfigureHealthChecks(builder.Services.AddHealthChecks(), builder.Configuration);
 ```
 
 ### DataProcessingJob
 
 Generic data processing pipeline job for batch operations.
 
+Register the data-processing services (which provide the `IDataOrchestrationManager` the job
+needs) with `AddDataProcessing`, then schedule the job.
+
 ```csharp
-DataProcessingJob.ConfigureJob(q, builder.Configuration.GetSection("Jobs:DataProcessing"));
-DataProcessingJob.ConfigureHealthChecks(healthChecks, builder.Configuration.GetSection("Jobs:DataProcessing"), loggerFactory);
+// Service registration:
+builder.Services.AddDataProcessing(dp => dp
+    .ConnectionFactory(() => new SqlConnection(connectionString))
+    .BindConfiguration("DataProcessing")
+    .AddProcessor<MyProcessor>());
+
+// Scheduling, inside AddJobs(configureQuartz: q => ...):
+DataProcessingJob.ConfigureJob(q, builder.Configuration);
+DataProcessingJob.ConfigureHealthChecks(builder.Services.AddHealthChecks(), builder.Configuration);
 ```
 
 ### HealthCheckJob
@@ -256,8 +278,8 @@ All configurable jobs use `JobConfig` (or a subclass) for their settings:
 Jobs that implement `IConfigurableJob<TConfig>` can be monitored for configuration changes at runtime. When the configuration changes (e.g., `Disabled` toggled), the job is automatically paused or resumed:
 
 ```csharp
-services.AddJobWatcher<OutboxJob, OutboxJobConfig>(
-    builder.Configuration.GetSection("Jobs:Outbox"));
+services.AddJobWatcher<OutboxJob, OutboxJobOptions>(
+    builder.Configuration.GetSection("Jobs:OutboxJob"));
 ```
 
 ## Health Checks

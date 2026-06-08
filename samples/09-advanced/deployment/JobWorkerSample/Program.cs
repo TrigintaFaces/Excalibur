@@ -36,9 +36,6 @@
 
 #pragma warning disable CA1506 // Avoid excessive class coupling - acceptable for sample Program.cs
 
-using Excalibur.Jobs.Cdc;
-using Excalibur.Jobs.DataProcessing;
-using Excalibur.Jobs.Outbox;
 using Excalibur.Jobs.Quartz;
 
 using JobWorkerSample.Jobs;
@@ -88,11 +85,21 @@ public class Program
 					// Configure job data map handling
 					q.UseMicrosoftDependencyInjectionJobFactory();
 
-					// Register actual Excalibur jobs using their built-in ConfigureJob methods
-					// These jobs read their configuration from appsettings.json "Jobs:{JobName}" sections
-					CdcJob.ConfigureJob(q, builder.Configuration);
-					OutboxJob.ConfigureJob(q, builder.Configuration);
-					DataProcessingJob.ConfigureJob(q, builder.Configuration);
+					// NOTE: The built-in CdcJob / OutboxJob / DataProcessingJob are intentionally
+					// NOT scheduled here. This sample demonstrates the job HOST and distributed
+					// coordination using an in-memory store with no database. Those jobs each require
+					// their backing subsystem to be registered, or they fail to activate at trigger time:
+					//
+					//   CdcJob             -> builder.Services.AddExcaliburSqlServices();
+					//                         builder.Services.AddSqlServerCdcJob(builder.Configuration);
+					//                         then: CdcJob.ConfigureJob(q, builder.Configuration);
+					//   OutboxJob          -> builder.Services.AddExcalibur(x => x.AddOutbox(o => o.UseInMemory()));
+					//                         then: OutboxJob.ConfigureJob(q, builder.Configuration);
+					//   DataProcessingJob  -> builder.Services.AddDataProcessing(dp => dp.ConnectionFactory(...)
+					//                                                                     .BindConfiguration("DataProcessing"));
+					//                         then: DataProcessingJob.ConfigureJob(q, builder.Configuration);
+					//
+					// See samples/09-advanced/cdc/CdcJobQuartz for a complete, runnable CdcJob worker.
 				},
 				configureJobs: jobs =>
 				{

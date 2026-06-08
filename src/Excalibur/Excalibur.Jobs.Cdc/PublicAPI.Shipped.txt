@@ -7,6 +7,8 @@ Excalibur.Jobs.Cdc.CdcJobOptions
 Excalibur.Jobs.Cdc.CdcJobOptions.CdcJobOptions() -> void
 Excalibur.Jobs.Cdc.CdcJobOptions.DatabaseConfigs.get -> System.Collections.ObjectModel.Collection<Excalibur.Cdc.SqlServer.DatabaseOptions!>!
 Excalibur.Jobs.Cdc.CdcJobOptions.DatabaseConfigs.init -> void
+Microsoft.Extensions.DependencyInjection.CdcJobServiceCollectionExtensions
 const Excalibur.Jobs.Cdc.CdcJob.JobConfigSectionName = "Jobs:CdcJob" -> string!
 static Excalibur.Jobs.Cdc.CdcJob.ConfigureHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
 static Excalibur.Jobs.Cdc.CdcJob.ConfigureJob(Quartz.IServiceCollectionQuartzConfigurator! configurator, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
+static Microsoft.Extensions.DependencyInjection.CdcJobServiceCollectionExtensions.AddSqlServerCdcJob(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
