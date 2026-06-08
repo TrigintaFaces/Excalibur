@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **NU1608 Roslyn version conflict (benchmarks build)** -- WolverineFx → JasperFx.RuntimeCompiler transitively pulled the `Microsoft.CodeAnalysis` meta-package plus the CSharp.Scripting/Scripting.Common/VisualBasic/VisualBasic.Workspaces satellites at 5.0.0, whose exact-match (`= 5.0.0`) dependencies conflicted with the 5.3.0 Common/CSharp/Workspaces pins. Under `-warnaserror` the NU1608 warnings were fatal. Pinned the whole Roslyn family to 5.3.0 in `Directory.Packages.props` so it stays in lockstep.
 - **SecurityEventLogger dispose race** -- `Dispose()` no longer races with `StopAsync()`. Added `volatile _disposed` guard, `IAsyncDisposable` implementation, and cancel-before-dispose sequencing to prevent `ObjectDisposedException` during hosted service shutdown.
 - **AddExcaliburAdvancedSagas DI trap** -- Method registered middleware requiring unregistered services. Fixed by deleting Model B entirely (ADR-333).
 - **SagaOrchestration sample** -- Rewritten from procedural steps to event-driven choreography using framework types (`SagaBase<T>`, `ISagaTimeout<T>`).

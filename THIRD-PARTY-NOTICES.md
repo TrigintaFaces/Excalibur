@@ -54,8 +54,8 @@ It is generated from project files; licenses remain with their respective owners
 | Consul | 1.8.0 |
 | Cronos | 0.12.0 |
 | Dapper | 2.1.72 |
-| Elastic.Clients.Elasticsearch | 9.3.4 |
-| Elastic.Transport | 0.16.0 |
+| Elastic.Clients.Elasticsearch | 9.4.1 |
+| Elastic.Transport | 0.17.1 |
 | Excalibur.Compliance |  |
 | Excalibur.Compliance.Abstractions |  |
 | Excalibur.Dispatch |  |
