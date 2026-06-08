@@ -88,15 +88,17 @@ Excalibur.Cdc.CdcStalePositionException.EventArgs.set -> void
 Excalibur.Cdc.CdcStalePositionException.ProcessorId.get -> string?
 Excalibur.Cdc.CdcStalePositionException.ReasonCode.get -> string?
 Excalibur.Cdc.CdcStalePositionException.StalePosition.get -> byte[]?
+Excalibur.Cdc.CdcTableConfig
+Excalibur.Cdc.CdcTableConfig.CaptureInstance.get -> string?
+Excalibur.Cdc.CdcTableConfig.CaptureInstance.set -> void
+Excalibur.Cdc.CdcTableConfig.CdcTableConfig() -> void
+Excalibur.Cdc.CdcTableConfig.TableName.get -> string!
+Excalibur.Cdc.CdcTableConfig.TableName.set -> void
 Excalibur.Cdc.CdcTableTrackingOptions
-Excalibur.Cdc.CdcTableTrackingOptions.CaptureInstance.get -> string?
-Excalibur.Cdc.CdcTableTrackingOptions.CaptureInstance.set -> void
 Excalibur.Cdc.CdcTableTrackingOptions.CdcTableTrackingOptions() -> void
 Excalibur.Cdc.CdcTableTrackingOptions.EventMappings.get -> System.Collections.Generic.Dictionary<Excalibur.Cdc.CdcChangeType, System.Type!>!
 Excalibur.Cdc.CdcTableTrackingOptions.Filter.get -> System.Func<Excalibur.Cdc.CdcDataChange!, bool>?
 Excalibur.Cdc.CdcTableTrackingOptions.Filter.set -> void
-Excalibur.Cdc.CdcTableTrackingOptions.TableName.get -> string!
-Excalibur.Cdc.CdcTableTrackingOptions.TableName.set -> void
 Excalibur.Cdc.Diagnostics.CdcActivities
 Excalibur.Cdc.Diagnostics.CdcActivitySource
 Excalibur.Cdc.Diagnostics.CdcHealthState

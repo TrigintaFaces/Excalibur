@@ -210,6 +210,15 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 
 	private async Task<int> ProcessCdcChangesAsync(DatabaseOptions dbConfig, CancellationToken cancellationToken)
 	{
+		// Fail loudly instead of silently no-op'ing when a database has no tracked tables
+		// (e.g. a configuration that predates the Tables shape). Without this, the job would
+		// poll nothing and report success, masking a misconfiguration.
+		if (dbConfig.CaptureInstances.Length == 0)
+		{
+			LogNoTablesConfigured(dbConfig.DatabaseName);
+			return 0;
+		}
+
 		var cdcConnection = _connectionFactory(dbConfig.DatabaseConnectionIdentifier);
 		var storeConnection = _connectionFactory(dbConfig.StateConnectionIdentifier);
 
@@ -254,4 +263,9 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 	[LoggerMessage(JobsEventId.CdcProcessingError, LogLevel.Error,
 		"{Error} executing ProcessCdcChangesAsync for {DatabaseName}: {Message}")]
 	private partial void LogCdcProcessingError(string error, string databaseName, string message, Exception ex);
+
+	[LoggerMessage(JobsEventId.CdcJobNoTablesConfigured, LogLevel.Error,
+		"No CDC tables configured for database '{DatabaseName}'. Add entries to the 'Tables' array " +
+		"(each with a 'TableName' and, when it differs, a 'CaptureInstance'). Nothing was processed.")]
+	private partial void LogNoTablesConfigured(string databaseName);
 }

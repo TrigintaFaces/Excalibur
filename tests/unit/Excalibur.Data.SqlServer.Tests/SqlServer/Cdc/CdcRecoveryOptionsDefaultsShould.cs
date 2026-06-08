@@ -33,10 +33,4 @@ public sealed class CdcRecoveryOptionsDefaultsShould
 	{
 		CdcRecoveryOptionsDefaults.DefaultEnableStructuredLogging.ShouldBeTrue();
 	}
-
-	[Fact]
-	public void HaveEmptyArrayAsDefaultCaptureInstances()
-	{
-		DatabaseOptionsDefaults.CdcDefaultCaptureInstances.ShouldBeEmpty();
-	}
 }

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **WithSearchText** -- New `IProjectionBuilder<T>.WithSearchText(Func<TProjection, string>, Action<TProjection, string>)` method for automatic computed search field generation. AOT-safe dual-delegate approach — no reflection. Computed once per projection upsert. Zero overhead when not configured.
 - **IVersionedProjectionStore\<T\>** -- ISP sub-interface of `IProjectionStore<T>` for optimistic concurrency via version tracking. Two methods: `GetVersionedAsync` (returns `VersionedProjection<T>?`) and `UpsertVersionedAsync` (throws `ConcurrencyException` on version mismatch). Numeric `long` version starting at 1, `null` expectedVersion for inserts.
 - **VersionedProjection\<T\>** -- Sealed wrapper class containing `Projection` and `Version` properties for concurrency-aware projection reads.
+- **CdcTableConfig** -- New bindable POCO in `Excalibur.Cdc` (`[Required] TableName`, optional `CaptureInstance`). `CdcTableTrackingOptions` now derives from it (1-level inheritance), keeping behavioral members (`EventMappings`/`Filter`/mapper delegates) on the derived type so `IConfiguration` only binds the slim POCO. A shared `CdcCaptureInstanceDeriver` derives `CaptureInstances[]` + `CaptureInstanceToTableNameMap` from `Tables` for both the builder and config-driven (`CdcJob`) paths.
 
 ### Changed
 
@@ -30,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **excalibur-saga template rewritten** -- Template now uses Model A types (`SagaBase<T>`, `ISagaTimeout<T>`) instead of deleted Model B types.
 - **InMemorySagaStore registered as default** -- `AddExcaliburSaga()` now registers `InMemorySagaStore` via `TryAddSingleton`, providing zero-config prototyping. Persistent stores override via `TryAdd` precedence.
 - **DispatchHealthCheckOptions.IncludeSaga removed** -- Dead property referencing deleted `ISagaMonitoringService`. Health check string constant cleaned up.
+- **CDC table config unified** -- `DatabaseOptions.CaptureInstances` (`string[]`) replaced with `Tables` (`Collection<CdcTableConfig>`). The config-driven Quartz `CdcJob` path (`Jobs:CdcJob:DatabaseConfigs[].Tables`) and the builder/background path now share a single table model, fixing a silent handler mismatch where the config path could not map a capture instance to its logical table name. `CdcJob` logs a fail-fast warning (`JobsEventId.CdcJobNoTablesConfigured = 147204`) when a database has no tables configured. Dead `CdcDefaultCaptureInstances` removed. **Breaking change** — consumers binding `CaptureInstances` must migrate to `Tables` (each entry needs an explicit `TableName`; `CaptureInstance` optional). See `docs/patterns/cdc.md` Option 2b.
 
 ### Added
 

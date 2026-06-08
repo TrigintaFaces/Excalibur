@@ -25,6 +25,8 @@
 // ============================================================================
 
 #pragma warning disable CA1303 // Sample code uses literal strings
+#pragma warning disable CA1050 // Sample types are declared alongside top-level statements
+#pragma warning disable CA5394 // Sample uses non-cryptographic randomness for demo data
 
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
