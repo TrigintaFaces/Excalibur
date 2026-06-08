@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Cdc;
 using Excalibur.Cdc.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
@@ -92,28 +93,48 @@ public sealed class DatabaseConfigShould
 	}
 
 	[Fact]
-	public void AllowCustomCaptureInstances()
+	public void DeriveCaptureInstancesFromTables()
 	{
 		var config = new DatabaseOptions
 		{
 			DatabaseName = "TestDb",
 			DatabaseConnectionIdentifier = "db-conn",
 			StateConnectionIdentifier = "state-conn",
-			CaptureInstances = ["dbo_Orders", "dbo_Products"]
+			Tables =
+			[
+				new CdcTableConfig { TableName = "dbo.Orders", CaptureInstance = "dbo_Orders" },
+				new CdcTableConfig { TableName = "dbo.Products", CaptureInstance = "dbo_Products" }
+			]
 		};
 
-		config.CaptureInstances.ShouldBe(ExpectedCaptureInstances);
+		config.CaptureInstances.ShouldBe(ExpectedCaptureInstances, ignoreOrder: true);
 	}
 
 	[Fact]
-	public void ThrowWhenCaptureInstancesIsNull()
+	public void DeriveCaptureInstanceFromTableNameWhenCaptureInstanceOmitted()
+	{
+		var config = new DatabaseOptions
+		{
+			DatabaseName = "TestDb",
+			DatabaseConnectionIdentifier = "db-conn",
+			StateConnectionIdentifier = "state-conn",
+			Tables = [new CdcTableConfig { TableName = "Account" }]
+		};
+
+		// No capture instance supplied -> falls back to the table name (identity), no schema assumed.
+		config.CaptureInstances.ShouldBe(["Account"]);
+		config.CaptureInstanceToTableNameMap["Account"].ShouldBe("Account");
+	}
+
+	[Fact]
+	public void ThrowWhenTablesIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() => new DatabaseOptions
 		{
 			DatabaseName = "TestDb",
 			DatabaseConnectionIdentifier = "db-conn",
 			StateConnectionIdentifier = "state-conn",
-			CaptureInstances = null!
+			Tables = null!
 		});
 	}
 
@@ -168,20 +189,18 @@ public sealed class DatabaseConfigShould
 	}
 
 	[Fact]
-	public void AllowCustomCaptureInstanceToTableNameMap()
+	public void DeriveCaptureInstanceToTableNameMapFromTablesAcrossSchemas()
 	{
-		var map = new Dictionary<string, string>
-		{
-			["sales_Customers"] = "sales.Customers",
-			["dbo_Orders"] = "dbo.Orders"
-		};
-
 		var config = new DatabaseOptions
 		{
 			DatabaseName = "TestDb",
 			DatabaseConnectionIdentifier = "db-conn",
 			StateConnectionIdentifier = "state-conn",
-			CaptureInstanceToTableNameMap = map.AsReadOnly()
+			Tables =
+			[
+				new CdcTableConfig { TableName = "sales.Customers", CaptureInstance = "sales_Customers" },
+				new CdcTableConfig { TableName = "dbo.Orders", CaptureInstance = "dbo_Orders" }
+			]
 		};
 
 		config.CaptureInstanceToTableNameMap.Count.ShouldBe(2);

@@ -165,7 +165,6 @@ Excalibur.Cdc.SqlServer.DataChangeType.Update = 2 -> Excalibur.Cdc.SqlServer.Dat
 Excalibur.Cdc.SqlServer.DataChangeTypeExtensions
 Excalibur.Cdc.SqlServer.DatabaseOptions
 Excalibur.Cdc.SqlServer.DatabaseOptions.CaptureInstances.get -> string![]!
-Excalibur.Cdc.SqlServer.DatabaseOptions.CaptureInstances.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.ConsumerBatchSize.get -> int
 Excalibur.Cdc.SqlServer.DatabaseOptions.ConsumerBatchSize.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseConnectionIdentifier.get -> string!
@@ -173,8 +172,9 @@ Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseConnectionIdentifier.init -> voi
 Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseName.get -> string!
 Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseName.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.CaptureInstanceToTableNameMap.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
-Excalibur.Cdc.SqlServer.DatabaseOptions.CaptureInstanceToTableNameMap.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.DatabaseOptions() -> void
+Excalibur.Cdc.SqlServer.DatabaseOptions.Tables.get -> System.Collections.ObjectModel.Collection<Excalibur.Cdc.CdcTableConfig!>!
+Excalibur.Cdc.SqlServer.DatabaseOptions.Tables.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.ProducerBatchSize.get -> int
 Excalibur.Cdc.SqlServer.DatabaseOptions.ProducerBatchSize.init -> void
 Excalibur.Cdc.SqlServer.DatabaseOptions.QueueSize.get -> int
@@ -341,7 +341,6 @@ static Microsoft.Extensions.DependencyInjection.DataChangeHandlerCdcBuilderExten
 static Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions.AddDataChangeHandlersFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqlServerCdcHealthChecksBuilderExtensions.AddCdcHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! name = "cdc", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.SqlServerCdcHealthChecksBuilderExtensions.AddCdcHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Action<Excalibur.Cdc.SqlServer.CdcHealthCheckOptions!>? configure = null, string! name = "cdc", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
-static readonly Excalibur.Cdc.SqlServer.DatabaseOptionsDefaults.CdcDefaultCaptureInstances -> string![]!
 virtual Excalibur.Cdc.SqlServer.CdcProcessor.Dispose(bool disposing) -> void
 virtual Excalibur.Cdc.SqlServer.CdcProcessor.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Cdc.SqlServer.CdcRepository.Dispose(bool disposing) -> void

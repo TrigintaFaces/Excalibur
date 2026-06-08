@@ -184,7 +184,9 @@ cd scripts
           "DatabaseConnectionIdentifier": "LegacyDbCdc",
           "StateConnectionIdentifier": "LegacyDbState",
           "StopOnMissingTableHandler": false,
-          "CaptureInstances": ["dbo_LegacyCustomers"]
+          "Tables": [
+            { "TableName": "LegacyCustomers", "CaptureInstance": "dbo_LegacyCustomers" }
+          ]
         }
       ]
     }
@@ -212,7 +214,7 @@ cd scripts
 | `DatabaseConnectionIdentifier` | Connection string name for CDC source |
 | `StateConnectionIdentifier` | Connection string name for state storage |
 | `StopOnMissingTableHandler` | Fail if no handler for a CDC table |
-| `CaptureInstances` | CDC capture instance names to process |
+| `Tables` | Tables to track. Each entry has a logical `TableName` (what handlers match via `IDataChangeHandler.TableNames`) and an optional `CaptureInstance` (the SQL Server capture instance, e.g. `dbo_LegacyCustomers`, when it differs from the table name) |
 | `BatchTimeInterval` | Polling interval in milliseconds |
 | `QueueSize` | Internal queue size |
 | `ProducerBatchSize` | Events to fetch per poll |

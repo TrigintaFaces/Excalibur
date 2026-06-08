@@ -80,6 +80,7 @@ Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions
 abstract Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.GetAggregateIdsAsync(System.IServiceProvider! serviceProvider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TKey>!>!
 const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobCompleted = 147201 -> int
 const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobError = 147202 -> int
+const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobNoTablesConfigured = 147204 -> int
 const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobStarting = 147200 -> int
 const Excalibur.Jobs.Diagnostics.JobsEventId.CdcProcessingError = 147203 -> int
 const Excalibur.Jobs.Diagnostics.JobsEventId.ConfigurationChangeDetected = 147102 -> int

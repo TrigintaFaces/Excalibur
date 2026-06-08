@@ -3,9 +3,12 @@
 
 using System.Collections.ObjectModel;
 
+using Excalibur.Cdc;
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Jobs.Cdc;
 using Excalibur.Jobs.Core;
+
+using Microsoft.Extensions.Configuration;
 
 namespace Excalibur.Jobs.Tests.Cdc;
 
@@ -202,5 +205,36 @@ public sealed class CdcJobConfigShould
 
 		// Assert
 		config.DatabaseConfigs.ShouldBeOfType<Collection<DatabaseOptions>>();
+	}
+
+	[Fact]
+	public void BindTablesFromConfigurationAndDeriveCaptureInstanceMap()
+	{
+		// Arrange — mirrors a real appsettings.json "Jobs:CdcJob" section using the Tables shape,
+		// including a non-dbo schema to prove no schema is assumed.
+		var settings = new Dictionary<string, string?>
+		{
+			["Jobs:CdcJob:JobName"] = "LegacyCdcProcessor",
+			["Jobs:CdcJob:DatabaseConfigs:0:DatabaseName"] = "Legacy",
+			["Jobs:CdcJob:DatabaseConfigs:0:DatabaseConnectionIdentifier"] = "LegacyCdc",
+			["Jobs:CdcJob:DatabaseConfigs:0:StateConnectionIdentifier"] = "LegacyState",
+			["Jobs:CdcJob:DatabaseConfigs:0:Tables:0:TableName"] = "Account",
+			["Jobs:CdcJob:DatabaseConfigs:0:Tables:0:CaptureInstance"] = "dbo_Account",
+			["Jobs:CdcJob:DatabaseConfigs:0:Tables:1:TableName"] = "sales.Order",
+			["Jobs:CdcJob:DatabaseConfigs:0:Tables:1:CaptureInstance"] = "sales_Order",
+		};
+
+		var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+
+		// Act
+		var jobConfig = configuration.GetSection(CdcJob.JobConfigSectionName).Get<CdcJobOptions>();
+
+		// Assert
+		jobConfig.ShouldNotBeNull();
+		var db = jobConfig.DatabaseConfigs.ShouldHaveSingleItem();
+		db.Tables.Count.ShouldBe(2);
+		db.CaptureInstances.ShouldBe(["dbo_Account", "sales_Order"], ignoreOrder: true);
+		db.CaptureInstanceToTableNameMap["dbo_Account"].ShouldBe("Account");
+		db.CaptureInstanceToTableNameMap["sales_Order"].ShouldBe("sales.Order");
 	}
 }

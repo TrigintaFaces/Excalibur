@@ -93,21 +93,16 @@ public sealed class CdcOptions
 }
 
 /// <summary>
-/// Configuration options for tracking a specific table.
+/// Configuration options for tracking a specific table, including event mappings and filters.
 /// </summary>
-public sealed class CdcTableTrackingOptions
+/// <remarks>
+/// Extends the bindable <see cref="CdcTableConfig"/> with the behavioral members
+/// (event mappings, mapper delegates, and filter) used by the fluent builder. The base
+/// <see cref="CdcTableConfig.TableName"/>/<see cref="CdcTableConfig.CaptureInstance"/> are the
+/// shared, config-bindable shape; the behavioral members here are not config-bound.
+/// </remarks>
+public sealed class CdcTableTrackingOptions : CdcTableConfig
 {
-	/// <summary>
-	/// Gets or sets the fully qualified table name.
-	/// </summary>
-	[Required]
-	public string TableName { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets the capture instance name (SQL Server specific).
-	/// </summary>
-	public string? CaptureInstance { get; set; }
-
 	/// <summary>
 	/// Gets the event type mappings for different change types.
 	/// </summary>

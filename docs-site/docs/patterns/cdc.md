@@ -1451,10 +1451,12 @@ services.AddCdcProcessor(cdc =>
 
 ### Option 2: Quartz Job
 
-Use `CdcJob` from the `Excalibur.Jobs` package for cron-scheduled CDC processing:
+Use `CdcJob` from the `Excalibur.Jobs.Cdc` package for cron-scheduled CDC processing. There are two ways to drive it.
+
+**2a. Builder config + Quartz scheduling.** Configure tables in code, but let Quartz schedule execution instead of a background service — just omit `EnableBackgroundProcessing()`:
 
 ```csharp
-// Install: dotnet add package Excalibur.Jobs
+// Install: dotnet add package Excalibur.Jobs.Cdc
 
 services.AddCdcProcessor(cdc =>
 {
@@ -1462,12 +1464,110 @@ services.AddCdcProcessor(cdc =>
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>());
     // Don't call EnableBackgroundProcessing() — Quartz handles scheduling
 });
-
-// Schedule via Quartz.NET — CdcJob supports:
-// - Multiple database configurations
-// - Built-in health checks
-// - Cron-based scheduling
 ```
+
+**2b. Fully config-driven (`Jobs:CdcJob`).** For operations-tunable, handler-based ingestion (a common anti-corruption-layer setup), the `CdcJob` reads its tables from configuration and routes each change to an `IDataChangeHandler`. This path does **not** use the fluent `TrackTable`/event-mapping API.
+
+Configure the job and its databases under the `Jobs:CdcJob` section:
+
+```json title="appsettings.json"
+{
+  "ConnectionStrings": {
+    "LegacyCdc": "Server=...;Database=Legacy;...",
+    "LegacyState": "Server=...;Database=AppDb;..."
+  },
+  "Jobs": {
+    "CdcJob": {
+      "JobName": "LegacyCdcProcessor",
+      "JobGroup": "CDC",
+      "CronSchedule": "0/5 * * * * ?",
+      "DegradedThreshold": "00:05:00",
+      "UnhealthyThreshold": "00:10:00",
+      "Disabled": false,
+      "DatabaseConfigs": [
+        {
+          "DatabaseName": "Legacy",
+          "DatabaseConnectionIdentifier": "LegacyCdc",
+          "StateConnectionIdentifier": "LegacyState",
+          "StopOnMissingTableHandler": false,
+          "Tables": [
+            { "TableName": "Account", "CaptureInstance": "dbo_Account" },
+            { "TableName": "sales.Order", "CaptureInstance": "sales_Order" }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+Each `Tables` entry maps a SQL Server capture instance to the **logical table name** your handler matches on:
+
+```csharp
+public sealed class AccountChangeHandler : IDataChangeHandler
+{
+    // Must equal Tables[].TableName — NOT the capture instance.
+    public string[] TableNames => ["Account"];
+
+    public Task HandleAsync(DataChangeEvent change, CancellationToken cancellationToken)
+    {
+        // Translate the raw CDC row into domain operations.
+        return Task.CompletedTask;
+    }
+}
+```
+
+Wire it up. Connections are resolved by name from `ConnectionStrings` using each config's `DatabaseConnectionIdentifier`/`StateConnectionIdentifier`:
+
+```csharp
+// Install: dotnet add package Excalibur.Jobs.Cdc
+
+builder.Services.AddExcaliburSqlServices();
+builder.Services.AddCdcProcessor(); // core processor factory — no fluent config needed here
+
+// Register every IDataChangeHandler in the assembly. They MUST be registered as
+// IDataChangeHandler (the processor resolves them via GetServices<IDataChangeHandler>());
+// a concrete-only AddSingleton<AccountChangeHandler>() is silently ignored.
+builder.Services.AddDataChangeHandlersFromAssembly(typeof(Program).Assembly);
+
+builder.Services.AddExcalibur(excalibur => excalibur
+    .ScanAssemblies(typeof(Program).Assembly)
+    .AddJobs(
+        configureQuartz: q => CdcJob.ConfigureJob(q, builder.Configuration),
+        typeof(Program).Assembly));
+
+// Optional: register the job's health check
+builder.Services.AddExcaliburHealthChecks(healthChecks =>
+    CdcJob.ConfigureHealthChecks(healthChecks, builder.Configuration));
+```
+
+:::tip TableName vs. CaptureInstance
+`TableName` is the logical name handlers match on; `CaptureInstance` is the SQL Server capture instance the CDC functions actually read (the default is `{schema}_{table}`, e.g. `dbo_Account`). Set `CaptureInstance` whenever it differs from `TableName`. **No schema is assumed** — for a non-`dbo` table, give the real capture instance explicitly (e.g. `"TableName": "sales.Order", "CaptureInstance": "sales_Order"`). If you omit `CaptureInstance`, it defaults to `TableName`.
+:::
+
+:::warning Every configured table needs a handler
+A `Tables` entry with no matching `IDataChangeHandler` raises `CdcMissingTableHandlerException`. With `StopOnMissingTableHandler: false` the change is logged and skipped; with `true` (the default) the job fails. If a `DatabaseConfig` has no `Tables` at all, the job logs an error and processes nothing.
+:::
+
+**`DatabaseConfigs[]` reference**
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `DatabaseName` | Friendly name for logging | Required |
+| `DatabaseConnectionIdentifier` | `ConnectionStrings` key for the CDC source database | Required |
+| `StateConnectionIdentifier` | `ConnectionStrings` key for the checkpoint/state store | Required |
+| `StopOnMissingTableHandler` | Throw (vs. log + skip) when a table has no handler | `true` |
+| `Tables` | Tables to track — see below | Required |
+| `QueueSize` | Internal producer/consumer queue size | `1000` |
+| `ProducerBatchSize` | Rows fetched per poll | `100` |
+| `ConsumerBatchSize` | Rows processed per batch | `50` |
+
+**`Tables[]` reference**
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `TableName` | Logical table name handlers match via `IDataChangeHandler.TableNames` | Required |
+| `CaptureInstance` | SQL Server capture instance to read | Falls back to `TableName` |
 
 ### Option 3: Manual/Serverless
 

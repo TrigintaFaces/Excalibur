@@ -403,8 +403,20 @@ public static class CdcBuilderSqlServerExtensions
 				var stateConnId = capturedBuilderStateConnId ?? $"state-{dbName}";
 
 				var cdcOptions = sp.GetRequiredService<IOptions<CdcOptions>>().Value;
-				var (captureInstances, captureInstanceToTableNameMap) = DeriveCaptureInstances(
-					cdcOptions.TrackedTables, capturedBuilderInstances);
+
+				// TrackedTables are the source of truth; fold in any legacy fluent
+				// capture instances (.CaptureInstances("x")) as identity-mapped entries.
+				var tables = new List<CdcTableConfig>(cdcOptions.TrackedTables);
+				if (capturedBuilderInstances is { Length: > 0 })
+				{
+					foreach (var instance in capturedBuilderInstances)
+					{
+						if (!string.IsNullOrEmpty(instance))
+						{
+							tables.Add(new CdcTableConfig { TableName = instance });
+						}
+					}
+				}
 
 				var recoveryOptions = CdcRecoveryOptions.FromCdcOptions(cdcOptions);
 
@@ -413,8 +425,7 @@ public static class CdcBuilderSqlServerExtensions
 					DatabaseName = dbName,
 					DatabaseConnectionIdentifier = dbConnId,
 					StateConnectionIdentifier = stateConnId,
-					CaptureInstances = captureInstances,
-					CaptureInstanceToTableNameMap = captureInstanceToTableNameMap,
+					Tables = [.. tables],
 					StopOnMissingTableHandler = capturedStopOnMissing,
 					ProducerBatchSize = capturedBatchSize,
 					RecoveryOptions = recoveryOptions,
@@ -531,64 +542,4 @@ public static class CdcBuilderSqlServerExtensions
 				sp.GetRequiredService<IDataChangeEventProcessor>()));
 	}
 
-	/// <summary>
-	/// Derives the SQL Server capture instance names from <see cref="CdcOptions.TrackedTables"/>,
-	/// merging any legacy builder-configured instances.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// <see cref="CdcOptions.TrackedTables"/> is the single source of truth for which tables
-	/// are polled. This method converts each entry to a capture instance name:
-	/// <list type="bullet">
-	/// <item>If <see cref="CdcTableTrackingOptions.CaptureInstance"/> is set, use it (explicit override).</item>
-	/// <item>Otherwise, use <see cref="CdcTableTrackingOptions.TableName"/> (the repository normalizes
-	/// <c>dbo.Orders</c> → <c>dbo_Orders</c> via <c>NormalizeCaptureInstanceForSql</c>).</item>
-	/// </list>
-	/// </para>
-	/// <para>
-	/// Builder-configured <c>CaptureInstances</c> (from the fluent <c>.CaptureInstances("x")</c> API)
-	/// are merged as a fallback for backward compatibility. Duplicates are skipped (case-insensitive).
-	/// </para>
-	/// </remarks>
-	private static (string[] CaptureInstances, IReadOnlyDictionary<string, string> CaptureInstanceToTableNameMap) DeriveCaptureInstances(
-		List<CdcTableTrackingOptions> trackedTables,
-		string[]? builderInstances)
-	{
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-		// TrackedTables is the primary source of truth.
-		foreach (var table in trackedTables)
-		{
-			var instance = table.CaptureInstance ?? table.TableName;
-			if (!string.IsNullOrEmpty(instance))
-			{
-				if (set.Add(instance))
-				{
-					// Map capture instance → logical table name.
-					// When CaptureInstance is explicitly set, use the TableName as the logical name.
-					// When CaptureInstance is null, the instance IS the table name (identity mapping).
-					map[instance] = table.TableName;
-				}
-			}
-		}
-
-		// Builder-configured CaptureInstances as fallback (backward compat).
-		if (builderInstances is { Length: > 0 })
-		{
-			foreach (var instance in builderInstances)
-			{
-				if (!string.IsNullOrEmpty(instance))
-				{
-					if (set.Add(instance))
-					{
-						// Legacy builder instances have no separate table name — identity mapping.
-						map[instance] = instance;
-					}
-				}
-			}
-		}
-
-		return ([.. set], map.AsReadOnly());
-	}
 }

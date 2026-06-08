@@ -84,6 +84,9 @@ public static class JobsEventId
 	/// <summary>CDC processing error.</summary>
 	public const int CdcProcessingError = 147203;
 
+	/// <summary>CDC database configuration has no tracked tables (nothing to process).</summary>
+	public const int CdcJobNoTablesConfigured = 147204;
+
 	// ========================================
 	// 147250-147299: Data Processing Job
 	// ========================================

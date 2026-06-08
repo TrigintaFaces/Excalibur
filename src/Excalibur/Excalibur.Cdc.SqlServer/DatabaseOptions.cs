@@ -5,17 +5,27 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 
+using Excalibur.Cdc;
+
 namespace Excalibur.Cdc.SqlServer;
 
 /// <summary>
 /// Represents the configuration settings required for CDC (Change Data Capture) processing.
 /// </summary>
+/// <remarks>
+/// The set of tracked tables is the single source of truth: <see cref="CaptureInstances"/> and
+/// <see cref="CaptureInstanceToTableNameMap"/> are derived from <see cref="Tables"/>. Configure
+/// each table with its logical <see cref="CdcTableConfig.TableName"/> and, when the SQL Server
+/// capture instance differs (e.g. the default <c>{schema}_{table}</c>), its
+/// <see cref="CdcTableConfig.CaptureInstance"/>.
+/// </remarks>
 public sealed class DatabaseOptions : IDatabaseOptions
 {
-	private readonly string[] _captureInstances = CdcDefaultCaptureInstances;
+	private readonly Collection<CdcTableConfig> _tables = [];
 	private readonly int _queueSize = CdcDefaultQueueSize;
 	private readonly int _producerBatchSize = CdcDefaultProducerBatchSize;
 	private readonly int _consumerBatchSize = CdcDefaultConsumerBatchSize;
+	private (string[] Instances, IReadOnlyDictionary<string, string> Map)? _derived;
 
 	/// <inheritdoc />
 	[Required]
@@ -32,16 +42,27 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	/// <inheritdoc />
 	public bool StopOnMissingTableHandler { get; init; } = CdcDefaultStopOnMissingTableHandler;
 
-	/// <inheritdoc />
-	public string[] CaptureInstances
+	/// <summary>
+	/// Gets the tables tracked for CDC in this database.
+	/// </summary>
+	/// <value>
+	/// The tracked tables. Each entry supplies a logical <see cref="CdcTableConfig.TableName"/> and an
+	/// optional <see cref="CdcTableConfig.CaptureInstance"/>. <see cref="CaptureInstances"/> and
+	/// <see cref="CaptureInstanceToTableNameMap"/> are derived from this collection.
+	/// </value>
+	public Collection<CdcTableConfig> Tables
 	{
-		get => _captureInstances;
+		get => _tables;
 		init
 		{
-			ArgumentNullException.ThrowIfNull(value, nameof(CaptureInstances));
-			_captureInstances = value;
+			ArgumentNullException.ThrowIfNull(value);
+			_tables = value;
 		}
 	}
+
+	/// <inheritdoc />
+	/// <remarks>Derived from <see cref="Tables"/>.</remarks>
+	public string[] CaptureInstances => Derived().Instances;
 
 	/// <inheritdoc />
 	public int QueueSize
@@ -80,6 +101,9 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	public CdcRecoveryOptions? RecoveryOptions { get; init; }
 
 	/// <inheritdoc />
-	public IReadOnlyDictionary<string, string> CaptureInstanceToTableNameMap { get; init; }
-		= ReadOnlyDictionary<string, string>.Empty;
+	/// <remarks>Derived from <see cref="Tables"/>.</remarks>
+	public IReadOnlyDictionary<string, string> CaptureInstanceToTableNameMap => Derived().Map;
+
+	private (string[] Instances, IReadOnlyDictionary<string, string> Map) Derived() =>
+		_derived ??= CdcCaptureInstanceDeriver.Derive(_tables);
 }

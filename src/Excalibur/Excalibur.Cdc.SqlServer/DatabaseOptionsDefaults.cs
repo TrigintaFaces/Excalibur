@@ -32,9 +32,4 @@ public static class DatabaseOptionsDefaults
 	/// Default setting for whether to stop CDC processing when a table handler is missing.
 	/// </summary>
 	public const bool CdcDefaultStopOnMissingTableHandler = true;
-
-	/// <summary>
-	/// Default capture instances for CDC operations.
-	/// </summary>
-	public static readonly string[] CdcDefaultCaptureInstances = [];
 }

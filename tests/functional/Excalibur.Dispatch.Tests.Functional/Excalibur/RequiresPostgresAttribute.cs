@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Runtime.CompilerServices;
+
 namespace Excalibur.Dispatch.Tests.Functional.Excalibur;
 
 /// <summary>
@@ -11,7 +13,10 @@ public class RequiresPostgresAttribute : FactAttribute
 	/// <summary>
 	///     Initializes a new instance of the RequiresPostgresAttribute class.
 	/// </summary>
-	public RequiresPostgresAttribute()
+	public RequiresPostgresAttribute(
+		[CallerFilePath] string? sourceFilePath = null,
+		[CallerLineNumber] int sourceLineNumber = -1)
+		: base(sourceFilePath, sourceLineNumber)
 	{
 		if (!IsPostgresAvailable())
 		{

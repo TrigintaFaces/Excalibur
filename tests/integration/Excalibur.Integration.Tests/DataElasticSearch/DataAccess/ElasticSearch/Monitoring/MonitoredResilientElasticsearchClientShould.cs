@@ -291,6 +291,16 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 	{
 		try
 		{
+			// Owned by the service provider, but dispose explicitly to satisfy CA2213.
+			_monitoringService?.Dispose();
+		}
+		catch (Exception)
+		{
+			// Suppress monitoring service disposal errors
+		}
+
+		try
+		{
 			if (_serviceProvider is not null)
 			{
 				await _serviceProvider.DisposeAsync().ConfigureAwait(false);

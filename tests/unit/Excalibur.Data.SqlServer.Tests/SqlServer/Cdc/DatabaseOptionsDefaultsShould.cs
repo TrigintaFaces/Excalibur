@@ -33,10 +33,4 @@ public sealed class DatabaseOptionsDefaultsShould
 	{
 		DatabaseOptionsDefaults.CdcDefaultStopOnMissingTableHandler.ShouldBeTrue();
 	}
-
-	[Fact]
-	public void DefaultCaptureInstancesToEmptyArray()
-	{
-		DatabaseOptionsDefaults.CdcDefaultCaptureInstances.ShouldBeEmpty();
-	}
 }
