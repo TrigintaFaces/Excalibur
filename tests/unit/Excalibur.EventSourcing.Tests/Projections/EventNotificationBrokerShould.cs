@@ -26,14 +26,16 @@ public sealed class EventNotificationBrokerShould
 			sp = _services.BuildServiceProvider();
 		}
 
+		var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+
 		var processor = new InlineProjectionProcessor(
 			_registry,
-			sp,
+			scopeFactory,
 			NullLogger<InlineProjectionProcessor>.Instance);
 
 		return new EventNotificationBroker(
 			processor,
-			sp,
+			scopeFactory,
 			Options.Create(_options),
 			NullLogger<EventNotificationBroker>.Instance,
 			Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>());
@@ -230,9 +232,9 @@ public sealed class EventNotificationBrokerShould
 	public void ThrowOnNullConstructorArguments()
 	{
 		var processor = new InlineProjectionProcessor(
-			_registry, A.Fake<IServiceProvider>(),
+			_registry, A.Fake<IServiceScopeFactory>(),
 			NullLogger<InlineProjectionProcessor>.Instance);
-		var sp = A.Fake<IServiceProvider>();
+		var sp = A.Fake<IServiceScopeFactory>();
 		var opts = Options.Create(new EventNotificationOptions());
 		var logger = NullLogger<EventNotificationBroker>.Instance;
 

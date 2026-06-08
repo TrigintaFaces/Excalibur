@@ -14,14 +14,14 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 public sealed class InlineProjectionProcessorShould
 {
 	private readonly InMemoryProjectionRegistry _registry = new();
-	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
+	private readonly IServiceScopeFactory _scopeFactory = A.Fake<IServiceScopeFactory>();
 	private readonly InlineProjectionProcessor _processor;
 
 	public InlineProjectionProcessorShould()
 	{
 		_processor = new InlineProjectionProcessor(
 			_registry,
-			_serviceProvider,
+			_scopeFactory,
 			NullLogger<InlineProjectionProcessor>.Instance);
 	}
 
@@ -219,9 +219,15 @@ public sealed class InlineProjectionProcessorShould
 	}
 
 	[Fact]
-	public async Task PassServiceProviderToDelegate()
+	public async Task PassScopedServiceProviderToDelegate()
 	{
-		// Arrange
+		// Arrange -- the processor must hand the delegate a provider from a freshly created
+		// scope (NOT a captured root provider), so scoped IProjectionStore<T> resolves.
+		var scopedProvider = A.Fake<IServiceProvider>();
+		var scope = A.Fake<IServiceScope>();
+		A.CallTo(() => scope.ServiceProvider).Returns(scopedProvider);
+		A.CallTo(() => _scopeFactory.CreateScope()).Returns(scope);
+
 		IServiceProvider? capturedSp = null;
 		_registry.Register(new ProjectionRegistration(
 			typeof(OrderSummary),
@@ -240,8 +246,8 @@ public sealed class InlineProjectionProcessorShould
 			NotificationFailurePolicy.Propagate,
 			CancellationToken.None);
 
-		// Assert
-		capturedSp.ShouldBeSameAs(_serviceProvider);
+		// Assert -- delegate received the scope's provider.
+		capturedSp.ShouldBeSameAs(scopedProvider);
 	}
 
 	[Fact]
@@ -282,7 +288,7 @@ public sealed class InlineProjectionProcessorShould
 
 		var processor = new InlineProjectionProcessor(
 			_registry,
-			_serviceProvider,
+			_scopeFactory,
 			NullLogger<InlineProjectionProcessor>.Instance,
 			healthState,
 			observability);
@@ -312,7 +318,7 @@ public sealed class InlineProjectionProcessorShould
 		// Arrange -- processor without observability (nullable params = null)
 		var processor = new InlineProjectionProcessor(
 			_registry,
-			_serviceProvider,
+			_scopeFactory,
 			NullLogger<InlineProjectionProcessor>.Instance,
 			healthState: null,
 			observability: null);

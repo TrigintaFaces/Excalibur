@@ -4,6 +4,7 @@
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing.Diagnostics;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.EventSourcing.Projections;
@@ -27,24 +28,24 @@ namespace Excalibur.EventSourcing.Projections;
 internal sealed class InlineProjectionProcessor
 {
 	private readonly IProjectionRegistry _registry;
-	private readonly IServiceProvider _serviceProvider;
+	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly ILogger<InlineProjectionProcessor> _logger;
 	private readonly ProjectionHealthState? _healthState;
 	private readonly ProjectionObservability? _observability;
 
 	public InlineProjectionProcessor(
 		IProjectionRegistry registry,
-		IServiceProvider serviceProvider,
+		IServiceScopeFactory scopeFactory,
 		ILogger<InlineProjectionProcessor> logger,
 		ProjectionHealthState? healthState = null,
 		ProjectionObservability? observability = null)
 	{
 		ArgumentNullException.ThrowIfNull(registry);
-		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(scopeFactory);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_registry = registry;
-		_serviceProvider = serviceProvider;
+		_scopeFactory = scopeFactory;
 		_logger = logger;
 		_healthState = healthState;
 		_observability = observability;
@@ -74,13 +75,15 @@ internal sealed class InlineProjectionProcessor
 			return;
 		}
 
-		// Run all inline projection types concurrently (R27.20)
+		// Run all inline projection types concurrently (R27.20). Each projection runs in its own
+		// DI scope: IProjectionStore<T> is scoped, but this processor is a singleton, so resolving
+		// stores from a captured root provider would throw under scope validation ("Cannot resolve
+		// scoped service ... from root provider"). A scope per projection also isolates scoped state
+		// (e.g. DB connections) across the concurrently-applied projections.
 		var tasks = new Task[inlineRegistrations.Count];
 		for (var i = 0; i < inlineRegistrations.Count; i++)
 		{
-			var registration = inlineRegistrations[i];
-			tasks[i] = registration.InlineApply!(
-				events, context, _serviceProvider, cancellationToken);
+			tasks[i] = ApplyInScopeAsync(inlineRegistrations[i], events, context, cancellationToken);
 		}
 
 		// Collect exceptions from all tasks (R27.20a: partial failure --
@@ -135,5 +138,16 @@ internal sealed class InlineProjectionProcessor
 				context.AggregateId,
 				context.CommittedVersion);
 		}
+	}
+
+	private async Task ApplyInScopeAsync(
+		ProjectionRegistration registration,
+		IReadOnlyList<IDomainEvent> events,
+		EventNotificationContext context,
+		CancellationToken cancellationToken)
+	{
+		await using var scope = _scopeFactory.CreateAsyncScope();
+		await registration.InlineApply!(events, context, scope.ServiceProvider, cancellationToken)
+			.ConfigureAwait(false);
 	}
 }

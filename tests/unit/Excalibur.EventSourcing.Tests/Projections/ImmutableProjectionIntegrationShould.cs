@@ -26,13 +26,13 @@ public sealed class ImmutableProjectionIntegrationShould
 	private static InlineProjectionProcessor CreateProcessor(
 		InMemoryProjectionRegistry registry,
 		IServiceProvider sp) =>
-		new(registry, sp, NullLogger<InlineProjectionProcessor>.Instance);
+		new(registry, sp.GetRequiredService<IServiceScopeFactory>(), NullLogger<InlineProjectionProcessor>.Instance);
 
 	private static EventNotificationBroker CreateBroker(
 		InlineProjectionProcessor processor,
 		IServiceProvider sp) =>
 		new(
-			processor, sp,
+			processor, sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(new EventNotificationOptions()),
 			NullLogger<EventNotificationBroker>.Instance,
 			Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>());

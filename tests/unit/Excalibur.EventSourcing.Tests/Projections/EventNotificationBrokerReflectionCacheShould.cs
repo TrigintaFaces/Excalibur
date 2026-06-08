@@ -34,12 +34,12 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 
 		var processor = new InlineProjectionProcessor(
 			_registry,
-			sp,
+			sp.GetRequiredService<IServiceScopeFactory>(),
 			NullLogger<InlineProjectionProcessor>.Instance);
 
 		return new EventNotificationBroker(
 			processor,
-			sp,
+			sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(new EventNotificationOptions()),
 			NullLogger<EventNotificationBroker>.Instance,
 			Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>());
@@ -128,7 +128,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 
 		var processor = new InlineProjectionProcessor(
 			_registry,
-			sp,
+			sp.GetRequiredService<IServiceScopeFactory>(),
 			NullLogger<InlineProjectionProcessor>.Instance);
 
 		var options = new EventNotificationOptions
@@ -138,7 +138,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 
 		var broker = new EventNotificationBroker(
 			processor,
-			sp,
+			sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(options),
 			NullLogger<EventNotificationBroker>.Instance,
 			Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>());
@@ -167,7 +167,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 
 		var processor = new InlineProjectionProcessor(
 			_registry,
-			sp,
+			sp.GetRequiredService<IServiceScopeFactory>(),
 			NullLogger<InlineProjectionProcessor>.Instance);
 
 		var options = new EventNotificationOptions
@@ -177,7 +177,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 
 		var broker = new EventNotificationBroker(
 			processor,
-			sp,
+			sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(options),
 			NullLogger<EventNotificationBroker>.Instance,
 			Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>());
@@ -198,12 +198,12 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 
 		var sp = _services.BuildServiceProvider();
 		var processor = new InlineProjectionProcessor(
-			_registry, sp, NullLogger<InlineProjectionProcessor>.Instance);
+			_registry, sp.GetRequiredService<IServiceScopeFactory>(), NullLogger<InlineProjectionProcessor>.Instance);
 
 		// Act
 		_ = new EventNotificationBroker(
 			processor,
-			sp,
+			sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(new EventNotificationOptions()),
 			NullLogger<EventNotificationBroker>.Instance,
 			new EventNotificationServiceCollectionExtensions.IConfigureProjection[] { testConfig });

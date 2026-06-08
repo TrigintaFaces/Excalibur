@@ -370,6 +370,11 @@ public static class CdcBuilderSqlServerExtensions
 		// TryAdd semantics. [bd-20ft0e FIX 1]
 		builder.Services.TryAddSingleton<IDataAccessPolicyFactory, SqlDataAccessPolicyFactory>();
 
+		// Register the change-event processor factory used by the Quartz CdcJob. Registering it
+		// here means any SQL Server CDC setup via AddCdcProcessor(cdc => cdc.UseSqlServer(...))
+		// makes CdcJob resolvable, in addition to the focused AddSqlServerCdcJob(...) entry point.
+		builder.Services.TryAddSingleton<IDataChangeEventProcessorFactory, DataChangeEventProcessorFactory>();
+
 		// Auto-register IDatabaseOptions from SqlServerCdcOptions at resolution time.
 		// Uses a factory so CaptureInstances derives from CdcOptions.TrackedTables
 		// at resolution time — after IPostConfigureOptions (BindTrackedTables, etc.)

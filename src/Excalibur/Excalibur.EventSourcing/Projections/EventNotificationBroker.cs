@@ -36,24 +36,24 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 	private const int MaxCacheSize = 1024;
 
 	private readonly InlineProjectionProcessor _processor;
-	private readonly IServiceProvider _serviceProvider;
+	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<EventNotificationOptions> _options;
 	private readonly ILogger<EventNotificationBroker> _logger;
 
 	public EventNotificationBroker(
 		InlineProjectionProcessor processor,
-		IServiceProvider serviceProvider,
+		IServiceScopeFactory scopeFactory,
 		IOptions<EventNotificationOptions> options,
 		ILogger<EventNotificationBroker> logger,
 		IEnumerable<EventNotificationServiceCollectionExtensions.IConfigureProjection> projectionConfigurations)
 	{
 		ArgumentNullException.ThrowIfNull(processor);
-		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(scopeFactory);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_processor = processor;
-		_serviceProvider = serviceProvider;
+		_scopeFactory = scopeFactory;
 		_options = options;
 		_logger = logger;
 
@@ -105,13 +105,18 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		NotificationFailurePolicy failurePolicy,
 		CancellationToken cancellationToken)
 	{
+		// Notification handlers may be registered scoped; this broker is a singleton, so resolve
+		// them from a fresh DI scope rather than the captured root provider (which throws under
+		// scope validation: "Cannot resolve scoped service ... from root provider").
+		await using var scope = _scopeFactory.CreateAsyncScope();
+
 		foreach (var @event in events)
 		{
 			var eventType = @event.GetType();
 			var (handlerInterfaceType, method) = ResolveHandlerMethod(eventType);
 
 			// Resolve all handlers for this event type
-			var handlers = _serviceProvider.GetServices(handlerInterfaceType);
+			var handlers = scope.ServiceProvider.GetServices(handlerInterfaceType);
 			foreach (var handler in handlers)
 			{
 				if (handler is null)

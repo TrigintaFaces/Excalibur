@@ -25,14 +25,14 @@ public sealed class InlineProjectionIntegrationShould
 	private static InlineProjectionProcessor CreateProcessor(
 		InMemoryProjectionRegistry registry,
 		IServiceProvider sp) =>
-		new(registry, sp, NullLogger<InlineProjectionProcessor>.Instance);
+		new(registry, sp.GetRequiredService<IServiceScopeFactory>(), NullLogger<InlineProjectionProcessor>.Instance);
 
 	private static EventNotificationBroker CreateBroker(
 		InlineProjectionProcessor processor,
 		IServiceProvider sp,
 		EventNotificationOptions? options = null) =>
 		new(
-			processor, sp,
+			processor, sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(options ?? new EventNotificationOptions()),
 			NullLogger<EventNotificationBroker>.Instance,
 			Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>());
@@ -78,6 +78,47 @@ public sealed class InlineProjectionIntegrationShould
 		projected.ShouldNotBeNull();
 		projected.Total.ShouldBe(250m);
 		projected.EventCount.ShouldBe(1);
+	}
+
+	[Fact]
+	public async Task ResolveScopedProjectionStoreUnderScopeValidation()
+	{
+		// Regression: IProjectionStore<T> is registered SCOPED (SQL Server / Mongo / ES), but the
+		// broker and inline processor are singletons. Resolving the store from the captured root
+		// provider threw "Cannot resolve scoped service ... from root provider" under DI scope
+		// validation -- the default in the Development host and the path Quartz jobs hit. The
+		// processor must resolve stores from a freshly created scope.
+		var projectionStore = new InMemoryProjectionStore<OrderSummary>();
+		var registry = new InMemoryProjectionRegistry();
+
+		var builder = new ProjectionBuilder<OrderSummary>(registry);
+		builder.Inline();
+		builder.When<TestOrderPlaced>((proj, e) =>
+		{
+			proj.Total = e.Amount;
+			proj.EventCount++;
+		});
+		builder.Build();
+
+		var sp = new ServiceCollection()
+			.AddScoped<IProjectionStore<OrderSummary>>(_ => projectionStore)
+			.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+
+		var processor = CreateProcessor(registry, sp);
+		var broker = CreateBroker(processor, sp);
+
+		var events = new List<IDomainEvent>
+		{
+			new TestOrderPlaced { AggregateId = "order-1", Amount = 250m, Version = 1 }
+		};
+
+		// Act + Assert -- must NOT throw (previously threw an AggregateException wrapping the
+		// "Cannot resolve scoped service ... from root provider" InvalidOperationException).
+		await broker.NotifyAsync(events, CreateContext(), CancellationToken.None);
+
+		var projected = await projectionStore.GetByIdAsync("order-1", CancellationToken.None);
+		_ = projected.ShouldNotBeNull();
+		projected.Total.ShouldBe(250m);
 	}
 
 	/// <summary>
