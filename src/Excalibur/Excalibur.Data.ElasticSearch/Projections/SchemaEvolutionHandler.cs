@@ -77,8 +77,8 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		_settings = options.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		_historyIndexName = $"{_settings.IndexPrefix}-schema-history";
-		_migrationIndexName = $"{_settings.IndexPrefix}-schema-migrations";
+		_historyIndexName = $"{IndexNameNormalizer.Normalize(_settings.IndexPrefix)}-schema-history";
+		_migrationIndexName = $"{IndexNameNormalizer.Normalize(_settings.IndexPrefix)}-schema-migrations";
 	}
 
 	/// <inheritdoc />

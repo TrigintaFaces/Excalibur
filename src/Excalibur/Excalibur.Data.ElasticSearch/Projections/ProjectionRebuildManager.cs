@@ -50,7 +50,7 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 		_settings = options.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		_operationsIndexName = $"{_settings.IndexPrefix}-rebuild-operations";
+		_operationsIndexName = $"{IndexNameNormalizer.Normalize(_settings.IndexPrefix)}-rebuild-operations";
 	}
 
 	/// <inheritdoc />
@@ -78,8 +78,8 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 
 		var useAliasing = request.UseAliasing && _settings.RebuildManager.UseAliasing;
 		var actualTargetIndex = useAliasing && request.CreateNewIndex
-			? $"{request.TargetIndexName}-{startedAt:yyyyMMddHHmmss}-{operationId[..8]}"
-			: request.TargetIndexName;
+			? IndexNameNormalizer.Normalize($"{request.TargetIndexName}-{startedAt:yyyyMMddHHmmss}-{operationId[..8]}")
+			: IndexNameNormalizer.Normalize(request.TargetIndexName);
 
 		await EnsureOperationsIndexExistsAsync(cancellationToken).ConfigureAwait(false);
 
@@ -255,7 +255,7 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 			};
 		}
 
-		var projectionIndex = $"{_settings.IndexPrefix}-{projectionType.ToLowerInvariant()}";
+		var projectionIndex = $"{IndexNameNormalizer.Normalize(_settings.IndexPrefix)}-{projectionType.ToLowerInvariant()}";
 		var existsResponse = await _client.Indices.ExistsAsync(projectionIndex, cancellationToken)
 			.ConfigureAwait(false);
 

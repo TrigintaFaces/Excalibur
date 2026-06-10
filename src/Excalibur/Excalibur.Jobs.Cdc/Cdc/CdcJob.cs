@@ -143,6 +143,13 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 		var jobConfig = configuration.GetJobConfiguration<CdcJobOptions>(JobConfigSectionName);
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
+		// A Disabled job is never registered with the scheduler, so no trigger ever fires.
+		// Mirrors OutboxJob.ConfigureJob — keeps "Disabled" semantics consistent across built-in jobs.
+		if (jobConfig.Disabled)
+		{
+			return;
+		}
+
 		_ = configurator.AddJob<CdcJob>(jobKey, job => job.WithIdentity(jobKey).WithDescription("CDC processing job"));
 
 		_ = configurator.AddTrigger(trigger => trigger.ForJob(jobKey).WithIdentity($"{jobConfig.JobName}Trigger")

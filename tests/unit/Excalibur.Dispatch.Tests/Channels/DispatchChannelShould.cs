@@ -126,9 +126,10 @@ public sealed class DispatchChannelShould : IDisposable
 		await channel.Writer.WriteAsync(2, _cts.Token).ConfigureAwait(false);
 		await channel.Writer.WriteAsync(3, _cts.Token).ConfigureAwait(false);
 
-		// Next write should block (channel is full with capacity 3)
-		// Generous timeout for CI under load -- must survive long enough for drain + unblock.
-		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+		// Next write should block (channel is full with capacity 3). The token is only a hang-guard:
+		// the read below deterministically frees a slot, so the write completes. Use a very generous
+		// timeout so thread-pool starvation under heavy CI parallelism cannot cancel it prematurely.
+		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 		var writeTask = channel.Writer.WriteAsync(4, timeoutCts.Token).AsTask();
 
 		// Assert - The write should not complete immediately (backpressure)

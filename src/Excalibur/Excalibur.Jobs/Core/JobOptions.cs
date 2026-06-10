@@ -44,8 +44,25 @@ public abstract class JobOptions : IJobOptions
 	/// Gets a value indicating whether the job is disabled.
 	/// </summary>
 	/// <value>
-	/// A value indicating whether the job is disabled.
+	/// <see langword="true"/> if the job is disabled; otherwise, <see langword="false"/>.
+	/// The default is <see langword="false"/>.
 	/// </value>
+	/// <remarks>
+	/// <para>
+	/// A built-in job's <c>ConfigureJob</c> method honors this flag at scheduling time: when
+	/// <see langword="true"/>, the job and its trigger are never registered with the scheduler, so
+	/// no trigger fires.
+	/// </para>
+	/// <para>
+	/// This schedule-time gate is sufficient for the default in-memory job store. With a persistent
+	/// Quartz job store a job that was previously scheduled survives across restarts; skipping
+	/// registration does not delete it, so a job persisted while enabled keeps firing after this flag
+	/// is later set to <see langword="true"/>. To disable an already-persisted job, register the
+	/// runtime watcher via <c>AddJobWatcher&lt;TJob, TOptions&gt;(...)</c> — it pauses and resumes the
+	/// job through the scheduler and the paused state is itself persisted — or delete the job from the
+	/// store.
+	/// </para>
+	/// </remarks>
 	public bool Disabled { get; init; }
 
 	/// <summary>

@@ -127,7 +127,6 @@ public sealed class ConcurrentBagDrainRegressionShould
 		var producerCount = 8;
 		var totalExpected = itemsPerProducer * producerCount;
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 		var producersDone = 0;
 
 		// Act -- Start producers (finite loops, no cancellation token needed)
@@ -141,16 +140,15 @@ public sealed class ConcurrentBagDrainRegressionShould
 			Interlocked.Increment(ref producersDone);
 		})).ToArray();
 
-		// Drainer runs concurrently
+		// Drainer runs concurrently. It drains until every producer has finished AND the bag is
+		// empty. Producers are finite and signal completion via producersDone, so this terminates
+		// deterministically without any wall-clock timeout. (A timeout here was a test bug: under
+		// thread-pool starvation a producer can run long after the drainer's deadline, and its items
+		// would never be drained -- the source of the intermittent "lost N items" failures.)
 		var drainer = Task.Run(() =>
 		{
-			while (producersDone < producerCount || !collection.IsEmpty)
+			while (Volatile.Read(ref producersDone) < producerCount || !collection.IsEmpty)
 			{
-				if (cts.IsCancellationRequested)
-				{
-					break;
-				}
-
 				var snapshot = AtomicDrain(collection);
 				foreach (var item in snapshot)
 				{
@@ -161,13 +159,6 @@ public sealed class ConcurrentBagDrainRegressionShould
 				{
 					Thread.SpinWait(10);
 				}
-			}
-
-			// Final drain
-			var final = AtomicDrain(collection);
-			foreach (var item in final)
-			{
-				allDrainedItems.Add(item);
 			}
 		});
 

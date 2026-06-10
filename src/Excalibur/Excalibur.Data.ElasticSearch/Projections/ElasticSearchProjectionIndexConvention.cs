@@ -63,10 +63,16 @@ public static class ElasticSearchProjectionIndexConvention
 
 		var name = !string.IsNullOrWhiteSpace(options.IndexName)
 			? options.IndexName
-			: projectionTypeName.ToLowerInvariant();
+			: projectionTypeName;
 
-		return string.IsNullOrWhiteSpace(options.IndexPrefix)
+		var composed = string.IsNullOrWhiteSpace(options.IndexPrefix)
 			? name
 			: $"{options.IndexPrefix}-{name}";
+
+		// Elasticsearch index names MUST be lowercase (an uppercase character yields a 400
+		// invalid_index_name_exception). Lowercase the entire composed name so a consumer-supplied
+		// IndexPrefix/IndexName or environment-derived segment (e.g. "Development") cannot produce an
+		// invalid index name.
+		return composed.ToLowerInvariant();
 	}
 }

@@ -80,7 +80,7 @@ That's it. `IExcaliburBuilder.AddJobs(...)` registers Quartz.NET, the hosted ser
 
 ### 3. Run It
 
-Your job runs on the configured schedule. Quartz.NET handles scheduling, thread management, and trigger persistence.
+Your job runs on the configured schedule. Quartz.NET handles scheduling and thread management. By default jobs and triggers are held in an **in-memory** store (`RAMJobStore`) — they are re-seeded on every startup and nothing survives a restart. To persist schedule state and coordinate across multiple instances, configure a [persistent, clustered job store](#persistent--clustered-job-store).
 
 ## Registration Options
 
@@ -171,6 +171,15 @@ services.AddBackgroundJob<ReportJob, ReportContext>(
 
 Excalibur ships with several ready-to-use jobs. Each implements the Quartz `IJob` interface with `[DisallowConcurrentExecution]` and provides static configuration methods for scheduling and health checks.
 
+:::info Two ways to schedule — pick by job type
+There are two distinct scheduling channels on `AddJobs(...)`, and they are **not** interchangeable:
+
+- **`configureQuartz: q => …`** — for the **built-in jobs** (`OutboxJob`, `CdcJob`, `DataProcessingJob`). They are Quartz-native `IJob` types, so you schedule them by calling their static `XxxJob.ConfigureJob(q, configuration)` inside `configureQuartz`.
+- **`configureJobs: jobs => …`** — for **your own** jobs that implement `IBackgroundJob` / `IBackgroundJob<TContext>`, using the fluent `jobs.AddJob<T>(cron)` / `AddRecurringJob<T>(…)` API.
+
+You can use either, both, or neither. The built-in jobs do **not** use `configureJobs` — that channel is only for the `IBackgroundJob` abstraction.
+:::
+
 ### OutboxJob
 
 Processes the [outbox table](outbox.md), publishing pending messages to transports. Use this for reliable at-least-once message delivery.
@@ -260,6 +269,45 @@ A simpler alternative to `OutboxJob` — implements `IBackgroundJob` instead of 
 services.AddRecurringJob<OutboxProcessorJob>(TimeSpan.FromSeconds(10));
 ```
 
+## Persistent & Clustered Job Store
+
+By default, Quartz.NET uses an in-memory store (`RAMJobStore`): schedule state is lost on restart, and every instance runs its own independent copy of every trigger. For production — especially multi-instance deployments — configure a **persistent** ADO store, optionally with **clustering**.
+
+Excalibur does not wrap or hide Quartz's store configuration. `AddJobs(...)` forwards the `configureQuartz` delegate straight to Quartz's `IServiceCollectionQuartzConfigurator`, so you use Quartz's own [`UsePersistentStore`](https://www.quartz-scheduler.net/documentation/quartz-3.x/packages/microsoft-di-integration.html) API directly:
+
+```csharp
+builder.Services.AddExcalibur(excalibur => excalibur.AddJobs(
+    configureQuartz: q =>
+    {
+        q.UsePersistentStore(store =>
+        {
+            store.UseProperties = true;       // store job data as strings (AOT/serialization-friendly)
+            store.UseClustering();            // enable the clustered scheduler
+            store.UseSqlServer(sql => sql.ConnectionString = connectionString);
+            store.UseSystemTextJsonSerializer();
+        });
+
+        // Built-in jobs are scheduled the same way regardless of store.
+        OutboxJob.ConfigureJob(q, builder.Configuration);
+    },
+    typeof(Program).Assembly));
+```
+
+Add the matching Quartz provider package (e.g. `Quartz` includes the ADO providers; you supply the ADO.NET driver such as `Microsoft.Data.SqlClient`) and create the [Quartz database tables](https://github.com/quartznet/quartznet/tree/main/database/tables) for your provider.
+
+### Clustering and the built-in jobs
+
+`OutboxJob`, `CdcJob`, and `DataProcessingJob` are all annotated with `[DisallowConcurrentExecution]`. This attribute only prevents overlapping execution **across instances** when backed by a persistent, clustered store. With the default in-memory store the guarantee is per-process only — every instance will run the job independently.
+
+If you run these jobs on more than one instance, you therefore want **either**:
+
+- a **persistent clustered store** (above), so Quartz itself ensures a single instance runs each fire, **or**
+- the [distributed coordination](#distributed-coordination) primitives (`IJobLockProvider` / `IJobCoordinator`) for an explicit application-level lock.
+
+:::tip Disabling jobs with a persistent store
+With a persistent store, `Disabled: true` alone is not enough to stop an already-persisted job — see [Disabling a Job](#disabling-a-job).
+:::
+
 ## Job Configuration
 
 All configurable jobs use `JobConfig` (or a subclass) for their settings:
@@ -269,13 +317,33 @@ All configurable jobs use `JobConfig` (or a subclass) for their settings:
 | `JobName` | `string` | `""` | Unique name for the job |
 | `JobGroup` | `string` | `"Default"` | Quartz job group |
 | `CronSchedule` | `string` | `""` | Cron expression for scheduling |
-| `Disabled` | `bool` | `false` | Disables the job without removing it |
+| `Disabled` | `bool` | `false` | When `true`, the job's trigger is not registered, so it never fires. See [Disabling a Job](#disabling-a-job) |
 | `DegradedThreshold` | `TimeSpan` | 5 minutes | Time without heartbeat before health is degraded |
 | `UnhealthyThreshold` | `TimeSpan` | 10 minutes | Time without heartbeat before health is unhealthy |
 
+### Disabling a Job
+
+Set `Disabled: true` to stop a built-in job (`OutboxJob`, `CdcJob`, `DataProcessingJob`) from running. Each job's `ConfigureJob` honors the flag at scheduling time — when disabled, the job and its trigger are **never registered** with the scheduler, so no trigger fires.
+
+```json title="appsettings.json"
+{
+  "Jobs": {
+    "CdcJob": {
+      "JobName": "cdc-processor",
+      "CronSchedule": "0/30 * * * * ?",
+      "Disabled": true
+    }
+  }
+}
+```
+
+:::caution Persistent job stores
+The schedule-time gate is sufficient for the default in-memory job store. With a [persistent job store](#persistent--clustered-job-store), a job that was already scheduled survives across restarts — skipping registration does **not** delete it, so a job persisted while enabled keeps firing after you later set `Disabled: true`. To disable an already-persisted job, use the [runtime watcher](#runtime-configuration-changes) (it pauses the job through the scheduler, and the paused state is persisted) or delete the job from the store.
+:::
+
 ### Runtime Configuration Changes
 
-Jobs that implement `IConfigurableJob<TConfig>` can be monitored for configuration changes at runtime. When the configuration changes (e.g., `Disabled` toggled), the job is automatically paused or resumed:
+Jobs that implement `IConfigurableJob<TConfig>` can be monitored for configuration changes at runtime. When the configuration changes (e.g., `Disabled` toggled), the job is automatically paused or resumed via the scheduler — no restart required. This is also the recommended way to honor `Disabled` when using a persistent job store, because pausing (unlike skipping registration) updates the persisted trigger state:
 
 ```csharp
 services.AddJobWatcher<OutboxJob, OutboxJobOptions>(

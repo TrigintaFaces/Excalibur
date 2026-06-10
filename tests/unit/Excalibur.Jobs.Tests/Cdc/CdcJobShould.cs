@@ -15,6 +15,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Quartz;
+
 namespace Excalibur.Jobs.Tests.Cdc;
 
 /// <summary>
@@ -231,4 +233,57 @@ public sealed class CdcJobShould
 		Should.Throw<ArgumentNullException>(() =>
 			CdcJob.ConfigureHealthChecks(healthChecks, null!));
 	}
+
+	// --- ConfigureJob honors the Disabled flag (Excalibur.Dispatch-ku1i3e) ---
+	// IServiceCollectionQuartzConfigurator cannot be faked (see note above), so these drive the real
+	// Quartz configurator and inspect the resulting QuartzOptions for the registered job detail.
+	// Inspecting options (rather than building a scheduler) keeps the test deterministic — it avoids
+	// Quartz's process-global SchedulerRepository, which is shared across parallel test classes.
+
+	[Fact]
+	public void ConfigureJobDoesNotRegisterJobWhenDisabled()
+	{
+		// Arrange — Disabled:true must mean the job is never registered with the scheduler.
+		var config = BuildJobConfig(disabled: true);
+
+		// Act
+		var registered = IsJobRegistered(config);
+
+		// Assert
+		registered.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void ConfigureJobRegistersJobWhenEnabled()
+	{
+		// Arrange — control case: proves the assertion above tests the Disabled gate, not a wiring slip.
+		var config = BuildJobConfig(disabled: false);
+
+		// Act
+		var registered = IsJobRegistered(config);
+
+		// Assert
+		registered.ShouldBeTrue();
+	}
+
+	private static bool IsJobRegistered(IConfiguration config)
+	{
+		var services = new ServiceCollection();
+		_ = services.AddQuartz(q => CdcJob.ConfigureJob(q, config));
+		using var provider = services.BuildServiceProvider();
+
+		var quartzOptions = provider.GetRequiredService<IOptions<QuartzOptions>>().Value;
+		return quartzOptions.JobDetails.Any(j => j.Key.Equals(new JobKey("CdcJob", "TestGroup")));
+	}
+
+	private static IConfiguration BuildJobConfig(bool disabled) =>
+		new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
+			{
+				["Jobs:CdcJob:JobName"] = "CdcJob",
+				["Jobs:CdcJob:JobGroup"] = "TestGroup",
+				["Jobs:CdcJob:CronSchedule"] = "0/30 * * * * ?",
+				["Jobs:CdcJob:Disabled"] = disabled ? "true" : "false",
+			})
+			.Build();
 }

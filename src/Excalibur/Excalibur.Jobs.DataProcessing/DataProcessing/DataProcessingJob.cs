@@ -66,6 +66,13 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 #pragma warning restore IL2026, IL3050
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
+		// A Disabled job is never registered with the scheduler, so no trigger ever fires.
+		// Mirrors OutboxJob.ConfigureJob — keeps "Disabled" semantics consistent across built-in jobs.
+		if (jobConfig.Disabled)
+		{
+			return;
+		}
+
 		_ = configurator.AddJob<DataProcessingJob>(jobKey, job => job
 			.WithIdentity(jobKey)
 			.WithDescription("Process data tasks"));
