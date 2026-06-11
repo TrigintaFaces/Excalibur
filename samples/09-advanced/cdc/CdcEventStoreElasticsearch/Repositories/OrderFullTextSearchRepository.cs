@@ -135,7 +135,6 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 
 		var request = new SearchRequestDescriptor<OrderSearchProjection>();
 		request
-			.Size(take)
 			.Query(q => q
 				.MultiMatch(mm => mm
 					.Query(searchText)
@@ -153,12 +152,13 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 				.Score(sc => sc.Order(scoreOrder))
 				.Field("orderId.keyword", f => f.Order(tiebreakerOrder)));
 
-		// First/Last navigate without a cursor; Next/Previous use the cursor
-		if (navigation is PageNavigation.Next or PageNavigation.Previous
-			&& searchAfter is { Count: > 0 })
-		{
-			request.SearchAfter(searchAfter);
-		}
+		// Over-fetch one peek row (Size = take + 1) so the cursor result can report
+		// HasMore correctly, even when the final page is exactly `take` items.
+		// First/Last navigate without a cursor; Next/Previous use the cursor.
+		var pageCursor = navigation is PageNavigation.Next or PageNavigation.Previous
+			? searchAfter
+			: null;
+		ElasticSearchCursorHelper.ApplyCursorPaging(request, take, pageCursor);
 
 		return await SearchAsync(request, cancellationToken).ConfigureAwait(false);
 	}
@@ -256,7 +256,6 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 
 		var request = new SearchRequestDescriptor<OrderSearchProjection>();
 		request
-			.Size(take)
 			.Query(q => q
 				.Bool(b =>
 				{
@@ -338,12 +337,13 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 				.Field("orderDate", f => f.Order(reverse ? SortOrder.Asc : SortOrder.Desc))
 				.Field("orderId.keyword", f => f.Order(reverse ? SortOrder.Desc : SortOrder.Asc)));
 
-		// First/Last navigate without a cursor; Next/Previous use the cursor
-		if (navigation is PageNavigation.Next or PageNavigation.Previous
-			&& searchAfter is { Count: > 0 })
-		{
-			request.SearchAfter(searchAfter);
-		}
+		// Over-fetch one peek row (Size = take + 1) so the cursor result can report
+		// HasMore correctly, even when the final page is exactly `take` items.
+		// First/Last navigate without a cursor; Next/Previous use the cursor.
+		var pageCursor = navigation is PageNavigation.Next or PageNavigation.Previous
+			? searchAfter
+			: null;
+		ElasticSearchCursorHelper.ApplyCursorPaging(request, take, pageCursor);
 
 		return await SearchAsync(request, cancellationToken).ConfigureAwait(false);
 	}

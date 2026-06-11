@@ -296,13 +296,13 @@ Excalibur provides cursor-based (keyset) pagination that maps directly to Elasti
 |---|---|---|
 | `CursorEncoder` | `Excalibur.EventSourcing.Abstractions` | Backend-agnostic Base64url cursor encoding/decoding |
 | `ElasticSearchCursorHelper` | `Excalibur.Data.ElasticSearch` | Converts between `CursorEncoder` primitives and ES `FieldValue` sort values |
-| `CursorPagedResult<T>` | `Excalibur.EventSourcing.Abstractions` | Result type with items, total count, and opaque next-page cursor |
+| `CursorPagedResult<T>` | `Excalibur.EventSourcing.Abstractions` | Result type with items, total count, and opaque forward/backward cursors |
 
 ### How It Works
 
 1. **First request** — no cursor, query returns the first page sorted by your chosen fields
-2. **Subsequent requests** — pass the opaque cursor from the previous response; the framework decodes it into `search_after` sort values
-3. **Last page** — `NextCursor` is `null`, `HasMore` is `false`
+2. **Subsequent requests** — pass the opaque cursor from the previous response (`NextCursor` to go forward, `PreviousCursor` to go back); the framework decodes it into `search_after` sort values
+3. **Boundaries** — `NextCursor` is `null` on the last page (`HasMore == false`); `PreviousCursor` is `null` on the first page (`HasPrevious == false`)
 
 ### Usage in a Controller
 
@@ -312,21 +312,22 @@ public async Task<CursorPagedResult<OrderSearchProjection>> Search(
     [FromQuery] string? query,
     [FromQuery] int pageSize = 20,
     [FromQuery] string? cursor = null,
+    [FromQuery] PageNavigation navigation = PageNavigation.Next,
     CancellationToken cancellationToken = default)
 {
-    // Decode cursor into ES sort values (null for first page)
+    // Decode cursor into ES sort values (null for first page / First & Last navigation)
     var searchAfter = ElasticSearchCursorHelper.DecodeCursor(cursor);
+
+    // For Previous/Last, reverse the sort so search_after walks backward;
+    // ToCursorResult flips the items back to display order.
+    var reverse = navigation is PageNavigation.Previous or PageNavigation.Last;
+    var primary = reverse ? SortOrder.Asc : SortOrder.Desc;
+    var tiebreak = reverse ? SortOrder.Desc : SortOrder.Asc;
 
     var searchRequest = new SearchRequestDescriptor<OrderSearchProjection>()
         .Index("orders")
-        .Size(pageSize)
-        .Sort(s => s.Field(f => f.CreatedAt, new FieldSort { Order = SortOrder.Desc }))
-        .Sort(s => s.Field("_id", new FieldSort { Order = SortOrder.Asc }));
-
-    if (searchAfter is not null)
-    {
-        searchRequest.SearchAfter(searchAfter);
-    }
+        .Sort(s => s.Field(f => f.CreatedAt, new FieldSort { Order = primary }))
+        .Sort(s => s.Field("_id", new FieldSort { Order = tiebreak }));
 
     if (!string.IsNullOrWhiteSpace(query))
     {
@@ -335,21 +336,24 @@ public async Task<CursorPagedResult<OrderSearchProjection>> Search(
             .Fields(new[] { "customerName", "status" })));
     }
 
+    // Set page size (over-fetching one peek row) and apply the cursor. First/Last
+    // navigate without a cursor; Next/Previous pass the decoded search_after.
+    var pageCursor = navigation is PageNavigation.Next or PageNavigation.Previous
+        ? searchAfter
+        : null;
+    ElasticSearchCursorHelper.ApplyCursorPaging(searchRequest, pageSize, pageCursor);
+
     var response = await elasticClient.SearchAsync(searchRequest, cancellationToken);
 
-    // Build result with encoded cursor for next page
-    return ElasticSearchCursorHelper.ToCursorResult(response, pageSize);
+    // Build a bidirectional result: NextCursor (forward) + PreviousCursor (backward),
+    // peek row trimmed.
+    return ElasticSearchCursorHelper.ToCursorResult(response, pageSize, navigation);
 }
 ```
 
 ### Bidirectional Pagination
 
-For previous-page navigation, reverse the sort order and set `reverseItems: true`:
-
-```csharp
-// Previous page: reverse sort, then reverse items back to display order
-var result = ElasticSearchCursorHelper.ToCursorResult(response, pageSize, reverseItems: true);
-```
+`ToCursorResult` is given the `PageNavigation` the query was issued for and returns both `NextCursor` and `PreviousCursor`. For **Previous** and **Last**, reverse the sort order before searching (as shown above) — `ToCursorResult` detects the reversed navigation and flips the items back into display order automatically. No `reverseItems` flag is needed.
 
 ### Supported Sort Value Types
 

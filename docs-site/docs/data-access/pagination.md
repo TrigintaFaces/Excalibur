@@ -128,6 +128,8 @@ return new CursorPagedResult<OrderDto>(items, pageSize: 25, totalRecords: 1000, 
 | `TotalPages` | `int` | Computed: `ceil(TotalRecords / PageSize)` |
 | `NextCursor` | `string?` | Opaque token for the next page (`null` = last page) |
 | `HasMore` | `bool` | `NextCursor is not null` |
+| `PreviousCursor` | `string?` | Opaque token for the previous page (`null` = first page, or store is forward-only) |
+| `HasPrevious` | `bool` | `PreviousCursor is not null` |
 
 ### CursorEncoder
 
@@ -181,9 +183,14 @@ The `ElasticSearchCursorHelper` bridges the generic cursor types with Elasticsea
 
 | Method | Description |
 |---|---|
+| `ApplyCursorPaging<T>(SearchRequestDescriptor<T>, int, IList<FieldValue>?)` | Sets the page size with one extra "peek" row (`pageSize + 1`) and applies the `search_after` cursor |
 | `DecodeCursor(string?)` | Decodes a cursor into `IList<FieldValue>` for `search_after` |
 | `EncodeCursor(IReadOnlyCollection<FieldValue>)` | Encodes ES sort values into an opaque cursor |
-| `ToCursorResult<T>(SearchResponse<T>, int, bool)` | Builds a `CursorPagedResult<T>` from a search response |
+| `ToCursorResult<T>(SearchResponse<T>, int, bool)` | Builds a `CursorPagedResult<T>` from a search response, trimming the peek row |
+
+:::important Over-fetch by one
+Always size cursor queries with **`ApplyCursorPaging`** (or set `Size(pageSize + 1)` manually). `ToCursorResult` uses the presence of that extra "peek" row — not a full page — to decide `HasMore`. This is the only reliable way to detect whether another page exists when the final page contains exactly `pageSize` items. The peek row is trimmed and never returned to callers.
+:::
 
 ### Full Controller Example
 
@@ -196,22 +203,23 @@ public async Task<CursorPagedResult<OrderSearchProjection>> SearchOrders(
     [FromQuery] string? query,
     [FromQuery] int pageSize = 20,
     [FromQuery] string? cursor = null,
+    [FromQuery] PageNavigation navigation = PageNavigation.Next,
     CancellationToken cancellationToken = default)
 {
-    // 1. Decode cursor (null on first request)
+    // 1. Decode cursor (null on first request). First/Last navigate without a cursor.
     var searchAfter = ElasticSearchCursorHelper.DecodeCursor(cursor);
 
-    // 2. Build search request with sort + search_after
+    // 2. Build search request. For Previous/Last, reverse the sort so search_after
+    //    walks backward; ToCursorResult restores display order. Always include a
+    //    unique tiebreaker (here "_id") for deterministic keyset ordering.
+    var reverse = navigation is PageNavigation.Previous or PageNavigation.Last;
+    var primary = reverse ? SortOrder.Asc : SortOrder.Desc;
+    var tiebreak = reverse ? SortOrder.Desc : SortOrder.Asc;
+
     var request = new SearchRequestDescriptor<OrderSearchProjection>()
         .Index("orders")
-        .Size(pageSize)
-        .Sort(s => s.Field(f => f.CreatedAt, new FieldSort { Order = SortOrder.Desc }))
-        .Sort(s => s.Field("_id", new FieldSort { Order = SortOrder.Asc }));
-
-    if (searchAfter is not null)
-    {
-        request.SearchAfter(searchAfter);
-    }
+        .Sort(s => s.Field(f => f.CreatedAt, new FieldSort { Order = primary }))
+        .Sort(s => s.Field("_id", new FieldSort { Order = tiebreak }));
 
     if (!string.IsNullOrWhiteSpace(query))
     {
@@ -220,20 +228,30 @@ public async Task<CursorPagedResult<OrderSearchProjection>> SearchOrders(
             .Fields(new[] { "customerName", "status" })));
     }
 
-    // 3. Execute and build result with next-page cursor
+    // 3. Set page size (over-fetching one peek row) and apply the cursor in one step.
+    //    First/Last pass no cursor; Next/Previous pass the decoded search_after.
+    var pageCursor = navigation is PageNavigation.Next or PageNavigation.Previous
+        ? searchAfter
+        : null;
+    ElasticSearchCursorHelper.ApplyCursorPaging(request, pageSize, pageCursor);
+
+    // 4. Execute and build a bidirectional result. ToCursorResult trims the peek row
+    //    and populates both NextCursor (forward) and PreviousCursor (backward).
     var response = await client.SearchAsync(request, cancellationToken);
-    return ElasticSearchCursorHelper.ToCursorResult(response, pageSize);
+    return ElasticSearchCursorHelper.ToCursorResult(response, pageSize, navigation);
 }
 ```
 
 ### Bidirectional Navigation
 
-For previous-page or last-page requests, reverse the sort order in Elasticsearch and set `reverseItems: true` so items are returned in display order:
+`ToCursorResult` takes the `PageNavigation` the query was issued for and returns **both** a forward cursor (`NextCursor`) and a backward cursor (`PreviousCursor`), so a UI can offer First/Previous/Next/Last. The rules:
 
-```csharp
-// Previous page: reverse sort to find the preceding page, then flip back
-var result = ElasticSearchCursorHelper.ToCursorResult(response, pageSize, reverseItems: true);
-```
+- **First** (`navigation: PageNavigation.First`) — no cursor, forward sort. Result has `PreviousCursor == null`.
+- **Next** (`navigation: PageNavigation.Next`) — forward sort, `search_after` = the previous response's `NextCursor`.
+- **Previous** (`navigation: PageNavigation.Previous`) — **reverse** the sort, `search_after` = the current response's `PreviousCursor`. `ToCursorResult` flips items back to display order.
+- **Last** (`navigation: PageNavigation.Last`) — no cursor, **reverse** sort. Result has `NextCursor == null`.
+
+A cursor is `null` only when that direction has no further page, so a client can drive button state directly from `HasMore` / `HasPrevious` (or from `TotalRecords` + page index).
 
 ### Client Usage
 

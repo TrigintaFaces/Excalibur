@@ -45,6 +45,19 @@ function Get-PackageReferencesFromCsproj {
       $verNode = $n.SelectSingleNode('Version')
       if ($verNode -and $verNode.InnerText) { $ver = [string]$verNode.InnerText }
     }
+
+    # Skip build-time-only / non-redistributed dependencies (PrivateAssets="all").
+    # Their assets do not flow to consumers (analyzers, source generators, build
+    # tooling), so they do not belong in a redistribution NOTICES file.
+    $priv = ''
+    $privAttr = $n.Attributes.GetNamedItem('PrivateAssets')
+    if ($privAttr) { $priv = [string]$privAttr.Value }
+    else {
+      $privNode = $n.SelectSingleNode('PrivateAssets')
+      if ($privNode -and $privNode.InnerText) { $priv = [string]$privNode.InnerText }
+    }
+    if ($priv.Trim().ToLowerInvariant() -eq 'all') { continue }
+
     if ($id) { [pscustomobject]@{ Id = $id; Version = $ver } }
   }
 }
@@ -83,9 +96,21 @@ foreach ($p in $central) { $centralVersions[$p.Id] = $p.Version }
 # Resolve versions from explicit csproj Version attributes, falling back to central management.
 $all = @{}
 foreach ($r in $projRefs) {
-  if ($r.Version) { $all[$r.Id] = $r.Version }
-  elseif ($centralVersions.ContainsKey($r.Id)) { $all[$r.Id] = $centralVersions[$r.Id] }
-  elseif (-not $all.ContainsKey($r.Id)) { $all[$r.Id] = '' }
+  # Resolve the effective version for this reference (explicit, else central pin).
+  $ver = if ($r.Version) { $r.Version }
+         elseif ($centralVersions.ContainsKey($r.Id)) { $centralVersions[$r.Id] }
+         else { '' }
+
+  if (-not $all.ContainsKey($r.Id)) {
+    $all[$r.Id] = $ver
+  }
+  elseif ($all[$r.Id] -ne $ver) {
+    # Deterministic conflict resolution (avoids OS-dependent enumeration order):
+    # the centrally managed pin is the repository's canonical version, so it wins;
+    # otherwise keep the higher ordinal version string as a stable tie-break.
+    if ($centralVersions.ContainsKey($r.Id)) { $all[$r.Id] = $centralVersions[$r.Id] }
+    elseif ([string]::CompareOrdinal($ver, $all[$r.Id]) -gt 0) { $all[$r.Id] = $ver }
+  }
 }
 
 $lines = @()
@@ -96,7 +121,9 @@ $lines += "It is generated from project files; licenses remain with their respec
 $lines += ""
 $lines += "| Package | Version |"
 $lines += "|---------|---------|"
-foreach ($k in ($all.Keys | Sort-Object)) {
+$sortedKeys = [string[]]$all.Keys
+[System.Array]::Sort($sortedKeys, [System.StringComparer]::Ordinal)
+foreach ($k in $sortedKeys) {
   $v = $all[$k]
   $lines += "| $k | $v |"
 }

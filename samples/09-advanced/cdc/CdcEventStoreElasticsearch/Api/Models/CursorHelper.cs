@@ -34,6 +34,6 @@ internal static class CursorHelper
     public static CursorPagedResult<T> ToCursorResult<T>(
         SearchResponse<T> response,
         int pageSize,
-        bool reverseItems = false) =>
-        ElasticSearchCursorHelper.ToCursorResult(response, pageSize, reverseItems);
+        PageNavigation navigation) =>
+        ElasticSearchCursorHelper.ToCursorResult(response, pageSize, navigation);
 }

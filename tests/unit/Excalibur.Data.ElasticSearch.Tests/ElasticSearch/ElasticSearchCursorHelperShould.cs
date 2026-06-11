@@ -201,4 +201,137 @@ public sealed class ElasticSearchCursorHelperShould
 		cursor.ShouldNotContain("/");
 		cursor.ShouldNotContain("=");
 	}
+
+	// ─── ResolveCursorBoundaries (pure core of ToCursorResult) ───────────
+	//
+	// Worked example: documents D9..D1 sorted by a descending key, page size 3:
+	//   page 0 = [9,8,7], page 1 = [6,5,4], page 2 = [3,2,1].
+	// Forward queries (First/Next) return hits in descending order; reverse
+	// queries (Previous/Last) return ascending order and are flipped for display.
+	// Each query over-fetches one peek row (Size = pageSize + 1).
+
+	private const int PageSize = 3;
+
+	private static IReadOnlyCollection<FieldValue> Sort(long value) => new[] { FieldValue.Long(value) };
+
+	private static string Cursor(long value) =>
+		ElasticSearchCursorHelper.EncodeCursor(new[] { FieldValue.Long(value) });
+
+	[Fact]
+	public void ResolveCursorBoundaries_FirstPage_HasForwardCursorOnly()
+	{
+		// Forward (First) over-fetch: [9,8,7] + peek 6
+		var hits = new IReadOnlyCollection<FieldValue>?[] { Sort(9), Sort(8), Sort(7), Sort(6) };
+
+		var (keptCount, reverseItems, nextCursor, previousCursor) =
+			ElasticSearchCursorHelper.ResolveCursorBoundaries(hits, PageSize, PageNavigation.First);
+
+		keptCount.ShouldBe(3);
+		reverseItems.ShouldBeFalse();
+		nextCursor.ShouldBe(Cursor(7));   // last displayed item
+		previousCursor.ShouldBeNull();    // first page → no previous
+	}
+
+	[Fact]
+	public void ResolveCursorBoundaries_MiddlePage_ViaNext_HasBothCursors()
+	{
+		// Forward (Next) over-fetch: [6,5,4] + peek 3
+		var hits = new IReadOnlyCollection<FieldValue>?[] { Sort(6), Sort(5), Sort(4), Sort(3) };
+
+		var (keptCount, reverseItems, nextCursor, previousCursor) =
+			ElasticSearchCursorHelper.ResolveCursorBoundaries(hits, PageSize, PageNavigation.Next);
+
+		keptCount.ShouldBe(3);
+		reverseItems.ShouldBeFalse();
+		nextCursor.ShouldBe(Cursor(4));       // last displayed
+		previousCursor.ShouldBe(Cursor(6));   // first displayed
+	}
+
+	[Fact]
+	public void ResolveCursorBoundaries_LastPage_ViaNext_HasNoForwardCursor()
+	{
+		// Forward (Next), no peek: [3,2,1]
+		var hits = new IReadOnlyCollection<FieldValue>?[] { Sort(3), Sort(2), Sort(1) };
+
+		var (keptCount, reverseItems, nextCursor, previousCursor) =
+			ElasticSearchCursorHelper.ResolveCursorBoundaries(hits, PageSize, PageNavigation.Next);
+
+		keptCount.ShouldBe(3);
+		reverseItems.ShouldBeFalse();
+		nextCursor.ShouldBeNull();            // no peek → last page
+		previousCursor.ShouldBe(Cursor(3));   // first displayed
+	}
+
+	[Fact]
+	public void ResolveCursorBoundaries_Previous_FlipsItems_AndMatchesForwardArrival()
+	{
+		// Reverse (Previous) ascending over-fetch: [4,5,6] + peek 7
+		var hits = new IReadOnlyCollection<FieldValue>?[] { Sort(4), Sort(5), Sort(6), Sort(7) };
+
+		var (keptCount, reverseItems, nextCursor, previousCursor) =
+			ElasticSearchCursorHelper.ResolveCursorBoundaries(hits, PageSize, PageNavigation.Previous);
+
+		keptCount.ShouldBe(3);
+		reverseItems.ShouldBeTrue();
+		// Display order after reverse is [6,5,4] — identical cursors to arriving via Next.
+		nextCursor.ShouldBe(Cursor(4));       // last displayed
+		previousCursor.ShouldBe(Cursor(6));   // first displayed
+	}
+
+	[Fact]
+	public void ResolveCursorBoundaries_PreviousToFirstPage_HasNoBackwardCursor()
+	{
+		// Reverse (Previous) ascending, no peek: [7,8,9] → display [9,8,7]
+		var hits = new IReadOnlyCollection<FieldValue>?[] { Sort(7), Sort(8), Sort(9) };
+
+		var (keptCount, reverseItems, nextCursor, previousCursor) =
+			ElasticSearchCursorHelper.ResolveCursorBoundaries(hits, PageSize, PageNavigation.Previous);
+
+		keptCount.ShouldBe(3);
+		reverseItems.ShouldBeTrue();
+		nextCursor.ShouldBe(Cursor(7));       // last displayed
+		previousCursor.ShouldBeNull();        // no peek → first page
+	}
+
+	[Fact]
+	public void ResolveCursorBoundaries_LastNavigation_HasBackwardCursorOnly()
+	{
+		// Reverse (Last) ascending over-fetch: [1,2,3] + peek 4 → display [3,2,1]
+		var hits = new IReadOnlyCollection<FieldValue>?[] { Sort(1), Sort(2), Sort(3), Sort(4) };
+
+		var (keptCount, reverseItems, nextCursor, previousCursor) =
+			ElasticSearchCursorHelper.ResolveCursorBoundaries(hits, PageSize, PageNavigation.Last);
+
+		keptCount.ShouldBe(3);
+		reverseItems.ShouldBeTrue();
+		nextCursor.ShouldBeNull();            // Last → no next by definition
+		previousCursor.ShouldBe(Cursor(3));   // first displayed
+	}
+
+	[Fact]
+	public void ResolveCursorBoundaries_EmptyResult_HasNoCursors()
+	{
+		var hits = System.Array.Empty<IReadOnlyCollection<FieldValue>?>();
+
+		var (keptCount, reverseItems, nextCursor, previousCursor) =
+			ElasticSearchCursorHelper.ResolveCursorBoundaries(hits, PageSize, PageNavigation.First);
+
+		keptCount.ShouldBe(0);
+		reverseItems.ShouldBeFalse();
+		nextCursor.ShouldBeNull();
+		previousCursor.ShouldBeNull();
+	}
+
+	[Fact]
+	public void ResolveCursorBoundaries_ExactlyFullPage_NoPeek_ReportsNoNext()
+	{
+		// Regression guard for the original off-by-one: a final page of exactly
+		// pageSize items (no peek row) must NOT advertise a next page.
+		var hits = new IReadOnlyCollection<FieldValue>?[] { Sort(3), Sort(2), Sort(1) };
+
+		var (_, _, nextCursor, _) =
+			ElasticSearchCursorHelper.ResolveCursorBoundaries(hits, PageSize, PageNavigation.First);
+
+		nextCursor.ShouldBeNull();
+	}
 }
