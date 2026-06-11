@@ -125,9 +125,10 @@ Console.WriteLine($"[Infrastructure] Elasticsearch: {elasticsearchUri}");
 // Register SQL Server services (IDataAccessPolicyFactory, Dapper type handlers)
 builder.Services.AddExcaliburSqlServices();
 
-// Register CDC processor factory
-// This makes IDataChangeEventProcessorFactory available for CdcJob
-builder.Services.AddCdcProcessor();
+// Register everything CdcJob needs: binds "Jobs:CdcJob" options and registers
+// IDataChangeEventProcessorFactory (+ its SQL Server policy factory). Schedule the
+// job itself below via CdcJob.ConfigureJob.
+builder.Services.AddSqlServerCdcJob(builder.Configuration);
 
 // CdcJob resolves connections by identifier (DatabaseConnectionIdentifier, StateConnectionIdentifier)
 // These identifiers map to connection strings in appsettings.json's ConnectionStrings section

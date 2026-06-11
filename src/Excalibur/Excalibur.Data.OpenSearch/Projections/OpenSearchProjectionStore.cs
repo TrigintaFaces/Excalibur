@@ -186,16 +186,17 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 	private static string GetIndexName(OpenSearchProjectionStoreOptions opts)
 	{
 		var name = opts.IndexName ?? typeof(TProjection).Name;
+
+		var composed = string.IsNullOrWhiteSpace(opts.IndexPrefix)
+			? name
+			: $"{opts.IndexPrefix}-{name}";
+
+		// OpenSearch index names MUST be lowercase. Lowercase the entire composed name (prefix
+		// included) so a consumer-supplied IndexPrefix/IndexName or environment-derived segment
+		// (e.g. "Development") cannot produce an invalid index name.
 #pragma warning disable CA1308 // OpenSearch index names must be lowercase
-		var lowerName = name.ToLowerInvariant();
+		return composed.ToLowerInvariant();
 #pragma warning restore CA1308
-
-		if (string.IsNullOrWhiteSpace(opts.IndexPrefix))
-		{
-			return lowerName;
-		}
-
-		return $"{opts.IndexPrefix}-{lowerName}";
 	}
 
 	private async Task EnsureIndexAsync(CancellationToken cancellationToken)

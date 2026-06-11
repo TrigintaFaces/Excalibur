@@ -213,6 +213,46 @@ public static class OutboxServiceCollectionExtensions
 		services.TryAddSingleton<Excalibur.Dispatch.IOutboxStoreAdmin>(sp =>
 			sp.GetKeyedService<Excalibur.Dispatch.IOutboxStoreAdmin>("default")
 			?? (Excalibur.Dispatch.IOutboxStoreAdmin)sp.GetRequiredKeyedService<Excalibur.Dispatch.IOutboxStore>("default"));
+
+		// Register the real outbox processor + dispatcher with the outbox subsystem itself, so
+		// IOutboxProcessor / IOutboxDispatcher are available whenever AddExcaliburOutbox is used —
+		// NOT only when A3 audit (which registers a fail-fast DefaultOutboxDispatcher stub) is added.
+		// These registrations were dropped when the implementations moved from Excalibur.Dispatch to
+		// Excalibur.Outbox and were never restored, leaving OutboxJob, OutboxBackgroundService and
+		// audited dispatch unable to resolve a real dispatcher.
+		//
+		// Lifetimes: OutboxProcessor is Transient because it carries per-instance state and is keyed
+		// via Init(dispatcherId) — each background partition and each dispatcher needs its own. Its
+		// dependencies are all root-resolvable, so capture by the Singleton dispatcher is safe.
+		services.TryAddTransient<Excalibur.Dispatch.IOutboxProcessor, Excalibur.Dispatch.Delivery.OutboxProcessor>();
+
+		// MessageOutbox (Singleton) must win even when A3 audit registered its fail-fast
+		// DefaultOutboxDispatcher stub FIRST — TryAdd is order-sensitive, so the stub could otherwise
+		// shadow the real dispatcher when audit is composed before the outbox. Remove only A3's stub
+		// (identified by type, leaving any consumer-supplied dispatcher intact) and then TryAdd the
+		// real implementation. A consumer override registered before AddOutbox(...) still wins because
+		// the TryAdd below is a no-op when a non-stub IOutboxDispatcher is already present.
+		RemoveDefaultOutboxDispatcherStub(services);
+		services.TryAddSingleton<Excalibur.Dispatch.IOutboxDispatcher, Excalibur.Dispatch.Delivery.MessageOutbox>();
+	}
+
+	// A3.Audit registers a fail-fast DefaultOutboxDispatcher via TryAdd so the audit pipeline is
+	// composable without a concrete outbox. It is a placeholder that throws on dispatch. Referenced by
+	// full name to avoid an Excalibur.Outbox -> Excalibur.A3 dependency; the contract is guarded by the
+	// OutboxDispatcherRegistrationShould regression tests.
+	private const string A3DefaultOutboxDispatcherFullName = "Excalibur.A3.Audit.Internal.DefaultOutboxDispatcher";
+
+	private static void RemoveDefaultOutboxDispatcherStub(IServiceCollection services)
+	{
+		for (var i = services.Count - 1; i >= 0; i--)
+		{
+			var descriptor = services[i];
+			if (descriptor.ServiceType == typeof(Excalibur.Dispatch.IOutboxDispatcher)
+				&& descriptor.ImplementationType?.FullName == A3DefaultOutboxDispatcherFullName)
+			{
+				services.RemoveAt(i);
+			}
+		}
 	}
 
 	/// <summary>

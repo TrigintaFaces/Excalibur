@@ -29,14 +29,14 @@ public sealed class InlineProjectionHandlerIntegrationShould
 	private static InlineProjectionProcessor CreateProcessor(
 		InMemoryProjectionRegistry registry,
 		IServiceProvider sp) =>
-		new(registry, sp, NullLogger<InlineProjectionProcessor>.Instance);
+		new(registry, sp.GetRequiredService<IServiceScopeFactory>(), NullLogger<InlineProjectionProcessor>.Instance);
 
 	private static EventNotificationBroker CreateBroker(
 		InlineProjectionProcessor processor,
 		IServiceProvider sp,
 		EventNotificationOptions? options = null) =>
 		new(
-			processor, sp,
+			processor, sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(options ?? new EventNotificationOptions()),
 			NullLogger<EventNotificationBroker>.Instance,
 			Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>());

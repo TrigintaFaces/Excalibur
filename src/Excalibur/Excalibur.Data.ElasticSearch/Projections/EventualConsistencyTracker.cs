@@ -68,9 +68,9 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 		_settings = options.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		_writeIndexName = $"{_settings.IndexPrefix}-consistency-writes";
-		_readIndexName = $"{_settings.IndexPrefix}-consistency-reads";
-		_checkpointIndexName = $"{_settings.IndexPrefix}-consistency-checkpoints";
+		_writeIndexName = $"{IndexNameNormalizer.Normalize(_settings.IndexPrefix)}-consistency-writes";
+		_readIndexName = $"{IndexNameNormalizer.Normalize(_settings.IndexPrefix)}-consistency-reads";
+		_checkpointIndexName = $"{IndexNameNormalizer.Normalize(_settings.IndexPrefix)}-consistency-checkpoints";
 	}
 
 	/// <inheritdoc />
@@ -520,9 +520,9 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 		var settings = options.Value ?? throw new ArgumentNullException(nameof(options));
 		return new ProjectionEventIngestAdapter(
 			client,
-			$"{settings.IndexPrefix}-consistency-writes",
-			$"{settings.IndexPrefix}-consistency-reads",
-			$"{settings.IndexPrefix}-consistency-checkpoints");
+			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-writes",
+			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-reads",
+			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-checkpoints");
 	}
 
 	private static IProjectionEventLookup CreateLookup(ElasticsearchClient client, IOptions<ProjectionOptions> options)
@@ -532,9 +532,9 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 		var settings = options.Value ?? throw new ArgumentNullException(nameof(options));
 		return new ProjectionEventLookupAdapter(
 			client,
-			$"{settings.IndexPrefix}-consistency-writes",
-			$"{settings.IndexPrefix}-consistency-reads",
-			$"{settings.IndexPrefix}-consistency-checkpoints");
+			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-writes",
+			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-reads",
+			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-checkpoints");
 	}
 
 	private static IProjectionEventScan CreateScan(ElasticsearchClient client, IOptions<ProjectionOptions> options)
@@ -544,8 +544,8 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 		var settings = options.Value ?? throw new ArgumentNullException(nameof(options));
 		return new ProjectionEventScanAdapter(
 			client,
-			$"{settings.IndexPrefix}-consistency-writes",
-			$"{settings.IndexPrefix}-consistency-reads");
+			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-writes",
+			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-reads");
 	}
 
 	private static IProjectionIndexProvisioning CreateProvisioning(ElasticsearchClient client)

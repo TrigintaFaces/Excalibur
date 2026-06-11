@@ -8,6 +8,7 @@ using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -258,8 +259,11 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 
 			if (registration.InlineApply is not null)
 			{
-				tasks[i] = registration.InlineApply(
-					domainEvents, context, _serviceProvider, cancellationToken);
+				// IProjectionStore<T> is scoped; this host is a singleton BackgroundService, so the
+				// apply delegate must receive a provider from a created scope, not the captured root
+				// provider (which throws under DI scope validation). A scope per projection also
+				// isolates scoped state across the concurrently-applied projections.
+				tasks[i] = ApplyInScopeAsync(registration, domainEvents, context, cancellationToken);
 			}
 			else
 			{
@@ -291,6 +295,17 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 				}
 			}
 		}
+	}
+
+	private async Task ApplyInScopeAsync(
+		ProjectionRegistration registration,
+		List<IDomainEvent> domainEvents,
+		EventNotificationContext context,
+		CancellationToken cancellationToken)
+	{
+		await using var scope = _serviceProvider.CreateAsyncScope();
+		await registration.InlineApply!(domainEvents, context, scope.ServiceProvider, cancellationToken)
+			.ConfigureAwait(false);
 	}
 
 	/// <summary>

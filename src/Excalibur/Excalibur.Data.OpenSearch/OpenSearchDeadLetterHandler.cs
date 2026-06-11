@@ -50,7 +50,7 @@ public sealed class OpenSearchDeadLetterHandler(
 			RetryCount = 0,
 		};
 
-		var indexName = $"{_options.DeadLetterIndexPrefix}-{DateTimeOffset.UtcNow:yyyy-MM}";
+		var indexName = $"{IndexNameNormalizer.Normalize(_options.DeadLetterIndexPrefix)}-{DateTimeOffset.UtcNow:yyyy-MM}";
 
 		var response = await _client.IndexAsync(deadLetterDoc, idx => idx
 			.Index(indexName)

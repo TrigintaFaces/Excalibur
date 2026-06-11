@@ -203,7 +203,7 @@ cd scripts
 | `CronSchedule` | Cron expression for scheduling | Required |
 | `DegradedThreshold` | Time before health check reports degraded | 5 min |
 | `UnhealthyThreshold` | Time before health check reports unhealthy | 10 min |
-| `Disabled` | Skip job execution | false |
+| `Disabled` | When `true`, the job's trigger is not registered, so it never fires | false |
 | `DatabaseConfigs` | Array of database configurations | Required |
 
 ### DatabaseOptions Reference

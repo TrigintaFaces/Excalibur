@@ -103,8 +103,15 @@ public sealed class ComplianceTelemetrySanitizerShould
 	[Fact]
 	public void SanitizeTag_NotDetectEmailsWhenDetectEmailsIsFalse()
 	{
-		// Arrange
-		var sanitizer = CreateSanitizer(o => o.DetectEmails = false);
+		// Arrange — isolate the email flag: the other detectors do not match this value, and
+		// running their regexes only adds a wall-clock match-timeout that can fail closed
+		// (-> [REDACTED]) under CI CPU starvation, making the "passes through" assertion flaky.
+		var sanitizer = CreateSanitizer(o =>
+		{
+			o.DetectEmails = false;
+			o.DetectPhoneNumbers = false;
+			o.DetectSocialSecurityNumbers = false;
+		});
 
 		// Act — use a non-sensitive tag
 		var result = sanitizer.SanitizeTag("description", "alice@example.com");
@@ -140,8 +147,14 @@ public sealed class ComplianceTelemetrySanitizerShould
 	[Fact]
 	public void SanitizeTag_NotDetectPhoneNumbersWhenDetectPhoneNumbersIsFalse()
 	{
-		// Arrange
-		var sanitizer = CreateSanitizer(o => o.DetectPhoneNumbers = false);
+		// Arrange — isolate the phone flag (see SanitizeTag_NotDetectEmails... for rationale):
+		// the other detectors do not match this value and only add a flaky wall-clock timeout.
+		var sanitizer = CreateSanitizer(o =>
+		{
+			o.DetectPhoneNumbers = false;
+			o.DetectEmails = false;
+			o.DetectSocialSecurityNumbers = false;
+		});
 
 		// Act
 		var result = sanitizer.SanitizeTag("notes", "Call 555-123-4567");
@@ -191,8 +204,14 @@ public sealed class ComplianceTelemetrySanitizerShould
 	[Fact]
 	public void SanitizeTag_NotDetectSsnWhenDetectSsnIsFalse()
 	{
-		// Arrange
-		var sanitizer = CreateSanitizer(o => o.DetectSocialSecurityNumbers = false);
+		// Arrange — isolate the SSN flag (see SanitizeTag_NotDetectEmails... for rationale):
+		// the other detectors do not match this value and only add a flaky wall-clock timeout.
+		var sanitizer = CreateSanitizer(o =>
+		{
+			o.DetectSocialSecurityNumbers = false;
+			o.DetectEmails = false;
+			o.DetectPhoneNumbers = false;
+		});
 
 		// Act
 		var result = sanitizer.SanitizeTag("notes", "SSN: 123-45-6789");

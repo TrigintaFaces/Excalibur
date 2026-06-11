@@ -7,6 +7,8 @@ using Excalibur.Jobs.DataProcessing;
 
 using FakeItEasy;
 
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -122,6 +124,59 @@ public sealed class DataProcessingJobShould
 	{
 		DataProcessingJob.JobConfigSectionName.ShouldBe("Jobs:DataProcessingJob");
 	}
+
+	// --- ConfigureJob honors the Disabled flag (Excalibur.Dispatch-ku1i3e) ---
+	// IServiceCollectionQuartzConfigurator cannot be faked, so these drive the real Quartz
+	// configurator and inspect the resulting QuartzOptions for the registered job detail.
+	// Inspecting options (rather than building a scheduler) keeps the test deterministic — it avoids
+	// Quartz's process-global SchedulerRepository, which is shared across parallel test classes.
+
+	[Fact]
+	public void ConfigureJobDoesNotRegisterJobWhenDisabled()
+	{
+		// Arrange — Disabled:true must mean the job is never registered with the scheduler.
+		var config = BuildJobConfig(disabled: true);
+
+		// Act
+		var registered = IsJobRegistered(config);
+
+		// Assert
+		registered.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void ConfigureJobRegistersJobWhenEnabled()
+	{
+		// Arrange — control case: proves the assertion above tests the Disabled gate, not a wiring slip.
+		var config = BuildJobConfig(disabled: false);
+
+		// Act
+		var registered = IsJobRegistered(config);
+
+		// Assert
+		registered.ShouldBeTrue();
+	}
+
+	private static bool IsJobRegistered(IConfiguration config)
+	{
+		var services = new ServiceCollection();
+		_ = services.AddQuartz(q => DataProcessingJob.ConfigureJob(q, config));
+		using var provider = services.BuildServiceProvider();
+
+		var quartzOptions = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<QuartzOptions>>().Value;
+		return quartzOptions.JobDetails.Any(j => j.Key.Equals(new JobKey("DataProcessingJob", "TestGroup")));
+	}
+
+	private static IConfiguration BuildJobConfig(bool disabled) =>
+		new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
+			{
+				["Jobs:DataProcessingJob:JobName"] = "DataProcessingJob",
+				["Jobs:DataProcessingJob:JobGroup"] = "TestGroup",
+				["Jobs:DataProcessingJob:CronSchedule"] = "0/30 * * * * ?",
+				["Jobs:DataProcessingJob:Disabled"] = disabled ? "true" : "false",
+			})
+			.Build();
 
 	private static IJobExecutionContext CreateJobContext(string jobName, string jobGroup, CancellationToken ct = default)
 	{

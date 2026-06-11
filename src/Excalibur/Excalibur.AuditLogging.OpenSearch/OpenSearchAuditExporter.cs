@@ -259,7 +259,9 @@ public sealed partial class OpenSearchAuditExporter : IAuditLogExporter
 
         foreach (var auditEvent in events)
         {
-            var indexName = $"{_options.IndexPrefix}-{auditEvent.Timestamp:yyyy.MM.dd}";
+#pragma warning disable CA1308 // Search index names must be lowercase
+            var indexName = $"{_options.IndexPrefix.ToLowerInvariant()}-{auditEvent.Timestamp:yyyy.MM.dd}";
+#pragma warning restore CA1308
             var action = new BulkIndexAction
             {
                 Index = new BulkActionMeta { IndexName = indexName, Id = auditEvent.EventId }
