@@ -257,8 +257,7 @@ public sealed class FullTextSearchOrdersQueryHandler(
 			return new CursorPagedResult<OrderSearchProjection>([], 0, 0);
 		}
 
-		var reverse = message.Navigation is PageNavigation.Previous or PageNavigation.Last;
-		return CursorHelper.ToCursorResult(response, message.Limit, reverse);
+		return CursorHelper.ToCursorResult(response, message.Limit, message.Navigation);
 	}
 }
 
@@ -303,8 +302,7 @@ public sealed class AdvancedSearchOrdersQueryHandler(
 			return new CursorPagedResult<OrderSearchProjection>([], 0, 0);
 		}
 
-		var reverse = message.Navigation is PageNavigation.Previous or PageNavigation.Last;
-		return CursorHelper.ToCursorResult(response, message.PageSize, reverse);
+		return CursorHelper.ToCursorResult(response, message.PageSize, message.Navigation);
 	}
 }
 

@@ -61,7 +61,7 @@ internal static class OrderMapper
 	/// Maps a <see cref="CursorPagedResult{T}"/> of projections to a <see cref="CursorPagedResult{T}"/> of DTOs.
 	/// </summary>
 	public static CursorPagedResult<OrderDto> ToDto(CursorPagedResult<OrderSearchProjection> paged) =>
-		new(paged.Items.Select(ToDto), paged.PageSize, paged.TotalRecords, paged.NextCursor);
+		new(paged.Items.Select(ToDto), paged.PageSize, paged.TotalRecords, paged.NextCursor, paged.PreviousCursor);
 
 	/// <summary>
 	/// Maps a list of projections to a list of DTOs.

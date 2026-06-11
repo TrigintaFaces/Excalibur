@@ -149,6 +149,84 @@ public sealed class CursorPagedResultShould
 		result.TotalPages.ShouldBe(0);
 	}
 
+	[Fact]
+	public void NextCursor_DefaultsToNull_AndHasMoreIsFalse()
+	{
+		// Arrange & Act
+		var result = new CursorPagedResult<int>([1], 10, 100);
+
+		// Assert
+		result.NextCursor.ShouldBeNull();
+		result.HasMore.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void NextCursor_SetsValue_AndHasMoreIsTrue()
+	{
+		// Arrange & Act
+		var result = new CursorPagedResult<int>([1], 10, 100, nextCursor: "fwd-token");
+
+		// Assert
+		result.NextCursor.ShouldBe("fwd-token");
+		result.HasMore.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void PreviousCursor_DefaultsToNull_AndHasPreviousIsFalse()
+	{
+		// Arrange & Act
+		var result = new CursorPagedResult<int>([1], 10, 100, nextCursor: "fwd-token");
+
+		// Assert - previousCursor not supplied
+		result.PreviousCursor.ShouldBeNull();
+		result.HasPrevious.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void PreviousCursor_SetsValue_AndHasPreviousIsTrue()
+	{
+		// Arrange & Act
+		var result = new CursorPagedResult<int>([1], 10, 100, nextCursor: "fwd-token", previousCursor: "back-token");
+
+		// Assert
+		result.PreviousCursor.ShouldBe("back-token");
+		result.HasPrevious.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void ForwardAndBackwardCursors_AreIndependent()
+	{
+		// Arrange & Act - a middle page has both directions available
+		var middle = new CursorPagedResult<int>([1], 10, 100, nextCursor: "n", previousCursor: "p");
+
+		// First page: backward null, forward set
+		var first = new CursorPagedResult<int>([1], 10, 100, nextCursor: "n");
+
+		// Last page: forward null, backward set
+		var last = new CursorPagedResult<int>([1], 10, 100, nextCursor: null, previousCursor: "p");
+
+		// Assert
+		middle.HasMore.ShouldBeTrue();
+		middle.HasPrevious.ShouldBeTrue();
+
+		first.HasMore.ShouldBeTrue();
+		first.HasPrevious.ShouldBeFalse();
+
+		last.HasMore.ShouldBeFalse();
+		last.HasPrevious.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void PreviousCursor_CanBeModifiedViaInit()
+	{
+		// Arrange & Act
+		var result = new CursorPagedResult<int>([1], 10, 100) { PreviousCursor = "back-token" };
+
+		// Assert
+		result.PreviousCursor.ShouldBe("back-token");
+		result.HasPrevious.ShouldBeTrue();
+	}
+
 	private sealed class TestItem
 	{
 		public int Id { get; init; }
