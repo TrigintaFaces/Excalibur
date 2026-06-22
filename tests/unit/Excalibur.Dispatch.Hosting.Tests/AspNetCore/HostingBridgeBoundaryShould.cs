@@ -32,7 +32,8 @@ public sealed class HostingBridgeBoundaryShould : UnitTestBase
 		"AspNetCoreAuthorizationOptions",
 		"DispatchContentNegotiationExtensions",
 		"DispatchInputFormatter",
-		"DispatchOutputFormatter"
+		"DispatchOutputFormatter",
+		"DispatchAspNetCoreScopeExtensions"
 	};
 
 	private static readonly string[] ForbiddenAssemblyPatterns =
@@ -176,6 +177,7 @@ public sealed class HostingBridgeBoundaryShould : UnitTestBase
 	[InlineData("DispatchContentNegotiationExtensions")]
 	[InlineData("DispatchInputFormatter")]
 	[InlineData("DispatchOutputFormatter")]
+	[InlineData("DispatchAspNetCoreScopeExtensions")]
 	public void ContainAllowed_Type(string typeName)
 	{
 		// Arrange
@@ -193,7 +195,7 @@ public sealed class HostingBridgeBoundaryShould : UnitTestBase
 	public void Have_TenPublicTypes()
 	{
 		// Arrange
-		var expectedCount = 13;
+		var expectedCount = 14;
 
 		// Act
 		var actualCount = HostingAssembly.GetExportedTypes().Length;
