@@ -30,6 +30,7 @@
       "src\\Dispatch\\Excalibur.Dispatch.LeaderElection.Abstractions\\Excalibur.Dispatch.LeaderElection.Abstractions.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Observability.Aws\\Excalibur.Dispatch.Observability.Aws.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Observability\\Excalibur.Dispatch.Observability.csproj",
+      "src\\metapackages\\Excalibur.Dispatch.AspNetCore\\Excalibur.Dispatch.AspNetCore.csproj",
       "src\\metapackages\\Excalibur.Dispatch.Aws\\Excalibur.Dispatch.Aws.csproj",
       "src\\metapackages\\Excalibur.Dispatch.Azure\\Excalibur.Dispatch.Azure.csproj",
       "src\\metapackages\\Excalibur.Dispatch.Kafka\\Excalibur.Dispatch.Kafka.csproj",

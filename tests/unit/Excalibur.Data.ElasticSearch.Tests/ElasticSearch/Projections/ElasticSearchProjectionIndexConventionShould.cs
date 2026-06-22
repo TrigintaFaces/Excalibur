@@ -56,6 +56,6 @@ public sealed class ElasticSearchProjectionIndexConventionShould
 		var index = ElasticSearchProjectionIndexConvention.GetIndexName(options, "TransactionProjection");
 
 		index.ShouldBe("co-transactions-transaction-development");
-		index.ShouldBe(index.ToLowerInvariant(), "Elasticsearch index names must be lowercase.");
+		index.ShouldNotContain(static c => char.IsUpper(c), "Elasticsearch index names must be lowercase.");
 	}
 }

@@ -88,6 +88,17 @@ internal sealed partial class LocalMessageBus(
 	private readonly IServiceProviderIsService? _serviceProviderIsService =
 		provider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
 
+	// Scope-correct handler resolution (eliminates the captive-dependency failure where a singleton
+	// message bus resolves a scoped handler from the root container). The lifetime decision and scope
+	// acquisition live in a dedicated collaborator; the bus keeps only a hot-path verdict cache keyed by
+	// action type so the root-resolvable path (transient/singleton handlers) pays no dictionary lookup.
+	private readonly HandlerScopeResolver _scopeResolver = new(provider);
+	private readonly ConcurrentDictionary<Type, bool> _actionRequiresScopeCache = new();
+
+	[ThreadStatic] private static LocalMessageBus? s_scopeReqBus;
+	[ThreadStatic] private static Type? s_scopeReqType;
+	[ThreadStatic] private static bool s_scopeReqValue;
+
 	private readonly IValueTaskHandlerInvoker? _valueTaskInvoker = invoker as IValueTaskHandlerInvoker;
 
 	private delegate bool DirectActionNoResponseSyncInvoker(
@@ -403,6 +414,15 @@ internal sealed partial class LocalMessageBus(
 		ArgumentNullException.ThrowIfNull(context);
 
 		var actionType = action.GetType();
+
+		// Scoped handlers must resolve from a DI scope, not the root container captured by this
+		// singleton bus. Deterministic + cached; the root-resolvable hot path never enters here.
+		if (RequiresScope(actionType) && TryGetHandlerEntry(actionType, out var scopedEntry))
+		{
+			invocation = InvokeScopedObjectAsync(actionType, scopedEntry.HandlerType, action, cancellationToken);
+			return true;
+		}
+
 		if (!TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
 		{
 			if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan))
@@ -444,6 +464,15 @@ internal sealed partial class LocalMessageBus(
 		ArgumentNullException.ThrowIfNull(context);
 
 		var actionType = action.GetType();
+
+		// Scoped handlers must resolve from a DI scope, not the root container captured by this
+		// singleton bus. Deterministic + cached; the root-resolvable hot path never enters here.
+		if (RequiresScope(actionType) && TryGetHandlerEntry(actionType, out var scopedEntry))
+		{
+			invocation = InvokeScopedNoResponseAsync(actionType, scopedEntry.HandlerType, action, cancellationToken);
+			return true;
+		}
+
 		if (!TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
 		{
 			if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan))
@@ -537,6 +566,14 @@ internal sealed partial class LocalMessageBus(
 			return false;
 		}
 
+		// Scoped handlers must resolve from a DI scope, not the root container captured by this
+		// singleton bus. Deterministic + cached; the root-resolvable hot path never enters here.
+		if (RequiresScope(actionType))
+		{
+			invocation = InvokeScopedTypedAsync<TMessage, TResponse>(actionType, entry.HandlerType, action, cancellationToken);
+			return true;
+		}
+
 		if (typeof(IActionHandler<TMessage, TResponse>).IsAssignableFrom(entry.HandlerType))
 		{
 			var handlerInstance = ResolveHandlerWithoutContext(entry.HandlerType);
@@ -575,6 +612,16 @@ internal sealed partial class LocalMessageBus(
 		ArgumentNullException.ThrowIfNull(action);
 
 		var actionType = action.GetType();
+
+		// Scoped handlers must resolve from a DI scope, not the root container captured by this
+		// singleton bus. Deterministic + cached; the root-resolvable hot path never enters here.
+		if (RequiresScope(actionType) && TryGetHandlerEntry(actionType, out var scopedEntry))
+		{
+			requiresContext = false;
+			invocation = InvokeScopedObjectAsync(actionType, scopedEntry.HandlerType, action, cancellationToken);
+			return true;
+		}
+
 		if (!TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
 		{
 			if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan))
@@ -629,6 +676,16 @@ internal sealed partial class LocalMessageBus(
 		ArgumentNullException.ThrowIfNull(action);
 
 		var actionType = action.GetType();
+
+		// Scoped handlers must resolve from a DI scope, not the root container captured by this
+		// singleton bus. Deterministic + cached; the root-resolvable hot path never enters here.
+		if (RequiresScope(actionType) && TryGetHandlerEntry(actionType, out var scopedEntry))
+		{
+			requiresContext = false;
+			invocation = InvokeScopedNoResponseAsync(actionType, scopedEntry.HandlerType, action, cancellationToken);
+			return true;
+		}
+
 		if (!TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
 		{
 			if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan))
@@ -708,6 +765,14 @@ internal sealed partial class LocalMessageBus(
 		ArgumentNullException.ThrowIfNull(actionType);
 		ArgumentNullException.ThrowIfNull(action);
 
+		// Scoped handlers must resolve from a DI scope, not the root container captured by this
+		// singleton bus. Deterministic + cached; the root-resolvable hot path never enters here.
+		if (RequiresScope(actionType) && TryGetHandlerEntry(actionType, out var scopedEntry))
+		{
+			invocation = InvokeScopedNoResponseAsync(actionType, scopedEntry.HandlerType, action, cancellationToken);
+			return true;
+		}
+
 		if (TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
 		{
 			if (resolvedPlan.ExpectsResponse || resolvedPlan.RequiresContext)
@@ -770,6 +835,14 @@ internal sealed partial class LocalMessageBus(
 		ArgumentNullException.ThrowIfNull(actionType);
 		ArgumentNullException.ThrowIfNull(action);
 
+		// Scoped handlers must resolve from a DI scope, not the root container captured by this
+		// singleton bus. Deterministic + cached; the root-resolvable hot path never enters here.
+		if (RequiresScope(actionType) && TryGetHandlerEntry(actionType, out var scopedEntry))
+		{
+			invocation = InvokeScopedObjectAsync(actionType, scopedEntry.HandlerType, action, cancellationToken);
+			return true;
+		}
+
 		if (TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
 		{
 			if (!resolvedPlan.ExpectsResponse || resolvedPlan.RequiresContext)
@@ -830,6 +903,28 @@ internal sealed partial class LocalMessageBus(
 		out Func<IDispatchAction, CancellationToken, ValueTask<object?>>? withResponseInvoker)
 	{
 		ArgumentNullException.ThrowIfNull(actionType);
+
+		// Scoped handlers must resolve from a DI scope, not the root container captured by this singleton
+		// bus. Emit scope-aware invokers (each creates/borrows a scope per invocation); the root-resolvable
+		// hot path never enters here.
+		if (RequiresScope(actionType) && TryGetHandlerEntry(actionType, out var scopedEntry))
+		{
+			var scopedHandlerType = scopedEntry.HandlerType;
+			expectsResponse = scopedEntry.ExpectsResponse;
+			requiresContext = false;
+			if (expectsResponse)
+			{
+				withResponseInvoker = (scopedAction, scopedToken) => InvokeScopedObjectAsync(actionType, scopedHandlerType, scopedAction, scopedToken);
+				noResponseInvoker = null;
+			}
+			else
+			{
+				noResponseInvoker = (scopedAction, scopedToken) => InvokeScopedNoResponseAsync(actionType, scopedHandlerType, scopedAction, scopedToken);
+				withResponseInvoker = null;
+			}
+
+			return true;
+		}
 
 		if (TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
 		{
@@ -1698,6 +1793,80 @@ internal sealed partial class LocalMessageBus(
 			: new ValueTask(task);
 	}
 
+	/// <summary>
+	/// Returns whether the handler for <paramref name="actionType"/> must be resolved from a
+	/// dependency-injection scope (rather than the root container captured by this singleton bus).
+	/// Deterministic and cached per action type; the warm path is a ThreadStatic compare so the
+	/// root-resolvable hot path (transient/singleton handlers) pays no dictionary lookup.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool RequiresScope(Type actionType)
+	{
+		if (ReferenceEquals(s_scopeReqBus, this) && ReferenceEquals(s_scopeReqType, actionType))
+		{
+			return s_scopeReqValue;
+		}
+
+		var requiresScope = _actionRequiresScopeCache.GetOrAdd(
+			actionType,
+			static (type, self) => self.ResolveActionScopeVerdict(type),
+			this);
+
+		s_scopeReqBus = this;
+		s_scopeReqType = actionType;
+		s_scopeReqValue = requiresScope;
+		return requiresScope;
+	}
+
+	private bool ResolveActionScopeVerdict(Type actionType)
+		=> TryGetHandlerEntry(actionType, out var entry) && _scopeResolver.RequiresScope(entry.HandlerType);
+
+	private ValueTask<TResponse?> InvokeScopedTypedAsync<TMessage, TResponse>(
+		Type actionType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+		TMessage action,
+		CancellationToken cancellationToken)
+		where TMessage : IDispatchAction<TResponse>
+		=> _scopeResolver.RunAsync<TResponse?>(handlerType, async scopedProvider =>
+		{
+			// Prefer the source-generated precompiled plan (AOT-safe, no reflection), resolved from the
+			// scope provider; fall back to activator-based resolution (also from the scope) otherwise.
+			if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan) &&
+				!ResolveRequiresContext(actionType, precompiledPlan.RequiresContext))
+			{
+				return (TResponse?)await precompiledPlan.Invoke(action, scopedProvider, context: null, cancellationToken).ConfigureAwait(false);
+			}
+
+			var handler = (IActionHandler<TMessage, TResponse>)ActivateHandler(handlerType, new MessageContext(action, scopedProvider));
+			return await handler.HandleAsync(action, cancellationToken).ConfigureAwait(false);
+		});
+
+	private ValueTask<object?> InvokeScopedObjectAsync(
+		Type actionType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+		IDispatchAction action,
+		CancellationToken cancellationToken)
+		=> _scopeResolver.RunAsync(handlerType, async scopedProvider =>
+		{
+			// Prefer the source-generated precompiled plan (AOT-safe, no reflection), resolved from the
+			// scope provider; fall back to activator-based resolution (also from the scope) otherwise.
+			if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan) &&
+				!ResolveRequiresContext(actionType, precompiledPlan.RequiresContext))
+			{
+				return await precompiledPlan.Invoke(action, scopedProvider, context: null, cancellationToken).ConfigureAwait(false);
+			}
+
+			var handler = ActivateHandler(handlerType, new MessageContext(action, scopedProvider));
+			return await InvokeHandler(handler, action, cancellationToken).ConfigureAwait(false);
+		});
+
+	private async ValueTask InvokeScopedNoResponseAsync(
+		Type actionType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+		IDispatchAction action,
+		CancellationToken cancellationToken)
+		=> _ = await InvokeScopedObjectAsync(actionType, handlerType, action, cancellationToken).ConfigureAwait(false);
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private object ResolveHandlerWithoutContext(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
@@ -1940,7 +2109,12 @@ internal sealed partial class LocalMessageBus(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
 		Type handlerType)
 	{
-		return IsSelfRegisteredHandler(handlerType) && !HandlerActivator.RequiresContextInjection(handlerType);
+		// A scoped handler must never be cached as a process-lifetime singleton, nor resolved from the
+		// root container — exclude it from the singleton/no-context bypass so it flows through the
+		// scope-aware resolution paths.
+		return IsSelfRegisteredHandler(handlerType)
+			&& !HandlerActivator.RequiresContextInjection(handlerType)
+			&& !_scopeResolver.RequiresScope(handlerType);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

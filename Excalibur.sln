@@ -761,6 +761,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GlobalStreamProjectionHost"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProofOfLife", "samples\11-real-world\ProofOfLife\ProofOfLife.csproj", "{B4A77CAB-4AB5-40D6-BAC9-E5F0F318ED07}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.AspNetCore", "src\metapackages\Excalibur.Dispatch.AspNetCore\Excalibur.Dispatch.AspNetCore.csproj", "{C3228980-53A6-40C0-A1A5-7E4BAA58036B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -4923,6 +4925,18 @@ Global
 		{B4A77CAB-4AB5-40D6-BAC9-E5F0F318ED07}.Release|x64.Build.0 = Release|Any CPU
 		{B4A77CAB-4AB5-40D6-BAC9-E5F0F318ED07}.Release|x86.ActiveCfg = Release|Any CPU
 		{B4A77CAB-4AB5-40D6-BAC9-E5F0F318ED07}.Release|x86.Build.0 = Release|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Debug|x64.Build.0 = Debug|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Debug|x86.Build.0 = Debug|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Release|x64.ActiveCfg = Release|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Release|x64.Build.0 = Release|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Release|x86.ActiveCfg = Release|Any CPU
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -5301,6 +5315,7 @@ Global
 		{47CD4FE7-9ACF-4699-A827-4A3CC79B12A7} = {D18C64A8-6939-1DE8-82B5-45650DFDA802}
 		{7815C397-401D-4F00-9520-9A0AF2D4AF2B} = {D18C64A8-6939-1DE8-82B5-45650DFDA802}
 		{B4A77CAB-4AB5-40D6-BAC9-E5F0F318ED07} = {79DCFA68-2211-2484-2ADA-D338B28E8168}
+		{C3228980-53A6-40C0-A1A5-7E4BAA58036B} = {4D6AED83-3C94-8377-18E2-14E54119BB1E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {EFE5908E-B239-4D01-92E0-08B7EA4A95B2}

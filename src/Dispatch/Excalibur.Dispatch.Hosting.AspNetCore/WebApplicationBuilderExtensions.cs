@@ -28,6 +28,10 @@ public static class WebApplicationBuilderExtensions
 
 		_ = builder.Services.AddDispatch(configure);
 
+		// Flow the active request scope to scoped message handlers (so they share request-scoped state
+		// instead of resolving from a fresh scope). Safe and idempotent via TryAdd.
+		_ = builder.Services.AddDispatchAmbientScope();
+
 		// Register startup filter for early validation during Build()
 		builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupFilter, DispatchStartupFilter>());
 

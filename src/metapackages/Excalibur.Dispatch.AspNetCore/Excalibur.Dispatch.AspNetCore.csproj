@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.AspNetCore</PackageId>
+    <Description>Experience metapackage bundling Excalibur.Dispatch with ASP.NET Core hosting, request-scope-aware handler resolution, and observability. Provides a single AddDispatchAspNetCore() call for the common web scenario.</Description>
+    <PackageTags>excalibur;dispatch;aspnetcore;web;hosting;observability;metapackage</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Hosting.AspNetCore\Excalibur.Dispatch.Hosting.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
+  </ItemGroup>
+</Project>

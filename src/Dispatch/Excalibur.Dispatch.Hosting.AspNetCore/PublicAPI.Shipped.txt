@@ -24,6 +24,7 @@ Excalibur.Dispatch.Hosting.AspNetCore.MessageResultExtensions
 Excalibur.Dispatch.Hosting.AspNetCore.RouteMessageHandlerFactory
 Microsoft.AspNetCore.Builder.WebApplicationBuilderExtensions
 Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreAuthorizationExtensions
+Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreScopeExtensions
 Microsoft.Extensions.DependencyInjection.DispatchContentNegotiationExtensions
 override Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation.DispatchInputFormatter.ReadRequestBodyAsync(Microsoft.AspNetCore.Mvc.Formatters.InputFormatterContext! context) -> System.Threading.Tasks.Task<Microsoft.AspNetCore.Mvc.Formatters.InputFormatterResult!>!
 override Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation.DispatchOutputFormatter.WriteResponseBodyAsync(Microsoft.AspNetCore.Mvc.Formatters.OutputFormatterWriteContext! context) -> System.Threading.Tasks.Task!
@@ -73,4 +74,5 @@ static Excalibur.Dispatch.Hosting.AspNetCore.RouteMessageHandlerFactory.CreateMe
 static Excalibur.Dispatch.Hosting.AspNetCore.RouteMessageHandlerFactory.CreateMessageHandler<TRequest, TAction>(System.Func<TRequest!, Microsoft.AspNetCore.Http.HttpContext!, TAction!>! actionFactory, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult!, Microsoft.AspNetCore.Http.IResult!>! responseFactory, System.Action<Excalibur.Dispatch.Messaging.MessageContext!>? customizeContext = null) -> System.Delegate!
 static Microsoft.AspNetCore.Builder.WebApplicationBuilderExtensions.AddDispatch(this Microsoft.AspNetCore.Builder.WebApplicationBuilder! builder, System.Action<Excalibur.Dispatch.Configuration.IDispatchBuilder!>? configure = null) -> Microsoft.AspNetCore.Builder.WebApplicationBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreAuthorizationExtensions.UseAspNetCoreAuthorization(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreScopeExtensions.AddDispatchAmbientScope(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchContentNegotiationExtensions.AddDispatchContentNegotiation(this Microsoft.Extensions.DependencyInjection.IMvcBuilder! builder) -> Microsoft.Extensions.DependencyInjection.IMvcBuilder!

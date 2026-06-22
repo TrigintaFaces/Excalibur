@@ -97,6 +97,10 @@ public static class DispatchServiceCollectionExtensions
 		// consumers just need to subscribe via AddOpenTelemetry().
 		_ = services.AddDispatchTelemetry();
 
+		// Captures handler ServiceLifetimes (built lazily from the final descriptor set) so the
+		// singleton LocalMessageBus resolves scoped handlers from a scope, never the root container.
+		services.TryAddSingleton(new HandlerLifetimeRegistry(services));
+
 		services.TryAddSingleton<LocalMessageBus>();
 		_ = services.AddMessageBus(
 			"Local",

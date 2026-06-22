@@ -112,6 +112,22 @@ By default, handlers are registered as **scoped** (one instance per request).
 | **Transient** | Handler is stateless and lightweight |
 | **Singleton** | Handler is thread-safe with no scoped dependencies |
 
+:::note Scoped handlers are fully supported
+A scoped handler — or a handler with scoped dependencies — is always resolved from a
+dependency-injection **scope**, never the root container, even when dispatched through the
+context-less `dispatcher.DispatchAsync(message, ct)` overload.
+
+- **ASP.NET Core:** the handler shares the **active request scope** (the same `IUnitOfWork` / `IDb` /
+  `DbContext` as the rest of the request). This is wired automatically by
+  `WebApplicationBuilder.AddDispatch(...)`. If you compose Dispatch through a different entry point
+  (for example `services.AddExcalibur(...)`), call `services.AddDispatchAmbientScope()` once to share
+  the request scope.
+- **Workers / console / serverless:** each dispatch gets a **fresh scope** that is disposed when the
+  handler completes.
+
+See ADR-335 (Scope-Correct Handler Resolution) for the design and rationale.
+:::
+
 ## Service Injection
 
 Inject services into handlers through constructor injection:
@@ -357,9 +373,9 @@ Dispatch registers these services automatically:
 
 | Service | Lifetime | Purpose |
 |---------|----------|---------|
-| `IDispatcher` | Scoped | Message dispatching |
-| `IMessageContextAccessor` | Scoped | Access current message context |
-| `IMessageContextFactory` | Scoped | Create new contexts |
+| `IDispatcher` | Singleton | Message dispatching (resolves scoped handlers from the active or a fresh scope) |
+| `IMessageContextAccessor` | Singleton | Access current message context (ambient via AsyncLocal) |
+| `IMessageContextFactory` | Singleton | Create new contexts |
 | `IPipelineProfileRegistry` | Singleton | Pipeline profile lookup |
 
 ## Testing Configuration

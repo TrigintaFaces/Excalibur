@@ -137,6 +137,7 @@ projects:
   - path: src/Dispatch/Excalibur.Dispatch.LeaderElection.Abstractions/Excalibur.Dispatch.LeaderElection.Abstractions.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Observability.Aws/Excalibur.Dispatch.Observability.Aws.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Observability/Excalibur.Dispatch.Observability.csproj
+  - path: src/metapackages/Excalibur.Dispatch.AspNetCore/Excalibur.Dispatch.AspNetCore.csproj
   - path: src/metapackages/Excalibur.Dispatch.Aws/Excalibur.Dispatch.Aws.csproj
   - path: src/metapackages/Excalibur.Dispatch.Azure/Excalibur.Dispatch.Azure.csproj
   - path: src/metapackages/Excalibur.Dispatch.Kafka/Excalibur.Dispatch.Kafka.csproj

@@ -598,6 +598,8 @@ Excalibur.Dispatch.IDirectLocalDispatcher.DispatchLocalAsync<TMessage, TResponse
 Excalibur.Dispatch.IDirectLocalDispatcher.DispatchLocalAsync<TMessage>(TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.IDispatchAction
 Excalibur.Dispatch.IDispatchAction<TResponse>
+Excalibur.Dispatch.IDispatchAmbientScopeAccessor
+Excalibur.Dispatch.IDispatchAmbientScopeAccessor.CurrentServiceProvider.get -> System.IServiceProvider?
 Excalibur.Dispatch.IDispatchDocument
 Excalibur.Dispatch.IDispatchEvent
 Excalibur.Dispatch.IDispatchHandler<TMessage>
@@ -1001,6 +1003,8 @@ Excalibur.Dispatch.ITimeoutOperationToken.StartTime.get -> System.DateTimeOffset
 Excalibur.Dispatch.ITransactionalOutboxStore
 Excalibur.Dispatch.ITransactionalOutboxStore.MarkSentTransactionalAsync(System.Collections.Generic.IReadOnlyList<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.ITransactionalOutboxStore.SupportsTransactions.get -> bool
+Excalibur.Dispatch.ITransactionalOutboxWriter
+Excalibur.Dispatch.ITransactionalOutboxWriter.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.ITransportMessageMetadata
 Excalibur.Dispatch.ITransportMessageMetadata.CausationId.get -> string?
 Excalibur.Dispatch.ITransportMessageMetadata.CausationId.init -> void
@@ -1579,6 +1583,12 @@ Excalibur.Dispatch.Outbox.OutboxConsistencyMode
 Excalibur.Dispatch.Outbox.OutboxConsistencyMode.EventuallyConsistent = 0 -> Excalibur.Dispatch.Outbox.OutboxConsistencyMode
 Excalibur.Dispatch.Outbox.OutboxConsistencyMode.Transactional = 1 -> Excalibur.Dispatch.Outbox.OutboxConsistencyMode
 Excalibur.Dispatch.Outbox.OutboxWriterExtensions
+Excalibur.Dispatch.OutboxHeaderNames
+Excalibur.Dispatch.OutboxStagingStrategy
+Excalibur.Dispatch.OutboxStagingStrategy.Auto = 0 -> Excalibur.Dispatch.OutboxStagingStrategy
+Excalibur.Dispatch.OutboxStagingStrategy.Deferred = 3 -> Excalibur.Dispatch.OutboxStagingStrategy
+Excalibur.Dispatch.OutboxStagingStrategy.EventuallyConsistent = 2 -> Excalibur.Dispatch.OutboxStagingStrategy
+Excalibur.Dispatch.OutboxStagingStrategy.Transactional = 1 -> Excalibur.Dispatch.OutboxStagingStrategy
 Excalibur.Dispatch.OutboxStatistics
 Excalibur.Dispatch.OutboxStatistics.CapturedAt.get -> System.DateTimeOffset
 Excalibur.Dispatch.OutboxStatistics.CapturedAt.init -> void
@@ -1678,6 +1688,14 @@ Excalibur.Dispatch.PublishingResult.TotalProcessed.get -> int
 Excalibur.Dispatch.RequiresFeaturesAttribute
 Excalibur.Dispatch.RequiresFeaturesAttribute.Features.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.DispatchFeatures>!
 Excalibur.Dispatch.RequiresFeaturesAttribute.RequiresFeaturesAttribute(params Excalibur.Dispatch.DispatchFeatures[]! features) -> void
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException() -> void
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException(string! circuitName) -> void
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException(string! circuitName, System.TimeSpan retryAfter) -> void
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitName.get -> string?
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.get -> System.TimeSpan?
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.init -> void
 Excalibur.Dispatch.Routing.IDispatchRouter
 Excalibur.Dispatch.Routing.IDispatchRouter.CanRouteTo(Excalibur.Dispatch.IDispatchMessage! message, string! destination) -> bool
 Excalibur.Dispatch.Routing.IDispatchRouter.GetAvailableRoutes(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Routing.RouteInfo!>!
@@ -2405,14 +2423,6 @@ Excalibur.Dispatch.Validation.ValidationSeverity.Warning = 1 -> Excalibur.Dispat
 Excalibur.Dispatch.Versioning.IMessageVersionMapper
 Excalibur.Dispatch.Versioning.IMessageVersionMapper.CanMap(string! messageType, int fromVersion, int toVersion) -> bool
 Excalibur.Dispatch.Versioning.IMessageVersionMapper.Map(object! message, string! messageType, int fromVersion, int toVersion) -> object!
-Excalibur.Dispatch.Resilience.CircuitBreakerOpenException
-Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException() -> void
-Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException(string! circuitName) -> void
-Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException(string! circuitName, System.TimeSpan retryAfter) -> void
-Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException(string! message, System.Exception! innerException) -> void
-Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitName.get -> string?
-Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.get -> System.TimeSpan?
-Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.init -> void
 abstract Excalibur.Dispatch.ChangePosition.Equals(Excalibur.Dispatch.ChangePosition? other) -> bool
 abstract Excalibur.Dispatch.ChangePosition.IsValid.get -> bool
 abstract Excalibur.Dispatch.ChangePosition.ToToken() -> string!
@@ -2773,6 +2783,11 @@ const Excalibur.Dispatch.MetadataPropertyKeys.TimeToLive = "TimeToLive" -> strin
 const Excalibur.Dispatch.MetadataPropertyKeys.TraceParent = "TraceParent" -> string!
 const Excalibur.Dispatch.MetadataPropertyKeys.TraceState = "TraceState" -> string!
 const Excalibur.Dispatch.MetadataPropertyKeys.UserId = "UserId" -> string!
+const Excalibur.Dispatch.OutboxHeaderNames.AggregateId = "aggregate-id" -> string!
+const Excalibur.Dispatch.OutboxHeaderNames.AggregateType = "aggregate-type" -> string!
+const Excalibur.Dispatch.OutboxHeaderNames.CausationId = "causation-id" -> string!
+const Excalibur.Dispatch.OutboxHeaderNames.CorrelationId = "correlation-id" -> string!
+const Excalibur.Dispatch.OutboxHeaderNames.TenantId = "tenant-id" -> string!
 const Excalibur.Dispatch.ProblemDetailsTypes.BackgroundExecution = "urn:dispatch:error:background-execution" -> string!
 const Excalibur.Dispatch.ProblemDetailsTypes.Concurrency = "urn:dispatch:error:concurrency" -> string!
 const Excalibur.Dispatch.ProblemDetailsTypes.Conflict = "urn:dispatch:error:conflict" -> string!
@@ -3210,16 +3225,3 @@ virtual Excalibur.Dispatch.DomainEvent.OccurredAt.get -> System.DateTimeOffset
 virtual Excalibur.Dispatch.DomainEvent.OccurredAt.init -> void
 virtual Excalibur.Dispatch.DomainEvent.Version.get -> long
 virtual Excalibur.Dispatch.DomainEvent.Version.init -> void
-Excalibur.Dispatch.ITransactionalOutboxWriter
-Excalibur.Dispatch.ITransactionalOutboxWriter.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.OutboxHeaderNames
-const Excalibur.Dispatch.OutboxHeaderNames.AggregateId = "aggregate-id" -> string!
-const Excalibur.Dispatch.OutboxHeaderNames.AggregateType = "aggregate-type" -> string!
-const Excalibur.Dispatch.OutboxHeaderNames.CausationId = "causation-id" -> string!
-const Excalibur.Dispatch.OutboxHeaderNames.CorrelationId = "correlation-id" -> string!
-const Excalibur.Dispatch.OutboxHeaderNames.TenantId = "tenant-id" -> string!
-Excalibur.Dispatch.OutboxStagingStrategy
-Excalibur.Dispatch.OutboxStagingStrategy.Auto = 0 -> Excalibur.Dispatch.OutboxStagingStrategy
-Excalibur.Dispatch.OutboxStagingStrategy.Transactional = 1 -> Excalibur.Dispatch.OutboxStagingStrategy
-Excalibur.Dispatch.OutboxStagingStrategy.EventuallyConsistent = 2 -> Excalibur.Dispatch.OutboxStagingStrategy
-Excalibur.Dispatch.OutboxStagingStrategy.Deferred = 3 -> Excalibur.Dispatch.OutboxStagingStrategy
