@@ -85,13 +85,33 @@ internal sealed class HandlerScopeResolver
     }
 
     /// <summary>
-    /// Runs <paramref name="invoke"/> using a service provider that can satisfy a scoped handler: the
-    /// ambient scope when available (borrowed — not disposed here), otherwise a freshly created scope that
-    /// is disposed after the invocation completes.
+    /// Runs <paramref name="invoke"/> using a service provider that can satisfy a scoped handler, in
+    /// precedence order: the caller-supplied <paramref name="preferredScope"/> (the request scope a
+    /// context-bound dispatch already carries) when present; otherwise the ambient scope; otherwise a
+    /// freshly created scope. The first two are borrowed (never disposed here); a created scope is disposed
+    /// after the invocation completes.
     /// </summary>
-    public async ValueTask<T> RunAsync<T>(Type handlerType, Func<IServiceProvider, ValueTask<T>> invoke)
+    /// <param name="handlerType">The handler type being resolved (used only for diagnostics).</param>
+    /// <param name="preferredScope">
+    /// An explicit scope supplied by the caller (typically <c>IMessageContext.RequestServices</c>). When
+    /// non-<see langword="null"/> it is used directly so the handler shares the caller's request scope; the
+    /// caller is responsible for filtering out the root provider before passing it.
+    /// </param>
+    /// <param name="invoke">The handler invocation, given the resolved scope's service provider.</param>
+    public async ValueTask<T> RunAsync<T>(
+        Type handlerType,
+        IServiceProvider? preferredScope,
+        Func<IServiceProvider, ValueTask<T>> invoke)
     {
         ArgumentNullException.ThrowIfNull(invoke);
+
+        // 1. An explicit caller-supplied scope (the dispatch context's request scope) — borrowed, never
+        //    disposed here. Honors the request scope a context-bound dispatch already carries so the
+        //    handler's IMessageContext.RequestServices is the same instance the caller is using.
+        if (preferredScope is not null)
+        {
+            return await invoke(preferredScope).ConfigureAwait(false);
+        }
 
         var ambient = _ambientScope?.CurrentServiceProvider;
         if (ambient is not null)
