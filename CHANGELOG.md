@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Scoped handlers resolved from the root container (captive dependency)** -- Dispatching a handler registered `Scoped` (or a handler with a scoped dependency) through the context-less / ultra-local fast paths failed with `Cannot resolve scoped service '…' from root provider` (surfacing as a 500 / failed `IMessageResult` titled "Direct local dispatch failed"). The singleton `LocalMessageBus` now resolves such handlers from a DI scope — the ambient request scope when an `IDispatchAmbientScopeAccessor` supplies one (shared request-scoped state), otherwise a fresh `IServiceScopeFactory` scope disposed after the handler completes. The scope verdict is deterministic (registered lifetime + constructor inspection) and cached, so the root-resolvable hot path (transient/singleton handlers) is unchanged. AOT-safe. See ADR-335.
 
+### Security
+
+- **Transitive CVE remediation** -- `MessagePack` 3.1.4 → 3.1.7 (CVE-2026-48109: LZ4 decompression denial-of-service). `SQLitePCLRaw` 2.1.11 → bundle 3.0.3 / `lib.e_sqlite3` 3.50.3 (CVE-2025-6965: bundled SQLite < 3.50.2), pulled transitively by `Microsoft.Data.Sqlite`; remediated via Central Package Management transitive pinning. Verified clean via `dotnet restore eng/ci/shards/ShippingOnly.slnf` and `dotnet list package --vulnerable`.
+
 ### Added
 
 - **SagaTimeoutOptionsValidator** -- `IValidateOptions<SagaTimeoutOptions>` enforcing PollInterval ≥ 100ms, BatchSize ≥ 1, ShutdownTimeout > 0. Registered with ValidateOnStart.

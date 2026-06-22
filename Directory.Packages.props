@@ -25,7 +25,7 @@
 		<PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.7" />
 		<PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.7" />
 		<!-- Serialization / Messaging -->
-		<PackageVersion Include="MessagePack" Version="3.1.4" />
+		<PackageVersion Include="MessagePack" Version="3.1.7" />
 		<PackageVersion Include="CloudNative.CloudEvents" Version="2.8.0" />
 		<PackageVersion Include="CloudNative.CloudEvents.SystemTextJson" Version="2.8.0" />
 		<PackageVersion Include="Google.Protobuf" Version="3.34.1" />
@@ -271,6 +271,13 @@
 		<PackageVersion Include="protobuf-net" Version="3.2.45" />
 		<PackageVersion Include="Microsoft.Data.SqlClient" Version="7.0.0" />
 		<PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.7" />
+		<!-- Security (CVE-2025-6965): Microsoft.Data.Sqlite transitively pulls SQLitePCLRaw 2.1.11, whose
+		     bundled SQLite (< 3.50.2) is vulnerable. Override to the patched 3.0.x / lib 3.50.3 line via
+		     CPM transitive pinning (CentralPackageTransitivePinningEnabled). -->
+		<PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+		<PackageVersion Include="SQLitePCLRaw.core" Version="3.0.3" />
+		<PackageVersion Include="SQLitePCLRaw.provider.e_sqlite3" Version="3.0.3" />
+		<PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
 		<PackageVersion Include="MassTransit" Version="8.5.9" />
 		<PackageVersion Include="MediatR" Version="12.5.0" />
 		<PackageVersion Include="NServiceBus" Version="10.1.3" />

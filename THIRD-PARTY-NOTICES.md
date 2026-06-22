@@ -95,7 +95,7 @@ It is generated from project files; licenses remain with their respective owners
 | KubernetesClient | 19.0.2 |
 | Medo.Uuid7 | 3.2.0 |
 | MemoryPack | 1.21.4 |
-| MessagePack | 3.1.4 |
+| MessagePack | 3.1.7 |
 | Microsoft.ApplicationInsights | 3.1.0 |
 | Microsoft.ApplicationInsights.AspNetCore | 3.1.0 |
 | Microsoft.AspNetCore.Authorization | 10.0.7 |
