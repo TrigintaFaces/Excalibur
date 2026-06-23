@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Benchmarks.Diagnostics;
 /// Breaks dispatch into component-level costs to pinpoint hot-path regressions.
 /// </summary>
 [MemoryDiagnoser]
-[Config(typeof(DispatchHotPathGateConfig))]
+[Config(typeof(DiagnosticsBenchmarkConfig))]
 public class DispatchHotPathBreakdownBenchmarks
 {
 	private DiagnosticBenchmarkFixture? _fixture;

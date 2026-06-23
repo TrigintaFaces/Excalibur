@@ -7056,6 +7056,12 @@
       "file": "src/metapackages/Excalibur.SqlServer/ExcaliburSqlServerServiceCollectionExtensions.cs",
       "line": 59,
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives."
+    },
+    {
+      "warningId": "IL2070",
+      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/HandlerScopeResolver.cs",
+      "line": 138,
+      "justification": "Handler types are preserved via DI registration; constructor metadata is inspected only to decide scope requirement. AOT consumers use the source-generated dispatcher."
     }
   ],
   "description": "AOT suppression baseline for Excalibur.Dispatch. Existing suppressions are grandfathered. New suppressions require justification and approval.",
