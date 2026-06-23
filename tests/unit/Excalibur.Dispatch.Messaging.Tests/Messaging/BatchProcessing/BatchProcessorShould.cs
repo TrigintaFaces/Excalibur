@@ -520,7 +520,11 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		var firstBatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var releaseFirstBatch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var batchCount = 0;
-		var options = new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromSeconds(1) };
+		// Large MaxBatchDelay so batching is purely size-driven for this test: the second pair
+		// (item2,item3) must form a single size-2 batch. A short delay can expire while the first
+		// batch's handler is blocked (the backpressure window), splitting the second batch into two
+		// partial flushes under heavy CI load and yielding 3 batches instead of 2 (flaky).
+		var options = new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMinutes(5) };
 
 		var processor = new BatchProcessor<string>(
 			async batch =>
