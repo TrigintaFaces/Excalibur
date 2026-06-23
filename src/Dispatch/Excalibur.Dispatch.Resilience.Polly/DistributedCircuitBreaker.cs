@@ -145,12 +145,15 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			var metrics = await GetOrCreateMetricsAsync(cancellationToken).ConfigureAwait(false);
 
 			metrics.SuccessCount++;
+			metrics.ConsecutiveSuccesses++;
 			metrics.ConsecutiveFailures = 0;
 			metrics.LastSuccess = DateTimeOffset.UtcNow;
 
 			await SaveMetricsAsync(metrics, cancellationToken).ConfigureAwait(false);
 
-			// Check if we should close the circuit
+			// Check if we should close the circuit.
+			// ConsecutiveSuccesses is incremented above and reset to 0 on any failure (RecordFailureAsync),
+			// so this gate fires only after SuccessThresholdToClose *consecutive* successes while half-open.
 			if (_lastKnownState == CircuitState.HalfOpen && metrics.ConsecutiveSuccesses >= _options.SuccessThresholdToClose)
 			{
 				await TransitionToClosedAsync(cancellationToken).ConfigureAwait(false);

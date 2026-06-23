@@ -57,7 +57,10 @@ internal sealed class HandlerLifetimeRegistry
         {
             Record(map, descriptor.ServiceType, descriptor.Lifetime);
 
-            var implementationType = descriptor.ImplementationType;
+            // Reading ImplementationType on a keyed descriptor throws; use the keyed accessor (wl9s4v).
+            var implementationType = descriptor.IsKeyedService
+                ? descriptor.KeyedImplementationType
+                : descriptor.ImplementationType;
             if (implementationType is not null && implementationType != descriptor.ServiceType)
             {
                 Record(map, implementationType, descriptor.Lifetime);

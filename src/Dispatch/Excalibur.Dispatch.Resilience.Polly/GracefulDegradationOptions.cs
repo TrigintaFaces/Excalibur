@@ -35,6 +35,31 @@ public sealed class GracefulDegradationOptions
 	public TimeSpan MinimumLevelDuration { get; set; } = TimeSpan.FromMinutes(1);
 
 	/// <summary>
+	/// Gets or sets the time span over which the auto-degradation error rate is measured.
+	/// </summary>
+	/// <value>
+	/// The rolling window for error-rate based auto-degradation. Defaults to one minute. Must be
+	/// greater than <see cref="TimeSpan.Zero"/>.
+	/// </value>
+	/// <remarks>
+	/// The error rate fed to auto-degradation is computed over this sliding window (not lifetime
+	/// totals), so a recent burst of failures triggers degradation even in long-running processes.
+	/// For continuous coverage it is <em>recommended</em> (but not required) that this be at least
+	/// <see cref="HealthCheckInterval"/>; a window shorter than the check cadence leaves an
+	/// inter-check blind spot but is otherwise valid.
+	/// </remarks>
+	public TimeSpan ErrorRateWindow { get; set; } = TimeSpan.FromMinutes(1);
+
+	/// <summary>
+	/// Gets or sets the number of buckets the <see cref="ErrorRateWindow"/> is divided into.
+	/// </summary>
+	/// <value>
+	/// The bucket count controlling the granularity at which the rolling window ages out old samples.
+	/// Defaults to 6. Must be at least 1.
+	/// </value>
+	public int ErrorRateWindowBuckets { get; set; } = 6;
+
+	/// <summary>
 	/// Gets or sets the degradation level configurations.
 	/// </summary>
 	/// <value>The ordered list of degradation level configurations from least to most severe.</value>

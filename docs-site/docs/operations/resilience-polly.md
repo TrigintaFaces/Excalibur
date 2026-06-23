@@ -228,11 +228,29 @@ public interface IDistributedCircuitBreaker
   "Resilience": {
     "DistributedCircuitBreaker": {
       "Enabled": true,
-      "SyncInterval": "00:00:05"
+      "SyncInterval": "00:00:05",
+      "BreakDuration": "00:00:30",
+      "ConsecutiveFailureThreshold": 5,
+      "SuccessThresholdToClose": 3
     }
   }
 }
 ```
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `BreakDuration` | `TimeSpan` | 30s | How long the circuit stays **Open** before the next call is allowed through as a probe (transition to **Half-Open**) |
+| `ConsecutiveFailureThreshold` | `int` | `5` | Consecutive failures that trip the circuit to **Open** |
+| `SuccessThresholdToClose` | `int` | `3` | Consecutive successes required while **Half-Open** to recover to **Closed** |
+
+:::info Half-Open → Closed recovery
+After `BreakDuration` elapses the breaker admits a probe call (**Half-Open**). Each
+`RecordSuccessAsync` increments a consecutive-success counter and resets it to zero on any failure;
+once `SuccessThresholdToClose` **consecutive** successes are recorded while Half-Open, the circuit
+transitions back to **Closed** automatically. (A single in-flight failure during Half-Open resets the
+counter and re-opens the circuit.) Recovery is keyed off the breaker's own `ConsecutiveSuccesses`
+metric, so a long-running service recovers correctly rather than getting stuck Half-Open.
+:::
 
 ### Transport Circuit Breaker Registry
 
@@ -342,12 +360,32 @@ Prevent operations from blocking indefinitely:
 
 ### Bulkhead
 
-Limit concurrent executions to prevent resource exhaustion:
+Limit concurrent executions to prevent resource exhaustion. A bulkhead admits up to `MaxConcurrency`
+operations to run simultaneously; additional callers wait in a bounded queue of up to `MaxQueueLength`
+waiters, and callers beyond that are rejected immediately with a `BulkheadRejectedException`.
 
 ```csharp
-// Bulkhead isolation limits concurrent calls
-// Configured via Polly bulkhead policies (resolved through DI)
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddBulkhead("external-api", options =>
+{
+    options.MaxConcurrency = 10;  // concurrent executions allowed (default 10)
+    options.MaxQueueLength = 50;  // additional callers allowed to wait (default 50)
+});
 ```
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `MaxConcurrency` | `int` | `10` | Maximum operations executing concurrently (must be ≥ 1) |
+| `MaxQueueLength` | `int` | `50` | Maximum callers allowed to wait for a slot (must be ≥ 0) |
+
+:::info `MaxQueueLength` is a hard admission bound
+Queue admission is atomic: a caller that finds no free execution slot reserves a queue slot with an
+interlocked increment and is rejected with `BulkheadRejectedException` the instant the post-increment
+count exceeds `MaxQueueLength`. Concurrent callers can no longer all pass a stale check-then-act gate
+and overshoot the limit, so the in-flight waiter count (surfaced as `BulkheadMetrics.QueueLength` and
+`HasCapacity`) is accurate under contention.
+:::
 
 The bulkhead manager (resolved via DI as `IBulkheadManager`) manages named bulkhead isolations to prevent one slow operation from consuming all available threads.
 
@@ -358,11 +396,13 @@ Graceful degradation returns reduced or cached responses when dependencies are u
 ```csharp
 using Excalibur.Dispatch.Resilience.Polly;
 
-public class GracefulDegradationOptions
+public sealed class GracefulDegradationOptions
 {
     public bool EnableAutoAdjustment { get; set; } = true;
     public TimeSpan HealthCheckInterval { get; set; } = TimeSpan.FromSeconds(30);
     public TimeSpan MinimumLevelDuration { get; set; } = TimeSpan.FromMinutes(1);
+    public TimeSpan ErrorRateWindow { get; set; } = TimeSpan.FromMinutes(1);
+    public int ErrorRateWindowBuckets { get; set; } = 6;
     public List<DegradationLevelConfig> Levels { get; set; } = DefaultLevels();
 }
 
@@ -381,7 +421,31 @@ public record DegradationLevelConfig(
 | `EnableAutoAdjustment` | `bool` | `true` | Allow automatic level changes based on health |
 | `HealthCheckInterval` | `TimeSpan` | 30s | Cadence between health evaluation cycles |
 | `MinimumLevelDuration` | `TimeSpan` | 1m | Minimum time before a level can be reevaluated |
+| `ErrorRateWindow` | `TimeSpan` | 1m | Sliding window over which the auto-degradation error rate is measured |
+| `ErrorRateWindowBuckets` | `int` | `6` | Number of buckets the `ErrorRateWindow` is divided into (rollover granularity) |
 | `Levels` | `List<DegradationLevelConfig>` | 5 defaults | Ordered degradation level configurations |
+
+:::info Error rate is windowed, not lifetime-cumulative
+Auto-degradation evaluates the error rate over a **sliding `ErrorRateWindow`** (a Polly v8-style
+rolling-health window divided into `ErrorRateWindowBuckets` buckets), not a lifetime-cumulative
+ratio. Previously the error rate was computed from process-lifetime totals, so in a long-running
+service the ever-growing denominator meant a recent burst of failures could no longer move the ratio
+and error-rate auto-degradation effectively stopped firing after warm-up. With the rolling window, a
+recent burst of failures triggers degradation regardless of process uptime, while old failures age
+out as the window advances. CPU and memory signals are unchanged.
+
+Tuning: a larger `ErrorRateWindow` smooths the signal (slower to react, slower to recover); more
+`ErrorRateWindowBuckets` ages out old samples more granularly. It is **recommended** (but not
+required) that `ErrorRateWindow >= HealthCheckInterval` so each health check sees a fully-covered
+window — a shorter window is valid but leaves an inter-check blind spot.
+:::
+
+:::note Startup validation (`ValidateOnStart`)
+When you bind `GracefulDegradationOptions` from configuration or via `ConfigureGracefulDegradation`,
+an `IValidateOptions<GracefulDegradationOptions>` runs at host startup and fails fast if
+`HealthCheckInterval <= TimeSpan.Zero`, `ErrorRateWindow <= TimeSpan.Zero`, or
+`ErrorRateWindowBuckets < 1`.
+:::
 
 **Default levels:**
 
@@ -401,7 +465,9 @@ public record DegradationLevelConfig(
     "GracefulDegradation": {
       "EnableAutoAdjustment": true,
       "HealthCheckInterval": "00:00:30",
-      "MinimumLevelDuration": "00:01:00"
+      "MinimumLevelDuration": "00:01:00",
+      "ErrorRateWindow": "00:01:00",
+      "ErrorRateWindowBuckets": 6
     }
   }
 }
@@ -430,11 +496,16 @@ public record DegradationLevelConfig(
     },
     "GracefulDegradation": {
       "EnableAutoAdjustment": true,
-      "HealthCheckInterval": "00:00:30"
+      "HealthCheckInterval": "00:00:30",
+      "ErrorRateWindow": "00:01:00",
+      "ErrorRateWindowBuckets": 6
     },
     "DistributedCircuitBreaker": {
       "Enabled": false,
-      "SyncInterval": "00:00:05"
+      "SyncInterval": "00:00:05",
+      "BreakDuration": "00:00:30",
+      "ConsecutiveFailureThreshold": 5,
+      "SuccessThresholdToClose": 3
     }
   }
 }

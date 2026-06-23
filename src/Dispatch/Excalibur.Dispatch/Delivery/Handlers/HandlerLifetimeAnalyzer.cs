@@ -58,7 +58,10 @@ internal static class HandlerLifetimeAnalyzer
 				continue;
 			}
 
-			var implType = descriptor.ImplementationType;
+			// Reading ImplementationType on a keyed descriptor throws; use the keyed accessor (wl9s4v).
+			var implType = descriptor.IsKeyedService
+				? descriptor.KeyedImplementationType
+				: descriptor.ImplementationType;
 			if (implType is null || implType.IsAbstract || implType.IsInterface)
 			{
 				continue;
@@ -69,18 +72,29 @@ internal static class HandlerLifetimeAnalyzer
 				continue;
 			}
 
-			// Replace with singleton registration
-			services[i] = ServiceDescriptor.Singleton(descriptor.ServiceType, implType);
+			// Replace with singleton registration, preserving the service key for keyed handlers (wl9s4v).
+			services[i] = descriptor.IsKeyedService
+				? ServiceDescriptor.KeyedSingleton(descriptor.ServiceType, descriptor.ServiceKey, implType)
+				: ServiceDescriptor.Singleton(descriptor.ServiceType, implType);
 
 			// Also promote the concrete type registration if it exists
 			for (var j = services.Count - 1; j >= 0; j--)
 			{
-				if (j != i &&
-					services[j].Lifetime == ServiceLifetime.Transient &&
-					services[j].ServiceType == implType &&
-					services[j].ImplementationType == implType)
+				var candidate = services[j];
+				if (j == i || candidate.Lifetime != ServiceLifetime.Transient)
 				{
-					services[j] = ServiceDescriptor.Singleton(implType, implType);
+					continue;
+				}
+
+				// Reading ImplementationType on a keyed descriptor throws; read keyed-safe (wl9s4v).
+				var candidateImplType = candidate.IsKeyedService
+					? candidate.KeyedImplementationType
+					: candidate.ImplementationType;
+				if (candidate.ServiceType == implType && candidateImplType == implType)
+				{
+					services[j] = candidate.IsKeyedService
+						? ServiceDescriptor.KeyedSingleton(implType, candidate.ServiceKey, implType)
+						: ServiceDescriptor.Singleton(implType, implType);
 					break;
 				}
 			}

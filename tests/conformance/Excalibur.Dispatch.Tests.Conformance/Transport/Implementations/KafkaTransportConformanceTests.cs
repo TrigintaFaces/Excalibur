@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 
 using DotNet.Testcontainers.Builders;
 
@@ -45,15 +46,126 @@ public sealed class KafkaTransportConformanceTests
 
 		await _kafkaContainer.StartAsync();
 
+		var bootstrapServers = _kafkaContainer.GetBootstrapAddress();
+
+		// Pre-create the test + DLQ topics explicitly (with metadata-readiness confirmation) instead of
+		// relying on lazy producer-side auto-creation. Under heavy full-conformance-shard TestContainers
+		// load, lazy auto-create + metadata propagation is the residual flake source for
+		// Should_Preserve_Message_Metadata (bd-bzz1eh): the consumer (subscribed during Initialize, before
+		// the test produces) can poll a not-yet-existing topic and surface transient
+		// UnknownTopicOrPartition / assignment churn that occasionally exceeds the receive window.
+		// Creating + confirming the topic up front makes partition assignment deterministic.
+		// Mirrors the established KafkaPartitioningIntegrationShould topic-readiness pattern.
+		await EnsureTopicExistsAsync(bootstrapServers, TopicName, partitions: 1).ConfigureAwait(false);
+		await EnsureTopicExistsAsync(bootstrapServers, $"{TopicName}-dlq", partitions: 1).ConfigureAwait(false);
+
 		// Create producer
 		var producerConfig = new ProducerConfig
 		{
-			BootstrapServers = _kafkaContainer.GetBootstrapAddress()
+			BootstrapServers = bootstrapServers
 		};
 
 		_producer = new ProducerBuilder<string, string>(producerConfig).Build();
 
 		return new KafkaChannelSender(_producer, TopicName);
+	}
+
+	/// <summary>
+	/// Creates the given Kafka topic via the Admin API and waits until its metadata is fully
+	/// propagated (visible with the expected partition count) before any producer/consumer touches it.
+	/// Deterministic replacement for producer-side lazy auto-creation, which races under heavy CI load.
+	/// </summary>
+	private static async Task EnsureTopicExistsAsync(string bootstrapServers, string topicName, int partitions)
+	{
+		var adminConfig = new AdminClientConfig
+		{
+			BootstrapServers = bootstrapServers,
+			SocketTimeoutMs = 30000,
+		};
+
+		using var adminClient = new AdminClientBuilder(adminConfig).Build();
+
+		var readyTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60));
+
+		// Controller elections / metadata propagation can take time under CI load — retry creation.
+		var created = await global::Tests.Shared.Infrastructure.WaitHelpers.RetryUntilSuccessAsync(
+			async () =>
+			{
+				try
+				{
+					await adminClient.CreateTopicsAsync(
+						[
+							new TopicSpecification
+							{
+								Name = topicName,
+								NumPartitions = partitions,
+								ReplicationFactor = 1,
+							}
+						],
+						new CreateTopicsOptions
+						{
+							OperationTimeout = TimeSpan.FromSeconds(30),
+							RequestTimeout = TimeSpan.FromSeconds(30),
+						}).ConfigureAwait(false);
+				}
+				catch (CreateTopicsException ex) when (AllTopicsAlreadyExist(ex))
+				{
+					// Topic was already created on a prior retry — treat as success.
+				}
+			},
+			readyTimeout,
+			TimeSpan.FromMilliseconds(500)).ConfigureAwait(false);
+
+		if (!created)
+		{
+			throw new TimeoutException($"Kafka topic '{topicName}' creation timed out.");
+		}
+
+		// Confirm metadata is fully propagated before the producer/consumer use the topic.
+		var ready = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				try
+				{
+					var metadata = adminClient.GetMetadata(topicName, TimeSpan.FromSeconds(5));
+					for (var i = 0; i < metadata.Topics.Count; i++)
+					{
+						var topic = metadata.Topics[i];
+						if (!string.Equals(topic.Topic, topicName, StringComparison.Ordinal))
+						{
+							continue;
+						}
+
+						return topic.Error.Code == ErrorCode.NoError && topic.Partitions.Count == partitions;
+					}
+				}
+				catch (KafkaException)
+				{
+					// Metadata may not be ready yet — keep polling.
+				}
+
+				return false;
+			},
+			readyTimeout,
+			TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+
+		if (!ready)
+		{
+			throw new TimeoutException($"Kafka topic '{topicName}' was not ready with {partitions} partition(s) before timeout.");
+		}
+	}
+
+	private static bool AllTopicsAlreadyExist(CreateTopicsException exception)
+	{
+		for (var i = 0; i < exception.Results.Count; i++)
+		{
+			if (exception.Results[i].Error.Code != ErrorCode.TopicAlreadyExists)
+			{
+				return false;
+			}
+		}
+
+		return exception.Results.Count > 0;
 	}
 
 	protected override async Task<KafkaChannelReceiver> CreateReceiverAsync()

@@ -324,5 +324,90 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 	}
 
 	#endregion
+
+	#region Concurrency Regression Locks
+
+	[Fact]
+	public async Task Reject_all_excess_admissions_keeping_MaxQueueLength_a_hard_bound_under_concurrent_burst()
+	{
+		// Regression lock for bd-2qhmij (P1): queue admission must be ATOMIC so MaxQueueLength is a HARD bound.
+		// The fix replaced a check-then-act gate (read pending; if < max, increment) with Interlocked.Increment
+		// then reject when the POST-increment value > MaxQueueLength. Under a concurrent burst the old TOCTOU let
+		// several callers pass a stale check and overshoot the queue. This lock saturates the bulkhead (1 active +
+		// a full queue), fires a large simultaneous burst on real threads, and asserts EVERY excess attempt is
+		// rejected -- none slips past the bound. Determinism: WaitHelpers polling, no fixed wall-clock sleeps.
+		const int maxConcurrency = 1;
+		const int maxQueue = 2;
+		const int burst = 48;
+		var policy = new BulkheadPolicy("bd-2qhmij", new BulkheadOptions
+		{
+			MaxConcurrency = maxConcurrency,
+			MaxQueueLength = maxQueue,
+			OperationTimeout = TimeSpan.FromSeconds(30),
+		});
+		_policy = policy;
+
+		// Gate holds the single execution slot open until released, keeping the bulkhead saturated.
+		var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var cleanup = new CancellationTokenSource();
+
+		Task<int> Occupy(CancellationToken ct) =>
+			policy.ExecuteAsync(async () => { await gate.Task.ConfigureAwait(false); return 0; }, ct);
+
+		// Occupy the one execution slot.
+		var active = Occupy(CancellationToken.None);
+		(await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => policy.GetMetrics().ActiveExecutions == maxConcurrency, TimeSpan.FromSeconds(5)).ConfigureAwait(false))
+			.ShouldBeTrue("the single execution slot should fill");
+
+		// Queue starts EMPTY. Fire the burst simultaneously on real threads: with the only slot held by the
+		// gate, the burst must FILL the queue from empty to EXACTLY MaxQueueLength and reject the rest. The
+		// pre-fix check-then-act lets concurrent callers pass a stale "pending < max" read and overshoot while
+		// filling -- this is the race the saturated case would miss, so we exercise the fill-from-empty path.
+		var startGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var burstTasks = new List<Task>();
+		for (var i = 0; i < burst; i++)
+		{
+			burstTasks.Add(Task.Run(async () =>
+			{
+				await startGate.Task.ConfigureAwait(false); // release together to maximise contention
+				try
+				{
+					_ = await policy.ExecuteAsync(
+						async () => { await gate.Task.ConfigureAwait(false); return 0; }, cleanup.Token).ConfigureAwait(false);
+				}
+				catch (BulkheadRejectedException) { }   // rejected (queue full)
+				catch (OperationCanceledException) { }  // had entered the queue; cancelled during cleanup
+			}));
+		}
+		startGate.SetResult();
+
+		// Wait until every burst attempt has made its admission decision (entered the queue or was rejected).
+		(await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				var m = policy.GetMetrics();
+				return m.QueuedExecutions + m.RejectedExecutions >= burst;
+			}, TimeSpan.FromSeconds(15)).ConfigureAwait(false))
+			.ShouldBeTrue("all burst attempts should reach an admission decision");
+
+		var settled = policy.GetMetrics();
+
+		// HARD-BOUND assertions (bd-2qhmij): exactly MaxQueueLength burst attempts may enter the queue; the rest
+		// must be rejected. Pre-fix TOCTOU overshoots -> QueuedExecutions > MaxQueueLength and RejectedExecutions
+		// correspondingly fewer.
+		settled.QueuedExecutions.ShouldBe(maxQueue,
+			"atomic admission must admit exactly MaxQueueLength into the queue under a concurrent burst (bd-2qhmij)");
+		settled.RejectedExecutions.ShouldBe(burst - maxQueue,
+			"every attempt beyond MaxQueueLength must be rejected (bd-2qhmij)");
+
+		// Release and drain.
+		await cleanup.CancelAsync().ConfigureAwait(false);
+		gate.SetResult();
+		foreach (var t in burstTasks) { await t.ConfigureAwait(false); }
+		try { _ = await active.ConfigureAwait(false); } catch (OperationCanceledException) { }
+	}
+
+	#endregion
 }
 

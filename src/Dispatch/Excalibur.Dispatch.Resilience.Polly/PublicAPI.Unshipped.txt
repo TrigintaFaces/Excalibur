@@ -1,1 +1,5 @@
 #nullable enable
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.ErrorRateWindow.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.ErrorRateWindow.set -> void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.ErrorRateWindowBuckets.get -> int
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.ErrorRateWindowBuckets.set -> void

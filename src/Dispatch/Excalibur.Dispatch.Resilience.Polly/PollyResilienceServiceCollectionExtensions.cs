@@ -50,6 +50,8 @@ public static class PollyResilienceServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<DistributedCircuitBreakerOptions>, DistributedCircuitBreakerOptionsValidator>());
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeoutManagerOptions>, TimeoutManagerOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GracefulDegradationOptions>, GracefulDegradationOptionsValidator>());
 
 		// Timeout management
 		services.TryAddSingleton<ITimeoutManager, TimeoutManager>();

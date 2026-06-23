@@ -264,6 +264,21 @@ public class OrderHandler
 }
 ```
 
+:::note Keyed message handlers are now wired correctly
+`AddDispatch()` runs a handler-lifetime analysis over the service collection. It now reads the keyed
+implementation type (`KeyedImplementationType`) for keyed descriptors under `IsKeyedService`, so
+**keyed message handlers** — e.g. `AddKeyedScoped<IActionHandler<MyAction>, MyHandler>("key")` — are
+correctly discovered, lifetime-promoted, and dispatched, with their **service key preserved**.
+
+Previously these keyed handlers were **silently never wired** on the .NET 9 / .NET 10 runtime
+(Microsoft.Extensions.DependencyInjection 9.x/10.x): `ServiceDescriptor.ImplementationType` returns
+`null` for a keyed descriptor, so the handler was skipped during analysis — never indexed, promoted,
+or dispatched, and **no error was raised** (the handler just never executed). On the older
+Microsoft.Extensions.DependencyInjection 8.x runtime the same path threw an `InvalidOperationException`
+instead. The fix corrects both: keyed handlers work on every runtime. Ordering between `AddDispatch()`
+and your keyed registrations does not matter.
+:::
+
 :::tip Non-keyed aliases for core stores
 
 Excalibur subsystem packages (EventSourcing, Outbox, Inbox, Saga, LeaderElection, Persistence) register their primary stores as keyed singletons under `"default"`. **Non-keyed convenience aliases are registered automatically**, so you can inject `IEventStore`, `IOutboxStore`, `ISagaStore`, etc. directly — no `[FromKeyedServices]` attribute required:

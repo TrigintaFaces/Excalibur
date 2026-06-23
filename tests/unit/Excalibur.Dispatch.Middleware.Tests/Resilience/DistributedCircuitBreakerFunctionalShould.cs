@@ -184,4 +184,73 @@ public sealed class DistributedCircuitBreakerFunctionalShould : IAsyncDisposable
 		var state = await _sut.GetStateAsync(CancellationToken.None);
 		state.ShouldBe(CircuitState.Open);
 	}
+
+	[Fact]
+	public async Task Close_from_half_open_after_consecutive_successes_reach_threshold()
+	{
+		// Regression lock for bd-lpnsjb (P0): a half-open DistributedCircuitBreaker MUST auto-close after
+		// SuccessThresholdToClose *consecutive* successes. The fix increments metrics.ConsecutiveSuccesses in
+		// RecordSuccessAsync; without it the HalfOpen->Closed gate (ConsecutiveSuccesses >= threshold) can
+		// never fire and the breaker is wedged open forever after the first outage.
+		//
+		// Determinism: Polly requires BreakDuration in [0.5s, 1d], so the Open->HalfOpen transition is
+		// genuinely time-gated. We do NOT use a fixed wall-clock sleep; instead we POLL ExecuteAsync, which
+		// throws BrokenCircuitException while Open and admits the trial call once the break elapses, within a
+		// generous bound (poll-to-condition). SyncInterval = 1h disables the background sync timer.
+		var cache = new MemoryDistributedCache(MsOptions.Create(new MemoryDistributedCacheOptions()));
+		var options = new DistributedCircuitBreakerOptions
+		{
+			FailureRatio = 1.0,                             // never open on ratio; open only via consecutive failures
+			MinimumThroughput = 2,
+			ConsecutiveFailureThreshold = 2,
+			BreakDuration = TimeSpan.FromMilliseconds(500), // Polly minimum (>= 0.5s); break window we poll past
+			SuccessThresholdToClose = 2,                    // require 2 *consecutive* successes (proves accumulation)
+			SyncInterval = TimeSpan.FromHours(1),           // no background sync timer interference
+			MetricsRetention = TimeSpan.FromMinutes(5),
+		};
+		await using var sut = new DistributedCircuitBreaker(
+			"lpnsjb-halfopen-recovery",
+			cache,
+			MsOptions.Create(options),
+			NullLogger<DistributedCircuitBreaker>.Instance);
+
+		// Arrange: open the circuit via two consecutive failures.
+		await sut.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("f1"));
+		await sut.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("f2"));
+		(await sut.GetStateAsync(CancellationToken.None)).ShouldBe(CircuitState.Open);
+
+		// Act 1: poll a trial call until the break window elapses; the first admitted call runs in HalfOpen
+		// (success #1). While Open and not yet elapsed, ExecuteAsync throws BrokenCircuitException -> retry.
+		var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(30);
+		var admitted = false;
+		while (DateTimeOffset.UtcNow < deadline)
+		{
+			try
+			{
+				_ = await sut.ExecuteAsync(() => Task.FromResult(1), CancellationToken.None);
+				admitted = true;
+				break;
+			}
+			catch (Exception ex) when (ex.GetType().Name == "BrokenCircuitException")
+			{
+				await Task.Delay(20, CancellationToken.None); // brief poll interval, not a sync barrier
+			}
+		}
+
+		admitted.ShouldBeTrue("circuit must admit a trial call once BreakDuration elapses (Open->HalfOpen)");
+
+		// One success (< threshold 2) must NOT close the circuit yet -- premature-close guard.
+		(await sut.GetStateAsync(CancellationToken.None)).ShouldBe(
+			CircuitState.HalfOpen,
+			"a single success in half-open must not close before SuccessThresholdToClose consecutive successes");
+
+		// Act 2: second consecutive success reaches the threshold -> circuit must close.
+		_ = await sut.ExecuteAsync(() => Task.FromResult(2), CancellationToken.None);
+
+		// Assert (bd-lpnsjb P0 lock): pre-fix this stays HalfOpen forever because ConsecutiveSuccesses is
+		// never incremented, so this assertion is RED on the buggy code and GREEN on the fix.
+		(await sut.GetStateAsync(CancellationToken.None)).ShouldBe(
+			CircuitState.Closed,
+			"half-open circuit must auto-close after SuccessThresholdToClose consecutive successes (bd-lpnsjb)");
+	}
 }

@@ -57,35 +57,50 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 
 		_ = Interlocked.Increment(ref _totalExecutions);
 
-		// Check if we should queue or reject.
-		// Use semaphore.CurrentCount to determine if all execution slots are occupied.
-		// Track pending waiters explicitly since SemaphoreSlim doesn't expose its wait queue depth.
-		if (_semaphore.CurrentCount == 0)
+		var startTime = DateTimeOffset.UtcNow;
+		var semaphoreAcquired = false;
+		var queued = false;
+
+		// Fast path: try to take an execution slot immediately, without entering the queue.
+		// Wait(0) is non-blocking and atomically decrements the semaphore when a slot is free.
+		if (_semaphore.Wait(0))
 		{
-			var pending = Volatile.Read(ref _pendingWaiters);
-			if (pending >= _options.MaxQueueLength)
+			semaphoreAcquired = true;
+		}
+		else
+		{
+			// No slot available — atomically reserve a queue slot. Incrementing first and testing the
+			// post-increment value makes MaxQueueLength a HARD bound: concurrent callers cannot all pass a
+			// stale check-then-act gate and overshoot the limit (bd-2qhmij). _pendingWaiters now counts
+			// only true waiters, so GetMetrics().QueueLength / HasCapacity are accurate.
+			var pending = Interlocked.Increment(ref _pendingWaiters);
+			if (pending > _options.MaxQueueLength)
 			{
+				_ = Interlocked.Decrement(ref _pendingWaiters);
 				_ = Interlocked.Increment(ref _rejectedExecutions);
 				LogBulkheadRejected(_name, _options.MaxQueueLength);
 				throw new BulkheadRejectedException($"Bulkhead '{_name}' queue is full");
 			}
 
+			queued = true;
 			_ = Interlocked.Increment(ref _queuedExecutions);
 			LogBulkheadQueueing(_name, pending, _options.MaxQueueLength);
 		}
 
-		var startTime = DateTimeOffset.UtcNow;
-		var semaphoreAcquired = false;
-
-		_ = Interlocked.Increment(ref _pendingWaiters);
 		try
 		{
-			// Wait for available slot
-			await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-			semaphoreAcquired = true;
-			_ = Interlocked.Decrement(ref _pendingWaiters);
-			_ = Interlocked.Increment(ref _activeExecutions);
+			if (!semaphoreAcquired)
+			{
+				// Wait for an execution slot to free up.
+				await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+				semaphoreAcquired = true;
 
+				// Left the queue, entering execution.
+				_ = Interlocked.Decrement(ref _pendingWaiters);
+				queued = false;
+			}
+
+			_ = Interlocked.Increment(ref _activeExecutions);
 			LogBulkheadExecuting(_name, _activeExecutions, _options.MaxConcurrency);
 
 			// Execute with Polly pipeline
@@ -105,9 +120,10 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 				_ = Interlocked.Decrement(ref _activeExecutions);
 				_ = _semaphore.Release();
 			}
-			else
+
+			if (queued)
 			{
-				// Semaphore was not acquired (e.g., cancellation while waiting)
+				// Cancellation/exception while still waiting in the queue — leave the queue.
 				_ = Interlocked.Decrement(ref _pendingWaiters);
 			}
 		}

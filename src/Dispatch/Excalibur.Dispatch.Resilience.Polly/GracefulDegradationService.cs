@@ -17,6 +17,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 	private readonly GracefulDegradationOptions _options;
 	private readonly ILogger<GracefulDegradationService> _logger;
 	private readonly System.Collections.Concurrent.ConcurrentDictionary<string, OperationStatistics> _operationStats;
+	private readonly RollingErrorWindow _errorWindow;
 	private readonly Timer _healthCheckTimer;
 	private DateTimeOffset _lastLevelChange;
 	private volatile string _lastChangeReason = "Initial";
@@ -25,6 +26,16 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 	private volatile bool _disposed;
 
 	private static readonly DegradationLevel[] CachedDegradationLevels = Enum.GetValues<DegradationLevel>();
+
+	// Severity-descending order, hoisted to a static so DetermineLevel allocates no array per health-check tick.
+	private static readonly DegradationLevel[] LevelsDescending =
+	[
+		DegradationLevel.Emergency,
+		DegradationLevel.Severe,
+		DegradationLevel.Major,
+		DegradationLevel.Moderate,
+		DegradationLevel.Minor,
+	];
 
 	// CPU delta tracking for real CPU usage calculation (lock protects compound read/write)
 	private readonly Lock _cpuSampleLock = new();
@@ -43,6 +54,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_operationStats = new System.Collections.Concurrent.ConcurrentDictionary<string, OperationStatistics>(StringComparer.Ordinal);
+		_errorWindow = new RollingErrorWindow(_options.ErrorRateWindow, _options.ErrorRateWindowBuckets);
 		_currentLevel = DegradationLevel.Normal;
 		_lastLevelChange = DateTimeOffset.UtcNow;
 		_currentHealth = new HealthMetrics();
@@ -85,6 +97,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 		// Track operation
 		var stats = _operationStats.GetOrAdd(context.OperationName, _ => new OperationStatistics());
 		stats.RecordAttempt();
+		_errorWindow.RecordAttempt(DateTimeOffset.UtcNow.UtcTicks);
 
 		// RecordFailure is called inside TryExecutePrimaryOrFallbackAsync on primary failure;
 		// do not record again here to avoid double-counting.
@@ -203,6 +216,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 			catch (Exception ex)
 			{
 				stats.RecordFailure();
+				_errorWindow.RecordFailure(DateTimeOffset.UtcNow.UtcTicks);
 				LogPrimaryOperationFailed(ex, context.OperationName);
 
 				if (context.Fallbacks.Count == 0)
@@ -293,15 +307,11 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 
 	private HealthMetrics CollectHealthMetrics()
 	{
-		// Calculate error rate from operation statistics
-		long totalOps = 0;
-		long failures = 0;
-		foreach (var entry in _operationStats.Values)
-		{
-			totalOps += entry.TotalAttempts;
-			failures += entry.Failures;
-		}
-		var errorRate = totalOps > 0 ? (double)failures / totalOps : 0;
+		// Error rate is measured over a rolling window (not lifetime-cumulative totals) so a recent
+		// burst of failures still drives auto-degradation in long-running processes. The per-operation
+		// OperationStatistics lifetime counters are intentionally left untouched — they back the
+		// lifetime reporting in GetMetrics()/SuccessRate.
+		var errorRate = _errorWindow.GetErrorRate(DateTimeOffset.UtcNow.UtcTicks);
 
 		// Real memory metric: WorkingSet as percentage of available memory
 		var workingSetBytes = Environment.WorkingSet;
@@ -359,17 +369,8 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 
 	private DegradationLevel DetermineLevel(HealthMetrics health)
 	{
-		// Check levels from most severe to least severe
-		DegradationLevel[] levelsDescending =
-		[
-			DegradationLevel.Emergency,
-			DegradationLevel.Severe,
-			DegradationLevel.Major,
-			DegradationLevel.Moderate,
-			DegradationLevel.Minor,
-		];
-
-		foreach (var level in levelsDescending)
+		// Check levels from most severe to least severe.
+		foreach (var level in LevelsDescending)
 		{
 			if (health.ErrorRate > _options.GetErrorRateThreshold(level) ||
 				health.CpuUsagePercent > _options.GetCpuThreshold(level) ||

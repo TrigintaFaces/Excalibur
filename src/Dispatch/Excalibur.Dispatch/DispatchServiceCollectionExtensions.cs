@@ -184,7 +184,10 @@ public static class DispatchServiceCollectionExtensions
 					if (handlerInterfaces.Contains(genericDef))
 					{
 						var messageType = descriptor.ServiceType.GetGenericArguments()[0];
-						var handlerType = descriptor.ImplementationType ?? descriptor.ImplementationInstance?.GetType();
+						// Keyed descriptors throw on the non-keyed accessors; read the keyed members (wl9s4v).
+						var handlerType = descriptor.IsKeyedService
+							? descriptor.KeyedImplementationType ?? descriptor.KeyedImplementationInstance?.GetType()
+							: descriptor.ImplementationType ?? descriptor.ImplementationInstance?.GetType();
 
 						if (handlerType is { IsAbstract: false, IsInterface: false })
 						{

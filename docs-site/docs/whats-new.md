@@ -14,6 +14,49 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ---
 
+## June 2026 — Resilience Correctness (Sprint 839)
+
+### Graceful degradation: windowed error rate
+
+- **Error-rate auto-degradation is now measured over a sliding window** instead of process-lifetime
+  totals. Previously the error rate used cumulative counters whose ever-growing denominator meant a
+  recent burst of failures could no longer move the ratio in a long-running service, so error-rate
+  auto-degradation effectively stopped firing after warm-up. It now uses a Polly v8-style
+  rolling-health window. Two new `GracefulDegradationOptions` properties: `ErrorRateWindow`
+  (`TimeSpan`, default 1m) and `ErrorRateWindowBuckets` (`int`, default 6). A new startup validator
+  (`ValidateOnStart`) rejects a non-positive window/interval or a bucket count below 1. CPU and memory
+  signals are unchanged. See [Polly Resilience > Graceful Degradation](./operations/resilience-polly.md#graceful-degradation).
+
+### Distributed circuit breaker: Half-Open → Closed recovery
+
+- **The distributed circuit breaker now auto-recovers from Half-Open to Closed.** After `BreakDuration`
+  it admits a probe call; once `SuccessThresholdToClose` **consecutive** successes are recorded while
+  Half-Open it transitions back to Closed (and resets on any intervening failure). Recovery is keyed
+  off the breaker's own consecutive-success metric, so long-running services no longer get stuck
+  Half-Open. See [Polly Resilience > Distributed Circuit Breaker](./operations/resilience-polly.md#distributed-circuit-breaker).
+
+### Bulkhead: hard atomic queue bound
+
+- **`BulkheadPolicy.MaxQueueLength` is now a hard, atomic admission bound.** Queue slots are reserved
+  with an interlocked increment and a caller is rejected with `BulkheadRejectedException` the instant
+  the count exceeds `MaxQueueLength`, so concurrent callers can no longer overshoot the limit via a
+  stale check-then-act gate. `BulkheadMetrics.QueueLength` / `HasCapacity` are now accurate under
+  contention. See [Polly Resilience > Bulkhead](./operations/resilience-polly.md#bulkhead).
+
+### Keyed message handlers are now wired correctly
+
+- **Keyed message handlers now work on every runtime.** Previously, keyed handlers registered via keyed
+  DI (e.g. `AddKeyedScoped<IActionHandler<T>, H>("key")`) were **silently never wired** on .NET 9 / .NET 10
+  — not discovered for dispatch, not lifetime-promoted — so they never executed and **no error was
+  raised** (`ServiceDescriptor.ImplementationType` returns `null` for keyed descriptors on
+  Microsoft.Extensions.DependencyInjection 9.x/10.x). On the older 8.x runtime the same code threw
+  `InvalidOperationException`. `AddDispatch()`'s handler-lifetime analysis now reads the keyed service
+  accessors, so keyed handlers are correctly discovered, dispatched, and promoted **with their service
+  key preserved**. See
+  [Dependency Injection > Keyed Services](./core-concepts/dependency-injection.md#keyed-services).
+
+---
+
 ## May 2026 — Backlog Clear: Zero Open Issues (Sprint 837)
 
 ### SDK Type Leakage Removal
