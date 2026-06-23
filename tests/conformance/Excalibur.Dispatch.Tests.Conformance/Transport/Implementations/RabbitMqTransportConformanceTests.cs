@@ -191,21 +191,33 @@ public sealed class RabbitMqChannelReceiver : IChannelReceiver
 
 	public async Task<T?> ReceiveAsync<T>(CancellationToken cancellationToken)
 	{
-		// Use basic get for conformance testing (not recommended for production)
-		var result = await _channel.BasicGetAsync(_queueName, autoAck: false, cancellationToken)
-			.ConfigureAwait(false);
-
-		if (result == null)
+		// Poll basic-get until a message is available or the caller's deadline (cancellationToken) fires.
+		// A single get (or one short retry) returns null whenever the message has not yet been routed and
+		// queued, which is common under heavy CI/TestContainers load. Polling for the full receive window
+		// makes the round-trip deterministic: it returns as soon as the message arrives.
+		BasicGetResult? result = null;
+		while (!cancellationToken.IsCancellationRequested)
 		{
-			// Wait and retry once
-			await Task.Delay(100, cancellationToken);
 			result = await _channel.BasicGetAsync(_queueName, autoAck: false, cancellationToken)
 				.ConfigureAwait(false);
-
-			if (result == null)
+			if (result is not null)
 			{
-				return default;
+				break;
 			}
+
+			try
+			{
+				await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException)
+			{
+				break;
+			}
+		}
+
+		if (result is null)
+		{
+			return default;
 		}
 
 		try

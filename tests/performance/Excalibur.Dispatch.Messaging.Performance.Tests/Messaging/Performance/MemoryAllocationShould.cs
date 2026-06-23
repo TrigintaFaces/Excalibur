@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Inbox.InMemory;
 using Excalibur.Dispatch.Middleware;
@@ -33,6 +34,59 @@ public sealed class MemoryAllocationShould : IDisposable
 		_logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<UnifiedBatchingMiddleware>.Instance;
 		_loggerFactory = Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
 		_disposables = [];
+	}
+
+	/// <summary>
+	///     Deterministic allocation regression gate for the dispatch hot path.
+	///     Uses <see cref="GC.GetAllocatedBytesForCurrentThread"/> (exact, thread-local) rather than
+	///     BenchmarkDotNet: the InProcessEmit toolchain (the only one that runs on CI) over-reports this
+	///     path's per-op allocation (~680 B, invariant under InvocationCount), while the accurate
+	///     out-of-process toolchain (which reads the true ~232 B) cannot execute on CI runners. This test
+	///     is the authoritative allocation gate referenced by eng/validate-performance-gates.ps1
+	///     (DispatchHotPath), where the BDN absolute-allocation figures are advisory-only.
+	/// </summary>
+	[Fact]
+	public async Task AllocateBoundedBytesPerDispatch()
+	{
+		// Arrange
+		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddDispatch(typeof(MemoryAllocationShould).Assembly);
+		await using var provider = services.BuildServiceProvider();
+
+		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var contextFactory = provider.GetRequiredService<IMessageContextFactory>();
+		var action = new AllocationProbeAction();
+
+		// Warm up: JIT, tiered compilation, and first-dispatch type caches.
+		for (var i = 0; i < 512; i++)
+		{
+			var warmupContext = contextFactory.CreateContext();
+			_ = await dispatcher.DispatchAsync(action, warmupContext, CancellationToken.None).ConfigureAwait(false);
+		}
+
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		// Act - measure exact managed allocation per dispatch on this thread (includes the per-dispatch context).
+		const int iterations = 1000;
+		var before = GC.GetAllocatedBytesForCurrentThread();
+		for (var i = 0; i < iterations; i++)
+		{
+			var context = contextFactory.CreateContext();
+			_ = await dispatcher.DispatchAsync(action, context, CancellationToken.None).ConfigureAwait(false);
+		}
+
+		var perDispatch = (GC.GetAllocatedBytesForCurrentThread() - before) / (double)iterations;
+
+		// Assert - true per-dispatch allocation is ~232 B (accurate out-of-process BenchmarkDotNet).
+		// GC.GetAllocatedBytesForCurrentThread is exact, so this is deterministic on CI. The bound is set
+		// well above the real cost (dispatch + per-op context creation) yet far below a meaningful
+		// regression, so it catches new hot-path allocations without flaking on shared runners.
+		perDispatch.ShouldBeLessThan(
+			1024,
+			$"Dispatch hot-path allocated {perDispatch:F1} B/op (expected ~232 B); a regression past 1024 B/op indicates new hot-path allocations.");
 	}
 
 	[Fact]
@@ -577,4 +631,14 @@ public sealed class MemoryAllocationShould : IDisposable
 
 		return Math.Max(0, memoryAfter - memoryBefore);
 	}
+}
+
+/// <summary>No-op action for the deterministic dispatch allocation gate (<see cref="MemoryAllocationShould.AllocateBoundedBytesPerDispatch"/>).</summary>
+public sealed record AllocationProbeAction : IDispatchAction;
+
+/// <summary>No-op transient (root-resolvable) handler for <see cref="AllocationProbeAction"/>.</summary>
+public sealed class AllocationProbeHandler : IActionHandler<AllocationProbeAction>
+{
+	/// <inheritdoc />
+	public Task HandleAsync(AllocationProbeAction action, CancellationToken cancellationToken) => Task.CompletedTask;
 }

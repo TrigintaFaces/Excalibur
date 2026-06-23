@@ -23,7 +23,11 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// Default timeout for receive operations to prevent tests from hanging indefinitely.
 	/// </summary>
-	private static readonly TimeSpan ReceiveTimeout = TimeSpan.FromSeconds(30);
+	// Generous, CI-scaled window so transport round-trips complete deterministically under heavy
+	// TestContainers load (notably Kafka consumer-group rebalance / partition assignment, which can take
+	// well over 30s when many containers contend on a CI runner). Receivers block until the message
+	// arrives, so the happy path returns immediately; only a genuine delivery failure waits the full window.
+	private static readonly TimeSpan ReceiveTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60));
 
 	/// <summary>
 	/// Caches Docker availability per closed generic type (e.g., Kafka, RabbitMQ).
@@ -206,8 +210,9 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 			Sender.SendAsync(msg, CancellationToken.None)).ToList();
 		await Task.WhenAll(sendTasks).ConfigureAwait(false);
 
-		// Act - Receive all messages
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+		// Act - Receive all messages (use the shared, CI-scaled receive window so a slow rebalance under
+		// heavy TestContainers load does not truncate the loop -> deterministic).
+		using var cts = new CancellationTokenSource(ReceiveTimeout);
 		for (int i = 0; i < messageCount; i++)
 		{
 			var received = await Receiver.ReceiveAsync<TestMessage>(cts.Token).ConfigureAwait(false);

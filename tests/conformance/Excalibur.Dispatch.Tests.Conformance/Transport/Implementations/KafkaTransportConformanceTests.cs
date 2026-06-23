@@ -168,29 +168,27 @@ public sealed class KafkaChannelReceiver : IChannelReceiver
 		_consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
 	}
 
-	public async Task<T?> ReceiveAsync<T>(CancellationToken cancellationToken)
+	public Task<T?> ReceiveAsync<T>(CancellationToken cancellationToken)
 	{
-		var consumeResult = _consumer.Consume(TimeSpan.FromSeconds(30));
-
-		if (consumeResult == null)
-		{
-			return default;
-		}
-
+		ConsumeResult<string, string> consumeResult;
 		try
 		{
-			var result = System.Text.Json.JsonSerializer.Deserialize<T>(consumeResult.Message.Value);
-
-			// Commit offset after successful processing
-			_consumer.Commit(consumeResult);
-
-			return await Task.FromResult(result);
+			// Block until a message is available or the caller's deadline (cancellationToken) fires.
+			// Confluent.Kafka's Consume(CancellationToken) polls internally through consumer-group
+			// rebalance / partition assignment, so it honors the full receive window and does not
+			// spuriously return null the way Consume(TimeSpan) does under heavy CI/TestContainers load.
+			// This makes the round-trip deterministic: it returns as soon as the message arrives.
+			consumeResult = _consumer.Consume(cancellationToken);
 		}
-		catch
+		catch (OperationCanceledException)
 		{
-			// Don't commit offset on failure - message will be re-consumed
-			throw;
+			return Task.FromResult<T?>(default);
 		}
+
+		// Deserialize first; commit only on success so a failed message is re-consumed (offset not advanced).
+		var result = System.Text.Json.JsonSerializer.Deserialize<T>(consumeResult.Message.Value);
+		_consumer.Commit(consumeResult);
+		return Task.FromResult(result);
 	}
 }
 
