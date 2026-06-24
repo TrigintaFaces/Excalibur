@@ -309,9 +309,9 @@ public sealed class EventSourcedRepositoryDepthShould
 	}
 
 	[Fact]
-	public async Task GetByIdAsync_SkipsNullDeserializedEvents()
+	public async Task GetByIdAsync_FailsLoud_WhenAnEventCannotBeDeserialized()
 	{
-		// Arrange
+		// Arrange — a stored event whose type cannot be resolved (a deserialization failure).
 		var storedEvents = new List<StoredEvent>
 		{
 			new("ev-1", "agg-1", "TestRepoAggregate", "UnknownType", [1], null, 0, DateTimeOffset.UtcNow),
@@ -329,12 +329,10 @@ public sealed class EventSourcedRepositoryDepthShould
 
 		var repo = CreateRepository();
 
-		// Act
-		var result = await repo.GetByIdAsync("agg-1", CancellationToken.None);
-
-		// Assert
-		result.ShouldNotBeNull();
-		result!.Id.ShouldBe("agg-1");
+		// Act & Assert — bd-ze6pty / ADR-336 fail-only: rehydration must FAIL LOUD when an event cannot
+		// be deserialized; silently skipping it would replay an incomplete history into a corrupt
+		// source-of-truth aggregate (the data-loss behavior this lock prevents).
+		await Should.ThrowAsync<InvalidOperationException>(() => repo.GetByIdAsync("agg-1", CancellationToken.None));
 	}
 
 	private EventSourcedRepository<TestRepoAggregate, string> CreateRepository(

@@ -167,6 +167,12 @@ internal sealed partial class CdcChangeApplier
 		// a single checkpoint per table after the batch completes (instead of per-event).
 		var lastSuccessfulPerTable = new Dictionary<string, DataChangeEvent>(StringComparer.Ordinal);
 
+		// Tables that had a swallowed (onFatalError) failure in this batch. Once a table is here,
+		// NO later event for it — success OR idempotency-skip — may advance its checkpoint. Without
+		// this, a later same-table event re-adds the table to lastSuccessfulPerTable and the post-batch
+		// checkpoint advances PAST the failed change, permanently skipping it (the subtle re-add bug).
+		var failedTables = new HashSet<string>(StringComparer.Ordinal);
+
 		// Resolve the Polly policy once per batch instead of per-event.
 		// The policy configuration does not change within a processing cycle.
 		var batchPolicy = _policyFactory.GetComprehensivePolicy();
@@ -185,8 +191,14 @@ internal sealed partial class CdcChangeApplier
 					CdcChangeDetector.ByteArrayToHex(changeEvent.Lsn),
 					CdcChangeDetector.ByteArrayToHex(changeEvent.SeqVal));
 
-				// Treat as successful for checkpoint advancement purposes.
-				lastSuccessfulPerTable[changeEvent.TableName] = changeEvent;
+				// Treat as successful for checkpoint advancement purposes -- but ONLY if this table
+				// has not already had a swallowed failure in this batch. Advancing here would move the
+				// checkpoint past the earlier failed change, permanently skipping it.
+				if (!failedTables.Contains(changeEvent.TableName))
+				{
+					lastSuccessfulPerTable[changeEvent.TableName] = changeEvent;
+				}
+
 				continue;
 			}
 
@@ -241,16 +253,23 @@ internal sealed partial class CdcChangeApplier
 			// past the failed event -- otherwise that event is permanently skipped.
 			if (eventSucceeded)
 			{
-				lastSuccessfulPerTable[changeEvent.TableName] = changeEvent;
+				// Do NOT re-advance a table that already had a swallowed failure in this batch.
+				// A later same-table success must not move the checkpoint past the failed change
+				// (it would permanently skip it); the failed change must be reprocessed next cycle.
+				if (!failedTables.Contains(changeEvent.TableName))
+				{
+					lastSuccessfulPerTable[changeEvent.TableName] = changeEvent;
+				}
 			}
 			else
 			{
 				// CRITICAL: Freeze this table's checkpoint at the pre-failure position.
-				// Remove the table from tracking so no later event in this batch can
-				// advance the checkpoint past the failed event. On the next cycle,
-				// processing resumes from the previous cycle's checkpoint, ensuring
-				// the failed event is reprocessed.
-				lastSuccessfulPerTable.Remove(changeEvent.TableName);
+				// Mark the table failed (so no later event -- success OR idempotency-skip -- can
+				// re-add it) and remove any position already tracked for it this batch. On the next
+				// cycle, processing resumes from the previous cycle's checkpoint, ensuring the failed
+				// event is reprocessed.
+				_ = failedTables.Add(changeEvent.TableName);
+				_ = lastSuccessfulPerTable.Remove(changeEvent.TableName);
 
 				LogCheckpointSkippedForFailedEvent(changeEvent.TableName,
 					CdcChangeDetector.ByteArrayToHex(changeEvent.Lsn),

@@ -1,1 +1,2 @@
 #nullable enable
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaAlreadyCompletedEventSkipped = 122206 -> int

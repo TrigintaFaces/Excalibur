@@ -16,6 +16,7 @@ namespace Excalibur.Data.ElasticSearch.Security;
 ///   <item><description><see cref="IElasticsearchKeyStorage"/> -- CRUD operations for secret storage and retrieval.</description></item>
 ///   <item><description><see cref="IElasticsearchKeyManagement"/> -- key generation, rotation, and provider capabilities.</description></item>
 ///   <item><description><see cref="IElasticsearchKeyProviderEvents"/> -- events and secret listing for audit and monitoring.</description></item>
+///   <item><description><see cref="IVersionedSecretStorage"/> -- version-addressed retrieval and current-version resolution for rotation-safe decryption.</description></item>
 /// </list>
 /// <para>
 /// Consumers that need only a subset of functionality should depend on the specific sub-interface instead of this aggregate interface.
@@ -24,6 +25,7 @@ namespace Excalibur.Data.ElasticSearch.Security;
 public interface IElasticsearchKeyProvider :
 	IElasticsearchKeyStorage,
 	IElasticsearchKeyManagement,
-	IElasticsearchKeyProviderEvents
+	IElasticsearchKeyProviderEvents,
+	IVersionedSecretStorage
 {
 }

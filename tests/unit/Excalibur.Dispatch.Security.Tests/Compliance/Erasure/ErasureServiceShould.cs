@@ -831,7 +831,9 @@ public sealed class ErasureServiceShould
 		_ = result.ShouldNotBeNull();
 		result.RequestId.ShouldBe(requestId);
 		result.DataSubjectReference.ShouldBe("hash");
-		result.Method.ShouldBe(ErasureMethod.CryptographicErasure);
+		// bd-412fo4: Method now reflects the actual mechanism (was hardcoded CryptographicErasure). This
+		// fixture has KeysDeleted=5 AND RecordsAffected=10 (key deletion + contributor row-delete) -> Hybrid.
+		result.Method.ShouldBe(ErasureMethod.Hybrid);
 		result.Summary.KeysDeleted.ShouldBe(5);
 		result.Signature.ShouldNotBeNullOrEmpty();
 	}

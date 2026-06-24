@@ -56,18 +56,13 @@ internal sealed class SagaManager(ISagaStore sagaStore, IServiceProvider service
 		var sagaState = await sagaStore.LoadAsync<TSagaState>(sagaId, cancellationToken).ConfigureAwait(false) ??
 						new TSagaState { SagaId = sagaId };
 
-		// Capture the version at load time for optimistic concurrency check
-		var loadedVersion = sagaState.Version;
-
 		var saga = ActivatorUtilities.CreateInstance<TSaga>(serviceProvider, sagaState);
 
 		await saga.HandleAsync(@event, cancellationToken).ConfigureAwait(false);
 
-		// Increment version before save. The store implementation MUST atomically
-		// compare the expected version and throw ConcurrencyException on mismatch.
-		// Do NOT re-load to check here -- that creates a TOCTOU race.
-		sagaState.Version = loadedVersion + 1;
-
+		// Store-owns-increment (optimistic concurrency, bd-eszc06): SagaState.Version is the loaded token; the
+		// store atomically compares it and persists the bump (throws ConcurrencyException on mismatch, writes the
+		// new version back). No caller version arithmetic -- do NOT re-load to check here, that creates a TOCTOU race.
 		await sagaStore.SaveAsync(sagaState, cancellationToken).ConfigureAwait(false);
 	}
 

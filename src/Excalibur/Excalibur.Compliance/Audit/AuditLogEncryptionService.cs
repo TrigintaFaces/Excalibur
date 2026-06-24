@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
 
@@ -28,9 +29,37 @@ public sealed partial class AuditLogEncryptionService : IAuditLogEncryptor
 	private const int AesGcmAuthTagSizeBytes = 16;
 
 	/// <summary>
-	/// Minimum valid envelope size: IV + zero-length ciphertext + AuthTag.
+	/// Size in bytes of the envelope format-version header: a single byte at offset 0.
 	/// </summary>
-	private const int MinEnvelopeSizeBytes = AesGcmIvSizeBytes + AesGcmAuthTagSizeBytes;
+	private const int FormatVersionHeaderSizeBytes = 1;
+
+	/// <summary>
+	/// The current envelope format version written to byte 0. Lets decryption reject an unknown or
+	/// future envelope layout with a surfaced error instead of misparsing it. Bump only on a
+	/// breaking envelope-layout change.
+	/// </summary>
+	private const byte CurrentEnvelopeFormatVersion = 1;
+
+	/// <summary>
+	/// Size in bytes of the key-version header (a little-endian <see cref="int"/>), following the format-version byte.
+	/// </summary>
+	private const int KeyVersionHeaderSizeBytes = sizeof(int);
+
+	/// <summary>
+	/// Byte offset of the key-version header within the envelope (immediately after the format-version byte).
+	/// </summary>
+	private const int KeyVersionOffset = FormatVersionHeaderSizeBytes;
+
+	/// <summary>
+	/// Byte offset of the IV within the envelope (after the format-version and key-version headers).
+	/// </summary>
+	private const int IvOffset = FormatVersionHeaderSizeBytes + KeyVersionHeaderSizeBytes;
+
+	/// <summary>
+	/// Minimum valid envelope size: format-version + key-version headers + IV + zero-length ciphertext + AuthTag.
+	/// </summary>
+	private const int MinEnvelopeSizeBytes =
+		FormatVersionHeaderSizeBytes + KeyVersionHeaderSizeBytes + AesGcmIvSizeBytes + AesGcmAuthTagSizeBytes;
 
 	private readonly IEncryptionProvider _encryptionProvider;
 	private readonly IOptions<AuditLogEncryptionOptions> _options;
@@ -83,11 +112,19 @@ public sealed partial class AuditLogEncryptionService : IAuditLogEncryptor
 					var encrypted = await _encryptionProvider.EncryptAsync(
 						plaintext, context, cancellationToken).ConfigureAwait(false);
 
-					// Envelope format: [IV:12][Ciphertext:N][AuthTag:16]
-					var envelope = new byte[encrypted.Iv.Length + encrypted.Ciphertext.Length + encrypted.AuthTag!.Length];
-					encrypted.Iv.CopyTo(envelope, 0);
-					encrypted.Ciphertext.CopyTo(envelope, encrypted.Iv.Length);
-					encrypted.AuthTag.CopyTo(envelope, encrypted.Iv.Length + encrypted.Ciphertext.Length);
+					// Envelope format: [FmtVer:1][KeyVersion:4][IV:12][Ciphertext:N][AuthTag:16].
+					// Byte 0 is the envelope format version (so decryption can reject an unknown/future
+					// layout); the exact key version is persisted so decryption resolves the same key
+					// after rotation (hardcoding v1 caused AAD mismatch / KeyNotFound once the key rotates).
+					var envelope = new byte[
+						IvOffset + encrypted.Iv.Length + encrypted.Ciphertext.Length + encrypted.AuthTag!.Length];
+					envelope[0] = CurrentEnvelopeFormatVersion;
+					BinaryPrimitives.WriteInt32LittleEndian(
+						envelope.AsSpan(KeyVersionOffset, KeyVersionHeaderSizeBytes), encrypted.KeyVersion);
+					encrypted.Iv.CopyTo(envelope, IvOffset);
+					encrypted.Ciphertext.CopyTo(envelope, IvOffset + encrypted.Iv.Length);
+					encrypted.AuthTag.CopyTo(
+						envelope, IvOffset + encrypted.Iv.Length + encrypted.Ciphertext.Length);
 					encryptedFields[fieldName] = envelope;
 				}
 				else
@@ -134,16 +171,32 @@ public sealed partial class AuditLogEncryptionService : IAuditLogEncryptor
 						$"(expected at least {MinEnvelopeSizeBytes} bytes, got {envelope.Length}).");
 				}
 
-				// Envelope format: [IV:12][Ciphertext:N][AuthTag:16]
-				var iv = envelope.AsSpan(0, AesGcmIvSizeBytes).ToArray();
+				// Envelope format: [FmtVer:1][KeyVersion:4][IV:12][Ciphertext:N][AuthTag:16].
+				// Validate the format version (byte 0) first so an unknown/future layout is a surfaced
+				// error rather than a misparse.
+				var formatVersion = envelope[0];
+				if (formatVersion != CurrentEnvelopeFormatVersion)
+				{
+					throw new EncryptionException(
+						$"Encrypted field '{fieldName}' has unsupported envelope format version {formatVersion} " +
+						$"(expected {CurrentEnvelopeFormatVersion}).");
+				}
+
+				// Read the persisted key version so decryption resolves the exact key version
+				// used at encryption time. Hardcoding v1 here caused AAD mismatch / KeyNotFound
+				// for any field encrypted after the first key rotation.
+				var keyVersion = BinaryPrimitives.ReadInt32LittleEndian(envelope.AsSpan(KeyVersionOffset, KeyVersionHeaderSizeBytes));
+				var iv = envelope.AsSpan(IvOffset, AesGcmIvSizeBytes).ToArray();
 				var authTag = envelope.AsSpan(envelope.Length - AesGcmAuthTagSizeBytes, AesGcmAuthTagSizeBytes).ToArray();
-				var actualCiphertext = envelope.AsSpan(AesGcmIvSizeBytes, envelope.Length - AesGcmIvSizeBytes - AesGcmAuthTagSizeBytes).ToArray();
+				var actualCiphertext = envelope.AsSpan(
+					IvOffset + AesGcmIvSizeBytes,
+					envelope.Length - IvOffset - AesGcmIvSizeBytes - AesGcmAuthTagSizeBytes).ToArray();
 
 				var encrypted = new EncryptedData
 				{
 					Ciphertext = actualCiphertext,
 					KeyId = encryptedEntry.KeyIdentifier,
-					KeyVersion = 1,
+					KeyVersion = keyVersion,
 					Algorithm = encryptedEntry.Algorithm,
 					Iv = iv,
 					AuthTag = authTag

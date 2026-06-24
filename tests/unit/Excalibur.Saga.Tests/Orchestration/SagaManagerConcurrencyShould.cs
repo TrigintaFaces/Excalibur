@@ -18,7 +18,8 @@ namespace Excalibur.Saga.Tests.Orchestration;
 
 /// <summary>
 /// Regression tests for T.1 (bd-046dc): SagaManager.HandleEventAsync must detect concurrent version conflicts.
-/// The SagaManager increments the version before save and delegates enforcement to ISagaStore.SaveAsync.
+/// Convention (A) store-owns-increment (bd-eszc06): SagaManager saves with the LOADED version (no caller
+/// arithmetic) and delegates the CAS + increment + write-back to ISagaStore.SaveAsync.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Saga")]
@@ -214,29 +215,37 @@ public sealed class SagaManagerConcurrencyShould
 			lock (_saveLock)
 			{
 				var concrete = (ConcurrencyTestSagaState)(SagaState)sagaState;
-				var expectedPreviousVersion = sagaState.Version - 1;
+
+				// Convention (A) store-owns-increment (bd-eszc06, SA 13980): the caller saves with the
+				// LOADED version (a brand-new saga is 0) — no caller arithmetic. The store CASes on that
+				// loaded version, computes the bump, and writes the new version back onto the instance.
+				var expectedVersion = sagaState.Version;
 
 				if (_store.TryGetValue(sagaState.SagaId, out var existing))
 				{
-					if (existing.Version != expectedPreviousVersion)
+					if (existing.Version != expectedVersion)
 					{
 						throw new ConcurrencyException(
 							"SagaState",
 							sagaState.SagaId.ToString(),
-							expectedPreviousVersion,
+							expectedVersion,
 							existing.Version);
 					}
 				}
-				else if (expectedPreviousVersion != 0)
+				else if (expectedVersion != 0)
 				{
+					// Missing row with a non-zero expected version = a stale/deleted saga; refuse to
+					// resurrect it at a high version (mirrors the SQL store's kept INSERT guard).
 					throw new ConcurrencyException(
 						"SagaState",
 						sagaState.SagaId.ToString(),
-						expectedPreviousVersion,
+						expectedVersion,
 						0L);
 				}
 
-				_store[sagaState.SagaId] = (sagaState.Version, concrete.LastEventData);
+				var newVersion = expectedVersion + 1; // the store owns the increment
+				_store[sagaState.SagaId] = (newVersion, concrete.LastEventData);
+				sagaState.Version = newVersion; // EF-style write-back onto the saved instance
 			}
 
 			return Task.CompletedTask;

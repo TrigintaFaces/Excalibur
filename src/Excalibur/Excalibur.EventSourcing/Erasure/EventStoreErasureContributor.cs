@@ -29,6 +29,7 @@ public sealed partial class EventStoreErasureContributor : IErasureContributor
 	private readonly ISnapshotStore? _snapshotStore;
 	private readonly IAggregateDataSubjectMapping _mapping;
 	private readonly ILogger<EventStoreErasureContributor> _logger;
+	private readonly IReadOnlySet<DataStoreKind> _coveredStoreKinds;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventStoreErasureContributor"/> class.
@@ -47,10 +48,20 @@ public sealed partial class EventStoreErasureContributor : IErasureContributor
 		_mapping = mapping ?? throw new ArgumentNullException(nameof(mapping));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_snapshotStore = snapshotStore;
+
+		// Declare coverage so the erasure gate can mark event-store (and, when a snapshot store is wired,
+		// snapshot) locations as Covered. Snapshot is only declared when this contributor can actually
+		// delete snapshots — declaring it without a store would falsely "cover" a store it cannot erase.
+		_coveredStoreKinds = _snapshotStore is not null
+			? new HashSet<DataStoreKind> { DataStoreKind.EventStore, DataStoreKind.Snapshot }
+			: new HashSet<DataStoreKind> { DataStoreKind.EventStore };
 	}
 
 	/// <inheritdoc/>
 	public string Name => "EventStore";
+
+	/// <inheritdoc/>
+	public IReadOnlySet<DataStoreKind> CoveredStoreKinds => _coveredStoreKinds;
 
 	/// <inheritdoc/>
 	public async Task<ErasureContributorResult> EraseAsync(

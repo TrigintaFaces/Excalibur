@@ -180,9 +180,11 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 	}
 
 	[Fact]
-	public void AddSecurityAuditing_RegistersSqlStoreWhenConfiguredCaseInsensitive()
+	public void AddSecurityAuditing_FailsFastWhenSqlStoreConfiguredCaseInsensitive()
 	{
-		// Arrange — test case-insensitivity
+		// bd-kitw4i: the SQL fail-fast is case-insensitive ("sql" == "SQL" via ToUpperInvariant), so a
+		// lowercase StoreType must throw too — never silently fall through to the discarding placeholder.
+		// (Flipped from the old test that certified case-insensitive registration of that placeholder.)
 		var services = new ServiceCollection();
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
@@ -191,13 +193,9 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 			})
 			.Build();
 
-		// Act
-		services.AddSecurityAuditing(config);
-
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ISecurityEventStore) &&
-			sd.ImplementationType == typeof(SqlSecurityEventStore));
+		// Act & Assert
+		var ex = Should.Throw<InvalidOperationException>(() => services.AddSecurityAuditing(config));
+		ex.Message.ShouldContain("SQL");
 	}
 
 	[Fact]

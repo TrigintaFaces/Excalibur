@@ -297,7 +297,7 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 			DataSubjectReference = status.DataSubjectIdHash,
 			RequestReceivedAt = status.RequestedAt,
 			CompletedAt = status.CompletedAt ?? DateTimeOffset.UtcNow,
-			Method = ErasureMethod.CryptographicErasure,
+			Method = DetermineErasureMethod(status.KeysDeleted ?? 0, status.RecordsAffected ?? 0),
 			Summary = new ErasureSummary
 			{
 				KeysDeleted = status.KeysDeleted ?? 0,
@@ -375,6 +375,7 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 		{
 			// Discover keys to delete via data inventory (AD-544.9: use hash-based lookup)
 			var keysToDelete = new List<string>();
+			IReadOnlyList<DataLocation> discoveredLocations = [];
 			if (_dataInventoryService is not null)
 			{
 				var inventory = await _dataInventoryService.DiscoverAsync(
@@ -386,11 +387,17 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 					keysToDelete.Add(keyRef.KeyId);
 				}
 
+				// fot516: the discovered locations drive the structural coverage gate below.
+				discoveredLocations = inventory.Locations;
+
 				LogErasureKeysDiscovered(requestId, keysToDelete.Count);
 			}
 
-			// Delete keys via admin interface
+			// Delete keys via admin interface. Track WHICH keys were actually deleted (not just the count):
+			// the deleted-key set is the crypto-shred coverage mechanism for the gate (a location whose KeyId
+			// was deleted is cryptographically unreadable) and is recorded on the certificate (412fo4).
 			var deletedCount = 0;
+			var deletedKeyIds = new List<string>();
 			var errors = new List<string>();
 
 			foreach (var keyId in keysToDelete)
@@ -402,6 +409,7 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 					if (deleted)
 					{
 						deletedCount++;
+						deletedKeyIds.Add(keyId);
 					}
 				}
 				catch (Exception ex)
@@ -447,11 +455,27 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 				}
 			}
 
-			// Determine outcome based on errors collected during key deletion and contributor execution
+			// fot516 / ADR-336 Amendment 1/1a — STRUCTURAL key-aware coverage gate (computed by EvaluateCoverage).
+			// A location is Covered iff its key was deleted (crypto-shred), its store-kind has a registered
+			// contributor, or its store-kind is a declared exemption. Any Uncovered location means personal data
+			// would survive, so the Completed outcome is made UNREACHABLE below (enforce-invariants-structurally):
+			// the branch that records completion is the only one that does NOT run when an uncovered location
+			// exists. Exemptions actually in play are carried onto the certificate (412fo4 / FR-4a).
+			var coverage = EvaluateCoverage(discoveredLocations, deletedKeyIds);
+			if (coverage.UncoveredStoreKinds.Count > 0)
+			{
+				errors.Add(
+					$"Personal data remains in uncovered store(s): {string.Join(", ", coverage.UncoveredStoreKinds)} — "
+					+ "no erasure contributor, crypto-shred, or declared exemption covers these locations.");
+			}
+
+			// Determine outcome. Completed is reachable ONLY when there are zero errors AND zero uncovered
+			// locations — the structural invariant: a silent Completed over an uncovered store is inexpressible
+			// because this branch is the only path that does NOT call RecordCompletionAsync.
 			if (errors.Count > 0)
 			{
-				// At least one contributor or key deletion failed -- do NOT mark as fully Completed.
-				// Use PartiallyCompleted if some work succeeded, Failed if nothing succeeded.
+				// A contributor/key-deletion failed OR a location is uncovered -- do NOT mark fully Completed.
+				// PartiallyCompleted if some work succeeded, Failed if nothing succeeded.
 				var hasAnySuccess = deletedCount > 0 || totalRecordsAffected > 0;
 				var partialStatus = hasAnySuccess
 					? ErasureRequestStatus.PartiallyCompleted
@@ -467,13 +491,18 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 				ExecutionDurationHistogram.Record(executionStopwatch.Elapsed.TotalMilliseconds);
 				activity?.SetTag("erasure.keys_deleted", deletedCount);
 				activity?.SetTag("erasure.records_affected", totalRecordsAffected);
+				activity?.SetTag("erasure.uncovered_store_kinds", coverage.UncoveredStoreKinds.Count);
 				activity?.SetTag(ErasureTelemetryConstants.Tags.ResultStatus, "partial");
 
 				return ErasureExecutionResult.PartiallySucceeded(deletedCount, totalRecordsAffected, errorSummary);
 			}
 
-			// Record full completion -- all contributors and key deletions succeeded
-			var certificateId = Guid.NewGuid();
+			// Record full completion -- all contributors and key deletions succeeded, all locations covered.
+			// Build + persist the populated certificate (real DeletedKeyIds + actual Method) so the recorded
+			// certificate ID resolves to a NON-vacuous certificate that verification can confirm (412fo4).
+			var certificateId = await PersistCompletionCertificateAsync(
+				requestId, status, deletedKeyIds, deletedCount, totalRecordsAffected, coverage.Exemptions, cancellationToken)
+				.ConfigureAwait(false);
 			await _store.RecordCompletionAsync(requestId, deletedCount, totalRecordsAffected, certificateId, cancellationToken)
 				.ConfigureAwait(false);
 
@@ -498,16 +527,97 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 		}
 	}
 
+	/// <summary>Evaluates erasure coverage for the discovered locations (delegates to the evaluator).</summary>
+	private CoverageOutcome EvaluateCoverage(
+		IReadOnlyList<DataLocation> locations,
+		IReadOnlyCollection<string> deletedKeyIds) =>
+		ErasureCoverageEvaluator.Evaluate(locations, deletedKeyIds, _contributors);
+
 	/// <summary>
 	/// Computes the SHA-256 hash of a data subject identifier for storage.
 	/// </summary>
 	internal static string HashDataSubjectId(string dataSubjectId) =>
 		DataSubjectHasher.HashDataSubjectId(dataSubjectId);
 
-	private string GenerateSignature(Guid requestId, ErasureStatus status)
+	/// <summary>
+	/// Derives the erasure <see cref="ErasureMethod"/> actually used from what was erased: key deletion
+	/// (cryptographic), contributor row-delete/tombstone (physical), or both (hybrid). Replaces the prior
+	/// hardcoded <see cref="ErasureMethod.CryptographicErasure"/> so the certificate reflects reality (412fo4).
+	/// </summary>
+	private static ErasureMethod DetermineErasureMethod(int keysDeleted, int recordsAffected) =>
+		(keysDeleted > 0, recordsAffected > 0) switch
+		{
+			(true, true) => ErasureMethod.Hybrid,
+			(false, true) => ErasureMethod.PhysicalDeletion,
+			_ => ErasureMethod.CryptographicErasure,
+		};
+
+	/// <summary>
+	/// Builds and persists the completion certificate at execution time, carrying the REAL deleted-key IDs
+	/// (412fo4) so verification is non-vacuous — the prior code recorded only a count and left the cert's
+	/// <see cref="VerificationSummary.DeletedKeyIds"/> empty, making key-deletion verification trivially pass.
+	/// The certificate is saved under the returned ID, which is then recorded on the request status so
+	/// <see cref="GenerateCertificateAsync"/> returns this populated certificate.
+	/// </summary>
+	/// <returns>The certificate ID to record on the completed request.</returns>
+	private async Task<Guid> PersistCompletionCertificateAsync(
+		Guid requestId,
+		ErasureStatus status,
+		IReadOnlyList<string> deletedKeyIds,
+		int keysDeleted,
+		int recordsAffected,
+		IReadOnlyList<ErasureException> exemptions,
+		CancellationToken cancellationToken)
+	{
+		var certificateId = Guid.NewGuid();
+
+		// Some stores do not support certificate operations; record the ID without an eager certificate.
+		if (_store.GetService(typeof(IErasureCertificateStore)) is not IErasureCertificateStore certStore)
+		{
+			return certificateId;
+		}
+
+		var completedAt = DateTimeOffset.UtcNow;
+		var certificate = new ErasureCertificate
+		{
+			CertificateId = certificateId,
+			RequestId = requestId,
+			DataSubjectReference = status.DataSubjectIdHash,
+			RequestReceivedAt = status.RequestedAt,
+			CompletedAt = completedAt,
+			Method = DetermineErasureMethod(keysDeleted, recordsAffected),
+			Summary = new ErasureSummary
+			{
+				KeysDeleted = keysDeleted,
+				RecordsAffected = recordsAffected,
+				DataCategories = [],
+				TablesAffected = []
+			},
+			Verification = new VerificationSummary
+			{
+				Verified = true,
+				Methods = _options.Value.VerificationMethods,
+				VerifiedAt = completedAt,
+				DeletedKeyIds = deletedKeyIds
+			},
+			LegalBasis = status.LegalBasis,
+			// FR-4a: enumerate exemptions (e.g. audit store) with their legal basis — explicit, never silent.
+			Exceptions = exemptions,
+			Signature = GenerateSignature(requestId, status.DataSubjectIdHash, completedAt),
+			RetainUntil = completedAt.Add(_options.Value.Retention.CertificateRetentionPeriod)
+		};
+
+		await certStore.SaveCertificateAsync(certificate, cancellationToken).ConfigureAwait(false);
+		return certificateId;
+	}
+
+	private string GenerateSignature(Guid requestId, ErasureStatus status) =>
+		GenerateSignature(requestId, status.DataSubjectIdHash, status.CompletedAt ?? DateTimeOffset.UtcNow);
+
+	private string GenerateSignature(Guid requestId, string dataSubjectIdHash, DateTimeOffset completedAt)
 	{
 		var signingKey = _options.Value.Retention.SigningKey;
-		var dataToSign = $"{requestId}|{status.DataSubjectIdHash}|{status.CompletedAt:O}";
+		var dataToSign = $"{requestId}|{dataSubjectIdHash}|{completedAt:O}";
 		var dataBytes = Encoding.UTF8.GetBytes(dataToSign);
 
 		if (signingKey.Length == 0)

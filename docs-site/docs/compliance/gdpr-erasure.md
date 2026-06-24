@@ -179,9 +179,14 @@ switch (status?.Status)
 }
 ```
 
-:::warning Partial Failure Handling
+:::warning Partial Completion Is Structural, Not Just On Failure
 
-If any contributor erasure fails, the request is marked `PartiallyCompleted` (not `Completed`). A compliance certificate is **not** generated for partially completed erasures. Monitor the `ErasurePartiallyCompleted` event (ID 92729) and investigate failed contributors.
+An erasure reaches `Completed` **only** when every discovered personal-data location is *covered* **and** no contributor reported an error. Two distinct conditions force `PartiallyCompleted`:
+
+1. **A contributor erasure fails** (an error is reported), or
+2. **A discovered location is left _uncovered_** — its store holds personal data but no mechanism erases it (no crypto-shred key, no covering `IErasureContributor`, no declared exemption).
+
+A coverage gap forces `PartiallyCompleted` **even when nothing threw** — the framework will not report `Completed` over a store it never erased. See [Erasure Coverage Model](#erasure-coverage-model) below. Monitor the `ErasurePartiallyCompleted` event (ID 92729) and investigate uncovered stores and failed contributors.
 :::
 
 ### 5. Compliance Certificate
@@ -192,11 +197,65 @@ Generate cryptographic proof of erasure:
 var certificate = await _erasureService.GenerateCertificateAsync(requestId, ct);
 
 // Certificate contains:
-// - Request details
-// - Execution timestamp
-// - Keys deleted
-// - SHA-256 signature
+// - Request details (RequestId, anonymized DataSubjectReference)
+// - Execution timestamp (CompletedAt) and Method (e.g. CryptographicErasure)
+// - Summary.KeysDeleted / RecordsAffected / DataCategories
+// - Verification.Verified + Verification.DeletedKeyIds (the specific key IDs proven gone)
+// - Exceptions: stores deliberately retained under Article 17(3) (e.g. the audit store), with legal Basis
+// - SHA-256 Signature
 ```
+
+The verification summary records the **specific** deleted key IDs (`Verification.DeletedKeyIds`) and is non-vacuous: if the summary claims `KeysDeleted > 0` but no deleted key can be confirmed gone — or a discovered location was left uncovered — `Verification.Verified` is `false` rather than a blanket `true`.
+
+## Erasure Coverage Model
+
+Erasure breadth is governed by a **three-state coverage gate**. Every personal-data [location](#data-inventory) discovered for the data subject is classified as one of:
+
+| State | Meaning | Effect on status |
+|-------|---------|------------------|
+| **Covered** | A mechanism erases this location: its per-subject encryption key was deleted (crypto-shred), **or** a registered `IErasureContributor` declares its store kind. | Does not block `Completed`. |
+| **Exempt** | A declared, documented retention exemption with a legal basis (e.g. the audit/security store). | Enumerated on the certificate (`Exceptions`), but **non-blocking**. |
+| **Uncovered** | Neither covered nor exempt — a genuine gap. | **Forces `PartiallyCompleted`**, naming the uncovered store. |
+
+`Completed` is reachable **only** when there are zero uncovered locations and zero errors. This is enforced structurally — the framework cannot report `Completed` over a store it never erased.
+
+### Store kinds and contributor coverage
+
+Each `DataLocation` carries a `StoreKind` (`Excalibur.Compliance.DataStoreKind`). A contributor declares which kinds it erases via `CoveredStoreKinds`:
+
+```csharp
+using Excalibur.Compliance;
+
+public sealed class OutboxErasureContributor : IErasureContributor
+{
+    public string Name => "Outbox";
+
+    // The coverage gate marks an Outbox-kind location as Covered when this contributor is registered.
+    public IReadOnlySet<DataStoreKind> CoveredStoreKinds { get; } =
+        new HashSet<DataStoreKind> { DataStoreKind.Outbox };
+
+    public Task<ErasureContributorResult> EraseAsync(
+        ErasureContributorContext context,
+        CancellationToken cancellationToken)
+    {
+        // Delete/tombstone rows for context.DataSubjectIdHash, then:
+        return Task.FromResult(ErasureContributorResult.Succeeded(recordsAffected: 0));
+    }
+}
+```
+
+`DataStoreKind` is an **extensible**, string-backed kind (the Microsoft "names" pattern), not a closed enum — consumers may have custom stores holding personal data. Use the well-known members (`DataStoreKind.EventStore`, `.Snapshot`, `.Outbox`, `.Inbox`, `.Projection`, `.Saga`, `.Audit`, `.Cache`) for first-party stores and `DataStoreKind.Create("MyCustomStore")` for your own. The default/unclassified kind (`DataStoreKind.Unknown`) is **never coverable** — an unclassified location always blocks `Completed`, so a store can never silently pass as erased.
+
+### Audit/security store: exempt by default
+
+The audit/security store kind (`DataStoreKind.Audit`) is treated as **`Exempt` by default**, on the legal basis of **GDPR Article 17(3)(b)** (processing necessary for compliance with a legal obligation — security audit-trail retention) and **Article 17(3)(e)** (establishment, exercise, or defence of legal claims — security-incident investigation). The exemption is recorded explicitly on the certificate's `Exceptions` list with its basis — it is never a silent skip and is never falsely counted as covered.
+
+If your compliance posture requires the audit store to be erased (no legal-retention basis, or post-retention-window erasure), **override the default** by registering an `IErasureContributor` whose `CoveredStoreKinds` includes `DataStoreKind.Audit` (contributor coverage wins over the default exemption).
+
+:::warning Compliance assistance, not a compliance guarantee
+
+The default audit-store exemption is a **sensible documented default**, not a legal determination. Excalibur is a framework, not your application — it cannot make your organization's final legal call. Your Data Protection Officer owns the decision of whether the audit store is in scope for a given erasure. See the [Compliance Disclaimer](../legal/compliance-disclaimer.md).
+:::
 
 ## Legal Holds
 

@@ -155,6 +155,17 @@ public sealed record DataLocation
 	public required string KeyId { get; init; }
 
 	/// <summary>
+	/// Gets the kind of store that holds this personal data, used by the erasure coverage gate to route
+	/// the location to its erasure mechanism (crypto-shred, a covering contributor, or an exemption).
+	/// </summary>
+	/// <remarks>
+	/// Defaults to <see cref="DataStoreKind.Unknown"/>. An unclassified location is never coverable by a
+	/// contributor or exemption — it can only be covered by crypto-shred (its <see cref="KeyId"/> being
+	/// deleted) and otherwise forces a non-<c>Completed</c> erasure (ADR-336 Amendment 1a).
+	/// </remarks>
+	public DataStoreKind StoreKind { get; init; }
+
+	/// <summary>
 	/// Gets whether this is automatically discovered or manually registered.
 	/// </summary>
 	public bool IsAutoDiscovered { get; init; } = true;

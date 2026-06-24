@@ -14,6 +14,42 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ---
 
+## June 2026 — Data-Loss & Compliance Sweep (Sprint 840)
+
+A sweep of P0 correctness defects where the framework advertised a durability or compliance guarantee it did not actually honor. Each is governed by ADR-336 (the "advertised-but-unwired reliability seam" anti-pattern + engage-test gate). These are behavioral **corrections** on the Excalibur persistence side; the Dispatch (messaging) framework is unaffected. As a greenfield framework there are no consumer data migrations — review the items below for behavior you may have relied on.
+
+### GDPR erasure now has a structural coverage gate
+
+- **Erasure reports `Completed` only when every discovered personal-data location is covered.** Coverage is now a **three-state** model — *Covered* (crypto-shred key deleted, or a registered `IErasureContributor` for the store kind), *Exempt* (a declared, documented retention exemption), or *Uncovered* (a gap). An **uncovered** location forces `PartiallyCompleted` **even when nothing threw** — the framework will not claim success over a store it never erased.
+- **`DataLocation.StoreKind`** (`Excalibur.Compliance.DataStoreKind`) and **`IErasureContributor.CoveredStoreKinds`** are new: contributors declare which store kinds they erase, and the gate routes each location to a covering mechanism. `DataStoreKind` is an extensible string-backed kind; the unclassified default is never coverable.
+- **The audit/security store is `Exempt` by default** (GDPR Art.17(3)(b) + (e)), recorded explicitly on the certificate's `Exceptions` with its legal basis — never a silent skip. Override by registering an `IErasureContributor` for `DataStoreKind.Audit`.
+- **Erasure verification is non-vacuous:** the certificate records the specific `Verification.DeletedKeyIds`, and `Verification.Verified` is `false` if claimed key deletions can't be confirmed or any location was left uncovered. See [GDPR Erasure > Coverage Model](./compliance/gdpr-erasure.md#erasure-coverage-model).
+
+### Projection hosts no longer silently skip poison events
+
+- **`GlobalStreamProjectionHost` halts on a poison event instead of skipping it.** An event that fails to deserialize, deserializes to `null`, or throws from `ApplyAsync` now halts the batch, marks the projection unhealthy, and **never advances the checkpoint past it** — so the event is reprocessed (transient failures self-heal) rather than silently dropped from the read model. Previously such events were logged, skipped, and the checkpoint advanced past them. See [GlobalStreamProjectionHost > Error Handling](./event-sourcing/global-stream-projection-host.md#error-handling).
+- **Aggregate rehydration fails loud** on an undeserializable/`null` event rather than reconstructing a silently-incomplete (corrupt) aggregate — the source-of-truth aggregate is never silently partial.
+
+### Saga SQL store enforces optimistic concurrency
+
+- **Concurrent saves for the same saga raise `ConcurrencyException`** instead of last-writer-wins overwriting. `SagaState.Version` is the concurrency token; the store owns the increment (EF-style — you do no version arithmetic). Applies to both `SagaManager` and `SagaCoordinator`. See [Sagas > Optimistic Concurrency](./sagas/index.md#optimistic-concurrency).
+
+### Encryption survives key rotation
+
+- **Audit-log and ElasticSearch field encryption are rotation-safe.** The encrypting key version is stamped into the ciphertext envelope and decryption resolves the key by that stored version against a provider that **retains prior versions** — a field encrypted before a rotation stays decryptable after it. ElasticSearch key rotation no longer renders existing ciphertext unrecoverable.
+- **Envelopes carry a format-version discriminator** distinct from the key version (`EncryptedFieldResult.FormatVersion` for ES; a byte-0 discriminator for the packed audit envelope), giving future envelope-schema changes a safe forward-migration path. An unknown format version is a surfaced error, never a best-effort parse.
+
+### Audit persistence: no silent discard
+
+- **`Security:Auditing:StoreType=SQL` now fails fast at startup** with a clear diagnostic. Excalibur.Security ships no SQL-backed `ISecurityEventStore`; the prior placeholder accepted then silently discarded every audit event. Use `Elasticsearch`, `File`, omit the setting for the in-memory development store, or register your own SQL audit store. (This is the `Excalibur.Security` auditing subsystem, distinct from the `Excalibur.AuditLogging` package and its `SqlServerAuditStore`.)
+- **Audit archival is cutoff-bound:** `ArchiveAuditEventsAsync` / `DeleteArchivedEventsAsync` restrict both the archive read and the delete to events older than `cutoffDate`, and delete **only** documents confirmed written to the (flushed/closed) archive — a failed archive write no longer deletes events.
+
+### Outbox job no longer disposes a shared singleton
+
+- **The outbox job no longer disposes the injected singleton `IOutboxDispatcher`.** Two consecutive job fires both succeed; a per-run disposable scope is created via `IServiceScopeFactory` when needed (the *scope* is disposed, not the shared service) — eliminating an `ObjectDisposedException` on the second fire.
+
+---
+
 ## June 2026 — Resilience Correctness (Sprint 839)
 
 ### Graceful degradation: windowed error rate

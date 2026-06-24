@@ -177,6 +177,16 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			}
 		}
 
+		// A saga that was ALREADY completed before this event does not process further events
+		// (SagaState.Completed contract). Skip without re-persisting, which also avoids a spurious version
+		// bump/overwrite on a finished workflow. This is checked at load time, so the event that itself
+		// completes the saga still proceeds and persists its completion below (bd-eszc06).
+		if (sagaState.Completed)
+		{
+			LogSagaAlreadyCompleted(evt.SagaId, evt.GetType().Name);
+			return;
+		}
+
 		var saga = ActivatorUtilities.CreateInstance<TSaga>(serviceProvider, sagaState);
 
 		// Idempotent replay guard: derive a unique event ID and check if already processed.
@@ -208,6 +218,9 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			await saga.HandleAsync(evt, cancellationToken).ConfigureAwait(false);
 		}
 
+		// Store-owns-increment (optimistic concurrency, bd-eszc06): SagaState.Version is the loaded token; the
+		// store compares it and persists the bump (writing the new version back), throwing ConcurrencyException if
+		// another handler advanced the saga since we loaded it. No caller version arithmetic.
 		await sagaStore.SaveAsync(sagaState, cancellationToken).ConfigureAwait(false);
 
 		if (saga.IsCompleted)
@@ -315,4 +328,8 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	[LoggerMessage(SagaEventId.SagaDuplicateEventSkipped, LogLevel.Information,
 		"Saga {SagaId} skipped duplicate event {EventId} (idempotent replay protection)")]
 	private partial void LogDuplicateEventSkipped(string sagaId, string eventId);
+
+	[LoggerMessage(SagaEventId.SagaAlreadyCompletedEventSkipped, LogLevel.Information,
+		"Saga {SagaId} already completed; skipping event {EventType}.")]
+	private partial void LogSagaAlreadyCompleted(string sagaId, string eventType);
 }

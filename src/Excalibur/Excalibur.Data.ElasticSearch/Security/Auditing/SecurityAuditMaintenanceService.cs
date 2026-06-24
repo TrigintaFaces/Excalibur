@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 
 using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.Core.Search;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Microsoft.Extensions.Logging;
@@ -168,10 +169,15 @@ internal sealed class SecurityAuditMaintenanceService
 				cutoffDate, archiveLocation);
 
 			var maxResults = _configuration.MaxQueryResultSize;
+
+			// Date-bound the selection: only events at or before the cutoff are candidates for
+			// archival. Previously this used MatchAllQuery, which scrolled the ENTIRE index into
+			// the archive regardless of age.
+			var cutoff = DateMath.Anchored(cutoffDate.UtcDateTime);
 			var searchResponse = await _elasticsearchClient.SearchAsync<SecurityAuditEvent>(
 				s => s
 					.Indices("security-audit-*")
-					.Query(new MatchAllQuery())
+					.Query(new DateRangeQuery("timestamp") { Lte = cutoff })
 					.Size(maxResults)
 					.Scroll("5m"), // Enable scrolling for large result sets
 				cancellationToken).ConfigureAwait(false);
@@ -183,24 +189,32 @@ internal sealed class SecurityAuditMaintenanceService
 
 			var archivedCount = 0;
 			var totalSize = 0L;
+
+			// Collect the Elasticsearch document IDs actually written to the archive so deletion
+			// targets ONLY those documents (never an unbounded delete), and only after the gzip
+			// stream has been fully flushed and closed.
+			var archivedIds = new List<string>();
 			var archiveFilePath = Path.Combine(archiveLocation, $"audit-archive-{cutoffDate:yyyy-MM-dd}.json.gz");
 
 			// Ensure archive directory exists
 			_ = Directory.CreateDirectory(Path.GetDirectoryName(archiveFilePath)!);
 
-			await using var fileStream = File.Create(archiveFilePath);
-			await using var gzipStream = new GZipStream(fileStream, CompressionMode.Compress);
+			// Scope the file/gzip/writer streams to this block so they are flushed and closed
+			// in order (writer -> gzip footer -> file -> disk) BEFORE any deletion runs. If a
+			// write throws, the catch below rethrows and no deletion is attempted (AC-5).
+			await using (var fileStream = File.Create(archiveFilePath))
+			await using (var gzipStream = new GZipStream(fileStream, CompressionMode.Compress))
 			await using (var writer = new StreamWriter(gzipStream, Encoding.UTF8))
 			{
 				// Process initial batch
-				var batchResult = await ProcessArchiveBatch(writer, searchResponse.Documents, archivedCount, totalSize)
+				var batchResult = await ProcessArchiveBatch(writer, searchResponse.Hits, archivedIds, archivedCount, totalSize)
 					.ConfigureAwait(false);
 				archivedCount = batchResult.archivedCount;
 				totalSize = batchResult.totalSize;
 
 				// Process remaining batches using scroll
 				var scrollId = searchResponse.ScrollId;
-				var hasMoreDocuments = searchResponse.Documents.Count != 0;
+				var hasMoreDocuments = searchResponse.Hits.Count != 0;
 
 				while (!string.IsNullOrEmpty(scrollId?.ToString()) && hasMoreDocuments)
 				{
@@ -213,12 +227,12 @@ internal sealed class SecurityAuditMaintenanceService
 						break;
 					}
 
-					var scrollBatchResult = await ProcessArchiveBatch(writer, scrollResponse.Documents, archivedCount, totalSize)
+					var scrollBatchResult = await ProcessArchiveBatch(writer, scrollResponse.Hits, archivedIds, archivedCount, totalSize)
 						.ConfigureAwait(false);
 					archivedCount = scrollBatchResult.archivedCount;
 					totalSize = scrollBatchResult.totalSize;
 					scrollId = scrollResponse.ScrollId;
-					hasMoreDocuments = scrollResponse.Documents.Count != 0;
+					hasMoreDocuments = scrollResponse.Hits.Count != 0;
 				}
 
 				// Clear scroll context
@@ -227,12 +241,17 @@ internal sealed class SecurityAuditMaintenanceService
 					var clearScrollRequest = new ClearScrollRequest { ScrollId = scrollId };
 					_ = await _elasticsearchClient.ClearScrollAsync(clearScrollRequest, cancellationToken).ConfigureAwait(false);
 				}
+
+				// Flush buffered data through the writer before the streams dispose at the end
+				// of this block.
+				await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
 			}
 
-			// Delete archived events from Elasticsearch if archival was successful
-			if (archivedCount > 0)
+			// Delete archived events from Elasticsearch only after the archive has been fully
+			// flushed and closed, and only the specific IDs that were archived (AC-4/AC-5).
+			if (archivedIds.Count > 0)
 			{
-				await DeleteArchivedEventsAsync(cutoffDate, cancellationToken).ConfigureAwait(false);
+				await DeleteArchivedEventsByIdsAsync(archivedIds, cancellationToken).ConfigureAwait(false);
 			}
 
 			var result = new AuditArchiveResult
@@ -324,18 +343,31 @@ internal sealed class SecurityAuditMaintenanceService
 	/// </summary>
 	private static async Task<(int archivedCount, long totalSize)> ProcessArchiveBatch(
 		StreamWriter writer,
-		IEnumerable<SecurityAuditEvent> events,
+		IReadOnlyCollection<Hit<SecurityAuditEvent>> hits,
+		List<string> archivedIds,
 		int currentArchivedCount,
 		long currentTotalSize)
 	{
 		var archivedCount = currentArchivedCount;
 		var totalSize = currentTotalSize;
 
-		foreach (var auditEvent in events)
+		foreach (var hit in hits)
 		{
-			var json = JsonSerializer.Serialize(auditEvent, SecurityAuditEventSerializerContext.Default.SecurityAuditEvent);
+			if (hit.Source is null)
+			{
+				continue;
+			}
+
+			var json = JsonSerializer.Serialize(hit.Source, SecurityAuditEventSerializerContext.Default.SecurityAuditEvent);
 
 			await writer.WriteLineAsync(json).ConfigureAwait(false);
+
+			// Record the document _id so only archived documents are deleted afterwards.
+			if (!string.IsNullOrEmpty(hit.Id))
+			{
+				archivedIds.Add(hit.Id);
+			}
+
 			archivedCount++;
 			totalSize += Encoding.UTF8.GetByteCount(json);
 		}
@@ -344,16 +376,24 @@ internal sealed class SecurityAuditMaintenanceService
 	}
 
 	/// <summary>
-	/// Deletes archived events from Elasticsearch.
+	/// Deletes the specific archived events from Elasticsearch by their document IDs.
 	/// </summary>
-	private async Task DeleteArchivedEventsAsync(DateTimeOffset cutoffDate, CancellationToken cancellationToken)
+	/// <remarks>
+	/// Only the IDs confirmed written to the (flushed and closed) archive are deleted. This
+	/// replaces the previous unbounded <c>DeleteByQuery(MatchAll)</c>, which destroyed the entire
+	/// audit index — including recent events that were never archived.
+	/// </remarks>
+	private async Task DeleteArchivedEventsByIdsAsync(
+		IReadOnlyCollection<string> archivedIds,
+		CancellationToken cancellationToken)
 	{
 		try
 		{
+			var ids = new Ids(archivedIds.Select(static id => (Id)id).ToList());
 			var deleteResponse = await _elasticsearchClient.DeleteByQueryAsync<SecurityAuditEvent>(
-				static d => d
+				d => d
 					.Indices("security-audit-*")
-					.Query(new MatchAllQuery()),
+					.Query(q => q.Ids(i => i.Values(ids))),
 				cancellationToken).ConfigureAwait(false);
 
 			if (!deleteResponse.IsValidResponse)

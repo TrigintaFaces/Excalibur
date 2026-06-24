@@ -2092,7 +2092,6 @@ Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.Algorithm.get -> stri
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.AuthenticationTag.get -> string?
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.Classification.get -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedAt.get -> System.DateTimeOffset
-Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedFieldResult(string! encryptedValue, string! algorithm, string! keyVersion, string? initializationVector = null, string? authenticationTag = null, Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification classification = Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Confidential) -> void
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedValue.get -> string!
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.HasIntegrityProtection.get -> bool
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.InitializationVector.get -> string?

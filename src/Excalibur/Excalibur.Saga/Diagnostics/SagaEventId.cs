@@ -302,6 +302,9 @@ public static class SagaEventId
 	/// <summary>Saga execution failed.</summary>
 	public const int SagaExecutionFailed = 122205;
 
+	/// <summary>Event skipped because the saga was already completed.</summary>
+	public const int SagaAlreadyCompletedEventSkipped = 122206;
+
 	// ========================================
 	// 120400-120499: Saga Base/Middleware
 	// ========================================

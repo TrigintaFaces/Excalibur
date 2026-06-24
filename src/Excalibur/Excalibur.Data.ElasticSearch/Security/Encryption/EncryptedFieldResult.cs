@@ -17,14 +17,24 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// <param name="initializationVector"> The initialization vector used for encryption. </param>
 /// <param name="authenticationTag"> The authentication tag for integrity verification. </param>
 /// <param name="classification"> The data classification level of the original field. </param>
+/// <param name="formatVersion"> The envelope format-version discriminator, distinct from the key version. Defaults to <see cref="CurrentFormatVersion"/>. </param>
 public sealed class EncryptedFieldResult(
 	string encryptedValue,
 	string algorithm,
 	string keyVersion,
 	string? initializationVector = null,
 	string? authenticationTag = null,
-	ElasticSearchDataClassification classification = ElasticSearchDataClassification.Confidential)
+	ElasticSearchDataClassification classification = ElasticSearchDataClassification.Confidential,
+	string formatVersion = EncryptedFieldResult.CurrentFormatVersion)
 {
+	/// <summary>
+	/// The current envelope format-version discriminator emitted by the encryptor.
+	/// </summary>
+	/// <remarks>
+	/// This value is distinct from the key version: key rotation and envelope-schema evolution are orthogonal axes.
+	/// Decryption dispatches on the stored <see cref="FormatVersion"/> and rejects any version it does not recognize.
+	/// </remarks>
+	internal const string CurrentFormatVersion = "1";
 	/// <summary>
 	/// Gets the encrypted field value as a Base64-encoded string.
 	/// </summary>
@@ -60,6 +70,15 @@ public sealed class EncryptedFieldResult(
 	/// </summary>
 	/// <value> The sensitivity classification of the encrypted data. </value>
 	public ElasticSearchDataClassification Classification { get; } = classification;
+
+	/// <summary>
+	/// Gets the envelope format-version discriminator for this encrypted field.
+	/// </summary>
+	/// <value>
+	/// The format-version identifier, distinct from <see cref="KeyVersion"/>. Decryption dispatches on this value and
+	/// rejects any version it does not recognize, providing a safe forward-migration path for future envelope changes.
+	/// </value>
+	public string FormatVersion { get; } = formatVersion ?? throw new ArgumentNullException(nameof(formatVersion));
 
 	/// <summary>
 	/// Gets the timestamp when the field was encrypted.

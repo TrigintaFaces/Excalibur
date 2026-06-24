@@ -126,6 +126,62 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 	}
 
 	/// <inheritdoc />
+	public async Task<string?> GetSecretVersionAsync(string keyName, string version, CancellationToken cancellationToken)
+	{
+		if (string.IsNullOrWhiteSpace(keyName))
+		{
+			throw new ArgumentException("Key name cannot be null or empty", nameof(keyName));
+		}
+
+		if (string.IsNullOrWhiteSpace(version))
+		{
+			throw new ArgumentException("Version cannot be null or empty", nameof(version));
+		}
+
+		await _operationSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			var secretName = SanitizeSecretName(keyName);
+
+			// Azure Key Vault retains every prior secret version natively; version-addressed retrieval keeps
+			// pre-rotation ciphertext decryptable after the key has been rotated.
+			var response = await _secretClient
+				.GetSecretAsync(secretName, version, cancellationToken).ConfigureAwait(false);
+
+			SecretAccessed?.Invoke(this, new SecretAccessedEventArgs(
+				keyName, SecretOperation.Read, DateTimeOffset.UtcNow, GetCurrentUserId()));
+
+			_logger.LogDebug("Secret {SecretName} version {Version} retrieved successfully from Azure Key Vault", secretName, version);
+			return response.Value.Value;
+		}
+		catch (RequestFailedException ex) when (ex.Status == 404)
+		{
+			_logger.LogDebug("Secret {KeyName} version {Version} not found in Azure Key Vault", keyName, version);
+			return null;
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Failed to retrieve secret {KeyName} version {Version} from Azure Key Vault", keyName, version);
+			throw new SecurityException($"Failed to retrieve secret {keyName} version {version}", ex);
+		}
+		finally
+		{
+			_ = _operationSemaphore.Release();
+		}
+	}
+
+	/// <inheritdoc />
+	public async Task<string?> GetCurrentVersionAsync(string keyName, CancellationToken cancellationToken)
+	{
+		if (string.IsNullOrWhiteSpace(keyName))
+		{
+			throw new ArgumentException("Key name cannot be null or empty", nameof(keyName));
+		}
+
+		return await GetKeyVersionAsync(keyName, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
 	public async Task<bool> SetSecretAsync(
 		string keyName,
 		string secretValue,

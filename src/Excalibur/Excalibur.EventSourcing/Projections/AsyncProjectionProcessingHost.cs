@@ -134,10 +134,12 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 						asyncRegistrations, domainEvents, context, stoppingToken).ConfigureAwait(false);
 				}
 
-				// Advance position past the last event in the batch
+				// Advance position past the last event in the batch by the GLOBAL stream ordinal
+				// (GlobalPosition), not the per-aggregate Version, which skipped/duplicated events
+				// across aggregates.
 				var lastStoredEvent = events[events.Count - 1];
 				_currentPosition = new GlobalStreamPosition(
-					lastStoredEvent.Version + 1,
+					lastStoredEvent.GlobalPosition + 1,
 					lastStoredEvent.Timestamp);
 				_eventsSinceCheckpoint += events.Count;
 

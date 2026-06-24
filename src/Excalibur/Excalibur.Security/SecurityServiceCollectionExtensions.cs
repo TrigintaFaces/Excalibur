@@ -155,8 +155,17 @@ public static class SecurityServiceCollectionExtensions
 		switch (storeType?.ToUpperInvariant())
 		{
 			case "SQL":
-				services.TryAddSingleton<ISecurityEventStore, SqlSecurityEventStore>();
-				break;
+				// Fail fast: Excalibur.Security ships no SQL-backed ISecurityEventStore. The prior
+				// SqlSecurityEventStore placeholder ACCEPTED then silently DISCARDED every audit event
+				// (validated, logged a warning, persisted nothing) and returned empty queries — a
+				// catastrophic compliance/forensics data-loss landmine. Refuse to register so the
+				// silent-discard behavior is unreachable via StoreType=SQL (NFR-5: observable, not a Warning).
+				throw new InvalidOperationException(
+					"Security:Auditing:StoreType='SQL' selects a SQL-backed audit store, but no SQL " +
+					"ISecurityEventStore implementation is available in Excalibur.Security. SQL persistence " +
+					"belongs in a dedicated package (e.g. Excalibur.Security.SqlServer), which is not yet shipped. " +
+					"Register a SQL audit store, set StoreType to 'Elasticsearch' or 'File', or omit it to use the " +
+					"in-memory store for development. Refusing to start to avoid silently discarding audit events.");
 			case "ELASTICSEARCH":
 				services.TryAddSingleton<ISecurityEventStore, ElasticsearchSecurityEventStore>();
 				break;

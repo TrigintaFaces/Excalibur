@@ -3,6 +3,7 @@
 
 using Dapper;
 
+using Excalibur.Data;
 using Excalibur.Dispatch.Serialization;
 
 using Excalibur.Saga.SqlServer;
@@ -319,6 +320,106 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 		timeDiff.ShouldBeLessThanOrEqualTo(1);
 	}
 
+	/// <summary>
+	/// bd-eszc06 (S840, AC-11) — independent regression lock (author≠impl, TestsDeveloper).
+	/// The SHIPPED SQL saga store must enforce optimistic concurrency under the store-owns-increment
+	/// convention (SA 13980): two parties load a saga at version N and save with NO caller arithmetic →
+	/// exactly one succeeds (store bumps to N+1); the other (stale, still carrying N) throws
+	/// <see cref="ConcurrencyException"/> with no lost update. RED on the pre-fix store (unchecked
+	/// last-writer-wins MERGE — the stale save would silently overwrite).
+	/// </summary>
+	[Fact]
+	public async Task EnforceOptimisticConcurrency_StaleSaveThrowsConcurrencyException()
+	{
+		// Arrange — persist a saga (store bumps 0 -> 1), then load two copies, both at version 1.
+		await InitializeSagaTableAsync();
+		var store = CreateSagaStore();
+		var sagaId = Guid.NewGuid();
+		var initial = TestSagaState.Create(sagaId);
+		initial.Status = "v1";
+		await store.SaveAsync(initial, TestCancellationToken); // Version 0 -> store inserts at 1
+
+		var copy1 = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
+		var copy2 = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
+		_ = copy1.ShouldNotBeNull();
+		_ = copy2.ShouldNotBeNull();
+		copy1!.Version.ShouldBe(1L);
+		copy2!.Version.ShouldBe(1L);
+
+		// Act — copy1 saves first (NO arithmetic): store CASes on the loaded version 1, succeeds, bumps to 2.
+		copy1.Status = "winner";
+		await store.SaveAsync(copy1, TestCancellationToken);
+
+		// copy2 still carries the loaded version 1, but the row is now 2 → stale. No caller arithmetic.
+		copy2.Status = "loser";
+
+		// Assert — the stale save is rejected (no lost update). RED on the pre-fix last-writer-wins MERGE.
+		_ = await Should.ThrowAsync<ConcurrencyException>(
+			() => store.SaveAsync(copy2, TestCancellationToken)).ConfigureAwait(false);
+
+		// The winner's write survived; the loser did NOT overwrite it.
+		var persisted = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
+		_ = persisted.ShouldNotBeNull();
+		persisted!.Status.ShouldBe("winner");
+		persisted.Version.ShouldBe(2L);
+	}
+
+	/// <summary>
+	/// bd-eszc06 (engage-test, SA 13980): a brand-new saga at the natural default <c>Version = 0</c>
+	/// persists with zero caller arithmetic — the store owns the increment (0 -> 1 on insert).
+	/// </summary>
+	[Fact]
+	public async Task PersistNewSagaAtDefaultVersionZero()
+	{
+		// Arrange
+		await InitializeSagaTableAsync();
+		var store = CreateSagaStore();
+		var sagaId = Guid.NewGuid();
+		var state = TestSagaState.Create(sagaId);
+		state.Status = "created";
+		state.Version.ShouldBe(0L); // natural new saga, no caller math
+
+		// Act — store owns the increment.
+		await store.SaveAsync(state, TestCancellationToken);
+
+		// Assert
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
+		_ = loaded.ShouldNotBeNull();
+		loaded!.Status.ShouldBe("created");
+		loaded.Version.ShouldBe(1L); // store bumped 0 -> 1
+	}
+
+	/// <summary>
+	/// bd-eszc06 (engage-test for the EF-style write-back, SA 13980): create -> save -> mutate -> save on
+	/// the SAME object, with no caller arithmetic, must succeed. The store writes the new version back onto
+	/// the saved instance, so the second save carries the freshly-bumped version (not the stale loaded one).
+	/// Without the write-back the second save would re-conflict → <see cref="ConcurrencyException"/>.
+	/// </summary>
+	[Fact]
+	public async Task AllowConsecutiveSavesOnSameObjectViaWriteBack()
+	{
+		// Arrange
+		await InitializeSagaTableAsync();
+		var store = CreateSagaStore();
+		var sagaId = Guid.NewGuid();
+		var state = TestSagaState.Create(sagaId);
+		state.Status = "first";
+
+		// Act — first save: 0 -> 1, write-back sets state.Version = 1.
+		await store.SaveAsync(state, TestCancellationToken);
+		state.Version.ShouldBe(1L); // EF-style write-back (the subtle bit that makes this work)
+
+		// Mutate the SAME object and save again — no arithmetic.
+		state.Status = "second";
+		await store.SaveAsync(state, TestCancellationToken); // 1 -> 2
+
+		// Assert
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
+		_ = loaded.ShouldNotBeNull();
+		loaded!.Status.ShouldBe("second");
+		loaded.Version.ShouldBe(2L);
+	}
+
 	private SqlServerSagaStore CreateSagaStore()
 	{
 		var logger = NullLogger<SqlServerSagaStore>.Instance;
@@ -343,6 +444,7 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 			        SagaType NVARCHAR(500) NOT NULL,
 			        StateJson NVARCHAR(MAX) NOT NULL,
 			        IsCompleted BIT NOT NULL DEFAULT 0,
+			        Version BIGINT NOT NULL DEFAULT 0,
 			        CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 			        UpdatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 			    );

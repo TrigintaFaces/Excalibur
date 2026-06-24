@@ -23,4 +23,17 @@ public sealed record StoredEvent(
 	byte[] EventData,
 	byte[]? Metadata,
 	long Version,
-	DateTimeOffset Timestamp);
+	DateTimeOffset Timestamp)
+{
+	/// <summary>
+	/// Gets the global stream position: the store-wide, monotonically increasing append ordinal of
+	/// this event across all aggregates. Used by global-stream consumers to order and checkpoint in
+	/// global append order.
+	/// </summary>
+	/// <value>
+	/// The 1-based global ordinal when the source store exposes one (e.g. the SQL Server event
+	/// store's identity column); otherwise <c>0</c> (the unset sentinel). Distinct from
+	/// <see cref="Version"/>, which is the per-aggregate version.
+	/// </value>
+	public long GlobalPosition { get; init; }
+}

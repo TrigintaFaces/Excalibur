@@ -127,8 +127,11 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 		var jobName = context.JobDetail.Key.Name;
 		var jobGroup = context.JobDetail.Key.Group;
 
+		// NOTE: _outbox is an injected SINGLETON (IOutboxDispatcher, registered TryAddSingleton). A Quartz job is resolved per fire but
+		// receives the same singleton instance every time, so it MUST NOT own/dispose its lifetime. Disposing it here (a prior
+		// `await using (_outbox)`) bricked the dispatcher after the first fire (ObjectDisposedException on every subsequent fire and for
+		// any other IOutboxDispatcher consumer). The container owns the singleton's lifetime. (bd-gh8ov8)
 		using (_logger.BeginScope(new Dictionary<string, object>(StringComparer.Ordinal) { ["JobGroup"] = jobGroup, ["JobName"] = jobName }))
-		await using (_outbox.ConfigureAwait(false))
 		{
 			try
 			{

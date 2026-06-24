@@ -26,7 +26,14 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	private readonly EncryptionOptions _settings;
 	private readonly Dictionary<ElasticSearchDataClassification, Regex> _classificationPatterns;
 	private readonly SemaphoreSlim _encryptionSemaphore;
+	// System.Threading.Timer's maximum dueTime/period is uint.MaxValue-1 ms (~49.7 days). A configured rotation
+	// interval longer than this (the default is 90 days) would throw ArgumentOutOfRangeException at construction,
+	// so the timer is armed in clamped chunks and re-armed from the callback until the full interval elapses (gucy1d).
+	private static readonly TimeSpan MaxTimerInterval = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
+
 	private readonly Timer? _keyRotationTimer;
+	private readonly TimeSpan _keyRotationInterval;
+	private DateTimeOffset _nextKeyRotationDueUtc;
 	private ConcurrentBag<Task> _trackedTasks = [];
 	private volatile bool _disposed;
 
@@ -49,12 +56,14 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		_classificationPatterns = BuildClassificationPatterns();
 		_encryptionSemaphore = new SemaphoreSlim(Environment.ProcessorCount * 2, Environment.ProcessorCount * 2);
 
-		// Initialize key rotation timer if supported
+		// Initialize key rotation timer if supported. Arm only the first (clamped) chunk and re-arm from the
+		// callback — a configured interval longer than Timer's max would otherwise throw at construction (gucy1d).
 		if (_keyProvider.SupportsKeyRotation && _settings.KeyManagement.KeyRotationInterval > TimeSpan.Zero)
 		{
+			_keyRotationInterval = _settings.KeyManagement.KeyRotationInterval;
+			_nextKeyRotationDueUtc = DateTimeOffset.UtcNow + _keyRotationInterval;
 			_keyRotationTimer = new Timer(PerformScheduledKeyRotation, state: null,
-				_settings.KeyManagement.KeyRotationInterval,
-				_settings.KeyManagement.KeyRotationInterval);
+				ClampToTimerMax(_keyRotationInterval), Timeout.InfiniteTimeSpan);
 		}
 
 		_logger.LogInformation(
@@ -217,6 +226,11 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 				keyData = await _keyProvider.GetSecretAsync(keyName, cancellationToken).ConfigureAwait(false);
 			}
 
+			// Resolve the real current key version so decryption can address it after rotation. A hardcoded version
+			// would make pre-rotation ciphertext unrecoverable once the key rotates.
+			var keyVersion = await _keyProvider.GetCurrentVersionAsync(keyName, cancellationToken).ConfigureAwait(false)
+				?? throw new SecurityException($"Current key version could not be resolved for encryption key '{keyName}'.");
+
 			var encryptedData = await PerformEncryptionAsync(
 				plaintextBytes,
 				keyData ?? throw new InvalidOperationException($"Key provider returned null for encryption key '{keyName}'."),
@@ -225,14 +239,15 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			var result = new EncryptedFieldResult(
 				Convert.ToBase64String(encryptedData.EncryptedBytes),
 				algorithm,
-				"1.0", // Key version - should be retrieved from key provider
+				keyVersion,
 				Convert.ToBase64String(encryptedData.IV),
 				Convert.ToBase64String(encryptedData.AuthTag),
-				classification);
+				classification,
+				EncryptedFieldResult.CurrentFormatVersion);
 
 			// Raise encryption event for auditing
 			FieldEncrypted?.Invoke(this, new FieldEncryptedEventArgs(
-				fieldName, classification, algorithm, "1.0", DateTimeOffset.UtcNow));
+				fieldName, classification, algorithm, keyVersion, DateTimeOffset.UtcNow));
 
 			_logger.LogDebug(
 				"Field {FieldName} encrypted with classification {Classification} using {Algorithm}",
@@ -266,6 +281,14 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 		try
 		{
+			// Dispatch on the envelope format-version discriminator. An unknown format is surfaced as an error rather
+			// than parsed best-effort, providing a safe forward-migration path for future envelope changes.
+			if (!string.Equals(encryptedField.FormatVersion, EncryptedFieldResult.CurrentFormatVersion, StringComparison.Ordinal))
+			{
+				throw new SecurityException(
+					$"Unknown encrypted-field format version '{encryptedField.FormatVersion}' for field {fieldName}; expected '{EncryptedFieldResult.CurrentFormatVersion}'.");
+			}
+
 			// Validate integrity if supported
 			if (encryptedField.HasIntegrityProtection &&
 				!await ValidateIntegrityAsync(encryptedField, cancellationToken).ConfigureAwait(false))
@@ -273,13 +296,17 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 				throw new SecurityException($"Integrity validation failed for field {fieldName}");
 			}
 
-			// Get decryption key
+			// Resolve the decryption key by the EXACT version stamped on the ciphertext, not the current key. After a
+			// rotation the current key cannot authenticate pre-rotation ciphertext, so version-addressed retrieval is
+			// what keeps already-encrypted data recoverable.
 			var keyName = GetKeyNameForClassification(encryptedField.Classification);
-			var keyData = await _keyProvider.GetSecretAsync(keyName, cancellationToken).ConfigureAwait(false);
+			var keyData = await _keyProvider
+				.GetSecretVersionAsync(keyName, encryptedField.KeyVersion, cancellationToken).ConfigureAwait(false);
 
 			if (string.IsNullOrEmpty(keyData))
 			{
-				throw new SecurityException($"Decryption key not found for field {fieldName}");
+				throw new SecurityException(
+					$"Decryption key not found for field {fieldName} (key '{keyName}', version '{encryptedField.KeyVersion}')");
 			}
 
 			var encryptedBytes = Convert.FromBase64String(encryptedField.EncryptedValue);
@@ -686,12 +713,27 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <summary>
 	/// Performs scheduled key rotation for all data classification levels.
 	/// </summary>
+	/// <summary>Clamps a timer interval to <see cref="System.Threading.Timer"/>'s maximum dueTime to avoid overflow.</summary>
+	private static TimeSpan ClampToTimerMax(TimeSpan interval) =>
+		interval > MaxTimerInterval ? MaxTimerInterval : interval;
+
 	private void PerformScheduledKeyRotation(object? state)
 	{
 		if (_disposed)
 		{
 			return;
 		}
+
+		// The timer may fire before the full configured interval has elapsed because each arm is clamped to Timer's
+		// max dueTime (gucy1d). Only rotate once actually due; always re-arm for the remaining time to the next due point.
+		if (DateTimeOffset.UtcNow < _nextKeyRotationDueUtc)
+		{
+			RearmKeyRotationTimer();
+			return;
+		}
+
+		_nextKeyRotationDueUtc = DateTimeOffset.UtcNow + _keyRotationInterval;
+		RearmKeyRotationTimer();
 
 		var task = Task.Factory.StartNew(async () =>
 		{
@@ -720,6 +762,33 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			{
 				_trackedTasks.Add(t);
 			}
+		}
+	}
+
+	/// <summary>
+	/// Re-arms the rotation timer for the clamped remaining time until the next rotation is due, supporting
+	/// configured intervals longer than <see cref="System.Threading.Timer"/>'s maximum dueTime (gucy1d).
+	/// </summary>
+	private void RearmKeyRotationTimer()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		var remaining = _nextKeyRotationDueUtc - DateTimeOffset.UtcNow;
+		if (remaining < TimeSpan.Zero)
+		{
+			remaining = TimeSpan.Zero;
+		}
+
+		try
+		{
+			_ = _keyRotationTimer?.Change(ClampToTimerMax(remaining), Timeout.InfiniteTimeSpan);
+		}
+		catch (ObjectDisposedException)
+		{
+			// The timer was disposed concurrently (shutdown); nothing to re-arm.
 		}
 	}
 }

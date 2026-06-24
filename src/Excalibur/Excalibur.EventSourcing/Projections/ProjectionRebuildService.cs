@@ -148,8 +148,10 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 					totalProcessed++;
 				}
 
+				// Advance by the GLOBAL stream ordinal (GlobalPosition), not the per-aggregate Version,
+				// which skipped/duplicated events across aggregates during rebuild.
 				position = new Queries.GlobalStreamPosition(
-					events[events.Count - 1].Version + 1,
+					events[events.Count - 1].GlobalPosition + 1,
 					events[events.Count - 1].Timestamp);
 
 				LogBatchRebuilt(projectionName, events.Count, totalProcessed);

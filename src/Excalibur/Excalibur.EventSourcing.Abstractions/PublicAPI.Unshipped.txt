@@ -1,1 +1,3 @@
 #nullable enable
+Excalibur.EventSourcing.StoredEvent.GlobalPosition.get -> long
+Excalibur.EventSourcing.StoredEvent.GlobalPosition.init -> void

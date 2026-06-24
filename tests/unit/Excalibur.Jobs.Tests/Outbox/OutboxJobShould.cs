@@ -120,6 +120,37 @@ public sealed class OutboxJobShould
 		await Should.NotThrowAsync(() => sut.Execute(context));
 	}
 
+	// --- bd-gh8ov8: OutboxJob MUST NOT dispose its injected SINGLETON IOutboxDispatcher (AC-12, EC-7) ---
+	// Independent regression lock (author≠impl, TestsDeveloper). IOutboxDispatcher is registered
+	// TryAddSingleton; Quartz resolves the job per fire but injects the SAME singleton every time, so the
+	// job must NOT own/dispose its lifetime. The pre-fix code wrapped the dispatch in
+	// `await using (_outbox.ConfigureAwait(false))`, which disposed the singleton on the first fire and
+	// bricked it (ObjectDisposedException) for every subsequent fire and for every other consumer.
+	// Load-bearing assertion: DisposeAsync is NEVER called. RED on the pre-fix `await using`; GREEN after.
+
+	[Fact]
+	public async Task NotDisposeInjectedSingletonDispatcherAcrossConsecutiveFires()
+	{
+		// Arrange — a single shared dispatcher instance, exactly as DI injects the singleton into each fire.
+		A.CallTo(() => _fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
+			.Returns(2);
+		var sut = new OutboxJob(_fakeOutbox, _heartbeatTracker, NullLogger<OutboxJob>.Instance);
+		var context = CreateJobExecutionContext("OutboxJob", "DEFAULT");
+
+		// Act — fire twice in succession (a real scheduler reuses the singleton across fires).
+		await sut.Execute(context);
+		await sut.Execute(context);
+
+		// Assert — the job must never own/dispose the injected singleton's lifetime. EC-7: other
+		// consumers (e.g. AuditMiddleware) must never observe it disposed. This is the load-bearing
+		// structural lock — it is RED on the pre-fix `await using (_outbox)`.
+		A.CallTo(() => _fakeOutbox.DisposeAsync()).MustNotHaveHappened();
+
+		// …and both fires actually dispatched (proves the second fire ran against a live dispatcher).
+		A.CallTo(() => _fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
+			.MustHaveHappenedTwiceExactly();
+	}
+
 	// --- JobConfigSectionName ---
 
 	[Fact]

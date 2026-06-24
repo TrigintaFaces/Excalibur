@@ -252,7 +252,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 	#region Event Deserialization Failure Tests
 
 	[Fact]
-	public async Task GetByIdAsync_ShouldSkipEventsWithJsonException_AndReturnAggregate()
+	public async Task GetByIdAsync_FailsLoud_WhenEventDeserializationThrowsJsonException()
 	{
 		// Arrange
 		var aggregateId = "agg-json-fail";
@@ -282,19 +282,15 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			serializer,
 			id => new EdgeCaseAggregate(id));
 
-		// Act - Should not throw, just skip the invalid event
-		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
-
-		// Assert
-		// When events exist but can't be deserialized, an empty aggregate is returned
-		// because the event store indicates the aggregate exists
-		_ = result.ShouldNotBeNull();
-		result.Version.ShouldBe(0); // No events were successfully applied
-		result.Data.ShouldBe(string.Empty); // Default state
+		// Act & Assert — bd-ze6pty / ADR-336 fail-only: rehydration must FAIL LOUD on a deserialization
+		// failure. Silently skipping the event would replay an incomplete history into a corrupt,
+		// partially-applied source-of-truth aggregate (the data-loss behavior this lock prevents).
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => repository.GetByIdAsync(aggregateId, CancellationToken.None));
 	}
 
 	[Fact]
-	public async Task GetByIdAsync_ShouldSkipEventsWithTypeLoadException_AndReturnAggregate()
+	public async Task GetByIdAsync_FailsLoud_WhenEventTypeCannotBeResolved()
 	{
 		// Arrange
 		var aggregateId = "agg-type-fail";
@@ -322,17 +318,14 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			serializer,
 			id => new EdgeCaseAggregate(id));
 
-		// Act - Should not throw, just skip the unknown event
-		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
-
-		// Assert
-		// When events exist but can't be deserialized, an empty aggregate is returned
-		_ = result.ShouldNotBeNull();
-		result.Version.ShouldBe(0);
+		// Act & Assert — bd-ze6pty / ADR-336 fail-only: an unresolvable event type is a deserialization
+		// failure; rehydration must FAIL LOUD rather than skip the event and return a corrupt aggregate.
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => repository.GetByIdAsync(aggregateId, CancellationToken.None));
 	}
 
 	[Fact]
-	public async Task GetByIdAsync_ShouldSkipEventsWithInvalidOperationException_AndReturnAggregate()
+	public async Task GetByIdAsync_FailsLoud_WhenEventDeserializationThrowsInvalidOperation()
 	{
 		// Arrange
 		var aggregateId = "agg-invalid-op-fail";
@@ -362,12 +355,10 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			serializer,
 			id => new EdgeCaseAggregate(id));
 
-		// Act - Should not throw, just skip the invalid event
-		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
-
-		// Assert
-		_ = result.ShouldNotBeNull();
-		result.Version.ShouldBe(0);
+		// Act & Assert — bd-ze6pty / ADR-336 fail-only: rehydration must FAIL LOUD on a deserialization
+		// failure rather than skip the event and return a corrupt, partially-applied aggregate.
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => repository.GetByIdAsync(aggregateId, CancellationToken.None));
 	}
 
 	#endregion

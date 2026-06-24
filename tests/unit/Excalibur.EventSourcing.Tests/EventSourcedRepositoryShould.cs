@@ -237,6 +237,54 @@ public sealed class EventSourcedRepositoryShould
 		result.WasUpcastedEventApplied.ShouldBeFalse("V1 event should have been applied directly without upcasting");
 	}
 
+	// --- bd-ze6pty (S840, AC-10b, ADR-336 Amendment 3): FR-8 — rehydration FAILS on a poison event ---
+	// Independent regression lock (author≠impl, TestsDeveloper). Rehydration reconstructs the
+	// SOURCE-OF-TRUTH aggregate, so a silently-skipped undeserializable/null event would build a corrupt
+	// aggregate and (worse) let it be persisted — strictly more severe than the c3jdco projection case.
+	// The repository MUST fail loud (throw) — no skip, no quarantine. RED on the pre-fix skip-and-continue
+	// (returns a corrupt aggregate); GREEN on the fail-loud fix.
+
+	[Fact]
+	public async Task FailRehydrationWhenAStreamEventDeserializesToNull()
+	{
+		// Arrange — a stream with a good event followed by a poison event that deserializes to null.
+		var aggregateId = "agg-poison";
+		var goodEvent = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "John Doe" };
+		var goodStored = CreateStoredEvent(goodEvent, "TestCreatedEventV1");
+		var poisonStored = new StoredEvent(
+			EventId: "evt-poison",
+			AggregateId: aggregateId,
+			AggregateType: "TestAggregate",
+			EventType: "TestCreatedEventV1",
+			EventData: "POISON"u8.ToArray(),
+			Metadata: null,
+			Version: 1,
+			Timestamp: DateTimeOffset.UtcNow);
+
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "TestAggregate", A<long>._, A<CancellationToken>._))
+			.Returns(new List<StoredEvent> { goodStored, poisonStored });
+
+		// Serializer: the good event deserializes; the poison event deserializes to NULL (the bug-trigger).
+		var serializer = A.Fake<IEventSerializer>();
+		_ = A.CallTo(() => serializer.ResolveType("TestCreatedEventV1")).Returns(typeof(TestCreatedEventV1));
+		_ = A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, A<Type>._))
+			.ReturnsLazily((FakeItEasy.Core.IFakeObjectCall call) =>
+			{
+				var data = call.GetArgument<byte[]>(0);
+				return data.AsSpan().SequenceEqual("POISON"u8) ? (IDomainEvent?)null : goodEvent;
+			});
+
+		var repository = new EventSourcedRepository<TestAggregate>(
+			eventStore,
+			serializer,
+			id => new TestAggregate(id));
+
+		// Act & Assert — rehydration must FAIL LOUD, never return a silently-truncated aggregate.
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => repository.GetByIdAsync(aggregateId, CancellationToken.None)).ConfigureAwait(false);
+	}
+
 	[Fact]
 // CA1506 suppressed at file level
 	public async Task UpcastVersionedEventsWhenEnabled()

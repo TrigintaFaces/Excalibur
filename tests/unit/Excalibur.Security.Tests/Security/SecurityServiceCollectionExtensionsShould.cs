@@ -233,14 +233,14 @@ public sealed class SecurityServiceCollectionExtensionsShould
 	[Fact]
 	public void AddSecurityAuditing_EventStoreIsIdempotent()
 	{
-		// Arrange — calling twice must not duplicate event store registrations (Bug #8)
+		// Arrange — calling twice must not duplicate event store registrations (Bug #8). Verified against
+		// the default in-memory store: StoreType="SQL" now fails fast (bd-kitw4i — no SQL ISecurityEventStore
+		// ships in Excalibur.Security, so it refuses to start rather than silently discard audit events;
+		// that throw is covered by the kitw4i fail-fast lock). Idempotency is orthogonal to store type.
 		var services = new ServiceCollection();
 		services.AddLogging();
 		var configuration = new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["Security:Auditing:StoreType"] = "SQL",
-			})
+			.AddInMemoryCollection(new Dictionary<string, string?>())
 			.Build();
 
 		// Act

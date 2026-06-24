@@ -21,6 +21,11 @@ BEGIN
         StateJson NVARCHAR(MAX) NOT NULL,
         IsCompleted BIT NOT NULL DEFAULT 0,
 
+        -- Application-level optimistic concurrency version (matches SagaState.Version).
+        -- The store performs a compare-and-swap on this column (bd-eszc06); RowVersion below is
+        -- a separate SQL Server rowversion retained for change-tracking, NOT used for the CAS.
+        Version BIGINT NOT NULL DEFAULT 0,
+
         -- Timestamps
         CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         UpdatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),

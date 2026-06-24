@@ -301,6 +301,51 @@ public sealed class CdcChangeApplierShould : UnitTestBase
 				CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 	}
 
+	// --- bd-j3wzci (S840, AC-10c, ADR-336 Amendment 3): FR-8 — CDC checkpoint never advances past a
+	// swallowed failure, even when a later same-table change succeeds ---
+	// Independent regression lock (author≠impl, TestsDeveloper). When a change fails and onFatalError
+	// swallows it, the checkpoint for that table MUST stay frozen at the pre-failure position so the
+	// failed change is reprocessed next cycle. The subtle permanent-skip bug: a LATER same-table success
+	// re-adds the table to lastSuccessfulPerTable, advancing the post-batch checkpoint PAST the failed
+	// change. The fix tracks failedTables so no later success/idempotency-skip re-advances it.
+	//
+	// Observation: the test checkpoint store uses a real (non-connected) SqlConnection, so any checkpoint
+	// WRITE throws SqlException. Post-fix the failed table is frozen → NO write → no throw. RED on pre-fix:
+	// change2's success re-adds the table → a checkpoint write → SqlException (advancing past the failure).
+
+	[Fact]
+	public async Task NotAdvanceCheckpointPastSwallowedFailure_WhenLaterSameTableEventSucceeds()
+	{
+		// Arrange — onFatalError swallows; batch = [orders:change1 FAILS, orders:change2 SUCCEEDS].
+		var swallowed = new List<DataChangeEvent>();
+		using var processor = CreateProcessor(onFatalError: (_, evt) =>
+		{
+			swallowed.Add(evt);
+			return Task.CompletedTask;
+		});
+		var applier = GetChangeApplier(processor);
+
+		var change1 = CreateEvent("orders", [0x10], [0x01]);
+		var change2 = CreateEvent("orders", [0x20], [0x02]);
+		var batch = new List<DataChangeEvent> { change1, change2 };
+
+		// eventHandler: the earlier change fails (poison), the later same-table change succeeds.
+		Task Handler(DataChangeEvent evt, CancellationToken ct) =>
+			ReferenceEquals(evt, change1)
+				? throw new InvalidOperationException("poison: change1 apply failed")
+				: Task.CompletedTask;
+
+		// Act & Assert — post-fix, 'orders' is frozen (failedTables) so NO checkpoint write occurs and
+		// ProcessBatchAsync completes cleanly. RED on pre-fix: change2 re-adds 'orders' → a checkpoint
+		// write to the real (non-connected) SqlConnection → SqlException (the permanent-skip advance).
+		await Should.NotThrowAsync(() =>
+			InvokeProcessBatchAsync(applier, batch, Handler, CancellationToken.None)).ConfigureAwait(false);
+
+		// Sanity — the poison change was actually hit and swallowed (lock is non-vacuous).
+		swallowed.Count.ShouldBe(1);
+		swallowed[0].ShouldBeSameAs(change1);
+	}
+
 	// --- Helpers ---
 
 	private static CdcProcessor CreateProcessor(CdcFatalErrorHandler? onFatalError = null)

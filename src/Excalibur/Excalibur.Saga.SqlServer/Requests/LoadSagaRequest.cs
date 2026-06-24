@@ -35,13 +35,27 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
 		SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedTableName);
 
-		var sql = $"SELECT StateJson, IsCompleted FROM {qualifiedTableName} WHERE SagaId = @SagaId;";
+		// Read the authoritative Version column (bd-eszc06) so the loaded state carries the persisted
+		// optimistic-concurrency version, which the store then uses as the compare-and-swap basis on save.
+		var sql = $"SELECT StateJson, IsCompleted, Version FROM {qualifiedTableName} WHERE SagaId = @SagaId;";
 		Parameters.Add("SagaId", sagaId);
 		Command = CreateCommand(sql, cancellationToken: cancellationToken);
 		ResolveAsync = async conn =>
 		{
-			var record = await conn.QuerySingleOrDefaultAsync<(string StateJson, bool IsCompleted)>(Command).ConfigureAwait(false);
-			return record == default ? null : serializer.Deserialize<TSagaState>(record.StateJson);
+			var record = await conn.QuerySingleOrDefaultAsync<(string StateJson, bool IsCompleted, long Version)>(Command).ConfigureAwait(false);
+			if (record == default)
+			{
+				return null;
+			}
+
+			var state = serializer.Deserialize<TSagaState>(record.StateJson);
+			if (state is not null)
+			{
+				// The column is authoritative for concurrency, independent of any Version embedded in the JSON blob.
+				state.Version = record.Version;
+			}
+
+			return state;
 		};
 	}
 }

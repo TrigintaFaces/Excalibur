@@ -130,6 +130,14 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					continue;
 				}
 
+				// Apply each event. On a poison event (deserialize failure, null deserialization, or
+				// apply failure) STOP at that event and do NOT advance the checkpoint past it, so the
+				// read model can never silently drift from the event log. The host marks itself
+				// unhealthy and re-reads from the last good position on the next poll: a transient
+				// failure self-heals on retry; a permanent one stays unhealthy until an operator acts.
+				GlobalStreamPosition? lastGoodPosition = null;
+				var poisonEncountered = false;
+
 				foreach (var storedEvent in events)
 				{
 					stoppingToken.ThrowIfCancellationRequested();
@@ -137,19 +145,18 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					try
 					{
 						var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-						var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
+						var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType)
+							?? throw new InvalidOperationException(
+								$"Event '{storedEvent.EventId}' (type '{storedEvent.EventType}') deserialized to null; refusing to skip it.");
 
-						if (domainEvent is not null)
-						{
-							await _projection.ApplyAsync(domainEvent, state, stoppingToken)
-								.ConfigureAwait(false);
-						}
+						await _projection.ApplyAsync(domainEvent, state, stoppingToken)
+							.ConfigureAwait(false);
 					}
 					catch (Exception ex) when (ex is not OperationCanceledException)
 					{
+						// Poison event: record + mark unhealthy, then HALT this batch at the failed event.
+						// We do NOT advance past it (no silent skip, no checkpoint past an unapplied event).
 						LogEventProcessingError(opts.ProjectionName, storedEvent.EventId, ex);
-
-						// Fire-and-forget observability
 						try
 						{
 							_observability?.RecordError(typeof(TState).Name, ex.GetType().Name);
@@ -159,26 +166,43 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 							/* swallow */
 						}
 
-						// Continue processing other events
+						try
+						{
+							_healthState?.RecordInlineError(typeof(TState).Name);
+						}
+						catch
+						{
+							/* swallow */
+						}
+
+						poisonEncountered = true;
+						break;
 					}
 
-					// Track per-stream position for cursor map (R27.55)
+					// Event applied successfully — track per-stream cursor (R27.55) and the last good
+					// global checkpoint position (the GLOBAL ordinal, not the per-aggregate Version).
 					if (_cursorMapStore is not null)
 					{
 						var streamKey = $"{storedEvent.AggregateType}:{storedEvent.AggregateId}";
 						_pendingCursorUpdates[streamKey] = storedEvent.Version;
 					}
 
+					lastGoodPosition = new GlobalStreamPosition(
+						storedEvent.GlobalPosition + 1,
+						storedEvent.Timestamp);
 					_eventsSinceCheckpoint++;
 				}
 
-				// Advance position
-				var lastEvent = events[events.Count - 1];
-				_currentPosition = new GlobalStreamPosition(
-					lastEvent.Version + 1,
-					lastEvent.Timestamp);
+				// Advance ONLY to the last successfully-applied event's global position. On a poison
+				// event this leaves the checkpoint at/just-before it so it is reprocessed on the next
+				// read, never skipped. If the first event in the batch was poison, position is unchanged.
+				if (lastGoodPosition is not null)
+				{
+					_currentPosition = lastGoodPosition;
+				}
 
-				// Checkpoint if needed -- persist position so restarts resume here
+				// Checkpoint if needed -- persist position so restarts resume here (only ever the
+				// last-good position; never past a poison event).
 				if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
 				{
 					await _checkpointStore.StoreCheckpointAsync(
@@ -209,6 +233,13 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				}
 
 				LogBatchProcessed(opts.ProjectionName, events.Count, _currentPosition.Position);
+
+				// On a poison event, back off before re-reading so we don't tight-loop on a permanent
+				// failure; the next read resumes from the unadvanced checkpoint (reprocess, not skip).
+				if (poisonEncountered)
+				{
+					await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
+				}
 			}
 			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{

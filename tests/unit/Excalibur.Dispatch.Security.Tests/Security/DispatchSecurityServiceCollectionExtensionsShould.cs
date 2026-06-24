@@ -105,9 +105,11 @@ public sealed class DispatchSecurityServiceCollectionExtensionsShould
     }
 
     [Fact]
-    public void RegisterSqlEventStoreWhenConfigured()
+    public void FailFastWhenSqlStoreConfigured()
     {
-        // Arrange
+        // bd-kitw4i: StoreType=SQL MUST fail fast at registration. Excalibur.Security ships no SQL
+        // ISecurityEventStore; the prior placeholder accepted-then-silently-discarded audit events.
+        // (Flipped from the old test that certified registration of that discarding placeholder.)
         var services = new ServiceCollection();
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -116,13 +118,9 @@ public sealed class DispatchSecurityServiceCollectionExtensionsShould
             })
             .Build();
 
-        // Act
-        services.AddSecurityAuditing(config);
-
-        // Assert
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(ISecurityEventStore) &&
-            sd.ImplementationType == typeof(SqlSecurityEventStore));
+        // Act & Assert — composition-time throw naming the missing store; never accept-then-discard.
+        var ex = Should.Throw<InvalidOperationException>(() => services.AddSecurityAuditing(config));
+        ex.Message.ShouldContain("SQL");
     }
 
     [Fact]

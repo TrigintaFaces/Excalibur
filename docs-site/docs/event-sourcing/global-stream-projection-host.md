@@ -152,15 +152,22 @@ The host follows this loop:
 1. **Startup** — Restores last checkpoint position from `ISubscriptionCheckpointStore`
 2. **Poll** — Reads up to `BatchSize` events from the global stream via `IGlobalStreamQuery`
 3. **Apply** — Deserializes each event and calls `ApplyAsync` on your projection
-4. **Checkpoint** — After `CheckpointInterval` events, persists the current position
+4. **Checkpoint** — After `CheckpointInterval` events, persists the position of the **last successfully-applied event** (never past an unapplied event)
 5. **Idle** — If no events found, waits `IdlePollingInterval` before polling again
 6. **Shutdown** — Persists final checkpoint position on graceful stop
 
 ### Error Handling
 
-- **Per-event errors** are logged and skipped — processing continues with the next event
-- **Batch-level errors** are logged, then the host waits `IdlePollingInterval` before retrying
-- **Cancellation** triggers graceful shutdown with final checkpoint persistence
+The host **never silently skips a poison event**. A poison event is one that fails to deserialize, deserializes to `null`, or throws from `ApplyAsync`.
+
+- **Poison event** — the host **halts the batch at that event**, records it, and marks the projection **unhealthy**. The checkpoint is advanced **only** to the last successfully-applied event, so the poison event is **never skipped and the checkpoint never advances past it**. The host backs off (`IdlePollingInterval`) and re-reads from the unadvanced checkpoint on the next poll: a *transient* failure self-heals on retry, while a *permanent* one keeps the projection unhealthy until an operator intervenes. A `null` deserialization is treated as an error, not a skip.
+- **Batch-level errors** are logged, then the host waits `IdlePollingInterval` before retrying.
+- **Cancellation** triggers graceful shutdown with final checkpoint persistence.
+
+:::warning Changed in Sprint 840 (ADR-336, FR-8)
+
+Earlier versions logged a per-event error and **skipped** the event, advancing the checkpoint past it — silently dropping the event from the read model (a data-loss defect). The host now halts-and-marks-unhealthy instead. If you previously relied on skip-to-continue behavior, route known-bad events to an explicit dead-letter/quarantine sink rather than letting them be silently dropped.
+:::
 
 ## Cursor Map (Multi-Stream Tracking)
 

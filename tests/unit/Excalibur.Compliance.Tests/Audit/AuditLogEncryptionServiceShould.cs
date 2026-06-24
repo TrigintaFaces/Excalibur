@@ -116,14 +116,21 @@ public sealed class AuditLogEncryptionServiceShould : IDisposable
 
 		var sut = CreateService();
 
-		// Build a valid envelope: [IV:12][Ciphertext:N][AuthTag:16]
+		// Build a valid envelope: [FmtVer:1][KeyVersion:4][IV:12][Ciphertext:N][AuthTag:16]
+		// (bd-c1rscn + ADR-336 Amendment 2: byte 0 = format-version discriminator (1), then the
+		// little-endian key-version header so decrypt resolves the persisted version).
+		const int formatVersionHeaderSize = 1;
+		const int keyVersionHeaderSize = sizeof(int);
 		var iv = new byte[12];
 		var ciphertext = new byte[] { 1, 2, 3 };
 		var authTag = new byte[16];
-		var envelope = new byte[iv.Length + ciphertext.Length + authTag.Length];
-		iv.CopyTo(envelope, 0);
-		ciphertext.CopyTo(envelope, iv.Length);
-		authTag.CopyTo(envelope, iv.Length + ciphertext.Length);
+		var envelope = new byte[formatVersionHeaderSize + keyVersionHeaderSize + iv.Length + ciphertext.Length + authTag.Length];
+		envelope[0] = 1; // current envelope format version
+		System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(
+			envelope.AsSpan(formatVersionHeaderSize, keyVersionHeaderSize), 1);
+		iv.CopyTo(envelope, formatVersionHeaderSize + keyVersionHeaderSize);
+		ciphertext.CopyTo(envelope, formatVersionHeaderSize + keyVersionHeaderSize + iv.Length);
+		authTag.CopyTo(envelope, formatVersionHeaderSize + keyVersionHeaderSize + iv.Length + ciphertext.Length);
 
 		var encryptedEntry = new EncryptedAuditEntry
 		{
@@ -224,12 +231,12 @@ public sealed class AuditLogEncryptionServiceShould : IDisposable
 		// For each encrypted field, verify envelope is at least MinEnvelopeSize (28) bytes
 		foreach (var (fieldName, envelope) in encrypted.EncryptedFields)
 		{
-			envelope.Length.ShouldBeGreaterThanOrEqualTo(28,
-				$"Envelope for '{fieldName}' should be at least 28 bytes (12 IV + 0 CT min + 16 AuthTag)");
+			envelope.Length.ShouldBeGreaterThanOrEqualTo(33,
+				$"Envelope for '{fieldName}' should be at least 33 bytes (1 FmtVer + 4 KeyVersion + 12 IV + 0 CT min + 16 AuthTag)");
 
 			// The original plaintext is the field value encoded as UTF-8
-			// envelope.Length should be 12 + plaintextBytes.Length + 16
-			var expectedLength = 12 + System.Text.Encoding.UTF8.GetByteCount(
+			// envelope.Length should be 1 (FmtVer) + 4 (KeyVersion) + 12 (IV) + plaintextBytes.Length + 16 (AuthTag)
+			var expectedLength = 1 + sizeof(int) + 12 + System.Text.Encoding.UTF8.GetByteCount(
 				fieldName == "ActorId" ? entry.ActorId : entry.IpAddress!) + 16;
 			envelope.Length.ShouldBe(expectedLength,
 				$"Envelope for '{fieldName}' size mismatch");
@@ -281,6 +288,134 @@ public sealed class AuditLogEncryptionServiceShould : IDisposable
 		encrypted.ClearFields["ResourceType"].ShouldBe("Session");
 		encrypted.ClearFields.ShouldNotContainKey("ActorId");
 		encrypted.ClearFields.ShouldNotContainKey("IpAddress");
+	}
+
+	// =====================================================================
+	// bd-c1rscn (S840, AC-3 + EC-1) — Rotation-safe audit-log encryption.
+	// Independent regression locks (author≠impl, TestsDeveloper) using the REAL
+	// AesGcmEncryptionProvider + InMemoryKeyManagementProvider so the round-trip-after-rotation
+	// proof is end-to-end (mandatory before integration, NFR-2).
+	//
+	// NON-VACUITY NOTE: a field encrypted under v1 is NOT a valid lock — the pre-fix decrypt
+	// hardcoded KeyVersion=1, so a v1 field would still "decrypt" on the broken code. The data
+	// loss only bites once the key has rotated and NEW data is encrypted under v2+. These locks
+	// therefore encrypt under a rotated (non-v1) key; pre-fix they fail with an AAD/AuthTag
+	// mismatch (v1 key applied to v2 ciphertext); post-fix the persisted version is read and they
+	// round-trip. RED on pre-fix, GREEN after.
+	// =====================================================================
+
+	[Fact]
+	public async Task DecryptFieldEncryptedAfterKeyRotation_WithRealProvider()
+	{
+		// Arrange — rotate the audit key to v2 BEFORE encrypting, so the field is encrypted under
+		// the rotated key version (the realistic post-rotation data path).
+		_ = await _realKeyManagement.RotateKeyAsync(
+				"test-audit-key", EncryptionAlgorithm.Aes256Gcm, purpose: null, expiresAt: null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var sut = CreateRealService();
+		var entry = CreateAuditEvent();
+
+		// Act — encrypt under the rotated (v2) key, then decrypt.
+		var encrypted = await sut.EncryptAsync(entry, CancellationToken.None).ConfigureAwait(false);
+		var decrypted = await sut.DecryptAsync(encrypted, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert — round-trips via the PERSISTED key version. RED on pre-fix (hardcoded v1 → AAD
+		// mismatch → EncryptionException); GREEN once decrypt reads the persisted version.
+		decrypted.ShouldNotBeNull();
+		decrypted.ActorId.ShouldBe(entry.ActorId);
+		decrypted.IpAddress.ShouldBe(entry.IpAddress);
+	}
+
+	[Fact]
+	public async Task DecryptFieldsAcrossMultipleKeyRotations_WithRealProvider()
+	{
+		// Arrange — entry1 encrypted under v1.
+		var sut = CreateRealService();
+		var entry1 = CreateAuditEvent();
+		var encrypted1 = await sut.EncryptAsync(entry1, CancellationToken.None).ConfigureAwait(false);
+
+		// Rotate v1 → v2, encrypt entry2 under v2.
+		_ = await _realKeyManagement.RotateKeyAsync(
+				"test-audit-key", EncryptionAlgorithm.Aes256Gcm, purpose: null, expiresAt: null, CancellationToken.None)
+			.ConfigureAwait(false);
+		var entry2 = CreateAuditEvent();
+		var encrypted2 = await sut.EncryptAsync(entry2, CancellationToken.None).ConfigureAwait(false);
+
+		// Rotate v2 → v3 (current); both legacy versions must still decrypt (EC-1 multi-rotation).
+		_ = await _realKeyManagement.RotateKeyAsync(
+				"test-audit-key", EncryptionAlgorithm.Aes256Gcm, purpose: null, expiresAt: null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Act
+		var decrypted1 = await sut.DecryptAsync(encrypted1, CancellationToken.None).ConfigureAwait(false);
+		var decrypted2 = await sut.DecryptAsync(encrypted2, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert — each field decrypts via its own persisted key version. RED on pre-fix at the v2
+		// field (hardcoded v1); GREEN after the fix.
+		decrypted1.ActorId.ShouldBe(entry1.ActorId);
+		decrypted2.ActorId.ShouldBe(entry2.ActorId);
+	}
+
+	[Fact]
+	public async Task SurfaceExplicitErrorWhenEncryptionKeyPurged_WithRealProvider()
+	{
+		// Arrange — encrypt under the active key, then immediately purge the key (crypto-shred).
+		var sut = CreateRealService();
+		var entry = CreateAuditEvent();
+		var encrypted = await sut.EncryptAsync(entry, CancellationToken.None).ConfigureAwait(false);
+
+		_ = await _realKeyManagement.DeleteKeyAsync("test-audit-key", retentionDays: 0, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Act & Assert — EC-1: decrypt against a purged version surfaces an explicit error,
+		// never a silent failure or wrong plaintext.
+		await Should.ThrowAsync<EncryptionException>(
+			() => sut.DecryptAsync(encrypted, CancellationToken.None)).ConfigureAwait(false);
+	}
+
+	// --- bd-c1rscn + ADR-336 Amendment 2 (F-6): envelope format-version discriminator ---
+	// Every envelope carries a 1-byte format-version at byte 0, DISTINCT from the key version, so a
+	// future envelope-layout change is migratable. Decrypt validates it and rejects an unknown version
+	// with a surfaced error rather than misparsing. RED on the pre-F-6 envelope (no format byte/check).
+
+	[Fact]
+	public async Task StampEnvelopeFormatVersionDiscriminator_WithRealProvider()
+	{
+		// Arrange
+		var sut = CreateRealService();
+		var entry = CreateAuditEvent();
+
+		// Act
+		var encrypted = await sut.EncryptAsync(entry, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert — byte 0 of every encrypted field is the format-version discriminator (1).
+		encrypted.EncryptedFields.ShouldNotBeEmpty();
+		foreach (var (fieldName, envelope) in encrypted.EncryptedFields)
+		{
+			envelope[0].ShouldBe((byte)1, $"envelope byte 0 for '{fieldName}' must be the format-version discriminator (1)");
+		}
+	}
+
+	[Fact]
+	public async Task RejectUnknownEnvelopeFormatVersionOnDecrypt_WithRealProvider()
+	{
+		// Arrange — encrypt, then corrupt the format-version discriminator (byte 0) to an unknown value.
+		var sut = CreateRealService();
+		var entry = CreateAuditEvent();
+		var encrypted = await sut.EncryptAsync(entry, CancellationToken.None).ConfigureAwait(false);
+
+		foreach (var (_, envelope) in encrypted.EncryptedFields)
+		{
+			envelope[0] = 0xFF; // unknown / future format version
+		}
+
+		// Act & Assert — decrypt MUST surface an explicit unsupported-format error, not a best-effort
+		// misparse. RED on pre-F-6 code (byte 0 was IV data; corrupting it yields an AAD/decrypt error,
+		// not a "format version" diagnostic).
+		var ex = await Should.ThrowAsync<EncryptionException>(
+			() => sut.DecryptAsync(encrypted, CancellationToken.None)).ConfigureAwait(false);
+		ex.Message.ShouldContain("format version");
 	}
 
 	[Fact]

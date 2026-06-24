@@ -177,7 +177,10 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 			.WithEnvironment("discovery.type", "single-node")
 			.WithEnvironment("xpack.security.enabled", EnableSecurity.ToString().ToUpperInvariant())
 			.WithEnvironment("xpack.security.http.ssl.enabled", "false")
-			.WithEnvironment("xpack.monitoring.enabled", EnableMonitoring.ToString().ToUpperInvariant())
+			// NOTE: `xpack.monitoring.enabled` was REMOVED — it is an unknown node setting in
+			// Elasticsearch 9.x and makes the container fail bootstrap ("unknown setting
+			// [xpack.monitoring.enabled]", exit code 1), breaking every ES TestContainers test.
+			// DI-side monitoring is still controlled by `EnableMonitoring` (AddElasticsearchMonitoring).
 			.WithEnvironment("indices.query.bool.max_clause_count", "10000")
 			.WithEnvironment("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
 			.WithPortBinding(9200, true)

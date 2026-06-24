@@ -251,11 +251,14 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		var eventsToApply = new List<IDomainEvent>(storedEvents.Count);
 		foreach (var storedEvent in storedEvents)
 		{
-			var domainEvent = DeserializeEvent(storedEvent);
-			if (domainEvent is null)
-			{
-				continue;
-			}
+			// Do NOT silently skip a stored event during rehydration — skipping corrupts the
+			// source-of-truth aggregate (it would replay an incomplete history into a wrong state).
+			// Fail loud so the caller never receives a silently-truncated aggregate.
+			var domainEvent = DeserializeEvent(storedEvent)
+				?? throw new InvalidOperationException(
+					$"Event '{storedEvent.EventId}' (type '{storedEvent.EventType}', version {storedEvent.Version}) " +
+					$"deserialized to null while rehydrating aggregate '{stringId}' ({aggregateType}). Refusing to " +
+					$"skip it and return a corrupt aggregate; ensure the event type is registered and resolvable.");
 
 			// Upcast if enabled and event is versioned
 			var eventToApply = TryUpcastEvent(domainEvent);
@@ -548,14 +551,22 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		}
 		catch (Exception ex) when (ex is JsonException or TypeLoadException or InvalidOperationException)
 		{
-			_logger?.LogWarning(
+			// Rehydration must NOT swallow a deserialization failure into a skipped event — that
+			// corrupts the source-of-truth aggregate. Surface the failure (preserving the cause) so
+			// the load fails loud rather than returning a silently-incomplete aggregate.
+			_logger?.LogError(
 				ex,
-				"Failed to deserialize event type '{EventType}' for aggregate '{AggregateId}' at version {Version}. " +
-				"The event will be skipped during replay, which may produce incorrect aggregate state.",
+				"Failed to deserialize event type '{EventType}' for aggregate '{AggregateId}' at version {Version} " +
+				"during rehydration. Failing the load rather than skipping the event.",
 				storedEvent.EventType,
 				storedEvent.AggregateId,
 				storedEvent.Version);
-			return null;
+
+			throw new InvalidOperationException(
+				$"Failed to deserialize event '{storedEvent.EventId}' (type '{storedEvent.EventType}', " +
+				$"version {storedEvent.Version}) for aggregate '{storedEvent.AggregateId}' during rehydration. " +
+				$"Refusing to skip it and return a corrupt aggregate.",
+				ex);
 		}
 	}
 

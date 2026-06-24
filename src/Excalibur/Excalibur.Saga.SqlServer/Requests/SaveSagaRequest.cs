@@ -38,26 +38,41 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
 		SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedTableName);
 
+		ArgumentNullException.ThrowIfNull(sagaState);
+
+		// Optimistic-concurrency compare-and-swap (bd-eszc06), store-owns-increment (EF-style; SA seam ruling).
+		// SagaState.Version is the version the caller LOADED (the concurrency token; a brand-new saga is 0) -- the
+		// caller performs NO version arithmetic. The store expects the persisted Version to still equal that loaded
+		// value and writes the bumped (loadedVersion + 1). A concurrent write that already advanced the row makes
+		// both MERGE branches no-op -> 0 rows affected, which the store surfaces as a ConcurrencyException. The
+		// INSERT branch stays guarded to @ExpectedVersion = 0 so a natural new saga (Version 0) inserts, while a
+		// MISSING row with a non-zero expected (a deleted/stale saga) is NOT resurrected at a high version (it
+		// matches neither branch -> 0 rows -> ConcurrencyException). This makes the previous unchecked
+		// last-writer-wins UPDATE inexpressible: there is no save path that ignores Version.
+		var expectedVersion = sagaState.Version;
+		var newVersion = sagaState.Version + 1;
+
 		var sql = $"""
                         MERGE {qualifiedTableName} AS target
                         USING (SELECT @SagaId AS SagaId) AS source
                         ON (target.SagaId = source.SagaId)
-                        WHEN MATCHED THEN UPDATE SET
+                        WHEN MATCHED AND target.Version = @ExpectedVersion THEN UPDATE SET
                         StateJson = @StateJson,
                         IsCompleted = @IsCompleted,
+                        Version = @NewVersion,
                         UpdatedUtc = SYSUTCDATETIME()
-                        WHEN NOT MATCHED THEN INSERT
-                        (SagaId, SagaType, StateJson, IsCompleted)
-                        VALUES (@SagaId, @SagaType, @StateJson, @IsCompleted);
+                        WHEN NOT MATCHED AND @ExpectedVersion = 0 THEN INSERT
+                        (SagaId, SagaType, StateJson, IsCompleted, Version)
+                        VALUES (@SagaId, @SagaType, @StateJson, @IsCompleted, @NewVersion);
                         """;
-
-		ArgumentNullException.ThrowIfNull(sagaState);
 
 		var stateJson = serializer.Serialize(sagaState);
 		Parameters.Add("SagaId", sagaState.SagaId);
 		Parameters.Add("SagaType", typeof(TSagaState).Name);
 		Parameters.Add("StateJson", stateJson);
 		Parameters.Add("IsCompleted", sagaState.Completed);
+		Parameters.Add("ExpectedVersion", expectedVersion);
+		Parameters.Add("NewVersion", newVersion);
 
 		Command = CreateCommand(sql, cancellationToken: cancellationToken);
 		ResolveAsync = conn => conn.ExecuteAsync(Command);

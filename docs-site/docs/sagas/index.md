@@ -233,6 +233,33 @@ The processed event set is bounded to 1,000 entries (oldest trimmed when exceede
 This follows the same idempotent replay pattern used by NServiceBus sagas, where saga state includes a list of handled message IDs.
 :::
 
+## Optimistic Concurrency
+
+Saga persistence enforces **optimistic concurrency** so two events arriving for the same saga (for example, a business event racing a timeout) cannot silently overwrite each other.
+
+- `SagaState.Version` is the concurrency token — the version the saga was **loaded** at (a brand-new saga is `0`). You perform **no version arithmetic**; the store owns the increment (EF-style).
+- On save, the store performs a versioned compare-and-set: it persists the new state only if the stored row is still at the loaded version, bumping `Version` to `loadedVersion + 1`.
+- If a concurrent write already advanced the row, the save matches no rows and the store throws `ConcurrencyException` — exactly one of the racing saves wins, and no update is lost.
+
+This behavior is identical whether the saga is driven through `SagaManager` or `SagaCoordinator`. Handle `ConcurrencyException` by reloading the saga and replaying the event (the [idempotent replay](#idempotent-event-replay) guard makes reprocessing safe):
+
+```csharp
+try
+{
+    await sagaStore.SaveAsync(state, cancellationToken);
+}
+catch (ConcurrencyException)
+{
+    // A concurrent event advanced this saga. Reload and let the event be re-delivered;
+    // TryMarkEventProcessed prevents duplicate command dispatch.
+}
+```
+
+:::info Changed in Sprint 840 (bd-eszc06)
+
+The SQL saga store previously issued an unconditional last-writer-wins `UPDATE` that ignored `Version`, so concurrent saves for one saga could lose updates. The save path now always enforces the version check; there is no save path that ignores `Version`.
+:::
+
 ## Persistence Providers
 
 Each provider plugs into the `ISagaBuilder` fluent API:

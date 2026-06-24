@@ -269,7 +269,9 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		// Assert
 		cert.ShouldNotBeNull();
 		cert.RequestId.ShouldBe(requestId);
-		cert.Method.ShouldBe(ErasureMethod.CryptographicErasure);
+		// bd-412fo4: Method now reflects the actual mechanism (was hardcoded CryptographicErasure). This
+		// fixture has KeysDeleted=2 AND RecordsAffected=5 (key deletion + contributor row-delete) -> Hybrid.
+		cert.Method.ShouldBe(ErasureMethod.Hybrid);
 		cert.Signature.ShouldNotBeNullOrWhiteSpace();
 		cert.Summary.ShouldNotBeNull();
 		A.CallTo(() => certStore.SaveCertificateAsync(A<ErasureCertificate>._, A<CancellationToken>._))

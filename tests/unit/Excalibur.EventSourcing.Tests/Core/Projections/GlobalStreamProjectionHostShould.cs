@@ -287,6 +287,64 @@ public sealed class GlobalStreamProjectionHostShould
 			.MustHaveHappened();
 	}
 
+	// --- bd-c3jdco (S840, AC-10, ADR-336 Amendment 3): FR-8 — never checkpoint past an unapplied event ---
+	// Independent regression lock (author≠impl, TestsDeveloper). On a deserialize/apply failure the host
+	// MUST halt at the failed event and NOT advance the checkpoint past it (halt-unhealthy default), so a
+	// poison event is reprocessed/quarantined on restart — never silently skipped. RED on the pre-fix
+	// skip-and-advance behavior; GREEN on the halt-at-failure fix.
+
+	[Fact]
+#pragma warning disable CA1506 // Test requires multiple fakes
+	public async Task NotAdvanceCheckpointPastAPoisonEvent()
+	{
+#pragma warning restore CA1506
+		// Arrange — a single poison event whose ApplyAsync fails (apply failure). CheckpointInterval=1 so
+		// a (buggy) skip-and-advance would persist a checkpoint immediately — making the lock non-vacuous.
+		var poison = new StoredEvent("evt-poison", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow);
+		var domainEvent = A.Fake<IDomainEvent>();
+		var applyAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<long?>(null));
+		A.CallTo(() => _globalStreamQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(new[] { poison }));
+		A.CallTo(() => _eventSerializer.ResolveType("TestEvent")).Returns(typeof(IDomainEvent));
+		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(domainEvent);
+		A.CallTo(() => _projection.ApplyAsync(domainEvent, A<GlobalStreamTestState>._, A<CancellationToken>._))
+			.ReturnsLazily((_) =>
+			{
+				applyAttempted.TrySetResult();
+				return Task.FromException(new InvalidOperationException("poison: apply failed"));
+			});
+
+		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
+			_globalStreamQuery,
+			_projection,
+			_eventSerializer,
+			_checkpointStore,
+			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
+			{
+				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
+				CheckpointInterval = 1,
+			}),
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider);
+
+		using var cts = new CancellationTokenSource();
+
+		// Act — start, wait until the poison apply is attempted, give a halt/advance a window, then stop.
+		await host.StartAsync(cts.Token);
+		await AwaitApplyObservedAsync(applyAttempted.Task);
+		await Task.Delay(global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(250)))
+			.ConfigureAwait(false);
+		await cts.CancelAsync().ConfigureAwait(false);
+		await host.StopAsync(CancellationToken.None);
+
+		// Assert — the checkpoint must NEVER be persisted past the unapplied poison event.
+		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
 	[Fact]
 	public void ThrowWhenCheckpointStoreIsNull()
 	{

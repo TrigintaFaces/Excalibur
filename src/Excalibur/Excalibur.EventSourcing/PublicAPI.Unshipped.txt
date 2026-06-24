@@ -1,1 +1,2 @@
 #nullable enable
+Excalibur.EventSourcing.Erasure.EventStoreErasureContributor.CoveredStoreKinds.get -> System.Collections.Generic.IReadOnlySet<Excalibur.Compliance.DataStoreKind>!

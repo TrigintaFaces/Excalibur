@@ -31,6 +31,17 @@ public interface IErasureContributor
 	string Name { get; }
 
 	/// <summary>
+	/// Gets the set of store kinds this contributor erases.
+	/// </summary>
+	/// <remarks>
+	/// The erasure coverage gate uses this to mark a discovered <see cref="DataLocation"/> as
+	/// <c>Covered</c> when its <see cref="DataLocation.StoreKind"/> is in this set (ADR-336 Amendment 1a).
+	/// Must never contain <see cref="DataStoreKind.Unknown"/> — the unclassified kind is never coverable.
+	/// </remarks>
+	/// <value>The store kinds covered by this contributor; never <see langword="null"/>.</value>
+	IReadOnlySet<DataStoreKind> CoveredStoreKinds { get; }
+
+	/// <summary>
 	/// Erases data for the specified erasure request.
 	/// </summary>
 	/// <param name="context">The erasure context with request details.</param>

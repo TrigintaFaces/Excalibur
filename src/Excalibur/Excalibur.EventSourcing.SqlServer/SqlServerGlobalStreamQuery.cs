@@ -57,10 +57,10 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		var sql = $"""
 			SELECT TOP (@MaxCount)
 			       EventId, AggregateId, AggregateType, EventType,
-			       EventData, Metadata, Version, Timestamp
+			       EventData, Metadata, Version, Timestamp, Position
 			FROM {_qualifiedTable}
-			WHERE Version >= @Position
-			ORDER BY Version
+			WHERE Position >= @Position
+			ORDER BY Position
 			""";
 #pragma warning restore CA2100
 
@@ -81,7 +81,10 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 				row.EventData,
 				row.Metadata,
 				row.Version,
-				row.Timestamp));
+				row.Timestamp)
+			{
+				GlobalPosition = row.Position,
+			});
 		}
 
 		return result.AsReadOnlyList();
@@ -103,10 +106,10 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		var sql = $"""
 			SELECT TOP (@MaxCount)
 			       EventId, AggregateId, AggregateType, EventType,
-			       EventData, Metadata, Version, Timestamp
+			       EventData, Metadata, Version, Timestamp, Position
 			FROM {_qualifiedTable}
-			WHERE Version >= @Position AND EventType = @EventType
-			ORDER BY Version
+			WHERE Position >= @Position AND EventType = @EventType
+			ORDER BY Position
 			""";
 #pragma warning restore CA2100
 
@@ -127,7 +130,10 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 				row.EventData,
 				row.Metadata,
 				row.Version,
-				row.Timestamp));
+				row.Timestamp)
+			{
+				GlobalPosition = row.Position,
+			});
 		}
 
 		return result;
@@ -144,5 +150,6 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		byte[] EventData,
 		byte[]? Metadata,
 		long Version,
-		DateTimeOffset Timestamp);
+		DateTimeOffset Timestamp,
+		long Position);
 }
