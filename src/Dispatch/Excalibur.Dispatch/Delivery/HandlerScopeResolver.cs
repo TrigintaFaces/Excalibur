@@ -14,15 +14,17 @@ namespace Excalibur.Dispatch.Delivery;
 /// root container captured by the singleton <see cref="LocalMessageBus"/>) and runs the handler invocation
 /// inside the correct scope. This eliminates the captive-dependency failure
 /// (<c>"Cannot resolve scoped service '…' from root provider"</c>) for scoped handlers — and handlers whose
-/// constructor dependencies are scoped — dispatched through the ultra-local fast paths.
+/// constructor dependency graph reaches a scoped service directly or transitively — dispatched through the
+/// ultra-local fast paths.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The verdict for each handler type is computed once and cached, purely from registration metadata (no
 /// construction, no exceptions): a handler registered <see cref="ServiceLifetime.Scoped"/> needs a scope;
-/// a <see cref="ServiceLifetime.Singleton"/> is always root-safe; any handler with a constructor dependency
-/// registered <see cref="ServiceLifetime.Scoped"/> needs a scope. No reflection or allocation occurs on the
-/// warm dispatch path — only on the first dispatch of each handler type.
+/// a <see cref="ServiceLifetime.Singleton"/> is always root-safe; any handler whose constructor dependency
+/// graph reaches — directly or transitively — a service registered <see cref="ServiceLifetime.Scoped"/>
+/// needs a scope. No reflection or allocation occurs on the warm dispatch path — only on the first dispatch
+/// of each handler type.
 /// </para>
 /// <para>
 /// When a scope is required, the handler is resolved from the <em>ambient</em> scope supplied by an
@@ -135,14 +137,11 @@ internal sealed class HandlerScopeResolver
         throw CreateNoScopeDiagnostic(handlerType);
     }
 
-    [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2070:'this' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method.",
-        Justification = "Handler types are preserved via DI registration; constructor metadata is inspected only to decide scope requirement. AOT consumers use the source-generated dispatcher.")]
     private Requirement Compute([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType)
     {
         // 1. A handler registered Scoped is resolved (when self-registered) honoring that lifetime; from
-        //    the root container that throws the captive-dependency error. Singletons are always root-safe.
+        //    the root container that throws the captive-dependency error. Singletons are always root-safe
+        //    (a valid Singleton cannot transitively capture a Scoped — the container forbids that).
         if (_lifetimes!.TryGetLifetime(handlerType, out var lifetime))
         {
             switch (lifetime)
@@ -155,40 +154,151 @@ internal sealed class HandlerScopeResolver
             }
         }
 
-        // 2. A transient or factory-activated handler still needs a scope when any of its constructor
-        //    dependencies is registered Scoped (resolving that dependency from root throws captive-dependency).
-        return HasScopedConstructorDependency(handlerType) ? Requirement.Scope : Requirement.Root;
+        // 2. A transient or factory-activated handler needs a scope when ANY transitively reachable
+        //    constructor dependency is Scoped (resolving it from root is the captive-dependency bug). The
+        //    walk yields Root only on a provably root-safe closure; every uncertain branch yields Scope, so
+        //    the captive-dependency violation is inexpressible (enforce-invariants-structurally).
+        return Walk(handlerType, [handlerType]);
     }
 
-    private bool HasScopedConstructorDependency(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType)
+    /// <summary>
+    /// Recursively walks the constructor-dependency graph from the actually-activatable constructor, marking
+    /// <see cref="Requirement.Scope"/> if any reachable dependency is Scoped or cannot be proven root-safe.
+    /// Hybrid: a recursive walk (precise) with a conservative Scope-on-doubt fallback for unprovable branches
+    /// (factory registrations, unregistered types). The <paramref name="visited"/> set guards cycles and
+    /// diamonds so the walk always terminates with a defined verdict.
+    /// </summary>
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2070:'this' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method.",
+        Justification = "Handler and dependency types are preserved via DI registration; constructor metadata is inspected only to decide scope requirement. AOT consumers use the source-generated dispatcher.")]
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2072:'target parameter' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The return value of the source method does not have matching annotations.",
+        Justification = "A constructor parameter type is resolved from DI; its constructors are preserved by registration. The scope verdict is advisory and AOT consumers use the source-generated dispatcher.")]
+    private Requirement Walk(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type,
+        HashSet<Type> visited)
     {
-        ConstructorInfo? selected = null;
-        var selectedLength = -1;
-        foreach (var ctor in handlerType.GetConstructors())
+        var ctor = SelectActivatableConstructor(type);
+        if (ctor is null)
         {
-            var length = ctor.GetParameters().Length;
-            if (length > selectedLength)
+            return Requirement.Root; // EC-A1: no public constructor — nothing scoped to capture.
+        }
+
+        foreach (var parameter in ctor.GetParameters())
+        {
+            var parameterType = parameter.ParameterType;
+            var lifetime = ResolveLifetime(parameterType);
+
+            if (lifetime == ServiceLifetime.Scoped)
             {
-                selected = ctor;
-                selectedLength = length;
+                return Requirement.Scope; // Direct Scoped dependency — short-circuit.
+            }
+
+            if (lifetime == ServiceLifetime.Singleton)
+            {
+                continue; // Provably root-safe subtree — prune (cannot transitively reach Scoped).
+            }
+
+            if (lifetime == ServiceLifetime.Transient)
+            {
+                // Recurse through the transient intermediary — this is the depth-1 blind spot pedo87 fixes.
+                // visited.Add returns false on a cycle/diamond, terminating the walk for that branch.
+                if (visited.Add(parameterType) && Walk(parameterType, visited) == Requirement.Scope)
+                {
+                    return Requirement.Scope;
+                }
+
+                continue;
+            }
+
+            // Unknown/unresolved (factory registration, unregistered type, open-generic miss): bias to Scope
+            // so a captive-dependency cannot slip through an unprovable branch.
+            return Requirement.Scope;
+        }
+
+        return Requirement.Root;
+    }
+
+    /// <summary>
+    /// Selects the constructor the DI container would actually activate (FR-A3): the one marked
+    /// <see cref="ActivatorUtilitiesConstructorAttribute"/> if present; otherwise the longest constructor
+    /// whose parameters are all resolvable from the registry; otherwise the longest constructor (its
+    /// unresolved parameters are treated as Unknown and bias the verdict to Scope). Mirrors
+    /// <see cref="ActivatorUtilities.CreateInstance(IServiceProvider, Type, object[])"/> selection.
+    /// </summary>
+    private ConstructorInfo? SelectActivatableConstructor(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type)
+    {
+        var constructors = type.GetConstructors();
+        if (constructors.Length == 0)
+        {
+            return null;
+        }
+
+        ConstructorInfo? longest = null;
+        var longestLength = -1;
+        ConstructorInfo? longestResolvable = null;
+        var longestResolvableLength = -1;
+
+        foreach (var constructor in constructors)
+        {
+            if (constructor.IsDefined(typeof(ActivatorUtilitiesConstructorAttribute), inherit: false))
+            {
+                return constructor; // Explicit activation constructor wins outright.
+            }
+
+            var parameters = constructor.GetParameters();
+            var length = parameters.Length;
+
+            if (length > longestLength)
+            {
+                longest = constructor;
+                longestLength = length;
+            }
+
+            if (length > longestResolvableLength && AllParametersResolvable(parameters))
+            {
+                longestResolvable = constructor;
+                longestResolvableLength = length;
             }
         }
 
-        if (selected is null)
-        {
-            return false;
-        }
+        return longestResolvable ?? longest;
+    }
 
-        foreach (var parameter in selected.GetParameters())
+    private bool AllParametersResolvable(ParameterInfo[] parameters)
+    {
+        foreach (var parameter in parameters)
         {
-            if (_lifetimes!.TryGetLifetime(parameter.ParameterType, out var lifetime) && lifetime == ServiceLifetime.Scoped)
+            if (ResolveLifetime(parameter.ParameterType) is null)
             {
-                return true;
+                return false;
             }
         }
 
-        return false;
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves the registered lifetime of a dependency type: a direct registry lookup, then an open-generic
+    /// fallback on the generic type definition (e.g. <c>ILogger&lt;T&gt;</c>, <c>IOptions&lt;T&gt;</c>).
+    /// Returns <see langword="null"/> when the type is not registered (Unknown → the caller biases to Scope).
+    /// </summary>
+    private ServiceLifetime? ResolveLifetime(Type type)
+    {
+        if (_lifetimes!.TryGetLifetime(type, out var lifetime))
+        {
+            return lifetime;
+        }
+
+        if (type.IsGenericType && _lifetimes.TryGetLifetime(type.GetGenericTypeDefinition(), out var genericLifetime))
+        {
+            return genericLifetime;
+        }
+
+        return null;
     }
 
     private static InvalidOperationException CreateNoScopeDiagnostic(Type handlerType) =>

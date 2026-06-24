@@ -31,5 +31,5 @@ docker run -d --name es -p 9200:9200 \
 ## Running
 
 ```bash
-dotnet run --project samples/07-data-providers/ElasticSearch-Resilience
+dotnet run --project samples/09-advanced/querying/ElasticSearch-Resilience
 ```

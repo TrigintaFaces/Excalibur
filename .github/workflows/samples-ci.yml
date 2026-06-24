@@ -46,6 +46,7 @@ jobs:
   enumerate-samples:
     name: Enumerate Samples
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       samples: ${{ steps.list.outputs.samples }}
       sample_count: ${{ steps.list.outputs.sample_count }}
@@ -148,6 +149,7 @@ jobs:
   summary:
     name: Samples CI Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [enumerate-samples, build-samples]
     if: always()
     steps:

@@ -31,6 +31,7 @@ jobs:
   security-sast:
     name: Security SAST (PR report-only, push blocking)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     continue-on-error: ${{ inputs.event-name == 'pull_request' }}
     steps:
       - name: Checkout code (needed to resolve local composite action)
@@ -70,6 +71,7 @@ jobs:
   secrets-scan:
     name: Secrets Scan (Gitleaks)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -110,6 +112,7 @@ jobs:
   sbom-generation:
     name: SBOM Generation (CycloneDX)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@v6
@@ -347,6 +350,7 @@ jobs:
   notices-lint:
     name: Notices & License Headers
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@v6
@@ -382,6 +386,7 @@ jobs:
   oss-metadata:
     name: OSS Metadata Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@v6

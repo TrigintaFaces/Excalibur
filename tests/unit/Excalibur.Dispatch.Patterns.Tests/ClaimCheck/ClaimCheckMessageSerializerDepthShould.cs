@@ -55,8 +55,9 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 		// Act — uses SerializeToBytes extension which calls Serialize(T, IBufferWriter<byte>)
 		var result = serializer.SerializeToBytes(message);
 
-		// Assert
+		// Assert — 2mhglb: inline payloads are framed with a leading 0x00 inline tag (no offload).
 		result.ShouldNotBeEmpty();
+		result[0].ShouldBe((byte)0x00);
 		A.CallTo(_fakeProvider).MustNotHaveHappened();
 	}
 
@@ -76,9 +77,9 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 	[Fact]
 	public void Deserialize_NormalData_DelegatesToBase()
 	{
-		// Arrange
+		// Arrange — 2mhglb: a real inline payload is framed [0x00][json]; the reader strips the tag, then delegates.
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
-		var json = System.Text.Encoding.UTF8.GetBytes("{\"Id\":7}");
+		var json = PrependInlineTag(System.Text.Encoding.UTF8.GetBytes("{\"Id\":7}"));
 
 		// Act — uses Deserialize<T>(byte[]) extension which calls Deserialize<T>(ReadOnlySpan<byte>)
 		var result = serializer.Deserialize<TestDto>(json);
@@ -89,10 +90,12 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 	}
 
 	[Fact]
-	public void Deserialize_MagicPrefixData_ThrowsNotSupportedException()
+	public void Deserialize_EnvelopeTaggedData_OnSyncPath_ThrowsNotSupportedException()
 	{
-		// Arrange - data starts with "CC01" magic prefix
-		var data = new byte[] { 0x43, 0x43, 0x30, 0x31, 0x00 };
+		// 2mhglb: a 0x01 envelope-tagged frame on the SYNC read path must throw "use DeserializeAsync"
+		// (envelope resolution needs the async claim-check provider). RED on the pre-fix mainline, which only
+		// recognised a 4-byte "CC01" prefix and treats [0x01,0x00] as base bytes (JsonException instead).
+		var data = new byte[] { 0x01, 0x00 };
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
 
 		// Act & Assert
@@ -102,16 +105,16 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 	}
 
 	[Fact]
-	public void Deserialize_TooShortData_ForMagicPrefix_DoesNotThrow()
+	public void Deserialize_ShortUnrecognizedTagData_ThrowsTypedSerializationException()
 	{
-		// Arrange - data shorter than 4 bytes cannot contain magic prefix
-		// But it might still fail JSON deserialization, which is fine
+		// 2mhglb FR-C2b strict framing: a short buffer whose leading byte (0x43) is not a frame tag (0x00/0x01)
+		// was NOT produced by ClaimCheckMessageSerializer → typed SerializationException (fail loud), never a
+		// base JsonException or a silent wrong decode. RED on the pre-fix mainline (it delegates straight to base).
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
-		var data = new byte[] { 0x43, 0x43 }; // Only 2 bytes
+		var data = new byte[] { 0x43, 0x43 }; // 0x43 is not a valid frame tag
 
-		// Act & Assert - Should not throw NotSupportedException (not a claim check envelope)
-		// May throw JsonException from base serializer, which is expected
-		Should.Throw<System.Text.Json.JsonException>(() =>
+		// Act & Assert
+		Should.Throw<SerializationException>(() =>
 			serializer.Deserialize<TestDto>(data));
 	}
 
@@ -126,8 +129,9 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 		// Act
 		var result = await serializer.SerializeAsync(msg, CancellationToken.None);
 
-		// Assert
+		// Assert — 2mhglb: inline async payloads are framed with a leading 0x00 inline tag (no offload).
 		result.ShouldNotBeEmpty();
+		result[0].ShouldBe((byte)0x00);
 		A.CallTo(() => _fakeProvider.StoreAsync(A<byte[]>._, A<CancellationToken>._, A<ClaimCheckMetadata?>._))
 			.MustNotHaveHappened();
 	}
@@ -157,7 +161,7 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 	public void Deserialize_Span_DelegatesToBase()
 	{
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
-		var bytes = System.Text.Encoding.UTF8.GetBytes("{\"Id\":99}");
+		var bytes = PrependInlineTag(System.Text.Encoding.UTF8.GetBytes("{\"Id\":99}")); // 2mhglb inline frame
 
 		var result = serializer.Deserialize<TestDto>((ReadOnlySpan<byte>)bytes);
 
@@ -169,5 +173,16 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 	{
 		public int Id { get; set; }
 		public string? Name { get; set; }
+	}
+
+	/// <summary>
+	/// Frames a body as the 2mhglb inline payload shape <c>[0x00 tag][body]</c> for the read-path delegate tests.
+	/// </summary>
+	private static byte[] PrependInlineTag(byte[] body)
+	{
+		var framed = new byte[body.Length + 1];
+		framed[0] = 0x00;
+		body.CopyTo(framed, 1);
+		return framed;
 	}
 }

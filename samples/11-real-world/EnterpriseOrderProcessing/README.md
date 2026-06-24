@@ -114,7 +114,7 @@ docker compose up -d
 dotnet build -c Release
 
 # Run (validates DI composition at startup)
-dotnet run --project samples/10-real-world/EnterpriseOrderProcessing/
+dotnet run --project samples/11-real-world/EnterpriseOrderProcessing/
 ```
 
 The application validates DI composition at startup and prints all wired packages.

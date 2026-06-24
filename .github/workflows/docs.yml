@@ -30,6 +30,7 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       DOCS_ANNOUNCEMENT_TEXT: "A new Excalibur prerelease is available."
       DOCS_ANNOUNCEMENT_ID: "release-prerelease"
@@ -77,6 +78,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: build
     steps:
       - name: Deploy to GitHub Pages

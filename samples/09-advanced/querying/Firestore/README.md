@@ -45,7 +45,7 @@ docker run -d \
 ## Running the Sample
 
 ```bash
-cd samples/14-data-providers/Firestore
+cd samples/09-advanced/querying/Firestore
 dotnet run
 ```
 

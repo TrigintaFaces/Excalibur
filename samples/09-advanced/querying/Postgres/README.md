@@ -38,7 +38,7 @@ docker exec -it postgres psql -U postgres -d excalibur_sample -c "SELECT version
 ## Running the Sample
 
 ```bash
-dotnet run --project samples/14-data-providers/Postgres
+dotnet run --project samples/09-advanced/querying/Postgres
 ```
 
 ## Configuration

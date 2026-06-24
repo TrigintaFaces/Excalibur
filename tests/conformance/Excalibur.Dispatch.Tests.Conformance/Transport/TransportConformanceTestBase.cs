@@ -153,6 +153,12 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// R2.2: Transport MUST preserve message metadata (correlation IDs, custom headers).
 	/// </summary>
+	/// <remarks>
+	/// This asserts metadata survives at the <b>body</b> level (the fields round-trip through serialization),
+	/// which the harness can express. Asserting metadata on the <b>transport carrier</b> (Kafka
+	/// <c>Headers</c> / RabbitMQ <c>BasicProperties</c>) requires a header-surfacing receive context the
+	/// IChannelReceiver harness does not expose — tracked bd-liyait (umbrella Excalibur.Dispatch-urttf7).
+	/// </remarks>
 	[Fact]
 	public virtual async Task Should_Preserve_Message_Metadata()
 	{
@@ -232,14 +238,8 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// R2.15: Transport MUST support message filtering capabilities.
 	/// </summary>
-	[Fact]
-	public virtual async Task Should_Support_Message_Filtering()
-	{
-		// Note: Filtering is transport-specific and may not be universally supported.
-		// Derived classes should override this test if filtering is supported.
-		// Default: skip test
-		await Task.CompletedTask;
-	}
+	[Fact(Skip = "Conformance harness exposes no filtering API; a real filtering assertion is not expressible here. Transports that support filtering (e.g. Azure Service Bus, AWS SQS) should override with a real assertion once the harness exposes it — tracked bd-1rbj0a (umbrella Excalibur.Dispatch-urttf7).")]
+	public virtual Task Should_Support_Message_Filtering() => Task.CompletedTask;
 
 	/// <summary>
 	/// R4.5: Transport MUST route poison messages to DLQ after retry exhaustion.
@@ -320,7 +320,12 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// R2.1, R4.3: Transport MUST guarantee at-least-once delivery semantics.
 	/// </summary>
-	[Fact]
+	/// <remarks>
+	/// Skipped: proving at-least-once requires forcing a nack / crash-before-ack and asserting the message is
+	/// redelivered, but the IChannelReceiver harness exposes no ack/nack — a single send/receive does NOT
+	/// prove the guarantee (a transport with broken redelivery would still pass). Tracked: bd-5dox7c.
+	/// </remarks>
+	[Fact(Skip = "At-least-once redelivery needs ack/nack the conformance harness does not expose; a single send/receive is not an at-least-once proof — tracked bd-5dox7c (umbrella Excalibur.Dispatch-urttf7).")]
 	public virtual async Task Should_Guarantee_At_Least_Once_Delivery()
 	{
 		if (!IsTransportAvailable()) { return; }
@@ -353,7 +358,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// T10.34: Transport MUST support CloudEvents structured format (application/cloudevents+json).
 	/// </summary>
-	[Fact]
+	[Fact(Skip = "Conformance harness has no CloudEvents protocol binding (no structured content-mode mapping); a POCO round-trip would pass even for a transport with zero CloudEvents support (false conformance) — tracked bd-jj4hx4 (umbrella Excalibur.Dispatch-urttf7).")]
 	public virtual async Task Should_Support_CloudEvents_Structured_Format()
 	{
 		// Arrange
@@ -375,7 +380,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// T10.34: Transport MUST support CloudEvents binary format (CE headers in transport metadata).
 	/// </summary>
-	[Fact]
+	[Fact(Skip = "Conformance harness has no CloudEvents binary binding (no ce- header mapping on the receiver); a real binary-format assertion is not expressible — tracked bd-jj4hx4 (umbrella Excalibur.Dispatch-urttf7).")]
 	public virtual async Task Should_Support_CloudEvents_Binary_Format()
 	{
 		// Arrange
@@ -397,7 +402,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// T10.34: Transport MUST preserve all CloudEvents required attributes.
 	/// </summary>
-	[Fact]
+	[Fact(Skip = "Conformance harness has no CloudEvents binding to surface CE attributes on receive; a real attribute-preservation assertion is not expressible — tracked bd-jj4hx4 (umbrella Excalibur.Dispatch-urttf7).")]
 	public virtual async Task Should_Preserve_CloudEvents_Attributes()
 	{
 		// Required: id, source, specversion, type
@@ -421,7 +426,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// T10.34: Transport MUST support CloudEvents round-trip without loss.
 	/// </summary>
-	[Fact]
+	[Fact(Skip = "Conformance harness has no CloudEvents binding; a semantic-equality round-trip assertion would pass for a transport with zero CE support (false conformance) — tracked bd-jj4hx4 (umbrella Excalibur.Dispatch-urttf7).")]
 	public virtual async Task Should_RoundTrip_CloudEvents_Without_Loss()
 	{
 		// Arrange
@@ -446,7 +451,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// R9.1-R9.18: Transport SHOULD handle high throughput efficiently.
 	/// </summary>
-	[Fact]
+	[Fact(Skip = "Conformance harness has no throughput instrumentation; high-throughput SLO is a transport-specific SHOULD, not assertable from the body-only send/receive harness — tracked bd-lpkwjr (umbrella Excalibur.Dispatch-urttf7).")]
 	public virtual async Task Should_Handle_High_Throughput()
 	{
 		// Note: Performance characteristics vary by transport
@@ -457,7 +462,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// R9.1-R9.18: Transport SHOULD maintain low latency under load.
 	/// </summary>
-	[Fact]
+	[Fact(Skip = "Conformance harness has no latency instrumentation; p95/p99 latency SLO is a transport-specific SHOULD, not assertable from the body-only send/receive harness — tracked bd-lpkwjr (umbrella Excalibur.Dispatch-urttf7).")]
 	public virtual async Task Should_Maintain_Low_Latency()
 	{
 		// Note: Latency characteristics vary by transport

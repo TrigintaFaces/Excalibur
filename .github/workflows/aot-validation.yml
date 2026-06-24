@@ -38,6 +38,7 @@ jobs:
   aot-suppression-audit:
     name: AOT Suppression Baseline Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -99,6 +100,7 @@ jobs:
   aot-publish-validation:
     name: AOT Publish Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -193,6 +195,7 @@ jobs:
   aot-smoke-test:
     name: AOT Binary Smoke Test
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: aot-publish-validation
     steps:
       - name: Checkout code
@@ -274,6 +277,7 @@ jobs:
   aot-build-analysis:
     name: AOT Build Analysis (report-only)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: aot-publish-validation
     steps:
       - name: Checkout code

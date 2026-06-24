@@ -59,20 +59,10 @@ EventSourcingIntro/
 ### Defining Domain Events
 
 ```csharp
-public sealed record OrderCreated : DomainEvent
-{
-    public OrderCreated(Guid orderId, string productId, int quantity, long version)
-        : base(orderId.ToString(), version)
-    {
-        OrderId = orderId;
-        ProductId = productId;
-        Quantity = quantity;
-    }
-
-    public Guid OrderId { get; init; }
-    public string ProductId { get; init; }
-    public int Quantity { get; init; }
-}
+// Domain events are positional records deriving from DomainEvent.
+// AggregateId and Version are assigned automatically by AggregateRoot.RaiseEvent —
+// you do not set them in the constructor.
+public sealed record OrderCreated(Guid OrderId, string ProductId, int Quantity) : DomainEvent;
 ```
 
 ### Creating an Aggregate Root
@@ -85,7 +75,7 @@ public class OrderAggregate : AggregateRoot<Guid>
     public static OrderAggregate Create(Guid id, string productId, int quantity)
     {
         var order = new OrderAggregate(id);
-        order.RaiseEvent(new OrderCreated(id, productId, quantity, order.Version));
+        order.RaiseEvent(new OrderCreated(id, productId, quantity));
         return order;
     }
 

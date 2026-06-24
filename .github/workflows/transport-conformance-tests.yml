@@ -123,6 +123,7 @@ jobs:
   conformance-summary:
     name: Conformance Test Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: conformance-matrix
     if: always()
     permissions:
@@ -186,6 +187,7 @@ jobs:
   conformance-gate:
     name: Conformance Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: conformance-matrix
     if: always()
     continue-on-error: ${{ github.event_name == 'pull_request' }}

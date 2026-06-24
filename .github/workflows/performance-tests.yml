@@ -43,6 +43,7 @@ jobs:
   performance-unit-tests:
     name: Performance Unit Suites
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -108,6 +109,7 @@ jobs:
   benchmark-build:
     name: Benchmark Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     needs: performance-unit-tests
     strategy:
       matrix:
@@ -164,6 +166,7 @@ jobs:
   hot-path-benchmarks:
     name: Hot Path Benchmarks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     needs: [performance-unit-tests, benchmark-build]
     strategy:
       matrix:
@@ -334,6 +337,7 @@ jobs:
   memory-benchmarks:
     name: Memory Benchmarks
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: hot-path-benchmarks
     if: github.event.inputs.run_full_suite == 'true' || github.event_name == 'schedule'
     steps:
@@ -382,6 +386,7 @@ jobs:
   throughput-benchmarks:
     name: Throughput Benchmarks
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: hot-path-benchmarks
     if: github.event.inputs.run_full_suite == 'true' || github.event_name == 'schedule'
     steps:
@@ -454,6 +459,7 @@ jobs:
   performance-analysis:
     name: Performance Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [hot-path-benchmarks, memory-benchmarks, throughput-benchmarks]
     if: always() && needs.hot-path-benchmarks.result == 'success'
     steps:
@@ -623,6 +629,7 @@ jobs:
   update-baselines:
     name: Update Performance Baselines
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: performance-analysis
     if: github.event.inputs.update_baselines == 'true' && github.ref == 'refs/heads/main'
     steps:

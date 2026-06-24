@@ -42,7 +42,7 @@ aws dynamodb create-table \
 ## Running
 
 ```bash
-dotnet run --project samples/14-data-providers/DynamoDb
+dotnet run --project samples/09-advanced/querying/DynamoDb
 ```
 
 ## Configuration

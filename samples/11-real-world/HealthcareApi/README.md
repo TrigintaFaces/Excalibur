@@ -38,7 +38,7 @@ Features/
 ## Run
 
 ```bash
-dotnet run --project samples/12-vertical-slice-api/HealthcareApi
+dotnet run --project samples/11-real-world/HealthcareApi
 ```
 
 ## Test with curl

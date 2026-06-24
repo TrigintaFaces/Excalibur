@@ -19,16 +19,6 @@ public sealed class InMemoryTransportConformanceTests
 	private Channel<object>? _channel;
 	private InMemoryDeadLetterQueueManager? _dlqManager;
 
-	/// <summary>
-	/// InMemory transport does not support message filtering (in-process channels).
-	/// </summary>
-	[Fact]
-	public override async Task Should_Support_Message_Filtering()
-	{
-		// InMemory transport does not support filtering - skip test
-		await Task.CompletedTask;
-	}
-
 	protected override Task<InMemoryChannelSender> CreateSenderAsync()
 	{
 		_channel = Channel.CreateUnbounded<object>(new UnboundedChannelOptions

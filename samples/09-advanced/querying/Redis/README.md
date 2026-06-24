@@ -28,7 +28,7 @@ docker run -d --name redis -p 6379:6379 redis:7-alpine
 ## Run
 
 ```bash
-dotnet run --project samples/14-data-providers/Redis/Redis.csproj
+dotnet run --project samples/09-advanced/querying/Redis/Redis.csproj
 ```
 
 ## Configuration

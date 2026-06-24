@@ -31,6 +31,7 @@ jobs:
   solution-governance:
     name: Solution Governance Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@v6
@@ -63,6 +64,7 @@ jobs:
   package-dependency-graph:
     name: Package Dependency Graph Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@v6
@@ -167,6 +169,7 @@ jobs:
   public-api-baselines:
     name: Public API Baseline Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -189,6 +192,7 @@ jobs:
   api-compat:
     name: API Compatibility
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@v6
@@ -221,6 +225,7 @@ jobs:
   transitive-bloat:
     name: Transitive Bloat Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@v6
@@ -256,6 +261,7 @@ jobs:
   banned-apis:
     name: Banned APIs Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@v6
@@ -321,6 +327,7 @@ jobs:
   warnings-ledger:
     name: Warnings Scan (report-only)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@v6
@@ -349,6 +356,7 @@ jobs:
   specs-location-lint:
     name: Specs Location Guard
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v6

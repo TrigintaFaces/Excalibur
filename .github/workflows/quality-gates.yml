@@ -19,6 +19,7 @@ jobs:
   core-perf-change-detection:
     name: Detect Core/Perf Changes
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       core_perf: ${{ steps.filter.outputs.core_perf }}
     steps:
@@ -492,6 +493,7 @@ jobs:
   summary:
     name: Quality Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [coverage, test-quality, transport-conformance, code-analysis, governance, architecture, api-compatibility]
     if: always()
     steps:

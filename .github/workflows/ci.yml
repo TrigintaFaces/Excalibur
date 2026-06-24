@@ -34,6 +34,7 @@ jobs:
   package:
     name: Package (Ubuntu)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -253,6 +254,7 @@ jobs:
   unit-shard-coverage:
     name: Unit Shard Coverage Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: package
     steps:
       - name: Checkout code
@@ -751,6 +753,7 @@ jobs:
   flaky-quarantine-governance:
     name: Flaky Quarantine Governance
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: package
     steps:
       - name: Checkout code
@@ -851,6 +854,7 @@ jobs:
   serialization-policy:
     name: Serialization Policy Validation (R0.14)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: package
     steps:
       - name: Checkout code
@@ -890,6 +894,7 @@ jobs:
   aot-build-analysis:
     name: AOT Build Analysis (report-only)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: package
     steps:
       - name: Checkout code
@@ -950,6 +955,7 @@ jobs:
   quality:
     name: Quality Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: package
     steps:
       - name: Checkout code
@@ -999,6 +1005,7 @@ jobs:
   transport-conformance:
     name: Transport Conformance
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: package
     steps:
       - name: Checkout code
@@ -1039,6 +1046,7 @@ jobs:
   release-blocking-tests:
     name: Release-Blocking Test Governance
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos]
     if: always()
     steps:
@@ -1086,6 +1094,7 @@ jobs:
   release-blocking-ci:
     name: Release-Blocking CI Governance
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [package, release-blocking-tests, quality, flaky-quarantine-governance, serialization-policy, call-security, call-governance]
     if: always()
     steps:
@@ -1142,6 +1151,7 @@ jobs:
   pack-quality:
     name: Pack Quality Gate (report)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: package
     steps:
       - name: Checkout code
@@ -1228,6 +1238,7 @@ jobs:
   triage-labels:
     name: Apply CI Triage Labels
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name == 'pull_request'
     needs: [package, unit-tests, integration-tests, call-governance, architecture-tests, serialization-policy, call-security, aot-sample-validation]
     permissions:
@@ -1475,6 +1486,7 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation]
     if: always()
     steps:

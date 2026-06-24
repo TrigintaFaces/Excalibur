@@ -39,7 +39,7 @@ docker run -d --name mariadb \
 ## Running the Sample
 
 ```bash
-dotnet run --project samples/14-data-providers/MySql
+dotnet run --project samples/09-advanced/querying/MySql
 ```
 
 ## Configuration

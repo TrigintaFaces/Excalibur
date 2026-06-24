@@ -123,7 +123,7 @@ This pattern provides:
 ### 1. Start Infrastructure
 
 ```bash
-cd samples/13-jobs/CdcJobQuartz
+cd samples/09-advanced/cdc/CdcJobQuartz
 docker-compose up -d
 ```
 

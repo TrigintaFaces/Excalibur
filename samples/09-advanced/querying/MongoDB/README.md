@@ -31,7 +31,7 @@ docker exec mongo mongosh --eval "rs.initiate()"
 ## Running
 
 ```bash
-dotnet run --project samples/14-data-providers/MongoDB/MongoDB.csproj
+dotnet run --project samples/09-advanced/querying/MongoDB/MongoDB.csproj
 ```
 
 ## Configuration

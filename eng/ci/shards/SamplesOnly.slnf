@@ -84,7 +84,16 @@
       "samples\\06-security\\GdprCompliance\\GdprCompliance.csproj",
       "samples\\01-getting-started\\MetapackageQuickStart\\MetapackageQuickStart.csproj",
       "samples\\01-getting-started\\BindConfigurationPatterns\\BindConfigurationPatterns.csproj",
-      "samples\\09-advanced\\persistence-patterns\\CloudStorageSnapshots\\CloudStorageSnapshots.csproj"
+      "samples\\09-advanced\\persistence-patterns\\CloudStorageSnapshots\\CloudStorageSnapshots.csproj",
+      "samples\\01-getting-started\\DataAccessIntro\\DataAccessIntro.csproj",
+      "samples\\03-cloud-native\\CloudEvents\\CloudEvents.csproj",
+      "samples\\09-advanced\\deployment\\ProductionPipeline\\ProductionPipeline.csproj",
+      "samples\\09-advanced\\deployment\\Testing\\Testing.csproj",
+      "samples\\09-advanced\\persistence-patterns\\InboxIdempotency\\InboxIdempotency.csproj",
+      "samples\\09-advanced\\persistence-patterns\\MultiDatabase\\MultiDatabase.csproj",
+      "samples\\09-advanced\\persistence-patterns\\OutOfBandProjections\\OutOfBandProjections.csproj",
+      "samples\\09-advanced\\persistence-patterns\\TransactionalHandlers\\TransactionalHandlers.csproj",
+      "samples\\11-real-world\\EnterpriseOrderProcessing\\EnterpriseOrderProcessing.csproj"
     ]
   }
 }

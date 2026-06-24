@@ -85,7 +85,7 @@ Alternatively, use a connection string:
 ## Running
 
 ```bash
-dotnet run --project samples/14-data-providers/CosmosDb/CosmosDb.csproj
+dotnet run --project samples/09-advanced/querying/CosmosDb/CosmosDb.csproj
 ```
 
 ## Key Types

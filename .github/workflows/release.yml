@@ -32,6 +32,7 @@ jobs:
   pre-release-validation:
     name: Pre-Release Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       VSTEST_CONNECTION_TIMEOUT: 600
     outputs:
@@ -390,6 +391,7 @@ jobs:
   build-packages:
     name: Build Release Packages
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     needs: [pre-release-validation, pre-tag-unit-soak]
     strategy:
       matrix:
@@ -493,6 +495,7 @@ jobs:
   release-sbom:
     name: Release SBOM (CycloneDX)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [pre-release-validation, pre-tag-unit-soak]
     steps:
       - name: Checkout code
@@ -538,6 +541,7 @@ jobs:
   release-quality-gates:
     name: Release Quality Gates
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [pre-release-validation, build-packages]
     steps:
       - name: Checkout code
@@ -617,6 +621,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [pre-release-validation, build-packages, release-quality-gates, release-sbom]
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -750,6 +755,7 @@ jobs:
   publish-nuget:
     name: Publish to NuGet
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [pre-release-validation, create-release]
     if: github.repository == 'TrigintaFaces/Excalibur' # Only publish from main repo
     environment:
@@ -846,6 +852,7 @@ jobs:
   post-release:
     name: Post-Release Tasks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [pre-release-validation, create-release, publish-nuget]
     if: always() && needs.create-release.result == 'success'
     steps:
