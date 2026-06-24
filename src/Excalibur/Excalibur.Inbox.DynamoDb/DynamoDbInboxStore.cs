@@ -376,6 +376,50 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var key = CreateKey(messageId, handlerType);
+		var now = DateTimeOffset.UtcNow;
+
+		// Set retry_count EXACTLY (no increment) so a transient short-circuit leaves the entry
+		// re-admittable without consuming a delivery attempt (FR-4).
+		var updateRequest = new UpdateItemRequest
+		{
+			TableName = _options.TableName,
+			Key = key,
+			UpdateExpression =
+				"SET #status = :status, last_error = :error, last_attempt_at = :attempt, retry_count = :retryCount",
+			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute})",
+			ExpressionAttributeNames = new Dictionary<string, string> { ["#status"] = "status" },
+			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+			{
+				[":status"] = new() { N = ((int)InboxStatus.Failed).ToString(System.Globalization.CultureInfo.InvariantCulture) },
+				[":error"] = new() { S = errorMessage },
+				[":attempt"] = new() { S = now.ToString("O") },
+				[":retryCount"] = new() { N = retryCount.ToString(System.Globalization.CultureInfo.InvariantCulture) }
+			}
+		};
+
+		try
+		{
+			_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
+			LogMarkedFailed(messageId, handlerType, errorMessage);
+		}
+		catch (ConditionalCheckFailedException)
+		{
+			// Entry doesn't exist - nothing to mark as failed
+		}
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,

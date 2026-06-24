@@ -83,6 +83,11 @@ public sealed class InMemoryInboxExtensionsShould : UnitTestBase
 		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
+	// NOTE (bd-v9jq1a): the set-count-exactly conformance was relocated to the inbox conformance KIT
+	// (Tests.Shared/Conformance/Inbox/InboxStoreConformanceTestBase.MarkFailedWithRetryCount_SetsRetryCountExactly_NotIncremented),
+	// so it runs uniformly across all 9 IInboxStoreAdmin stores (InMemory here + 8 DB stores under TestContainers),
+	// rather than as a one-off in this extensions test. Removed from here to avoid a duplicate.
+
 	[Fact]
 	public void AddInMemoryInboxStore_RegistersOptions()
 	{

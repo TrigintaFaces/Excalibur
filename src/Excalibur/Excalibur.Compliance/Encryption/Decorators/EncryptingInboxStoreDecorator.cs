@@ -156,6 +156,13 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	}
 
 	/// <inheritdoc />
+	public ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		// errorMessage is not encrypted by the core MarkFailedAsync path; delegate the admin overload likewise.
+		return ((IInboxStoreAdmin)_inner).MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, cancellationToken);
+	}
+
+	/// <inheritdoc />
 	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,

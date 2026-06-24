@@ -561,11 +561,14 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// Get circuit breaker for the transport (uses message type as transport name for now)
 		var circuitBreaker = _circuitBreakerRegistry.GetOrCreate(message.MessageType);
 
-		// Check if circuit breaker is open - route directly to DLQ
+		// Circuit breaker open is a TRANSIENT short-circuit, not a delivery failure: the message never
+		// reached the transport. Leave it re-claimable with its attempt count UNCHANGED (no attempt
+		// consumed, never dead-lettered) so the next poll retries once the breaker recovers. Genuine
+		// MaxAttempts-exhausted failures still dead-letter via the catch(Exception) path below.
 		if (circuitBreaker.State == CircuitState.Open)
 		{
 			LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-			await RouteToDeadLetterQueueAsync(message, DeadLetterReason.CircuitBreakerOpen, null, cancellationToken).ConfigureAwait(false);
+			await _outboxStore.MarkFailedAsync(message.MessageId, ErrorConstants.RetryAttempt, message.Attempts, cancellationToken).ConfigureAwait(false);
 			return;
 		}
 
@@ -597,9 +600,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 		catch (CircuitBreakerOpenException)
 		{
-			// Circuit opened during execution - route to DLQ
+			// Circuit opened mid-dispatch: same transient short-circuit as the pre-check. Leave
+			// re-claimable with the attempt count UNCHANGED, never dead-letter (no attempt consumed).
 			LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-			await RouteToDeadLetterQueueAsync(message, DeadLetterReason.CircuitBreakerOpen, null, cancellationToken).ConfigureAwait(false);
+			await _outboxStore.MarkFailedAsync(message.MessageId, ErrorConstants.RetryAttempt, message.Attempts, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -730,11 +734,14 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				// Get circuit breaker for the transport
 				var circuitBreaker = _circuitBreakerRegistry.GetOrCreate(message.MessageType);
 
-				// Check if circuit breaker is open - route directly to DLQ
+				// Circuit breaker open is a TRANSIENT short-circuit, not a delivery failure (this is the
+				// high-volume batch path where dead-lettering causes bulk loss on a transient outage).
+				// Leave for retry with the attempt count UNCHANGED — no attempt consumed, never
+				// dead-lettered. Don't throw: this isn't a delivery failure for batch-failure tracking.
 				if (circuitBreaker.State == CircuitState.Open)
 				{
 					LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-					failedToDeadLetter.Add((message.MessageId, message, null, DeadLetterReason.CircuitBreakerOpen));
+					failedToRetry.Add((message.MessageId, message.Attempts));
 
 					return; // Don't throw - we've handled this case
 				}
@@ -764,9 +771,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				}
 				catch (CircuitBreakerOpenException)
 				{
-					// Circuit opened during execution
+					// Circuit opened mid-dispatch: transient short-circuit. Leave for retry with the
+					// attempt count UNCHANGED (no attempt consumed, never dead-letter). Not re-thrown.
 					LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-					failedToDeadLetter.Add((message.MessageId, message, null, DeadLetterReason.CircuitBreakerOpen));
+					failedToRetry.Add((message.MessageId, message.Attempts));
 				}
 				catch (Exception ex)
 				{
@@ -1154,7 +1162,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private partial void LogMessageRoutedToDlq(string messageId, string reason);
 
 	[LoggerMessage(OutboxEventId.OutboxCircuitBreakerOpen, LogLevel.Warning,
-		"Circuit breaker open for transport {TransportName}, message {MessageId} routed to DLQ")]
+		"Circuit breaker open for transport {TransportName}, message {MessageId} left for retry (not dead-lettered)")]
 	private partial void LogCircuitBreakerOpen(string transportName, string messageId);
 
 	[LoggerMessage(OutboxEventId.OutboxRetryWithBackoff, LogLevel.Debug,

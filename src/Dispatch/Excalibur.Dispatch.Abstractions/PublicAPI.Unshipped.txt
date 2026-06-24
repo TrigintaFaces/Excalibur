@@ -1,1 +1,2 @@
 #nullable enable
+Excalibur.Dispatch.IInboxStoreAdmin.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

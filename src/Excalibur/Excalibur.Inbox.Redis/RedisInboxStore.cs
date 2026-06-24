@@ -326,6 +326,44 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
+
+		var key = GetKey(messageId, handlerType);
+		var value = await db.StringGetAsync(key).ConfigureAwait(false);
+
+		if (value.IsNullOrEmpty)
+		{
+			throw new InvalidOperationException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					EntryNotFoundFormat,
+					messageId,
+					handlerType));
+		}
+
+		var entry = DeserializeEntry(value!);
+
+		// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
+		// re-admittable without consuming a delivery attempt (FR-4).
+		entry.Status = InboxStatus.Failed;
+		entry.LastError = errorMessage;
+		entry.RetryCount = retryCount;
+		entry.LastAttemptAt = DateTimeOffset.UtcNow;
+
+		_ = await db.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
+
+		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,

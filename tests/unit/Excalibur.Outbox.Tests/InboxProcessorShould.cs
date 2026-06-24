@@ -495,31 +495,133 @@ public sealed class InboxProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task DispatchPendingMessagesAsync_RoutesEntryToDeadLetterQueue_WhenCircuitBreakerIsOpenBeforeExecution()
+	public async Task DispatchPendingMessagesAsync_LeavesEntryForRetry_WhenCircuitBreakerIsOpenBeforeExecution()
 	{
+		// bd-v9jq1a AC-1 (Inbox CB-open pre-check, non-vacuity): a transient circuit-breaker-OPEN must leave
+		// the entry FOR RETRY via the no-increment IInboxStoreAdmin.MarkFailedAsync(retryCount) overload
+		// (re-admitted by GetFailedEntriesAsync once the breaker recovers), NEVER dead-letter it. RED on
+		// pre-fix (pre-fix routed CB-open straight to the DLQ → bulk loss). Flipped broken-behavior cert (NFR-6).
 		// Arrange
 		await using var scenario = await CreateOpenCircuitDispatchScenarioAsync("inbox-open-circuit");
 
 		// Act
-		var processed = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
+		_ = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
-		// Assert
-		processed.ShouldBe(1);
+		// Assert — NOT dead-lettered on CB-open
 		A.CallTo(() => scenario.DeadLetterQueue.EnqueueAsync(
-				A<IInboxMessage>.That.Matches(message => message.ExternalMessageId == "inbox-open-circuit"),
+				A<IInboxMessage>._,
 				DeadLetterReason.CircuitBreakerOpen,
 				A<CancellationToken>._,
 				A<Exception?>._,
 				A<IDictionary<string, string>?>._))
-			.MustHaveHappenedOnceExactly();
+			.MustNotHaveHappened();
+		// Assert — NOT the dead-letter mark (the 4-arg auto-increment MarkFailedAsync overload)
 		A.CallTo(() => scenario.InboxStore.MarkFailedAsync(
+				A<string>._, A<string>._, A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		// Assert — left for retry via the no-increment IInboxStoreAdmin overload (retryCount preserved)
+		A.CallTo(() => ((IInboxStoreAdmin)scenario.InboxStore).MarkFailedAsync(
 				"inbox-open-circuit",
 				typeof(TestInboxDispatchMessage).Name,
-				A<string>.That.Contains("Moved to DLQ: Circuit breaker open"),
+				A<string>._,
+				A<int>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => scenario.Dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_DoesNotTouchDedupStore_WhenCircuitBreakerOpen()
+	{
+		// bd-v9jq1a AC-6 / FR-5 (CEO condition 2, CRITICAL): on CB-open the re-route MUST touch ONLY the
+		// failed/retry state — NEVER mark the dedup store. If CB-open marked the message deduplicated, the
+		// eventual retry would be seen as a FALSE DUPLICATE → silently dropped (a NEW data-loss path, the
+		// exact class this sprint fixes). RED on pre-fix (pre-fix dead-letters; this lock guards the fix's
+		// invariant — the CB-open path never writes dedup).
+		// Arrange — forced CB-open with a WIRED dedup store.
+		MessageTypeRegistry.RegisterType<TestInboxDispatchMessage>();
+		var entry = CreateInboxEntryWithSerializedPayload("inbox-dedup-open", new TestInboxDispatchMessage("inbox-dedup-open"));
+		var inboxStore = CreateInboxStore(entry);
+		var serializer = new DispatchJsonSerializer();
+		var dispatcher = CreateDispatcher(DispatchMessageResult.Success());
+		var deadLetterQueue = CreateDeadLetterQueue();
+		var circuitBreaker = A.Fake<ICircuitBreakerPolicy>();
+		A.CallTo(() => circuitBreaker.State).Returns(CircuitState.Open);
+		var registry = A.Fake<ITransportCircuitBreakerRegistry>();
+		A.CallTo(() => registry.GetOrCreate(A<string>._)).Returns(circuitBreaker);
+		var dedupStore = A.Fake<IDeduplicationStore>();
+		var serviceProvider = CreateServiceProvider(dispatcher);
+
+		await using var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 3),
+			inboxStore: inboxStore,
+			serializer: serializer,
+			serviceProvider: serviceProvider,
+			deadLetterQueue: deadLetterQueue,
+			circuitBreakerRegistry: registry,
+			deduplicationStore: dedupStore);
+		processor.Init("dispatcher-dedup-open");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert — CB-open must NOT write the dedup store (else the retry is a false duplicate → silent drop)
+		A.CallTo(() => dedupStore.AddAsync(A<string>._, A<TimeSpan?>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+		// And it is left for retry via the no-increment overload, never dead-lettered.
+		A.CallTo(() => ((IInboxStoreAdmin)inboxStore).MarkFailedAsync(
+				"inbox-dedup-open", A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
+			.MustHaveHappened();
+		A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IInboxMessage>._, DeadLetterReason.CircuitBreakerOpen, A<CancellationToken>._,
+				A<Exception?>._, A<IDictionary<string, string>?>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_LeavesEntryForRetry_WhenCircuitOpensDuringExecution()
+	{
+		// bd-v9jq1a AC-2 (mid-execute catch direction, InboxProcessor:686, non-vacuity): a
+		// CircuitBreakerOpenException thrown DURING dispatch (breaker passed the pre-check, then opened
+		// mid-flight) is a transient short-circuit → leave the entry FOR RETRY via the no-increment overload,
+		// never dead-letter. RED on pre-fix. Mirrors the Outbox mid-execute lock.
+		// Arrange — State==Closed passes the pre-check; ExecuteAsync throws to hit the catch.
+		MessageTypeRegistry.RegisterType<TestInboxDispatchMessage>();
+		var entry = CreateInboxEntryWithSerializedPayload("inbox-open-during", new TestInboxDispatchMessage("inbox-open-during"));
+		var inboxStore = CreateInboxStore(entry);
+		var serializer = new DispatchJsonSerializer();
+		var dispatcher = CreateDispatcher(DispatchMessageResult.Success());
+		var deadLetterQueue = CreateDeadLetterQueue();
+		var circuitBreaker = A.Fake<ICircuitBreakerPolicy>();
+		A.CallTo(() => circuitBreaker.State).Returns(CircuitState.Closed);
+		A.CallTo(() => circuitBreaker.ExecuteAsync<bool>(A<Func<CancellationToken, Task<bool>>>._, A<CancellationToken>._))
+			.ThrowsAsync(new CircuitBreakerOpenException("transport circuit opened mid-dispatch"));
+		var registry = A.Fake<ITransportCircuitBreakerRegistry>();
+		A.CallTo(() => registry.GetOrCreate(A<string>._)).Returns(circuitBreaker);
+		var serviceProvider = CreateServiceProvider(dispatcher);
+
+		await using var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 3),
+			inboxStore: inboxStore,
+			serializer: serializer,
+			serviceProvider: serviceProvider,
+			deadLetterQueue: deadLetterQueue,
+			circuitBreakerRegistry: registry);
+		processor.Init("dispatcher-open-during");
+
+		// Act
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert — NOT dead-lettered; left for retry via the no-increment overload.
+		A.CallTo(() => deadLetterQueue.EnqueueAsync(
+				A<IInboxMessage>._, DeadLetterReason.CircuitBreakerOpen, A<CancellationToken>._,
+				A<Exception?>._, A<IDictionary<string, string>?>._))
+			.MustNotHaveHappened();
+		A.CallTo(() => ((IInboxStoreAdmin)inboxStore).MarkFailedAsync(
+				"inbox-open-during", A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
+			.MustHaveHappened();
 	}
 
 	[Fact]
@@ -679,7 +781,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 		IDeadLetterQueue? deadLetterQueue = null,
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
-		IBinaryEnvelopeDeserializer? envelopeDeserializer = null)
+		IBinaryEnvelopeDeserializer? envelopeDeserializer = null,
+		IDeduplicationStore? deduplicationStore = null)
 	{
 		return new InboxProcessor(
 			options ?? CreateValidOptions(),
@@ -691,7 +794,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 			envelopeDeserializer: envelopeDeserializer,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
-			backoffCalculator: backoffCalculator);
+			backoffCalculator: backoffCalculator,
+			deduplicationStore: deduplicationStore);
 	}
 
 	private static IOptions<DeliveryInboxOptions> CreateSingleMessageOptions(int maxAttempts)

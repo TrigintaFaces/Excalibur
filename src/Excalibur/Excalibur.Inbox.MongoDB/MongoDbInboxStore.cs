@@ -265,6 +265,37 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var id = MongoDbInboxDocument.CreateId(messageId, handlerType);
+		var filter = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
+
+		_ = await _collection!.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+			?? throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+
+		// Set RetryCount EXACTLY (.Set, not .Inc) so a transient short-circuit leaves the entry
+		// re-admittable without consuming a delivery attempt (FR-4).
+		var update = Builders<MongoDbInboxDocument>.Update
+			.Set(d => d.Status, (int)InboxStatus.Failed)
+			.Set(d => d.LastError, errorMessage)
+			.Set(d => d.LastAttemptAt, DateTimeOffset.UtcNow)
+			.Set(d => d.RetryCount, retryCount);
+
+		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,

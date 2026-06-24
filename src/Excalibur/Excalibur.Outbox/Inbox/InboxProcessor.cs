@@ -633,6 +633,9 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		var failedToRetryMessages = new ConcurrentBag<(string MessageId, string HandlerType)>();
 		var failedToDeadLetter =
 			new ConcurrentBag<(string MessageId, IInboxMessage Message, Exception? Exception, DeadLetterReason Reason)>();
+		// Transient circuit-breaker-open: leave for retry with the attempt count UNCHANGED (no attempt
+		// consumed, never dead-lettered) via the no-increment IInboxStoreAdmin.MarkFailedAsync overload.
+		var cbOpenToRetry = new ConcurrentBag<(string MessageId, string HandlerType, int RetryCount)>();
 
 		// Process messages in parallel
 		var (successful, failed) = await Batching.ProcessBatchAsync(
@@ -651,11 +654,14 @@ public sealed partial class InboxProcessor : IInboxProcessor
 				// Get circuit breaker for the message type
 				var circuitBreaker = _circuitBreakerRegistry.GetOrCreate(message.MessageType);
 
-				// Check if circuit breaker is open - route directly to DLQ
+				// Circuit breaker open is a TRANSIENT short-circuit, not a delivery failure: the message
+				// never reached the handler. Leave it for retry with the attempt count UNCHANGED (no
+				// attempt consumed, never dead-lettered). Genuine MaxAttempts-exhausted failures still
+				// dead-letter via the catch(Exception) path below.
 				if (circuitBreaker.State == CircuitState.Open)
 				{
 					LogCircuitBreakerOpen(message.MessageType, message.ExternalMessageId);
-					failedToDeadLetter.Add((message.ExternalMessageId, message, null, DeadLetterReason.CircuitBreakerOpen));
+					cbOpenToRetry.Add((message.ExternalMessageId, message.MessageType, message.Attempts));
 
 					return; // Don't throw - we've handled this case
 				}
@@ -679,9 +685,10 @@ public sealed partial class InboxProcessor : IInboxProcessor
 				}
 				catch (CircuitBreakerOpenException)
 				{
-					// Circuit opened during execution
+					// Circuit opened mid-dispatch: transient short-circuit. Leave for retry with the
+					// attempt count UNCHANGED (no attempt consumed, never dead-lettered).
 					LogCircuitBreakerOpen(message.MessageType, message.ExternalMessageId);
-					failedToDeadLetter.Add((message.ExternalMessageId, message, null, DeadLetterReason.CircuitBreakerOpen));
+					cbOpenToRetry.Add((message.ExternalMessageId, message.MessageType, message.Attempts));
 				}
 				catch (Exception ex)
 				{
@@ -718,6 +725,20 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		foreach (var (messageId, message, exception, reason) in failedToDeadLetter)
 		{
 			await RouteToDeadLetterQueueAsync(message, reason, exception, cancellationToken).ConfigureAwait(false);
+		}
+
+		// Leave circuit-breaker-open messages for retry WITHOUT consuming an attempt (FR-4): set the
+		// retry count exactly to its current value via the no-increment IInboxStoreAdmin overload, so
+		// the entry is re-admitted by GetFailedEntriesAsync once the breaker recovers. Uses the same
+		// admin cast as ReserveBatchRecordsAsync (the store is guaranteed IInboxStoreAdmin here).
+		if (!cbOpenToRetry.IsEmpty)
+		{
+			var admin = (IInboxStoreAdmin)_inboxStore;
+			foreach (var (messageId, handlerType, retryCount) in cbOpenToRetry)
+			{
+				await admin.MarkFailedAsync(messageId, handlerType, ErrorConstants.ProcessingFailedRetryAttempt, retryCount, cancellationToken)
+					.ConfigureAwait(false);
+			}
 		}
 
 		// Perform batch database operations if enabled
@@ -987,7 +1008,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	private partial void LogMessageRoutedToDlq(string messageId, string reason);
 
 	[LoggerMessage(OutboxEventId.InboxCircuitBreakerOpen, LogLevel.Warning,
-		"Circuit breaker open for message type {MessageType}, inbox message {MessageId} routed to DLQ")]
+		"Circuit breaker open for message type {MessageType}, inbox message {MessageId} left for retry (not dead-lettered)")]
 	private partial void LogCircuitBreakerOpen(string messageType, string messageId);
 
 	[LoggerMessage(OutboxEventId.InboxRetryWithBackoff, LogLevel.Debug,

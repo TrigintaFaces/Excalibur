@@ -233,6 +233,32 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		var docId = GetDocumentId(messageId, handlerType);
+		var existing = await GetDocumentAsync(docId, cancellationToken).ConfigureAwait(false)
+			?? throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+
+		existing.Status = (int)InboxStatus.Failed;
+		existing.LastError = errorMessage;
+
+		// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
+		// re-admittable without consuming a delivery attempt (FR-4).
+		existing.RetryCount = retryCount;
+		existing.LastAttemptAt = DateTimeOffset.UtcNow;
+
+		await UpdateDocumentAsync(docId, existing, cancellationToken).ConfigureAwait(false);
+		LogFailedEntry(messageId, handlerType, errorMessage);
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,

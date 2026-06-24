@@ -136,25 +136,36 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task DispatchPendingMessagesAsync_RoutesToDeadLetter_WhenCircuitOpensDuringExecution()
+	public async Task DispatchPendingMessagesAsync_LeavesForRetry_WhenCircuitOpensDuringExecution()
 	{
+		// bd-2tvy5s AC-2 (batch, mid-execute catch): a CircuitBreakerOpenException thrown during batch
+		// execution is transient → leave the record FOR RETRY (MarkFailedAsync, attempt-preserved), NEVER
+		// dead-letter. RED on pre-fix (pre-fix routes it to the DLQ). Flipped broken-behavior cert (NFR-6).
 		// Arrange
 		await using var scenario = await CreateCircuitOpenDuringExecutionScenarioAsync();
 
 		// Act
 		_ = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
-		// Assert
+		// Assert — NOT dead-lettered on CB-open
 		A.CallTo(() => scenario.DeadLetterQueue.EnqueueAsync(
-				A<IOutboxMessage>.That.Matches(message => message.MessageId == "message-open-during-execution"),
+				A<IOutboxMessage>._,
 				DeadLetterReason.CircuitBreakerOpen,
 				A<CancellationToken>._,
 				A<Exception?>._,
 				A<IDictionary<string, string>?>._))
-			.MustHaveHappenedOnceExactly();
+			.MustNotHaveHappened();
 		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
 				"message-open-during-execution",
 				A<string>._,
+				A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		// Assert — left for retry (marked failed/re-claimable, attempt preserved)
+		A.CallTo(() => scenario.OutboxStore.MarkFailedAsync(
+				"message-open-during-execution",
+				A<string>._,
+				A<int>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => scenario.Dispatcher.DispatchAsync(A<IIntegrationEvent>._, A<IMessageContext>._, A<CancellationToken>._))

@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch;
 /// <strong>Interface split:</strong>
 /// <list type="bullet">
 /// <item><see cref="IInboxStore"/> -- Core: create, check, mark processed/failed, get entry (6 methods, hot path)</item>
-/// <item><see cref="IInboxStoreAdmin"/> -- Admin: bulk queries, statistics, cleanup (4 methods, operational)</item>
+/// <item><see cref="IInboxStoreAdmin"/> -- Admin: bulk queries, statistics, cleanup, retry-processor mark-failed (5 methods, operational)</item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -40,6 +40,38 @@ public interface IInboxStoreAdmin
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Marks an existing inbox entry as failed/retryable, setting its retry count <strong>exactly</strong> to
+	/// <paramref name="retryCount"/> without auto-incrementing.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is a retry-processor operation for the transient-failure case: a short-circuit (e.g. an open
+	/// circuit breaker) is not a delivery attempt, so it must leave the message re-admittable for retry
+	/// <em>without</em> consuming an attempt. Unlike the core
+	/// <see cref="IInboxStore.MarkFailedAsync(string, string, string, CancellationToken)"/> (which increments
+	/// the retry count), this overload sets the count exactly — symmetric with
+	/// <see cref="IOutboxStore.MarkFailedAsync(string, string, int, CancellationToken)"/>.
+	/// </para>
+	/// <para>
+	/// The entry must already exist; existence semantics match the core method (implementations that update
+	/// in place leave a missing entry unchanged or throw, consistent with their existing behavior). This is a
+	/// retry-only path that processes already-persisted failed entries, so no insert/upsert is performed.
+	/// </para>
+	/// </remarks>
+	/// <param name="messageId">The unique identifier of the message that failed.</param>
+	/// <param name="handlerType">The handler type the entry is keyed to.</param>
+	/// <param name="errorMessage">The error description to record.</param>
+	/// <param name="retryCount">The retry count to set on the entry, exactly (not incremented).</param>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns>A task representing the asynchronous mark-failed operation.</returns>
+	ValueTask MarkFailedAsync(
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
 		CancellationToken cancellationToken);
 
 	/// <summary>

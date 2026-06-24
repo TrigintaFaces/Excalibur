@@ -324,6 +324,46 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 
 	#endregion CreateEntry Tests
 
+	#region MarkFailed set-count conformance (bd-v9jq1a)
+
+	/// <summary>
+	/// bd-v9jq1a (CEO condition 1 / AC-7): the no-increment
+	/// <c>IInboxStoreAdmin.MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, ct)</c> overload
+	/// MUST <b>set</b> RetryCount to the supplied value <b>exactly</b> (never <c>+1</c>) and leave the entry
+	/// re-admittable for retry. Runs uniformly across every <c>IInboxStoreAdmin</c> store via the kit (InMemory
+	/// at IMPLEMENT; the 8 DB stores under TestContainers at TEST). Non-vacuity: a copy-pasted auto-incrementing
+	/// body (<c>retryCount + 1</c> or <c>+= retryCount</c>) makes this RED.
+	/// </summary>
+	[Fact]
+	public async Task MarkFailedWithRetryCount_SetsRetryCountExactly_NotIncremented()
+	{
+		// Arrange — the entry must already exist (the set-count contract is UPDATE-not-upsert).
+		var messageId = Guid.NewGuid().ToString();
+		var handlerType = "Handler.Type.SetCount";
+		var payload = "payload"u8.ToArray();
+		var metadata = new Dictionary<string, object>();
+		_ = await Store.CreateEntryAsync(messageId, handlerType, "Type", payload, metadata, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Act — set the retry count to an explicit value via the no-increment overload.
+		await AdminStore.MarkFailedAsync(messageId, handlerType, "transient cb-open", 7, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Assert — RetryCount is SET to exactly 7 (an auto-increment body would yield 1 or 8).
+		var entry = await Store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+		_ = entry.ShouldNotBeNull();
+		entry.RetryCount.ShouldBe(7);
+
+		// Idempotent set (not cumulative): calling again with the same value stays exactly 7.
+		await AdminStore.MarkFailedAsync(messageId, handlerType, "transient cb-open", 7, CancellationToken.None)
+			.ConfigureAwait(false);
+		var entry2 = await Store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+		_ = entry2.ShouldNotBeNull();
+		entry2.RetryCount.ShouldBe(7);
+	}
+
+	#endregion MarkFailed set-count conformance (bd-v9jq1a)
+
 	#region MarkProcessed Tests
 
 	[Fact]

@@ -430,6 +430,46 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		// Set RetryCount EXACTLY (no +1) so a transient short-circuit leaves the entry re-admittable
+		// without consuming a delivery attempt (FR-4). UPDATE-only: same existence semantics as the
+		// incrementing overload (a missing row affects 0 rows).
+		var sql = $"""
+		           UPDATE {_options.QualifiedTableName}
+		           SET Status = @FailedStatus, LastError = @LastError, RetryCount = @RetryCount, LastAttemptAt = @LastAttemptAt
+		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType
+		           """;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				MessageId = messageId,
+				HandlerType = handlerType,
+				FailedStatus = (int)InboxStatus.Failed,
+				LastError = errorMessage,
+				RetryCount = retryCount,
+				LastAttemptAt = DateTimeOffset.UtcNow
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
+			messageId, handlerType, errorMessage);
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,

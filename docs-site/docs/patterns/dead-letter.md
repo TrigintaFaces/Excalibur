@@ -178,7 +178,7 @@ Messages can be dead lettered for various reasons:
 | Reason | Description |
 |--------|-------------|
 | `MaxRetriesExceeded` | Message exceeded the maximum number of retry attempts |
-| `CircuitBreakerOpen` | Circuit breaker was open, preventing delivery |
+| `CircuitBreakerOpen` | Circuit breaker was open. **Note:** the built-in inbox/outbox processors no longer dead-letter on this condition — a transient open breaker leaves the message for retry (attempt count unchanged). This enum value is retained for compatibility and custom DLQ routing. |
 | `DeserializationFailed` | Message could not be deserialized |
 | `HandlerNotFound` | No handler was registered for the message type |
 | `ValidationFailed` | Message failed validation |

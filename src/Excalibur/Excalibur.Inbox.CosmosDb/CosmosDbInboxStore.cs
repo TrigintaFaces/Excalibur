@@ -347,6 +347,50 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+
+		try
+		{
+			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
+				documentId,
+				new PartitionKey(handlerType),
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			var document = response.Resource;
+			document.Status = (int)InboxStatus.Failed;
+			document.LastError = errorMessage;
+			document.LastAttemptAt = DateTimeOffset.UtcNow;
+
+			// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
+			// re-admittable without consuming a delivery attempt (FR-4).
+			document.RetryCount = retryCount;
+
+			_ = await _container!.ReplaceItemAsync(
+				document,
+				documentId,
+				new PartitionKey(handlerType),
+				new ItemRequestOptions { IfMatchEtag = response.ETag },
+				cancellationToken).ConfigureAwait(false);
+
+			LogMarkedFailed(messageId, handlerType, errorMessage);
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+		{
+			// Entry doesn't exist - nothing to mark as failed
+		}
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,

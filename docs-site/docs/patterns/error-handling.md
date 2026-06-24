@@ -141,7 +141,7 @@ stateDiagram-v2
 | State | Behavior |
 |-------|----------|
 | **Closed** | Normal operation. Requests flow through. Failures are counted. |
-| **Open** | All requests are rejected immediately without calling the handler. Messages go directly to the dead letter queue with reason `CircuitBreakerOpen`. |
+| **Open** | All requests are rejected immediately without calling the handler (a `CircuitBreakerOpenException`). This short-circuit is **transient, not a delivery failure** — the message never reached the handler/transport — so the inbox and outbox processors **leave the message for retry with its attempt count unchanged** (no attempt is consumed) and re-process it once the breaker recovers. An open breaker does **not** dead-letter the message; only genuine retry-exhaustion (`MaxRetriesExceeded`) does. |
 | **Half-Open** | A limited number of test requests are allowed through. If they succeed, the circuit closes. If they fail, it opens again. |
 
 **Transport isolation** is built in. Each transport gets its own circuit breaker, so a Kafka failure doesn't affect RabbitMQ processing:
@@ -235,7 +235,7 @@ Every message that enters the DLQ is tagged with a reason:
 | Reason | What Happened |
 |--------|--------------|
 | `MaxRetriesExceeded` | Handler failed on every retry attempt |
-| `CircuitBreakerOpen` | Circuit breaker rejected the message |
+| `CircuitBreakerOpen` | Circuit breaker was open. **Note:** the built-in inbox/outbox processors no longer dead-letter on this condition — a transient open breaker leaves the message for retry. This enum value is retained for compatibility and custom DLQ routing. |
 | `DeserializationFailed` | Message payload could not be deserialized |
 | `HandlerNotFound` | No handler registered for this message type |
 | `ValidationFailed` | Message failed validation middleware |

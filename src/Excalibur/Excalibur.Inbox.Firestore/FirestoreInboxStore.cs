@@ -296,6 +296,42 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		await EnsureInitializedAsync().ConfigureAwait(false);
+
+		var docId = GetDocumentId(messageId, handlerType);
+		var docRef = _collection!.Document(docId);
+
+		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+		if (!snapshot.Exists)
+		{
+			throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		}
+
+		// Set retryCount EXACTLY (not FieldValue.Increment) so a transient short-circuit leaves the entry
+		// re-admittable without consuming a delivery attempt (FR-4).
+		_ = await docRef.UpdateAsync(
+			new Dictionary<string, object>
+			{
+				["status"] = (int)InboxStatus.Failed,
+				["lastError"] = errorMessage,
+				["lastAttemptAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
+				["retryCount"] = retryCount
+			}, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,

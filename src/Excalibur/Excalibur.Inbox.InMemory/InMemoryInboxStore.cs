@@ -299,6 +299,37 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 	}
 
 	/// <inheritdoc/>
+	public ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		var key = GetKey(messageId, handlerType);
+
+		if (!_entries.TryGetValue(key, out var entry))
+		{
+			throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		}
+
+		// Set the retry count EXACTLY (no increment) so a transient short-circuit (e.g. an open circuit
+		// breaker) leaves the entry re-admittable without consuming a delivery attempt (FR-4).
+		entry.Status = InboxStatus.Failed;
+		entry.LastError = errorMessage;
+		entry.RetryCount = retryCount;
+		entry.LastAttemptAt = DateTimeOffset.UtcNow;
+
+		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
+			messageId, handlerType, errorMessage);
+
+		return default;
+	}
+
+	/// <inheritdoc/>
 	public ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,

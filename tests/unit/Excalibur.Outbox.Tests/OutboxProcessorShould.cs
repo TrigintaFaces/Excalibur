@@ -477,27 +477,94 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task DispatchPendingMessagesAsync_ParallelProcessing_RoutesCircuitOpenBatchToDeadLetterQueue()
+	public async Task DispatchPendingMessagesAsync_ParallelProcessing_LeavesCircuitOpenBatchForRetry_NotDeadLetter()
 	{
+		// bd-2tvy5s AC-2 (BATCH path, mandatory — CEO condition 1): a transient circuit-breaker-OPEN on the
+		// bulk batch path must leave records FOR RETRY (MarkFailedAsync, attempt-preserved), NEVER dead-letter
+		// them. RED on pre-fix (pre-fix dead-letters the whole batch on CB-open → bulk irreversible DLQ loss).
+		// Flipped from the prior broken-behavior cert (...RoutesCircuitOpenBatchToDeadLetterQueue), NFR-6.
 		// Arrange
 		await using var scenario = await CreateParallelCircuitOpenScenarioAsync();
 
 		// Act
 		_ = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
-		// Assert
+		// Assert — NOT dead-lettered on CB-open (neither via the DLQ nor the store)
 		A.CallTo(() => scenario.DeadLetterQueue.EnqueueAsync(
 				A<IOutboxMessage>._,
 				DeadLetterReason.CircuitBreakerOpen,
 				A<CancellationToken>._,
 				A<Exception?>._,
 				A<IDictionary<string, string>?>._))
-			.MustHaveHappenedTwiceExactly();
+			.MustNotHaveHappened();
 		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
-				A<string>.That.Matches(id => id == "message-open-1" || id == "message-open-2"),
+				A<string>._,
 				A<string>._,
 				A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		// Assert — both open records left for retry (marked failed/re-claimable, attempt preserved)
+		A.CallTo(() => scenario.OutboxStore.MarkFailedAsync(
+				A<string>.That.Matches(id => id == "message-open-1" || id == "message-open-2"),
+				A<string>._,
+				A<int>._,
+				A<CancellationToken>._))
 			.MustHaveHappenedTwiceExactly();
+		A.CallTo(() => scenario.Dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_SingleRecord_LeavesCircuitOpenForRetry_NotDeadLetter()
+	{
+		// bd-2tvy5s AC-1 (single-record DispatchReservedRecordAsync, non-vacuity): a forced circuit-breaker-OPEN
+		// on the single-record path leaves the record FOR RETRY (MarkFailedAsync, attempt-preserved), NEVER
+		// dead-letter. RED on pre-fix (pre-fix routes the record to the DLQ on CB-open).
+		// Arrange — ParallelProcessingDegree == 1 (CreateValidOptions) selects the single-record path.
+		var messageType = typeof(TestOutboxIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestOutboxIntegrationEvent>();
+		var message = CreateOutboundMessageWithEnvelope(
+			"message-single-open", messageType, new TestOutboxIntegrationEvent("open"));
+		var outboxStore = CreateSingleMessageOutboxStore(message);
+		var serializer = new DispatchJsonSerializer();
+		var dispatcher = A.Fake<IDispatcher>();
+		var deadLetterQueue = CreateDeadLetterQueue();
+		var circuitBreakerRegistry = CreateCircuitOpenRegistry();
+		var serviceProvider = CreateServiceProvider(dispatcher);
+		var processor = CreateProcessor(
+			options: CreateValidOptions(),
+			outboxStore: outboxStore,
+			serializer: serializer,
+			serviceProvider: serviceProvider,
+			deadLetterQueue: deadLetterQueue,
+			circuitBreakerRegistry: circuitBreakerRegistry);
+		processor.Init("dispatcher-single-open");
+		await using var scenario = new DispatchScenario(processor, outboxStore, deadLetterQueue, serviceProvider, dispatcher);
+
+		// Act
+		_ = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert — NOT dead-lettered on CB-open
+		A.CallTo(() => scenario.DeadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>._,
+				DeadLetterReason.CircuitBreakerOpen,
+				A<CancellationToken>._,
+				A<Exception?>._,
+				A<IDictionary<string, string>?>._))
+			.MustNotHaveHappened();
+		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
+				"message-single-open",
+				A<string>._,
+				A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		// Assert — left for retry (marked failed/re-claimable, attempt preserved), and never dispatched (CB open)
+		A.CallTo(() => scenario.OutboxStore.MarkFailedAsync(
+				"message-single-open",
+				A<string>._,
+				A<int>._,
+				A<CancellationToken>._))
+			.MustHaveHappened();
 		A.CallTo(() => scenario.Dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
