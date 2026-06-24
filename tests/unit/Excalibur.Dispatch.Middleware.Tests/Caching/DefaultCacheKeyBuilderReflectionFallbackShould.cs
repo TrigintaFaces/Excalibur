@@ -8,9 +8,13 @@ using Excalibur.Dispatch.Caching;
 namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 
 /// <summary>
-/// Tests for Sprint 567 S567.6: DefaultCacheKeyBuilder reflection exception fallback.
-/// Validates that when TryGetCacheKeyFromInterface reflection fails, the builder
-/// falls back to a type name + hash code based key instead of propagating the exception.
+/// Tests for DefaultCacheKeyBuilder reflection-failure handling.
+/// <para>
+/// Updated Sprint 843 (bd-5n1v5n, Option X): when ICacheable&lt;T&gt; reflection fails the builder now
+/// returns <see langword="null"/> (skip caching) instead of fabricating an identity-hash fallback key —
+/// a fabricated key risked a false cross-request cache hit. (Originally Sprint 567 S567.6, which produced
+/// a type-name + hash-code fallback; that contract was replaced.)
+/// </para>
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Caching)]
@@ -47,20 +51,20 @@ public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBas
 	}
 
 	[Fact]
-	public void CreateKey_WhenICacheableThrows_FallsBackToTypeNameKey()
+	public void CreateKey_WhenICacheableThrows_ReturnsNullToSkipCaching()
 	{
 		// Arrange - action that implements ICacheable but whose GetCacheKey throws
 		var action = new ThrowingCacheableAction();
 
-		// Act - should NOT throw, should use fallback
+		// Act - should NOT throw; bd-5n1v5n Option X: reflection failure → null (skip caching)
 		var key = _sut.CreateKey(action, _context);
 
-		// Assert
-		key.ShouldNotBeNullOrEmpty("Fallback key should be generated when reflection fails");
+		// Assert - no fabricated key (no identity hash) → caching is skipped
+		key.ShouldBeNull();
 	}
 
 	[Fact]
-	public void CreateKey_WhenICacheableThrows_ProducesDeterministicKey()
+	public void CreateKey_WhenICacheableThrows_ReturnsNullConsistently()
 	{
 		// Arrange
 		var action = new ThrowingCacheableAction();
@@ -69,8 +73,9 @@ public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBas
 		var key1 = _sut.CreateKey(action, _context);
 		var key2 = _sut.CreateKey(action, _context);
 
-		// Assert - same action instance should produce same key
-		key1.ShouldBe(key2, "Fallback keys should be deterministic for the same action instance");
+		// Assert - reflection failure always yields null (skip), never a fabricated key
+		key1.ShouldBeNull();
+		key2.ShouldBeNull();
 	}
 
 	[Fact]
@@ -100,7 +105,7 @@ public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBas
 	}
 
 	[Fact]
-	public void CreateKey_ThrowingAndWorkingActions_ProduceDifferentKeys()
+	public void CreateKey_ThrowingReturnsNull_WorkingReturnsKey()
 	{
 		// Arrange
 		var throwingAction = new ThrowingCacheableAction();
@@ -110,20 +115,23 @@ public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBas
 		var throwingKey = _sut.CreateKey(throwingAction, _context);
 		var workingKey = _sut.CreateKey(workingAction, _context);
 
-		// Assert
-		throwingKey.ShouldNotBe(workingKey, "Fallback and normal keys should differ");
+		// Assert - a reflection-failing action skips (null); a resolvable one yields a real key
+		throwingKey.ShouldBeNull();
+		workingKey.ShouldNotBeNullOrEmpty();
 	}
 
 	[Fact]
-	public void CreateKey_FallbackKey_IsUrlSafeBase64()
+	public void CreateKey_ResolvedKey_IsUrlSafeBase64()
 	{
-		// Arrange
-		var action = new ThrowingCacheableAction();
+		// Arrange - a resolvable key is hashed; verify the hash is URL-safe (reflection-fail now skips,
+		// so the URL-safe property is asserted on a real key path).
+		var action = new WorkingCacheableAction("url-safe-check");
 
 		// Act
 		var key = _sut.CreateKey(action, _context);
 
 		// Assert
+		key.ShouldNotBeNull();
 		key.ShouldNotContain("=");
 		key.ShouldNotContain("/");
 		key.ShouldNotContain("+");

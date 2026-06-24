@@ -120,6 +120,15 @@ internal sealed class CachingMiddleware(
 
 		var key = keyBuilder.CreateKey(action, context);
 
+		// No derivable cache identity (e.g. an unresolvable ICacheable<T> key, an unnamed type, or an
+		// unserializable action) → fail open: skip caching and invoke the underlying operation. The key builder
+		// is infallible (never throws for a "cannot derive a key" condition), so a null key is the documented
+		// "do not cache" signal — a cross-cutting cache must never break the core operation.
+		if (key is null)
+		{
+			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+
 		// Check if message implements any ICacheable<T> interface
 #pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetCacheableInterface
 		var messageType = message.GetType();

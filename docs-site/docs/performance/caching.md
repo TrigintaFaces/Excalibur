@@ -167,6 +167,50 @@ The pipeline automatically checks the cache before executing the handler. On a c
 | `GetCacheTags()` | Tags for grouped invalidation |
 | `ShouldCache(object? result)` | Whether to cache this particular result |
 
+### Key derivation and fail-open behavior
+
+Caching is a cross-cutting concern, so it must never break the underlying operation. When the pipeline cannot derive a stable cache key for an action, it **fails open**: it skips the cache and invokes the handler directly, exactly as if caching were disabled for that one request. This happens when:
+
+- An `ICacheable<T>` action's `GetCacheKey()` cannot be resolved (for example, reflection over the action fails).
+- A non-`ICacheable` action cached via `[CacheResult]` cannot be serialized to produce a content-based key.
+- The action's runtime type has no resolvable type name.
+
+In every case the request still executes — you simply get a cache miss instead of an error. The framework **never fabricates a substitute key** (such as an identity hash), because a guessed key could produce a false cross-request cache hit and return one caller's data to another. Skipped derivations are logged at `Debug` level.
+
+### Custom cache key builders
+
+Set the `CacheKeyBuilder` option to replace the built-in `DefaultCacheKeyBuilder` with your own `ICacheKeyBuilder`:
+
+```csharp
+using System;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Caching;
+
+public sealed class ProductCacheKeyBuilder : ICacheKeyBuilder
+{
+    public string? CreateKey(IDispatchAction action, IMessageContext context)
+    {
+        // Return null to signal "no cache identity" — the pipeline then skips caching
+        // for this request. Implementations MUST be infallible: return null rather than
+        // throwing when a key cannot be derived.
+        if (action is not GetProductAction product || product.ProductId == Guid.Empty)
+        {
+            return null; // do not cache
+        }
+
+        var tenant = context.GetTenantId() ?? "global";
+        return $"{tenant}:product:{product.ProductId}";
+    }
+}
+```
+
+`CreateKey` returns `string?`:
+
+- A **non-null** key is used to look up and store the cached result.
+- A **`null`** result means **"do not cache"** — the pipeline bypasses the cache and invokes the handler.
+
+Implementations **must be infallible** for a "cannot derive a key" condition: return `null` instead of throwing, so a key-building failure degrades to a cache miss rather than failing the request.
+
 ## Attribute-Based Caching
 
 Use `[CacheResult]` to add caching without implementing `ICacheable<T>`:

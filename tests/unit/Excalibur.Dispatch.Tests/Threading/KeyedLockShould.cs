@@ -105,7 +105,9 @@ public sealed class KeyedLockShould
 		// Use reflection to check internal state
 		var locksField = typeof(KeyedLock).GetField("_locks", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 		locksField.ShouldNotBeNull();
-		var locks = (Dictionary<string, SemaphoreSlim>)locksField.GetValue(keyedLock)!;
+		// bd-ftq4u3 (S843): _locks is now Dictionary<string, Entry> (refcount-per-entry). Read Count
+		// type-agnostically via ICollection so this regression assertion survives the entry-type change.
+		var locks = (System.Collections.ICollection)locksField.GetValue(keyedLock)!;
 		locks.Count.ShouldBe(0, "All semaphores should be cleaned up when no waiters remain");
 	}
 

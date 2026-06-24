@@ -163,7 +163,7 @@ Excalibur.Dispatch.Caching.CachedValueJsonConverter
 Excalibur.Dispatch.Caching.CachedValueJsonConverter.CachedValueJsonConverter() -> void
 Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions
 Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder
-Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.CreateKey(Excalibur.Dispatch.IDispatchAction! action, Excalibur.Dispatch.IMessageContext! context) -> string!
+Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.CreateKey(Excalibur.Dispatch.IDispatchAction! action, Excalibur.Dispatch.IMessageContext! context) -> string?
 Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.DefaultCacheKeyBuilder(Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder!>? logger = null) -> void
 Excalibur.Dispatch.Caching.DefaultResultCachePolicy
 Excalibur.Dispatch.Caching.DefaultResultCachePolicy.DefaultResultCachePolicy(System.Func<Excalibur.Dispatch.IDispatchMessage!, object?, bool>! policy) -> void
@@ -196,7 +196,7 @@ Excalibur.Dispatch.Caching.ICacheInvalidator
 Excalibur.Dispatch.Caching.ICacheInvalidator.GetCacheKeysToInvalidate() -> System.Collections.Generic.IEnumerable<string!>!
 Excalibur.Dispatch.Caching.ICacheInvalidator.GetCacheTagsToInvalidate() -> System.Collections.Generic.IEnumerable<string!>!
 Excalibur.Dispatch.Caching.ICacheKeyBuilder
-Excalibur.Dispatch.Caching.ICacheKeyBuilder.CreateKey(Excalibur.Dispatch.IDispatchAction! action, Excalibur.Dispatch.IMessageContext! context) -> string!
+Excalibur.Dispatch.Caching.ICacheKeyBuilder.CreateKey(Excalibur.Dispatch.IDispatchAction! action, Excalibur.Dispatch.IMessageContext! context) -> string?
 Excalibur.Dispatch.Caching.ICacheProvider
 Excalibur.Dispatch.Caching.ICacheProvider.ExistsAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Caching.ICacheProvider.GetAsync<T>(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T?>!

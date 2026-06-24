@@ -244,44 +244,59 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 	/// <param name="valueFactory"> The function used to generate a value for the key if it doesn't exist. </param>
 	/// <param name="ttl"> Optional time-to-live for the new item if created. </param>
 	/// <returns> The value associated with the key, either existing or newly created. </returns>
+	/// <remarks>
+	/// <para>
+	/// <paramref name="valueFactory" /> is invoked <b>outside</b> the cache lock, so a slow factory (for
+	/// example a database read, HTTP call, or deserialization) does not serialize unrelated cache
+	/// operations behind it. This matches the contract of
+	/// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey, TValue}" />.<c>GetOrAdd</c>:
+	/// under concurrent misses for the same key the factory may run more than once, but exactly one entry
+	/// is committed and every caller receives that committed value. The factory should therefore be
+	/// idempotent and free of observable side effects.
+	/// </para>
+	/// <para>
+	/// After the factory runs the lock is re-acquired and the key is re-checked; if another thread
+	/// committed a value first, this call returns that winning value and discards the one it created. The
+	/// winning value is inserted <b>inline</b> (never through a re-entrant <see cref="Set" /> call), which
+	/// preserves the invariant that a committed entry is never displaced by its own insertion.
+	/// </para>
+	/// </remarks>
 	public TValue GetOrAdd(TKey key, Func<TKey, TValue> valueFactory, TimeSpan? ttl = null)
 	{
 		ArgumentNullException.ThrowIfNull(valueFactory);
 
+		// Fast path: serve a live entry without invoking the factory.
 		lock (_lock)
 		{
-			// Check if key exists and is not expired
-			if (_cache.TryGetValue(key, out var node))
+			if (TryGetLiveEntry(key, out var existingValue))
 			{
-				if (!IsExpired(node.Value))
-				{
-					// Move to front (most recently used)
-					_lruList.Remove(node);
-					_lruList.AddFirst(node);
+				return existingValue;
+			}
+		}
 
-					if (_defaultTtl.HasValue)
-					{
-						node.Value.LastAccessed = DateTimeOffset.UtcNow;
-					}
+		// Invoke the factory WITHOUT holding the lock (bd-xj7lfn). A slow factory must not serialize every
+		// other cache operation behind it, and running it lock-free also removes the re-entrancy hazard: a
+		// factory that calls back into this cache can no longer mutate cache/LRU state mid-operation.
+		var newValue = valueFactory(key);
 
-					_hits++;
-					_lruHitCounter.Add(1);
-					return node.Value.Value;
-				}
-
-				// Expired — remove before reinserting
-				RemoveNode(node);
-				_expirations++;
-				_lruExpirationCounter.Add(1);
+		lock (_lock)
+		{
+			// Double-check. Another thread may have committed a live entry for this key while the factory
+			// ran; if so this caller is the race loser — return the committed winner's value and discard
+			// the value just created (ConcurrentDictionary.GetOrAdd semantics). This counts as a hit by
+			// terminal outcome, not a miss.
+			if (TryGetLiveEntry(key, out var winnerValue))
+			{
+				return winnerValue;
 			}
 
+			// Genuine insert. The miss is counted here (terminal outcome), capacity is evaluated after the
+			// double-check, and the entry is inserted INLINE — never via Set(). Re-entrant Set() is the
+			// closed bd-gblom defect: it could evict and silently discard the entry being committed.
 			_misses++;
 			_lruMissCounter.Add(1);
 
-			// Factory runs under the lock to prevent duplicate invocations
-			var newValue = valueFactory(key);
-
-			// Evict if at capacity
+			// Evict if at capacity.
 			if (_cache.Count >= Capacity)
 			{
 				var lru = _lruList.Last;
@@ -304,6 +319,45 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 			_cache[key] = _lruList.AddFirst(entry);
 			return newValue;
 		}
+	}
+
+	/// <summary>
+	/// Attempts to return a live (non-expired) cached value for <paramref name="key" />, promoting it to
+	/// most-recently-used and recording a hit. An expired entry is removed and counted as an expiration.
+	/// </summary>
+	/// <param name="key"> The key to look up. </param>
+	/// <param name="value"> When this method returns <see langword="true" />, the live cached value. </param>
+	/// <returns> <see langword="true" /> if a live entry was found; otherwise <see langword="false" />. </returns>
+	/// <remarks> Must be called while holding <see cref="_lock" />. </remarks>
+	private bool TryGetLiveEntry(TKey key, [MaybeNullWhen(false)] out TValue value)
+	{
+		if (_cache.TryGetValue(key, out var node))
+		{
+			if (!IsExpired(node.Value))
+			{
+				// Move to front (most recently used).
+				_lruList.Remove(node);
+				_lruList.AddFirst(node);
+
+				if (_defaultTtl.HasValue)
+				{
+					node.Value.LastAccessed = DateTimeOffset.UtcNow;
+				}
+
+				_hits++;
+				_lruHitCounter.Add(1);
+				value = node.Value.Value;
+				return true;
+			}
+
+			// Expired — remove before any re-insert.
+			RemoveNode(node);
+			_expirations++;
+			_lruExpirationCounter.Add(1);
+		}
+
+		value = default;
+		return false;
 	}
 
 	/// <summary>

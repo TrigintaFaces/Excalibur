@@ -207,6 +207,39 @@ public sealed class CachingMiddlewareShould : IDisposable
 	}
 
 	[Fact]
+	public async Task SkipCacheAndInvokeNext_WhenKeyBuilderReturnsNull()
+	{
+		// Arrange — bd-5n1v5n (Option X) middleware half: an otherwise-cacheable message whose key
+		// builder cannot derive an identity (returns null) MUST skip caching and run the operation.
+		var options = new CacheOptions { Enabled = true };
+		var middleware = CreateMiddleware(options);
+		var message = new TestCacheableMessage { Id = "skip-1" };
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+
+		A.CallTo(() => _fakeKeyBuilder.CreateKey(A<IDispatchAction>._, A<IMessageContext>._))
+			.Returns((string?)null);
+
+		var expectedResult = MessageResult.Success();
+		var nextCalled = false;
+
+		// Act
+		var result = await middleware.InvokeAsync(
+			message, context,
+			(_, _, _) =>
+			{
+				nextCalled = true;
+				return new ValueTask<IMessageResult>(expectedResult);
+			},
+			CancellationToken.None);
+
+		// Assert — request proceeds uncached, and NO cache read/write occurred on the null-key skip path.
+		result.ShouldBe(expectedResult);
+		nextCalled.ShouldBeTrue("the underlying operation must run when caching is skipped");
+		A.CallTo(_fakeCache).MustNotHaveHappened();
+	}
+
+	[Fact]
 	public async Task HandleCacheResultAttribute_AndCallsHybridCache()
 	{
 		// Arrange — message with [CacheResult] attribute
