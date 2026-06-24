@@ -1,8 +1,1 @@
 #nullable enable
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.GetCurrentVersionAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
-Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.GetSecretVersionAsync(string! keyName, string! version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
-Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedFieldResult(string! encryptedValue, string! algorithm, string! keyVersion, string? initializationVector = null, string? authenticationTag = null, Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification classification = Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Confidential, string! formatVersion = "1") -> void
-Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.FormatVersion.get -> string!
-Excalibur.Data.ElasticSearch.Security.IVersionedSecretStorage
-Excalibur.Data.ElasticSearch.Security.IVersionedSecretStorage.GetCurrentVersionAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
-Excalibur.Data.ElasticSearch.Security.IVersionedSecretStorage.GetSecretVersionAsync(string! keyName, string! version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!

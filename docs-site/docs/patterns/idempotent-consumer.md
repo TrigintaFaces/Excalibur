@@ -169,13 +169,15 @@ public class ProcessPaymentHandler : IEventHandler<PaymentRequestedEvent>
 }
 ```
 
-Under the hood, the `IdempotentHandlerMiddleware` does the following on every invocation:
+Under the hood, the `IdempotentHandlerMiddleware` uses an atomic **claim-before-execute** protocol on every invocation:
 
-1. Extracts a message ID (configurable strategy)
-2. Checks if this `(messageId, handlerType)` pair has been processed
-3. If yes, returns success immediately (skip)
-4. If no, invokes the handler
-5. On success, records the `(messageId, handlerType)` pair as processed
+1. Extracts a message ID (configurable strategy).
+2. **Atomically claims** the `(messageId, handlerType)` pair *before* the handler runs. The claim is a single first-writer-wins operation, so exactly one of N concurrent duplicates wins it.
+3. If the claim fails — another caller already holds it — the message is a duplicate: skip and return success.
+4. If the claim succeeds, invoke the handler while holding the claim.
+5. On success, **finalize** the claim (it becomes terminal — the message is recorded as processed). On handler **failure**, the claim is **released** so a redelivery can re-admit the message — a failed handler never silently drops its message.
+
+This replaces an earlier check-then-mark sequence, which had a race window between the "has this been processed?" check and the later mark. Because the claim is atomic, two concurrent duplicates can never both pass.
 
 The composite key `(messageId, handlerType)` is critical. It means the same message can be processed independently by multiple handlers. An `OrderCreatedEvent` can trigger both `SendConfirmationEmailHandler` and `ReserveInventoryHandler`, each tracked separately.
 
@@ -213,7 +215,19 @@ Persistent storage requires registering an `IInboxStore` implementation. Excalib
 | Firestore | `Excalibur.Data.Firestore` |
 | In-Memory | `Excalibur.Data.InMemory` |
 
-All implementations use atomic "first writer wins" semantics via `TryMarkAsProcessedAsync`. Only one concurrent processor can succeed for a given `(messageId, handlerType)` pair. The mechanism is native to each database (e.g., `SETNX` in Redis, `attribute_not_exists` in DynamoDB, `CreateItemAsync` with 409 Conflict in CosmosDB).
+All implementations use atomic "first writer wins" semantics for the claim-before-execute protocol (`IClaimableInboxStore.TryClaimAsync`). Only one concurrent processor can claim a given `(messageId, handlerType)` pair. The mechanism is native to each database (e.g., `INSERT … ON CONFLICT DO NOTHING` in PostgreSQL, `MERGE WITH (HOLDLOCK)` in SQL Server, `SETNX` in Redis, `attribute_not_exists` in DynamoDB, `CreateItemAsync` with 409 Conflict in CosmosDB).
+
+### Idempotency Under Load
+
+The claim protocol is correct under concurrent duplicate delivery, but two operational caveats are worth knowing for high-throughput deployments:
+
+:::note In-memory deduplication has a capacity ceiling
+`[Idempotent(UseInMemory = true)]` uses a bounded in-process store (10,000 tracked entries) so it cannot grow unboundedly. When the cap is reached, new messages are **admitted without deduplication** (correctness over OOM) until the periodic cleanup reclaims space as entries expire. Under sustained pressure above the cap, concurrent duplicates could both be admitted. For workloads where duplicate suppression must hold under load, use a **persistent `IInboxStore`** rather than in-memory mode — the database enforces the claim with no in-process capacity ceiling.
+:::
+
+:::note Handler failure releases the claim
+When a handler throws, the middleware releases the claim before propagating the exception, so the message stays retryable on redelivery. The released claim is a best-effort cleanup on the failure path; the original handler exception is what your error-handling and dead-letter pipeline acts on. This is why a [dead-letter](./dead-letter.md) policy still matters even with idempotency enabled — idempotency prevents *double* processing, not *failed* processing.
+:::
 
 ### Choosing a Message ID Strategy
 
@@ -552,7 +566,7 @@ The result:
 |---------|-----------|---------------------------|
 | Duplicate publishes | Transactional Outbox | `IOutboxStore` + `OutboxMiddleware` |
 | Duplicate consumption | Idempotent Consumer | `[Idempotent]` + `IInboxStore` |
-| Atomic side effects | First-writer-wins check | `TryMarkAsProcessedAsync` |
+| Atomic side effects | First-writer-wins claim, release-on-failure | `IClaimableInboxStore.TryClaimAsync` |
 | External API duplicates | Idempotency keys or stored intent | `IMessageIdProvider` + Outbox |
 | Cross-outbox/inbox atomicity | Shared-database transaction | `TryMarkSentAndReceivedAsync` |
 | Cleanup | Configurable retention | `IInboxStoreAdmin.CleanupAsync` + hosted service |

@@ -570,6 +570,12 @@ Excalibur.Dispatch.ICdcStateStore.DeletePositionAsync(string! consumerId, System
 Excalibur.Dispatch.ICdcStateStore.GetAllPositionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<(string! ConsumerId, Excalibur.Dispatch.ChangePosition! Position)>!
 Excalibur.Dispatch.ICdcStateStore.GetPositionAsync(string! consumerId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.ChangePosition?>!
 Excalibur.Dispatch.ICdcStateStore.SavePositionAsync(string! consumerId, Excalibur.Dispatch.ChangePosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.IClaimableDeduplicator
+Excalibur.Dispatch.IClaimableDeduplicator.ReleaseAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.IClaimableDeduplicator.TryClaimAsync(string! messageId, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.IClaimableInboxStore
+Excalibur.Dispatch.IClaimableInboxStore.ReleaseAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.IClaimableInboxStore.TryClaimAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Dispatch.IConnectionPool<TConnection>
 Excalibur.Dispatch.IConnectionPool<TConnection>.ConnectionType.get -> string!
 Excalibur.Dispatch.IConnectionPool<TConnection>.GetConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IPooledConnection<TConnection!>!>
@@ -587,6 +593,8 @@ Excalibur.Dispatch.ICorrelationId
 Excalibur.Dispatch.ICorrelationId.ToString() -> string!
 Excalibur.Dispatch.ICorrelationId.Value.get -> System.Guid
 Excalibur.Dispatch.ICorrelationId.Value.set -> void
+Excalibur.Dispatch.IDeadLetterableOutboxStore
+Excalibur.Dispatch.IDeadLetterableOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.IDeduplicationStrategy
 Excalibur.Dispatch.IDeduplicationStrategy.DefaultExpiration.get -> System.TimeSpan
 Excalibur.Dispatch.IDeduplicationStrategy.GenerateDeduplicationId(string! messageBody, System.Collections.Generic.IDictionary<string!, object!>? messageAttributes = null) -> string!
@@ -940,6 +948,8 @@ Excalibur.Dispatch.IPooledConnection<TConnection>.UseCount.get -> int
 Excalibur.Dispatch.IPooledObject
 Excalibur.Dispatch.IPooledObject.CanBePooled.get -> bool
 Excalibur.Dispatch.IPooledObject.Reset() -> void
+Excalibur.Dispatch.IProcessingTrackingInboxStore
+Excalibur.Dispatch.IProcessingTrackingInboxStore.MarkProcessingAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.IProgressDispatcher
 Excalibur.Dispatch.IProgressDispatcher.DispatchWithProgressAsync<TDocument>(TDocument document, Excalibur.Dispatch.IMessageContext! context, System.IProgress<Excalibur.Dispatch.Delivery.DocumentProgress>! progress, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.IProjection<TKey>
@@ -1609,6 +1619,7 @@ Excalibur.Dispatch.OutboxStatistics.StagedMessageCount.get -> int
 Excalibur.Dispatch.OutboxStatistics.StagedMessageCount.init -> void
 Excalibur.Dispatch.OutboxStatistics.TotalMessageCount.get -> int
 Excalibur.Dispatch.OutboxStatus
+Excalibur.Dispatch.OutboxStatus.DeadLettered = 5 -> Excalibur.Dispatch.OutboxStatus
 Excalibur.Dispatch.OutboxStatus.Failed = 3 -> Excalibur.Dispatch.OutboxStatus
 Excalibur.Dispatch.OutboxStatus.PartiallyFailed = 4 -> Excalibur.Dispatch.OutboxStatus
 Excalibur.Dispatch.OutboxStatus.Sending = 1 -> Excalibur.Dispatch.OutboxStatus

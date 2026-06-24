@@ -277,8 +277,13 @@ public sealed class DeliveryServiceCollectionExtensionsShould
 	}
 
 	// Test helper classes
-	private sealed class TestOutboxStore : IOutboxStore
+	private sealed class TestOutboxStore : IOutboxStore, IDeadLetterableOutboxStore
 	{
+		// bd-stlcgg (S841): shipped stores implement IDeadLetterableOutboxStore; the AddOutbox presence guard
+		// (OutboxDeadLetterCapabilityValidator) fails fast at startup when the store lacks it.
+		public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken = default)
+			=> default;
+
 		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken = default)
 			=> default;
 
@@ -307,8 +312,11 @@ public sealed class DeliveryServiceCollectionExtensionsShould
 			=> new(new OutboxStatistics());
 	}
 
-	private sealed class AnotherTestOutboxStore : IOutboxStore
+	private sealed class AnotherTestOutboxStore : IOutboxStore, IDeadLetterableOutboxStore
 	{
+		public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken = default)
+			=> default;
+
 		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken = default)
 			=> default;
 

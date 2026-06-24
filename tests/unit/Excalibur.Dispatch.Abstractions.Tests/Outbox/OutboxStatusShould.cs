@@ -64,16 +64,17 @@ public sealed class OutboxStatusShould
 		values.ShouldContain(OutboxStatus.Sent);
 		values.ShouldContain(OutboxStatus.Failed);
 		values.ShouldContain(OutboxStatus.PartiallyFailed);
+		values.ShouldContain(OutboxStatus.DeadLettered);
 	}
 
 	[Fact]
-	public void HasExactlyFiveValues()
+	public void HasExactlySixValues()
 	{
-		// Arrange
+		// Arrange — bd-stlcgg (S841) added the terminal DeadLettered status, so the enum now has six values.
 		var values = Enum.GetValues<OutboxStatus>();
 
 		// Assert
-		values.Length.ShouldBe(5);
+		values.Length.ShouldBe(6);
 	}
 
 	#endregion
@@ -86,6 +87,7 @@ public sealed class OutboxStatusShould
 	[InlineData(OutboxStatus.Sent, "Sent")]
 	[InlineData(OutboxStatus.Failed, "Failed")]
 	[InlineData(OutboxStatus.PartiallyFailed, "PartiallyFailed")]
+	[InlineData(OutboxStatus.DeadLettered, "DeadLettered")]
 	public void ToString_ReturnsExpectedValue(OutboxStatus status, string expected)
 	{
 		// Act & Assert

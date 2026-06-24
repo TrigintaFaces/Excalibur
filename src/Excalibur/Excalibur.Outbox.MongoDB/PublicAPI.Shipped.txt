@@ -1,4 +1,11 @@
 #nullable enable
+Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder
+Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
+Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.Client(MongoDB.Driver.IMongoClient! client) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
+Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.ClientFactory(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
+Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.CollectionName(string! collectionName) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
+Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
+Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.DatabaseName(string! databaseName) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.CollectionName.get -> string!
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.CollectionName.set -> void
@@ -26,6 +33,7 @@ Excalibur.Outbox.MongoDB.MongoDbOutboxStore.GetFailedMessagesAsync(int maxRetrie
 Excalibur.Outbox.MongoDB.MongoDbOutboxStore.GetScheduledMessagesAsync(System.DateTimeOffset scheduledBefore, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.MongoDB.MongoDbOutboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxStatistics!>
 Excalibur.Outbox.MongoDB.MongoDbOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
+Excalibur.Outbox.MongoDB.MongoDbOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.MongoDB.MongoDbOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.MongoDB.MongoDbOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.MongoDB.MongoDbOutboxStore.MongoDbOutboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.MongoDB.MongoDbOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.MongoDB.MongoDbOutboxStore!>! logger) -> void
@@ -33,10 +41,3 @@ Excalibur.Outbox.MongoDB.MongoDbOutboxStore.MongoDbOutboxStore(MongoDB.Driver.IM
 Excalibur.Outbox.MongoDB.MongoDbOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Microsoft.Extensions.DependencyInjection.OutboxBuilderMongoDbExtensions
 static Microsoft.Extensions.DependencyInjection.OutboxBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
-Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder
-Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
-Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.Client(MongoDB.Driver.IMongoClient! client) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
-Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.ClientFactory(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
-Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.CollectionName(string! collectionName) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
-Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!
-Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder.DatabaseName(string! databaseName) -> Excalibur.Outbox.MongoDB.IMongoDBOutboxBuilder!

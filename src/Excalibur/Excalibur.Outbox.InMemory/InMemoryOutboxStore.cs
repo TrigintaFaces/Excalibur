@@ -24,7 +24,7 @@ namespace Excalibur.Outbox.InMemory;
 /// This store is intended for testing scenarios only. Data is lost on application restart.
 /// </para>
 /// </remarks>
-public sealed partial class InMemoryOutboxStore : IOutboxStore, IOutboxStoreAdmin, IAsyncDisposable, IDisposable
+public sealed partial class InMemoryOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<string, OutboundMessage> _messages = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, object> _messageLocks = new(StringComparer.Ordinal);
@@ -191,6 +191,28 @@ public sealed partial class InMemoryOutboxStore : IOutboxStore, IOutboxStoreAdmi
 		message.RetryCount = retryCount;
 
 		LogMessageFailed(messageId, errorMessage, retryCount);
+
+		return default;
+	}
+
+	/// <inheritdoc/>
+	public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(reason);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		if (!_messages.TryGetValue(messageId, out var message))
+		{
+			// Mirror MarkFailedAsync: silent return for missing messages
+			return default;
+		}
+
+		message.Status = OutboxStatus.DeadLettered;
+		message.LastError = reason;
+
+		// Clear any per-message lock entry for hygiene (no in-memory lease fields on OutboundMessage)
+		_ = _messageLocks.TryRemove(messageId, out _);
 
 		return default;
 	}

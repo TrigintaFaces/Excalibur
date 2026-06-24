@@ -1,7 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Amazon;
+using Amazon.SecretsManager;
+
+using Excalibur.Security;
 using Excalibur.Security.Aws;
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -37,8 +44,17 @@ public static class DispatchSecurityAwsServiceCollectionExtensions
 
 		if (builder.Region is not null)
 		{
-			_ = services.AddSingleton<ICredentialStore, AwsSecretsManagerCredentialStore>();
-			_ = services.AddSingleton<IWritableCredentialStore, AwsSecretsManagerCredentialStore>();
+			var region = builder.Region;
+
+			// Register the concrete store once with a region-configured AWS client, then forward both
+			// interfaces to the same instance so a single AmazonSecretsManagerClient is shared (and the
+			// configured region is actually honored — it was previously captured by the builder but ignored).
+			_ = services.AddSingleton(sp => new AwsSecretsManagerCredentialStore(
+				sp.GetRequiredService<ILogger<AwsSecretsManagerCredentialStore>>(),
+				sp.GetRequiredService<IConfiguration>(),
+				new AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(region))));
+			_ = services.AddSingleton<ICredentialStore>(sp => sp.GetRequiredService<AwsSecretsManagerCredentialStore>());
+			_ = services.AddSingleton<IWritableCredentialStore>(sp => sp.GetRequiredService<AwsSecretsManagerCredentialStore>());
 		}
 
 		return services;

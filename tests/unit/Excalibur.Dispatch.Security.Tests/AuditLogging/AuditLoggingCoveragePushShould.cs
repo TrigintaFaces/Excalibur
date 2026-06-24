@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 
 using Excalibur.AuditLogging;
+using Excalibur.Compliance;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -312,13 +313,12 @@ public sealed class AuditLoggingCoveragePushShould
 		A.CallTo(() => store.StoreAsync(auditEvent, A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("Simulated store failure"));
 
-		// Act - triggers LogAuditEventStoreFailed with logging enabled
-		var result = await sut.LogAsync(auditEvent, CancellationToken.None);
+		// Act & Assert - triggers LogAuditEventStoreFailed (the error-log path) and then fails closed by throwing
+		// AuditPersistenceException (bd-sf3uz1), rather than masking the failure behind a success-shaped result.
+		var ex = await Should.ThrowAsync<AuditPersistenceException>(
+			() => sut.LogAsync(auditEvent, CancellationToken.None));
 
-		// Assert - returns failure indicator, doesn't throw
-		result.EventId.ShouldBe("log-err-1");
-		result.EventHash.ShouldBeEmpty();
-		result.SequenceNumber.ShouldBe(-1);
+		ex.EventId.ShouldBe("log-err-1");
 	}
 
 	[Fact]

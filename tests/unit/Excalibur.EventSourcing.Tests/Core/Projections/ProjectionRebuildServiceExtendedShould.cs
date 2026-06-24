@@ -139,9 +139,11 @@ public sealed class ProjectionRebuildServiceExtendedShould
 	}
 
 	[Fact]
-	public async Task SkipUndeserializableEvents_AndContinueRebuilding()
+	public async Task HaltOnUndeserializableEvent_WithoutCompletingOrPersisting()
 	{
-		// Arrange — one event fails deserialization, another succeeds
+		// Arrange — bd-red2ha (S841): an undeserializable poison event now HALTS the rebuild (rethrow→Failed)
+		// instead of skip-and-continue, so the rebuilt read model is never silently left missing the poison.
+		// The poison event is FIRST, so the good event after it is never applied.
 		var globalQuery = A.Fake<IGlobalStreamQuery>();
 		var projection = new MultiStreamProjection<RebuildTestState>();
 		projection.AddHandler<RebuildTestEvent>((state, _) => state.Count++);
@@ -175,16 +177,16 @@ public sealed class ProjectionRebuildServiceExtendedShould
 
 		var sut = CreateService(sp);
 
-		// Act — should not throw
-		await sut.RebuildAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
+		// Act — the rebuild halts at the poison event and rethrows.
+		_ = await Should.ThrowAsync<Exception>(
+			() => sut.RebuildAsync<RebuildTestState>(CancellationToken.None)).ConfigureAwait(false);
 
-		// Assert — completed with the good event applied, bad event skipped
+		// Assert — the rebuild did NOT complete, and no (incomplete) state was persisted past the poison.
 		var status = await sut.GetStatusAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
-		status.State.ShouldBe(ProjectionRebuildState.Completed);
+		status.State.ShouldBe(ProjectionRebuildState.Failed);
 
 		var persisted = await store.GetByIdAsync("RebuildTestState", CancellationToken.None).ConfigureAwait(false);
-		persisted.ShouldNotBeNull();
-		persisted.Count.ShouldBe(1);
+		persisted.ShouldBeNull();
 	}
 
 	[Fact]

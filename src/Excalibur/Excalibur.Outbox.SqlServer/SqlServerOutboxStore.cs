@@ -44,7 +44,7 @@ namespace Excalibur.Outbox.SqlServer;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class implements multiple ISP sub-interfaces (IMultiTransportOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, ITransactionalOutboxWriter) by design.")]
-public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, ITransactionalOutboxWriter
+public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, ITransactionalOutboxWriter
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerOutboxOptions _options;
@@ -724,6 +724,42 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		finally
 		{
 			RecordOperation("mark_failed", result, stopwatch.Elapsed);
+		}
+	}
+
+	/// <inheritdoc />
+	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(reason);
+
+		var stopwatch = ValueStopwatch.StartNew();
+		var result = WriteStoreTelemetry.Results.Success;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			_ = await connection.ResolveAsync(
+					new Requests.MarkMessageDeadLetteredRequest(
+						_options.QualifiedOutboxTableName,
+						messageId,
+						reason,
+						_options.CommandTimeoutSeconds,
+						cancellationToken))
+				.ConfigureAwait(false);
+
+			_logger.LogWarning("Marked message {MessageId} as dead-lettered (terminal): {Reason}", messageId, reason);
+		}
+		catch
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			throw;
+		}
+		finally
+		{
+			RecordOperation("mark_dead_lettered", result, stopwatch.Elapsed);
 		}
 	}
 

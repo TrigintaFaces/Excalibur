@@ -1864,8 +1864,10 @@ Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.DeleteSecretAsync(st
 Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.Dispose() -> void
 Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.GenerateEncryptionKeyAsync(string! keyName, Excalibur.Data.ElasticSearch.Security.EncryptionKeyType keyType, int keySize, Excalibur.Data.ElasticSearch.Security.SecretMetadata? metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.KeyGenerationResult!>!
+Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.GetCurrentVersionAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
 Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.GetSecretAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
 Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.GetSecretMetadataAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.SecretMetadata?>!
+Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.GetSecretVersionAsync(string! keyName, string! version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
 Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.KeyRotated -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.KeyRotatedEventArgs!>?
 Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.ListSecretsAsync(string? prefix, bool includeMetadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Data.ElasticSearch.Security.SecretInfo!>!>!
 Excalibur.Data.ElasticSearch.Security.AzureKeyVaultProvider.ProviderType.get -> Excalibur.Data.ElasticSearch.Security.KeyManagementProviderType
@@ -2092,7 +2094,9 @@ Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.Algorithm.get -> stri
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.AuthenticationTag.get -> string?
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.Classification.get -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedAt.get -> System.DateTimeOffset
+Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedFieldResult(string! encryptedValue, string! algorithm, string! keyVersion, string? initializationVector = null, string? authenticationTag = null, Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification classification = Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Confidential, string! formatVersion = "1") -> void
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedValue.get -> string!
+Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.FormatVersion.get -> string!
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.HasIntegrityProtection.get -> bool
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.InitializationVector.get -> string?
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.KeyVersion.get -> string!
@@ -2277,6 +2281,9 @@ Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityProvider
 Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityProvider.AuthenticateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuthenticationResult>!
 Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityProvider.AuthorizeAsync(Excalibur.Data.ElasticSearch.Security.DataAccessOperation operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityProvider.GetSecurityContextAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.ElasticsearchSecurityContext!>!
+Excalibur.Data.ElasticSearch.Security.IVersionedSecretStorage
+Excalibur.Data.ElasticSearch.Security.IVersionedSecretStorage.GetCurrentVersionAsync(string! keyName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Data.ElasticSearch.Security.IVersionedSecretStorage.GetSecretVersionAsync(string! keyName, string! version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
 Excalibur.Data.ElasticSearch.Security.KeyGenerationResult
 Excalibur.Data.ElasticSearch.Security.KeyGenerationResult.ErrorMessage.get -> string?
 Excalibur.Data.ElasticSearch.Security.KeyGenerationResult.GeneratedAt.get -> System.DateTimeOffset
@@ -3003,6 +3010,7 @@ const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.Document
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentExistsChecked = 106205 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentIndexed = 106200 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentNotFound = 106601 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentProcessing = 106206 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentRetrieved = 106201 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentSourceRetrieved = 106204 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentUpdated = 106202 -> int

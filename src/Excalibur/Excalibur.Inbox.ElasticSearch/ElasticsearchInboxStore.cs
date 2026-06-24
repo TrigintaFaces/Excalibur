@@ -22,7 +22,7 @@ namespace Excalibur.Inbox.ElasticSearch;
 /// Payloads are stored as Base64-encoded strings.
 /// </para>
 /// </remarks>
-public sealed partial class ElasticsearchInboxStore : IInboxStore, IInboxStoreAdmin
+public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin
 {
 	private readonly ElasticsearchClient _client;
 	private readonly ElasticsearchInboxOptions _options;
@@ -115,6 +115,28 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IInboxStoreAd
 
 		await UpdateDocumentAsync(docId, existing, cancellationToken).ConfigureAwait(false);
 		LogProcessedEntry(messageId, handlerType);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		var docId = GetDocumentId(messageId, handlerType);
+
+		// Durably persist the in-flight Processing status (and the LastAttemptAt stamp the stuck-processing
+		// timeout reads) BEFORE handler execution, so a concurrent delivery observes Processing via
+		// GetEntryAsync and is skipped by the at-most-once guard.
+		var existing = await GetDocumentAsync(docId, cancellationToken).ConfigureAwait(false)
+			?? throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+
+		existing.Status = (int)InboxStatus.Processing;
+		existing.LastAttemptAt = DateTimeOffset.UtcNow;
+
+		await UpdateDocumentAsync(docId, existing, cancellationToken).ConfigureAwait(false);
+		LogProcessingEntry(messageId, handlerType);
 	}
 
 	/// <inheritdoc/>
@@ -289,12 +311,19 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IInboxStoreAd
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
-		var cutoff = olderThan;
+		// Strictly older-than cutoff: only entries received before `olderThan` are deleted.
+		// An entry received exactly at `olderThan` is retained (EC-5). Previously this issued a
+		// MatchAll query that deleted every inbox document regardless of age (FR-4 data-loss bug).
+		var cutoff = DateMath.Anchored(olderThan.UtcDateTime);
 
 		var response = await _client.DeleteByQueryAsync<ElasticsearchInboxDocument>(
-			static d => d
-				.Indices("excalibur-inbox")
-				.Query(q => q.MatchAll(new MatchAllQuery())),
+			d => d
+				.Indices(_options.IndexName)
+				.Query(q => q
+					.Range(r => r
+						.DateRange(dr => dr
+							.Field(f => f.ReceivedAt)
+							.Lt(cutoff)))),
 			cancellationToken).ConfigureAwait(false);
 
 		var deleted = (int)(response.Deleted ?? 0);
@@ -382,6 +411,10 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IInboxStoreAd
 	[LoggerMessage(DataElasticsearchEventId.DocumentUpdated, LogLevel.Debug,
 		"Marked inbox entry as processed for message '{MessageId}' and handler '{HandlerType}'")]
 	private partial void LogProcessedEntry(string messageId, string handlerType);
+
+	[LoggerMessage(DataElasticsearchEventId.DocumentProcessing, LogLevel.Debug,
+		"Marked inbox entry as processing for message '{MessageId}' and handler '{HandlerType}'")]
+	private partial void LogProcessingEntry(string messageId, string handlerType);
 
 	[LoggerMessage(DataElasticsearchEventId.DocumentRetrieved, LogLevel.Debug,
 		"TryMarkAsProcessed succeeded for message '{MessageId}' and handler '{HandlerType}'")]

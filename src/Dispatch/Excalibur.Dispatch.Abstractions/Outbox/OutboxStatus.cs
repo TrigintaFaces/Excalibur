@@ -58,4 +58,15 @@ public enum OutboxStatus
 	/// may be retried while successful ones are not repeated.
 	/// </remarks>
 	PartiallyFailed = 4,
+
+	/// <summary>
+	/// The message has permanently failed delivery after exhausting its retry policy and has been dead-lettered.
+	/// </summary>
+	/// <remarks>
+	/// This is a terminal state. A dead-lettered message has been routed to the dead-letter queue and MUST NOT be
+	/// claimed for delivery again. Outbox stores exclude this status from their claim predicate structurally
+	/// (an explicit allow-list of claimable statuses), so a dead-lettered message can never be re-claimed,
+	/// re-delivered, or re-dead-lettered. Messages reach this state when their retry attempts are exhausted.
+	/// </remarks>
+	DeadLettered = 5,
 }

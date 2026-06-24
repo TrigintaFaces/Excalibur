@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Globalization;
+using System.Text;
+
 using Excalibur.AuditLogging.Diagnostics;
 using Excalibur.Compliance;
 
@@ -14,14 +17,20 @@ namespace Excalibur.AuditLogging;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The audit logger provides:
-/// - Fire-and-forget safe logging (catches and logs errors)
-/// - Hash chain integrity verification
-/// - Event validation before storage
+/// The audit logger is <b>fail-closed</b>: when the underlying <see cref="IAuditStore"/> fails to persist
+/// an event, the failure is surfaced to the caller as an <see cref="AuditPersistenceException"/> rather
+/// than swallowed, so an unrecorded compliance event is never mistaken for a durably stored one. Callers
+/// that require availability over durability must catch that exception and apply their own policy.
+/// </para>
+/// <para>
+/// It also provides hash-chain integrity verification and event validation before storage.
 /// </para>
 /// </remarks>
 public sealed partial class DefaultAuditLogger : IAuditLogger
 {
+	private static readonly CompositeFormat PersistenceFailedFormat =
+		CompositeFormat.Parse(Resources.DefaultAuditLogger_PersistenceFailed);
+
 	private readonly IAuditStore _auditStore;
 	private readonly ILogger<DefaultAuditLogger> _logger;
 
@@ -57,17 +66,17 @@ public sealed partial class DefaultAuditLogger : IAuditLogger
 		}
 		catch (Exception ex)
 		{
-			// Log the error but don't throw - audit logging should not break the main flow
-			// In production, you might want to queue failed events for retry
+			// Fail-closed: a compliance audit trail must never report a dropped event as durably recorded.
+			// Surface the store failure as a typed exception instead of masking it behind a success-shaped
+			// AuditEventId (the old SequenceNumber == -1 sentinel). Callers that need fail-open availability
+			// must catch AuditPersistenceException and apply their own retry/queue policy.
 			LogAuditEventStoreFailed(ex, auditEvent.EventId, auditEvent.EventType);
 
-			// Return a failure indicator
-			return new AuditEventId
+			throw new AuditPersistenceException(
+				string.Format(CultureInfo.InvariantCulture, PersistenceFailedFormat, auditEvent.EventId),
+				ex)
 			{
-				EventId = auditEvent.EventId,
-				EventHash = string.Empty,
-				SequenceNumber = -1,
-				RecordedAt = DateTimeOffset.UtcNow
+				EventId = auditEvent.EventId
 			};
 		}
 	}

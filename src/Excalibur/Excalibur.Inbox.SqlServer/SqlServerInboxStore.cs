@@ -29,7 +29,7 @@ namespace Excalibur.Inbox.SqlServer;
 /// using SQL Server's MERGE statement with HOLDLOCK hint for proper isolation.
 /// </para>
 /// </remarks>
-public sealed class SqlServerInboxStore : IInboxStore, IInboxStoreAdmin
+public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerInboxOptions _options;
@@ -171,6 +171,48 @@ public sealed class SqlServerInboxStore : IInboxStore, IInboxStoreAdmin
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		// Durably persist the in-flight Processing status (and the LastAttemptAt stamp the stuck-processing
+		// timeout reads) BEFORE handler execution, so a concurrent delivery observes Processing via
+		// GetEntryAsync and is skipped by the at-most-once guard. Keyed by (MessageId, HandlerType); the
+		// middleware only calls this for an entry it just found in a non-Processed state.
+		var sql = $"""
+		           UPDATE {_options.QualifiedTableName}
+		           SET Status = @ProcessingStatus, LastAttemptAt = @LastAttemptAt
+		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType
+		           """;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				MessageId = messageId,
+				HandlerType = handlerType,
+				ProcessingStatus = (int)InboxStatus.Processing,
+				LastAttemptAt = DateTimeOffset.UtcNow
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var affected = await connection.ExecuteAsync(command).ConfigureAwait(false);
+
+		if (affected == 0)
+		{
+			throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		}
+
+		_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<bool> TryMarkAsProcessedAsync(string messageId, string handlerType, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -218,6 +260,84 @@ public sealed class SqlServerInboxStore : IInboxStore, IInboxStoreAdmin
 		}
 
 		return isFirstProcessor;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		// Atomic "first writer wins" claim into the NON-TERMINAL Processing state using MERGE with HOLDLOCK.
+		// When NOT MATCHED a row is inserted ($action = INSERT -> claimed); when MATCHED no action is taken
+		// (already claimed/processed -> OUTPUT yields no row -> claimed = false). Finalized via
+		// MarkProcessedAsync, removed via ReleaseAsync.
+		var sql = $$"""
+		            MERGE {{_options.QualifiedTableName}} WITH (HOLDLOCK) AS target
+		            USING (SELECT @MessageId AS MessageId, @HandlerType AS HandlerType) AS source
+		            ON target.MessageId = source.MessageId AND target.HandlerType = source.HandlerType
+		            WHEN NOT MATCHED THEN
+		            	INSERT (MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt, ProcessedAt, Status, RetryCount)
+		            	VALUES (@MessageId, @HandlerType, '', 0x, '{}', @Now, NULL, @ProcessingStatus, 0)
+		            OUTPUT $action AS Action;
+		            """;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				MessageId = messageId,
+				HandlerType = handlerType,
+				Now = DateTimeOffset.UtcNow,
+				ProcessingStatus = (int)InboxStatus.Processing
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var action = await connection.QuerySingleOrDefaultAsync<string>(command).ConfigureAwait(false);
+		var claimed = action == "INSERT";
+
+		if (claimed)
+		{
+			_logger.LogDebug("Claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+		else
+		{
+			_logger.LogDebug("Claim denied (already claimed/processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+
+		return claimed;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		// Remove the non-terminal claim so a redelivery can re-admit. Restricted to non-Processed rows so a
+		// concurrently-finalized entry is never deleted. No-op if already removed or never claimed.
+		var sql = $"""
+		           DELETE FROM {_options.QualifiedTableName}
+		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType AND Status != @ProcessedStatus
+		           """;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new { MessageId = messageId, HandlerType = handlerType, ProcessedStatus = (int)InboxStatus.Processed },
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+
+		_logger.LogDebug("Released inbox claim for message {MessageId} and handler {HandlerType}",
+			messageId, handlerType);
 	}
 
 	/// <inheritdoc/>

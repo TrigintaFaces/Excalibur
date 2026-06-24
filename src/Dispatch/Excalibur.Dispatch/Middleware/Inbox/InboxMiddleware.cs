@@ -437,7 +437,16 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			LogCreatedInboxEntry(messageId);
 		}
 
-		// Mark as processing
+		// Mark as processing. Persist the Processing status durably BEFORE handler execution so the
+		// at-most-once concurrency guard and the stuck-processing timeout (above) read durable state —
+		// a concurrent delivery of the same (messageId, handlerType) then observes Processing and is
+		// skipped. Stores that lack the capability fall back to in-memory-only marking (degraded, but
+		// the registration guard surfaces that case when the inbox guard is enabled).
+		if (_inboxStore is IProcessingTrackingInboxStore processingTracker)
+		{
+			await processingTracker.MarkProcessingAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
+		}
+
 		existingEntry.MarkProcessing();
 
 		try

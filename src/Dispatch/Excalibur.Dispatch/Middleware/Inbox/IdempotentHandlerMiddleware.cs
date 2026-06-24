@@ -129,10 +129,126 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 
-		// 4. Check if already processed
+		// 4. Atomically CLAIM the message BEFORE executing the handler (claim-before-execute).
+		//    Exactly one of N concurrent duplicates wins the claim; the rest are treated as duplicates.
+		//    On handler failure the claim is RELEASED so a redelivery can re-admit the message -- a
+		//    claim-then-leave-terminal would silently drop a message whose handler failed.
 		LogIdempotencyExecuting(messageId, handlerType.Name);
 		var handlerTypeName = handlerType.FullName ?? handlerType.Name;
 
+		// Resolve the atomic-claim capability for the active storage path.
+		IClaimableInboxStore? inboxClaim = null;
+		IClaimableDeduplicator? dedupClaim = null;
+
+		if (settings.UseInMemory)
+		{
+			dedupClaim = _inMemoryDeduplicator as IClaimableDeduplicator;
+		}
+		else if (_inboxStore is not null)
+		{
+			inboxClaim = _inboxStore as IClaimableInboxStore;
+		}
+		else
+		{
+			WarnInMemoryFallback();
+			dedupClaim = _inMemoryDeduplicator as IClaimableDeduplicator;
+		}
+
+		// Legacy fallback for a custom store/deduplicator that does not implement the atomic-claim
+		// capability. Registered persistent stores are guarded at startup (fail-fast), so this preserves
+		// prior check-then-act behavior only for non-conforming custom implementations.
+		if (inboxClaim is null && dedupClaim is null)
+		{
+			return await InvokeLegacyAsync(
+					message, context, nextDelegate, handlerType, handlerTypeName, messageId, settings, cancellationToken)
+				.ConfigureAwait(false);
+		}
+
+		var claimed = dedupClaim is not null
+			? await dedupClaim.TryClaimAsync(messageId, settings.Retention, cancellationToken).ConfigureAwait(false)
+			: await inboxClaim!.TryClaimAsync(messageId, handlerTypeName, cancellationToken).ConfigureAwait(false);
+
+		if (!claimed)
+		{
+			switch (_duplicateBehavior)
+			{
+				case SkipBehavior.Silent:
+					break;
+
+				case SkipBehavior.LogOnly:
+					LogDuplicateSkipped(messageId, handlerType.Name);
+					break;
+
+				case SkipBehavior.ThrowOnDuplicate:
+					LogDuplicateSkipped(messageId, handlerType.Name);
+					throw new DuplicateMessageException(messageId);
+			}
+
+			return MessageResult.Success();
+		}
+
+		// 5. Invoke the handler while holding the claim.
+		IMessageResult result;
+		try
+		{
+			result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+		catch
+		{
+			// Handler threw -- release the claim so the message stays retryable on redelivery.
+			await ReleaseClaimAsync(inboxClaim, dedupClaim, messageId, handlerTypeName, cancellationToken).ConfigureAwait(false);
+			throw;
+		}
+
+		// 6. Finalize the claim on success; release it on failure (preserve at-least-once-until-success).
+		if (result.Succeeded)
+		{
+			if (inboxClaim is not null)
+			{
+				// Finalize the persistent claim: Processing -> Processed.
+				await _inboxStore!.MarkProcessedAsync(messageId, handlerTypeName, cancellationToken).ConfigureAwait(false);
+			}
+
+			// In-memory deduplicator path: the successful claim IS the dedup marker -- nothing to finalize.
+			LogMessageProcessed(messageId, handlerType.Name);
+		}
+		else
+		{
+			await ReleaseClaimAsync(inboxClaim, dedupClaim, messageId, handlerTypeName, cancellationToken).ConfigureAwait(false);
+		}
+
+		return result;
+	}
+
+	private static async ValueTask ReleaseClaimAsync(
+		IClaimableInboxStore? inboxClaim,
+		IClaimableDeduplicator? dedupClaim,
+		string messageId,
+		string handlerTypeName,
+		CancellationToken cancellationToken)
+	{
+		if (inboxClaim is not null)
+		{
+			await inboxClaim.ReleaseAsync(messageId, handlerTypeName, cancellationToken).ConfigureAwait(false);
+		}
+		else if (dedupClaim is not null)
+		{
+			await dedupClaim.ReleaseAsync(messageId, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	// Backward-compatible non-atomic check-then-act path for custom stores/deduplicators that do not
+	// implement the atomic-claim capability. Conforming stores use the atomic claim protocol above.
+	private async ValueTask<IMessageResult> InvokeLegacyAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		DispatchRequestDelegate nextDelegate,
+		Type handlerType,
+		string handlerTypeName,
+		string messageId,
+		InboxHandlerSettings settings,
+		CancellationToken cancellationToken)
+	{
 		bool isDuplicate;
 		if (settings.UseInMemory)
 		{
@@ -145,7 +261,6 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 		}
 		else
 		{
-			// No inbox store configured, fall back to in-memory
 			WarnInMemoryFallback();
 			isDuplicate = await _inMemoryDeduplicator.IsDuplicateAsync(messageId, settings.Retention, cancellationToken)
 				.ConfigureAwait(false);
@@ -170,10 +285,8 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 			return MessageResult.Success();
 		}
 
-		// 5. Invoke handler
 		var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 
-		// 6. Mark as processed on success
 		if (result.Succeeded)
 		{
 			if (settings.UseInMemory)
@@ -186,7 +299,6 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 			}
 			else
 			{
-				// Fall back to in-memory
 				WarnInMemoryFallback();
 				await _inMemoryDeduplicator.MarkProcessedAsync(messageId, settings.Retention, cancellationToken).ConfigureAwait(false);
 			}

@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Encryption.Decorators;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch
+internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore
 {
 	private readonly IOutboxStore _inner;
 	private readonly IOutboxStoreAdmin? _innerAdmin;
@@ -104,6 +104,21 @@ internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStor
 	public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
 	{
 		return _inner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	{
+		// Forward the terminal dead-letter capability to the inner store. Fail LOUD (never a silent no-op) if
+		// the inner store cannot terminalize — a silent fallback would leave the message re-claimable forever.
+		if (_inner is not IDeadLetterableOutboxStore deadLetterable)
+		{
+			throw new NotSupportedException(
+				$"The decorated outbox store '{_inner.GetType().FullName}' does not implement IDeadLetterableOutboxStore; " +
+				"terminal dead-lettering cannot be forwarded through the encrypting decorator.");
+		}
+
+		return deadLetterable.MarkDeadLetteredAsync(messageId, reason, cancellationToken);
 	}
 
 	/// <inheritdoc />

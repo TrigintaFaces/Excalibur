@@ -31,7 +31,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// For content-based outbox deduplication, see <c>ContentHashDeduplicationStrategy</c> in Excalibur.Outbox.
 /// </para>
 /// </remarks>
-internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDisposable
+internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IClaimableDeduplicator, IDisposable
 {
 	/// <summary>
 	/// Maximum number of tracked entries to prevent unbounded memory growth.
@@ -172,6 +172,68 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDis
 		}
 
 		LogMessageMarkedProcessed(messageId, expiresAt);
+
+		return Task.CompletedTask;
+	}
+
+	/// <inheritdoc />
+	public Task<bool> TryClaimAsync(string messageId, TimeSpan expiry, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		if (expiry <= TimeSpan.Zero)
+		{
+			throw new ArgumentOutOfRangeException(nameof(expiry), ErrorMessages.ArgumentMustBePositive);
+		}
+
+		_ = Interlocked.Increment(ref _totalChecks);
+
+		var now = DateTimeOffset.UtcNow;
+
+		// An unexpired entry means the message is already claimed or processed -> duplicate.
+		if (_processedMessages.TryGetValue(messageId, out var existing))
+		{
+			if (existing.ExpiresAt > now)
+			{
+				_ = Interlocked.Increment(ref _duplicatesDetected);
+				return Task.FromResult(false);
+			}
+
+			// Expired -- drop it so the slot can be re-claimed below.
+			if (_processedMessages.TryRemove(messageId, out _))
+			{
+				_ = Interlocked.Increment(ref _entriesExpired);
+			}
+		}
+
+		// Bounded growth guard: at capacity we cannot track the claim, so admit (no dedup) to preserve
+		// correctness over OOM. The cleanup timer reclaims space as entries expire.
+		if (_processedMessages.Count >= MaxTrackedEntries)
+		{
+			LogCapacityReached(MaxTrackedEntries);
+			return Task.FromResult(true);
+		}
+
+		var entry = new ProcessedEntry { MessageId = messageId, ProcessedAt = now, ExpiresAt = now.Add(expiry) };
+
+		// Atomic first-writer-wins: only the caller whose TryAdd succeeds holds the claim.
+		// A concurrent duplicate loses the race and is told it is a duplicate.
+		if (_processedMessages.TryAdd(messageId, entry))
+		{
+			LogMessageMarkedProcessed(messageId, entry.ExpiresAt);
+			return Task.FromResult(true);
+		}
+
+		_ = Interlocked.Increment(ref _duplicatesDetected);
+		return Task.FromResult(false);
+	}
+
+	/// <inheritdoc />
+	public Task ReleaseAsync(string messageId, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+
+		// Remove the claim so a redelivery can re-admit. No-op if already removed or never claimed.
+		_ = _processedMessages.TryRemove(messageId, out _);
 
 		return Task.CompletedTask;
 	}

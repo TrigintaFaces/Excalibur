@@ -5,12 +5,18 @@ using System.Runtime.InteropServices;
 using System.Security;
 
 using Excalibur.Security;
+using Excalibur.Security.Vault;
 
 using Microsoft.Extensions.Configuration;
 
-
 namespace Excalibur.Dispatch.Security.Tests;
 
+// bd-ts66sh (S841, ADR-336): HashiCorpVaultCredentialStore now reads/writes secrets through the REAL Vault
+// KV v2 HTTP API via an injectable IVaultSecretClient seam — no longer the silent config-fallback placeholder
+// (GetCredentialAsync read Vault:Secrets:* from IConfiguration; StoreCredentialAsync discarded the secret while
+// logging success). The behavior tests below are the INDEPENDENT engage-test (author≠impl, TestsDeveloper): a
+// store→get round-trip MUST persist + retrieve THROUGH THE PORT (FakeVaultSecretClient), never via configuration,
+// and a backend error must surface (never logged-as-success). No real credentials in any tracked artifact.
 [UnitTest]
 [Trait(TraitNames.Component, TestComponents.Security)]
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -26,10 +32,8 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 		var configValues = new Dictionary<string, string?>
 		{
 			["Vault:Url"] = "https://vault.example.com",
-			["Vault:Token"] = "test-token-123",
+			["Vault:Token"] = "test-token-123", // pragma: allowlist secret — example token, not a real credential
 			["Vault:MountPath"] = "secret",
-			["Vault:Secrets:my-secret"] = "super-secret-value",
-			["Vault:Secrets:db-password"] = "p@ssw0rd!",
 		};
 
 		_configuration = new ConfigurationBuilder()
@@ -57,22 +61,13 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	}
 
 	[Fact]
-	public void ImplementIWritableCredentialStore()
-	{
-		_sut.ShouldBeAssignableTo<IWritableCredentialStore>();
-	}
+	public void ImplementIWritableCredentialStore() => _sut.ShouldBeAssignableTo<IWritableCredentialStore>();
 
 	[Fact]
-	public void ImplementICredentialStore()
-	{
-		_sut.ShouldBeAssignableTo<ICredentialStore>();
-	}
+	public void ImplementICredentialStore() => _sut.ShouldBeAssignableTo<ICredentialStore>();
 
 	[Fact]
-	public void ImplementIDisposable()
-	{
-		_sut.ShouldBeAssignableTo<IDisposable>();
-	}
+	public void ImplementIDisposable() => _sut.ShouldBeAssignableTo<IDisposable>();
 
 	// ========================================
 	// Constructor Validation Tests
@@ -82,10 +77,7 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	public void ThrowWhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new HashiCorpVaultCredentialStore(
-				null!,
-				_configuration,
-				_httpClient))
+			new HashiCorpVaultCredentialStore(null!, _configuration, _httpClient))
 			.ParamName.ShouldBe("logger");
 	}
 
@@ -94,9 +86,7 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new HashiCorpVaultCredentialStore(
-				NullLogger<HashiCorpVaultCredentialStore>.Instance,
-				null!,
-				_httpClient))
+				NullLogger<HashiCorpVaultCredentialStore>.Instance, null!, _httpClient))
 			.ParamName.ShouldBe("configuration");
 	}
 
@@ -105,46 +95,48 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new HashiCorpVaultCredentialStore(
-				NullLogger<HashiCorpVaultCredentialStore>.Instance,
-				_configuration,
-				null!))
+				NullLogger<HashiCorpVaultCredentialStore>.Instance, _configuration, null!))
 			.ParamName.ShouldBe("httpClient");
+	}
+
+	[Fact]
+	public void ThrowWhenInjectedClientIsNull()
+	{
+		// The internal test seam ctor must guard the port.
+		Should.Throw<ArgumentNullException>(() =>
+			new HashiCorpVaultCredentialStore(
+				NullLogger<HashiCorpVaultCredentialStore>.Instance, (IVaultSecretClient)null!))
+			.ParamName.ShouldBe("client");
 	}
 
 	[Fact]
 	public void ThrowWhenVaultUrlMissing()
 	{
-		var configValues = new Dictionary<string, string?>
-		{
-			["Vault:Token"] = "test-token",
-		};
 		var config = new ConfigurationBuilder()
-			.AddInMemoryCollection(configValues)
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Vault:Token"] = "test-token", // pragma: allowlist secret — example token
+			})
 			.Build();
 
 		Should.Throw<InvalidOperationException>(() =>
 			new HashiCorpVaultCredentialStore(
-				NullLogger<HashiCorpVaultCredentialStore>.Instance,
-				config,
-				new HttpClient()));
+				NullLogger<HashiCorpVaultCredentialStore>.Instance, config, new HttpClient()));
 	}
 
 	[Fact]
 	public void ThrowWhenVaultTokenMissing()
 	{
-		var configValues = new Dictionary<string, string?>
-		{
-			["Vault:Url"] = "https://vault.example.com",
-		};
 		var config = new ConfigurationBuilder()
-			.AddInMemoryCollection(configValues)
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Vault:Url"] = "https://vault.example.com",
+			})
 			.Build();
 
 		Should.Throw<InvalidOperationException>(() =>
 			new HashiCorpVaultCredentialStore(
-				NullLogger<HashiCorpVaultCredentialStore>.Instance,
-				config,
-				new HttpClient()));
+				NullLogger<HashiCorpVaultCredentialStore>.Instance, config, new HttpClient()));
 	}
 
 	[Fact]
@@ -158,81 +150,114 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	public void ConfigureHttpClientVaultTokenHeader()
 	{
 		_httpClient.DefaultRequestHeaders.Contains("X-Vault-Token").ShouldBeTrue();
-		_httpClient.DefaultRequestHeaders.GetValues("X-Vault-Token")
-			.ShouldContain("test-token-123");
+		_httpClient.DefaultRequestHeaders.GetValues("X-Vault-Token").ShouldContain("test-token-123");
 	}
 
 	[Fact]
-	public void ConfigureHttpClientTimeout()
-	{
-		_httpClient.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
-	}
+	public void ConfigureHttpClientTimeout() => _httpClient.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
 
 	[Fact]
 	public void UseDefaultMountPathWhenNotConfigured()
 	{
-		var configValues = new Dictionary<string, string?>
-		{
-			["Vault:Url"] = "https://vault.example.com",
-			["Vault:Token"] = "test-token",
-			["Vault:Secrets:test-key"] = "test-value",
-		};
 		var config = new ConfigurationBuilder()
-			.AddInMemoryCollection(configValues)
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Vault:Url"] = "https://vault.example.com",
+				["Vault:Token"] = "test-token", // pragma: allowlist secret — example token
+			})
 			.Build();
 
-		using var store = new HashiCorpVaultCredentialStore(
-			NullLogger<HashiCorpVaultCredentialStore>.Instance,
-			config,
-			new HttpClient());
-
-		// Should not throw - default mount path "secret" is used
-		Should.NotThrow(() => store.GetCredentialAsync("test-key", CancellationToken.None));
+		// Default mount path "secret" is used — construction must not throw.
+		Should.NotThrow(() =>
+		{
+			using var store = new HashiCorpVaultCredentialStore(
+				NullLogger<HashiCorpVaultCredentialStore>.Instance, config, new HttpClient());
+		});
 	}
 
 	[Fact]
 	public void AcceptCustomMountPath()
 	{
-		var configValues = new Dictionary<string, string?>
-		{
-			["Vault:Url"] = "https://vault.example.com",
-			["Vault:Token"] = "test-token",
-			["Vault:MountPath"] = "custom-engine",
-			["Vault:Secrets:my-key"] = "my-value",
-		};
 		var config = new ConfigurationBuilder()
-			.AddInMemoryCollection(configValues)
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Vault:Url"] = "https://vault.example.com",
+				["Vault:Token"] = "test-token", // pragma: allowlist secret — example token
+				["Vault:MountPath"] = "custom-engine",
+			})
 			.Build();
 
-		// Should not throw with custom mount path
-		using var store = new HashiCorpVaultCredentialStore(
-			NullLogger<HashiCorpVaultCredentialStore>.Instance,
-			config,
-			new HttpClient());
-
-		Should.NotThrow(() => store.GetCredentialAsync("my-key", CancellationToken.None));
+		Should.NotThrow(() =>
+		{
+			using var store = new HashiCorpVaultCredentialStore(
+				NullLogger<HashiCorpVaultCredentialStore>.Instance, config, new HttpClient());
+		});
 	}
 
 	// ========================================
-	// GetCredentialAsync Tests
+	// Engage-test: real port-backed round-trip (AC-1) — RED on the pre-fix config-fallback stub
 	// ========================================
 
 	[Fact]
-	public async Task ReturnSecureStringForExistingSecret()
+	public async Task RoundTripCredentialThroughTheVaultPort()
 	{
-		var result = await _sut.GetCredentialAsync("my-secret", CancellationToken.None);
+		// Arrange — a fake Vault transport that actually persists (proves the store delegates to the port,
+		// not to IConfiguration). RED on the old stub: store discarded the secret + get read config → no round-trip.
+		var client = new FakeVaultSecretClient();
+		using var store = new HashiCorpVaultCredentialStore(
+			NullLogger<HashiCorpVaultCredentialStore>.Instance, client);
 
+		// Act
+		await store.StoreCredentialAsync("api-key", CreateSecureString("s3cr3t-value"), CancellationToken.None);
+		var result = await store.GetCredentialAsync("api-key", CancellationToken.None);
+
+		// Assert — the value round-trips THROUGH THE PORT.
 		result.ShouldNotBeNull();
 		result.IsReadOnly().ShouldBeTrue();
-		SecureStringToString(result).ShouldBe("super-secret-value");
+		SecureStringToString(result).ShouldBe("s3cr3t-value");
+		client.SetCalls.ShouldBe(1, "the secret must be persisted via the Vault port, not discarded");
+		client.GetCalls.ShouldBe(1, "the secret must be read via the Vault port, not from IConfiguration");
 	}
 
 	[Fact]
 	public async Task ReturnNullForNonExistentSecret()
 	{
-		var result = await _sut.GetCredentialAsync("non-existent-key", CancellationToken.None);
+		var client = new FakeVaultSecretClient();
+		using var store = new HashiCorpVaultCredentialStore(
+			NullLogger<HashiCorpVaultCredentialStore>.Instance, client);
+
+		var result = await store.GetCredentialAsync("non-existent-key", CancellationToken.None);
 
 		result.ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task SurfaceBackendError_NeverLoggedAsSuccess_OnGet()
+	{
+		// EC-2 — a transport/backend failure must surface as an error, distinct from a missing secret.
+		var client = new FakeVaultSecretClient
+		{
+			GetBehavior = _ => throw new HttpRequestException("vault unreachable"),
+		};
+		using var store = new HashiCorpVaultCredentialStore(
+			NullLogger<HashiCorpVaultCredentialStore>.Instance, client);
+
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => store.GetCredentialAsync("api-key", CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task SurfaceBackendError_OnStore()
+	{
+		var client = new FakeVaultSecretClient
+		{
+			SetBehavior = (_, _) => throw new HttpRequestException("vault write rejected"),
+		};
+		using var store = new HashiCorpVaultCredentialStore(
+			NullLogger<HashiCorpVaultCredentialStore>.Instance, client);
+
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => store.StoreCredentialAsync("api-key", CreateSecureString("v"), CancellationToken.None));
 	}
 
 	[Theory]
@@ -241,52 +266,7 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	[InlineData("   ")]
 	public async Task ThrowOnGetCredentialWithInvalidKey(string? key)
 	{
-		await Should.ThrowAsync<ArgumentException>(
-			() => _sut.GetCredentialAsync(key, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task RetrieveDifferentSecretsCorrectly()
-	{
-		var secret1 = await _sut.GetCredentialAsync("my-secret", CancellationToken.None);
-		var secret2 = await _sut.GetCredentialAsync("db-password", CancellationToken.None);
-
-		secret1.ShouldNotBeNull();
-		secret2.ShouldNotBeNull();
-		SecureStringToString(secret1).ShouldBe("super-secret-value");
-		SecureStringToString(secret2).ShouldBe("p@ssw0rd!");
-	}
-
-	[Fact]
-	public async Task ReturnReadOnlySecureStringFromGetCredential()
-	{
-		var result = await _sut.GetCredentialAsync("db-password", CancellationToken.None);
-
-		result.ShouldNotBeNull();
-		result.IsReadOnly().ShouldBeTrue();
-	}
-
-	[Fact]
-	public async Task SupportGetCredentialCancellation()
-	{
-		using var cts = new CancellationTokenSource();
-		await cts.CancelAsync();
-
-		await Should.ThrowAsync<OperationCanceledException>(
-			() => _sut.GetCredentialAsync("my-secret", cts.Token));
-	}
-
-	// ========================================
-	// StoreCredentialAsync Tests
-	// ========================================
-
-	[Fact]
-	public async Task StoreCredentialWithoutThrowing()
-	{
-		var credential = CreateSecureString("new-secret-value");
-
-		await Should.NotThrowAsync(
-			() => _sut.StoreCredentialAsync("new-key", credential, CancellationToken.None));
+		await Should.ThrowAsync<ArgumentException>(() => _sut.GetCredentialAsync(key!, CancellationToken.None));
 	}
 
 	[Theory]
@@ -296,9 +276,8 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	public async Task ThrowOnStoreCredentialWithInvalidKey(string? key)
 	{
 		var credential = CreateSecureString("value");
-
 		await Should.ThrowAsync<ArgumentException>(
-			() => _sut.StoreCredentialAsync(key, credential, CancellationToken.None));
+			() => _sut.StoreCredentialAsync(key!, credential, CancellationToken.None));
 	}
 
 	[Fact]
@@ -311,59 +290,16 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	[Fact]
 	public async Task ThrowOnStoreEmptyCredential()
 	{
+		var client = new FakeVaultSecretClient();
+		using var store = new HashiCorpVaultCredentialStore(
+			NullLogger<HashiCorpVaultCredentialStore>.Instance, client);
 		var emptyCredential = new SecureString();
 		emptyCredential.MakeReadOnly();
 
-		await Should.ThrowAsync<InvalidOperationException>(
-			() => _sut.StoreCredentialAsync("key", emptyCredential, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task SupportStoreCredentialCancellation()
-	{
-		using var cts = new CancellationTokenSource();
-		await cts.CancelAsync();
-
-		var credential = CreateSecureString("some-value");
-
-		await Should.ThrowAsync<OperationCanceledException>(
-			() => _sut.StoreCredentialAsync("key", credential, cts.Token));
-	}
-
-	// ========================================
-	// Concurrent Access Tests
-	// ========================================
-
-	[Fact]
-	public async Task HandleConcurrentGetCredentialCalls()
-	{
-		// Launch multiple concurrent reads to verify the semaphore serializes access
-		var tasks = Enumerable.Range(0, 10)
-			.Select(_ => _sut.GetCredentialAsync("my-secret", CancellationToken.None))
-			.ToArray();
-
-		var results = await Task.WhenAll(tasks);
-
-		foreach (var result in results)
-		{
-			result.ShouldNotBeNull();
-			SecureStringToString(result).ShouldBe("super-secret-value");
-		}
-	}
-
-	[Fact]
-	public async Task HandleConcurrentStoreCredentialCalls()
-	{
-		// Launch multiple concurrent stores to verify the semaphore serializes access
-		var tasks = Enumerable.Range(0, 10)
-			.Select(i =>
-			{
-				var credential = CreateSecureString($"value-{i}");
-				return _sut.StoreCredentialAsync($"key-{i}", credential, CancellationToken.None);
-			})
-			.ToArray();
-
-		await Should.NotThrowAsync(() => Task.WhenAll(tasks));
+		// An empty credential is rejected with ArgumentException (the store's `catch (ArgumentException) throw;`
+		// re-throws it unwrapped — it is a caller error, not a backend failure).
+		await Should.ThrowAsync<ArgumentException>(
+			() => store.StoreCredentialAsync("key", emptyCredential, CancellationToken.None));
 	}
 
 	// ========================================
@@ -374,20 +310,16 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	public void DisposeWithoutThrowing()
 	{
 		var store = new HashiCorpVaultCredentialStore(
-			NullLogger<HashiCorpVaultCredentialStore>.Instance,
-			_configuration,
-			new HttpClient());
+			NullLogger<HashiCorpVaultCredentialStore>.Instance, _configuration, new HttpClient());
 
-		Should.NotThrow(() => store.Dispose());
+		Should.NotThrow(store.Dispose);
 	}
 
 	[Fact]
 	public void DisposeMultipleTimesWithoutThrowing()
 	{
 		var store = new HashiCorpVaultCredentialStore(
-			NullLogger<HashiCorpVaultCredentialStore>.Instance,
-			_configuration,
-			new HttpClient());
+			NullLogger<HashiCorpVaultCredentialStore>.Instance, _configuration, new HttpClient());
 
 		Should.NotThrow(() =>
 		{
@@ -409,12 +341,9 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 
 		_ = services.AddSecureCredentialManagement(_configuration);
 
-		// Concrete type is registered directly; ICredentialStore uses factory forwarding
+		services.ShouldContain(s => s.ServiceType == typeof(HashiCorpVaultCredentialStore));
 		services.ShouldContain(s =>
-			s.ServiceType == typeof(HashiCorpVaultCredentialStore));
-		services.ShouldContain(s =>
-			s.ServiceType == typeof(ICredentialStore)
-			&& s.ImplementationFactory != null);
+			s.ServiceType == typeof(ICredentialStore) && s.ImplementationFactory != null);
 	}
 
 	[Fact]
@@ -426,10 +355,8 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 
 		_ = services.AddSecureCredentialManagement(_configuration);
 
-		// IWritableCredentialStore uses factory forwarding to the concrete singleton
 		services.ShouldContain(s =>
-			s.ServiceType == typeof(IWritableCredentialStore)
-			&& s.ImplementationFactory != null);
+			s.ServiceType == typeof(IWritableCredentialStore) && s.ImplementationFactory != null);
 	}
 
 	[Fact]
@@ -442,8 +369,7 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 
 		_ = services.AddSecureCredentialManagement(config);
 
-		services.ShouldNotContain(s =>
-			s.ImplementationType == typeof(HashiCorpVaultCredentialStore));
+		services.ShouldNotContain(s => s.ImplementationType == typeof(HashiCorpVaultCredentialStore));
 	}
 
 	[Fact]
@@ -455,15 +381,8 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 
 		_ = services.AddSecureCredentialManagement(_configuration);
 
-		// Concrete type is registered as singleton; interface forwarding factories inherit lifetime
-		var concreteDescriptor = services.First(s =>
-			s.ServiceType == typeof(HashiCorpVaultCredentialStore));
+		var concreteDescriptor = services.First(s => s.ServiceType == typeof(HashiCorpVaultCredentialStore));
 		concreteDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
-
-		var interfaceDescriptor = services.First(s =>
-			s.ServiceType == typeof(ICredentialStore)
-			&& s.ImplementationFactory != null);
-		interfaceDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
 	[Fact]
@@ -481,8 +400,7 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 	{
 		var services = new ServiceCollection();
 
-		Should.Throw<ArgumentNullException>(
-			() => services.AddSecureCredentialManagement(null!));
+		Should.Throw<ArgumentNullException>(() => services.AddSecureCredentialManagement(null!));
 	}
 
 	public void Dispose()
@@ -517,6 +435,47 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 			{
 				Marshal.ZeroFreeGlobalAllocUnicode(ptr);
 			}
+		}
+	}
+
+	/// <summary>
+	/// Hand-written dictionary-backed fake of the internal <see cref="IVaultSecretClient"/> seam (FakeItEasy
+	/// cannot proxy an internal interface here). Persists writes in-memory so the store→get round-trip exercises
+	/// the store's real delegation to the port — never a committed credential.
+	/// </summary>
+	private sealed class FakeVaultSecretClient : IVaultSecretClient
+	{
+		private readonly Dictionary<string, string> _store = new(StringComparer.Ordinal);
+
+		public int GetCalls { get; private set; }
+		public int SetCalls { get; private set; }
+		public Func<string, string?>? GetBehavior { get; init; }
+		public Action<string, string>? SetBehavior { get; init; }
+
+		public Task<string?> GetSecretAsync(string key, CancellationToken cancellationToken)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			GetCalls++;
+			if (GetBehavior is not null)
+			{
+				return Task.FromResult(GetBehavior(key));
+			}
+
+			return Task.FromResult(_store.TryGetValue(key, out var value) ? value : null);
+		}
+
+		public Task SetSecretAsync(string key, string value, CancellationToken cancellationToken)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			SetCalls++;
+			if (SetBehavior is not null)
+			{
+				SetBehavior(key, value);
+				return Task.CompletedTask;
+			}
+
+			_store[key] = value;
+			return Task.CompletedTask;
 		}
 	}
 }

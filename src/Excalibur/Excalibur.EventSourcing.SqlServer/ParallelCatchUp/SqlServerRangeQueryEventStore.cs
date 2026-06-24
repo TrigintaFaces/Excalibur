@@ -17,8 +17,8 @@ namespace Excalibur.EventSourcing.SqlServer.ParallelCatchUp;
 /// SQL Server implementation of <see cref="IRangeQueryableEventStore"/> for parallel catch-up.
 /// </summary>
 /// <remarks>
-/// Executes indexed range queries on the <c>GlobalPosition</c> column to support
-/// parallel stream partitioning. Each query reads a batch of events within a position range.
+/// Executes indexed range queries on the <c>Position</c> column (the global stream ordinal) to
+/// support parallel stream partitioning. Each query reads a batch of events within a position range.
 /// </remarks>
 internal sealed class SqlServerRangeQueryEventStore : IRangeQueryableEventStore
 {
@@ -61,12 +61,15 @@ internal sealed class SqlServerRangeQueryEventStore : IRangeQueryableEventStore
 			await using var connection = _connectionFactory();
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+			// The global-ordinal column is named Position (see SqlServerGlobalStreamQuery); the prior
+			// SELECT/WHERE/ORDER BY referenced a non-existent GlobalPosition column and threw at runtime
+			// on parallel catch-up (masked by in-memory-only tests). ao97rb / FR-7.
 			var sql = $"""
 				SELECT EventId, AggregateId, AggregateType, EventType,
-				       EventData, Metadata, Version, Timestamp, GlobalPosition
+				       EventData, Metadata, Version, Timestamp, Position
 				FROM {qualifiedTable}
-				WHERE GlobalPosition >= @FromPosition AND GlobalPosition <= @ToPosition
-				ORDER BY GlobalPosition
+				WHERE Position >= @FromPosition AND Position <= @ToPosition
+				ORDER BY Position
 				""";
 
 			var events = await connection.QueryAsync<SqlServerStoredEventRow>(
@@ -75,9 +78,11 @@ internal sealed class SqlServerRangeQueryEventStore : IRangeQueryableEventStore
 					new { FromPosition = currentPosition, ToPosition = batchEnd },
 					cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-			var count = 0;
 			foreach (var row in events)
 			{
+				// Carry the global ordinal onto the StoredEvent so downstream consumers (e.g. the
+				// projection hosts) read the correct GlobalPosition — the column is Position, the
+				// property is GlobalPosition.
 				yield return new StoredEvent(
 					row.EventId,
 					row.AggregateId,
@@ -86,16 +91,17 @@ internal sealed class SqlServerRangeQueryEventStore : IRangeQueryableEventStore
 					row.EventData,
 					row.Metadata,
 					row.Version,
-					row.Timestamp);
-				count++;
+					row.Timestamp)
+				{
+					GlobalPosition = row.Position,
+				};
 			}
 
-			if (count == 0)
-			{
-				// No events in this range; skip ahead
-				break;
-			}
-
+			// Gap-tolerant paging (778kpz): do NOT break on an empty batch. A gap in the
+			// Position IDENTITY sequence (reseed / identity-cache jump / skip) narrower than
+			// [from,to] must not stop enumeration early; advance past it and continue to
+			// toPosition. Termination is bounded by the while-condition (currentPosition <=
+			// toPosition), so there is no unbounded scan at the true tail (FR-1a).
 			currentPosition = batchEnd + 1;
 		}
 	}
@@ -112,5 +118,5 @@ internal sealed class SqlServerRangeQueryEventStore : IRangeQueryableEventStore
 		byte[]? Metadata,
 		long Version,
 		DateTimeOffset Timestamp,
-		long GlobalPosition);
+		long Position);
 }

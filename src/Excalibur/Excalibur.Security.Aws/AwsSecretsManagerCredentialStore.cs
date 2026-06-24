@@ -6,27 +6,73 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Security;
 
+using Amazon;
+using Amazon.SecretsManager;
+using Amazon.SecretsManager.Model;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Security.Aws;
 
 /// <summary>
-/// AWS Secrets Manager credential store implementation for secure credential management. Provides integration with AWS Secrets Manager for
-/// storing and retrieving encrypted credentials.
+/// AWS Secrets Manager credential store. Reads and writes secrets through the real AWS
+/// Secrets Manager SDK (via an injectable <see cref="IAmazonSecretsManager"/> seam), so a
+/// <see cref="StoreCredentialAsync"/> followed by <see cref="GetCredentialAsync"/> round-trips
+/// against the service — secrets are never sourced from, or silently discarded to, plain
+/// configuration.
 /// </summary>
-/// <remarks> Initializes a new instance of the AWS Secrets Manager credential store. </remarks>
-/// <param name="logger"> The logger instance. </param>
-/// <param name="configuration"> The configuration instance. </param>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 	Justification = "Instantiated by DI container")]
-internal sealed partial class AwsSecretsManagerCredentialStore(
-	ILogger<AwsSecretsManagerCredentialStore> logger,
-	IConfiguration configuration) : IWritableCredentialStore, IDisposable
+internal sealed partial class AwsSecretsManagerCredentialStore : IWritableCredentialStore, IDisposable
 {
-	private readonly ILogger<AwsSecretsManagerCredentialStore> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly IConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-	private readonly SemaphoreSlim _semaphore = new(1, 1);
+	private readonly ILogger<AwsSecretsManagerCredentialStore> _logger;
+	private readonly IAmazonSecretsManager _client;
+	private readonly bool _ownsClient;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AwsSecretsManagerCredentialStore"/> class
+	/// that talks to the real AWS Secrets Manager service. The client is built from the
+	/// configured region (<c>AWS:SecretsManager:Region</c> or <c>AWS:Region</c>), falling back
+	/// to the default AWS region-resolution chain when unset.
+	/// </summary>
+	/// <param name="logger"> The logger instance. </param>
+	/// <param name="configuration"> The configuration supplying the AWS region. </param>
+	public AwsSecretsManagerCredentialStore(
+		ILogger<AwsSecretsManagerCredentialStore> logger,
+		IConfiguration configuration)
+		: this(logger, BuildClient(configuration), ownsClient: true)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AwsSecretsManagerCredentialStore"/> class
+	/// with an explicit <see cref="IAmazonSecretsManager"/>. Used by tests via
+	/// <c>InternalsVisibleTo</c> to drive a fake client, and by the DI registration to supply a
+	/// region-configured client; not part of the public contract. The supplied client is not
+	/// disposed by this store (the caller owns its lifetime).
+	/// </summary>
+	/// <param name="logger"> The logger instance. </param>
+	/// <param name="configuration"> The configuration instance. </param>
+	/// <param name="client"> The AWS Secrets Manager client seam. </param>
+	internal AwsSecretsManagerCredentialStore(
+		ILogger<AwsSecretsManagerCredentialStore> logger,
+		IConfiguration configuration,
+		IAmazonSecretsManager client)
+		: this(logger, client, ownsClient: false)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+	}
+
+	private AwsSecretsManagerCredentialStore(
+		ILogger<AwsSecretsManagerCredentialStore> logger,
+		IAmazonSecretsManager client,
+		bool ownsClient)
+	{
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_client = client ?? throw new ArgumentNullException(nameof(client));
+		_ownsClient = ownsClient;
+	}
 
 	/// <summary>
 	/// Retrieves a credential from AWS Secrets Manager.
@@ -43,17 +89,14 @@ internal sealed partial class AwsSecretsManagerCredentialStore(
 			throw new ArgumentException("Key cannot be null or empty", nameof(key));
 		}
 
-		await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		LogRetrievingCredential(key);
+
 		try
 		{
-			LogRetrievingCredential(key);
+			var response = await _client.GetSecretValueAsync(
+				new GetSecretValueRequest { SecretId = key }, cancellationToken).ConfigureAwait(false);
 
-			// Note: In a real implementation, you would use AWS SDK var client = new
-			// AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(_region)); var request = new GetSecretValueRequest { SecretId = key
-			// }; var response = await client.GetSecretValueAsync(request, cancellationToken);
-
-			// For now, simulate AWS SDK behavior with configuration fallback
-			var secretValue = _configuration[$"AWS:SecretsManager:Secrets:{key}"];
+			var secretValue = response.SecretString;
 			if (string.IsNullOrEmpty(secretValue))
 			{
 				LogSecretNotFound(key);
@@ -72,19 +115,21 @@ internal sealed partial class AwsSecretsManagerCredentialStore(
 			LogCredentialRetrieved(key);
 			return secureString;
 		}
-		catch (Exception ex)
+		catch (ResourceNotFoundException)
+		{
+			// A missing secret is a normal, non-error outcome — distinct from a backend failure.
+			LogSecretNotFound(key);
+			return null;
+		}
+		catch (Exception ex) when (ex is not ArgumentException)
 		{
 			LogRetrievalFailed(ex, key);
 			throw new InvalidOperationException($"Failed to retrieve secret '{key}' from AWS Secrets Manager", ex);
 		}
-		finally
-		{
-			_ = _semaphore.Release();
-		}
 	}
 
 	/// <summary>
-	/// Stores a credential in AWS Secrets Manager.
+	/// Stores a credential in AWS Secrets Manager, creating the secret if it does not yet exist.
 	/// </summary>
 	/// <param name="key"> The secret name/key to store. </param>
 	/// <param name="credential"> The credential to store securely. </param>
@@ -103,33 +148,38 @@ internal sealed partial class AwsSecretsManagerCredentialStore(
 
 		ArgumentNullException.ThrowIfNull(credential);
 
-		await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		LogStoringCredential(key);
+
+		// Convert SecureString to string for the AWS API
+		var credentialValue = SecureStringToString(credential);
+
 		try
 		{
-			LogStoringCredential(key);
-
-			// Convert SecureString to string for AWS API
-			var credentialValue = SecureStringToString(credential);
+			if (credentialValue.Length is < 1 or > 65536)
+			{
+				throw new ArgumentException("Credential length must be between 1 and 65536 characters", nameof(credential));
+			}
 
 			try
 			{
-				// Note: In a real implementation, you would use AWS SDK var client = new
-				// AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(_region)); var request = new PutSecretValueRequest { SecretId =
-				// key, SecretString = credentialValue, KmsKeyId = _keyId }; await client.PutSecretValueAsync(request, cancellationToken);
-
-				// For now, validate the operation would succeed
-				if (credentialValue.Length is < 1 or > 65536)
-				{
-					throw new ArgumentException("Credential length must be between 1 and 65536 characters", nameof(credential));
-				}
-
-				LogCredentialStored(key);
+				_ = await _client.PutSecretValueAsync(
+					new PutSecretValueRequest { SecretId = key, SecretString = credentialValue },
+					cancellationToken).ConfigureAwait(false);
 			}
-			finally
+			catch (ResourceNotFoundException)
 			{
-				// Clear the credential from memory immediately
-				Array.Fill(credentialValue.ToCharArray(), '\0');
+				// The secret does not exist yet — create it (idempotent store-or-update).
+				_ = await _client.CreateSecretAsync(
+					new CreateSecretRequest { Name = key, SecretString = credentialValue },
+					cancellationToken).ConfigureAwait(false);
 			}
+
+			// Only logged once the write is durably accepted (never logged-as-success on failure).
+			LogCredentialStored(key);
+		}
+		catch (ArgumentException)
+		{
+			throw;
 		}
 		catch (Exception ex)
 		{
@@ -138,15 +188,28 @@ internal sealed partial class AwsSecretsManagerCredentialStore(
 		}
 		finally
 		{
-			_ = _semaphore.Release();
+			// Clear the transient plaintext copy from memory.
+			Array.Fill(credentialValue.ToCharArray(), '\0');
 		}
 	}
 
 	/// <inheritdoc/>
 	public void Dispose()
 	{
-		Dispose(disposing: true);
-		GC.SuppressFinalize(this);
+		if (_ownsClient)
+		{
+			_client.Dispose();
+		}
+	}
+
+	private static IAmazonSecretsManager BuildClient(IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var region = configuration["AWS:SecretsManager:Region"] ?? configuration["AWS:Region"];
+		return string.IsNullOrWhiteSpace(region)
+			? new AmazonSecretsManagerClient()
+			: new AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(region));
 	}
 
 	private static string SecureStringToString(SecureString secureString)
@@ -163,14 +226,6 @@ internal sealed partial class AwsSecretsManagerCredentialStore(
 			{
 				Marshal.ZeroFreeGlobalAllocUnicode(ptr);
 			}
-		}
-	}
-
-	private void Dispose(bool disposing)
-	{
-		if (disposing)
-		{
-			_semaphore?.Dispose();
 		}
 	}
 

@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Encryption.Decorators;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IInboxStoreAdmin
+internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin
 {
 	private readonly IInboxStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
@@ -80,10 +80,55 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IInboxStoreAd
 		return _inner.MarkProcessedAsync(messageId, handlerType, cancellationToken);
 	}
 
+	/// <inheritdoc/>
+	public ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		// Forward the Processing-tracking capability to the inner store. The Processing status carries no
+		// encrypted payload, so no transformation is needed. Fail LOUD (never a silent no-op) if the inner
+		// store cannot persist Processing — a silent skip would re-create the at-most-once silent-degrade.
+		if (_inner is not IProcessingTrackingInboxStore tracker)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement IProcessingTrackingInboxStore; " +
+				"durable Processing tracking cannot be forwarded through the encrypting decorator.");
+		}
+
+		return tracker.MarkProcessingAsync(messageId, handlerType, cancellationToken);
+	}
+
 	/// <inheritdoc />
 	public ValueTask<bool> TryMarkAsProcessedAsync(string messageId, string handlerType, CancellationToken cancellationToken)
 	{
 		return _inner.TryMarkAsProcessedAsync(messageId, handlerType, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		// Forward the atomic-claim capability to the inner store. The claim carries no encrypted payload
+		// (only the message/handler identifiers), so no transformation is needed. Fail LOUD (never a silent
+		// no-op) if the inner store cannot claim atomically — a silent fallback would re-create the race.
+		if (_inner is not IClaimableInboxStore claimable)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement IClaimableInboxStore; " +
+				"atomic claiming cannot be forwarded through the encrypting decorator.");
+		}
+
+		return claimable.TryClaimAsync(messageId, handlerType, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		if (_inner is not IClaimableInboxStore claimable)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement IClaimableInboxStore; " +
+				"claim release cannot be forwarded through the encrypting decorator.");
+		}
+
+		return claimable.ReleaseAsync(messageId, handlerType, cancellationToken);
 	}
 
 	/// <inheritdoc />

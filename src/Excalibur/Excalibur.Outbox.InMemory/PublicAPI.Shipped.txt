@@ -18,6 +18,7 @@ Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetScheduledMessagesAsync(System.D
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxStatistics!>
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.InMemory.InMemoryOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.InMemory.InMemoryOutboxStore!>! logger) -> void
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.InMemory.InMemoryOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

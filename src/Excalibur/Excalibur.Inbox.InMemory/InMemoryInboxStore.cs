@@ -25,7 +25,7 @@ namespace Excalibur.Inbox.InMemory;
 /// This store is intended for testing scenarios only. Data is lost on application restart.
 /// </para>
 /// </remarks>
-internal sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
+internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<string, InboxEntry> _entries = new(StringComparer.Ordinal);
 	private readonly InMemoryInboxOptions _options;
@@ -132,6 +132,31 @@ internal sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsync
 	}
 
 	/// <inheritdoc/>
+	public ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		var key = GetKey(messageId, handlerType);
+
+		if (!_entries.TryGetValue(key, out var entry))
+		{
+			throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		}
+
+		// Durably mark Processing. The stored entry is the live reference, so the transition (and the
+		// LastAttemptAt stamp the stuck-processing timeout reads) is observable via GetEntryAsync.
+		entry.MarkProcessing();
+
+		_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}",
+			messageId, handlerType);
+
+		return default;
+	}
+
+	/// <inheritdoc/>
 	public ValueTask<bool> TryMarkAsProcessedAsync(string messageId, string handlerType, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -161,6 +186,62 @@ internal sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsync
 		_logger.LogDebug("Duplicate detected for message {MessageId} and handler {HandlerType}",
 			messageId, handlerType);
 		return new ValueTask<bool>(false);
+	}
+
+	/// <inheritdoc/>
+	public ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		var key = GetKey(messageId, handlerType);
+
+		// Enforce capacity limits before attempting to add.
+		if (_options.MaxEntries > 0 && _entries.Count >= _options.MaxEntries)
+		{
+			EvictOldestEntry();
+		}
+
+		// Atomic first-writer-wins claim into the NON-TERMINAL Processing state. A successful claim is
+		// finalized to Processed via MarkProcessedAsync, or removed via ReleaseAsync on handler failure.
+		var entry = new InboxEntry
+		{
+			MessageId = messageId,
+			HandlerType = handlerType,
+			MessageType = string.Empty,
+			Payload = [],
+			Status = InboxStatus.Processing
+		};
+
+		if (_entries.TryAdd(key, entry))
+		{
+			_logger.LogDebug("Claimed inbox entry for message {MessageId} and handler {HandlerType}",
+				messageId, handlerType);
+			return new ValueTask<bool>(true);
+		}
+
+		_logger.LogDebug("Claim denied (already claimed/processed) for message {MessageId} and handler {HandlerType}",
+			messageId, handlerType);
+		return new ValueTask<bool>(false);
+	}
+
+	/// <inheritdoc/>
+	public ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		var key = GetKey(messageId, handlerType);
+
+		// Remove the claim so a redelivery can re-admit. No-op if already removed or never claimed.
+		_ = _entries.TryRemove(key, out _);
+
+		_logger.LogDebug("Released inbox claim for message {MessageId} and handler {HandlerType}",
+			messageId, handlerType);
+
+		return default;
 	}
 
 	/// <inheritdoc/>

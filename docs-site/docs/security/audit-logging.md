@@ -110,6 +110,36 @@ public class OrderService
 }
 ```
 
+### Failure Handling: Fail-Closed Persistence
+
+`IAuditLogger.LogAsync` is **fail-closed**. If the underlying audit store cannot durably persist the event, the failure is surfaced as an `AuditPersistenceException` (namespace `Excalibur.Compliance`) rather than being masked behind a success-shaped result. A returned `AuditEventId` therefore **always** denotes a durably recorded event — never a dropped one.
+
+:::warning Behavior change
+A compliance audit trail that silently drops events is worse than one that fails loudly, because callers would otherwise treat an unrecorded event as durably stored. `LogAsync` no longer swallows store failures. Code that calls `LogAsync` and ignores the outcome will now propagate `AuditPersistenceException` when the store is unavailable.
+:::
+
+The default behavior — let the exception propagate — is the correct, safe choice for most compliance scenarios: if the audit cannot be recorded, the operation it audits should not be reported as complete.
+
+If your scenario requires **availability over durability** (fail-open), catch the exception explicitly and apply your own policy, such as queuing the event for later retry:
+
+```csharp
+using Excalibur.Compliance;
+
+try
+{
+    await _auditLogger.LogAsync(auditEvent, cancellationToken);
+}
+catch (AuditPersistenceException ex)
+{
+    // Fail-open: the audit store is unavailable. Apply your own durability policy
+    // instead of dropping the event silently. ex.EventId identifies the unsaved event.
+    _logger.LogError(ex, "Audit event {EventId} could not be persisted; queuing for retry.", ex.EventId);
+    await _auditRetryQueue.EnqueueAsync(auditEvent, cancellationToken);
+}
+```
+
+Genuine cancellation is not wrapped: when the supplied `CancellationToken` is cancelled, `LogAsync` rethrows `OperationCanceledException` directly rather than an `AuditPersistenceException`.
+
 ---
 
 ## Audit Event Structure

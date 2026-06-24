@@ -31,7 +31,7 @@ namespace Excalibur.Inbox.Postgres;
 /// using Postgres's INSERT ... ON CONFLICT DO NOTHING for proper isolation.
 /// </para>
 /// </remarks>
-public sealed class PostgresInboxStore : IInboxStore, IInboxStoreAdmin
+public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin
 {
 	private readonly Func<NpgsqlConnection> _connectionFactory;
 	private readonly PostgresInboxOptions _options;
@@ -173,6 +173,44 @@ public sealed class PostgresInboxStore : IInboxStore, IInboxStoreAdmin
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		var sql = $"""
+		           UPDATE {_options.QualifiedTableName}
+		           SET status = @ProcessingStatus, last_attempt_at = @LastAttemptAt
+		           WHERE message_id = @MessageId AND handler_type = @HandlerType
+		           """;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				MessageId = messageId,
+				HandlerType = handlerType,
+				ProcessingStatus = (int)InboxStatus.Processing,
+				LastAttemptAt = DateTimeOffset.UtcNow
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var affected = await connection.ExecuteAsync(command).ConfigureAwait(false);
+
+		if (affected == 0)
+		{
+			throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		}
+
+		_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<bool> TryMarkAsProcessedAsync(string messageId, string handlerType, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -216,6 +254,81 @@ public sealed class PostgresInboxStore : IInboxStore, IInboxStoreAdmin
 		}
 
 		return isFirstProcessor;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		// Atomic "first writer wins" claim into the NON-TERMINAL Processing state using
+		// INSERT ... ON CONFLICT DO NOTHING. Returns true if the row was inserted (claim acquired),
+		// false on conflict (already claimed/processed). Finalized via MarkProcessedAsync, removed via ReleaseAsync.
+		var sql = $$"""
+		            INSERT INTO {{_options.QualifiedTableName}}
+		            	(message_id, handler_type, message_type, payload, metadata, received_at, processed_at, status, retry_count)
+		            VALUES
+		            	(@MessageId, @HandlerType, '', ''::bytea, '{}'::jsonb, @Now, NULL, @ProcessingStatus, 0)
+		            ON CONFLICT (message_id, handler_type) DO NOTHING
+		            """;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				MessageId = messageId,
+				HandlerType = handlerType,
+				Now = DateTimeOffset.UtcNow,
+				ProcessingStatus = (int)InboxStatus.Processing
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var rowsAffected = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		var claimed = rowsAffected > 0;
+
+		if (claimed)
+		{
+			_logger.LogDebug("Claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+		else
+		{
+			_logger.LogDebug("Claim denied (already claimed/processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+
+		return claimed;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		// Remove the non-terminal claim so a redelivery can re-admit. Restricted to non-Processed rows so a
+		// concurrently-finalized entry is never deleted. No-op if already removed or never claimed.
+		var sql = $"""
+		           DELETE FROM {_options.QualifiedTableName}
+		           WHERE message_id = @MessageId AND handler_type = @HandlerType AND status <> @ProcessedStatus
+		           """;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new { MessageId = messageId, HandlerType = handlerType, ProcessedStatus = (int)InboxStatus.Processed },
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+
+		_logger.LogDebug("Released inbox claim for message {MessageId} and handler {HandlerType}",
+			messageId, handlerType);
 	}
 
 	/// <inheritdoc/>

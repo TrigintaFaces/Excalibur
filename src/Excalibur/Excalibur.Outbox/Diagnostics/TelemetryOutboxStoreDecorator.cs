@@ -33,7 +33,7 @@ namespace Excalibur.Outbox.Diagnostics;
 /// </code>
 /// </para>
 /// </remarks>
-internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IOutboxStoreBatch, IDisposable
+internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IOutboxStoreBatch, IDeadLetterableOutboxStore, IDisposable
 {
 	/// <summary>
 	/// The meter name for outbox store metrics.
@@ -112,6 +112,23 @@ internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IOutboxStore
 		var sw = ValueStopwatch.StartNew();
 		await _inner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken).ConfigureAwait(false);
 		RecordOperation("mark_failed", 1, sw.Elapsed.TotalMilliseconds);
+	}
+
+	/// <inheritdoc />
+	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	{
+		// Forward the terminal dead-letter capability to the inner store. Fail LOUD (never a silent no-op) if
+		// the inner store cannot terminalize — a silent fallback would leave the message re-claimable forever.
+		if (_inner is not IDeadLetterableOutboxStore deadLetterable)
+		{
+			throw new NotSupportedException(
+				$"The decorated outbox store '{_inner.GetType().FullName}' does not implement IDeadLetterableOutboxStore; " +
+				"terminal dead-lettering cannot be forwarded through the telemetry decorator.");
+		}
+
+		var sw = ValueStopwatch.StartNew();
+		await deadLetterable.MarkDeadLetteredAsync(messageId, reason, cancellationToken).ConfigureAwait(false);
+		RecordOperation("mark_dead_lettered", 1, sw.Elapsed.TotalMilliseconds);
 	}
 
 	/// <inheritdoc />

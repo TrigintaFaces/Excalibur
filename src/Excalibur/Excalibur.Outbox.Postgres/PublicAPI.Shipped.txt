@@ -21,8 +21,12 @@ Excalibur.Outbox.Postgres.Diagnostics.OutboxPostgresEventId
 Excalibur.Outbox.Postgres.GetDeadLetterMessages
 Excalibur.Outbox.Postgres.GetDeadLetterMessages.GetDeadLetterMessages(string! deadLetterTableName, int maxRetries, System.DateTimeOffset? olderThan, int batchSize, int offset, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.IPostgresOutboxBuilder
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
 Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, Excalibur.Data.IDb!>! dbFactory) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
 Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.ConnectionStringName(string! name) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
 Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.DeadLetterTableName(string! tableName) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
 Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.SchemaName(string! schema) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
 Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.TableName(string! tableName) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
@@ -46,6 +50,7 @@ Excalibur.Outbox.Postgres.PostgresOutboxStore.GetStatisticsAsync(System.Threadin
 Excalibur.Outbox.Postgres.PostgresOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.Postgres.PostgresOutboxStore.IncreaseAttempts(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.IncreaseAttemptsBatchAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Outbox.Postgres.PostgresOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.MoveToDeadLetter(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
@@ -54,6 +59,7 @@ Excalibur.Outbox.Postgres.PostgresOutboxStore.PostgresOutboxStore(Excalibur.Data
 Excalibur.Outbox.Postgres.PostgresOutboxStore.ReserveOutboxMessagesAsync(string! dispatcherId, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IOutboxMessage!>!>!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.SaveMessagesAsync(System.Collections.Generic.ICollection<Excalibur.Dispatch.IOutboxMessage!>! outboxMessages, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.ScheduleMessageAsync(Excalibur.Dispatch.Delivery.OutboxMessage! message, System.DateTimeOffset scheduledAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Outbox.Postgres.PostgresOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.UnReserveOutboxMessagesAsync(string! dispatcherId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Postgres.PostgresOutboxStoreMetrics
@@ -108,8 +114,3 @@ static Excalibur.Outbox.Postgres.OutboxBuilderPostgresExtensions.UsePostgres(thi
 static Excalibur.Outbox.Postgres.PostgresOutboxBuilderExtensions.CommandTimeout(this Excalibur.Outbox.Postgres.IPostgresOutboxBuilder! builder, System.TimeSpan timeout) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
 static Excalibur.Outbox.Postgres.PostgresOutboxBuilderExtensions.MaxAttempts(this Excalibur.Outbox.Postgres.IPostgresOutboxBuilder! builder, int maxAttempts) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
 static Excalibur.Outbox.Postgres.PostgresOutboxBuilderExtensions.ReservationTimeout(this Excalibur.Outbox.Postgres.IPostgresOutboxBuilder! builder, System.TimeSpan timeout) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
-Excalibur.Outbox.Postgres.PostgresOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
-Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.ConnectionStringName(string! name) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
-Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
-Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!

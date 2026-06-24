@@ -33,7 +33,7 @@ namespace Excalibur.Outbox.Redis;
 /// - {prefix}:idx:sent - Sorted set of sent messages (score = sentAt timestamp)
 /// </para>
 /// </remarks>
-public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, IAsyncDisposable
+public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IAsyncDisposable
 {
 	// Lua script for atomic MarkSent - checks status before updating
 	// Returns plain strings (not {err=...}) to avoid RedisServerException
@@ -68,6 +68,34 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 	                                         return 'SUCCESS'
 	                                         """;
+
+	// Lua script for atomic MarkDeadLettered - transitions to terminal DeadLettered status
+	// Removes the id from every claimable index (staged + failed) so the poller can never re-claim it.
+	private const string MarkDeadLetteredLuaScript = """
+	                                                 local key = KEYS[1]
+	                                                 local stagedIdx = KEYS[2]
+	                                                 local failedIdx = KEYS[3]
+	                                                 local messageId = ARGV[1]
+	                                                 local reason = ARGV[2]
+	                                                 local deadLetteredStatus = ARGV[3]
+
+	                                                 -- Silent no-op when message does not exist
+	                                                 local exists = redis.call('EXISTS', key)
+	                                                 if exists == 0 then
+	                                                 	return {ok = 'NOT_FOUND'}
+	                                                 end
+
+	                                                 -- Update the message hash to terminal status
+	                                                 redis.call('HMSET', key,
+	                                                 	'Status', deadLetteredStatus,
+	                                                 	'LastError', reason)
+
+	                                                 -- Remove from every claimable index so the poller can never re-claim this id
+	                                                 redis.call('ZREM', stagedIdx, messageId)
+	                                                 redis.call('ZREM', failedIdx, messageId)
+
+	                                                 return {ok = 'SUCCESS'}
+	                                                 """;
 
 	// Lua script for atomic MarkFailed - updates status and retry count
 	private const string MarkFailedLuaScript = """
@@ -353,6 +381,36 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 			[messageId, errorMessage, retryCount.ToString(), lastAttemptAt, ((int)OutboxStatus.Failed).ToString()]).ConfigureAwait(false);
 
 		LogMessageFailed(messageId, errorMessage, retryCount);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(reason);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		await EnsureConnectedAsync().ConfigureAwait(false);
+
+		var key = GetMessageKey(messageId);
+
+		// Check if exists first - silent return when message does not exist
+		var exists = await _database!.KeyExistsAsync(key).ConfigureAwait(false);
+		if (!exists)
+		{
+			return;
+		}
+
+		// Use Lua script for atomic update: set terminal status + remove from every claimable index
+		_ = await _database!.ScriptEvaluateAsync(
+			MarkDeadLetteredLuaScript,
+			[key, GetStagedIndexKey(), GetFailedIndexKey()],
+			[messageId, reason, ((int)OutboxStatus.DeadLettered).ToString()]).ConfigureAwait(false);
+
+		_logger.LogWarning(
+			"Marked message {MessageId} as dead-lettered: {Reason}",
+			messageId,
+			reason);
 	}
 
 	/// <inheritdoc/>

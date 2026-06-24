@@ -409,9 +409,10 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 	}
 
 	[Fact]
-	public async Task SkipUndeserializableEvents_WithoutCrashing()
+	public async Task HaltOnUndeserializablePoisonEvent_WithoutApplyingPastIt()
 	{
-		// Arrange — serializer throws for one event type
+		// Arrange — bd-red2ha (S841): an undeserializable (poison) event now HALTS the host instead of
+		// skip-and-advance. The poison event is FIRST, so the good event after it must NOT be applied.
 		var fakeQuery = A.Fake<IGlobalStreamQuery>();
 		var callCount = 0;
 		var storedEvents = new List<StoredEvent>
@@ -431,8 +432,10 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 						: (IReadOnlyList<StoredEvent>)Array.Empty<StoredEvent>());
 			});
 
+		var poisonObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var fakeSerializer = A.Fake<IEventSerializer>();
 		A.CallTo(() => fakeSerializer.ResolveType("BadEvent"))
+			.Invokes(() => poisonObserved.TrySetResult())
 			.Throws(new InvalidOperationException("Unknown event type"));
 		A.CallTo(() => fakeSerializer.ResolveType("GoodEvent"))
 			.Returns(typeof(TestOrderPlaced));
@@ -459,19 +462,15 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		});
 
-		// Act
+		// Act — start, wait until the host reaches the poison event, give halt-vs-advance a window, then stop.
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
-
-		// Poll until the good event is applied — avoids fragile fixed-delay timing on CI runners.
-		await WaitHelpers.WaitUntilAsync(
-			() => Volatile.Read(ref appliedCount) >= 1,
-			TimeSpan.FromSeconds(4),
-			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
-
+		await poisonObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-		// Assert — the good event was still processed, bad event was skipped
-		appliedCount.ShouldBe(1);
+		// Assert — the host HALTED at the poison; the good event AFTER it was NOT applied (no skip-and-advance,
+		// so the poison is reprocessed on restart rather than silently skipped).
+		appliedCount.ShouldBe(0);
 	}
 
 	[Fact]

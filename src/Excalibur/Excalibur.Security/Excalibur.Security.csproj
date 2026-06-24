@@ -54,10 +54,8 @@
   </ItemGroup>
   <ItemGroup>
     <!-- TODO (S807): Move to Excalibur.Security.Azure and Excalibur.Security.Aws projects per R0.3/R0.5 architectural fix -->
-    <Compile Remove="AzureKeyVaultCredentialStore.cs" />
     <Compile Remove="AzureServiceBusOptions.cs" />
     <Compile Remove="AzureServiceBusOptionsValidator.cs" />
-    <Compile Remove="AwsSecretsManagerCredentialStore.cs" />
     <!-- SecureKeyProvider uses Azure.Security.KeyVault.Secrets - move to Excalibur.Security.Azure -->
     <Compile Remove="Signing\SecureKeyProvider.cs" />
   </ItemGroup>

@@ -151,6 +151,15 @@ namespace Excalibur.AuditLogging {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Failed to durably persist audit event {0} to the audit store..
+        /// </summary>
+        internal static string DefaultAuditLogger_PersistenceFailed {
+            get {
+                return ResourceManager.GetString("DefaultAuditLogger_PersistenceFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Start date must be before or equal to end date..
         /// </summary>
         internal static string DefaultAuditLogger_StartDateAfterEndDate {

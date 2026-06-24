@@ -20,7 +20,7 @@ namespace Excalibur.Inbox.MongoDB;
 /// Uses InsertOneAsync with unique index on (messageId, handlerType) for atomic first-writer-wins semantics.
 /// Catches MongoWriteException with duplicate key error (11000) for conflict detection.
 /// </remarks>
-public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable
+public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
 	private const int DuplicateKeyErrorCode = 11000;
 
@@ -140,6 +140,32 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		LogProcessedEntry(_logger, messageId, handlerType, null);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var id = MongoDbInboxDocument.CreateId(messageId, handlerType);
+		var filter = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
+
+		var update = Builders<MongoDbInboxDocument>.Update
+			.Set(d => d.Status, (int)InboxStatus.Processing)
+			.Set(d => d.LastAttemptAt, DateTimeOffset.UtcNow);
+
+		var result = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+		if (result.MatchedCount == 0)
+		{
+			throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		}
+
+		_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 	}
 
 	/// <inheritdoc/>

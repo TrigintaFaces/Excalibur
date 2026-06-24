@@ -223,6 +223,12 @@ Excalibur.Compliance.AuditOutcome.Error = 3 -> Excalibur.Compliance.AuditOutcome
 Excalibur.Compliance.AuditOutcome.Failure = 1 -> Excalibur.Compliance.AuditOutcome
 Excalibur.Compliance.AuditOutcome.Pending = 4 -> Excalibur.Compliance.AuditOutcome
 Excalibur.Compliance.AuditOutcome.Success = 0 -> Excalibur.Compliance.AuditOutcome
+Excalibur.Compliance.AuditPersistenceException
+Excalibur.Compliance.AuditPersistenceException.AuditPersistenceException() -> void
+Excalibur.Compliance.AuditPersistenceException.AuditPersistenceException(string! message) -> void
+Excalibur.Compliance.AuditPersistenceException.AuditPersistenceException(string! message, System.Exception? innerException) -> void
+Excalibur.Compliance.AuditPersistenceException.EventId.get -> string?
+Excalibur.Compliance.AuditPersistenceException.EventId.init -> void
 Excalibur.Compliance.AuditQuery
 Excalibur.Compliance.AuditQuery.Action.get -> string?
 Excalibur.Compliance.AuditQuery.Action.init -> void
@@ -674,6 +680,8 @@ Excalibur.Compliance.DataLocation.KeyId.get -> string!
 Excalibur.Compliance.DataLocation.KeyId.init -> void
 Excalibur.Compliance.DataLocation.RecordId.get -> string!
 Excalibur.Compliance.DataLocation.RecordId.init -> void
+Excalibur.Compliance.DataLocation.StoreKind.get -> Excalibur.Compliance.DataStoreKind
+Excalibur.Compliance.DataLocation.StoreKind.init -> void
 Excalibur.Compliance.DataLocation.TableName.get -> string!
 Excalibur.Compliance.DataLocation.TableName.init -> void
 Excalibur.Compliance.DataLocationRegistration
@@ -719,6 +727,11 @@ Excalibur.Compliance.DataPortabilityOptions.MaxExportSize.get -> long
 Excalibur.Compliance.DataPortabilityOptions.MaxExportSize.set -> void
 Excalibur.Compliance.DataPortabilityOptions.RetentionPeriod.get -> System.TimeSpan
 Excalibur.Compliance.DataPortabilityOptions.RetentionPeriod.set -> void
+Excalibur.Compliance.DataStoreKind
+Excalibur.Compliance.DataStoreKind.DataStoreKind() -> void
+Excalibur.Compliance.DataStoreKind.Equals(Excalibur.Compliance.DataStoreKind other) -> bool
+Excalibur.Compliance.DataStoreKind.IsUnknown.get -> bool
+Excalibur.Compliance.DataStoreKind.Value.get -> string!
 Excalibur.Compliance.DataSubjectIdType
 Excalibur.Compliance.DataSubjectIdType.Custom = 99 -> Excalibur.Compliance.DataSubjectIdType
 Excalibur.Compliance.DataSubjectIdType.Email = 1 -> Excalibur.Compliance.DataSubjectIdType
@@ -1484,6 +1497,7 @@ Excalibur.Compliance.IErasureCertificateStore.GetCertificateAsync(System.Guid re
 Excalibur.Compliance.IErasureCertificateStore.GetCertificateByIdAsync(System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureCertificate?>!
 Excalibur.Compliance.IErasureCertificateStore.SaveCertificateAsync(Excalibur.Compliance.ErasureCertificate! certificate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.IErasureContributor
+Excalibur.Compliance.IErasureContributor.CoveredStoreKinds.get -> System.Collections.Generic.IReadOnlySet<Excalibur.Compliance.DataStoreKind>!
 Excalibur.Compliance.IErasureContributor.EraseAsync(Excalibur.Compliance.ErasureContributorContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureContributorResult!>!
 Excalibur.Compliance.IErasureContributor.Name.get -> string!
 Excalibur.Compliance.IErasureQueryStore
@@ -2743,6 +2757,9 @@ Excalibur.Compliance.VersionMigrationResult.Success.init -> void
 Excalibur.Compliance.VersionMigrationResult.TargetVersion.get -> Excalibur.Compliance.EncryptionVersion
 Excalibur.Compliance.VersionMigrationResult.TargetVersion.init -> void
 Excalibur.Compliance.VersionMigrationResult.VersionMigrationResult(byte[]! OriginalCiphertext, byte[]? MigratedCiphertext, Excalibur.Compliance.EncryptionVersion SourceVersion, Excalibur.Compliance.EncryptionVersion TargetVersion, bool Success, string? ErrorMessage, System.TimeSpan Duration) -> void
+override Excalibur.Compliance.DataStoreKind.Equals(object? obj) -> bool
+override Excalibur.Compliance.DataStoreKind.GetHashCode() -> int
+override Excalibur.Compliance.DataStoreKind.ToString() -> string!
 override Excalibur.Compliance.EncryptionVersion.ToString() -> string!
 static Excalibur.Compliance.AuditIntegrityResult.Invalid(long eventsVerified, System.DateTimeOffset startDate, System.DateTimeOffset endDate, string! firstViolationEventId, string! violationDescription, int violationCount = 1) -> Excalibur.Compliance.AuditIntegrityResult!
 static Excalibur.Compliance.AuditIntegrityResult.Valid(long eventsVerified, System.DateTimeOffset startDate, System.DateTimeOffset endDate) -> Excalibur.Compliance.AuditIntegrityResult!
@@ -2754,6 +2771,18 @@ static Excalibur.Compliance.ComplianceMetricsExtensions.RecordKeyUsage(this Exca
 static Excalibur.Compliance.ComplianceMetricsExtensions.UpdateAuditBacklogSize(this Excalibur.Compliance.IComplianceMetrics! metrics, int count) -> void
 static Excalibur.Compliance.ComplianceMetricsExtensions.UpdateKeysNearingExpiration(this Excalibur.Compliance.IComplianceMetrics! metrics, int count, string! provider) -> void
 static Excalibur.Compliance.DataInventory.Empty(string! dataSubjectId) -> Excalibur.Compliance.DataInventory!
+static Excalibur.Compliance.DataStoreKind.Audit.get -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.Cache.get -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.Create(string! value) -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.EventStore.get -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.Inbox.get -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.Outbox.get -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.Projection.get -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.Saga.get -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.Snapshot.get -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.Unknown.get -> Excalibur.Compliance.DataStoreKind
+static Excalibur.Compliance.DataStoreKind.operator !=(Excalibur.Compliance.DataStoreKind left, Excalibur.Compliance.DataStoreKind right) -> bool
+static Excalibur.Compliance.DataStoreKind.operator ==(Excalibur.Compliance.DataStoreKind left, Excalibur.Compliance.DataStoreKind right) -> bool
 static Excalibur.Compliance.EncryptedData.IsFieldEncrypted(System.ReadOnlySpan<byte> data) -> bool
 static Excalibur.Compliance.EncryptedData.IsFieldEncrypted(byte[]? data) -> bool
 static Excalibur.Compliance.EncryptedData.MagicBytes.get -> System.ReadOnlySpan<byte>

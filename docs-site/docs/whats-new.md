@@ -14,6 +14,45 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ---
 
+## June 2026 — Reliability Seam Tail (Sprint 841)
+
+The P1 tail of the same "advertised-but-unwired" class Sprint 840 opened (governed by ADR-336): seven seams where the framework advertised a durability or compliance guarantee it did not actually honor. With this sweep the class is **closed** — no silent degrade remains on the ADR-336 surface. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but review the items below for behavior you may have relied on. The Dispatch (messaging) abstractions gain three small additive members; nothing is removed.
+
+### Credential stores persist for real — and Vault is now opt-in
+
+- **The HashiCorp Vault and AWS Secrets Manager credential stores now read and write the real backend.** Both were configuration-fallback placeholders that read plain `IConfiguration` and **silently discarded** every `StoreCredentialAsync` call while logging success. The Vault store now round-trips against the real KV v2 HTTP API; the AWS store persists through the AWS SDK (`IAmazonSecretsManager`). A store-then-get now returns the stored secret from the backend, and a backend failure surfaces as an error instead of a logged success.
+- **Behavior change — the Vault store is no longer registered by default.** `AddSecureCredentialManagement` (and `AddDispatchSecurity`) register `EnvironmentVariableCredentialStore` as the default `ICredentialStore`, and only wire the HashiCorp Vault store when a `Vault:Url` is configured. Cloud credential stores live in their packages and are wired through their security builders: `services.AddDispatchSecurityAzure(azure => …)` (`Excalibur.Security.Azure`) and `services.AddDispatchSecurityAws(aws => aws.Region("us-east-1"))` (`Excalibur.Security.Aws`).
+- **Security recommendation:** use `https` for any non-loopback `Vault:Url`. A plaintext `http://` Vault endpoint transmits your token and secrets in the clear.
+
+### Outbox: a terminal dead-letter status
+
+- **A retry-exhausted outbox message now reaches a terminal state and is never re-claimed.** Previously an exhausted message stayed `Failed`, was re-claimed by the delivery poller after its lease expired, and was re-delivered and re-dead-lettered indefinitely — duplicate delivery plus unbounded dead-letter-queue growth. Messages now transition to the new terminal **`OutboxStatus.DeadLettered`**, which every store's claim predicate structurally excludes (an explicit allow-list of claimable statuses), so the message can never be re-claimed. See [Outbox Pattern](./patterns/outbox.md).
+- **For custom outbox stores:** the new optional `IDeadLetterableOutboxStore` capability (`MarkDeadLetteredAsync`) carries the terminal transition. All shipped stores implement it; a startup `ValidateOnStart` guard fails fast if a custom polling store omits it, naming the missing capability.
+
+### Inbox: the at-most-once guard is now live
+
+- **The inbox `Processing` status is now durably persisted before your handler runs.** It was previously set in memory only, so the at-most-once concurrency guard and the stuck-processing timeout had no durable state to act on — effectively dead code. A concurrent delivery of the same `(messageId, handlerType)` is now durably skipped, and a message left in-flight by a crash is reclaimed after the configured timeout. See [Idempotent Consumer](./patterns/idempotent-consumer.md). Custom inbox stores opt in via the new `IProcessingTrackingInboxStore` capability (`MarkProcessingAsync`).
+
+### Elasticsearch inbox cleanup respects the cutoff
+
+- **`ElasticsearchInboxStore.CleanupAsync(olderThan, …)` now deletes only documents older than the cutoff.** It previously issued a `MatchAll` query and deleted **every** inbox document regardless of age. Documents at or newer than `olderThan` are now retained (same correction shape as Sprint 840's audit-archival cutoff fix).
+
+### Transactional outbox staging fails fast instead of degrading silently
+
+- **Selecting `OutboxStagingStrategy.Transactional` without the infrastructure it requires now fails at startup.** Without a registered `ITransactionalOutboxWriter` and a transactional event store, the strategy silently degraded to non-atomic eventually-consistent staging — integration events could be lost on a crash between the event append and the outbox stage, with no diagnostic. A `ValidateOnStart` guard now throws at startup naming exactly what is missing. Only the **explicit** `Transactional` value trips the guard; `Auto` (which documents its own graceful fallback), `EventuallyConsistent`, and `Deferred` are unaffected.
+
+### Projection hosts no longer silently drop a poison event
+
+- **The continuous `AsyncProjectionProcessingHost` halts on a deserialize-poison event** instead of skipping it and advancing the checkpoint past it (silent read-model drift). An event that fails to deserialize, or deserializes to `null`, now stops processing at that position without advancing the checkpoint, so it is re-attempted on the next read (transient failures self-heal) — bringing the host in line with the Sprint 840 fix to `GlobalStreamProjectionHost`.
+- **The one-shot `ProjectionRebuildService` fails the rebuild on a poison event** rather than skipping it. A deserialize/`null` or apply failure now rethrows and the rebuild ends in a `Failed` state with partial state not persisted; because a rebuild is one-shot there is no checkpoint and nothing is reprocessed — fix the cause and re-run the rebuild.
+- **An *apply* failure in the continuous host is recorded, not halted — and the read model stays rebuildable.** In `AsyncProjectionProcessingHost`, where many projections share one checkpoint, a failure in one projection's apply is recorded per-projection (error + health state + observability); it does **not** halt the shared checkpoint, because halting it would force the projections that *succeeded* to re-apply the event. The full boundary is captured in ADR-336 Amendment 4. See [Projections](./event-sourcing/projections.md).
+
+### SQL Server range queries execute on the real schema
+
+- **`SqlServerRangeQueryEventStore.ReadRangeAsync` now queries the correct column.** It referenced a non-existent `GlobalPosition` column and threw a missing-column SQL error at runtime during parallel catch-up (masked by in-memory-only tests). It now reads the actual `Position` global-ordinal column and returns the events in range ordered by the global ordinal.
+
+---
+
 ## June 2026 — Data-Loss & Compliance Sweep (Sprint 840)
 
 A sweep of P0 correctness defects where the framework advertised a durability or compliance guarantee it did not actually honor. Each is governed by ADR-336 (the "advertised-but-unwired reliability seam" anti-pattern + engage-test gate). These are behavioral **corrections** on the Excalibur persistence side; the Dispatch (messaging) framework is unaffected. As a greenfield framework there are no consumer data migrations — review the items below for behavior you may have relied on.

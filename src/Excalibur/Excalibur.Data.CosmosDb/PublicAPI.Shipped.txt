@@ -195,6 +195,7 @@ Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.Dispose
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.QueryPagedAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, int pageNumber, int pageSize, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.PagedResult<TProjection!>!>!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.Client.get -> Excalibur.Data.CosmosDb.CosmosDbClientOptions!
@@ -210,6 +211,8 @@ Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.DatabaseName.
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.DatabaseName.set -> void
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.DefaultTtlSeconds.get -> int
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.DefaultTtlSeconds.set -> void
+Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.JsonSerializerOptions.get -> System.Text.Json.JsonSerializerOptions?
+Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.JsonSerializerOptions.set -> void
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.PartitionKeyPath.get -> string!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.PartitionKeyPath.set -> void
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.Validate() -> void
@@ -297,6 +300,7 @@ const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.InboxDuplicateDete
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.InboxFirstProcessor = 102902 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.InboxMessageCompleted = 102901 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.InboxMessageFailed = 102904 -> int
+const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.InboxMessageProcessing = 102906 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.InboxMessageStored = 102900 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.MessageEnqueued = 103302 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.MessageFailed = 103304 -> int
@@ -357,7 +361,3 @@ virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.AddOrUpdateAsy
 virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
 virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.QueryAsync(string! sql, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
 virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-
-Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.QueryPagedAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, int pageNumber, int pageSize, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.PagedResult<TProjection!>!>!
-Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.JsonSerializerOptions.get -> System.Text.Json.JsonSerializerOptions?
-Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.JsonSerializerOptions.set -> void

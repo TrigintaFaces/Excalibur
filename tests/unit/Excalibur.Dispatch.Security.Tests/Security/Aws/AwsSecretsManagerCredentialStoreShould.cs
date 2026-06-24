@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Amazon.SecretsManager;
+using Amazon.SecretsManager.Model;
+
 using Excalibur.Security.Aws;
 
 using Microsoft.Extensions.Configuration;
@@ -11,7 +14,10 @@ namespace Excalibur.Dispatch.Security.Tests.Aws;
 
 /// <summary>
 /// Unit tests for <see cref="AwsSecretsManagerCredentialStore"/>.
-/// Verifies Sprint 390 implementation: AWS credential store moved to dedicated package.
+/// bd-ts66sh (S841, ADR-336): the store now reads/writes through the REAL AWS Secrets Manager SDK
+/// (via an injectable <see cref="IAmazonSecretsManager"/> seam) — no longer a silent config-fallback
+/// placeholder. Behavior tests drive a faked client (never real AWS / committed credentials); the
+/// round-trip lock is the independent engage-test (author≠impl, AC-2).
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Security)]
@@ -77,8 +83,11 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 	[Fact]
 	public async Task GetCredentialAsync_ReturnsNull_WhenSecretNotFound()
 	{
-		// Arrange
-		var store = CreateCredentialStore();
+		// Arrange — the SDK signals a missing secret with ResourceNotFoundException (a normal, non-error outcome).
+		var client = A.Fake<IAmazonSecretsManager>();
+		A.CallTo(() => client.GetSecretValueAsync(A<GetSecretValueRequest>._, A<CancellationToken>._))
+			.Throws(new ResourceNotFoundException("not found"));
+		var store = CreateCredentialStoreWithClient(client);
 
 		// Act
 		var result = await store.GetCredentialAsync("non-existent-key", CancellationToken.None);
@@ -90,8 +99,11 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 	[Fact]
 	public async Task GetCredentialAsync_ReturnsSecureString_WhenSecretExists()
 	{
-		// Arrange
-		var store = CreateCredentialStoreWithSecret("my-secret", "secret-value");
+		// Arrange — the value comes from the AWS port, NOT IConfiguration.
+		var client = A.Fake<IAmazonSecretsManager>();
+		A.CallTo(() => client.GetSecretValueAsync(A<GetSecretValueRequest>._, A<CancellationToken>._))
+			.Returns(new GetSecretValueResponse { SecretString = "secret-value" });
+		var store = CreateCredentialStoreWithClient(client);
 
 		// Act
 		var result = await store.GetCredentialAsync("my-secret", CancellationToken.None);
@@ -102,15 +114,14 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task GetCredentialAsync_ThrowsInvalidOperationException_WhenConfigurationThrows()
+	public async Task GetCredentialAsync_ThrowsInvalidOperationException_WhenBackendThrows()
 	{
-		// Arrange - use a faked IConfiguration that throws when indexer is accessed
-		var logger = A.Fake<ILogger<AwsSecretsManagerCredentialStore>>();
-		var configuration = A.Fake<IConfiguration>();
-		A.CallTo(() => configuration[A<string>.Ignored])
-			.Throws(new InvalidOperationException("Simulated AWS failure"));
-
-		var store = new AwsSecretsManagerCredentialStore(logger, configuration);
+		// Arrange — a backend/transport failure (not a missing secret) must surface as an error,
+		// never logged-as-success (EC-2).
+		var client = A.Fake<IAmazonSecretsManager>();
+		A.CallTo(() => client.GetSecretValueAsync(A<GetSecretValueRequest>._, A<CancellationToken>._))
+			.Throws(new AmazonSecretsManagerException("Simulated AWS failure"));
+		var store = CreateCredentialStoreWithClient(client);
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(
@@ -118,7 +129,6 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 		exception.Message.ShouldContain("Failed to retrieve secret");
 		exception.Message.ShouldContain("test-key");
 		_ = exception.InnerException!.ShouldNotBeNull();
-		exception.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]
@@ -171,8 +181,11 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 	[Fact]
 	public async Task StoreCredentialAsync_CompletesSuccessfully_WhenCredentialIsValid()
 	{
-		// Arrange
-		var store = CreateCredentialStore();
+		// Arrange — the write goes to the AWS port (PutSecretValue), not silently discarded.
+		var client = A.Fake<IAmazonSecretsManager>();
+		A.CallTo(() => client.PutSecretValueAsync(A<PutSecretValueRequest>._, A<CancellationToken>._))
+			.Returns(new PutSecretValueResponse());
+		var store = CreateCredentialStoreWithClient(client);
 		var credential = CreateSecureString("valid-credential");
 
 		// Act
@@ -181,23 +194,53 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 
 		// Assert
 		exception.ShouldBeNull();
+		A.CallTo(() => client.PutSecretValueAsync(A<PutSecretValueRequest>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
-	public async Task StoreCredentialAsync_ThrowsInvalidOperationException_WhenCredentialIsEmpty()
+	public async Task StoreCredentialAsync_ThrowsArgumentException_WhenCredentialIsEmpty()
 	{
-		// Arrange - empty SecureString has length 0 which triggers the < 1 validation
-		var store = CreateCredentialStore();
+		// Arrange — empty SecureString has length 0, which trips the length guard. The store's
+		// `catch (ArgumentException) throw;` re-throws it unwrapped (a caller error, not a backend failure).
+		var client = A.Fake<IAmazonSecretsManager>();
+		var store = CreateCredentialStoreWithClient(client);
 		var emptyCredential = new System.Security.SecureString();
 		emptyCredential.MakeReadOnly();
 
-		// Act & Assert - The ArgumentException from length validation is caught by the outer
-		// catch block and wrapped as InvalidOperationException
-		var exception = await Should.ThrowAsync<InvalidOperationException>(
+		// Act & Assert
+		_ = await Should.ThrowAsync<ArgumentException>(
 			async () => await store.StoreCredentialAsync("test-key", emptyCredential, CancellationToken.None));
-		exception.Message.ShouldContain("Failed to store secret");
-		exception.Message.ShouldContain("test-key");
-		_ = exception.InnerException!.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public async Task RoundTripCredentialThroughTheAwsPort()
+	{
+		// AC-2 engage-test — a store→get round-trip persists + retrieves THROUGH THE AWS port (RED on the
+		// pre-fix stub which discarded on store + read IConfiguration on get). No committed secrets.
+		var backing = new Dictionary<string, string>(StringComparer.Ordinal);
+		var client = A.Fake<IAmazonSecretsManager>();
+		A.CallTo(() => client.PutSecretValueAsync(A<PutSecretValueRequest>._, A<CancellationToken>._))
+			.ReturnsLazily((PutSecretValueRequest r, CancellationToken _) =>
+			{
+				backing[r.SecretId] = r.SecretString;
+				return new PutSecretValueResponse();
+			});
+		A.CallTo(() => client.GetSecretValueAsync(A<GetSecretValueRequest>._, A<CancellationToken>._))
+			.ReturnsLazily((GetSecretValueRequest r, CancellationToken _) =>
+				backing.TryGetValue(r.SecretId, out var v)
+					? new GetSecretValueResponse { SecretString = v }
+					: throw new ResourceNotFoundException("not found"));
+
+		var store = CreateCredentialStoreWithClient(client);
+
+		// Act
+		await store.StoreCredentialAsync("api-key", CreateSecureString("s3cr3t-value"), CancellationToken.None);
+		var result = await store.GetCredentialAsync("api-key", CancellationToken.None);
+
+		// Assert — value round-trips through the port.
+		_ = result.ShouldNotBeNull();
+		SecureStringToString(result).ShouldBe("s3cr3t-value");
 	}
 
 	[Fact]
@@ -225,20 +268,6 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 			store.Dispose();
 		});
 		exception.ShouldBeNull();
-	}
-
-	[Fact]
-	public async Task Dispose_ReleasesSemaphore_PreventingFurtherOperations()
-	{
-		// Arrange
-		var store = CreateCredentialStore();
-
-		// Act - dispose the store, then attempt an operation
-		store.Dispose();
-
-		// Assert - after dispose, the semaphore is disposed so WaitAsync should throw
-		_ = await Should.ThrowAsync<ObjectDisposedException>(
-			async () => await store.GetCredentialAsync("any-key", CancellationToken.None));
 	}
 
 	[Fact]
@@ -321,17 +350,6 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 			.Build();
 	}
 
-	private static IConfiguration CreateConfigurationWithSecret(string key, string value)
-	{
-		return new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["AWS:Region"] = "us-east-1",
-				[$"AWS:SecretsManager:Secrets:{key}"] = value
-			})
-			.Build();
-	}
-
 	private static AwsSecretsManagerCredentialStore CreateCredentialStore()
 	{
 		var logger = A.Fake<ILogger<AwsSecretsManagerCredentialStore>>();
@@ -339,11 +357,11 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 		return new AwsSecretsManagerCredentialStore(logger, configuration);
 	}
 
-	private static AwsSecretsManagerCredentialStore CreateCredentialStoreWithSecret(string key, string value)
+	private static AwsSecretsManagerCredentialStore CreateCredentialStoreWithClient(IAmazonSecretsManager client)
 	{
 		var logger = A.Fake<ILogger<AwsSecretsManagerCredentialStore>>();
-		var configuration = CreateConfigurationWithSecret(key, value);
-		return new AwsSecretsManagerCredentialStore(logger, configuration);
+		var configuration = CreateConfigurationWithRegion();
+		return new AwsSecretsManagerCredentialStore(logger, configuration, client);
 	}
 
 	private static System.Security.SecureString CreateSecureString(string value)

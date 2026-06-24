@@ -110,49 +110,76 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 					continue;
 				}
 
-				// Group stored events by aggregate so each apply delegate gets
-				// a coherent batch with the correct EventNotificationContext.
-				var groups = GroupByAggregate(events);
+				// Deserialize the batch in GLOBAL order, HALTING at the first poison event (a deserialize
+				// failure or a null deserialization). A poison event is recorded and marks the host
+				// unhealthy; it is NEVER skipped or checkpointed past — it is left for the next read so the
+				// read model can never silently drift from the event log. A transient failure self-heals on
+				// the next poll; a permanent one keeps the host unhealthy until an operator acts. This
+				// mirrors GlobalStreamProjectionHost (c3jdco / ADR-336 Amendment 3a / FR-8).
+				var deserialized = new List<DeserializedEvent>(events.Count);
+				var poisonEncountered = false;
 
-				foreach (var group in groups)
+				foreach (var storedEvent in events)
 				{
-					var domainEvents = DeserializeEvents(group.StoredEvents);
-					if (domainEvents.Count == 0)
+					stoppingToken.ThrowIfCancellationRequested();
+
+					IDomainEvent domainEvent;
+					try
 					{
-						continue;
+						domainEvent = DeserializeOrThrow(storedEvent);
+					}
+					catch (Exception ex) when (ex is not OperationCanceledException)
+					{
+						// Poison event: record + mark unhealthy, then HALT this batch at the failed event.
+						LogAsyncProjectionEventError(storedEvent.EventId, ex);
+						RecordPoison(checkpointName, ex);
+						poisonEncountered = true;
+						break;
 					}
 
-					var lastEvent = group.StoredEvents[group.StoredEvents.Count - 1];
-					var context = new EventNotificationContext(
-						group.AggregateId,
-						group.AggregateType,
-						lastEvent.Version,
-						lastEvent.Timestamp);
-
-					// Dispatch to all async projection registrations concurrently
-					await DispatchToProjectionsAsync(
-						asyncRegistrations, domainEvents, context, stoppingToken).ConfigureAwait(false);
+					deserialized.Add(new DeserializedEvent(storedEvent, domainEvent));
 				}
 
-				// Advance position past the last event in the batch by the GLOBAL stream ordinal
-				// (GlobalPosition), not the per-aggregate Version, which skipped/duplicated events
-				// across aggregates.
-				var lastStoredEvent = events[events.Count - 1];
-				_currentPosition = new GlobalStreamPosition(
-					lastStoredEvent.GlobalPosition + 1,
-					lastStoredEvent.Timestamp);
-				_eventsSinceCheckpoint += events.Count;
-
-				// Checkpoint when threshold reached
-				if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
+				// Dispatch only the good prefix (events before any poison), grouped by aggregate so each
+				// apply delegate receives a coherent batch with the correct EventNotificationContext.
+				if (deserialized.Count > 0)
 				{
-					await _checkpointStore.StoreCheckpointAsync(
-						checkpointName, _currentPosition.Position, stoppingToken).ConfigureAwait(false);
-					LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
-					_eventsSinceCheckpoint = 0;
+					foreach (var group in GroupByAggregate(deserialized))
+					{
+						var context = new EventNotificationContext(
+							group.AggregateId,
+							group.AggregateType,
+							group.LastVersion,
+							group.LastTimestamp);
+
+						await DispatchToProjectionsAsync(
+							asyncRegistrations, group.DomainEvents, context, stoppingToken).ConfigureAwait(false);
+					}
+
+					// Advance ONLY to the last good-prefix event's GLOBAL ordinal (GlobalPosition), never the
+					// per-aggregate Version. The poison event (and everything after it) stays unread/unskipped.
+					var lastGood = deserialized[deserialized.Count - 1].Stored;
+					_currentPosition = new GlobalStreamPosition(lastGood.GlobalPosition + 1, lastGood.Timestamp);
+					_eventsSinceCheckpoint += deserialized.Count;
+
+					// Checkpoint when threshold reached (only ever the last-good position; never past a poison event).
+					if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
+					{
+						await _checkpointStore.StoreCheckpointAsync(
+							checkpointName, _currentPosition.Position, stoppingToken).ConfigureAwait(false);
+						LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
+						_eventsSinceCheckpoint = 0;
+					}
+
+					LogAsyncProjectionBatchProcessed(deserialized.Count, _currentPosition.Position);
 				}
 
-				LogAsyncProjectionBatchProcessed(events.Count, _currentPosition.Position);
+				// On a poison event, back off before re-reading so we don't tight-loop on a permanent
+				// failure; the next read resumes from the unadvanced checkpoint (reprocess, not skip).
+				if (poisonEncountered)
+				{
+					await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
+				}
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
@@ -188,60 +215,73 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	}
 
 	/// <summary>
-	/// Groups stored events by (AggregateId, AggregateType) to create coherent
-	/// batches for projection apply delegates.
-	/// </summary>
-	private static List<AggregateEventGroup> GroupByAggregate(IReadOnlyList<StoredEvent> events)
-	{
-		var groups = new Dictionary<string, AggregateEventGroup>(StringComparer.Ordinal);
-
-		foreach (var e in events)
-		{
-			var key = string.Concat(e.AggregateType, ":", e.AggregateId);
-			if (!groups.TryGetValue(key, out var group))
-			{
-				group = new AggregateEventGroup(e.AggregateId, e.AggregateType);
-				groups[key] = group;
-			}
-
-			group.StoredEvents.Add(e);
-		}
-
-		return [.. groups.Values];
-	}
-
-	/// <summary>
-	/// Deserializes stored events to domain events, skipping events that fail deserialization.
+	/// Resolves and deserializes a stored event to a domain event, throwing on a null result rather
+	/// than silently dropping it (a null deserialization is a poison event, not an empty batch).
 	/// </summary>
 	[UnconditionalSuppressMessage("AOT", "IL3050",
 		Justification = "Event deserialization is inherently dynamic; projection host requires runtime type resolution.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026",
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
-	private List<IDomainEvent> DeserializeEvents(List<StoredEvent> storedEvents)
+	private IDomainEvent DeserializeOrThrow(StoredEvent storedEvent)
 	{
-		var domainEvents = new List<IDomainEvent>(storedEvents.Count);
+		var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
+		return _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType)
+			?? throw new InvalidOperationException(
+				$"Event '{storedEvent.EventId}' (type '{storedEvent.EventType}') deserialized to null; refusing to skip it.");
+	}
 
-		foreach (var storedEvent in storedEvents)
+	/// <summary>
+	/// Records a poison event against observability and host health, swallowing telemetry failures so
+	/// they never affect the projection pipeline.
+	/// </summary>
+	private void RecordPoison(string projectionName, Exception ex)
+	{
+		try
 		{
-			try
-			{
-				var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-				var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
-
-				if (domainEvent is not null)
-				{
-					domainEvents.Add(domainEvent);
-				}
-			}
-#pragma warning disable CA1031 // Catch general exceptions -- skip undeserializable events
-			catch (Exception ex)
-#pragma warning restore CA1031
-			{
-				LogAsyncProjectionEventError(storedEvent.EventId, ex);
-			}
+			_observability?.RecordError(projectionName, ex.GetType().Name);
+		}
+		catch
+		{
+			// Swallow -- metrics must not affect the projection pipeline.
 		}
 
-		return domainEvents;
+		try
+		{
+			_healthState?.RecordInlineError(projectionName);
+		}
+		catch
+		{
+			// Swallow -- health recording must not affect the projection pipeline.
+		}
+	}
+
+	/// <summary>
+	/// Groups deserialized events by (AggregateId, AggregateType) to create coherent
+	/// batches for projection apply delegates, preserving global order within each aggregate.
+	/// </summary>
+	private static List<AggregateEventGroup> GroupByAggregate(List<DeserializedEvent> events)
+	{
+		var groups = new Dictionary<string, AggregateEventGroup>(StringComparer.Ordinal);
+
+		foreach (var e in events)
+		{
+			var stored = e.Stored;
+			var key = string.Concat(stored.AggregateType, ":", stored.AggregateId);
+			if (!groups.TryGetValue(key, out var group))
+			{
+				group = new AggregateEventGroup(stored.AggregateId, stored.AggregateType);
+				groups[key] = group;
+			}
+
+			group.DomainEvents.Add(e.Domain);
+
+			// Global order is ascending, so the last event seen for an aggregate carries its latest
+			// version/timestamp for the notification context.
+			group.LastVersion = stored.Version;
+			group.LastTimestamp = stored.Timestamp;
+		}
+
+		return [.. groups.Values];
 	}
 
 	/// <summary>
@@ -311,13 +351,20 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	}
 
 	/// <summary>
-	/// Groups stored events belonging to a single aggregate.
+	/// A stored event paired with its successfully-deserialized domain event.
+	/// </summary>
+	private readonly record struct DeserializedEvent(StoredEvent Stored, IDomainEvent Domain);
+
+	/// <summary>
+	/// Groups deserialized events belonging to a single aggregate.
 	/// </summary>
 	private sealed class AggregateEventGroup(string aggregateId, string aggregateType)
 	{
 		public string AggregateId { get; } = aggregateId;
 		public string AggregateType { get; } = aggregateType;
-		public List<StoredEvent> StoredEvents { get; } = [];
+		public List<IDomainEvent> DomainEvents { get; } = [];
+		public long LastVersion { get; set; }
+		public DateTimeOffset LastTimestamp { get; set; }
 	}
 
 	#region Logging
@@ -339,7 +386,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	private partial void LogAsyncProjectionCheckpointSaved(long position);
 
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionEventError, LogLevel.Error,
-		"Error processing event {EventId} in async projection host.")]
+		"Poison event {EventId} halted the async projection host; checkpoint not advanced past it.")]
 	private partial void LogAsyncProjectionEventError(string eventId, Exception ex);
 
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionDispatchError, LogLevel.Error,

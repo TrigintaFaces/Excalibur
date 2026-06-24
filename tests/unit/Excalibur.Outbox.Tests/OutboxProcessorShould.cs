@@ -60,7 +60,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	public void Constructor_ThrowsArgumentNullException_WhenOptionsIsNull()
 	{
 		// Arrange
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -97,7 +97,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var logger = NullLogger<OutboxProcessor>.Instance;
 
@@ -115,7 +115,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 
@@ -142,7 +142,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			BatchProcessing = { ParallelProcessingDegree = 1 }
 		});
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -161,7 +161,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -183,7 +183,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -270,7 +270,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	public async Task DispatchPendingMessagesAsync_ReturnsZero_WhenNoMessagesAvailable()
 	{
 		// Arrange
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>()));
 
@@ -288,7 +288,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	public async Task DispatchPendingMessagesAsync_ThrowsObjectDisposedException_WhenDisposed()
 	{
 		// Arrange
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>()));
 
@@ -305,7 +305,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	public async Task DispatchPendingMessagesAsync_HandlesCancellation_ThrowsTaskCanceledException()
 	{
 		// Arrange
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>()));
 
@@ -354,7 +354,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			messageType,
 			new TestOutboxCommand("do-something"));
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>([outboundMessage]));
 
@@ -438,10 +438,11 @@ public sealed class OutboxProcessorShould : UnitTestBase
 				A<Exception?>._,
 				A<IDictionary<string, string>?>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => scenario.OutboxStore.MarkFailedAsync(
+		// bd-stlcgg (S841): the terminal transition is MarkDeadLetteredAsync (terminal DeadLettered status), not
+		// MarkFailedAsync — so a retry-exhausted message is never re-claimed.
+		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
 				"message-dlq",
-				A<string>.That.Contains("Moved to DLQ: Max retries exceeded"),
-				1,
+				A<string>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => scenario.OutboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._))
@@ -468,10 +469,9 @@ public sealed class OutboxProcessorShould : UnitTestBase
 				A<Exception?>._,
 				A<IDictionary<string, string>?>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => scenario.OutboxStore.MarkFailedAsync(
+		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
 				"message-failure",
-				A<string>.That.Contains("Moved to DLQ: Max retries exceeded"),
-				1,
+				A<string>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -493,10 +493,9 @@ public sealed class OutboxProcessorShould : UnitTestBase
 				A<Exception?>._,
 				A<IDictionary<string, string>?>._))
 			.MustHaveHappenedTwiceExactly();
-		A.CallTo(() => scenario.OutboxStore.MarkFailedAsync(
+		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
 				A<string>.That.Matches(id => id == "message-open-1" || id == "message-open-2"),
-				A<string>.That.Contains("Moved to DLQ: Circuit breaker open"),
-				3,
+				A<string>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedTwiceExactly();
 		A.CallTo(() => scenario.Dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -775,7 +774,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	{
 		return new OutboxProcessor(
 			options ?? CreateValidOptions(),
-			outboxStore ?? A.Fake<IOutboxStore>(),
+			outboxStore ?? A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>()),
 			serializer ?? new DispatchJsonSerializer(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			logger ?? NullLogger<OutboxProcessor>.Instance,
@@ -802,7 +801,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			messageType,
 			new TestOutboxIntegrationEvent(messageId));
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>([outboundMessage]));
 
@@ -1074,7 +1073,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 	private static IOutboxStore CreateSingleMessageOutboxStore(OutboundMessage message)
 	{
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		var fetchCount = 0;
 		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
@@ -1201,7 +1200,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 	private static IOutboxStore CreateParallelOutboxStore(OutboundMessage first, OutboundMessage second)
 	{
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = A.Fake<IOutboxStore>(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		var fetchCount = 0;
 		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>

@@ -681,12 +681,35 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				metadata).ConfigureAwait(false);
 		}
 
-		// Mark the message as failed (moved to DLQ or discarded)
-		await _outboxStore.MarkFailedAsync(
+		// Transition the message to the terminal DeadLettered status (moved to DLQ or discarded). Unlike a
+		// retryable Failed status, DeadLettered is structurally excluded from every store's claim predicate,
+		// so the message can never be re-claimed, re-delivered, or re-dead-lettered.
+		await MarkOutboxMessageDeadLetteredAsync(
 			message.MessageId,
 			_deadLetterQueue is NullDeadLetterQueue ? $"DISCARDED (no DLQ): {reasonText}" : $"Moved to DLQ: {reasonText}",
-			_options.MaxAttempts, // Mark as max attempts to prevent reprocessing
 			cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Transitions an outbox message to the terminal <see cref="OutboxStatus.DeadLettered"/> status via the
+	/// store's <see cref="IDeadLetterableOutboxStore"/> capability.
+	/// </summary>
+	/// <remarks>
+	/// The capability is guaranteed by the startup presence guard (a polling outbox registered with a store
+	/// that does not implement <see cref="IDeadLetterableOutboxStore"/> fails fast). If the capability is
+	/// nonetheless absent, this fails loud rather than silently leaving the message re-claimable.
+	/// </remarks>
+	private ValueTask MarkOutboxMessageDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	{
+		if (_outboxStore is not IDeadLetterableOutboxStore deadLetterable)
+		{
+			throw new InvalidOperationException(
+				$"The outbox store '{_outboxStore.GetType().FullName}' does not implement IDeadLetterableOutboxStore; " +
+				"the startup capability guard should have prevented this configuration. A retry-exhausted message " +
+				"cannot be transitioned to the terminal DeadLettered status and would be re-claimed indefinitely.");
+		}
+
+		return deadLetterable.MarkDeadLetteredAsync(messageId, reason, cancellationToken);
 	}
 
 	private async Task<int> ProcessBatchParallelAsync(IOutboxMessage[] batch, CancellationToken cancellationToken)
@@ -906,12 +929,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Process dead letter messages in parallel
 			tasks.Add(Task.Factory.StartNew(async () =>
 			{
-				foreach (var (id, attemptCount) in failedToDeadLetter)
+				foreach (var (id, _) in failedToDeadLetter)
 				{
 					try
 					{
-						await _outboxStore
-							.MarkFailedAsync(id, ErrorConstants.MaxRetriesReachedMovedToDeadLetter, attemptCount, cancellationToken)
+						await MarkOutboxMessageDeadLetteredAsync(id, ErrorConstants.MaxRetriesReachedMovedToDeadLetter, cancellationToken)
 							.ConfigureAwait(false);
 					}
 					catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)

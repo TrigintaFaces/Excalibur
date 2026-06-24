@@ -31,7 +31,7 @@ public sealed partial class PostgresOutboxStore(
 	IDb db,
 	IOptions<PostgresOutboxStoreOptions> options,
 	ILogger<PostgresOutboxStore> logger,
-	PostgresOutboxStoreMetrics? metrics = null) : IOutboxStore, IOutboxStoreAdmin, ITransactionalOutboxWriter, IDisposable
+	PostgresOutboxStoreMetrics? metrics = null) : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, ITransactionalOutboxWriter, IDisposable
 {
 	private readonly IDb _db = db ?? throw new ArgumentNullException(nameof(db));
 	private readonly PostgresOutboxStoreOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -580,6 +580,47 @@ public sealed partial class PostgresOutboxStore(
 		if (deleted == 0)
 		{
 			throw new InvalidOperationException($"Message {messageId} not found or already sent.");
+		}
+	}
+
+	/// <summary>
+	/// Durably transitions the specified message to the terminal dead-lettered state.
+	/// </summary>
+	/// <remarks>
+	/// The Postgres outbox uses a separate dead-letter table as its terminal state rather than a
+	/// status column. This method moves the message into the dead-letter table with the supplied
+	/// <paramref name="reason"/> as the error message and deletes it from the main outbox table,
+	/// making it structurally non-claimable by any delivery predicate.
+	/// </remarks>
+	/// <param name="messageId"> Unique identifier of the message to dead-letter. </param>
+	/// <param name="reason"> Human-readable reason the message was dead-lettered. </param>
+	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
+	/// <returns> A value task representing the asynchronous operation. </returns>
+	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(reason);
+
+		_logger.LogWarning("Dead-lettering outbox message {MessageId}: {Reason}", messageId, reason);
+
+		var stopwatch = ValueStopwatch.StartNew();
+		try
+		{
+			var req = new MarkMessageDeadLetteredRequest(
+				messageId,
+				reason,
+				_options.QualifiedOutboxTableName,
+				_options.QualifiedDeadLetterTableName,
+				DbTimeouts.RegularTimeoutSeconds,
+				cancellationToken);
+
+			_ = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
+		}
+		finally
+		{
+			var durationMs = stopwatch.Elapsed.TotalMilliseconds;
+			_metrics.RecordMoveToDeadLetter(durationMs);
+			LogOperationCompleted(durationMs, "MarkDeadLettered");
 		}
 	}
 

@@ -131,10 +131,14 @@ services.AddDispatch(dispatch =>
     dispatch.UseSecurity(configuration);
 });
 
-// Or standalone Azure security setup
-services.AddAzureKeyVaultCredentialStore(configuration);
-services.AddAzureServiceBusSecurityValidation();
-services.AddDispatchSecurityAzure(configuration);
+// Or standalone Azure security setup — the Key Vault credential store and
+// Service Bus validation are wired through the Azure security builder.
+// The credential store is registered only when a VaultUri is supplied.
+services.AddDispatchSecurityAzure(azure =>
+{
+    azure.VaultUri("https://my-vault.vault.azure.net/")
+         .EnableServiceBusValidation();
+});
 ```
 
 ---

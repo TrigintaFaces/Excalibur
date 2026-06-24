@@ -9,6 +9,7 @@ using System.Security;
 using System.Text;
 
 using Excalibur.Security.Diagnostics;
+using Excalibur.Security.Vault;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -16,8 +17,11 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.Security;
 
 /// <summary>
-/// HashiCorp Vault credential store implementation for secure credential management. Provides integration with HashiCorp Vault for storing
-/// and retrieving encrypted credentials.
+/// HashiCorp Vault credential store backed by the KV&#160;v2 secrets engine. Reads and writes
+/// secrets through the real Vault HTTP API (via an injectable <see cref="IVaultSecretClient"/>
+/// seam), so a <see cref="StoreCredentialAsync"/> followed by <see cref="GetCredentialAsync"/>
+/// round-trips against Vault — secrets are never sourced from, or silently discarded to,
+/// plain configuration.
 /// </summary>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 	Justification = "Instantiated by DI container")]
@@ -29,37 +33,46 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 			CompositeFormat.Parse(Resources.HashiCorpVaultCredentialStore_FailedToStoreSecretFormat);
 
 	private readonly ILogger<HashiCorpVaultCredentialStore> _logger;
-	private readonly string _vaultUrl;
-	private readonly string _token;
-	private readonly string _mountPath;
-	private readonly IConfiguration _configuration;
-	private readonly HttpClient _httpClient;
-	private readonly SemaphoreSlim _semaphore = new(1, 1);
+	private readonly IVaultSecretClient _client;
+	private readonly IDisposable? _ownedTransport;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="HashiCorpVaultCredentialStore"/> class.
+	/// Initializes a new instance of the <see cref="HashiCorpVaultCredentialStore"/> class
+	/// that talks to a real Vault server over <paramref name="httpClient"/>.
 	/// </summary>
 	/// <param name="logger"> The logger instance. </param>
-	/// <param name="configuration"> The configuration instance. </param>
-	/// <param name="httpClient"> The HTTP client for Vault API calls. </param>
+	/// <param name="configuration"> The configuration supplying <c>Vault:Url</c>, <c>Vault:Token</c>, and optional <c>Vault:MountPath</c>. </param>
+	/// <param name="httpClient"> The HTTP client used for Vault API calls. Owned and disposed by this store. </param>
 	public HashiCorpVaultCredentialStore(
 		ILogger<HashiCorpVaultCredentialStore> logger,
 		IConfiguration configuration,
 		HttpClient httpClient)
+		: this(logger, BuildAdapter(configuration, httpClient), ownedTransport: httpClient)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="HashiCorpVaultCredentialStore"/> class
+	/// with an explicit <see cref="IVaultSecretClient"/>. Used by tests via
+	/// <c>InternalsVisibleTo</c> to drive a fake transport; not part of the public contract.
+	/// </summary>
+	/// <param name="logger"> The logger instance. </param>
+	/// <param name="client"> The Vault secret client seam. </param>
+	internal HashiCorpVaultCredentialStore(
+		ILogger<HashiCorpVaultCredentialStore> logger,
+		IVaultSecretClient client)
+		: this(logger, client, ownedTransport: null)
+	{
+	}
+
+	private HashiCorpVaultCredentialStore(
+		ILogger<HashiCorpVaultCredentialStore> logger,
+		IVaultSecretClient client,
+		IDisposable? ownedTransport)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-		_httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-		_vaultUrl = configuration["Vault:Url"] ?? throw new InvalidOperationException(
-				Resources.HashiCorpVaultCredentialStore_VaultUrlRequired);
-		_token = configuration["Vault:Token"] ?? throw new InvalidOperationException(
-				Resources.HashiCorpVaultCredentialStore_VaultTokenRequired);
-		_mountPath = configuration["Vault:MountPath"] ?? "secret";
-
-		// Configure HTTP client for Vault API
-		_httpClient.DefaultRequestHeaders.Add("X-Vault-Token", _token);
-		_httpClient.BaseAddress = new Uri(_vaultUrl.TrimEnd('/'));
-		_httpClient.Timeout = TimeSpan.FromSeconds(30);
+		_client = client ?? throw new ArgumentNullException(nameof(client));
+		_ownedTransport = ownedTransport;
 	}
 
 	/// <summary>
@@ -79,26 +92,16 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 					nameof(key));
 		}
 
-		await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		LogRetrievingCredential(key);
+
 		try
 		{
-			LogRetrievingCredential(key);
-
-			var secretPath = $"/v1/{_mountPath}/data/{key}";
-
-			// For now, simulate Vault API behavior with configuration fallback In a real implementation, you would make HTTP requests to
-			// Vault API
-			var secretValue = _configuration[$"Vault:Secrets:{key}"];
-			if (string.IsNullOrEmpty(secretValue))
+			var secretValue = await _client.GetSecretAsync(key, cancellationToken).ConfigureAwait(false);
+			if (secretValue is null)
 			{
-				LogSecretNotFound(key, secretPath);
+				LogSecretNotFound(key);
 				return null;
 			}
-
-			// Real implementation would: var response = await _httpClient.GetAsync(secretPath, cancellationToken); if (response.StatusCode
-			// == HttpStatusCode.NotFound) return null; response.EnsureSuccessStatusCode(); var content = await
-			// response.Content.ReadAsStringAsync(cancellationToken); var vaultResponse =
-			// JsonSerializer.Deserialize<VaultResponse>(content); secretValue = vaultResponse.Data.Data["value"].ToString();
 
 			// Convert to SecureString
 			var secureString = new SecureString();
@@ -112,17 +115,7 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 			LogCredentialRetrieved(key);
 			return secureString;
 		}
-		catch (HttpRequestException ex)
-		{
-			LogHttpRetrieveError(ex, key);
-			throw new InvalidOperationException(
-					string.Format(
-							CultureInfo.InvariantCulture,
-							FailedToRetrieveSecretFormat,
-							key),
-					ex);
-		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not ArgumentException)
 		{
 			LogRetrieveFailed(ex, key);
 			throw new InvalidOperationException(
@@ -131,10 +124,6 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 							FailedToRetrieveSecretFormat,
 							key),
 					ex);
-		}
-		finally
-		{
-			ReleaseSemaphoreSafe();
 		}
 	}
 
@@ -159,47 +148,29 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 
 		ArgumentNullException.ThrowIfNull(credential);
 
-		await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		LogStoringCredential(key);
+
+		// Convert SecureString to string for the Vault API
+		var credentialValue = SecureStringToString(credential);
+
 		try
 		{
-			LogStoringCredential(key);
-
-			// Convert SecureString to string for Vault API
-			var credentialValue = SecureStringToString(credential);
-
-			try
+			if (credentialValue.Length < 1)
 			{
-				var secretPath = $"/v1/{_mountPath}/data/{key}";
-
-				// Real implementation would: var payload = new { data = new { value = credentialValue } }; var json =
-				// JsonSerializer.Serialize(payload); var content = new StringContent(json, Encoding.UTF8, "application/json"); var response
-				// = await _httpClient.PostAsync(secretPath, content, cancellationToken); response.EnsureSuccessStatusCode();
-
-				// For now, validate the operation would succeed
-				if (credentialValue.Length < 1)
-				{
-					throw new ArgumentException(
-							Resources.HashiCorpVaultCredentialStore_CredentialCannotBeEmpty,
-							nameof(credential));
-				}
-
-				LogCredentialStored(key, secretPath);
+				throw new ArgumentException(
+						Resources.HashiCorpVaultCredentialStore_CredentialCannotBeEmpty,
+						nameof(credential));
 			}
-			finally
-			{
-				// Clear the credential from memory immediately
-				Array.Fill(credentialValue.ToCharArray(), '\0');
-			}
+
+			// Persist to Vault. A backend failure throws here, so success is only logged
+			// once the write is durably accepted (never logged-as-success on failure).
+			await _client.SetSecretAsync(key, credentialValue, cancellationToken).ConfigureAwait(false);
+
+			LogCredentialStored(key);
 		}
-		catch (HttpRequestException ex)
+		catch (ArgumentException)
 		{
-			LogHttpStoreError(ex, key);
-			throw new InvalidOperationException(
-					string.Format(
-							CultureInfo.InvariantCulture,
-							FailedToStoreSecretFormat,
-							key),
-					ex);
+			throw;
 		}
 		catch (Exception ex)
 		{
@@ -213,15 +184,38 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 		}
 		finally
 		{
-			ReleaseSemaphoreSafe();
+			// Clear the transient plaintext copy from memory.
+			Array.Fill(credentialValue.ToCharArray(), '\0');
 		}
 	}
 
 	/// <inheritdoc/>
-	public void Dispose()
+	public void Dispose() => _ownedTransport?.Dispose();
+
+	/// <summary>
+	/// Builds the real KV&#160;v2 HTTP adapter from configuration, configuring the supplied
+	/// <see cref="HttpClient"/> with the Vault base address and authentication token.
+	/// </summary>
+	private static VaultSecretClientAdapter BuildAdapter(IConfiguration configuration, HttpClient httpClient)
 	{
-		Dispose(disposing: true);
-		GC.SuppressFinalize(this);
+		ArgumentNullException.ThrowIfNull(configuration);
+		ArgumentNullException.ThrowIfNull(httpClient);
+
+		var vaultUrl = configuration["Vault:Url"] ?? throw new InvalidOperationException(
+				Resources.HashiCorpVaultCredentialStore_VaultUrlRequired);
+		var token = configuration["Vault:Token"] ?? throw new InvalidOperationException(
+				Resources.HashiCorpVaultCredentialStore_VaultTokenRequired);
+		var mountPath = configuration["Vault:MountPath"] ?? "secret";
+
+		httpClient.BaseAddress = new Uri(vaultUrl.TrimEnd('/'));
+		if (!httpClient.DefaultRequestHeaders.Contains("X-Vault-Token"))
+		{
+			httpClient.DefaultRequestHeaders.Add("X-Vault-Token", token);
+		}
+
+		httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+		return new VaultSecretClientAdapter(httpClient, mountPath);
 	}
 
 	private static string SecureStringToString(SecureString secureString)
@@ -241,38 +235,15 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 		}
 	}
 
-	private void ReleaseSemaphoreSafe()
-	{
-		try
-		{
-			_ = _semaphore.Release();
-		}
-		catch (ObjectDisposedException)
-		{
-			// Semaphore was disposed during await — safe to ignore
-		}
-	}
-
-	private void Dispose(bool disposing)
-	{
-		if (disposing)
-		{
-			_semaphore?.Dispose();
-		}
-	}
-
 	// Source-generated logging methods
 	[LoggerMessage(SecurityEventId.HashiCorpVaultRetrieving, LogLevel.Debug, "Retrieving credential {Key} from HashiCorp Vault")]
 	private partial void LogRetrievingCredential(string key);
 
-	[LoggerMessage(SecurityEventId.HashiCorpVaultSecretNotFound, LogLevel.Warning, "Secret {Key} not found in HashiCorp Vault at path {Path}")]
-	private partial void LogSecretNotFound(string key, string path);
+	[LoggerMessage(SecurityEventId.HashiCorpVaultSecretNotFound, LogLevel.Warning, "Secret {Key} not found in HashiCorp Vault")]
+	private partial void LogSecretNotFound(string key);
 
 	[LoggerMessage(SecurityEventId.HashiCorpVaultRetrieved, LogLevel.Information, "Successfully retrieved credential {Key} from HashiCorp Vault")]
 	private partial void LogCredentialRetrieved(string key);
-
-	[LoggerMessage(SecurityEventId.HashiCorpVaultHttpRetrieveError, LogLevel.Error, "HTTP error retrieving credential {Key} from HashiCorp Vault")]
-	private partial void LogHttpRetrieveError(Exception ex, string key);
 
 	[LoggerMessage(SecurityEventId.HashiCorpVaultRetrieveFailed, LogLevel.Error, "Failed to retrieve credential {Key} from HashiCorp Vault")]
 	private partial void LogRetrieveFailed(Exception ex, string key);
@@ -281,11 +252,8 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 	private partial void LogStoringCredential(string key);
 
 	[LoggerMessage(SecurityEventId.HashiCorpVaultStored, LogLevel.Information,
-		"Successfully stored credential {Key} in HashiCorp Vault at path {Path}")]
-	private partial void LogCredentialStored(string key, string path);
-
-	[LoggerMessage(SecurityEventId.HashiCorpVaultHttpStoreError, LogLevel.Error, "HTTP error storing credential {Key} in HashiCorp Vault")]
-	private partial void LogHttpStoreError(Exception ex, string key);
+		"Successfully stored credential {Key} in HashiCorp Vault")]
+	private partial void LogCredentialStored(string key);
 
 	[LoggerMessage(SecurityEventId.HashiCorpVaultStoreFailed, LogLevel.Error, "Failed to store credential {Key} in HashiCorp Vault")]
 	private partial void LogStoreFailed(Exception ex, string key);

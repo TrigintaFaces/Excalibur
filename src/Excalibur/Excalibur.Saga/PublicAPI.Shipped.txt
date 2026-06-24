@@ -1,4 +1,6 @@
 #nullable enable
+Excalibur.Saga.Abstractions.ISagaTimeout<TMessage>
+Excalibur.Saga.Abstractions.ISagaTimeout<TMessage>.HandleTimeoutAsync(TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Saga.Abstractions.ISagaTimeoutStore
 Excalibur.Saga.Abstractions.ISagaTimeoutStore.CancelAllTimeoutsAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Saga.Abstractions.ISagaTimeoutStore.CancelTimeoutAsync(string! sagaId, string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -252,6 +254,7 @@ const Excalibur.Saga.Diagnostics.SagaEventId.ParallelStepCompleted = 120302 -> i
 const Excalibur.Saga.Diagnostics.SagaEventId.ParallelStepExecutionStarted = 120300 -> int
 const Excalibur.Saga.Diagnostics.SagaEventId.ParallelStepFailed = 120303 -> int
 const Excalibur.Saga.Diagnostics.SagaEventId.RunningCountRetrieved = 123300 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaAlreadyCompletedEventSkipped = 122206 -> int
 const Excalibur.Saga.Diagnostics.SagaEventId.SagaCommandDispatched = 122001 -> int
 const Excalibur.Saga.Diagnostics.SagaEventId.SagaCompensated = 120005 -> int
 const Excalibur.Saga.Diagnostics.SagaEventId.SagaCompensating = 120004 -> int
@@ -374,6 +377,3 @@ static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExte
 virtual Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SerializeTimeoutData<T>(T data) -> byte[]!
 virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.get -> string!
 virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.set -> void
-
-Excalibur.Saga.Abstractions.ISagaTimeout<TMessage>
-Excalibur.Saga.Abstractions.ISagaTimeout<TMessage>.HandleTimeoutAsync(TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

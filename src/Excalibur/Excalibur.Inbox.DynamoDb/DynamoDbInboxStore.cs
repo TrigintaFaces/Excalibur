@@ -28,7 +28,7 @@ namespace Excalibur.Inbox.DynamoDb;
 /// attribute_not_exists condition.
 /// </para>
 /// </remarks>
-public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
+public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly DynamoDbInboxOptions _options;
 	private readonly ILogger<DynamoDbInboxStore> _logger;
@@ -196,6 +196,43 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
 		LogMarkedProcessed(messageId, handlerType);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var key = CreateKey(messageId, handlerType);
+		var now = DateTimeOffset.UtcNow;
+
+		var updateRequest = new UpdateItemRequest
+		{
+			TableName = _options.TableName,
+			Key = key,
+			UpdateExpression = "SET #status = :status, last_attempt_at = :attempt",
+			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute})",
+			ExpressionAttributeNames = new Dictionary<string, string> { ["#status"] = "status" },
+			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+			{
+				[":status"] = new() { N = ((int)InboxStatus.Processing).ToString() },
+				[":attempt"] = new() { S = now.ToString("O") }
+			}
+		};
+
+		try
+		{
+			_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
+			_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+		catch (ConditionalCheckFailedException)
+		{
+			throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		}
 	}
 
 	/// <inheritdoc/>

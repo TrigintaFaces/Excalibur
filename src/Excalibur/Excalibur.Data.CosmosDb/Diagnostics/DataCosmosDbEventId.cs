@@ -213,6 +213,9 @@ public static class DataCosmosDbEventId
 	/// <summary>Inbox cleanup complete.</summary>
 	public const int InboxCleanupComplete = 102905;
 
+	/// <summary>Inbox message marked as processing.</summary>
+	public const int InboxMessageProcessing = 102906;
+
 	// ========================================
 	// 103000-103099: Snapshot Store
 	// ========================================

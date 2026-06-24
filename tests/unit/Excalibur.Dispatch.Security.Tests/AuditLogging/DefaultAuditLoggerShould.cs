@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.AuditLogging;
+using Excalibur.Compliance;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 
@@ -70,38 +71,36 @@ public sealed class DefaultAuditLoggerShould
 	}
 
 	[Fact]
-	public async Task LogAsync_ReturnsFailureIndicatorOnException()
+	public async Task LogAsync_ThrowsAuditPersistenceException_WhenStoreThrows()
 	{
-		// Arrange
+		// bd-sf3uz1 (fail-closed): a store failure surfaces as a typed AuditPersistenceException, NOT a masked
+		// success-shaped result (the old SequenceNumber == -1 sentinel).
 		var auditEvent = CreateTestAuditEvent();
 
 		_ = A.CallTo(() => _mockStore.StoreAsync(auditEvent, A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("Store error"));
 
-		// Act - should not throw
-		var result = await _auditLogger.LogAsync(auditEvent, CancellationToken.None);
+		var ex = await Should.ThrowAsync<AuditPersistenceException>(
+			() => _auditLogger.LogAsync(auditEvent, CancellationToken.None));
 
-		// Assert
-		result.EventId.ShouldBe(auditEvent.EventId);
-		result.EventHash.ShouldBeEmpty();
-		result.SequenceNumber.ShouldBe(-1);
+		ex.EventId.ShouldBe(auditEvent.EventId);
 	}
 
 	[Fact]
-	public async Task LogAsync_FailureIndicatorHasRecordedAtTimestamp()
+	public async Task LogAsync_PreservesStoreFailureAsInnerException()
 	{
-		// Arrange
+		// bd-sf3uz1 (fail-closed): the underlying store failure is preserved as the InnerException so callers
+		// applying their own fail-open policy retain the original cause.
 		var auditEvent = CreateTestAuditEvent();
-		var beforeCall = DateTimeOffset.UtcNow;
+		var storeError = new InvalidOperationException("Store error");
 
 		_ = A.CallTo(() => _mockStore.StoreAsync(auditEvent, A<CancellationToken>._))
-			.ThrowsAsync(new InvalidOperationException("Store error"));
+			.ThrowsAsync(storeError);
 
-		// Act
-		var result = await _auditLogger.LogAsync(auditEvent, CancellationToken.None);
+		var ex = await Should.ThrowAsync<AuditPersistenceException>(
+			() => _auditLogger.LogAsync(auditEvent, CancellationToken.None));
 
-		// Assert
-		result.RecordedAt.ShouldBeGreaterThanOrEqualTo(beforeCall);
+		ex.InnerException.ShouldBe(storeError);
 	}
 
 	[Fact]

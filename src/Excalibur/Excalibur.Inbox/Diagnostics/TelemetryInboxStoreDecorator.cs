@@ -12,7 +12,7 @@ namespace Excalibur.Inbox.Diagnostics;
 /// Telemetry decorator for <see cref="IInboxStore"/> that instruments operations
 /// with counters and histograms.
 /// </summary>
-internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IDisposable
+internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IDisposable
 {
 	/// <summary>
 	/// The meter name for inbox store telemetry.
@@ -83,6 +83,31 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IDisposable
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		// Forward the Processing-tracking capability to the inner store. Fail LOUD (never a silent no-op) if
+		// the inner store cannot persist Processing — a silent skip would re-create the at-most-once silent-degrade.
+		if (_inner is not IProcessingTrackingInboxStore tracker)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement IProcessingTrackingInboxStore; " +
+				"durable Processing tracking cannot be forwarded through the telemetry decorator.");
+		}
+
+		var start = Stopwatch.GetTimestamp();
+
+		try
+		{
+			await tracker.MarkProcessingAsync(messageId, handlerType, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		finally
+		{
+			RecordOperation("mark_processing", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+		}
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<bool> TryMarkAsProcessedAsync(string messageId, string handlerType, CancellationToken cancellationToken)
 	{
 		var start = Stopwatch.GetTimestamp();
@@ -95,6 +120,52 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IDisposable
 		finally
 		{
 			RecordOperation("try_mark_processed", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		// Forward the atomic-claim capability to the inner store. Fail LOUD (never a silent no-op) if the inner
+		// store cannot claim atomically — a silent fallback would re-create the check-then-act race.
+		if (_inner is not IClaimableInboxStore claimable)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement IClaimableInboxStore; " +
+				"atomic claiming cannot be forwarded through the telemetry decorator.");
+		}
+
+		var start = Stopwatch.GetTimestamp();
+
+		try
+		{
+			return await claimable.TryClaimAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			RecordOperation("try_claim", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		if (_inner is not IClaimableInboxStore claimable)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement IClaimableInboxStore; " +
+				"claim release cannot be forwarded through the telemetry decorator.");
+		}
+
+		var start = Stopwatch.GetTimestamp();
+
+		try
+		{
+			await claimable.ReleaseAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			RecordOperation("release_claim", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
 		}
 	}
 

@@ -346,6 +346,52 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		}
 	}
 
+	/// <summary>
+	/// bd-stlcgg (S841, ADR-336) — AC-4 on the originally-buggy path. The outbox had no terminal status, so a
+	/// retry-exhausted message stayed <c>Failed(3)</c> and was re-claimed forever by the SqlServer claim
+	/// <c>Status IN (0,3,4)</c> (duplicate delivery + unbounded DLQ growth). The fix adds the terminal
+	/// <see cref="OutboxStatus.DeadLettered"/> (=5, OUTSIDE the claimable set) set via
+	/// <c>MarkDeadLetteredAsync</c>. This is the FAITHFUL non-vacuity lock (gate-full-guard-suite: lock the
+	/// path where the bug lived, not the InMemory proxy whose claim was already <c>== Staged</c>):
+	/// a <c>Failed(3)</c> message IS still claimable (the contrast that proves the claim includes 3, so the
+	/// terminal status is load-bearing), while a <c>DeadLettered(5)</c> message is NEVER re-claimed.
+	/// </summary>
+	[Fact]
+	public async Task NotReclaimADeadLetteredMessage_WhileStillClaimingAFailedOne()
+	{
+		if (!_dockerAvailable)
+		{
+			return;
+		}
+
+		await ClearAllMessagesAsync();
+		var outboxStore = CreateOutboxStore();
+
+		// Contrast: a Failed(3) message is still claimable by Status IN (0,3,4) — the exact pre-fix re-claim
+		// substrate. This makes the terminal-status exclusion below non-vacuous (a terminal-as-3 would re-claim).
+		var failed = CreateTestMessage();
+		await outboxStore.StageMessageAsync(failed, CancellationToken.None);
+		await outboxStore.MarkFailedAsync(failed.Id, "transient failure", 1, CancellationToken.None);
+
+		// The retry-exhausted message reaches the terminal DeadLettered(5) status.
+		var deadLettered = CreateTestMessage();
+		await outboxStore.StageMessageAsync(deadLettered, CancellationToken.None);
+		await outboxStore.MarkDeadLetteredAsync(deadLettered.Id, "retries exhausted", CancellationToken.None);
+
+		var unsentIds = (await outboxStore.GetUnsentMessagesAsync(50, CancellationToken.None))
+			.Select(m => m.Id)
+			.ToHashSet(StringComparer.Ordinal);
+
+		// AC-4: the dead-lettered (terminal) message is NEVER re-claimed.
+		unsentIds.ShouldNotContain(
+			deadLettered.Id, "a DeadLettered (terminal) message must never be re-claimed by the delivery poller");
+
+		// Contrast (non-vacuity): the Failed(3) message IS still claimable, proving the claim includes status 3
+		// — so the only reason the dead-lettered one is excluded is its terminal status.
+		unsentIds.ShouldContain(
+			failed.Id, "a Failed (non-terminal) message remains claimable — the claim includes Status=3");
+	}
+
 	private static OutboundMessage CreateTestMessage()
 	{
 		return new OutboundMessage(

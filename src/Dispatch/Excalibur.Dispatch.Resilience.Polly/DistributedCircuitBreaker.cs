@@ -125,7 +125,11 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 				async _ => await operation().ConfigureAwait(false),
 				cancellationToken).ConfigureAwait(false);
 
-			await RecordSuccessAsync(cancellationToken).ConfigureAwait(false);
+			// Fast path: ExecuteAsync already fetched the authoritative state above (and refreshed
+			// _lastKnownState at :108, including any HalfOpen transition), so call the core directly
+			// to avoid a redundant distributed-state read on the hot path. The manual
+			// RecordSuccessAsync entry point does its own authoritative read (bd-0snskv).
+			await RecordSuccessCoreAsync(_lastKnownState, cancellationToken).ConfigureAwait(false);
 			return result;
 		}
 		catch (Exception ex)
@@ -138,10 +142,24 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	/// <inheritdoc />
 	public async Task RecordSuccessAsync(CancellationToken cancellationToken)
 	{
+		// Manual record path: refresh the authoritative circuit state from the distributed store
+		// before delegating to the close-gate. Unlike ExecuteAsync (which refreshes _lastKnownState
+		// from its single state fetch at the top), a direct caller never observes a cross-instance
+		// HalfOpen transition, so without this read the close-gate would test a stale local field
+		// and the circuit would never close on the manual path (bd-0snskv). ExecuteAsync preserves
+		// its fast path by calling RecordSuccessCoreAsync directly with the state it already read.
+		var authoritativeState = await GetStateAsync(cancellationToken).ConfigureAwait(false);
+		await RecordSuccessCoreAsync(authoritativeState, cancellationToken).ConfigureAwait(false);
+	}
+
+	private async Task RecordSuccessCoreAsync(CircuitState authoritativeState, CancellationToken cancellationToken)
+	{
 		await _metricsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
-			var metricsKey = GetMetricsKey();
+			// Keep the local cache consistent with the authoritative state used for the gate.
+			_lastKnownState = authoritativeState;
+
 			var metrics = await GetOrCreateMetricsAsync(cancellationToken).ConfigureAwait(false);
 
 			metrics.SuccessCount++;
@@ -154,7 +172,9 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			// Check if we should close the circuit.
 			// ConsecutiveSuccesses is incremented above and reset to 0 on any failure (RecordFailureAsync),
 			// so this gate fires only after SuccessThresholdToClose *consecutive* successes while half-open.
-			if (_lastKnownState == CircuitState.HalfOpen && metrics.ConsecutiveSuccesses >= _options.SuccessThresholdToClose)
+			// The gate tests the authoritative store state (not a possibly-stale local field) so a
+			// cross-instance HalfOpen transition is honored on every entry path (bd-0snskv).
+			if (authoritativeState == CircuitState.HalfOpen && metrics.ConsecutiveSuccesses >= _options.SuccessThresholdToClose)
 			{
 				await TransitionToClosedAsync(cancellationToken).ConfigureAwait(false);
 			}

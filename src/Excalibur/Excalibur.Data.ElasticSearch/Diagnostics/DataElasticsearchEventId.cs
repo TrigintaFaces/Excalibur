@@ -159,6 +159,9 @@ public static class DataElasticsearchEventId
 	/// <summary>Document exists checked.</summary>
 	public const int DocumentExistsChecked = 106205;
 
+	/// <summary>Document marked as processing.</summary>
+	public const int DocumentProcessing = 106206;
+
 	// ========================================
 	// 106300-106399: Search/Query
 	// ========================================

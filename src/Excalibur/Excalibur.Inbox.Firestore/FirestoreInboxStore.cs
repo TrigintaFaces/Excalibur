@@ -23,7 +23,7 @@ namespace Excalibur.Inbox.Firestore;
 /// Document path: {CollectionName}/{messageId}_{handlerType}
 /// Catches RpcException with StatusCode.AlreadyExists for conflict detection.
 /// </remarks>
-public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable
+public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
 	private readonly FirestoreInboxOptions _options;
 	private readonly ILogger<FirestoreInboxStore> _logger;
@@ -148,6 +148,35 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 			}, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		LogProcessedEntry(_logger, messageId, handlerType, null);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync().ConfigureAwait(false);
+
+		var docId = GetDocumentId(messageId, handlerType);
+		var docRef = _collection!.Document(docId);
+
+		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+		if (!snapshot.Exists)
+		{
+			throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		}
+
+		_ = await docRef.UpdateAsync(
+			new Dictionary<string, object>
+			{
+				["status"] = (int)InboxStatus.Processing,
+				["lastAttemptAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow)
+			}, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+		_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 	}
 
 	/// <inheritdoc/>

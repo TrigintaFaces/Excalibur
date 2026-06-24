@@ -30,6 +30,12 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Test-enablement (bd-778kpz / bd-gzph5a): the Docker Postgres range-query engage-tests drive the internal
+         PostgresRangeQueryEventStore directly (gap tolerance + global_position mapping are only catchable against
+         real Postgres). Mirrors the SqlServer ao97rb test-enablement. -->
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
   </ItemGroup>

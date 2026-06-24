@@ -78,9 +78,12 @@ internal sealed class PostgresRangeQueryEventStore : IRangeQueryableEventStore
 					new { FromPosition = currentPosition, ToPosition = batchEnd },
 					cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-			var count = 0;
 			foreach (var row in events)
 			{
+				// Carry the global ordinal onto the StoredEvent so downstream consumers (e.g. the
+				// parallel catch-up checkpointer / projection hosts) read the correct GlobalPosition
+				// instead of the ctor default of 0 (gzph5a). The Dapper row already selects
+				// global_position; map it through (the SqlServer sibling sets it from Position).
 				yield return new StoredEvent(
 					row.EventId,
 					row.AggregateId,
@@ -89,16 +92,17 @@ internal sealed class PostgresRangeQueryEventStore : IRangeQueryableEventStore
 					row.EventData,
 					row.Metadata,
 					row.Version,
-					row.Timestamp);
-				count++;
+					row.Timestamp)
+				{
+					GlobalPosition = row.GlobalPosition,
+				};
 			}
 
-			if (count == 0)
-			{
-				// No events in this range; skip ahead
-				break;
-			}
-
+			// Gap-tolerant paging (778kpz): do NOT break on an empty batch. A gap in the
+			// global_position sequence (reseed / identity-cache jump / skip) narrower than
+			// [from,to] must not stop enumeration early; advance past it and continue to
+			// toPosition. Termination is bounded by the while-condition (currentPosition <=
+			// toPosition), so there is no unbounded scan at the true tail (FR-1a).
 			currentPosition = batchEnd + 1;
 		}
 	}

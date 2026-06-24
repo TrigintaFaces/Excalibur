@@ -26,7 +26,7 @@ namespace Excalibur.Inbox.Redis;
 /// Keys are formatted as: {KeyPrefix}:{messageId}:{handlerType}
 /// Uses Redis TTL for automatic cleanup of processed entries.
 /// </remarks>
-public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable
+public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
 	private static readonly CompositeFormat EntryAlreadyExistsFormat =
 		CompositeFormat.Parse("Inbox entry already exists for message '{0}' and handler '{1}'.");
@@ -177,6 +177,35 @@ public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAs
 		}
 
 		LogProcessedEntry(_logger, messageId, handlerType, null);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
+
+		var key = GetKey(messageId, handlerType);
+		var value = await db.StringGetAsync(key).ConfigureAwait(false);
+
+		if (value.IsNullOrEmpty)
+		{
+			throw new InvalidOperationException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					EntryNotFoundFormat,
+					messageId,
+					handlerType));
+		}
+
+		var entry = DeserializeEntry(value!);
+		entry.MarkProcessing();
+
+		_ = await db.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
+
+		_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 	}
 
 	/// <inheritdoc/>

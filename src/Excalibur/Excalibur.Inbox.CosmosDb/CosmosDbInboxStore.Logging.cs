@@ -19,6 +19,10 @@ public sealed partial class CosmosDbInboxStore
 		"Marked inbox entry as processed for message {MessageId} and handler {HandlerType}")]
 	private partial void LogMarkedProcessed(string messageId, string handlerType);
 
+	[LoggerMessage(DataCosmosDbEventId.InboxMessageProcessing, LogLevel.Debug,
+		"Marked inbox entry as processing for message {MessageId} and handler {HandlerType}")]
+	private partial void LogMarkedProcessing(string messageId, string handlerType);
+
 	[LoggerMessage(DataCosmosDbEventId.InboxFirstProcessor, LogLevel.Debug,
 		"First processor for message {MessageId} and handler {HandlerType}")]
 	private partial void LogFirstProcessor(string messageId, string handlerType);

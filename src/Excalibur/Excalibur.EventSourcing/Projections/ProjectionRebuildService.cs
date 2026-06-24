@@ -132,17 +132,21 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 					try
 					{
 						var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-						var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
+						var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType)
+							?? throw new InvalidOperationException(
+								$"Event '{storedEvent.EventId}' (type '{storedEvent.EventType}') deserialized to null " +
+								$"during rebuild of '{projectionName}'; refusing to skip it.");
 
-						if (domainEvent is not null)
-						{
-							projection.Apply(state, domainEvent);
-						}
+						projection.Apply(state, domainEvent);
 					}
 					catch (Exception ex) when (ex is not OperationCanceledException)
 					{
+						// Poison event (deserialize failure, null deserialization, or apply failure): HALT the
+						// rebuild at the failed event rather than skip-and-continue (which would advance past it
+						// and persist a read model silently missing the event). Rethrow so the rebuild is marked
+						// Failed and the partial state is NOT persisted as Completed (ADR-336 Amendment 3a / FR-8).
 						LogEventProcessingError(projectionName, storedEvent.EventId, ex);
-						// Continue processing other events
+						throw;
 					}
 
 					totalProcessed++;

@@ -98,7 +98,6 @@ Excalibur.Dispatch.Resilience.Polly.DegradationRejectedException
 Excalibur.Dispatch.Resilience.Polly.DegradationRejectedException.DegradationRejectedException() -> void
 Excalibur.Dispatch.Resilience.Polly.DegradationRejectedException.DegradationRejectedException(string! message) -> void
 Excalibur.Dispatch.Resilience.Polly.DegradationRejectedException.DegradationRejectedException(string! message, System.Exception! innerException) -> void
-Microsoft.Extensions.DependencyInjection.DispatchBuilderResilienceExtensions
 Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker
 Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.DistributedCircuitBreaker(string! name, Microsoft.Extensions.Caching.Distributed.IDistributedCache! cache, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker!>! logger) -> void
@@ -129,6 +128,10 @@ Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.SyncInterva
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.EnableAutoAdjustment.get -> bool
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.EnableAutoAdjustment.set -> void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.ErrorRateWindow.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.ErrorRateWindow.set -> void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.ErrorRateWindowBuckets.get -> int
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.ErrorRateWindowBuckets.set -> void
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.GracefulDegradationOptions() -> void
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.HealthCheckInterval.get -> System.TimeSpan
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.HealthCheckInterval.set -> void
@@ -347,6 +350,7 @@ Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.OperationTimeouts.get 
 Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.SlowOperationThreshold.get -> double
 Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.SlowOperationThreshold.set -> void
 Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.TimeoutManagerOptions() -> void
+Microsoft.Extensions.DependencyInjection.DispatchBuilderResilienceExtensions
 Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions
 const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.AllCircuitBreakersReset = 60204 -> int

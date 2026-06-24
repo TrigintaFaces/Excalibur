@@ -17,18 +17,34 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Middleware.Outbox;
 
 /// <summary>
-/// Middleware responsible for implementing the Transactional Outbox pattern to ensure reliable message publishing.
+/// Middleware that stages outbound messages to the outbox store for reliable,
+/// eventually-consistent (at-least-once) message publishing by a background service.
 /// </summary>
 /// <remarks>
-/// This middleware stages outbound messages in the outbox store during message processing, ensuring:
-/// <list type="bullet">
-/// <item> <strong> Atomicity </strong>: Messages are only published if the business operation succeeds </item>
-/// <item> <strong> Reliability </strong>: Messages are not lost due to transport failures </item>
-/// <item> <strong> Consistency </strong>: Outbound messages reflect actual state changes </item>
-/// <item> <strong> Order Preservation </strong>: Messages are published in the correct sequence </item>
-/// </list>
-/// The outbox middleware captures outgoing messages during handler execution and stages them for later delivery by a background service.
-/// This decouples message publishing from the main processing flow and provides guaranteed delivery semantics.
+/// <para>
+/// This middleware captures outbound messages queued during handler execution and, when the handler succeeds,
+/// stages them to the <see cref="IOutboxStore" /> for later delivery by a background service. This decouples
+/// message publishing from the main processing flow.
+/// </para>
+/// <para>
+/// <strong>Important -- post-commit, not atomic:</strong> this middleware runs at
+/// <see cref="DispatchMiddlewareStage.PostProcessing" />, which executes <em>after</em> the handler and any
+/// wrapping transaction have completed. Outbound messages are therefore staged in a <strong>separate,
+/// non-transactional operation</strong> from the business state change. If the process crashes in the window
+/// between the business commit and outbox staging, those messages are lost. This is an
+/// <strong>eventually-consistent</strong> outbox, not a transactional one.
+/// </para>
+/// <para>
+/// <strong>Delivery is at-least-once:</strong> once a message has been staged it is durably held and retried by
+/// the background publisher until delivered, which can produce duplicate deliveries -- consumers should be
+/// idempotent.
+/// </para>
+/// <para>
+/// <strong>Need zero message loss?</strong> This middleware cannot stage within a business commit it does not
+/// participate in. For staging in the same transaction as the event append, use
+/// <see cref="OutboxStagingStrategy.Transactional" /> together with <see cref="ITransactionalOutboxWriter" /> and
+/// a transactional event store, rather than relying on this post-commit middleware.
+/// </para>
 /// </remarks>
 [AppliesTo(MessageKinds.Action | MessageKinds.Event)]
 [RequiresFeatures(DispatchFeatures.Outbox)]

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Reflection;
 
 using Excalibur.AuditLogging;
+using Excalibur.Compliance;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 
@@ -506,7 +507,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	#region DefaultAuditLogger - Edge Cases
 
 	[Fact]
-	public async Task DefaultAuditLogger_LogAsync_ReturnsFailureIndicator_WhenStoreThrows()
+	public async Task DefaultAuditLogger_LogAsync_ThrowsAuditPersistenceException_WhenStoreThrows()
 	{
 		// Arrange
 		var store = A.Fake<IAuditStore>();
@@ -525,13 +526,11 @@ public sealed class AuditLoggingAdditionalCoverageShould
 		A.CallTo(() => store.StoreAsync(auditEvent, A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("Database unavailable"));
 
-		// Act
-		var result = await sut.LogAsync(auditEvent, CancellationToken.None).ConfigureAwait(false);
+		// Act & Assert - fail-closed (bd-sf3uz1): a store failure surfaces as a typed exception, not a masked result.
+		var ex = await Should.ThrowAsync<AuditPersistenceException>(
+			() => sut.LogAsync(auditEvent, CancellationToken.None));
 
-		// Assert - should return failure indicator, not throw
-		result.EventId.ShouldBe("store-fail-test");
-		result.EventHash.ShouldBeEmpty();
-		result.SequenceNumber.ShouldBe(-1);
+		ex.EventId.ShouldBe("store-fail-test");
 	}
 
 	#endregion

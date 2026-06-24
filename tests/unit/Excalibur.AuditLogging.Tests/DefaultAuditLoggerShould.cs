@@ -128,17 +128,24 @@ public sealed class DefaultAuditLoggerShould
     }
 
     [Fact]
-    public async Task Return_failure_indicator_when_store_throws()
+    public async Task Throw_audit_persistence_exception_when_store_throws()
     {
+        // bd-sf3uz1 (ADR-336 Wave 2, NFR-6 fail-closed): an audit-store failure MUST surface as a typed
+        // AuditPersistenceException, NOT be masked behind a success-shaped AuditEventId (the old
+        // SequenceNumber == -1 / empty-hash sentinel that a caller would mistake for a durable write).
+        // RED on the masked behavior; GREEN on the fail-closed throw.
         var auditEvent = CreateValidEvent();
+        var storeFailure = new InvalidOperationException("Store failed");
 
         A.CallTo(() => _fakeStore.StoreAsync(auditEvent, A<CancellationToken>._))
-            .Throws(new InvalidOperationException("Store failed"));
+            .Throws(storeFailure);
 
-        var result = await _sut.LogAsync(auditEvent, CancellationToken.None);
+        var ex = await Should.ThrowAsync<AuditPersistenceException>(
+            () => _sut.LogAsync(auditEvent, CancellationToken.None));
 
-        result.SequenceNumber.ShouldBe(-1);
-        result.EventHash.ShouldBe(string.Empty);
+        // The failure is surfaced with the unsaved event's id and the underlying store failure preserved.
+        ex.EventId.ShouldBe(auditEvent.EventId);
+        ex.InnerException.ShouldBe(storeFailure);
     }
 
     [Fact]

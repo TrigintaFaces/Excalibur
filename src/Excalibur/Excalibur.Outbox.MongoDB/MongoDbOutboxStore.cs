@@ -27,7 +27,7 @@ namespace Excalibur.Outbox.MongoDB;
 /// Messages are indexed by status, priority, and scheduling for efficient queries.
 /// </para>
 /// </remarks>
-public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin, IAsyncDisposable
+public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IAsyncDisposable
 {
 	private readonly MongoDbOutboxOptions _options;
 	private readonly ILogger<MongoDbOutboxStore> _logger;
@@ -233,6 +233,24 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		LogMessageFailed(messageId, errorMessage, retryCount);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(reason);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var filter = Builders<MongoDbOutboxDocument>.Filter.Eq(d => d.Id, messageId);
+
+		var update = Builders<MongoDbOutboxDocument>.Update
+			.Set(d => d.Status, (int)OutboxStatus.DeadLettered)
+			.Set(d => d.LastError, reason);
+
+		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

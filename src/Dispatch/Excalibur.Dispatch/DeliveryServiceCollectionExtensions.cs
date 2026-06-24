@@ -51,6 +51,12 @@ public static class DeliveryServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DeliveryOutboxOptions>, OutboxDeliveryOptionsValidator>());
 
+		// Anti-silent-absence guard (ADR-336 clause 2): the polling outbox must durably transition a
+		// retry-exhausted message to the terminal DeadLettered status. Fail fast at startup if the registered
+		// store cannot (does not implement IDeadLetterableOutboxStore) rather than re-claim it forever.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeliveryOutboxOptions>, OutboxDeadLetterCapabilityValidator>());
+
 		var builder = services.AddOptions<DeliveryOutboxOptions>();
 		_ = builder.Configure(static options =>
 		{
@@ -95,6 +101,18 @@ public static class DeliveryServiceCollectionExtensions
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DeliveryInboxOptions>, InboxOptionsValidator>());
+
+		// Anti-silent-absence guard (ADR-336 clause 2): the full-inbox at-most-once guard and stuck-processing
+		// timeout require the store to durably persist the Processing status. Fail fast at startup if the
+		// registered store cannot (does not implement IProcessingTrackingInboxStore) rather than silently degrade.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeliveryInboxOptions>, InboxProcessingCapabilityValidator>());
+
+		// Anti-silent-race guard (ADR-336 clause 2): the idempotency middleware's exactly-once admission under
+		// concurrent duplicate delivery requires the store to claim atomically (IClaimableInboxStore). Fail fast at
+		// startup if the registered store cannot, rather than silently degrading to a non-atomic check-then-act.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeliveryInboxOptions>, IdempotencyClaimCapabilityValidator>());
 
 		var builder = services.AddOptions<DeliveryInboxOptions>();
 		_ = builder.Configure(static options =>

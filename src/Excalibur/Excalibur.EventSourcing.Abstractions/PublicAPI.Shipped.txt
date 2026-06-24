@@ -296,6 +296,8 @@ Excalibur.EventSourcing.StoredEvent.EventId.get -> string!
 Excalibur.EventSourcing.StoredEvent.EventId.init -> void
 Excalibur.EventSourcing.StoredEvent.EventType.get -> string!
 Excalibur.EventSourcing.StoredEvent.EventType.init -> void
+Excalibur.EventSourcing.StoredEvent.GlobalPosition.get -> long
+Excalibur.EventSourcing.StoredEvent.GlobalPosition.init -> void
 Excalibur.EventSourcing.StoredEvent.Metadata.get -> byte[]?
 Excalibur.EventSourcing.StoredEvent.Metadata.init -> void
 Excalibur.EventSourcing.StoredEvent.StoredEvent(string! EventId, string! AggregateId, string! AggregateType, string! EventType, byte[]! EventData, byte[]? Metadata, long Version, System.DateTimeOffset Timestamp) -> void

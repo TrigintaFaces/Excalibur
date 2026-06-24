@@ -10,6 +10,7 @@ using Excalibur.Security.EventStores;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -77,9 +78,20 @@ public static class SecurityServiceCollectionExtensions
 		var vaultUrl = configuration["Vault:Url"];
 		if (!string.IsNullOrEmpty(vaultUrl))
 		{
-			if (!services.Any(sd => sd.ImplementationType == typeof(HashiCorpVaultCredentialStore)))
+			// Use ServiceType (not ImplementationType) for the dedup guard: the factory registration
+			// below has a null ImplementationType, so an ImplementationType check would never match
+			// and would re-register on repeated calls.
+			if (!services.Any(sd => sd.ServiceType == typeof(HashiCorpVaultCredentialStore)))
 			{
-				_ = services.AddSingleton<HashiCorpVaultCredentialStore>();
+				// Provide a managed HttpClient owned (and disposed) by the singleton store. A long-lived
+				// client to a single fixed Vault endpoint avoids socket churn without pulling in the
+				// Microsoft.Extensions.Http package (zero new dependency).
+				_ = services.AddSingleton(sp => new HashiCorpVaultCredentialStore(
+					sp.GetRequiredService<ILogger<HashiCorpVaultCredentialStore>>(),
+					sp.GetRequiredService<IConfiguration>(),
+#pragma warning disable CA2000 // Ownership transferred to the store, which disposes it in Dispose().
+					new HttpClient()));
+#pragma warning restore CA2000
 				_ = services.AddSingleton<ICredentialStore>(sp => sp.GetRequiredService<HashiCorpVaultCredentialStore>());
 				_ = services.AddSingleton<IWritableCredentialStore>(sp => sp.GetRequiredService<HashiCorpVaultCredentialStore>());
 			}

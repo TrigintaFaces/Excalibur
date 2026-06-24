@@ -1,4 +1,13 @@
 #nullable enable
+Excalibur.Inbox.Postgres.IPostgresInboxBuilder
+Excalibur.Inbox.Postgres.IPostgresInboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
+Excalibur.Inbox.Postgres.IPostgresInboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
+Excalibur.Inbox.Postgres.IPostgresInboxBuilder.ConnectionStringName(string! name) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
+Excalibur.Inbox.Postgres.IPostgresInboxBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
+Excalibur.Inbox.Postgres.IPostgresInboxBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
+Excalibur.Inbox.Postgres.IPostgresInboxBuilder.MaxRetryCount(int maxRetryCount) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
+Excalibur.Inbox.Postgres.IPostgresInboxBuilder.SchemaName(string! schema) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
+Excalibur.Inbox.Postgres.IPostgresInboxBuilder.TableName(string! tableName) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
 Excalibur.Inbox.Postgres.PostgresInboxOptions
 Excalibur.Inbox.Postgres.PostgresInboxOptions.CommandTimeoutSeconds.get -> int
 Excalibur.Inbox.Postgres.PostgresInboxOptions.CommandTimeoutSeconds.set -> void
@@ -22,17 +31,11 @@ Excalibur.Inbox.Postgres.PostgresInboxStore.GetStatisticsAsync(System.Threading.
 Excalibur.Inbox.Postgres.PostgresInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.Postgres.PostgresInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Postgres.PostgresInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Postgres.PostgresInboxStore.MarkProcessingAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Postgres.PostgresInboxStore.PostgresInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Postgres.PostgresInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Postgres.PostgresInboxStore!>! logger) -> void
 Excalibur.Inbox.Postgres.PostgresInboxStore.PostgresInboxStore(System.Func<Npgsql.NpgsqlConnection!>! connectionFactory, Excalibur.Inbox.Postgres.PostgresInboxOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Postgres.PostgresInboxStore!>! logger) -> void
+Excalibur.Inbox.Postgres.PostgresInboxStore.ReleaseAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Postgres.PostgresInboxStore.TryClaimAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.Postgres.PostgresInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Microsoft.Extensions.DependencyInjection.InboxBuilderPostgresExtensions
-Excalibur.Inbox.Postgres.IPostgresInboxBuilder
-Excalibur.Inbox.Postgres.IPostgresInboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
-Excalibur.Inbox.Postgres.IPostgresInboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
-Excalibur.Inbox.Postgres.IPostgresInboxBuilder.ConnectionStringName(string! name) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
-Excalibur.Inbox.Postgres.IPostgresInboxBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
-Excalibur.Inbox.Postgres.IPostgresInboxBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
-Excalibur.Inbox.Postgres.IPostgresInboxBuilder.MaxRetryCount(int maxRetryCount) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
-Excalibur.Inbox.Postgres.IPostgresInboxBuilder.SchemaName(string! schema) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
-Excalibur.Inbox.Postgres.IPostgresInboxBuilder.TableName(string! tableName) -> Excalibur.Inbox.Postgres.IPostgresInboxBuilder!
 static Microsoft.Extensions.DependencyInjection.InboxBuilderPostgresExtensions.UsePostgres(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.Postgres.IPostgresInboxBuilder!>! configure) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!

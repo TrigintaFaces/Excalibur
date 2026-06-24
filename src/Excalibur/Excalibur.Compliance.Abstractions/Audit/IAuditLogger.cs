@@ -16,9 +16,11 @@ namespace Excalibur.Compliance;
 /// </para>
 /// <para>
 /// Implementation notes:
-/// - LogAsync must be fire-and-forget safe (should not throw under normal conditions)
-/// - Events must be persisted durably before returning
-/// - High-frequency logging should use batching
+/// - LogAsync is <b>fail-closed</b>: a store failure is surfaced as <see cref="AuditPersistenceException"/>,
+///   never masked behind a success-shaped result. Callers must not treat a returned <see cref="AuditEventId"/>
+///   as anything other than a durably persisted event.
+/// - Events must be persisted durably before returning a successful result.
+/// - High-frequency logging should use batching.
 /// </para>
 /// </remarks>
 public interface IAuditLogger
@@ -26,9 +28,17 @@ public interface IAuditLogger
 	/// <summary>
 	/// Logs an audit event to the audit store.
 	/// </summary>
+	/// <remarks>
+	/// This operation is <b>fail-closed</b>. If the underlying audit store cannot durably persist the event,
+	/// the failure is surfaced as <see cref="AuditPersistenceException"/> rather than returning a
+	/// success-shaped <see cref="AuditEventId"/>. A returned <see cref="AuditEventId"/> therefore always
+	/// denotes a durably recorded event. Callers requiring fail-open behavior must catch
+	/// <see cref="AuditPersistenceException"/> and apply their own retry or queueing policy.
+	/// </remarks>
 	/// <param name="auditEvent"> The audit event to log. </param>
 	/// <param name="cancellationToken"> A token to cancel the operation. </param>
-	/// <returns> The event ID and hash assigned to the logged event. </returns>
+	/// <returns> The event ID and hash assigned to the durably persisted event. </returns>
+	/// <exception cref="AuditPersistenceException">Thrown when the audit store fails to durably persist the event.</exception>
 	Task<AuditEventId> LogAsync(AuditEvent auditEvent, CancellationToken cancellationToken);
 
 	/// <summary>

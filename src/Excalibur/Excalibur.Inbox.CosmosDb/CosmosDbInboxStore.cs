@@ -26,7 +26,7 @@ namespace Excalibur.Inbox.CosmosDb;
 /// are typically queried by handler type.
 /// </para>
 /// </remarks>
-public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
+public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly CosmosDbInboxOptions _options;
 	private readonly ILogger<CosmosDbInboxStore> _logger;
@@ -167,6 +167,43 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 				cancellationToken).ConfigureAwait(false);
 
 			LogMarkedProcessed(messageId, handlerType);
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+		{
+			throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.", ex);
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+
+		try
+		{
+			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
+				documentId,
+				new PartitionKey(handlerType),
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			var document = response.Resource;
+			document.Status = (int)InboxStatus.Processing;
+			document.LastAttemptAt = DateTimeOffset.UtcNow;
+
+			_ = await _container!.ReplaceItemAsync(
+				document,
+				documentId,
+				new PartitionKey(handlerType),
+				new ItemRequestOptions { IfMatchEtag = response.ETag },
+				cancellationToken).ConfigureAwait(false);
+
+			LogMarkedProcessing(messageId, handlerType);
 		}
 		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
 		{

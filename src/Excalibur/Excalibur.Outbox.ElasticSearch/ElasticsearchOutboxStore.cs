@@ -24,7 +24,7 @@ namespace Excalibur.Outbox.ElasticSearch;
 /// Messages are sorted by priority and creation time for ordered retrieval.
 /// </para>
 /// </remarks>
-public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStoreAdmin, IAsyncDisposable
+public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IAsyncDisposable
 {
 	private readonly ElasticsearchClient _client;
 	private readonly ElasticsearchOutboxOptions _options;
@@ -185,6 +185,26 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 
 		await UpdateOutboxDocumentAsync(messageId, existing, cancellationToken).ConfigureAwait(false);
 		LogMessageFailed(messageId, errorMessage, retryCount);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(reason);
+
+		var existing = await GetOutboxDocumentAsync(messageId, cancellationToken).ConfigureAwait(false);
+		if (existing == null)
+		{
+			return; // Silent return — message may have been cleaned up
+		}
+
+		existing.Status = (int)OutboxStatus.DeadLettered;
+		existing.LastError = reason;
+		existing.LastAttemptAt = DateTimeOffset.UtcNow;
+
+		await UpdateOutboxDocumentAsync(messageId, existing, cancellationToken).ConfigureAwait(false);
+		_logger.LogWarning("Marked outbox message {MessageId} as dead-lettered: {Reason}", messageId, reason);
 	}
 
 	/// <inheritdoc/>
