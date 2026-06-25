@@ -39,7 +39,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
-public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
+public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITransactionalEventStore
 {
 	// Format markers for envelope detection (ADR-058)
 	private const byte EnvelopeFormatMarker = 0x01;
@@ -253,6 +253,131 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 		finally
 		{
 			RecordAppendTelemetry(result, stopwatch.Elapsed);
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<AppendResult> AppendWithOutboxStagingAsync(
+		string aggregateId,
+		string aggregateType,
+		IEnumerable<IDomainEvent> events,
+		long expectedVersion,
+		Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(stageOutbox);
+
+		var stopwatch = ValueStopwatch.StartNew();
+		var result = WriteStoreTelemetry.Results.Success;
+		var eventList = events as IReadOnlyCollection<IDomainEvent> ?? events.ToList();
+
+		if (eventList.Count == 0)
+		{
+			// No events means no integration messages to stage; nothing to do atomically.
+			RecordAppendTelemetry(result, stopwatch.Elapsed);
+			return AppendResult.CreateSuccess(expectedVersion, 0);
+		}
+
+		using var activity = EventSourcingActivitySource.StartAppendActivity(
+			aggregateId, aggregateType, eventList.Count, expectedVersion);
+
+		try
+		{
+			var appendResult = await ExecuteAppendWithOutboxTransactionAsync(
+					aggregateId, aggregateType, eventList, expectedVersion, stageOutbox, activity, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (appendResult.IsConcurrencyConflict)
+			{
+				result = WriteStoreTelemetry.Results.Conflict;
+			}
+
+			return appendResult;
+		}
+		catch (Exception ex)
+		{
+			// Unlike the plain append (which returns a failure result), the transactional path surfaces
+			// the real failure to the caller so the repository can propagate it. The transaction has
+			// already rolled back atomically — neither events nor outbox rows persist.
+			result = WriteStoreTelemetry.Results.Failure;
+			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
+			activity.RecordException(ex);
+			activity.SetOperationResult(EventSourcingTagValues.Failure);
+			throw;
+		}
+		finally
+		{
+			RecordAppendTelemetry(result, stopwatch.Elapsed);
+		}
+	}
+
+	private async ValueTask<AppendResult> ExecuteAppendWithOutboxTransactionAsync(
+		string aggregateId,
+		string aggregateType,
+		IReadOnlyCollection<IDomainEvent> eventList,
+		long expectedVersion,
+		Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
+		System.Diagnostics.Activity? activity,
+		CancellationToken cancellationToken)
+	{
+		// The store owns ONE connection and ONE transaction for the whole unit of work. The append and
+		// the outbox staging both run on this same SqlConnection/SqlTransaction, so a two-connection or
+		// two-transaction split (the atomicity bug this seam closes) is structurally impossible.
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
+				IsolationLevel.Serializable, cancellationToken)
+			.ConfigureAwait(false);
+
+		try
+		{
+			// Optimistic concurrency check on the same transaction.
+			var currentVersion = await connection.ResolveAsync(
+					new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, cancellationToken, _schema, _table))
+				.ConfigureAwait(false);
+
+			if (currentVersion != expectedVersion)
+			{
+				// Roll back to release Serializable locks immediately. Do NOT invoke stageOutbox on a
+				// conflict — nothing must be staged when the append is rejected (EC-K.2).
+				await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
+			}
+
+			var (version, firstPosition) = await InsertEventsAsync(
+					connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
+				.ConfigureAwait(false);
+
+			// Stage outbox messages on the SAME connection + SAME transaction. A throw here rolls the
+			// whole unit of work back (events included) via the catch below.
+			await stageOutbox(transaction, cancellationToken).ConfigureAwait(false);
+
+			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+			_logger.LogDebug(
+				"Appended {Count} events and staged outbox for {AggregateType}/{AggregateId} at version {Version}",
+				eventList.Count, aggregateType, aggregateId, version);
+
+			_ = (activity?.SetTag(EventSourcingTags.Version, version));
+			activity.SetOperationResult(EventSourcingTagValues.Success);
+			return AppendResult.CreateSuccess(version, firstPosition);
+		}
+		catch
+		{
+			try
+			{
+				// Roll back with an uncancellable token so cleanup completes even if the failure was a
+				// cancellation; the transaction must not be left to a deferred dispose.
+				await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+			catch
+			{
+				// A rollback failure must not mask the original exception.
+			}
+
+			throw;
 		}
 	}
 

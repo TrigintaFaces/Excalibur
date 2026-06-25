@@ -37,20 +37,36 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
 
-		// Atomic claim + fetch: UPDATE sets lease ownership, OUTPUT returns claimed rows.
-		// Stale leases (older than timeout) are automatically reclaimed.
+		// Atomic claim + fetch: an ordered CTE selects the eligible rows in partition/sequence order,
+		// then UPDATE sets lease ownership and OUTPUT returns the claimed rows.
+		//
+		// The ordering MUST be applied at row SELECTION (the CTE's ORDER BY), not on the OUTPUT clause:
+		// SQL Server's OUTPUT clause cannot be ordered, so a trailing ORDER BY on UPDATE...OUTPUT does
+		// not order the returned rows. Selecting TOP (@BatchSize) in (PartitionKey, SequenceNumber) order
+		// guarantees same-partition messages are claimed in ascending SequenceNumber (the advertised
+		// partition-FIFO guarantee), and lets processors restore ordering after a batch failure.
+		//
+		// NextAttemptAt gates retry visibility (the per-message backoff schedule): a failed message is not
+		// re-claimed until its computed next-attempt time has elapsed (NULL = immediately eligible).
 		var sql = $"""
-			UPDATE TOP (@BatchSize) {tableName}
+			WITH Claimable AS (
+				SELECT TOP (@BatchSize) *
+				FROM {tableName} WITH (READPAST, UPDLOCK, ROWLOCK)
+				WHERE Status IN (0, 3, 4) -- Staged, Failed, PartiallyFailed
+					AND (ScheduledAt IS NULL OR ScheduledAt <= @Now)
+					AND (NextAttemptAt IS NULL OR NextAttemptAt <= @Now)
+					AND (LeasedAt IS NULL OR LeasedAt < DATEADD(SECOND, -@LeaseTimeoutSeconds, GETUTCDATE()))
+				ORDER BY PartitionKey, SequenceNumber ASC
+			)
+			UPDATE Claimable
 			SET LeasedAt = GETUTCDATE(), LeasedBy = @ProcessorId
 			OUTPUT
 				INSERTED.Id, INSERTED.MessageType, INSERTED.Payload, INSERTED.Headers,
 				INSERTED.Destination, INSERTED.CreatedAt, INSERTED.ScheduledAt, INSERTED.SentAt,
 				INSERTED.Status, INSERTED.RetryCount, INSERTED.LastError, INSERTED.LastAttemptAt,
 				INSERTED.CorrelationId, INSERTED.CausationId, INSERTED.TenantId, INSERTED.Priority,
-				INSERTED.TargetTransports, INSERTED.IsMultiTransport
-			WHERE Status IN (0, 3, 4) -- Staged, Failed, PartiallyFailed
-				AND (ScheduledAt IS NULL OR ScheduledAt <= @Now)
-				AND (LeasedAt IS NULL OR LeasedAt < DATEADD(SECOND, -@LeaseTimeoutSeconds, GETUTCDATE()))
+				INSERTED.TargetTransports, INSERTED.IsMultiTransport,
+				INSERTED.PartitionKey, INSERTED.GroupKey, INSERTED.SequenceNumber
 			""";
 
 		var parameters = new DynamicParameters();
@@ -124,4 +140,13 @@ public sealed class OutboxMessageRow
 
 	/// <summary>Whether this is a multi-transport message.</summary>
 	public bool IsMultiTransport { get; set; }
+
+	/// <summary>The partition key for ordered delivery within the same partition.</summary>
+	public string? PartitionKey { get; set; }
+
+	/// <summary>The group key for logical message grouping.</summary>
+	public string? GroupKey { get; set; }
+
+	/// <summary>The monotonically increasing sequence number for ordering guarantees.</summary>
+	public long SequenceNumber { get; set; }
 }

@@ -44,7 +44,7 @@ namespace Excalibur.Outbox.SqlServer;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class implements multiple ISP sub-interfaces (IMultiTransportOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, ITransactionalOutboxWriter) by design.")]
-public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, ITransactionalOutboxWriter
+public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerOutboxOptions _options;
@@ -728,6 +728,51 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	}
 
 	/// <inheritdoc />
+	public async ValueTask MarkFailedWithBackoffAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		var stopwatch = ValueStopwatch.StartNew();
+		var result = WriteStoreTelemetry.Results.Success;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			_ = await connection.ResolveAsync(
+					new Requests.MarkMessageFailedRequest(
+						_options.QualifiedOutboxTableName,
+						messageId,
+						errorMessage,
+						retryCount,
+						_options.CommandTimeoutSeconds,
+						cancellationToken,
+						nextAttemptAt))
+				.ConfigureAwait(false);
+
+			_logger.LogWarning(
+				"Marked message {MessageId} as failed with backoff (next attempt at {NextAttemptAt:O}): {Error}",
+				messageId, nextAttemptAt, errorMessage);
+		}
+		catch
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			throw;
+		}
+		finally
+		{
+			RecordOperation("mark_failed_with_backoff", result, stopwatch.Elapsed);
+		}
+	}
+
+	/// <inheritdoc />
 	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -1112,6 +1157,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		           	m.Id, m.MessageType, m.Payload, m.Headers, m.Destination, m.CreatedAt, m.ScheduledAt, m.SentAt,
 		           	m.Status, m.RetryCount, m.LastError, m.LastAttemptAt, m.CorrelationId, m.CausationId,
 		           	m.TenantId, m.Priority, m.TargetTransports, m.IsMultiTransport,
+		           	m.PartitionKey, m.GroupKey, m.SequenceNumber,
 		           	t.Id AS TransportId, t.MessageId, t.TransportName, t.Destination AS TransportDestination,
 		           	t.Status AS TransportStatus, t.CreatedAt AS TransportCreatedAt, t.AttemptedAt, t.SentAt AS TransportSentAt,
 		           	t.RetryCount AS TransportRetryCount, t.LastError AS TransportLastError, t.TransportMetadata
@@ -1120,7 +1166,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		           WHERE t.TransportName = @TransportName
 		           	AND t.Status IN (0, 3) -- Pending, Failed
 		           	AND t.RetryCount < @MaxRetries
-		           ORDER BY m.Priority DESC, m.CreatedAt ASC
+		           ORDER BY m.PartitionKey, m.SequenceNumber ASC, m.Priority DESC, m.CreatedAt ASC
 		           """;
 
 		await using var connection = _connectionFactory();
@@ -1386,6 +1432,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		           	m.Id, m.MessageType, m.Payload, m.Headers, m.Destination, m.CreatedAt, m.ScheduledAt, m.SentAt,
 		           	m.Status, m.RetryCount, m.LastError, m.LastAttemptAt, m.CorrelationId, m.CausationId,
 		           	m.TenantId, m.Priority, m.TargetTransports, m.IsMultiTransport,
+		           	m.PartitionKey, m.GroupKey, m.SequenceNumber,
 		           	t.Id AS TransportId, t.MessageId, t.TransportName, t.Destination AS TransportDestination,
 		           	t.Status AS TransportStatus, t.CreatedAt AS TransportCreatedAt, t.AttemptedAt, t.SentAt AS TransportSentAt,
 		           	t.RetryCount AS TransportRetryCount, t.LastError AS TransportLastError, t.TransportMetadata
@@ -1726,7 +1773,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			TenantId = row.TenantId,
 			Priority = row.Priority,
 			TargetTransports = row.TargetTransports,
-			IsMultiTransport = row.IsMultiTransport
+			IsMultiTransport = row.IsMultiTransport,
+			PartitionKey = row.PartitionKey,
+			GroupKey = row.GroupKey,
+			SequenceNumber = row.SequenceNumber
 		};
 
 		return message;

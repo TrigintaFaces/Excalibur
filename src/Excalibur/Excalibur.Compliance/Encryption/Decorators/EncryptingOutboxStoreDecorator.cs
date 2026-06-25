@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Encryption.Decorators;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore
+internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore
 {
 	private readonly IOutboxStore _inner;
 	private readonly IOutboxStoreAdmin? _innerAdmin;
@@ -103,6 +103,25 @@ internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStor
 	/// <inheritdoc />
 	public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
 	{
+		return _inner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public ValueTask MarkFailedWithBackoffAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		CancellationToken cancellationToken)
+	{
+		// Forward the optional backoff-schedule capability. Unlike dead-lettering (a mandatory terminal
+		// transition that fails LOUD), backoff is an optimization: if the inner store doesn't support it,
+		// fall back to the plain failed status (fail-open) so the decorator never regresses behavior.
+		if (_inner is IBackoffSchedulableOutboxStore schedulable)
+		{
+			return schedulable.MarkFailedWithBackoffAsync(messageId, errorMessage, retryCount, nextAttemptAt, cancellationToken);
+		}
+
 		return _inner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
 	}
 

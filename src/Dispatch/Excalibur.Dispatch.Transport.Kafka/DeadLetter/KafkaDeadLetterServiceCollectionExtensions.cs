@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Transport.Kafka;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -73,14 +74,15 @@ public static class KafkaDeadLetterServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 
+		var optionsBuilder = services.AddOptions<KafkaDeadLetterOptions>()
+			.ValidateOnStart();
 		if (configure is not null)
 		{
-			_ = services.Configure(configure);
+			_ = optionsBuilder.Configure(configure);
 		}
-		else
-		{
-			_ = services.Configure<KafkaDeadLetterOptions>(_ => { });
-		}
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KafkaDeadLetterOptions>, KafkaDeadLetterOptionsValidator>());
 
 		// Register internal DLQ components
 		services.TryAddSingleton<KafkaDeadLetterProducer>();
@@ -114,7 +116,12 @@ public static class KafkaDeadLetterServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<KafkaDeadLetterOptions>().Bind(configuration);
+		_ = services.AddOptions<KafkaDeadLetterOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KafkaDeadLetterOptions>, KafkaDeadLetterOptionsValidator>());
 
 		// Register internal DLQ components
 		services.TryAddSingleton<KafkaDeadLetterProducer>();

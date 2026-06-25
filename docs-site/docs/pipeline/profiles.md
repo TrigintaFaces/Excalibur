@@ -74,6 +74,12 @@ builder.Services.AddDispatch(dispatch =>
 
 The standard pipeline profile with canonical middleware ordering. Suitable for most use cases.
 
+:::info The default profile runs by default
+`AddDispatch` wires the `default` profile into the standard dispatch path, so `DispatchAsync` executes the default-profile middleware — including `OutboxStagingMiddleware` — **without any explicit `ConfigurePipeline`/`UseProfile` call**. You only configure a profile to choose a *different* one (e.g. `strict`).
+
+Only middleware you have **registered** materialize into the active pipeline; profile entries you have not registered are skipped gracefully (fail-open) and emit a debug log (`InvokerMiddlewareSkipped`, event ID 10024) rather than failing the dispatch. For example, `OutboxStagingMiddleware` runs once you add the outbox; `AuthorizationMiddleware` runs once you register authorization. This keeps the default path working out of the box while remaining opt-in for the heavier middleware.
+:::
+
 **Middleware Order:**
 1. `TenantIdentityMiddleware` - Multi-tenancy context
 2. `ContractVersionCheckMiddleware` - Event/document versioning

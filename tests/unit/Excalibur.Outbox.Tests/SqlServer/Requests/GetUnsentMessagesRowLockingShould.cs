@@ -17,13 +17,17 @@ public sealed class GetUnsentMessagesRowLockingShould : UnitTestBase
 	private const string TestTableName = "[dbo].[OutboxMessages]";
 
 	[Fact]
-	public void UseUpdateTopForAtomicClaim()
+	public void UseOrderedCteUpdateForAtomicClaim()
 	{
 		// Act
 		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
 
-		// Assert - UPDATE TOP atomically claims rows
-		request.Command.CommandText.ShouldContain("UPDATE TOP");
+		// Assert - An ordered CTE (TOP @BatchSize in partition/sequence order) selects the eligible rows,
+		// then UPDATE...OUTPUT atomically claims them. The TOP/order MUST live in the CTE because SQL
+		// Server's OUTPUT clause cannot be ordered.
+		request.Command.CommandText.ShouldContain("WITH Claimable AS");
+		request.Command.CommandText.ShouldContain("SELECT TOP (@BatchSize)");
+		request.Command.CommandText.ShouldContain("UPDATE Claimable");
 	}
 
 	[Fact]

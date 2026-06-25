@@ -6,9 +6,24 @@ This directory contains canonical versions of Git hooks used for automated gover
 ## Available Hooks
 
 ### pre-commit
-Enforces ADR-050 namespace depth requirements before commits are accepted.
+Enforces ADR-050 namespace depth requirements **and** flushes the Beads tracker before commits are accepted.
 
-**What it does:**
+**Beads tracker flush guard (bd-xlnd5e / S849 I1):**
+- When `.beads/issues.jsonl` is staged (integration/close commits), the hook runs `eng/ci/bd-flush-guard.sh`
+  to make the tracked tracker reflect the Beads DB **before** git snapshots it, then re-stages it.
+- This closes the recurring daemon-mtime race (`bd sync --flush-only` refusing with *"JSONL is newer than
+  database"* or silently writing nothing) that left fresh closes un-persisted in committed HEAD across
+  S842–S848. See `.claude/rules/process/bd-flush-then-commit.md` (clause 6).
+- The helper is **data-loss-safe**: it uses `bd export --no-auto-import` (never a blind `import`, which would
+  revert fresh closes), guards against an on-disk `.jsonl` that is *ahead* of the DB (foreign change →
+  aborts the commit LOUD, exit 2), bounded-retries transient contention, and fails LOUD (exit 1) on a
+  genuine failure rather than shipping a desynced tracker. It never pipes the flush through an exit-masking
+  `head`/`tail` (`no-pipe-masked-commit.md`).
+- Runs **before** the C#-only early-exit so a tracker-only commit is still flushed.
+- The helper is standalone and reusable: the integrator may run `bash eng/ci/bd-flush-guard.sh` directly.
+  Knobs: `BD_FLUSH_ATTEMPTS` (3), `BD_FLUSH_BACKOFF` (2s), `BD_JSONL_PATH`, `BD_BIN`, `PYTHON_BIN`.
+
+**Namespace depth (ADR-050) — what it does:**
 - Analyzes staged C# files for namespace depth violations
 - Applies path-based depth limits (NS-001 and NS-001a):
 

@@ -350,28 +350,42 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 
 ### SQL Server
 
+The SQL Server store does **not** auto-create tables — create the schema before starting the application. The `IX_OutboxMessages_Claim` index backs the atomic claim predicate (status + retry-visibility) and the partition-ordered delivery guarantee.
+
 ```sql
-CREATE SCHEMA [outbox];
-
-CREATE TABLE [outbox].[OutboxMessages] (
-    [Id] BIGINT IDENTITY(1,1) NOT NULL,
-    [MessageId] NVARCHAR(100) NOT NULL,
-    [MessageType] NVARCHAR(500) NOT NULL,
-    [Payload] NVARCHAR(MAX) NOT NULL,
-    [Headers] NVARCHAR(MAX) NULL,
-    [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [ProcessedAt] DATETIME2 NULL,
-    [RetryCount] INT NOT NULL DEFAULT 0,
-    [Error] NVARCHAR(MAX) NULL,
-
-    CONSTRAINT [PK_OutboxMessages] PRIMARY KEY CLUSTERED ([Id]),
-    CONSTRAINT [UQ_OutboxMessages_MessageId] UNIQUE ([MessageId])
+CREATE TABLE dbo.OutboxMessages (
+    Id               NVARCHAR(255)  NOT NULL PRIMARY KEY,
+    MessageType      NVARCHAR(500)  NOT NULL,
+    Payload          VARBINARY(MAX) NOT NULL,
+    Headers          NVARCHAR(MAX)  NULL,
+    Destination      NVARCHAR(255)  NOT NULL,
+    CreatedAt        DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+    ScheduledAt      DATETIMEOFFSET NULL,
+    SentAt           DATETIMEOFFSET NULL,
+    Status           INT            NOT NULL DEFAULT 0,
+    RetryCount       INT            NOT NULL DEFAULT 0,
+    LastError        NVARCHAR(MAX)  NULL,
+    LastAttemptAt    DATETIMEOFFSET NULL,
+    CorrelationId    NVARCHAR(255)  NULL,
+    CausationId      NVARCHAR(255)  NULL,
+    TenantId         NVARCHAR(255)  NULL,
+    Priority         INT            NOT NULL DEFAULT 0,
+    TargetTransports NVARCHAR(MAX)  NULL,
+    IsMultiTransport BIT            NOT NULL DEFAULT 0,
+    LeasedAt         DATETIMEOFFSET NULL,
+    LeasedBy         NVARCHAR(255)  NULL,
+    PartitionKey     NVARCHAR(256)  NULL,   -- ordered delivery: per-partition FIFO
+    GroupKey         NVARCHAR(256)  NULL,   -- logical message grouping
+    SequenceNumber   BIGINT         NOT NULL DEFAULT 0, -- monotonic ordering key
+    NextAttemptAt    DATETIMEOFFSET NULL,   -- retry backoff: not re-claimed until this time
+    INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
+    INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
 );
-
-CREATE INDEX [IX_OutboxMessages_Unprocessed]
-ON [outbox].[OutboxMessages] ([ProcessedAt], [CreatedAt])
-WHERE [ProcessedAt] IS NULL;
 ```
+
+:::note Ordering and retry-backoff columns
+`PartitionKey` / `GroupKey` / `SequenceNumber` persist the message ordering keys, and `NextAttemptAt` records the per-message backoff deadline. The background processor claims rows with `WHERE Status IN (Staged, Failed, PartiallyFailed) AND (NextAttemptAt IS NULL OR NextAttemptAt <= @now) ORDER BY PartitionKey, SequenceNumber` — so same-partition messages are delivered in ascending `SequenceNumber`, and a failed message's computed backoff genuinely throttles re-delivery. See [Ordering and Retry Scheduling](#ordering-and-retry-scheduling).
+:::
 
 ## Background Processing
 
@@ -571,6 +585,22 @@ services.AddSqlServerOutboxStore(options =>
 services.AddSqlServerDeadLetterQueue(opts => opts.ConnectionString = connectionString);
 ```
 
+## Ordering and Retry Scheduling
+
+### Partition-Ordered Delivery
+
+Each outbound message carries three ordering fields — `PartitionKey`, `GroupKey`, and a monotonically increasing `SequenceNumber`. The polling claim selects eligible rows in `(PartitionKey, SequenceNumber)` order, so **messages that share a `PartitionKey` are delivered in ascending `SequenceNumber` (per-partition FIFO)**. Messages without a `PartitionKey` have no cross-message ordering guarantee. `GroupKey` is an independent label for logical grouping and does not affect claim order.
+
+> This is message-level ordering persisted on each row. It is distinct from [Partitioned Outbox](#partitioned-outbox) processing, which shards the *processor loops* for throughput.
+
+### Retry Backoff Is Applied
+
+When delivery fails, the processor computes an exponential backoff delay and records the absolute next-attempt time on the row's `NextAttemptAt` column. The claim predicate excludes the message until that time elapses (`NextAttemptAt IS NULL OR NextAttemptAt <= @now`), so the configured retry delay **genuinely throttles re-delivery** rather than re-claiming the message as soon as its lease expires.
+
+A **circuit-breaker-open** short-circuit is treated differently: because no delivery was actually attempted, no backoff is applied — the message stays immediately eligible and retries as soon as the breaker closes.
+
+Backoff scheduling requires a store that implements the optional `IBackoffSchedulableOutboxStore` capability (`MarkFailedWithBackoffAsync`). The SQL Server store implements it. Stores that do not are unaffected: the processor falls back to the plain `MarkFailedAsync` path (immediate re-eligibility), so no store is broken — matching the fail-open pattern used by `IDeadLetterableOutboxStore`. The capability is forwarded transparently through the telemetry and encrypting outbox-store decorators, so it survives a decorated store chain.
+
 ## Cleanup
 
 ### Automatic Cleanup
@@ -731,13 +761,38 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox.UseSqlSe
 
 When `OutboxStagingStrategy.Auto` is configured (the default), the repository checks at save time:
 
-1. If `ITransactionalOutboxWriter` and a transactional event store are registered, uses **Transactional**
+1. If an `ITransactionalEventStore` (a transactional event store) **and** an `ITransactionalOutboxWriter` are registered, uses **Transactional**
 2. If only `IOutboxStore` is registered, uses **EventuallyConsistent**
 3. If neither is registered, uses **Deferred** (no staging)
 
+Selecting `OutboxStagingStrategy.Transactional` explicitly (rather than `Auto`) without both pieces of infrastructure fails fast at startup via a `ValidateOnStart` guard, naming exactly what is missing — it never silently degrades to non-atomic staging.
+
+### ITransactionalEventStore
+
+The event-store side of the atomic path. An event store provider backed by a transactional database (SQL Server, PostgreSQL) implements the optional `ITransactionalEventStore` extension of `IEventStore` to enable the **Transactional** strategy:
+
+```csharp
+namespace Excalibur.EventSourcing;
+
+public interface ITransactionalEventStore : IEventStore
+{
+    ValueTask<AppendResult> AppendWithOutboxStagingAsync(
+        string aggregateId,
+        string aggregateType,
+        IEnumerable<IDomainEvent> events,
+        long expectedVersion,
+        Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
+        CancellationToken cancellationToken);
+}
+```
+
+This is a **store-owned unit of work**: the store opens and owns a single connection and transaction, runs the optimistic-concurrency version check, appends the events, invokes your `stageOutbox` callback on that *same* transaction (only when the version check succeeds), then commits. On a concurrency conflict or any throw from `stageOutbox`, the whole transaction rolls back, so neither the events nor the outbox rows persist. Because the transaction never leaves the store, appending events and staging outbox rows on two different transactions is structurally impossible.
+
+`SqlServerEventStore` implements `ITransactionalEventStore`. You do not call `AppendWithOutboxStagingAsync` directly — `EventSourcedRepository` invokes it on your behalf when the resolved strategy is `Transactional`, supplying a `stageOutbox` callback that enlists each integration event's outbox write through `ITransactionalOutboxWriter` on the store's transaction. NoSQL event stores do not implement this interface; use `EventuallyConsistent` or `Deferred` staging with them.
+
 ### ITransactionalOutboxWriter
 
-Relational outbox providers (SQL Server, PostgreSQL) implement `ITransactionalOutboxWriter` to participate in the event store's database transaction:
+Relational outbox providers (SQL Server, PostgreSQL) implement `ITransactionalOutboxWriter` to stage outbox rows on the event store's database transaction (the `stageOutbox` callback above calls into it):
 
 ```csharp
 public interface ITransactionalOutboxWriter

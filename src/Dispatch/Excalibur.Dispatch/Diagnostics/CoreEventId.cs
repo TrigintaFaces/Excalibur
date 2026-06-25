@@ -81,6 +81,9 @@ public static class CoreEventId
 	/// <summary>Pipeline synthesis warning.</summary>
 	public const int SynthesisWarning = 10023;
 
+	/// <summary>Skipped an unregistered profile middleware during invoker materialization.</summary>
+	public const int InvokerMiddlewareSkipped = 10024;
+
 	// ========================================
 	// 10100-10199: Message Bus
 	// ========================================

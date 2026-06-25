@@ -33,7 +33,7 @@ namespace Excalibur.Outbox.Diagnostics;
 /// </code>
 /// </para>
 /// </remarks>
-internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IOutboxStoreBatch, IDeadLetterableOutboxStore, IDisposable
+internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IDisposable
 {
 	/// <summary>
 	/// The meter name for outbox store metrics.
@@ -112,6 +112,32 @@ internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IOutboxStore
 		var sw = ValueStopwatch.StartNew();
 		await _inner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken).ConfigureAwait(false);
 		RecordOperation("mark_failed", 1, sw.Elapsed.TotalMilliseconds);
+	}
+
+	/// <inheritdoc />
+	public async ValueTask MarkFailedWithBackoffAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		CancellationToken cancellationToken)
+	{
+		// Forward the optional backoff-schedule capability to the inner store. Unlike dead-lettering (a
+		// mandatory terminal transition that fails LOUD), backoff is an optimization: if the inner store
+		// doesn't support it, fall back to the plain failed status (fail-open) so the decorator never
+		// regresses behavior relative to an undecorated store.
+		var sw = ValueStopwatch.StartNew();
+		if (_inner is IBackoffSchedulableOutboxStore schedulable)
+		{
+			await schedulable.MarkFailedWithBackoffAsync(messageId, errorMessage, retryCount, nextAttemptAt, cancellationToken)
+				.ConfigureAwait(false);
+			RecordOperation("mark_failed_with_backoff", 1, sw.Elapsed.TotalMilliseconds);
+		}
+		else
+		{
+			await _inner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken).ConfigureAwait(false);
+			RecordOperation("mark_failed", 1, sw.Elapsed.TotalMilliseconds);
+		}
 	}
 
 	/// <inheritdoc />

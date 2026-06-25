@@ -445,7 +445,12 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 				IsMultiTransport BIT NOT NULL DEFAULT 0,
 				LeasedAt DATETIMEOFFSET NULL,
 				LeasedBy NVARCHAR(255) NULL,
-				INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt)
+				PartitionKey NVARCHAR(256) NULL,
+				GroupKey NVARCHAR(256) NULL,
+				SequenceNumber BIGINT NOT NULL DEFAULT 0,
+				NextAttemptAt DATETIMEOFFSET NULL,
+				INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
+				INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
 			)
 			""";
 

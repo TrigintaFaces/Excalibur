@@ -194,12 +194,6 @@ Excalibur.Dispatch.Channels.DispatchChannelReader<T>
 Excalibur.Dispatch.Channels.DispatchChannelReader<T>.DispatchChannelReader(System.Threading.Channels.ChannelReader<T>! innerReader, Excalibur.Dispatch.Channels.IWaitStrategy! waitStrategy) -> void
 Excalibur.Dispatch.Channels.DispatchChannelWriter<T>
 Excalibur.Dispatch.Channels.DispatchChannelWriter<T>.DispatchChannelWriter(System.Threading.Channels.ChannelWriter<T>! innerWriter, Excalibur.Dispatch.Channels.IWaitStrategy! waitStrategy) -> void
-Excalibur.Dispatch.Channels.IMessageChannelAdapter<TMessage>
-Excalibur.Dispatch.Channels.IMessageChannelAdapter<TMessage>.ReadAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TMessage>!
-Excalibur.Dispatch.Channels.IMessageChannelAdapter<TMessage>.Reader.get -> System.Threading.Channels.ChannelReader<TMessage>!
-Excalibur.Dispatch.Channels.IMessageChannelAdapter<TMessage>.TryRead(out TMessage message) -> bool
-Excalibur.Dispatch.Channels.IMessageChannelAdapter<TMessage>.WriteAsync(TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Channels.IMessageChannelAdapter<TMessage>.Writer.get -> System.Threading.Channels.ChannelWriter<TMessage>!
 Excalibur.Dispatch.Channels.IWaitStrategy
 Excalibur.Dispatch.Channels.IWaitStrategy.WaitAsync(System.Func<bool>! condition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Dispatch.Channels.InternalChannelMetrics
@@ -5964,3 +5958,4 @@ static Excalibur.Dispatch.Delivery.Handlers.HandlerActivatorRegistry.HasContextS
 static Excalibur.Dispatch.Delivery.Handlers.HandlerActivatorRegistry.RegisterContextSetter<THandler>(System.Action<THandler!, Excalibur.Dispatch.IMessageContext!>! setter) -> void
 static Excalibur.Dispatch.Delivery.Handlers.HandlerActivatorRegistry.TryGetContextSetter(System.Type! handlerType, out System.Action<object!, Excalibur.Dispatch.IMessageContext!>? setter) -> bool
 static Excalibur.Dispatch.Delivery.Handlers.ResultFactoryRegistry.RegisterFactory<T>() -> void
+const Excalibur.Dispatch.Diagnostics.CoreEventId.InvokerMiddlewareSkipped = 10024 -> int

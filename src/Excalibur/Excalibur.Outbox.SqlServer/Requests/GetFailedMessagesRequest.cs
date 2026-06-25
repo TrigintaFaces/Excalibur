@@ -38,7 +38,8 @@ public sealed class GetFailedMessagesRequest : DataRequestBase<IDbConnection, IE
 			SELECT TOP (@BatchSize)
 				Id, MessageType, Payload, Headers, Destination, CreatedAt, ScheduledAt, SentAt,
 				Status, RetryCount, LastError, LastAttemptAt, CorrelationId, CausationId,
-				TenantId, Priority, TargetTransports, IsMultiTransport
+				TenantId, Priority, TargetTransports, IsMultiTransport,
+				PartitionKey, GroupKey, SequenceNumber
 			FROM {tableName}
 			WHERE Status IN (3, 4) -- Failed, PartiallyFailed
 				AND RetryCount < @MaxRetries

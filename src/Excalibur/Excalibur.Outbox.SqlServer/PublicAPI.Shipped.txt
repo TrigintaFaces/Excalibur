@@ -31,7 +31,6 @@ Excalibur.Outbox.SqlServer.Requests.InsertTransportDeliveryRequest.InsertTranspo
 Excalibur.Outbox.SqlServer.Requests.MarkMessageDeadLetteredRequest
 Excalibur.Outbox.SqlServer.Requests.MarkMessageDeadLetteredRequest.MarkMessageDeadLetteredRequest(string! tableName, string! messageId, string! reason, int commandTimeout, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.SqlServer.Requests.MarkMessageFailedRequest
-Excalibur.Outbox.SqlServer.Requests.MarkMessageFailedRequest.MarkMessageFailedRequest(string! tableName, string! messageId, string! errorMessage, int retryCount, int commandTimeout, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.SqlServer.Requests.MarkMessageSentRequest
 Excalibur.Outbox.SqlServer.Requests.MarkMessageSentRequest.MarkMessageSentRequest(string! tableName, string! messageId, int commandTimeout, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.SqlServer.Requests.MarkTransportFailedRequest
@@ -181,3 +180,11 @@ static Microsoft.Extensions.DependencyInjection.SqlServerOutboxExtensions.AddSql
 static Microsoft.Extensions.DependencyInjection.SqlServerOutboxExtensions.UseSqlServerDeadLetterQueue(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.SqlServerOutboxExtensions.UseSqlServerOutboxStore(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.SqlServerOutboxExtensions.UseSqlServerOutboxStore(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+Excalibur.Outbox.SqlServer.Requests.MarkMessageFailedRequest.MarkMessageFailedRequest(string! tableName, string! messageId, string! errorMessage, int retryCount, int commandTimeout, System.Threading.CancellationToken cancellationToken, System.DateTimeOffset? nextAttemptAt = null) -> void
+Excalibur.Outbox.SqlServer.SqlServerOutboxStore.MarkFailedWithBackoffAsync(string! messageId, string! errorMessage, int retryCount, System.DateTimeOffset nextAttemptAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.SqlServer.Requests.OutboxMessageRow.PartitionKey.get -> string?
+Excalibur.Outbox.SqlServer.Requests.OutboxMessageRow.PartitionKey.set -> void
+Excalibur.Outbox.SqlServer.Requests.OutboxMessageRow.GroupKey.get -> string?
+Excalibur.Outbox.SqlServer.Requests.OutboxMessageRow.GroupKey.set -> void
+Excalibur.Outbox.SqlServer.Requests.OutboxMessageRow.SequenceNumber.get -> long
+Excalibur.Outbox.SqlServer.Requests.OutboxMessageRow.SequenceNumber.set -> void

@@ -3236,3 +3236,6 @@ virtual Excalibur.Dispatch.DomainEvent.OccurredAt.get -> System.DateTimeOffset
 virtual Excalibur.Dispatch.DomainEvent.OccurredAt.init -> void
 virtual Excalibur.Dispatch.DomainEvent.Version.get -> long
 virtual Excalibur.Dispatch.DomainEvent.Version.init -> void
+Excalibur.Dispatch.IBackoffSchedulableOutboxStore
+Excalibur.Dispatch.IBackoffSchedulableOutboxStore.MarkFailedWithBackoffAsync(string! messageId, string! errorMessage, int retryCount, System.DateTimeOffset nextAttemptAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.IInboxStoreAdmin.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

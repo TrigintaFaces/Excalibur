@@ -14,6 +14,59 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ---
 
+## June 2026 — Outbox/Inbox Reliability Hardening (Sprint 849)
+
+A focused sweep closing the "advertised-but-broken" gaps on the default dispatch and outbox path: the default pipeline now actually runs, outbox ordering keys are persisted and honored, and the computed retry backoff is genuinely applied. Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), green across the 10-shard full CI run plus Docker SQL Server container shards, with both independent reviews (code + architecture/CSO) approved at zero blocking findings. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but SQL Server outbox users must add the new ordering/backoff columns (below), and review the items for behavior you may have relied on.
+
+### The default dispatch pipeline now runs registered middleware
+
+- **`AddDispatch`'s default path now executes the `default` pipeline profile — so `DispatchAsync` runs the registered default middleware (notably `OutboxStagingMiddleware`) without any explicit `ConfigurePipeline`/`UseProfile` call.** Previously the default pipeline resolved to an empty profile and `DispatchAsync` bypassed all middleware, so outbox staging silently never ran on the default path. Middleware in the profile that you have not registered are skipped gracefully (fail-open) with a debug log (`InvokerMiddlewareSkipped`, event ID 10024) — only registered middleware execute, keeping the default path working out of the box while staying opt-in for heavier middleware. See [Pipeline Profiles](./pipeline/profiles.md).
+- **A custom-registered `IPipelineProfileRegistry` is now preserved instead of being clobbered, and `UseProfile` on an unknown profile key throws `ArgumentException` at configuration time** (fail-loud rather than silently resolving an empty pipeline).
+
+### Outbox messages keep their order and honor retry backoff
+
+- **Outbox ordering keys are persisted and honored.** Each message now stores `PartitionKey`, `GroupKey`, and a monotonic `SequenceNumber`, and the SQL Server claim query selects rows in `(PartitionKey, SequenceNumber)` order — so messages sharing a `PartitionKey` are delivered in ascending sequence (per-partition FIFO). **SQL Server outbox users must add the `PartitionKey`, `GroupKey`, `SequenceNumber`, and `NextAttemptAt` columns plus the `IX_OutboxMessages_Claim` index** to the `OutboxMessages` table (the store does not auto-create tables) — see the [Outbox schema](./patterns/outbox.md#sql-server).
+- **The computed exponential backoff is now actually applied.** On a delivery failure the processor records the next-attempt time on `NextAttemptAt`, and the claim predicate excludes the message until that time elapses — previously the backoff was computed but never used, so a failed message was re-claimed as soon as its lease expired. A circuit-breaker-open short-circuit is excluded from backoff (no delivery was attempted), so it stays immediately retryable. Backoff scheduling uses the new optional `IBackoffSchedulableOutboxStore` capability (`MarkFailedWithBackoffAsync`); the SQL Server store implements it, stores without it fall back to the existing immediate-retry path (fail-open), and the capability is forwarded transparently through the telemetry and encrypting store decorators. See [Outbox → Ordering and Retry Scheduling](./patterns/outbox.md#ordering-and-retry-scheduling).
+
+### Outbox-to-transport now propagates tenant and causation
+
+- **Outbox publishing now copies `TenantId` and `CausationId` onto the outbound transport message.** Both were dropped when the outbox handed a message to the transport, breaking multi-tenant routing and cause-effect tracing for outbox-delivered messages; they are now carried through symmetrically with the inbox restore side.
+
+### Architecture build gate (contributor-facing)
+
+- **Sibling `*_ENFORCE` CI flags and the package-map drift check are now wired to the `ARCH_ENFORCE` gate**, extending the Sprint 848 architecture-boundary enforcement. No runtime impact.
+
+---
+
+## June 2026 — Projection Correctness + the Transactional Outbox Keystone (Sprint 848)
+
+A large-batch P1 correctness sweep across the projection stores, options validation, and the architecture build gate — plus the keystone that makes the **transactional event+outbox** path real. Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), all green across the 10-shard full CI run + Docker/emulator container shards, with both independent reviews (code + architecture/CSO) approved at zero blocking findings. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but review the items below for behavior you may have relied on.
+
+### Transactional event + outbox staging is now real (and SQL Server supports it)
+
+- **Selecting `OutboxStagingStrategy.Transactional` now atomically appends events and stages outbox messages in one database transaction — for event stores that support it.** Sprint 841 made the strategy *fail fast* when its infrastructure was missing; Sprint 848 builds the path it was guarding. The optional `ITransactionalEventStore` extension of `IEventStore` is now **public** (namespace `Excalibur.EventSourcing`), and `SqlServerEventStore` implements it. Its `AppendWithOutboxStagingAsync` is a **store-owned atomic unit of work**: the store opens and owns a single connection and transaction, runs the optimistic-concurrency check, appends the events, invokes your outbox staging on that *same* transaction (only if the version check passed), then commits — rolling everything back on a concurrency conflict or any staging failure. The transaction never escapes the store, so an event append and its outbox rows can never land on two different transactions.
+- **With SQL Server + an `ITransactionalOutboxWriter` registered, the default `Auto` strategy now resolves to `Transactional`** — integration events can no longer be lost in the crash window between the event append and the outbox stage. NoSQL event stores (which do not implement `ITransactionalEventStore`) continue to use eventually-consistent or deferred staging. See [Outbox Pattern → Event Sourcing Outbox Integration](./patterns/outbox.md).
+
+### Projection queries apply your filters server-side
+
+- **DynamoDB and Firestore projection `QueryAsync`/`CountAsync` now honor the `filters` argument.** Both stores previously **ignored filters entirely** and returned unfiltered (over-broad) result sets — a data-correctness defect. DynamoDB now AND-combines filters into a server-side `ScanRequest` `FilterExpression`; Firestore queries a write-only flat index map with real `Where(key, ==, value)` clauses (the canonical JSON blob stays the source of truth, so `decimal`/`DateTimeOffset` values keep exact round-trip fidelity). A null/empty filter returns all rows; an untranslatable (e.g. nested-key) filter throws `NotSupportedException` rather than silently returning unfiltered. If you query projections with filters on these providers, you will now get correctly filtered results. See [Data Providers](./data-providers/index.md).
+- **DynamoDB cursor pagination reports a true total and fills each page.** `QueryCursorAsync` previously ran a full count scan per page and reported a truncated partial as the total; it now fills each page to the requested size by walking `LastEvaluatedKey` (DynamoDB applies its scan `Limit` *before* filtering), computes the true total once and carries it in the cursor, and returns a `null` cursor on exhaustion.
+
+### Projection checkpoints no longer advance ahead of the cursor map
+
+- **`GlobalStreamProjectionHost` now saves the cursor map before advancing the checkpoint.** The checkpoint (the source of truth) was previously saved first, so a crash or cursor-map save failure could leave the checkpoint ahead of a durable cursor map (restart divergence), and the pending-cursor buffer could grow unboundedly under repeated save errors. The order is inverted to **cursor-map first → checkpoint last** (on both the periodic and graceful-shutdown flush paths), and the pending buffer is now bounded on the error path. See [Projections](./event-sourcing/projections.md).
+
+### Misconfigured Kafka DLQ and Polly options fail fast at startup
+
+- **Kafka dead-letter options are now validated at host start across every registration path.** Invalid DLQ options (e.g. `MaxDeliveryAttempts = 0`, an empty `TopicSuffix`) previously surfaced only at first use; a new validator wired with `ValidateOnStart()` now throws `OptionsValidationException` at startup.
+- **Polly resilience options now validate on the convenience overload too.** `AddPollyResilience()` without an `IConfiguration` argument previously registered its options *without* their validators, so invalid timeout / graceful-degradation / distributed-circuit-breaker values were never caught. Validation now runs unconditionally; only configuration binding stays gated on a supplied `IConfiguration`.
+
+### Architecture boundaries are now enforced in CI
+
+- **The Dispatch-vs-Excalibur separation and banned-dependency boundary tests now fail the build on a violation.** They were report-only because the `ARCH_ENFORCE` gate was never set in CI; it is now enabled (89/89 green). This is a contributor-facing build-gate change with no runtime impact. As part of the same lane, the duplicate dead `IMessageChannelAdapter<TMessage>` in `Excalibur.Dispatch.Channels` was removed — the `Excalibur.Dispatch` (Abstractions) `IMessageChannelAdapter` is the single canonical interface (the removed variant had no implementations).
+
+---
+
 ## June 2026 — Reliability Seam Tail (Sprint 841)
 
 The P1 tail of the same "advertised-but-unwired" class Sprint 840 opened (governed by ADR-336): seven seams where the framework advertised a durability or compliance guarantee it did not actually honor. With this sweep the class is **closed** — no silent degrade remains on the ADR-336 surface. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but review the items below for behavior you may have relied on. The Dispatch (messaging) abstractions gain three small additive members; nothing is removed.

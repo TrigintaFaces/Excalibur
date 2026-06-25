@@ -649,51 +649,31 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
-		using var transaction = await txStore.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-
-		try
-		{
-			var result = await _eventStore.AppendAsync(
-				aggregateId,
-				aggregate.AggregateType,
-				uncommittedEvents,
-				expectedVersion,
-				cancellationToken).ConfigureAwait(false);
-
-			ThrowIfAppendFailed(result, aggregate);
-
-			// Stage integration events to unified outbox within the same transaction
-			foreach (var @event in uncommittedEvents)
+		// Store-owned atomic unit of work: the event store opens and owns a single connection/transaction,
+		// appends the events, invokes this stageOutbox callback on that same transaction, then commits.
+		// Append and outbox staging therefore share one transaction — neither can persist without the other.
+		var result = await txStore.AppendWithOutboxStagingAsync(
+			aggregateId,
+			aggregate.AggregateType,
+			uncommittedEvents,
+			expectedVersion,
+			async (transaction, ct) =>
 			{
-				if (@event is not IIntegrationEvent)
+				foreach (var @event in uncommittedEvents)
 				{
-					continue;
-				}
+					if (@event is not IIntegrationEvent)
+					{
+						continue;
+					}
 
-				var outboundMessage = CreateOutboundMessage(@event, aggregateId, aggregate.AggregateType);
-
-				if (transaction is not null)
-				{
-					await _transactionalOutboxWriter!.StageMessageAsync(outboundMessage, transaction, cancellationToken)
+					var outboundMessage = CreateOutboundMessage(@event, aggregateId, aggregate.AggregateType);
+					await _transactionalOutboxWriter!.StageMessageAsync(outboundMessage, transaction, ct)
 						.ConfigureAwait(false);
 				}
-			}
+			},
+			cancellationToken).ConfigureAwait(false);
 
-			transaction?.Commit();
-		}
-		catch
-		{
-			try
-			{
-				transaction?.Rollback();
-			}
-			catch
-			{
-				// Rollback failure should not mask the original exception
-			}
-
-			throw;
-		}
+		ThrowIfAppendFailed(result, aggregate);
 	}
 
 	/// <summary>

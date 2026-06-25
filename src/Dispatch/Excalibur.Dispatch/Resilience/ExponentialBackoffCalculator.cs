@@ -22,6 +22,7 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 	private readonly double _multiplier;
 	private readonly bool _enableJitter;
 	private readonly double _jitterFactor;
+	private readonly Func<double> _jitterSource;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ExponentialBackoffCalculator" /> class with default options.
@@ -53,12 +54,18 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 	/// <param name="multiplier"> The multiplier for exponential growth (typically 2.0). </param>
 	/// <param name="enableJitter"> Whether to add random jitter to delays. </param>
 	/// <param name="jitterFactor"> The jitter factor (0.0 to 1.0) for randomization. </param>
+	/// <param name="jitterSource">
+	/// Optional source of jitter randomness producing values in <c>[0.0, 1.0)</c>. When <see langword="null"/>,
+	/// <see cref="Random.Shared"/> is used. Inject a seeded/controllable source to make jitter deterministic for
+	/// testing (the delay becomes a pure function of <c>attempt</c> and the seeded sequence).
+	/// </param>
 	public ExponentialBackoffCalculator(
 		TimeSpan baseDelay,
 		TimeSpan maxDelay,
 		double multiplier = 2.0,
 		bool enableJitter = true,
-		double jitterFactor = 0.1)
+		double jitterFactor = 0.1,
+		Func<double>? jitterSource = null)
 	{
 		if (baseDelay <= TimeSpan.Zero)
 		{
@@ -86,6 +93,9 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 		_multiplier = multiplier;
 		_enableJitter = enableJitter;
 		_jitterFactor = jitterFactor;
+#pragma warning disable CA5394 // Do not use insecure randomness - jitter does not require cryptographic security
+		_jitterSource = jitterSource ?? Random.Shared.NextDouble;
+#pragma warning restore CA5394
 	}
 
 	/// <inheritdoc />
@@ -116,10 +126,13 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 	}
 
 	/// <summary>
-	/// Applies decorrelated jitter using the "Full Jitter" algorithm.
+	/// Applies symmetric proportional jitter to the computed delay.
 	/// </summary>
 	/// <remarks>
-	/// Full jitter: delay = random(0, baseDelay * 2^attempt) This provides the best distribution of retry times across multiple clients.
+	/// The delay is randomized within <c>±(delayMs × jitterFactor)</c> — i.e.
+	/// <c>delayMs + ((random[0,1) × 2) − 1) × (delayMs × jitterFactor)</c> — spreading retry times across
+	/// clients to avoid thundering-herd synchronization. Randomness comes from the injected jitter source
+	/// (default <see cref="System.Random.Shared"/>); a seeded source makes the result deterministic for tests.
 	/// See: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
 	/// </remarks>
 	private double ApplyJitter(double delayMs)
@@ -127,11 +140,10 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 		// Calculate the jitter range as a percentage of the delay
 		var jitterRange = delayMs * _jitterFactor;
 
-		// Apply random jitter: delay +/- (jitterRange * random) Using decorrelated jitter for better distribution Random.Shared is
-		// thread-safe and suitable for non-cryptographic scenarios like backoff jitter
-#pragma warning disable CA5394 // Do not use insecure randomness - jitter does not require cryptographic security
-		var jitter = ((Random.Shared.NextDouble() * 2) - 1) * jitterRange;
-#pragma warning restore CA5394
+		// Apply random jitter: delay +/- (jitterRange * random). The jitter source produces values in
+		// [0.0, 1.0); the default (Random.Shared) is thread-safe and suitable for non-cryptographic
+		// scenarios like backoff jitter. A seeded source makes the delay deterministic for tests.
+		var jitter = ((_jitterSource() * 2) - 1) * jitterRange;
 
 		return delayMs + jitter;
 	}

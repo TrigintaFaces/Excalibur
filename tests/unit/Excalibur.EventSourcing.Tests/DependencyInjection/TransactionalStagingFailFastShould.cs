@@ -110,14 +110,16 @@ public sealed class TransactionalStagingFailFastShould
 	}
 
 	/// <summary>
-	/// Minimal hand-written stub implementing the internal <see cref="ITransactionalEventStore"/> (FakeItEasy
+	/// Minimal hand-written stub implementing <see cref="ITransactionalEventStore"/> (FakeItEasy
 	/// cannot proxy it). The validator only checks <c>eventStore is ITransactionalEventStore</c>; the store
 	/// methods are never invoked.
 	/// </summary>
 	private sealed class FakeTransactionalEventStore : ITransactionalEventStore
 	{
-		public Task<IDbTransaction?> BeginTransactionAsync(CancellationToken cancellationToken) =>
-			Task.FromResult<IDbTransaction?>(null);
+		public ValueTask<AppendResult> AppendWithOutboxStagingAsync(
+			string aggregateId, string aggregateType, IEnumerable<IDomainEvent> events, long expectedVersion,
+			Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox, CancellationToken cancellationToken) =>
+			throw new NotSupportedException();
 
 		public ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
 			string aggregateId, string aggregateType, CancellationToken cancellationToken) =>

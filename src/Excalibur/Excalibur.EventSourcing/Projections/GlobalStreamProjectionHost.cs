@@ -51,6 +51,11 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 
 	private readonly Dictionary<string, long> _pendingCursorUpdates = new(StringComparer.Ordinal);
 	private GlobalStreamPosition _currentPosition = GlobalStreamPosition.Start;
+
+	// The last position durably persisted to the checkpoint store. On a flush/processing failure the host
+	// rolls _currentPosition back to this so it resumes from the durable checkpoint and reprocesses the
+	// un-checkpointed events — the checkpoint, not the in-memory position, is the source of truth.
+	private GlobalStreamPosition _checkpointedPosition = GlobalStreamPosition.Start;
 	private long _eventsSinceCheckpoint;
 
 	/// <summary>
@@ -110,6 +115,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 		if (lastCheckpoint.HasValue)
 		{
 			_currentPosition = new GlobalStreamPosition(lastCheckpoint.Value, DateTimeOffset.MinValue);
+			_checkpointedPosition = _currentPosition;
 		}
 
 		LogProjectionHostStarted(opts.ProjectionName);
@@ -205,11 +211,15 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				// last-good position; never past a poison event).
 				if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
 				{
-					await _checkpointStore.StoreCheckpointAsync(
-							opts.ProjectionName, _currentPosition.Position, stoppingToken)
-						.ConfigureAwait(false);
-
-					// Save cursor map after projection apply (phase ordering, R27.55)
+					// Save the cursor map FIRST, then advance the checkpoint. The checkpoint is the source
+					// of truth on restart (the host resumes reading events AFTER the checkpoint position),
+					// so the only safe partial-failure direction is cursor-map-ahead-of-checkpoint: if the
+					// checkpoint write fails, the cursor map is merely ahead and a restart reprocesses
+					// (idempotent whole-map replace), never skips. Writing the checkpoint first would let it
+					// advance past an un-saved cursor map, and a multi-stream resume would then skip events.
+					// Invariant: cursor-map >= checkpoint, NEVER checkpoint > cursor-map. (The two stores are
+					// decoupled and neither is transaction-bearing, so ordering — not a cross-store
+					// transaction — is the fix.)
 					if (_cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 					{
 						await _cursorMapStore.SaveCursorMapAsync(
@@ -217,6 +227,13 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 							.ConfigureAwait(false);
 						_pendingCursorUpdates.Clear();
 					}
+
+					await _checkpointStore.StoreCheckpointAsync(
+							opts.ProjectionName, _currentPosition.Position, stoppingToken)
+						.ConfigureAwait(false);
+
+					// The checkpoint is now durable — record it as the rollback target.
+					_checkpointedPosition = _currentPosition;
 
 					LogCheckpointSaved(opts.ProjectionName, _currentPosition.Position);
 					_eventsSinceCheckpoint = 0;
@@ -249,6 +266,16 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 			{
 				LogProjectionHostError(opts.ProjectionName, ex);
 
+				// Roll back to the last durably-checkpointed position and discard the pending cursor updates
+				// for the un-checkpointed batch. A failed flush (cursor-map OR checkpoint write) must never
+				// leave the in-memory position or the pending buffer ahead of what is durable: the host
+				// re-reads from the checkpoint and reprocesses (idempotent), so no cursor entry is lost, the
+				// checkpoint never advances past its cursor map, and _pendingCursorUpdates stays bounded
+				// across repeated failures (FR-P3.4 / AC-P3.2 / AC-P3.3).
+				_currentPosition = _checkpointedPosition;
+				_eventsSinceCheckpoint = 0;
+				_pendingCursorUpdates.Clear();
+
 				// Wait before retrying to avoid tight error loops
 				await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
 			}
@@ -259,17 +286,22 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 		{
 			try
 			{
-				await _checkpointStore.StoreCheckpointAsync(
-						opts.ProjectionName, _currentPosition.Position, CancellationToken.None)
-					.ConfigureAwait(false);
-
-				// Save remaining cursor map entries on shutdown
+				// Same ordering invariant as the periodic checkpoint: cursor map FIRST, checkpoint LAST,
+				// so a partial failure can only leave the cursor map ahead of the checkpoint, never the
+				// reverse (which would skip events on a multi-stream resume).
 				if (_cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 				{
 					await _cursorMapStore.SaveCursorMapAsync(
 							opts.ProjectionName, _pendingCursorUpdates, CancellationToken.None)
 						.ConfigureAwait(false);
+					_pendingCursorUpdates.Clear();
 				}
+
+				await _checkpointStore.StoreCheckpointAsync(
+						opts.ProjectionName, _currentPosition.Position, CancellationToken.None)
+					.ConfigureAwait(false);
+
+				_checkpointedPosition = _currentPosition;
 
 				LogCheckpointSaved(opts.ProjectionName, _currentPosition.Position);
 			}

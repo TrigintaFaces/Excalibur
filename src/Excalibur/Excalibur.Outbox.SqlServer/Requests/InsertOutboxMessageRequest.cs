@@ -40,10 +40,12 @@ public sealed class InsertOutboxMessageRequest : DataRequestBase<IDbConnection, 
 		var sql = $"""
 			INSERT INTO {tableName}
 				(Id, MessageType, Payload, Headers, Destination, CreatedAt, ScheduledAt, Status,
-				 RetryCount, CorrelationId, CausationId, TenantId, Priority, TargetTransports, IsMultiTransport)
+				 RetryCount, CorrelationId, CausationId, TenantId, Priority, TargetTransports, IsMultiTransport,
+				 PartitionKey, GroupKey, SequenceNumber)
 			VALUES
 				(@Id, @MessageType, @Payload, @Headers, @Destination, @CreatedAt, @ScheduledAt, @Status,
-				 @RetryCount, @CorrelationId, @CausationId, @TenantId, @Priority, @TargetTransports, @IsMultiTransport)
+				 @RetryCount, @CorrelationId, @CausationId, @TenantId, @Priority, @TargetTransports, @IsMultiTransport,
+				 @PartitionKey, @GroupKey, @SequenceNumber)
 			""";
 
 		var parameters = new DynamicParameters();
@@ -66,6 +68,9 @@ public sealed class InsertOutboxMessageRequest : DataRequestBase<IDbConnection, 
 		parameters.Add("@Priority", message.Priority);
 		parameters.Add("@TargetTransports", message.TargetTransports);
 		parameters.Add("@IsMultiTransport", message.IsMultiTransport);
+		parameters.Add("@PartitionKey", message.PartitionKey);
+		parameters.Add("@GroupKey", message.GroupKey);
+		parameters.Add("@SequenceNumber", message.SequenceNumber);
 
 		Command = CreateCommand(sql, parameters, transaction, commandTimeout, cancellationToken: cancellationToken);
 

@@ -61,6 +61,58 @@ public sealed class AddDispatchIdempotenceShould
 	}
 
 	[Fact]
+	public void ConsumerTypeRegistrationBeforeAddDispatch_CustomPipelineProfileRegistryWins()
+	{
+		// txmwh9 (Reviewer 15438, SA 15441): the guard whitelists ONLY the framework-default registration
+		// (ImplementationType == typeof(PipelineProfileRegistry) && ImplementationInstance is null && no factory),
+		// so a consumer's TYPE-registration override must also survive AddDispatch — not just an instance form.
+		// RED on the unconditional Replace (it clobbers the type-reg too); this fact RED-proves the discriminator
+		// is ImplementationType-based, not instance-presence-based (an instance-only guard would re-clobber this).
+		var services = new ServiceCollection();
+		_ = services.AddSingleton<IPipelineProfileRegistry, FakePipelineProfileRegistry>();
+
+		_ = services.AddDispatch(static _ => { });
+
+		using var sp = services.BuildServiceProvider();
+		_ = sp.GetRequiredService<IPipelineProfileRegistry>().ShouldBeOfType<FakePipelineProfileRegistry>();
+	}
+
+	[Fact]
+	public void ConsumerFactoryRegistrationBeforeAddDispatch_CustomPipelineProfileRegistryWins()
+	{
+		// txmwh9 (Reviewer 15438): a consumer FACTORY registration exposes no instance at ctor-time, so a guard
+		// keyed on ImplementationInstance-presence would still clobber it. The framework-default whitelist leaves
+		// it untouched. RED on the unconditional Replace; GREEN on the guarded fix — the third override shape.
+		var services = new ServiceCollection();
+		_ = services.AddSingleton<IPipelineProfileRegistry>(static _ => new FakePipelineProfileRegistry());
+
+		_ = services.AddDispatch(static _ => { });
+
+		using var sp = services.BuildServiceProvider();
+		_ = sp.GetRequiredService<IPipelineProfileRegistry>().ShouldBeOfType<FakePipelineProfileRegistry>();
+	}
+
+	[Fact]
+	public void NoConsumerOverride_BuilderConfiguredRegistryRemainsAuthoritative()
+	{
+		// txmwh9 paired guard (SA 15429): with NO consumer-provided IPipelineProfileRegistry, the builder's
+		// configured registry MUST stay authoritative at resolve time — i.e. K rb4g4b's registry-split fix must
+		// remain intact. The default profile (self-registered by the PipelineProfileRegistry ctor) must resolve,
+		// so the default pipeline (OutboxStaging) still runs. This is the lock that stops a future txmwh9 fix
+		// from re-opening K while satisfying S794 — mechanism-independent (holds under guarded-Replace AND adopt).
+		var services = new ServiceCollection();
+
+		_ = services.AddDispatch(static _ => { });
+
+		using var sp = services.BuildServiceProvider();
+		var registry = sp.GetRequiredService<IPipelineProfileRegistry>();
+
+		_ = registry.GetProfile(DefaultPipelineProfiles.Default).ShouldNotBeNull(
+			"with no consumer override the builder-configured registry must be authoritative and expose the " +
+			"default profile (K rb4g4b registry-split fix must not regress)");
+	}
+
+	[Fact]
 	public void SecondAddDispatchConfigure_ConfigureNotInvoked()
 	{
 		var services = new ServiceCollection();

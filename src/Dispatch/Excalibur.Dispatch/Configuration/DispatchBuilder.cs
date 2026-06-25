@@ -60,6 +60,44 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		// [S794 bd-ffecs4 rows 1+2]
 		Services.TryAddSingleton(_profileRegistry);
 		Services.TryAddSingleton(_bindingRegistry);
+
+		// Bind IPipelineProfileRegistry to the SAME instance the builder configures — but ONLY
+		// when no consumer has supplied their own registry.
+		//
+		// AddDispatchPipeline (always runs first) TryAdd-registers a framework-default
+		// IPipelineProfileRegistry -> PipelineProfileRegistry *type* registration, which the
+		// container would otherwise activate as a DIFFERENT, empty instance than the builder's
+		// configured _profileRegistry. That split meant build-time profile resolution
+		// (PipelineBuilder.UseProfile -> GetService<IPipelineProfileRegistry>()) saw a registry
+		// WITHOUT the builder.RegisterProfile(...)/configured-default profiles — a configured
+		// profile resolved "not found". So the builder's instance must win over the framework
+		// default [S849 K keystone rb4g4b].
+		//
+		// BUT a consumer's pre-AddDispatch registration of IPipelineProfileRegistry — in ANY
+		// form (instance, implementation-type, OR factory) — MUST win over the builder
+		// (first-wins / consumer-override, S794 bd-ffecs4). A consumer who replaces the registry
+		// OWNS profile registration (Microsoft-first "replace a service = take ownership"; the
+		// framework does NOT merge its defaults into a consumer-owned instance). If such a
+		// consumer references an unpopulated profile via UseProfile(...), PipelineBuilder fails
+		// LOUD (ArgumentException at :147-153), never silently — so ownership transfer is safe.
+		//
+		// Discriminator: replace ONLY when the existing registration is the framework's OWN
+		// default — the type-registration TryAddSingleton<IPipelineProfileRegistry,
+		// PipelineProfileRegistry>() (ImplementationType == typeof(PipelineProfileRegistry) AND
+		// no instance/factory). Every consumer-override form fails that test and is left
+		// authoritative untouched — so "clobber a consumer override" is structurally
+		// inexpressible. No field retarget — preserves the DispatchCacheManager concrete-cast
+		// perf path. [S849 txmwh9]
+		var existing = Services.FirstOrDefault(
+			static d => d.ServiceType == typeof(IPipelineProfileRegistry));
+		var isFrameworkDefault =
+			existing is { ImplementationInstance: null, ImplementationFactory: null }
+			&& existing.ImplementationType == typeof(PipelineProfileRegistry);
+		if (existing is null || isFrameworkDefault)
+		{
+			_ = Services.Replace(
+				ServiceDescriptor.Singleton<IPipelineProfileRegistry>(_profileRegistry));
+		}
 	}
 
 	/// <inheritdoc />
@@ -194,15 +232,21 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		_ = Services.Replace(ServiceDescriptor.Singleton<IDispatchPipeline>(sp =>
 			sp.GetRequiredService<DispatchRuntimeState>().DefaultPipeline.Pipeline));
 
-		// Resolve the same global middleware for the invoker path used by CoreDispatcher.
-		var capturedMiddlewareTypes = _globalMiddleware.ToArray();
+		// Materialize the invoker from the resolved default pipeline (global + profile
+		// middleware), not from _globalMiddleware alone. The DispatchAsync hot path
+		// consults the invoker, never the configured IDispatchPipeline; sourcing the
+		// invoker from _globalMiddleware ONLY left a UseProfile/ConfigurePipeline-
+		// configured default pipeline invisible to the dispatcher (HasMiddleware==false
+		// → full bypass). The default pipeline is built by PipelineBuilder.Build(),
+		// which is the single canonical resolve-safe materialization site (GetService +
+		// skip-and-log for unregistered/unconstructable profile middleware). The invoker
+		// reuses that already-resolved middleware so there is ONE resolution path, not a
+		// second divergent one.
 		_ = Services.Replace(ServiceDescriptor.Singleton<IDispatchMiddlewareInvoker>(sp =>
 		{
-			var middleware = capturedMiddlewareTypes
-				.Select(type => (IDispatchMiddleware)sp.GetRequiredService(type))
-				.ToArray();
+			var runtimeState = sp.GetRequiredService<DispatchRuntimeState>();
 			return new DispatchMiddlewareInvoker(
-				middleware,
+				runtimeState.DefaultPipeline.ResolvedMiddleware,
 				sp.GetRequiredService<IMiddlewareApplicabilityStrategy>());
 		}));
 
@@ -389,7 +433,11 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		}
 
 		var pipeline = pipelineBuilder.Build();
-		return new PipelineRuntimeEntry(name, pipeline, pipelineBuilder.ConfiguredMiddlewareTypes);
+		return new PipelineRuntimeEntry(
+			name,
+			pipeline,
+			pipelineBuilder.ConfiguredMiddlewareTypes,
+			pipelineBuilder.ResolvedMiddleware);
 	}
 
 	private sealed class DispatcherHolder
@@ -475,13 +523,19 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		public TransportBindingRegistry BindingRegistry { get; } = bindingRegistry;
 	}
 
-	private sealed class PipelineRuntimeEntry(string name, IDispatchPipeline pipeline, IReadOnlyList<Type> middlewareTypes)
+	private sealed class PipelineRuntimeEntry(
+		string name,
+		IDispatchPipeline pipeline,
+		IReadOnlyList<Type> middlewareTypes,
+		IReadOnlyList<IDispatchMiddleware> resolvedMiddleware)
 	{
 		public string Name { get; } = name;
 
 		public IDispatchPipeline Pipeline { get; } = pipeline;
 
 		public IReadOnlyList<Type> MiddlewareTypes { get; } = middlewareTypes;
+
+		public IReadOnlyList<IDispatchMiddleware> ResolvedMiddleware { get; } = resolvedMiddleware;
 	}
 
 	#region LoggerMessage Definitions

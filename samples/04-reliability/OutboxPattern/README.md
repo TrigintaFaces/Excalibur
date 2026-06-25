@@ -194,9 +194,15 @@ CREATE TABLE dbo.OutboxMessages (
     Priority        INT               NOT NULL DEFAULT 0,
     TargetTransports NVARCHAR(MAX)    NULL,
     IsMultiTransport BIT              NOT NULL DEFAULT 0,
+    PartitionKey    NVARCHAR(256)     NULL,
+    GroupKey        NVARCHAR(256)     NULL,
+    SequenceNumber  BIGINT            NOT NULL DEFAULT 0,
+    NextAttemptAt   DATETIMEOFFSET    NULL,
     ProcessedAt     DATETIMEOFFSET    NULL,
     Error           NVARCHAR(MAX)     NULL
 );
+-- Supports the claim predicate (Status + NextAttemptAt retry visibility) and partition-ordered delivery.
+CREATE INDEX IX_OutboxMessages_Claim ON dbo.OutboxMessages (Status, NextAttemptAt, PartitionKey, SequenceNumber);
 
 -- Inbox table (dbo.InboxMessages)
 CREATE TABLE dbo.InboxMessages (

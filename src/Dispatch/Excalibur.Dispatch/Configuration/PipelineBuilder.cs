@@ -5,21 +5,24 @@
 using System.Globalization;
 
 using Excalibur.Dispatch.Delivery.Pipeline;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Middleware;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>
 /// Fluent builder for configuring message processing pipelines.
 /// </summary>
-public sealed class PipelineBuilder : IPipelineBuilder
+public sealed partial class PipelineBuilder : IPipelineBuilder
 {
 	private readonly IServiceProvider _serviceProvider;
 	private readonly List<MiddlewareRegistration> _middlewares = [];
 	private readonly IMiddlewareApplicabilityStrategy? _applicabilityStrategy;
 	private MessageKinds? _messageKinds;
+	private IReadOnlyList<IDispatchMiddleware> _resolvedMiddleware = [];
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PipelineBuilder"/> class.
@@ -49,6 +52,14 @@ public sealed class PipelineBuilder : IPipelineBuilder
 			.Where(static type => type is not null)
 			.Cast<Type>()
 			.ToArray();
+
+	/// <summary>
+	/// Gets the middleware instances resolved by the most recent <see cref="Build"/> call.
+	/// This is the canonical resolve-safe materialization (unregistered/unconstructable
+	/// profile middleware are skipped), reused by the dispatcher's invoker so there is a
+	/// single resolution path.
+	/// </summary>
+	internal IReadOnlyList<IDispatchMiddleware> ResolvedMiddleware => _resolvedMiddleware;
 
 	/// <inheritdoc />
 	public IPipelineBuilder Use<TMiddleware>()
@@ -152,12 +163,20 @@ public sealed class PipelineBuilder : IPipelineBuilder
 		// Clear existing middleware and apply profile
 		_middlewares.Clear();
 
-		// Add all middleware from the profile
+		// Add all middleware from the profile. Resolve-safe: a profile's middleware
+		// list may name opt-in middleware whose services the consumer never registered
+		// (only OutboxStaging is registered by default; the other canonical middleware
+		// have required feature-service ctor deps and are opt-in). Use GetService (not
+		// GetRequiredService) so an unregistered middleware resolves to null and is
+		// skipped+logged in Build(), rather than throwing — the built pipeline is the
+		// REGISTERED subset of the profile's middleware in canonical order (Microsoft
+		// fail-open). This makes "profile middleware not DI-registered → throw"
+		// structurally inexpressible.
 		foreach (var middlewareType in profile.MiddlewareTypes)
 		{
 			_middlewares.Add(new MiddlewareRegistration(
 				middlewareType,
-				sp => (IDispatchMiddleware)sp.GetRequiredService(middlewareType),
+				sp => sp.GetService(middlewareType) as IDispatchMiddleware,
 				stage: null,
 				condition: null));
 		}
@@ -186,7 +205,32 @@ public sealed class PipelineBuilder : IPipelineBuilder
 				continue;
 			}
 
-			var middleware = registration.Factory(_serviceProvider);
+			// Resolve-safe materialization. A profile's middleware list may name opt-in
+			// middleware the consumer never registered, or middleware whose required
+			// constructor dependencies are not registered (e.g. OutboxStagingMiddleware
+			// needs IOutboxStore; the .NET container throws while activating it even
+			// though the C# parameter is nullable). Either case — a null result OR an
+			// activation failure — means the middleware cannot be materialized; skip it
+			// and log, rather than throwing on the configured-pipeline build (Microsoft
+			// fail-open). The built pipeline is the REGISTERED, CONSTRUCTABLE subset of
+			// the profile's middleware in canonical order. OutboxStaging's own no-store
+			// self-guard still governs the staging no-op when its store IS resolvable.
+			IDispatchMiddleware? middleware;
+			try
+			{
+				middleware = registration.Factory(_serviceProvider);
+			}
+			catch (InvalidOperationException)
+			{
+				LogSkippedMiddleware(registration.Type);
+				continue;
+			}
+
+			if (middleware is null)
+			{
+				LogSkippedMiddleware(registration.Type);
+				continue;
+			}
 
 			// Override stage if specified in registration
 			if (registration.Stage.HasValue && middleware is IConfigurableMiddleware configurable)
@@ -197,8 +241,26 @@ public sealed class PipelineBuilder : IPipelineBuilder
 			resolvedMiddleware.Add(middleware);
 		}
 
+		// Cache the resolved instances so the dispatcher's invoker can reuse this single
+		// resolution path rather than re-resolving (which would re-trigger the throws).
+		_resolvedMiddleware = resolvedMiddleware;
+
 		// Create pipeline with resolved middleware
 		return new DispatchPipeline(resolvedMiddleware, _applicabilityStrategy);
+	}
+
+	private void LogSkippedMiddleware(Type? middlewareType)
+	{
+		if (middlewareType is null)
+		{
+			return;
+		}
+
+		var logger = _serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<PipelineBuilder>();
+		if (logger is not null)
+		{
+			LogPipelineMiddlewareSkipped(logger, middlewareType.FullName ?? middlewareType.Name);
+		}
 	}
 
 	/// <summary>
@@ -206,16 +268,20 @@ public sealed class PipelineBuilder : IPipelineBuilder
 	/// </summary>
 	private sealed class MiddlewareRegistration(
 		Type? type,
-		Func<IServiceProvider, IDispatchMiddleware> factory,
+		Func<IServiceProvider, IDispatchMiddleware?> factory,
 		DispatchMiddlewareStage? stage,
 		Func<IServiceProvider, bool>? condition)
 	{
 		public Type? Type { get; } = type;
 
-		public Func<IServiceProvider, IDispatchMiddleware> Factory { get; } = factory;
+		public Func<IServiceProvider, IDispatchMiddleware?> Factory { get; } = factory;
 
 		public DispatchMiddlewareStage? Stage { get; } = stage;
 
 		public Func<IServiceProvider, bool>? Condition { get; } = condition;
 	}
+
+	[LoggerMessage(CoreEventId.InvokerMiddlewareSkipped, LogLevel.Debug,
+		"Skipping configured pipeline middleware {MiddlewareType}: not registered in the service provider.")]
+	private static partial void LogPipelineMiddlewareSkipped(ILogger logger, string middlewareType);
 }

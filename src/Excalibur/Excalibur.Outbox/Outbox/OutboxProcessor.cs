@@ -624,12 +624,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			}
 			else if (_deliveryGuaranteeOptions.EnableAutomaticRetry)
 			{
-				// Calculate backoff delay for next retry
-				var backoffDelay = _backoffCalculator.CalculateDelay(attempt);
-				LogRetryWithBackoff(message.MessageId, attempt, backoffDelay.TotalMilliseconds);
-
-				// Mark as failed with incremented retry count (scheduler will pick up after delay)
-				await _outboxStore.MarkFailedAsync(message.MessageId, ex.Message, attempt, cancellationToken).ConfigureAwait(false);
+				// Apply the computed backoff: the claim query won't re-deliver until NextAttemptAt elapses
+				// (for stores that support it; others fall back to the plain failed status).
+				await MarkFailedWithBackoffOrFallbackAsync(message.MessageId, ex.Message, attempt, cancellationToken)
+					.ConfigureAwait(false);
 			}
 			else
 			{
@@ -716,11 +714,34 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		return deadLetterable.MarkDeadLetteredAsync(messageId, reason, cancellationToken);
 	}
 
+	/// <summary>
+	/// Marks a message failed and, when the store supports the per-message backoff schedule
+	/// (<see cref="IBackoffSchedulableOutboxStore"/>), records the computed next-attempt time so the claim
+	/// query throttles re-delivery. Stores without the capability fall back to the plain failed status
+	/// (today's behavior) -- the fail-open pattern, mirroring the optional dead-letter capability.
+	/// </summary>
+	private ValueTask MarkFailedWithBackoffOrFallbackAsync(
+		string messageId,
+		string errorMessage,
+		int attempt,
+		CancellationToken cancellationToken)
+	{
+		if (_outboxStore is IBackoffSchedulableOutboxStore schedulable)
+		{
+			var nextAttemptAt = DateTimeOffset.UtcNow + _backoffCalculator.CalculateDelay(attempt);
+			return schedulable.MarkFailedWithBackoffAsync(messageId, errorMessage, attempt, nextAttemptAt, cancellationToken);
+		}
+
+		return _outboxStore.MarkFailedAsync(messageId, errorMessage, attempt, cancellationToken);
+	}
+
 	private async Task<int> ProcessBatchParallelAsync(IOutboxMessage[] batch, CancellationToken cancellationToken)
 	{
 		var stopwatch = ValueStopwatch.StartNew();
 		var successfulIds = new ConcurrentBag<string>();
-		var failedToRetry = new ConcurrentBag<(string MessageId, int AttemptCount)>();
+		// ApplyBackoff distinguishes a genuine delivery failure (attempt consumed -> apply the backoff
+		// schedule) from a transient circuit-breaker-open short-circuit (attempt UNCHANGED -> no backoff).
+		var failedToRetry = new ConcurrentBag<(string MessageId, int AttemptCount, bool ApplyBackoff)>();
 		var failedToDeadLetter =
 			new ConcurrentBag<(string MessageId, IOutboxMessage Message, Exception? Exception, DeadLetterReason Reason)>();
 
@@ -741,7 +762,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				if (circuitBreaker.State == CircuitState.Open)
 				{
 					LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-					failedToRetry.Add((message.MessageId, message.Attempts));
+					failedToRetry.Add((message.MessageId, message.Attempts, ApplyBackoff: false));
 
 					return; // Don't throw - we've handled this case
 				}
@@ -774,7 +795,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					// Circuit opened mid-dispatch: transient short-circuit. Leave for retry with the
 					// attempt count UNCHANGED (no attempt consumed, never dead-letter). Not re-thrown.
 					LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-					failedToRetry.Add((message.MessageId, message.Attempts));
+					failedToRetry.Add((message.MessageId, message.Attempts, ApplyBackoff: false));
 				}
 				catch (Exception ex)
 				{
@@ -789,15 +810,14 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					}
 					else if (_deliveryGuaranteeOptions.EnableAutomaticRetry)
 					{
-						// Calculate backoff delay for logging
-						var backoffDelay = _backoffCalculator.CalculateDelay(attempt);
-						LogRetryWithBackoff(message.MessageId, attempt, backoffDelay.TotalMilliseconds);
+						// Genuine delivery failure: apply the computed backoff schedule when marking failed.
+						LogRetryWithBackoff(message.MessageId, attempt, _backoffCalculator.CalculateDelay(attempt).TotalMilliseconds);
 
-						failedToRetry.Add((message.MessageId, attempt));
+						failedToRetry.Add((message.MessageId, attempt, ApplyBackoff: true));
 					}
 					else
 					{
-						failedToRetry.Add((message.MessageId, attempt));
+						failedToRetry.Add((message.MessageId, attempt, ApplyBackoff: false));
 					}
 
 					throw; // Re-throw for Batching to track
@@ -843,9 +863,17 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// Handle failed messages for retry (applies to all guarantee levels)
 		if (!failedToRetry.IsEmpty)
 		{
-			foreach (var (id, attemptCount) in failedToRetry)
+			foreach (var (id, attemptCount, applyBackoff) in failedToRetry)
 			{
-				await _outboxStore.MarkFailedAsync(id, ErrorConstants.RetryAttempt, attemptCount, cancellationToken).ConfigureAwait(false);
+				if (applyBackoff)
+				{
+					await MarkFailedWithBackoffOrFallbackAsync(id, ErrorConstants.RetryAttempt, attemptCount, cancellationToken)
+						.ConfigureAwait(false);
+				}
+				else
+				{
+					await _outboxStore.MarkFailedAsync(id, ErrorConstants.RetryAttempt, attemptCount, cancellationToken).ConfigureAwait(false);
+				}
 			}
 		}
 
@@ -875,7 +903,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 	private async Task PerformBatchDatabaseOperationsAsync(
 		List<string> successfulIds,
-		List<(string MessageId, int AttemptCount)> failedToRetry,
+		List<(string MessageId, int AttemptCount, bool ApplyBackoff)> failedToRetry,
 		List<(string MessageId, int AttemptCount)> failedToDeadLetter,
 		CancellationToken cancellationToken)
 	{
@@ -912,11 +940,19 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Process retry messages in parallel
 			tasks.Add(Task.Factory.StartNew(async () =>
 			{
-				foreach (var (id, attemptCount) in failedToRetry)
+				foreach (var (id, attemptCount, applyBackoff) in failedToRetry)
 				{
 					try
 					{
-						await _outboxStore.MarkFailedAsync(id, ErrorConstants.RetryAttempt, attemptCount, cancellationToken).ConfigureAwait(false);
+						if (applyBackoff)
+						{
+							await MarkFailedWithBackoffOrFallbackAsync(id, ErrorConstants.RetryAttempt, attemptCount, cancellationToken)
+								.ConfigureAwait(false);
+						}
+						else
+						{
+							await _outboxStore.MarkFailedAsync(id, ErrorConstants.RetryAttempt, attemptCount, cancellationToken).ConfigureAwait(false);
+						}
 					}
 					catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 					{

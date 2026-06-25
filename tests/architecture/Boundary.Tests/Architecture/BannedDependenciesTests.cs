@@ -25,13 +25,8 @@ public sealed class BannedDependenciesTests
     [Fact]
     public void Abstractions_Should_Not_Reference_Forbidden_Frameworks_Or_Providers()
     {
-        var abstractions = new[]
-        {
-            Path.Combine(RepoRoot, "src", "Dispatch", "Excalibur.Dispatch.Abstractions", "Excalibur.Dispatch.Abstractions.csproj"),
-            Path.Combine(RepoRoot, "src", "Excalibur", "Excalibur.Data.Abstractions", "Excalibur.Data.Abstractions.csproj"),
-        };
-
-        var banned = new[]
+        // Banned dependencies common to BOTH abstraction packages.
+        var bannedCommon = new[]
         {
             """
             FrameworkReference Include="Microsoft.AspNetCore.App"
@@ -43,9 +38,6 @@ public sealed class BannedDependenciesTests
             PackageReference Include="Npgsql"
             """,
             """
-            PackageReference Include="Dapper"
-            """,
-            """
             PackageReference Include="CloudNative.CloudEvents.SystemTextJson"
             """,
             """
@@ -53,8 +45,25 @@ public sealed class BannedDependenciesTests
             """,
         };
 
+        // Dapper is BANNED in Excalibur.Dispatch.Abstractions (the messaging abstraction must stay
+        // driver-free), but is INTENTIONAL in Excalibur.Data.Abstractions: IDataRequest is built on
+        // Dapper to enhance it (user-confirmed; CLAUDE.md "Technical Decisions — Dapper ... IDataRequest
+        // is built on Dapper to enhance it. NOT a compliance violation. Do not remove."). So the Dapper
+        // ban is scoped to the Dispatch side only, not applied to the Data.Abstractions scan.
+        const string bannedDapper = """
+            PackageReference Include="Dapper"
+            """;
+
+        var scans = new[]
+        {
+            (file: Path.Combine(RepoRoot, "src", "Dispatch", "Excalibur.Dispatch.Abstractions", "Excalibur.Dispatch.Abstractions.csproj"),
+                banned: bannedCommon.Append(bannedDapper).ToArray()),
+            (file: Path.Combine(RepoRoot, "src", "Excalibur", "Excalibur.Data.Abstractions", "Excalibur.Data.Abstractions.csproj"),
+                banned: bannedCommon),
+        };
+
         var violations = new List<string>();
-        foreach (var file in abstractions.Where(File.Exists))
+        foreach (var (file, banned) in scans.Where(s => File.Exists(s.file)))
         {
             var lines = File.ReadAllLines(file);
             for (int i = 0; i < lines.Length; i++)
@@ -94,6 +103,12 @@ public sealed class BannedDependenciesTests
                 p.EndsWith(Path.Combine("src", "Dispatch", "Excalibur.Dispatch.Patterns", "Excalibur.Dispatch.Patterns.csproj"), StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
+        // NOTE: CloudNative.CloudEvents.SystemTextJson is NOT banned in Core. CloudEvents is a
+        // first-class core *messaging* feature (CloudEventMiddleware, CloudEventsPipelineExtensions,
+        // CloudEventJsonContext (AOT source-gen), CloudEventOptions, ... in src/Dispatch/Excalibur.Dispatch/
+        // CloudEvents/) — a CNCF messaging wire-format that is squarely Dispatch's domain (HOW events
+        // flow), AOT-handled, and consistent with ADR-295 (JSON-first; STJ is the core default). It is
+        // NOT a provider SDK and NOT an opt-in payload serializer. The pre-ADR-295 ban was stale.
         var banned = new[]
         {
             """
@@ -107,9 +122,6 @@ public sealed class BannedDependenciesTests
             """,
             """
             PackageReference Include="Dapper"
-            """,
-            """
-            PackageReference Include="CloudNative.CloudEvents.SystemTextJson"
             """,
         };
 
@@ -161,8 +173,11 @@ public sealed class BannedDependenciesTests
         }
     }
 
+    // Dapper is intentionally permitted in Excalibur.Data.Abstractions (IDataRequest is built on Dapper
+    // to enhance it — user-confirmed; CLAUDE.md "Technical Decisions"). Only the concrete provider driver
+    // System.Data.SqlClient is banned here (a data-access abstraction must not bind a concrete SQL driver).
     [Fact]
-    public void Excalibur_Abstractions_Should_Not_Reference_Dapper_Or_SystemDataSqlClient()
+    public void Excalibur_Abstractions_Should_Not_Reference_SystemDataSqlClient()
     {
         var excaliburAbstractions = new[]
         {
@@ -171,9 +186,6 @@ public sealed class BannedDependenciesTests
 
         var banned = new[]
         {
-            """
-            PackageReference Include="Dapper"
-            """,
             """
             PackageReference Include="System.Data.SqlClient"
             """,
@@ -194,8 +206,9 @@ public sealed class BannedDependenciesTests
             }
         }
 
-        // Also scan a few source files for direct 'using' hints to help triage (report-only)
-        var hints = new[] { "using Dapper;", "using System.Data.SqlClient;" };
+        // Also scan a few source files for direct 'using' hints to help triage (report-only).
+        // 'using Dapper;' is intentionally NOT flagged — Dapper is permitted in Data.Abstractions.
+        var hints = new[] { "using System.Data.SqlClient;" };
         var hintFiles = new[]
         {
             Path.Combine(RepoRoot, "src", "Excalibur", "Excalibur.Data.Abstractions", "DataRequestBase.cs"),
@@ -249,8 +262,11 @@ public sealed class BannedDependenciesTests
         }
     }
 
+    // Dapper usings are intentionally permitted in Excalibur.Data.Abstractions (IDataRequest is built on
+    // Dapper to enhance it — user-confirmed; CLAUDE.md "Technical Decisions"). Only a concrete SQL driver
+    // (System.Data.SqlClient) using is banned in the data-access abstraction source.
     [Fact]
-    public void Excalibur_Abstractions_Source_Should_Not_Use_Dapper_Or_SystemDataSqlClient()
+    public void Excalibur_Abstractions_Source_Should_Not_Use_SystemDataSqlClient()
     {
         var repoRoot = TestHelpers.GetRepositoryRoot();
         var dir = Path.Combine(repoRoot, "src", "Excalibur", "Excalibur.Data.Abstractions");
@@ -268,7 +284,7 @@ public sealed class BannedDependenciesTests
             for (int i = 0; i < lines.Length; i++)
             {
                 var l = lines[i];
-                if (l.Contains("using Dapper;", StringComparison.Ordinal) || l.Contains("using System.Data.SqlClient;", StringComparison.Ordinal))
+                if (l.Contains("using System.Data.SqlClient;", StringComparison.Ordinal))
                 {
                     hits.Add($"{file}:{i + 1}:{l.Trim()}");
                 }
@@ -293,46 +309,10 @@ public sealed class BannedDependenciesTests
         }
     }
 
-    [Fact]
-    public void Patterns_Should_Not_Use_STJ_Namespace_In_Core()
-    {
-        var repoRoot = TestHelpers.GetRepositoryRoot();
-        var patternsDir = Path.Combine(repoRoot, "src", "Dispatch", "Excalibur.Dispatch.Patterns");
-        if (!Directory.Exists(patternsDir))
-        {
-            true.ShouldBeTrue();
-            return;
-        }
-
-        var csFiles = Directory.GetFiles(patternsDir, "*.cs", SearchOption.AllDirectories);
-        var hits = new List<string>();
-        foreach (var file in csFiles)
-        {
-            var lines = File.ReadAllLines(file);
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (lines[i].Contains("using System.Text.Json;", StringComparison.Ordinal))
-                {
-                    hits.Add($"{file}:{i + 1}:{lines[i].Trim()}");
-                }
-            }
-        }
-
-        if (hits.Count == 0)
-        {
-            true.ShouldBeTrue();
-            return;
-        }
-
-        var message = "Excalibur.Dispatch.Patterns source using System.Text.Json (report-only):\n" + string.Join("\n", hits);
-        if (Enforce)
-        {
-            false.ShouldBeTrue(message);
-        }
-        else
-        {
-            Console.WriteLine(message);
-            true.ShouldBeTrue();
-        }
-    }
+    // REMOVED (Sprint 848, A2 / 87h7t8): the former Patterns_Should_Not_Use_STJ_Namespace_In_Core test
+    // banned 'using System.Text.Json;' in Excalibur.Dispatch.Patterns. That ban is stale — ADR-295
+    // ("JSON-First Serialization", Accepted S738) makes System.Text.Json the JSON-first DEFAULT in core
+    // (binary serializers opt-in; STJ has first-class AOT support). Patterns/ClaimCheck/
+    // JsonClaimCheckSerializer.cs is exactly that pattern (a JSON serializer using STJ, AOT-annotated),
+    // so banning STJ in Patterns contradicts the ratified policy. Removed per SoftwareArchitect ruling.
 }

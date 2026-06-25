@@ -201,9 +201,19 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 
 	private void RegisterDefaultProfiles()
 	{
-		// Register the built-in profiles
-		RegisterProfile(PipelineProfile.CreateStrictProfile());
-		RegisterProfile(PipelineProfile.CreateInternalEventProfile());
+		// Register the built-in profiles with their REAL middleware lists.
+		// Previously these registered empty PipelineProfile.Create*Profile() shells
+		// (Array.Empty<Type>(), "filled by synthesizer per R7.6") while the only
+		// registrar carrying real middleware (DefaultPipelineProfiles) had zero call
+		// sites and was dead code. The synthesizer never ran (it short-circuits when
+		// the registry is non-empty), so "default" was never registered and the empty
+		// Strict/InternalEvent shells resolved to zero-middleware pipelines.
+		// Reviving DefaultPipelineProfiles.Create*Profile() wires the canonical
+		// middleware (incl. OutboxStagingMiddleware) into the registered profiles.
+		// Profile keys are lowercase/hyphenated ("default"/"strict"/"internal-event").
+		RegisterProfile(DefaultPipelineProfiles.CreateDefaultProfile());
+		RegisterProfile(DefaultPipelineProfiles.CreateStrictProfile());
+		RegisterProfile(DefaultPipelineProfiles.CreateInternalEventProfile());
 		RegisterProfile(DefaultPipelineProfiles.CreateDirectProfile());
 
 		// Register a default profile for documents

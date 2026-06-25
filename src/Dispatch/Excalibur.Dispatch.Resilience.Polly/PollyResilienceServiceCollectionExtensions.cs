@@ -55,11 +55,10 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		// Timeout management
 		services.TryAddSingleton<ITimeoutManager, TimeoutManager>();
+		var timeoutOptions = services.AddOptions<TimeoutManagerOptions>().ValidateOnStart();
 		if (configuration != null)
 		{
-			_ = services.AddOptions<TimeoutManagerOptions>()
-				.Bind(configuration.GetSection("Resilience:Timeouts"))
-				.ValidateOnStart();
+			_ = timeoutOptions.Bind(configuration.GetSection("Resilience:Timeouts"));
 		}
 
 		// Bulkhead management
@@ -67,20 +66,18 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		// Graceful degradation
 		services.TryAddSingleton<IGracefulDegradationService, GracefulDegradationService>();
+		var gracefulDegradationOptions = services.AddOptions<GracefulDegradationOptions>().ValidateOnStart();
 		if (configuration != null)
 		{
-			_ = services.AddOptions<GracefulDegradationOptions>()
-				.Bind(configuration.GetSection("Resilience:GracefulDegradation"))
-				.ValidateOnStart();
+			_ = gracefulDegradationOptions.Bind(configuration.GetSection("Resilience:GracefulDegradation"));
 		}
 
 		// Distributed circuit breaker factory
 		services.TryAddSingleton<DistributedCircuitBreakerFactory>();
+		var distributedCircuitBreakerOptions = services.AddOptions<DistributedCircuitBreakerOptions>().ValidateOnStart();
 		if (configuration != null)
 		{
-			_ = services.AddOptions<DistributedCircuitBreakerOptions>()
-				.Bind(configuration.GetSection("Resilience:DistributedCircuitBreaker"))
-				.ValidateOnStart();
+			_ = distributedCircuitBreakerOptions.Bind(configuration.GetSection("Resilience:DistributedCircuitBreaker"));
 		}
 
 		return services;

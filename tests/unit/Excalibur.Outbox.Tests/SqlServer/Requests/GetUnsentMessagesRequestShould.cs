@@ -66,10 +66,47 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 		// Act
 		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
 
-		// Assert - Uses UPDATE...OUTPUT lease pattern
+		// Assert - Ordered CTE selects eligible rows in (PartitionKey, SequenceNumber) order, then
+		// UPDATE...OUTPUT atomically claims them (SQL Server's OUTPUT clause cannot be ordered, so the
+		// ordering MUST be applied at row selection in the CTE, not on UPDATE...OUTPUT).
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
-		request.Command.CommandText.ShouldContain("UPDATE TOP");
+		request.Command.CommandText.ShouldContain("WITH Claimable AS");
+		request.Command.CommandText.ShouldContain("SELECT TOP (@BatchSize)");
+		request.Command.CommandText.ShouldContain("UPDATE Claimable");
 		request.Command.CommandText.ShouldContain(TestTableName);
+	}
+
+	[Fact]
+	public void CreateCommandThatOrdersByPartitionAndSequence()
+	{
+		// Act
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+
+		// Assert - Same-partition messages are claimed in ascending SequenceNumber (partition-FIFO).
+		request.Command.CommandText.ShouldContain("ORDER BY PartitionKey, SequenceNumber ASC");
+	}
+
+	[Fact]
+	public void CreateCommandThatGatesRetryVisibilityOnNextAttemptAt()
+	{
+		// Act
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+
+		// Assert - A failed message is withheld until its computed backoff (NextAttemptAt) elapses;
+		// NULL means immediately eligible (no backoff schedule applied).
+		request.Command.CommandText.ShouldContain("NextAttemptAt IS NULL OR NextAttemptAt <= @Now");
+	}
+
+	[Fact]
+	public void CreateCommandThatOutputsOrderingColumns()
+	{
+		// Act
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+
+		// Assert - The claimed rows carry the ordering columns back for round-trip read.
+		request.Command.CommandText.ShouldContain("INSERTED.PartitionKey");
+		request.Command.CommandText.ShouldContain("INSERTED.GroupKey");
+		request.Command.CommandText.ShouldContain("INSERTED.SequenceNumber");
 	}
 
 	[Fact]
@@ -380,7 +417,10 @@ public sealed class OutboxMessageRowShould : UnitTestBase
 			TenantId = "tenant-1",
 			Priority = 5,
 			TargetTransports = "kafka,rabbitmq",
-			IsMultiTransport = true
+			IsMultiTransport = true,
+			PartitionKey = "partition-1",
+			GroupKey = "group-1",
+			SequenceNumber = 42L
 		};
 
 		// Assert
@@ -402,6 +442,9 @@ public sealed class OutboxMessageRowShould : UnitTestBase
 		row.Priority.ShouldBe(5);
 		row.TargetTransports.ShouldBe("kafka,rabbitmq");
 		row.IsMultiTransport.ShouldBeTrue();
+		row.PartitionKey.ShouldBe("partition-1");
+		row.GroupKey.ShouldBe("group-1");
+		row.SequenceNumber.ShouldBe(42L);
 	}
 
 	#endregion

@@ -48,7 +48,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1", "sent-2" },
-			new List<(string, int)> { ("retry-1", 2) },
+			new List<(string, int, bool)> { ("retry-1", 2, false) },
 			new List<(string, int)> { ("dead-1", 3) },
 			CancellationToken.None);
 
@@ -77,7 +77,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string>(),
-			new List<(string, int)>(),
+			new List<(string, int, bool)>(),
 			new List<(string, int)>(),
 			CancellationToken.None);
 
@@ -101,7 +101,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1" },
-			new List<(string, int)>(),
+			new List<(string, int, bool)>(),
 			new List<(string, int)>(),
 			cts.Token));
 
@@ -126,7 +126,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1" },
-			new List<(string, int)> { ("retry-1", 1) },
+			new List<(string, int, bool)> { ("retry-1", 1, false) },
 			new List<(string, int)>(),
 			CancellationToken.None);
 

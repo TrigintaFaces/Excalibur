@@ -179,7 +179,10 @@ public sealed class PipelineBuilderShould
 	public void ReturnSelfFromUseProfileByName()
 	{
 		// Act
-		var result = _sut.UseProfile("Strict");
+		// Default profiles are registered with lowercase/hyphenated keys
+		// (DefaultPipelineProfiles.Strict == "strict") since the registry now wires the
+		// full DefaultPipelineProfiles set in place of the old empty capitalized shells.
+		var result = _sut.UseProfile(DefaultPipelineProfiles.Strict);
 
 		// Assert
 		result.ShouldBeSameAs(_sut);

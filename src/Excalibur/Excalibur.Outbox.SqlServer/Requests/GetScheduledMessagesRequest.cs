@@ -36,7 +36,8 @@ public sealed class GetScheduledMessagesRequest : DataRequestBase<IDbConnection,
 			SELECT TOP (@BatchSize)
 				Id, MessageType, Payload, Headers, Destination, CreatedAt, ScheduledAt, SentAt,
 				Status, RetryCount, LastError, LastAttemptAt, CorrelationId, CausationId,
-				TenantId, Priority, TargetTransports, IsMultiTransport
+				TenantId, Priority, TargetTransports, IsMultiTransport,
+				PartitionKey, GroupKey, SequenceNumber
 			FROM {tableName}
 			WHERE Status = 0 -- Staged
 				AND ScheduledAt IS NOT NULL

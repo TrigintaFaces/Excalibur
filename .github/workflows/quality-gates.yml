@@ -448,6 +448,11 @@ jobs:
           fi
 
       - name: Run boundary tests (Sprint 506)
+        # ARCH_ENFORCE=true makes the architecture boundary gate ENFORCING (Sprint 848 / A2 / 87h7t8):
+        # a real boundary violation (banned provider/framework in abstractions/core, etc.) FAILS the
+        # build instead of being report-only. Local runs without the flag remain report-only (opt-out).
+        env:
+          ARCH_ENFORCE: "true"
         run: |
           if [ -d "tests/architecture/Boundary.Tests" ]; then
             dotnet test tests/architecture/Boundary.Tests/ --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet"

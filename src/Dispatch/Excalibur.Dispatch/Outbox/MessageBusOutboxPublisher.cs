@@ -407,7 +407,16 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			{
 				MessageId = message.Id,
 				CorrelationId = message.CorrelationId,
+				CausationId = message.CausationId,
 			};
+
+			// Propagate the persisted tenant onto the rebuilt context, mirroring the inbox restore side
+			// (InboxProcessor metadata restore). Only set when present so a null tenant stays absent rather
+			// than creating an empty identity feature (EC-R1.1).
+			if (message.TenantId is not null)
+			{
+				context.GetOrCreateIdentityFeature().TenantId = message.TenantId;
+			}
 
 			RestoreTraceParent(context, message);
 
@@ -558,7 +567,16 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		{
 			MessageId = message.Id,
 			CorrelationId = message.CorrelationId,
+			CausationId = message.CausationId,
 		};
+
+		// Propagate the persisted tenant onto the rebuilt context, mirroring the inbox restore side
+		// (InboxProcessor metadata restore). Only set when present so a null tenant stays absent rather
+		// than creating an empty identity feature (EC-R1.1).
+		if (message.TenantId is not null)
+		{
+			context.GetOrCreateIdentityFeature().TenantId = message.TenantId;
+		}
 
 		RestoreTraceParent(context, message);
 

@@ -77,14 +77,29 @@ public static class DispatchConfigurationServiceCollectionExtensions
 
 		return services.AddDispatchWithInfrastructure(static builder =>
 		{
-			// Configure default pipeline
-			_ = builder.ConfigurePipeline("Default", static pipeline => pipeline.ForMessageKinds(MessageKinds.All));
+			// Configure default pipeline. UseProfile (the constants, not string literals)
+			// so selection and registration share one symbol and can never case-drift:
+			// the registered profile keys are lowercase/hyphenated
+			// (DefaultPipelineProfiles.Default/"default", .Strict/"strict",
+			// .InternalEvent/"internal-event"). Previously "Default" only called
+			// ForMessageKinds(All) with no UseProfile, so it resolved zero middleware,
+			// and the Strict/Events call-sites used capitalized literals that matched the
+			// now-removed empty shells. UseProfile throws on any key miss.
+			_ = builder.ConfigurePipeline(
+				"Default",
+				static pipeline => pipeline
+					.ForMessageKinds(MessageKinds.All)
+					.UseProfile(DefaultPipelineProfiles.Default));
 
 			// Configure strict pipeline for commands
-			_ = builder.ConfigurePipeline("Strict", static pipeline => pipeline.UseProfile("Strict"));
+			_ = builder.ConfigurePipeline(
+				"Strict",
+				static pipeline => pipeline.UseProfile(DefaultPipelineProfiles.Strict));
 
 			// Configure lightweight pipeline for events
-			_ = builder.ConfigurePipeline("Events", static pipeline => pipeline.UseProfile("InternalEvent"));
+			_ = builder.ConfigurePipeline(
+				"Events",
+				static pipeline => pipeline.UseProfile(DefaultPipelineProfiles.InternalEvent));
 		});
 	}
 

@@ -21,17 +21,15 @@ namespace Excalibur.Dispatch;
 /// MongoDB, Elasticsearch) should NOT implement it.
 /// </para>
 /// <para>
-/// <strong>Usage pattern:</strong>
+/// <strong>Usage (store-owned unit of work — the canonical event-sourcing flow):</strong>
+/// The transactional event store owns the connection and transaction end to end. Inside
+/// <c>ITransactionalEventStore.AppendWithOutboxStagingAsync</c> it opens one transaction,
+/// appends the events, then invokes a <c>stageOutbox</c> callback that calls
+/// <see cref="StageMessageAsync"/> on that <em>same</em> store-owned transaction, and finally
+/// commits (or rolls back on any failure). The caller never begins or commits the transaction.
 /// <code>
-/// using var transaction = connection.BeginTransaction();
-///
-/// // Append events to the event store
-/// await eventStore.AppendAsync(aggregateId, events, transaction);
-///
-/// // Stage outbox message in the SAME transaction
-/// await transactionalWriter.StageMessageAsync(outboxMessage, transaction, ct);
-///
-/// transaction.Commit();
+/// // The store invokes this callback on its own transaction, between append and commit:
+/// await transactionalWriter.StageMessageAsync(outboxMessage, transaction, cancellationToken);
 /// </code>
 /// </para>
 /// <para>
@@ -53,8 +51,9 @@ public interface ITransactionalOutboxWriter
 	/// </summary>
 	/// <param name="message">The outbound message to stage. Must not be null.</param>
 	/// <param name="transaction">
-	/// The database transaction to participate in. Must not be null.
-	/// The caller owns the transaction lifecycle (begin, commit, rollback).
+	/// The database transaction to enlist the staging write on. Must not be null.
+	/// The transaction owner (the transactional event store, in the canonical flow) controls its
+	/// lifecycle (begin, commit, rollback); this method only stages the message on the supplied transaction.
 	/// </param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
 	/// <returns>A task representing the asynchronous staging operation.</returns>

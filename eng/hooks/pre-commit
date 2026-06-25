@@ -22,6 +22,27 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# ── Beads tracker flush guard (bd-xlnd5e / S849 I1) ─────────────────────────────────────────────
+# When the tracked Beads tracker (.beads/issues.jsonl) is staged — i.e. an integration/close commit —
+# ensure it reflects the DB BEFORE git snapshots it. Closes the recurring daemon-mtime race that left
+# fresh closes un-persisted in committed HEAD (bd-flush-then-commit clause 6). The helper is hardened
+# and data-loss-safe (export --no-auto-import, foreign-change guard, bounded retry, fails LOUD).
+# Runs BEFORE the C#-only early-exit below so a tracker-only commit is still flushed.
+if git diff --cached --name-only --diff-filter=ACM | grep -qx '.beads/issues.jsonl'; then
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    echo -e "${CYAN}Flushing Beads tracker (bd-flush-guard)...${NC}"
+    if bash "$REPO_ROOT/eng/ci/bd-flush-guard.sh"; then
+        git add .beads/issues.jsonl   # re-stage the freshly-flushed tracker so the commit snapshots it
+        echo -e "${GREEN}✓ Beads tracker flushed + re-staged${NC}"
+    else
+        flush_rc=$?
+        echo -e "${RED}✗ COMMIT REJECTED: Beads tracker flush failed (exit ${flush_rc}).${NC}"
+        echo -e "${RED}  exit 1 = genuine flush failure (diagnose); exit 2 = on-disk .jsonl is AHEAD of the DB${NC}"
+        echo -e "${RED}  (foreign change) — reconcile first (e.g. 'bd sync --import-only'), then retry the commit.${NC}"
+        exit 1
+    fi
+fi
+
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${CYAN}ADR-050 Namespace Depth Validation (Pre-Commit)${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

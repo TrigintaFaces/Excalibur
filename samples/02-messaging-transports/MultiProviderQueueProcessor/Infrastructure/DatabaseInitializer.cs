@@ -85,9 +85,15 @@ CREATE TABLE [dbo].[OutboxMessages] (
     [TenantId] NVARCHAR(256) NULL,
     [Priority] INT NOT NULL DEFAULT 0,
     [TargetTransports] NVARCHAR(MAX) NULL,
-    [IsMultiTransport] BIT NOT NULL DEFAULT 0
+    [IsMultiTransport] BIT NOT NULL DEFAULT 0,
+    [PartitionKey] NVARCHAR(256) NULL,
+    [GroupKey] NVARCHAR(256) NULL,
+    [SequenceNumber] BIGINT NOT NULL DEFAULT 0,
+    [NextAttemptAt] DATETIMEOFFSET NULL
 );
 CREATE INDEX [IX_OutboxMessages_Status] ON [dbo].[OutboxMessages]([Status]) WHERE [Status] = 0;
+-- Supports the claim predicate (Status + NextAttemptAt visibility) and partition-ordered delivery.
+CREATE INDEX [IX_OutboxMessages_Claim] ON [dbo].[OutboxMessages]([Status], [NextAttemptAt], [PartitionKey], [SequenceNumber]);
 ");
 
 		return Task.CompletedTask;

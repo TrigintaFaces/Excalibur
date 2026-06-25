@@ -42,9 +42,13 @@ public sealed class PipelineProfileRegistryShould
 	[Fact]
 	public void RegisterDefaultProfilesOnConstruction()
 	{
-		// Assert - Default profiles should be registered
-		_sut.GetProfile("Strict").ShouldNotBeNull();
-		_sut.GetProfile("InternalEvent").ShouldNotBeNull();
+		// Assert - Default profiles should be registered. The registry now wires the full
+		// DefaultPipelineProfiles set (lowercase/hyphenated keys incl. the revived
+		// "default" profile) in place of the old empty capitalized Strict/InternalEvent
+		// shells. Document/Minimal remain registered under their original names.
+		_sut.GetProfile(DefaultPipelineProfiles.Default).ShouldNotBeNull();
+		_sut.GetProfile(DefaultPipelineProfiles.Strict).ShouldNotBeNull();
+		_sut.GetProfile(DefaultPipelineProfiles.InternalEvent).ShouldNotBeNull();
 		_sut.GetProfile(DefaultPipelineProfiles.Direct).ShouldNotBeNull();
 		_sut.GetProfile("Document").ShouldNotBeNull();
 		_sut.GetProfile("Minimal").ShouldNotBeNull();
@@ -181,9 +185,11 @@ public sealed class PipelineProfileRegistryShould
 		// Act
 		var names = _sut.GetProfileNames().ToList();
 
-		// Assert
-		names.ShouldContain("Strict");
-		names.ShouldContain("InternalEvent");
+		// Assert - default profiles use the DefaultPipelineProfiles lowercase/hyphenated
+		// keys (incl. the revived "default"); Document/Minimal keep their names.
+		names.ShouldContain(DefaultPipelineProfiles.Default);
+		names.ShouldContain(DefaultPipelineProfiles.Strict);
+		names.ShouldContain(DefaultPipelineProfiles.InternalEvent);
 		names.ShouldContain(DefaultPipelineProfiles.Direct);
 		names.ShouldContain("Document");
 		names.ShouldContain("Minimal");
@@ -263,8 +269,8 @@ public sealed class PipelineProfileRegistryShould
 	[Fact]
 	public void SetDefaultProfile()
 	{
-		// Act & Assert - Should not throw
-		Should.NotThrow(() => _sut.SetDefaultProfile("Strict"));
+		// Act & Assert - Should not throw (uses the registered lowercase profile key)
+		Should.NotThrow(() => _sut.SetDefaultProfile(DefaultPipelineProfiles.Strict));
 	}
 
 	[Fact]
