@@ -190,8 +190,10 @@ public sealed class SpanEventSerializer : IEventSerializer
 	#region IEventSerializer - byte[] and type resolution methods
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("JSON serialization of events requires dynamic code generation for type inspection and property access")]
-	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to the injected reflection serializer; the trim opt-in is enforced where that serializer is constructed.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Delegates to the injected reflection serializer; the AOT opt-in is enforced where that serializer is constructed.")]
 	public byte[] SerializeEvent(IDomainEvent domainEvent)
 	{
 		ArgumentNullException.ThrowIfNull(domainEvent);
@@ -201,8 +203,10 @@ public sealed class SpanEventSerializer : IEventSerializer
 	}
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("JSON deserialization of events requires dynamic code generation for type inspection and property access")]
-	[RequiresUnreferencedCode("JSON deserialization may reference types not preserved during trimming")]
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to the injected reflection serializer; the trim opt-in is enforced where that serializer is constructed.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Delegates to the injected reflection serializer; the AOT opt-in is enforced where that serializer is constructed.")]
 	public IDomainEvent DeserializeEvent(byte[] data, Type eventType)
 	{
 		ArgumentNullException.ThrowIfNull(data);
@@ -227,7 +231,8 @@ public sealed class SpanEventSerializer : IEventSerializer
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Resolving types by name requires type metadata that may be removed during trimming")]
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to the shared type resolver; type metadata is preserved through event store infrastructure.")]
 	public Type ResolveType(string typeName)
 	{
 		ArgumentNullException.ThrowIfNull(typeName);

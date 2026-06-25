@@ -28,13 +28,15 @@ internal sealed class BatchChannelReader<T>(ChannelReader<T> reader, int batchSi
 	public async IAsyncEnumerable<IReadOnlyList<T>> ReadBatchesAsync(
 		[EnumeratorCancellation] CancellationToken cancellationToken = default)
 	{
-		using var timeoutCts = new CancellationTokenSource();
-		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			_buffer.Clear();
-			timeoutCts.CancelAfter(_batchTimeout);
+
+			// Fresh per-iteration CTS pair: a linked CTS cannot be un-cancelled, so reusing one across
+			// timeout windows would leave it permanently cancelled after the first flush (FR-I5). Each
+			// window therefore gets a clean timeout + linked token.
+			using var timeoutCts = new CancellationTokenSource(_batchTimeout);
+			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
 			var shouldYieldBatch = false;
 			var shouldBreak = false;
@@ -73,9 +75,10 @@ internal sealed class BatchChannelReader<T>(ChannelReader<T> reader, int batchSi
 					batchToYield = [.. _buffer];
 				}
 			}
-			catch (OperationCanceledException) when (timeoutCts.Token.IsCancellationRequested)
+			catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
 			{
-				// Timeout reached, yield what we have
+				// Time-based flush: this window's timeout fired (not the caller). Yield what we have and
+				// continue to the next window — the OCE must NOT escape the iterator (FR-I3).
 				if (_buffer.Count > 0)
 				{
 					shouldYieldBatch = true;
@@ -92,8 +95,6 @@ internal sealed class BatchChannelReader<T>(ChannelReader<T> reader, int batchSi
 			{
 				yield break;
 			}
-
-			_ = timeoutCts.TryReset();
 		}
 	}
 }

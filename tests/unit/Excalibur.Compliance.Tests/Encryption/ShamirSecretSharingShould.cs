@@ -74,10 +74,13 @@ public sealed class ShamirSecretSharingShould
 		// Act
 		var shares = ShamirSecretSharing.Split(secret, totalShares: 3, threshold: 2);
 
-		// Assert - first byte is 1-based share index
-		shares[0][0].ShouldBe((byte)1);
-		shares[1][0].ShouldBe((byte)2);
-		shares[2][0].ShouldBe((byte)3);
+		// Assert - header layout is [version:1][threshold:1][secretLen:2][commitment:32][index:1][data];
+		// the 1-based share index now lives at offset 36 (the byte 0 is the format version).
+		const int indexByteOffset = 36;
+		shares[0][0].ShouldBe((byte)1); // format version
+		shares[0][indexByteOffset].ShouldBe((byte)1);
+		shares[1][indexByteOffset].ShouldBe((byte)2);
+		shares[2][indexByteOffset].ShouldBe((byte)3);
 	}
 
 	[Fact]
@@ -89,11 +92,11 @@ public sealed class ShamirSecretSharingShould
 		// Act
 		var shares = ShamirSecretSharing.Split(secret, totalShares: 5, threshold: 3);
 
-		// Assert - share length = secret length + 1 (for index byte)
+		// Assert - share length = 37-byte self-describing header + secret length
 		shares.Length.ShouldBe(5);
 		foreach (var share in shares)
 		{
-			share.Length.ShouldBe(17); // 16 + 1
+			share.Length.ShouldBe(53); // 37 (header) + 16 (secret)
 		}
 	}
 

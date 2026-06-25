@@ -57,4 +57,22 @@ public sealed class AuditOptions
 	/// </summary>
 	/// <value> The maximum query result size. Defaults to 10,000. </value>
 	public int MaxQueryResultSize { get; init; } = 10_000;
+
+	/// <summary>
+	/// Gets the secret key used by the default <see cref="IAuditSigningKeyProvider"/> to compute and
+	/// verify the keyed-MAC (HMAC-SHA256) integrity tag on audit records.
+	/// </summary>
+	/// <value>
+	/// The signing key bytes, sourced from a secret manager / KMS. <see langword="null"/> by default;
+	/// when <see cref="EnsureLogIntegrity"/> is enabled and no key is configured (and no custom
+	/// <see cref="IAuditSigningKeyProvider"/> is registered), integrity computation fails closed.
+	/// </value>
+	public byte[]? IntegritySigningKey { get; init; }
+
+	/// <summary>
+	/// Gets the identifier of the current audit signing key, embedded in each record's integrity tag so
+	/// keys can be rotated while older records remain verifiable.
+	/// </summary>
+	/// <value> The key identifier (must be colon-free). Defaults to "default". </value>
+	public string IntegrityKeyId { get; init; } = "default";
 }

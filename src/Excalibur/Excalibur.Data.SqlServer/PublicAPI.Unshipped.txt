@@ -1,1 +1,2 @@
 #nullable enable
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!

@@ -189,6 +189,7 @@ public static class PluggableSerializationServiceCollectionExtensions
 	/// <c>builder.UseMemoryPackEventSerializer()</c>.
 	/// </para>
 	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based JsonEventSerializer. Use an AOT-safe serializer (e.g. AotJsonEventSerializer) for trimmed/AOT apps.")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
 	public static IServiceCollection AddEventSerializer(this IServiceCollection services)
 	{

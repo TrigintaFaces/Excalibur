@@ -68,14 +68,10 @@ public partial class GrantRepository : IGrantRepository
 	}
 
 	/// <inheritdoc />
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Aggregate serialization uses reflection.")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Aggregate serialization uses runtime code generation.")]
 	public Task SaveAsync(Grant aggregate, CancellationToken cancellationToken) =>
 		SaveAsync(aggregate, expectedETag: null, cancellationToken);
 
 	/// <inheritdoc />
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Aggregate serialization uses reflection.")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Aggregate serialization uses runtime code generation.")]
 	public async Task SaveAsync(Grant aggregate, string? expectedETag, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
@@ -192,7 +188,9 @@ public partial class GrantRepository : IGrantRepository
 
 		try
 		{
-			var storeGrants = await _grantStore.GetAllGrantsAsync(userId, cancellationToken).ConfigureAwait(false);
+			// Repository reconciliation reads the full grant set (including expired), so opt in.
+			var storeGrants = await _grantStore.GetAllGrantsAsync(userId, includeExpired: true, cancellationToken)
+				.ConfigureAwait(false);
 			return storeGrants.Select(ToDomainGrant);
 		}
 		catch (Exception ex)

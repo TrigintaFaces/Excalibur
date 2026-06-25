@@ -3,6 +3,7 @@
 
 
 using System.Data;
+using System.Text.Json;
 
 using Dapper;
 
@@ -37,20 +38,21 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
 		var sql = $"""
 			MERGE INTO {qualifiedTable} WITH (HOLDLOCK, ROWLOCK, UPDLOCK) AS target
-			USING (SELECT @SnapshotId, @AggregateId, @AggregateType, @Version, @Data, @CreatedAt)
-			    AS source (SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt)
+			USING (SELECT @SnapshotId, @AggregateId, @AggregateType, @Version, @Data, @CreatedAt, @Metadata)
+			    AS source (SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt, Metadata)
 			ON target.AggregateId = source.AggregateId
 			   AND target.AggregateType = source.AggregateType
-			WHEN MATCHED THEN
+			WHEN MATCHED AND source.Version > target.Version THEN
 			    UPDATE SET
 			        SnapshotId = source.SnapshotId,
 			        Version = source.Version,
 			        Data = source.Data,
-			        CreatedAt = source.CreatedAt
+			        CreatedAt = source.CreatedAt,
+			        Metadata = source.Metadata
 			WHEN NOT MATCHED THEN
-			    INSERT (SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt)
+			    INSERT (SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt, Metadata)
 			    VALUES (source.SnapshotId, source.AggregateId, source.AggregateType,
-			            source.Version, source.Data, source.CreatedAt);
+			            source.Version, source.Data, source.CreatedAt, source.Metadata);
 			""";
 #pragma warning restore CA2100
 
@@ -61,10 +63,28 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 		parameters.Add("@Version", snapshot.Version);
 		parameters.Add("@Data", snapshot.Data.ToArray());
 		parameters.Add("@CreatedAt", snapshot.CreatedAt);
+		parameters.Add("@Metadata", SerializeMetadata(snapshot.Metadata), DbType.Binary);
 
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Serializes the snapshot metadata dictionary to a binary payload for storage so that the
+	/// schema-version entry consumed by snapshot upgrading round-trips. Null metadata is stored as
+	/// SQL NULL; an empty dictionary is preserved as empty.
+	/// </summary>
+	private static byte[]? SerializeMetadata(IDictionary<string, object>? metadata)
+	{
+		if (metadata is null)
+		{
+			return null;
+		}
+
+#pragma warning disable IL2026, IL3050 // Metadata serialization inherently uses reflection (matches SqlServerEventStore precedent)
+		return JsonSerializer.SerializeToUtf8Bytes(metadata);
+#pragma warning restore IL2026, IL3050
 	}
 }

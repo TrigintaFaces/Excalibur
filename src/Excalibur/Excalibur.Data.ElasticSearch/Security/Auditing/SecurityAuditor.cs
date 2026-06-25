@@ -60,6 +60,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	private readonly SecurityAuditWriter _writer;
 	private readonly SecurityAuditQueryService _queryService;
 	private readonly SecurityAuditMaintenanceService _maintenanceService;
+	private readonly IAuditSigningKeyProvider _signingKeyProvider;
 
 	/// <inheritdoc />
 	public AuditOptions Configuration { get; }
@@ -69,6 +70,11 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 	/// <inheritdoc />
 	public IReadOnlyCollection<ComplianceFramework> SupportedComplianceFrameworks { get; }
+
+	// Default signing-key provider used by the non-DI constructors; reads the key lazily from
+	// AuditOptions so a null options argument still surfaces ArgumentNullException from the body.
+	private static IAuditSigningKeyProvider BuildDefaultSigningKeyProvider(IOptions<AuditOptions> auditOptions) =>
+		new OptionsAuditSigningKeyProvider(auditOptions);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SecurityAuditor" /> class.
@@ -83,7 +89,29 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		IOptions<AuditOptions> auditOptions,
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
 		ILogger<SecurityAuditor> logger)
-		: this(elasticsearchClient, CreateAuditStore(elasticsearchClient), auditOptions, monitoringOptions, logger)
+		: this(elasticsearchClient, CreateAuditStore(elasticsearchClient), auditOptions, monitoringOptions,
+			BuildDefaultSigningKeyProvider(auditOptions), logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="SecurityAuditor" /> class with an explicit audit
+	/// signing key provider. This is the dependency-injection entry point.
+	/// </summary>
+	/// <param name="elasticsearchClient"> The Elasticsearch client for audit log storage. </param>
+	/// <param name="auditOptions"> The audit configuration options. </param>
+	/// <param name="monitoringOptions"> The security monitoring configuration options. </param>
+	/// <param name="signingKeyProvider"> The provider of the keyed-MAC audit signing key. </param>
+	/// <param name="logger"> The logger for operational events. </param>
+	/// <exception cref="ArgumentNullException"> Thrown when required dependencies are null. </exception>
+	public SecurityAuditor(
+		ElasticsearchClient elasticsearchClient,
+		IOptions<AuditOptions> auditOptions,
+		IOptions<SecurityMonitoringOptions> monitoringOptions,
+		IAuditSigningKeyProvider signingKeyProvider,
+		ILogger<SecurityAuditor> logger)
+		: this(elasticsearchClient, CreateAuditStore(elasticsearchClient), auditOptions, monitoringOptions,
+			signingKeyProvider, logger)
 	{
 	}
 
@@ -107,11 +135,35 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		IOptions<AuditOptions> auditOptions,
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
 		ILogger<SecurityAuditor> logger)
+		: this(elasticsearchClient, auditStore, auditOptions, monitoringOptions,
+			BuildDefaultSigningKeyProvider(auditOptions), logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="SecurityAuditor"/> class with an explicit audit
+	/// store seam and signing key provider (full constructor; the other constructors delegate here).
+	/// </summary>
+	/// <param name="elasticsearchClient"> The Elasticsearch client. </param>
+	/// <param name="auditStore"> The audit store seam adapter. </param>
+	/// <param name="auditOptions"> The audit configuration options. </param>
+	/// <param name="monitoringOptions"> The security monitoring configuration options. </param>
+	/// <param name="signingKeyProvider"> The provider of the keyed-MAC audit signing key. </param>
+	/// <param name="logger"> The logger for operational events. </param>
+	/// <exception cref="ArgumentNullException"> Thrown when required dependencies are null. </exception>
+	internal SecurityAuditor(
+		ElasticsearchClient elasticsearchClient,
+		ISecurityAuditStore auditStore,
+		IOptions<AuditOptions> auditOptions,
+		IOptions<SecurityMonitoringOptions> monitoringOptions,
+		IAuditSigningKeyProvider signingKeyProvider,
+		ILogger<SecurityAuditor> logger)
 	{
 		_elasticsearchClient = elasticsearchClient ?? throw new ArgumentNullException(nameof(elasticsearchClient));
 		_auditStore = auditStore ?? throw new ArgumentNullException(nameof(auditStore));
 		Configuration = auditOptions?.Value ?? throw new ArgumentNullException(nameof(auditOptions));
 		_ = monitoringOptions?.Value ?? throw new ArgumentNullException(nameof(monitoringOptions));
+		_signingKeyProvider = signingKeyProvider ?? throw new ArgumentNullException(nameof(signingKeyProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_auditSemaphore = new SemaphoreSlim(Environment.ProcessorCount, Environment.ProcessorCount);
@@ -124,7 +176,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		_queryService = new SecurityAuditQueryService(
 			_elasticsearchClient, Configuration, _complianceReporters, _logger);
 		_maintenanceService = new SecurityAuditMaintenanceService(
-			_elasticsearchClient, Configuration, _logger);
+			_elasticsearchClient, Configuration, _signingKeyProvider, _logger);
 
 		// Wire up events from delegates
 		_writer.SecurityEventRecorded += (sender, args) => SecurityEventRecorded?.Invoke(this, args);
@@ -455,7 +507,9 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			{
 				foreach (var auditEvent in eventsToProcess)
 				{
-					auditEvent.IntegrityHash = SecurityAuditMaintenanceService.ComputeIntegrityHash(auditEvent);
+					auditEvent.IntegrityHash = await _maintenanceService
+						.ComputeIntegrityHashAsync(auditEvent, CancellationToken.None)
+						.ConfigureAwait(false);
 				}
 			}
 

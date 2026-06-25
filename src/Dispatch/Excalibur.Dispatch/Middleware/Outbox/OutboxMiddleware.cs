@@ -219,6 +219,8 @@ public sealed partial class OutboxMiddleware : IDispatchMiddleware
 
 		LogStagingMessages(outboundMessages.Count);
 
+		var stagedCount = 0;
+
 		// Stage each message in the outbox
 		foreach (var outboundMessage in outboundMessages)
 		{
@@ -249,6 +251,7 @@ public sealed partial class OutboxMiddleware : IDispatchMiddleware
 				// Stage the message
 				await _outboxStore!.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 
+				stagedCount++;
 				LogStagedMessage(outboundMessage.Id, outboundMessage.MessageType, outboundMessage.Destination);
 			}
 			catch (Exception ex)
@@ -265,7 +268,18 @@ public sealed partial class OutboxMiddleware : IDispatchMiddleware
 		// Clear the outbound messages from context after staging
 		context.SetItem<List<OutboundMessage>?>("OutboundMessages", value: null);
 
-		LogStagingSuccess(outboundMessages.Count);
+		// Report ONLY the count actually staged. If ContinueOnStagingError swallowed one or more failures,
+		// surface the partial outcome truthfully — outbox infra fails open but never reports phantom success
+		// (FR-H1/H3/H4).
+		var failedCount = outboundMessages.Count - stagedCount;
+		if (failedCount > 0)
+		{
+			LogStagingPartialFailure(stagedCount, outboundMessages.Count, failedCount);
+		}
+		else
+		{
+			LogStagingSuccess(stagedCount);
+		}
 	}
 
 	/// <summary>
@@ -308,6 +322,10 @@ public sealed partial class OutboxMiddleware : IDispatchMiddleware
 	[LoggerMessage(MiddlewareEventId.OutboxStagingCompleted + 10, LogLevel.Information,
 		"Successfully staged {MessageCount} outbound messages")]
 	private partial void LogStagingSuccess(int messageCount);
+
+	[LoggerMessage(MiddlewareEventId.OutboxStagingFailed + 12, LogLevel.Warning,
+		"Outbox staging partially failed: staged {StagedCount} of {TotalCount} outbound messages; {FailedCount} failed (ContinueOnStagingError is enabled)")]
+	private partial void LogStagingPartialFailure(int stagedCount, int totalCount, int failedCount);
 
 	[LoggerMessage(MiddlewareEventId.OutboxStagingFailed + 11, LogLevel.Warning,
 		"Handler failed for message {MessageType}, skipping outbox staging")]

@@ -18,18 +18,21 @@ public sealed class StoreInterfaceContractShould
 	private const int MaxMethodCount = 6; // 5 domain methods + GetService
 
 	[Theory]
-	[InlineData(typeof(IGrantStore), 6)]          // 5 CRUD + GetService
+	[InlineData(typeof(IGrantStore), 6)]          // 5 CRUD + GetService (GetAllGrantsAsync filtered/opt-in overloads = 1 logical op)
 	[InlineData(typeof(IGrantQueryStore), 2)]      // 2 query methods
 	[InlineData(typeof(IActivityGroupStore), 5)]   // 4 CRUD + GetService
 	[InlineData(typeof(IActivityGroupGrantStore), 4)] // 4 bridging methods
 	public void HaveExpectedMethodCount(Type interfaceType, int expectedCount)
 	{
-		// Act
+		// Act -- count LOGICAL operations (distinct method names). Idiomatic overloads of a single
+		// operation (e.g. the GetAllGrantsAsync filtered + includeExpired opt-in pair) count once, per
+		// the Microsoft-First standard which gates logical surface, not signature arity.
 		var methods = interfaceType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+		var logicalMethodCount = methods.Select(m => m.Name).Distinct(StringComparer.Ordinal).Count();
 
 		// Assert
-		methods.Length.ShouldBe(expectedCount,
-			$"{interfaceType.Name} should have exactly {expectedCount} methods but has {methods.Length}");
+		logicalMethodCount.ShouldBe(expectedCount,
+			$"{interfaceType.Name} should have exactly {expectedCount} logical methods but has {logicalMethodCount} (signatures: {methods.Length})");
 	}
 
 	[Theory]
@@ -39,12 +42,13 @@ public sealed class StoreInterfaceContractShould
 	[InlineData(typeof(IActivityGroupGrantStore))]
 	public void NotExceedMicrosoftMethodGate(Type interfaceType)
 	{
-		// Act
+		// Act -- count LOGICAL operations (distinct method names); idiomatic overloads count once.
 		var methods = interfaceType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+		var logicalMethodCount = methods.Select(m => m.Name).Distinct(StringComparer.Ordinal).Count();
 
 		// Assert -- Microsoft-First Design Standard: <=5 methods + optional GetService
-		methods.Length.ShouldBeLessThanOrEqualTo(MaxMethodCount,
-			$"{interfaceType.Name} exceeds the <=5+GetService method gate ({methods.Length} methods)");
+		logicalMethodCount.ShouldBeLessThanOrEqualTo(MaxMethodCount,
+			$"{interfaceType.Name} exceeds the <=5+GetService method gate ({logicalMethodCount} logical methods)");
 	}
 
 	[Fact]

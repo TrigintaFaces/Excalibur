@@ -27,6 +27,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 {
 	private readonly FirestoreAuthorizationOptions _options;
 	private readonly ILogger<FirestoreGrantStore> _logger;
+	private readonly TimeProvider _timeProvider;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private FirestoreDb? _db;
 	private CollectionReference? _collection;
@@ -38,9 +39,11 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 	/// </summary>
 	/// <param name="options">The Firestore authorization options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">Time source used to evaluate grant expiry. Defaults to <see cref="System.TimeProvider.System"/> when not supplied.</param>
 	public FirestoreGrantStore(
 		IOptions<FirestoreAuthorizationOptions> options,
-		ILogger<FirestoreGrantStore> logger)
+		ILogger<FirestoreGrantStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -48,6 +51,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
 	/// <summary>
@@ -56,10 +60,12 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 	/// <param name="db">An existing Firestore database instance.</param>
 	/// <param name="options">The Firestore authorization options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">Time source used to evaluate grant expiry. Defaults to <see cref="System.TimeProvider.System"/> when not supplied.</param>
 	public FirestoreGrantStore(
 		FirestoreDb db,
 		IOptions<FirestoreAuthorizationOptions> options,
-		ILogger<FirestoreGrantStore> logger)
+		ILogger<FirestoreGrantStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(db);
 		ArgumentNullException.ThrowIfNull(options);
@@ -69,6 +75,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_collection = db.Collection(_options.GrantsCollectionName);
 		_initialized = true;
 	}
@@ -201,7 +208,12 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 	}
 
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken)
+	public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
+		GetAllGrantsAsync(userId, includeExpired: false, cancellationToken);
+
+	/// <inheritdoc/>
+	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired,
+		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -213,11 +225,13 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 
 		var querySnapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
+		// Default-secure: exclude expired grants unless explicitly requested.
+		var now = _timeProvider.GetUtcNow();
 		var results = new List<Grant>();
 		foreach (var doc in querySnapshot.Documents)
 		{
 			var grant = FirestoreGrantDocument.FromSnapshot(doc);
-			if (grant is not null)
+			if (grant is not null && (includeExpired || grant.IsActive(now)))
 			{
 				results.Add(grant);
 			}

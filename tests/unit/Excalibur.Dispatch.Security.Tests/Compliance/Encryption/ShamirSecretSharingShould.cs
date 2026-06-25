@@ -42,8 +42,8 @@ public sealed class ShamirSecretSharingShould
 		// Assert
 		foreach (var share in shares)
 		{
-			// Share length = secret length + 1 (for index)
-			share.Length.ShouldBe(secret.Length + 1);
+			// Share length = 37-byte self-describing header + secret length
+			share.Length.ShouldBe(secret.Length + 37);
 		}
 	}
 
@@ -58,10 +58,11 @@ public sealed class ShamirSecretSharingShould
 		// Act
 		var shares = ShamirSecretSharing.Split(secret, totalShares, threshold);
 
-		// Assert
+		// Assert - the 1-based index lives at offset 36 (after version/threshold/secretLen/commitment).
+		const int indexByteOffset = 36;
 		for (var i = 0; i < totalShares; i++)
 		{
-			shares[i][0].ShouldBe((byte)(i + 1)); // 1-based indices
+			shares[i][indexByteOffset].ShouldBe((byte)(i + 1)); // 1-based indices
 		}
 	}
 
@@ -283,12 +284,10 @@ public sealed class ShamirSecretSharingShould
 	[Fact]
 	public void Reconstruct_ThrowsArgumentException_WhenDuplicateIndices()
 	{
-		// Arrange
-		var invalidShares = new[]
-		{
-			new byte[] { 0x01, 0xAA, 0xBB },
-			new byte[] { 0x01, 0xCC, 0xDD } // Same index
-		};
+		// Arrange - two real, valid-format shares with the SAME index trigger duplicate detection
+		// (using crafted short shares would now trip the header-length guard first).
+		var shares = ShamirSecretSharing.Split(new byte[] { 0x42, 0x43 }, totalShares: 5, threshold: 2);
+		var invalidShares = new[] { shares[0], shares[0] }; // same index
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentException>(() =>

@@ -22,6 +22,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 {
 	private readonly MongoDbAuthorizationOptions _options;
 	private readonly ILogger<MongoDbGrantStore> _logger;
+	private readonly TimeProvider _timeProvider;
 	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
@@ -34,9 +35,11 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 	/// </summary>
 	/// <param name="options">The MongoDB authorization options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">Time source used to evaluate grant expiry. Defaults to <see cref="System.TimeProvider.System"/> when not supplied.</param>
 	public MongoDbGrantStore(
 		IOptions<MongoDbAuthorizationOptions> options,
-		ILogger<MongoDbGrantStore> logger)
+		ILogger<MongoDbGrantStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -44,6 +47,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_ownsClient = true;
 	}
 
@@ -53,10 +57,12 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 	/// <param name="client">An existing MongoDB client.</param>
 	/// <param name="options">The MongoDB authorization options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">Time source used to evaluate grant expiry. Defaults to <see cref="System.TimeProvider.System"/> when not supplied.</param>
 	public MongoDbGrantStore(
 		IMongoClient client,
 		IOptions<MongoDbAuthorizationOptions> options,
-		ILogger<MongoDbGrantStore> logger)
+		ILogger<MongoDbGrantStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -66,6 +72,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_database = client.GetDatabase(_options.DatabaseName);
 		_collection = _database.GetCollection<GrantDocument>(_options.GrantsCollectionName);
 	}
@@ -185,7 +192,12 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 	}
 
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken)
+	public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
+		GetAllGrantsAsync(userId, includeExpired: false, cancellationToken);
+
+	/// <inheritdoc/>
+	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired,
+		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -195,7 +207,12 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 			Builders<GrantDocument>.Filter.Eq(x => x.IsRevoked, false));
 
 		var documents = await _collection!.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
-		return documents.Select(d => d.ToGrant()).ToList();
+
+		// Default-secure: exclude expired grants unless explicitly requested.
+		var now = _timeProvider.GetUtcNow();
+		return documents.Select(d => d.ToGrant())
+			.Where(g => includeExpired || g.IsActive(now))
+			.ToList();
 	}
 
 	/// <inheritdoc/>

@@ -57,17 +57,25 @@ public sealed class PostgresGrantStore : IGrantStore, IGrantQueryStore, IActivit
 	}
 
 	/// <inheritdoc />
-	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken)
+	public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
+		GetAllGrantsAsync(userId, includeExpired: false, cancellationToken);
+
+	/// <inheritdoc />
+	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired,
+		CancellationToken cancellationToken)
 	{
+		// Default-secure: exclude expired grants unless explicitly requested. Expiry is evaluated
+		// against the DB clock — same precedent as GrantExistsAsync.
 		const string sql = """
 		                        SELECT *
 		                        FROM authz.grant
-		                        WHERE user_id = @UserId;
+		                        WHERE user_id = @UserId
+		                        AND (@IncludeExpired OR COALESCE(expires_on, 'infinity') > now() at time zone 'utc');
 		                   """;
 
 		var grants = await _connection.QueryAsync<GrantRow>(
 			new CommandDefinition(sql,
-				new { UserId = userId },
+				new { UserId = userId, IncludeExpired = includeExpired },
 				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 

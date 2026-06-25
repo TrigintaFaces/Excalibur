@@ -61,6 +61,7 @@ BEGIN
         [Version]        BIGINT                NOT NULL,
         [Data]           VARBINARY(MAX)        NOT NULL,
         [CreatedAt]      DATETIMEOFFSET        NOT NULL,
+        [Metadata]       VARBINARY(MAX)        NULL,
 
         CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType])
     );

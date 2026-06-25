@@ -32,12 +32,33 @@ public interface IGrantStore
 		string qualifier, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Retrieves all grants for a user.
+	/// Retrieves all <b>active (non-expired)</b> grants for a user.
 	/// </summary>
 	/// <param name="userId">The user/subject identifier.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>All grants for the specified user.</returns>
+	/// <returns>All non-expired grants for the specified user.</returns>
+	/// <remarks>
+	/// This overload is <b>default-secure</b>: expired grants are excluded so they can never
+	/// influence an authorization or separation-of-duties decision (Microsoft soft-delete-filter
+	/// pattern). Callers that legitimately need expired grants (reporting, orphaned-access
+	/// detection, reconciliation) MUST use the
+	/// <see cref="GetAllGrantsAsync(string, bool, CancellationToken)"/> overload with
+	/// <c>includeExpired: true</c>.
+	/// </remarks>
 	Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Retrieves all grants for a user, optionally including expired grants.
+	/// </summary>
+	/// <param name="userId">The user/subject identifier.</param>
+	/// <param name="includeExpired">
+	/// <see langword="true"/> to include expired grants; <see langword="false"/> to return only
+	/// active (non-expired) grants. Authorization and SoD decision paths MUST pass
+	/// <see langword="false"/>.
+	/// </param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>All grants for the specified user, filtered per <paramref name="includeExpired"/>.</returns>
+	Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Saves or updates a grant (upsert).

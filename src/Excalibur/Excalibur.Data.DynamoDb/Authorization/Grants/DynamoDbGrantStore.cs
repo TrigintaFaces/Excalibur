@@ -29,6 +29,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 {
 	private readonly DynamoDbAuthorizationOptions _options;
 	private readonly ILogger<DynamoDbGrantStore> _logger;
+	private readonly TimeProvider _timeProvider;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
 	private bool _initialized;
@@ -39,9 +40,11 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 	/// </summary>
 	/// <param name="options">The DynamoDB authorization options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">Time source used to evaluate grant expiry. Defaults to <see cref="System.TimeProvider.System"/> when not supplied.</param>
 	public DynamoDbGrantStore(
 		IOptions<DynamoDbAuthorizationOptions> options,
-		ILogger<DynamoDbGrantStore> logger)
+		ILogger<DynamoDbGrantStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -49,6 +52,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
 	/// <summary>
@@ -57,10 +61,12 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 	/// <param name="client">The DynamoDB client.</param>
 	/// <param name="options">The DynamoDB authorization options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">Time source used to evaluate grant expiry. Defaults to <see cref="System.TimeProvider.System"/> when not supplied.</param>
 	public DynamoDbGrantStore(
 		IAmazonDynamoDB client,
 		IOptions<DynamoDbAuthorizationOptions> options,
-		ILogger<DynamoDbGrantStore> logger)
+		ILogger<DynamoDbGrantStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -69,6 +75,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 		_client = client;
 		_options = options.Value;
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_initialized = true;
 	}
 
@@ -257,10 +264,18 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 	}
 
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken)
+	public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
+		GetAllGrantsAsync(userId, includeExpired: false, cancellationToken);
+
+	/// <inheritdoc/>
+	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired,
+		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Default-secure: exclude expired grants unless explicitly requested.
+		var now = _timeProvider.GetUtcNow();
 
 		// Use GSI for cross-tenant user queries
 		var request = new QueryRequest
@@ -291,7 +306,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 			foreach (var item in response.Items)
 			{
 				var grant = GrantItem.FromItem(item);
-				if (grant is not null)
+				if (grant is not null && (includeExpired || grant.IsActive(now)))
 				{
 					results.Add(grant);
 				}

@@ -1,1 +1,4 @@
 #nullable enable
+*REMOVED*Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.CosmosDbGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Authorization.CosmosDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore!>! logger) -> void
+Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.CosmosDbGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Authorization.CosmosDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore!>! logger, System.TimeProvider? timeProvider = null) -> void
+Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!

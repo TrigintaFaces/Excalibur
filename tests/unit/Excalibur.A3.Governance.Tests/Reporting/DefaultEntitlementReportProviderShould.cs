@@ -59,7 +59,7 @@ public sealed class DefaultEntitlementReportProviderShould : UnitTestBase
 	[Fact]
 	public async Task GenerateUserSnapshot_WithEntries()
 	{
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>(
 				[MakeGrant("user-1", "Admin"), MakeGrant("user-1", "Finance")]));
 
@@ -75,7 +75,7 @@ public sealed class DefaultEntitlementReportProviderShould : UnitTestBase
 	[Fact]
 	public async Task GenerateUserSnapshot_Empty_WhenNoGrants()
 	{
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-x", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-x", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([]));
 
 		var snapshot = await _sut.GenerateUserSnapshotAsync("user-x", CancellationToken.None);
@@ -185,7 +185,7 @@ public sealed class DefaultEntitlementReportProviderShould : UnitTestBase
 		A.CallTo(() => _principalTypeProvider.GetPrincipalTypeAsync("svc-1", A<CancellationToken>._))
 			.Returns(PrincipalType.ServiceAccount);
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("svc-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("svc-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([MakeGrant("svc-1", "API")]));
 
 		var snapshot = await _sut.GenerateUserSnapshotAsync("svc-1", CancellationToken.None);
@@ -200,7 +200,7 @@ public sealed class DefaultEntitlementReportProviderShould : UnitTestBase
 			_grantStore, null, null, null, null,
 			NullLogger<DefaultEntitlementReportProvider>.Instance);
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([MakeGrant("user-1", "Admin")]));
 
 		var snapshot = await sut.GenerateUserSnapshotAsync("user-1", CancellationToken.None);

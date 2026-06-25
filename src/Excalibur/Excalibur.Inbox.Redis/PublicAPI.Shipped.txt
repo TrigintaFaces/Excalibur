@@ -37,7 +37,6 @@ Excalibur.Inbox.Redis.RedisInboxStore.GetFailedEntriesAsync(int maxRetries, Syst
 Excalibur.Inbox.Redis.RedisInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxStatistics!>
 Excalibur.Inbox.Redis.RedisInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.Redis.RedisInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Inbox.Redis.RedisInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Redis.RedisInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Redis.RedisInboxStore.MarkProcessingAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Redis.RedisInboxStore.RedisInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Redis.RedisInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Redis.RedisInboxStore!>! logger) -> void

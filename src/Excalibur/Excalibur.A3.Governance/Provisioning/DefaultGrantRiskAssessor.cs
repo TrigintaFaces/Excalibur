@@ -8,12 +8,17 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.A3.Governance;
 
 /// <summary>
-/// Default implementation of <see cref="IGrantRiskAssessor"/> that returns a risk score of 0
-/// and logs a warning indicating that no risk assessment logic is configured.
+/// Default fail-safe implementation of <see cref="IGrantRiskAssessor"/> used when no real assessor
+/// is configured. It returns the maximum risk score (<see cref="MaxRiskScore"/> = 100) so that any
+/// risk-gated approval step (<see cref="ApprovalCondition.RiskScoreAbove"/>) always fires, and logs a
+/// warning. This fails toward requiring human approval rather than silently bypassing the gate.
 /// </summary>
 internal sealed partial class DefaultGrantRiskAssessor(
 	ILogger<DefaultGrantRiskAssessor> logger) : IGrantRiskAssessor
 {
+	/// <summary>The maximum (most-risky) score, per <see cref="IGrantRiskAssessor"/>'s documented 0-100 range.</summary>
+	private const int MaxRiskScore = 100;
+
 	/// <inheritdoc />
 	public Task<int> AssessRiskAsync(
 		string userId,
@@ -21,11 +26,14 @@ internal sealed partial class DefaultGrantRiskAssessor(
 		string grantType,
 		CancellationToken cancellationToken)
 	{
+		// Fail-safe: no real assessor is configured, so return the maximum score. This guarantees any
+		// RiskScoreAbove approval step triggers (fail toward human review) instead of being silently
+		// bypassed by a benign score (the lftwn1 fail-open defect).
 		LogNoRiskAssessment(logger, userId, grantScope);
-		return Task.FromResult(0);
+		return Task.FromResult(MaxRiskScore);
 	}
 
 	[LoggerMessage(EventId = 3550, Level = LogLevel.Warning,
-		Message = "No IGrantRiskAssessor configured. Returning risk score 0 for user '{UserId}', scope '{GrantScope}'.")]
+		Message = "No IGrantRiskAssessor configured. Returning maximum risk score 100 (fail-safe) for user '{UserId}', scope '{GrantScope}'.")]
 	private static partial void LogNoRiskAssessment(ILogger logger, string userId, string grantScope);
 }

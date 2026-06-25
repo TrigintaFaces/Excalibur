@@ -195,8 +195,10 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Aggregate rehydration may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("Aggregate rehydration may require dynamic code generation.")]
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
+		Justification = "Optional snapshot upgrading and serialization use reflection; the repository's own rehydration is a delegate-factory + pattern-matched apply (no reflection). AOT consumers select an AOT-safe serializer and the interface contract stays clean.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Optional snapshot upgrading and serialization may use dynamic code; the repository's own rehydration does not.")]
 	public async Task<TAggregate?> GetByIdAsync(TKey aggregateId, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(aggregateId);
@@ -272,8 +274,10 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("Aggregate persistence may require dynamic code generation.")]
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
+		Justification = "Optional serialization uses reflection; the repository's own persistence path does not. AOT consumers select an AOT-safe serializer and the interface contract stays clean.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Optional serialization may use dynamic code; the repository's own persistence path does not.")]
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 		Justification = "SaveAsync orchestrates event append, transactional outbox, fallback outbox, snapshots, and notifications -- coupling is inherent to the coordination role.")]
 	public async Task SaveAsync(TAggregate aggregate, CancellationToken cancellationToken)
@@ -442,8 +446,10 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("Aggregate persistence may require dynamic code generation.")]
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
+		Justification = "Optional serialization uses reflection; the repository's own persistence path does not. AOT consumers select an AOT-safe serializer and the interface contract stays clean.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Optional serialization may use dynamic code; the repository's own persistence path does not.")]
 	public async Task SaveAsync(TAggregate aggregate, string? expectedETag, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);

@@ -51,19 +51,13 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 
 			await UpdateJobStateAsync(jobKey, initialConfig, cancellationToken).ConfigureAwait(false);
 
-			_changeListener = configMonitor.OnChange(async newConfig =>
+			// OnChange registers a synchronous Action<T>. Do NOT pass an async lambda — it would bind as
+			// async void, and a fault after the first await (or a rethrow) would surface with no awaiter →
+			// unobserved → host crash. Offload to a guarded task whose faults are always caught + logged,
+			// never rethrown / never left unobserved (FR-J1/J2/J3).
+			_changeListener = configMonitor.OnChange(newConfig =>
 			{
-				try
-				{
-					LogConfigurationChangeDetected(jobKey);
-
-					await UpdateJobStateAsync(jobKey, newConfig, _stoppingCts.Token).ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					LogErrorHandlingConfigurationChange(jobKey, ex);
-					throw;
-				}
+				_ = HandleConfigurationChangeAsync(jobKey, newConfig);
 			});
 
 			LogJobWatcherServiceStartedSuccessfully(jobKey);
@@ -72,6 +66,35 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 		{
 			LogErrorStartingJobWatcherService(ex);
 			throw;
+		}
+	}
+
+	/// <summary>
+	/// Handles a configuration change off the <see cref="IOptionsMonitor{TOptions}.OnChange"/> callback,
+	/// isolating any fault so it cannot escape as an unobserved async-void exception.
+	/// </summary>
+	[SuppressMessage("Design", "CA1031:DoNotCatchGeneralExceptionTypes",
+		Justification = "Top-level fault boundary for a fire-and-forget config-change callback: any fault " +
+			"MUST be caught and logged here, never rethrown or left unobserved (FR-J2) — rethrowing has no " +
+			"awaiter and would crash the host.")]
+	private async Task HandleConfigurationChangeAsync(JobKey jobKey, TOptions newConfig)
+	{
+		try
+		{
+			LogConfigurationChangeDetected(jobKey);
+
+			await UpdateJobStateAsync(jobKey, newConfig, _stoppingCts.Token).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (_stoppingCts.IsCancellationRequested)
+		{
+			// The watcher is stopping — a cancelled in-flight update is the normal stop path, not a fault.
+		}
+		catch (Exception ex)
+		{
+			// The callback has no awaiter (registered as a synchronous Action), so faults MUST be caught
+			// and logged here — never rethrown, never left unobserved (FR-J2). The host stays alive and
+			// subsequent config changes are still handled (FR-J4).
+			LogErrorHandlingConfigurationChange(jobKey, ex);
 		}
 	}
 

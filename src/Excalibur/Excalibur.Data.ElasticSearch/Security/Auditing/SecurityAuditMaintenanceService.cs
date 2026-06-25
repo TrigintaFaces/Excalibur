@@ -26,8 +26,13 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// </remarks>
 internal sealed class SecurityAuditMaintenanceService
 {
+	// Self-describing keyed-MAC integrity token: "v1:{keyId}:{base64(HMAC-SHA256)}". The keyId travels
+	// with the tag so records remain verifiable across key rotation; the "v1" prefix versions the scheme.
+	private const string IntegrityTagVersion = "v1";
+
 	private readonly ElasticsearchClient _elasticsearchClient;
 	private readonly AuditOptions _configuration;
+	private readonly IAuditSigningKeyProvider _signingKeyProvider;
 	private readonly ILogger _logger;
 
 	/// <summary>
@@ -36,10 +41,12 @@ internal sealed class SecurityAuditMaintenanceService
 	internal SecurityAuditMaintenanceService(
 		ElasticsearchClient elasticsearchClient,
 		AuditOptions configuration,
+		IAuditSigningKeyProvider signingKeyProvider,
 		ILogger logger)
 	{
 		_elasticsearchClient = elasticsearchClient;
 		_configuration = configuration;
+		_signingKeyProvider = signingKeyProvider;
 		_logger = logger;
 	}
 
@@ -49,13 +56,46 @@ internal sealed class SecurityAuditMaintenanceService
 	internal event EventHandler<AuditArchiveCompletedEventArgs>? AuditArchiveCompleted;
 
 	/// <summary>
-	/// Computes an integrity hash for an audit event.
+	/// Computes a keyed-MAC (HMAC-SHA256) integrity tag for an audit event, returning a self-describing
+	/// <c>v1:{keyId}:{base64(tag)}</c> token. Because the key is secret and held outside the audit index,
+	/// an actor with write access to the records cannot forge a matching tag (unlike an unkeyed hash).
 	/// </summary>
-	internal static string ComputeIntegrityHash(SecurityAuditEvent auditEvent)
+	/// <remarks>
+	/// Fails closed: if the signing key cannot be obtained the operation throws rather than emitting an
+	/// unprotected tag.
+	/// </remarks>
+	internal async ValueTask<string> ComputeIntegrityHashAsync(
+		SecurityAuditEvent auditEvent,
+		CancellationToken cancellationToken)
 	{
-		var eventData = JsonSerializer.Serialize(auditEvent, SecurityAuditEventSerializerContext.Default.SecurityAuditEvent);
-		var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(eventData));
-		return Convert.ToBase64String(hashBytes);
+		var (keyId, key) = await _signingKeyProvider.GetCurrentSigningKeyAsync(cancellationToken).ConfigureAwait(false);
+		var tag = ComputeMac(key, auditEvent);
+		return $"{IntegrityTagVersion}:{keyId}:{Convert.ToBase64String(tag)}";
+	}
+
+	/// <summary>
+	/// Computes the raw HMAC-SHA256 tag over the canonical (integrity-tag-cleared) serialization of the
+	/// event, so the write and verify paths hash identical bytes regardless of the incoming tag value.
+	/// </summary>
+	private static byte[] ComputeMac(byte[] key, SecurityAuditEvent auditEvent)
+	{
+		// Serialize a copy with the integrity tag cleared so write/verify are symmetric.
+		var canonical = new SecurityAuditEvent
+		{
+			EventId = auditEvent.EventId,
+			Timestamp = auditEvent.Timestamp,
+			EventType = auditEvent.EventType,
+			Severity = auditEvent.Severity,
+			Source = auditEvent.Source,
+			UserId = auditEvent.UserId,
+			SourceIpAddress = auditEvent.SourceIpAddress,
+			UserAgent = auditEvent.UserAgent,
+			Details = auditEvent.Details,
+			IntegrityHash = string.Empty,
+		};
+
+		var eventData = JsonSerializer.Serialize(canonical, SecurityAuditEventSerializerContext.Default.SecurityAuditEvent);
+		return HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(eventData));
 	}
 
 	/// <summary>
@@ -96,7 +136,7 @@ internal sealed class SecurityAuditMaintenanceService
 			// Validate each event's integrity
 			foreach (var auditEvent in events)
 			{
-				if (!ValidateEventIntegrity(auditEvent))
+				if (!await ValidateEventIntegrityAsync(auditEvent, cancellationToken).ConfigureAwait(false))
 				{
 					corruptedEvents++;
 					_logger.LogWarning("Audit log integrity violation detected for event {EventId}", auditEvent.EventId);
@@ -306,36 +346,52 @@ internal sealed class SecurityAuditMaintenanceService
 	}
 
 	/// <summary>
-	/// Validates the integrity of an audit event without mutating the original.
+	/// Validates the keyed-MAC integrity of an audit event without mutating the original. Fails closed:
+	/// a missing/malformed tag, an unknown/unavailable key, or a MAC mismatch all report the record as a
+	/// violation rather than as valid.
 	/// </summary>
-	private static bool ValidateEventIntegrity(SecurityAuditEvent auditEvent)
+	private async ValueTask<bool> ValidateEventIntegrityAsync(
+		SecurityAuditEvent auditEvent,
+		CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrEmpty(auditEvent.IntegrityHash))
 		{
 			return false;
 		}
 
-		var storedHash = auditEvent.IntegrityHash;
-
-		// Create a shallow copy with IntegrityHash cleared to compute the expected hash
-		// without mutating the original event (which is not thread-safe and corrupts state).
-		var copy = new SecurityAuditEvent
+		// Parse the self-describing token "v1:{keyId}:{base64(tag)}" (keyId is colon-free by contract).
+		var parts = auditEvent.IntegrityHash.Split(':', 3);
+		if (parts.Length != 3 || !string.Equals(parts[0], IntegrityTagVersion, StringComparison.Ordinal))
 		{
-			EventId = auditEvent.EventId,
-			Timestamp = auditEvent.Timestamp,
-			EventType = auditEvent.EventType,
-			Severity = auditEvent.Severity,
-			Source = auditEvent.Source,
-			UserId = auditEvent.UserId,
-			SourceIpAddress = auditEvent.SourceIpAddress,
-			UserAgent = auditEvent.UserAgent,
-			Details = auditEvent.Details,
-			IntegrityHash = string.Empty,
-		};
+			return false;
+		}
 
-		var computedHash = ComputeIntegrityHash(copy);
+		var keyId = parts[1];
 
-		return string.Equals(storedHash, computedHash, StringComparison.Ordinal);
+		byte[] storedTag;
+		try
+		{
+			storedTag = Convert.FromBase64String(parts[2]);
+		}
+		catch (FormatException)
+		{
+			return false;
+		}
+
+		// Fail closed: an unknown/unavailable key means the record cannot be verified -> NOT valid.
+		var key = await _signingKeyProvider.GetSigningKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+		if (key is null)
+		{
+			_logger.LogWarning(
+				"Audit integrity key '{KeyId}' is unavailable; treating event {EventId} as unverifiable",
+				keyId, auditEvent.EventId);
+			return false;
+		}
+
+		var computedTag = ComputeMac(key, auditEvent);
+
+		// Constant-time comparison to avoid a timing oracle on the MAC.
+		return CryptographicOperations.FixedTimeEquals(computedTag, storedTag);
 	}
 
 	/// <summary>

@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Domain.Model;
 
 namespace Excalibur.EventSourcing;
@@ -49,8 +47,6 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The aggregate if found, otherwise <see langword="null"/>.</returns>
-	[RequiresUnreferencedCode("Aggregate rehydration may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("Aggregate rehydration may require dynamic code generation.")]
 	Task<TAggregate?> GetByIdAsync(TKey aggregateId, CancellationToken cancellationToken);
 
 	/// <summary>
@@ -59,8 +55,6 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 	/// <param name="aggregate">The aggregate to save.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>A task that represents the asynchronous save operation.</returns>
-	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("Aggregate persistence may require dynamic code generation.")]
 	Task SaveAsync(TAggregate aggregate, CancellationToken cancellationToken);
 
 	/// <summary>
@@ -77,8 +71,6 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 	/// <exception cref="Excalibur.Data.ConcurrencyException">
 	/// Thrown when the expected ETag doesn't match the current aggregate ETag.
 	/// </exception>
-	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("Aggregate persistence may require dynamic code generation.")]
 	Task SaveAsync(TAggregate aggregate, string? expectedETag, CancellationToken cancellationToken);
 
 	/// <summary>

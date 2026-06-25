@@ -584,10 +584,13 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 	private async Task<IReadOnlyCollection<InboxEntry>> ReserveBatchRecordsAsync(int batchSize, CancellationToken cancellationToken)
 	{
-		// Get failed entries for retry processing via admin interface
+		// Get failed entries for retry processing via admin interface.
+		// The re-fetch ceiling MUST equal the dead-letter ceiling (_options.MaxAttempts, see the
+		// attempt >= _options.MaxAttempts dead-letter branch); a hardcoded lower value would strand
+		// entries that are excluded from re-fetch yet still below the dead-letter threshold.
 		var admin = (IInboxStoreAdmin)_inboxStore;
 		var records = await admin
-			.GetFailedEntriesAsync(3, DateTimeOffset.UtcNow.AddMinutes(-5), batchSize, cancellationToken)
+			.GetFailedEntriesAsync(_options.MaxAttempts, DateTimeOffset.UtcNow.AddMinutes(-5), batchSize, cancellationToken)
 			.ConfigureAwait(false);
 
 		return records.ToList().AsReadOnly();

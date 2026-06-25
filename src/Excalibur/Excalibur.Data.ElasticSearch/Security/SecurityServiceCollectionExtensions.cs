@@ -236,6 +236,10 @@ public static class SecurityServiceCollectionExtensions
 		// Configure audit settings Audit settings have default values already configured in the class definition Remove Configure call
 		// since init-only properties cannot be set this way
 
+		// Default audit signing-key provider (options-backed, fail-closed). Consumers can override with a
+		// KMS / secret-manager-backed IAuditSigningKeyProvider via their own TryAddSingleton before this.
+		services.TryAddSingleton<IAuditSigningKeyProvider, OptionsAuditSigningKeyProvider>();
+
 		// Register auditing service (core + parent + sub-interfaces forwarded to the same singleton)
 		services.TryAddSingleton<SecurityAuditor>();
 		services.TryAddSingleton<IElasticsearchSecurityAuditor>(static sp => sp.GetRequiredService<SecurityAuditor>());

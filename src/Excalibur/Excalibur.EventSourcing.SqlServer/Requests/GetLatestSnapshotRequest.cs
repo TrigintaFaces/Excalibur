@@ -3,6 +3,7 @@
 
 
 using System.Data;
+using System.Text.Json;
 
 using Dapper;
 
@@ -38,7 +39,7 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
 		var sql = $"""
-			SELECT SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt
+			SELECT SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt, Metadata
 			FROM {qualifiedTable}
 			WHERE AggregateId = @AggregateId AND AggregateType = @AggregateType
 			""";
@@ -66,8 +67,76 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 				Version = result.Version,
 				Data = result.Data,
 				CreatedAt = new DateTimeOffset(DateTime.SpecifyKind(result.CreatedAt, DateTimeKind.Utc), TimeSpan.Zero),
+				Metadata = DeserializeMetadata(result.Metadata),
 			};
 		};
+	}
+
+	/// <summary>
+	/// Deserializes the stored binary metadata payload back into a dictionary, inferring CLR primitive
+	/// types so that consumers reading typed values (e.g. the integer schema version) observe the
+	/// original type rather than a <see cref="JsonElement"/>. Returns <see langword="null"/> when no
+	/// metadata was persisted.
+	/// </summary>
+	private static IDictionary<string, object>? DeserializeMetadata(byte[]? metadata)
+	{
+		if (metadata is null || metadata.Length == 0)
+		{
+			return null;
+		}
+
+		Dictionary<string, JsonElement>? raw;
+#pragma warning disable IL2026, IL3050 // Metadata deserialization inherently uses reflection (matches SqlServerEventStore precedent)
+		raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(metadata);
+#pragma warning restore IL2026, IL3050
+		if (raw is null)
+		{
+			return null;
+		}
+
+		var result = new Dictionary<string, object>(raw.Count);
+		foreach (var (key, element) in raw)
+		{
+			result[key] = ConvertJsonElement(element)!;
+		}
+
+		return result;
+	}
+
+	/// <summary>
+	/// Converts a <see cref="JsonElement"/> to its inferred CLR primitive. Integral numbers prefer
+	/// <see cref="int"/> (then <see cref="long"/>) so that an <c>is int</c> consumer check succeeds;
+	/// non-integral numbers fall back to <see cref="double"/>. Non-primitive values are returned as a
+	/// cloned <see cref="JsonElement"/>.
+	/// </summary>
+	private static object? ConvertJsonElement(JsonElement element)
+	{
+		switch (element.ValueKind)
+		{
+			case JsonValueKind.String:
+				return element.GetString();
+			case JsonValueKind.Number:
+				if (element.TryGetInt32(out var intValue))
+				{
+					return intValue;
+				}
+
+				if (element.TryGetInt64(out var longValue))
+				{
+					return longValue;
+				}
+
+				return element.GetDouble();
+			case JsonValueKind.True:
+				return true;
+			case JsonValueKind.False:
+				return false;
+			case JsonValueKind.Null:
+			case JsonValueKind.Undefined:
+				return null;
+			default:
+				return element.Clone();
+		}
 	}
 
 	private sealed record SnapshotData(
@@ -76,5 +145,6 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 		string AggregateType,
 		long Version,
 		byte[] Data,
-		DateTime CreatedAt);
+		DateTime CreatedAt,
+		byte[]? Metadata);
 }

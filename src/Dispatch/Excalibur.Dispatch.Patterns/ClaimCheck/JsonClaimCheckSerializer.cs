@@ -33,14 +33,34 @@ internal sealed class JsonClaimCheckSerializer(JsonSerializerOptions? options = 
 	public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
 	{
 		ArgumentNullException.ThrowIfNull(bufferWriter);
-		using var writer = new Utf8JsonWriter(bufferWriter);
-		JsonSerializer.Serialize(writer, value, _options);
+
+		try
+		{
+			using var writer = new Utf8JsonWriter(bufferWriter);
+			JsonSerializer.Serialize(writer, value, _options);
+		}
+		catch (Exception ex) when (ex is not ArgumentNullException)
+		{
+			throw SerializationException.Wrap<T>("serialize", ex);
+		}
 	}
 
 	/// <inheritdoc/>
 	public T Deserialize<T>(ReadOnlySpan<byte> data)
 	{
-		return JsonSerializer.Deserialize<T>(data, _options)!;
+		try
+		{
+			return JsonSerializer.Deserialize<T>(data, _options)
+				?? throw SerializationException.NullResult<T>();
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.Wrap<T>("deserialize", ex);
+		}
 	}
 
 	/// <inheritdoc/>
@@ -48,13 +68,34 @@ internal sealed class JsonClaimCheckSerializer(JsonSerializerOptions? options = 
 	{
 		ArgumentNullException.ThrowIfNull(value);
 		ArgumentNullException.ThrowIfNull(type);
-		return JsonSerializer.SerializeToUtf8Bytes(value, type, _options);
+
+		try
+		{
+			return JsonSerializer.SerializeToUtf8Bytes(value, type, _options);
+		}
+		catch (Exception ex) when (ex is not ArgumentNullException)
+		{
+			throw SerializationException.WrapObject(type, "serialize", ex);
+		}
 	}
 
 	/// <inheritdoc/>
 	public object DeserializeObject(ReadOnlySpan<byte> data, Type type)
 	{
 		ArgumentNullException.ThrowIfNull(type);
-		return JsonSerializer.Deserialize(data, type, _options)!;
+
+		try
+		{
+			return JsonSerializer.Deserialize(data, type, _options)
+				?? throw SerializationException.NullResultForType(type);
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.WrapObject(type, "deserialize", ex);
+		}
 	}
 }

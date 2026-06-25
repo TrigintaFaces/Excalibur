@@ -8,6 +8,7 @@ using Excalibur.Security;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 
@@ -227,8 +228,12 @@ public static class SecurityMiddlewareExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SigningOptions>, SigningOptionsValidator>());
 
-		// IKeyProvider is registered by cloud-specific packages (Excalibur.Security.Azure, Excalibur.Security.Aws)
-		// or a custom implementation for local development scenarios.
+		// IKeyProvider is NOT registered here: it is a required deployment decision the consumer must make
+		// explicitly (a configuration/secret-backed provider, Excalibur.Security.Azure, or Excalibur.Security.Aws).
+		// HmacMessageSigningService requires one, so fail loud at host startup when signing is enabled but none
+		// is registered — never a deferred first-resolve crash, never silently inert (FR-4, f9cn09).
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, SigningKeyProviderStartupValidator>());
 
 		// Register signing service
 		services.TryAddSingleton<IMessageSigningService, HmacMessageSigningService>();

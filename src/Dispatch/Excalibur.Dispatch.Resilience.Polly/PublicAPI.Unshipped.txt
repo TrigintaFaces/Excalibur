@@ -1,1 +1,5 @@
 #nullable enable
+*REMOVED*Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ActiveConnections.get -> int
+*REMOVED*Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ActiveConnections.init -> void
+*REMOVED*Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ResponseTimeMs.get -> double
+*REMOVED*Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ResponseTimeMs.init -> void

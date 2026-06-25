@@ -41,7 +41,9 @@ internal sealed partial class DefaultEntitlementReportProvider(
 	{
 		ArgumentException.ThrowIfNullOrEmpty(userId);
 
-		var grants = await grantStore.GetAllGrantsAsync(userId, cancellationToken).ConfigureAwait(false);
+		// Entitlement reporting must surface expired grants too (governance visibility), so opt in.
+		var grants = await grantStore.GetAllGrantsAsync(userId, includeExpired: true, cancellationToken)
+			.ConfigureAwait(false);
 		var entries = await BuildEntriesAsync(grants, cancellationToken).ConfigureAwait(false);
 
 		LogEntitlementReportGenerated(logger, EntitlementReportType.UserEntitlements, entries.Count);

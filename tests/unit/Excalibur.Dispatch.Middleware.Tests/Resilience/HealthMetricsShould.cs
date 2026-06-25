@@ -22,8 +22,6 @@ public sealed class HealthMetricsShould : UnitTestBase
 		metrics.CpuUsagePercent.ShouldBe(0);
 		metrics.MemoryUsagePercent.ShouldBe(0);
 		metrics.ErrorRate.ShouldBe(0);
-		metrics.ResponseTimeMs.ShouldBe(0);
-		metrics.ActiveConnections.ShouldBe(0);
 		metrics.Timestamp.ShouldBe(default);
 	}
 
@@ -58,26 +56,6 @@ public sealed class HealthMetricsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ResponseTimeMs_CanBeSet()
-	{
-		// Arrange & Act
-		var metrics = new HealthMetrics { ResponseTimeMs = 150.5 };
-
-		// Assert
-		metrics.ResponseTimeMs.ShouldBe(150.5);
-	}
-
-	[Fact]
-	public void ActiveConnections_CanBeSet()
-	{
-		// Arrange & Act
-		var metrics = new HealthMetrics { ActiveConnections = 100 };
-
-		// Assert
-		metrics.ActiveConnections.ShouldBe(100);
-	}
-
-	[Fact]
 	public void Timestamp_CanBeSet()
 	{
 		// Arrange
@@ -102,8 +80,6 @@ public sealed class HealthMetricsShould : UnitTestBase
 			CpuUsagePercent = 65.0,
 			MemoryUsagePercent = 70.0,
 			ErrorRate = 0.02,
-			ResponseTimeMs = 100.0,
-			ActiveConnections = 50,
 			Timestamp = timestamp
 		};
 
@@ -111,8 +87,6 @@ public sealed class HealthMetricsShould : UnitTestBase
 		metrics.CpuUsagePercent.ShouldBe(65.0);
 		metrics.MemoryUsagePercent.ShouldBe(70.0);
 		metrics.ErrorRate.ShouldBe(0.02);
-		metrics.ResponseTimeMs.ShouldBe(100.0);
-		metrics.ActiveConnections.ShouldBe(50);
 		metrics.Timestamp.ShouldBe(timestamp);
 	}
 }

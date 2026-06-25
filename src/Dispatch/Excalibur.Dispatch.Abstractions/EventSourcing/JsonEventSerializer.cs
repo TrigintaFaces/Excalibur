@@ -23,6 +23,12 @@ public sealed class JsonEventSerializer : IEventSerializer
 	/// Initializes a new instance of the <see cref="JsonEventSerializer" /> class.
 	/// </summary>
 	/// <param name="options">Optional JSON serializer options to use.</param>
+	/// <remarks>
+	/// This reflection-based serializer is the trim/AOT opt-in gate: constructing it surfaces the
+	/// <c>IL2026</c>/<c>IL3050</c> warnings. Use <c>AotJsonEventSerializer</c> for an AOT-safe path. The
+	/// <see cref="IEventSerializer"/> interface itself is intentionally annotation-free (clean contract).
+	/// </remarks>
+	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming. Use AotJsonEventSerializer for an AOT-safe path.")]
 	[RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
 	public JsonEventSerializer(JsonSerializerOptions? options = null)
 	{
@@ -36,8 +42,10 @@ public sealed class JsonEventSerializer : IEventSerializer
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed. Consider using source generation.")]
-	[RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
+		Justification = "Reflection-based serialization is intentional; the trim opt-in is enforced at the constructor.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Reflection-based serialization is intentional; the AOT opt-in is enforced at the constructor.")]
 	public byte[] SerializeEvent(IDomainEvent domainEvent)
 	{
 		ArgumentNullException.ThrowIfNull(domainEvent);
@@ -48,9 +56,9 @@ public sealed class JsonEventSerializer : IEventSerializer
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
-		Justification = "Event deserialization requires runtime type resolution for polymorphic event types - reflection is intentional")]
-	[RequiresDynamicCode("JSON deserialization of events requires dynamic code generation for type inspection and property access")]
-	[RequiresUnreferencedCode("JSON deserialization may reference types not preserved during trimming")]
+		Justification = "Event deserialization requires runtime type resolution for polymorphic event types - reflection is intentional; opt-in enforced at the constructor.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Reflection-based deserialization is intentional; the AOT opt-in is enforced at the constructor.")]
 	public IDomainEvent DeserializeEvent(byte[] data, Type eventType)
 	{
 		ArgumentNullException.ThrowIfNull(data);
@@ -72,7 +80,8 @@ public sealed class JsonEventSerializer : IEventSerializer
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2057:Unrecognized value passed to the parameter of method. It's not possible to guarantee the availability of the target type.", Justification = "Type resolution from strings is required for event sourcing polymorphic event deserialization. Event types are preserved through event store infrastructure.")]
-	[RequiresUnreferencedCode("Resolving types by name requires type metadata that may be removed during trimming")]
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
+		Justification = "Assembly scanning for type resolution is intentional; the trim opt-in is enforced at the constructor.")]
 	public Type ResolveType(string typeName)
 	{
 		if (string.IsNullOrEmpty(typeName))

@@ -361,8 +361,6 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 			CpuUsagePercent = cpuUsage,
 			MemoryUsagePercent = memoryUsage,
 			ErrorRate = errorRate,
-			ResponseTimeMs = 0,
-			ActiveConnections = 0,
 			Timestamp = DateTimeOffset.UtcNow,
 		};
 	}

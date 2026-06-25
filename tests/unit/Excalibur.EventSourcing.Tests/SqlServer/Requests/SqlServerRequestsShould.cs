@@ -623,7 +623,7 @@ public sealed class SqlServerRequestsShould
 
 		var request = new SaveSnapshotRequest(snapshot, Ct);
 
-		request.Command.CommandText.ShouldContain("WHEN MATCHED THEN");
+		request.Command.CommandText.ShouldContain("WHEN MATCHED AND source.Version > target.Version THEN");
 		request.Command.CommandText.ShouldContain("UPDATE SET");
 		request.Command.CommandText.ShouldContain("WHEN NOT MATCHED THEN");
 		request.Command.CommandText.ShouldContain("INSERT");

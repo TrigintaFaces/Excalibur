@@ -357,6 +357,24 @@
   <data name="ShamirSecretSharing_TotalSharesCannotExceedLimit" xml:space="preserve">
     <value>Total shares cannot exceed 255 (GF(256) limitation).</value>
   </data>
+  <data name="ShamirSecretSharing_SecretTooLarge" xml:space="preserve">
+    <value>Secret length exceeds the maximum supported size of 65535 bytes.</value>
+  </data>
+  <data name="ShamirSecretSharing_ShareTooShort" xml:space="preserve">
+    <value>Share is too short to contain the required header.</value>
+  </data>
+  <data name="ShamirSecretSharing_UnsupportedShareVersion" xml:space="preserve">
+    <value>Unsupported share format version: {0}.</value>
+  </data>
+  <data name="ShamirSecretSharing_InconsistentShareMetadata" xml:space="preserve">
+    <value>Shares carry inconsistent metadata (format version, threshold, secret length, or integrity commitment mismatch).</value>
+  </data>
+  <data name="ShamirSecretSharing_InsufficientShares" xml:space="preserve">
+    <value>Insufficient shares: {0} provided but at least {1} (the threshold) are required to reconstruct the secret.</value>
+  </data>
+  <data name="ShamirSecretSharing_IntegrityVerificationFailed" xml:space="preserve">
+    <value>Reconstructed secret failed integrity verification; the shares are insufficient, corrupted, or tampered.</value>
+  </data>
   <data name="DataInventoryService_TableNameRequired" xml:space="preserve">
     <value>TableName is required</value>
   </data>

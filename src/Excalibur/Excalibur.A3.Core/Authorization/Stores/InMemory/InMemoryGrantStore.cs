@@ -23,6 +23,17 @@ namespace Excalibur.A3.Authorization.Stores.InMemory;
 internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActivityGroupGrantStore
 {
 	private readonly ConcurrentDictionary<string, Grant> _grants = new(StringComparer.Ordinal);
+	private readonly TimeProvider _timeProvider;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="InMemoryGrantStore"/> class.
+	/// </summary>
+	/// <param name="timeProvider">
+	/// Time source used to evaluate grant expiry. Defaults to <see cref="TimeProvider.System"/>
+	/// when not supplied; tests may pass a fake provider for deterministic expiry evaluation.
+	/// </param>
+	public InMemoryGrantStore(TimeProvider? timeProvider = null) =>
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
 	/// <inheritdoc />
 	public Task<Grant?> GetGrantAsync(
@@ -40,10 +51,20 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 	/// <inheritdoc />
 	public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(
 		string userId,
+		CancellationToken cancellationToken) =>
+		GetAllGrantsAsync(userId, includeExpired: false, cancellationToken);
+
+	/// <inheritdoc />
+	public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(
+		string userId,
+		bool includeExpired,
 		CancellationToken cancellationToken)
 	{
+		var now = _timeProvider.GetUtcNow();
+
 		var results = _grants.Values
 			.Where(g => string.Equals(g.UserId, userId, StringComparison.Ordinal))
+			.Where(g => includeExpired || g.IsActive(now))
 			.ToList();
 
 		return Task.FromResult<IReadOnlyList<Grant>>(results);

@@ -1039,6 +1039,61 @@ namespace Excalibur.Compliance {
                 return ResourceManager.GetString("ShamirSecretSharing_TotalSharesCannotExceedLimit", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Secret length exceeds the maximum supported size of 65535 bytes..
+        /// </summary>
+        internal static string ShamirSecretSharing_SecretTooLarge {
+            get {
+                return ResourceManager.GetString("ShamirSecretSharing_SecretTooLarge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Share is too short to contain the required header..
+        /// </summary>
+        internal static string ShamirSecretSharing_ShareTooShort {
+            get {
+                return ResourceManager.GetString("ShamirSecretSharing_ShareTooShort", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unsupported share format version: {0}..
+        /// </summary>
+        internal static string ShamirSecretSharing_UnsupportedShareVersion {
+            get {
+                return ResourceManager.GetString("ShamirSecretSharing_UnsupportedShareVersion", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Shares carry inconsistent metadata (format version, threshold, secret length, or integrity commitment mismatch)..
+        /// </summary>
+        internal static string ShamirSecretSharing_InconsistentShareMetadata {
+            get {
+                return ResourceManager.GetString("ShamirSecretSharing_InconsistentShareMetadata", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Insufficient shares: {0} provided but at least {1} (the threshold) are required to reconstruct the secret..
+        /// </summary>
+        internal static string ShamirSecretSharing_InsufficientShares {
+            get {
+                return ResourceManager.GetString("ShamirSecretSharing_InsufficientShares", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reconstructed secret failed integrity verification; the shares are insufficient, corrupted, or tampered..
+        /// </summary>
+        internal static string ShamirSecretSharing_IntegrityVerificationFailed {
+            get {
+                return ResourceManager.GetString("ShamirSecretSharing_IntegrityVerificationFailed", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to TableName is required.
         /// </summary>

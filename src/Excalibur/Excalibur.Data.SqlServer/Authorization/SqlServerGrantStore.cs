@@ -57,17 +57,25 @@ public sealed class SqlServerGrantStore : IGrantStore, IGrantQueryStore, IActivi
 	}
 
 	/// <inheritdoc />
-	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken)
+	public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
+		GetAllGrantsAsync(userId, includeExpired: false, cancellationToken);
+
+	/// <inheritdoc />
+	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired,
+		CancellationToken cancellationToken)
 	{
+		// Default-secure: exclude expired grants unless explicitly requested. Expiry is evaluated
+		// against the DB clock (GETUTCDATE) — same precedent as GrantExistsAsync.
 		const string sql = """
 		                        SELECT *
 		                        FROM Authz.Grant
-		                        WHERE UserId = @UserId;
+		                        WHERE UserId = @UserId
+		                        AND (@IncludeExpired = 1 OR ISNULL(ExpiresOn, '9999-12-31') > GETUTCDATE());
 		                   """;
 
 		var grants = await _connection.QueryAsync<GrantRow>(
 			new CommandDefinition(sql,
-				new { UserId = userId },
+				new { UserId = userId, IncludeExpired = includeExpired },
 				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 

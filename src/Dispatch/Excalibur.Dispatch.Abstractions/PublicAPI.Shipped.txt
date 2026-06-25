@@ -694,7 +694,6 @@ Excalibur.Dispatch.IInboxStoreAdmin.CleanupAsync(System.DateTimeOffset olderThan
 Excalibur.Dispatch.IInboxStoreAdmin.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
 Excalibur.Dispatch.IInboxStoreAdmin.GetFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
 Excalibur.Dispatch.IInboxStoreAdmin.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxStatistics!>
-Excalibur.Dispatch.IInboxStoreAdmin.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.IIntegrationEvent
 Excalibur.Dispatch.IMemoryMessage
 Excalibur.Dispatch.IMemoryMessage.Body.get -> System.Memory<byte>

@@ -338,19 +338,10 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 				var response = await _streamsClient.GetRecordsAsync(recordsRequest, cancellationToken)
 					.ConfigureAwait(false);
 
-				// Update iterator for next call
-				if (!string.IsNullOrEmpty(response.NextShardIterator))
-				{
-					_shardIterators[shardId] = response.NextShardIterator;
-				}
-				else
-				{
-					// Shard is exhausted
-					shardsToRemove.Add(shardId);
-				}
-
 				if (response.Records.Count == 0)
 				{
+					// No records were handed off — safe to advance the iterator (nothing can be skipped).
+					AdvanceOrRetireShard(shardId, response.NextShardIterator, shardsToRemove);
 					continue;
 				}
 
@@ -358,19 +349,42 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 				using var batchActivity = CdcActivitySource.StartProcessBatchActivity("DynamoDb", response.Records.Count);
 
-				foreach (var record in response.Records)
+				try
 				{
-					var changeEvent = CreateChangeEvent(shardId, record);
+					foreach (var record in response.Records)
+					{
+						var changeEvent = CreateChangeEvent(shardId, record);
 
-					await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+						await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
 
-					// Update position for this shard
-					_shardPositions[shardId] = record.Dynamodb.SequenceNumber;
-					totalProcessed++;
+						// Position advances ONLY after the record was successfully handed off.
+						_shardPositions[shardId] = record.Dynamodb.SequenceNumber;
+						totalProcessed++;
+					}
+				}
+				catch (Exception ex) when (ex is not ExpiredIteratorException and not OperationCanceledException)
+				{
+					// A handler threw mid-batch: do NOT advance the iterator past the handled prefix. Re-point
+					// the shard iterator to resume AFTER the last successfully-handled record, so the failed
+					// record (and the rest of the batch) are re-delivered rather than silently skipped
+					// (FR-D1/D2; at-least-once). Durably confirm the handled prefix (FR-D3) before surfacing.
+					await RepointShardIteratorAsync(shardId, cancellationToken).ConfigureAwait(false);
+
+					if (autoConfirm)
+					{
+						await ConfirmPositionAsync(
+							await GetCurrentPositionAsync(cancellationToken).ConfigureAwait(false),
+							cancellationToken).ConfigureAwait(false);
+					}
+
+					throw;
 				}
 
-				// Batch checkpoint: save position once per shard batch instead of per-record
-				if (autoConfirm && response.Records.Count > 0)
+				// Entire batch handed off successfully — NOW it is safe to advance the iterator.
+				AdvanceOrRetireShard(shardId, response.NextShardIterator, shardsToRemove);
+
+				// Batch checkpoint: save position once per shard batch instead of per-record.
+				if (autoConfirm)
 				{
 					await ConfirmPositionAsync(
 						await GetCurrentPositionAsync(cancellationToken).ConfigureAwait(false),
@@ -392,6 +406,54 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		}
 
 		return totalProcessed;
+	}
+
+	/// <summary>
+	/// Advances the shard to the next iterator after a batch has been fully handled, or retires the shard
+	/// when the stream reports it exhausted (no next iterator).
+	/// </summary>
+	private void AdvanceOrRetireShard(string shardId, string? nextShardIterator, List<string> shardsToRemove)
+	{
+		if (!string.IsNullOrEmpty(nextShardIterator))
+		{
+			_shardIterators[shardId] = nextShardIterator;
+		}
+		else
+		{
+			// Shard is exhausted.
+			shardsToRemove.Add(shardId);
+		}
+	}
+
+	/// <summary>
+	/// Re-points a shard's iterator to resume immediately AFTER the last successfully-handled sequence
+	/// number, so a failed or unhandled record is re-delivered rather than skipped (at-least-once). If no
+	/// position has been recorded for the shard yet, the current iterator is left untouched and the batch
+	/// is simply re-read on the next poll.
+	/// </summary>
+	private async Task RepointShardIteratorAsync(string shardId, CancellationToken cancellationToken)
+	{
+		if (!_shardPositions.TryGetValue(shardId, out var lastHandledSequence) ||
+			string.IsNullOrEmpty(lastHandledSequence))
+		{
+			return;
+		}
+
+		var iteratorRequest = new GetShardIteratorRequest
+		{
+			StreamArn = _streamArn,
+			ShardId = shardId,
+			ShardIteratorType = ShardIteratorType.AFTER_SEQUENCE_NUMBER,
+			SequenceNumber = lastHandledSequence,
+		};
+
+		var response = await _streamsClient.GetShardIteratorAsync(iteratorRequest, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (!string.IsNullOrEmpty(response.ShardIterator))
+		{
+			_shardIterators[shardId] = response.ShardIterator;
+		}
 	}
 
 	private DynamoDbDataChangeEvent CreateChangeEvent(string shardId, Record record)

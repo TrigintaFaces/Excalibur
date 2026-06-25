@@ -60,8 +60,8 @@ internal sealed partial class DefaultOrphanedAccessDetector(
 
 			var action = DetermineAction(statusResult, opts, now);
 
-			// Get this user's grants
-			var grants = await grantStore.GetAllGrantsAsync(userId, cancellationToken)
+			// Get this user's grants — orphaned-access detection must consider expired grants too, so opt in.
+			var grants = await grantStore.GetAllGrantsAsync(userId, includeExpired: true, cancellationToken)
 				.ConfigureAwait(false);
 
 			foreach (var grant in grants)

@@ -151,6 +151,9 @@ public sealed class A3BuilderShould
 		public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
 			Task.FromResult<IReadOnlyList<Grant>>(Array.Empty<Grant>());
 
+		public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired, CancellationToken cancellationToken) =>
+			GetAllGrantsAsync(userId, cancellationToken);
+
 		public Task<int> SaveGrantAsync(Grant grant, CancellationToken cancellationToken) =>
 			Task.FromResult(0);
 
@@ -174,6 +177,9 @@ public sealed class A3BuilderShould
 
 		public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
 			Task.FromResult<IReadOnlyList<Grant>>(Array.Empty<Grant>());
+
+		public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired, CancellationToken cancellationToken) =>
+			GetAllGrantsAsync(userId, cancellationToken);
 
 		public Task<int> SaveGrantAsync(Grant grant, CancellationToken cancellationToken) =>
 			Task.FromResult(0);

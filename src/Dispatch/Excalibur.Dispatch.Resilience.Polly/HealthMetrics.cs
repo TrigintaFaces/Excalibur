@@ -28,18 +28,6 @@ public sealed class HealthMetrics
 	public double ErrorRate { get; init; }
 
 	/// <summary>
-	/// Gets the average response time in milliseconds.
-	/// </summary>
-	/// <value>The mean latency, in milliseconds, observed during the sampling window.</value>
-	public double ResponseTimeMs { get; init; }
-
-	/// <summary>
-	/// Gets the number of active connections.
-	/// </summary>
-	/// <value>The active connection count reported by the monitored service.</value>
-	public int ActiveConnections { get; init; }
-
-	/// <summary>
 	/// Gets the timestamp when these metrics were collected.
 	/// </summary>
 	/// <value>The UTC timestamp representing when the metrics snapshot was captured.</value>

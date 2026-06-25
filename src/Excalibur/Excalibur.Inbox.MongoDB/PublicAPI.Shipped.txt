@@ -35,7 +35,6 @@ Excalibur.Inbox.MongoDB.MongoDbInboxStore.GetFailedEntriesAsync(int maxRetries, 
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxStatistics!>
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Inbox.MongoDB.MongoDbInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.MarkProcessingAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.MongoDbInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.MongoDB.MongoDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.MongoDB.MongoDbInboxStore!>! logger) -> void

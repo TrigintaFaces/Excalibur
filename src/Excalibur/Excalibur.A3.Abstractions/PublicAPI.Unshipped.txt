@@ -1,1 +1,4 @@
 #nullable enable
+Excalibur.A3.Authorization.Grant.IsActive(System.DateTimeOffset asOf) -> bool
+Excalibur.A3.Authorization.Grant.IsExpired(System.DateTimeOffset asOf) -> bool
+Excalibur.A3.Authorization.IGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!

@@ -146,9 +146,17 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 				count++;
 			}
 
-			// Update position
-			_replicationConnection!.SetReplicationStatus(message.WalEnd);
+			// Observed position advances as messages are read; it is NOT durably acknowledged here.
 			_currentPosition = new PostgresCdcPosition(message.WalEnd);
+
+			// Durably confirm/ack ONLY at a committed transaction boundary, after every change in the
+			// transaction was successfully handed off — never mid-transaction, never for Begin/Relation/
+			// unhandled messages, never past a change whose handler threw (a throw above skips this).
+			// FR-P1/P2/P3.
+			if (message is CommitMessage commitMessage)
+			{
+				await ConfirmCommitAsync(commitMessage, cancellationToken).ConfigureAwait(false);
+			}
 
 			if (count >= _options.BatchSize)
 			{
@@ -156,16 +164,9 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			}
 		}
 
-		// Save position if we processed anything
 		if (count > 0)
 		{
 			using var batchActivity = CdcActivitySource.StartProcessBatchActivity("Postgres", count);
-
-			await _stateStore
-				.SavePositionAsync(_options.ProcessorId, _options.ReplicationSlotName, _currentPosition, cancellationToken)
-				.ConfigureAwait(false);
-
-			_confirmedPosition = _currentPosition;
 		}
 
 		return count;
@@ -387,9 +388,16 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 				}
 			}
 
-			// Update position and acknowledge
-			_replicationConnection!.SetReplicationStatus(message.WalEnd);
+			// Observed position advances as messages are read; it is NOT durably acknowledged here.
 			_currentPosition = new PostgresCdcPosition(message.WalEnd);
+
+			// Durably confirm/ack ONLY at a committed transaction boundary, after every change in the
+			// transaction was successfully handed off (see ProcessBatchAsync) — never mid-transaction,
+			// never past a change whose handler threw. FR-P1/P2/P3.
+			if (message is CommitMessage commitMessage)
+			{
+				await ConfirmCommitAsync(commitMessage, cancellationToken).ConfigureAwait(false);
+			}
 		}
 
 		if (count > 0)
@@ -430,6 +438,28 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		// Save position after each transaction
 		_currentPosition = new PostgresCdcPosition(commit.TransactionEndLsn);
 		return null;
+	}
+
+	/// <summary>
+	/// Durably confirms a committed transaction boundary: persists and acknowledges the WAL up to the
+	/// transaction's end LSN.
+	/// </summary>
+	/// <remarks>
+	/// Called only after every change in the transaction was successfully handed off, so a failing handler
+	/// (which aborts the loop before its transaction's commit) never advances the confirmed position past
+	/// unhandled work — Postgres re-sends from the last confirmed commit boundary (at-least-once).
+	/// FR-P1/P2/P3.
+	/// </remarks>
+	private async Task ConfirmCommitAsync(CommitMessage commit, CancellationToken cancellationToken)
+	{
+		var confirmed = new PostgresCdcPosition(commit.TransactionEndLsn);
+
+		await _stateStore
+			.SavePositionAsync(_options.ProcessorId, _options.ReplicationSlotName, confirmed, cancellationToken)
+			.ConfigureAwait(false);
+
+		_confirmedPosition = confirmed;
+		_replicationConnection!.SetReplicationStatus(commit.TransactionEndLsn);
 	}
 
 	private async Task<PostgresDataChangeEvent> HandleInsertAsync(

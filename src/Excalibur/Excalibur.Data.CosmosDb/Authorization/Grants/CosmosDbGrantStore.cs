@@ -28,6 +28,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 {
 	private readonly CosmosDbAuthorizationOptions _options;
 	private readonly ILogger<CosmosDbGrantStore> _logger;
+	private readonly TimeProvider _timeProvider;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
 	private Container? _container;
@@ -39,9 +40,11 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 	/// </summary>
 	/// <param name="options">The Cosmos DB authorization options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">Time source used to evaluate grant expiry. Defaults to <see cref="System.TimeProvider.System"/> when not supplied.</param>
 	public CosmosDbGrantStore(
 		IOptions<CosmosDbAuthorizationOptions> options,
-		ILogger<CosmosDbGrantStore> logger)
+		ILogger<CosmosDbGrantStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -49,6 +52,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
 	/// <inheritdoc/>
@@ -218,7 +222,12 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 	}
 
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken)
+	public Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, CancellationToken cancellationToken) =>
+		GetAllGrantsAsync(userId, includeExpired: false, cancellationToken);
+
+	/// <inheritdoc/>
+	public async Task<IReadOnlyList<Grant>> GetAllGrantsAsync(string userId, bool includeExpired,
+		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -229,13 +238,15 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 		var queryDefinition = new QueryDefinition(queryText)
 			.WithParameter("@userId", userId);
 
+		// Default-secure: exclude expired grants unless explicitly requested.
+		var now = _timeProvider.GetUtcNow();
 		var results = new List<Grant>();
 		using var iterator = _container!.GetItemQueryIterator<GrantDocument>(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{
 			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
-			results.AddRange(response.Select(d => d.ToGrant()));
+			results.AddRange(response.Select(d => d.ToGrant()).Where(g => includeExpired || g.IsActive(now)));
 		}
 
 		return results;

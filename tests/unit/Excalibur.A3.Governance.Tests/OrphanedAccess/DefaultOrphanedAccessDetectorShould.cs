@@ -130,7 +130,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-1", A<CancellationToken>._))
 			.Returns(new PrincipalStatusResult(PrincipalStatus.Inactive, null));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-1", GrantType.ActivityGroup, "Reports")
 			]));
@@ -159,7 +159,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-1", A<CancellationToken>._))
 			.Returns(new PrincipalStatusResult(PrincipalStatus.Inactive, Now.AddDays(-45)));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-1", GrantType.ActivityGroup, "Reports")
 			]));
@@ -184,7 +184,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-1", A<CancellationToken>._))
 			.Returns(new PrincipalStatusResult(PrincipalStatus.Inactive, Now.AddDays(-10)));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-1", GrantType.ActivityGroup, "Reports")
 			]));
@@ -208,7 +208,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-1", A<CancellationToken>._))
 			.Returns(new PrincipalStatusResult(PrincipalStatus.Inactive, null));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-1", GrantType.ActivityGroup, "Reports")
 			]));
@@ -235,7 +235,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-departed", A<CancellationToken>._))
 			.Returns(new PrincipalStatusResult(PrincipalStatus.Departed, null));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-departed", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-departed", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-departed", GrantType.Role, "Admin")
 			]));
@@ -259,7 +259,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-departed", A<CancellationToken>._))
 			.Returns(new PrincipalStatusResult(PrincipalStatus.Departed, null));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-departed", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-departed", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-departed", GrantType.Role, "Admin"),
 				MakeGrant("user-departed", GrantType.ActivityGroup, "Finance")
@@ -286,7 +286,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-unknown", A<CancellationToken>._))
 			.Returns(new PrincipalStatusResult(PrincipalStatus.Unknown, null));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-unknown", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-unknown", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-unknown", GrantType.Activity, "ViewDashboard")
 			]));
@@ -316,7 +316,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-fail", A<CancellationToken>._))
 			.Throws(new InvalidOperationException("Provider unavailable"));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-fail", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-fail", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-fail", GrantType.ActivityGroup, "HR")
 			]));
@@ -344,12 +344,12 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-inactive", A<CancellationToken>._))
 			.Returns(new PrincipalStatusResult(PrincipalStatus.Inactive, null));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-fail", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-fail", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-fail", GrantType.Role, "Viewer")
 			]));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-inactive", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-inactive", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-inactive", GrantType.ActivityGroup, "Audit")
 			]));
@@ -377,7 +377,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 
 		_options.AutoRevokeDeparted = true;
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-1", GrantType.Role, "Admin", tenantId: "tenant-A"),
 				MakeGrant("user-1", GrantType.Role, "Viewer", tenantId: "tenant-B"),
@@ -403,7 +403,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		A.CallTo(() => _userStatusProvider.GetStatusAsync("user-1", A<CancellationToken>._))
 			.Returns(new PrincipalStatusResult(PrincipalStatus.Inactive, null));
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-1", GrantType.Role, "Admin", tenantId: "tenant-A"),
 				MakeGrant("user-1", GrantType.Role, "Viewer", tenantId: "tenant-B")
@@ -461,7 +461,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 
 		foreach (var userId in new[] { "inactive-user", "departed-user", "unknown-user" })
 		{
-			A.CallTo(() => _grantStore.GetAllGrantsAsync(userId, A<CancellationToken>._))
+			A.CallTo(() => _grantStore.GetAllGrantsAsync(userId, A<bool>._, A<CancellationToken>._))
 				.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 					MakeGrant(userId, GrantType.ActivityGroup, "SomeScope")
 				]));
@@ -551,7 +551,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 		_options.AutoRevokeDeparted = true;
 
 		var grantDate = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero);
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				new GrantRecord("user-1", "User", "tenant-1", GrantType.Role, "Admin",
 					null, "admin", grantDate)
@@ -579,7 +579,7 @@ public sealed class DefaultOrphanedAccessDetectorShould : UnitTestBase
 
 		_options.AutoRevokeDeparted = true;
 
-		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<CancellationToken>._))
+		A.CallTo(() => _grantStore.GetAllGrantsAsync("user-1", A<bool>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<GrantRecord>>([
 				MakeGrant("user-1", GrantType.Role, "Admin"),
 				MakeGrant("user-1", GrantType.ActivityGroup, "Finance"),
