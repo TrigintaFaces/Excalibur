@@ -9,6 +9,24 @@ namespace Excalibur.Dispatch.LeaderElection;
 /// <summary>
 /// Options for configuring leader election.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Timing invariant (enforced by <see cref="LeaderElectionOptionsValidator"/>):</b> the effective
+/// self-demotion deadline — roughly <see cref="RenewInterval"/> + <see cref="GracePeriod"/> plus a small
+/// clock-skew margin — MUST be strictly less than <see cref="LeaseDuration"/>. The renewal loop waits one
+/// <see cref="RenewInterval"/>, attempts a renewal, and self-demotes only after <see cref="GracePeriod"/>
+/// has elapsed without a successful renewal; meanwhile the lease expires at <see cref="LeaseDuration"/>.
+/// If self-demotion can occur at or after lease expiry, another node may acquire the lease while this node
+/// still believes it leads — a split-brain overlap window.
+/// </para>
+/// <para>
+/// <b>Effective failover window (with the shipped defaults):</b> Lease = 15s, Renew = 5s, Grace = 5s →
+/// self-demotion at ~10s (+1s skew margin = 11s), a positive ~4s margin before the 15s lease expiry. A new
+/// leader can therefore be elected within roughly one <see cref="LeaseDuration"/> of an ungraceful leader
+/// loss. Tighten <see cref="LeaseDuration"/> for faster failover at the cost of more renewal traffic and
+/// less tolerance for transient latency.
+/// </para>
+/// </remarks>
 public class LeaderElectionOptions
 {
 	/// <summary>

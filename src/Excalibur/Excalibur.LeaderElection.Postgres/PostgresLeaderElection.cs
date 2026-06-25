@@ -35,6 +35,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	private readonly PostgresLeaderElectionOptions _pgOptions;
 	private readonly LeaderElectionOptions _electionOptions;
 	private readonly ILogger<PostgresLeaderElection> _logger;
+	private readonly string _connectionString;
 
 	private readonly Lock _lock = new();
 
@@ -66,8 +67,33 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 		_pgOptions.Validate();
 		_electionOptions = electionOptions.Value;
 		_logger = logger;
+		_connectionString = BuildLockConnectionString(_pgOptions.ConnectionString);
 
 		CandidateId = _electionOptions.InstanceId ?? (Environment.MachineName + "-" + Guid.NewGuid().ToString("N")[..8]);
+	}
+
+	/// <summary>
+	/// Builds the connection string used for the lock-holding connection, hardened so that a lost
+	/// session-scoped advisory lock is never masked by a pooled/reused connection.
+	/// </summary>
+	/// <remarks>
+	/// A Postgres advisory lock is session-scoped: it lives on the backend session and is released when
+	/// that session ends. <see cref="NpgsqlConnectionStringBuilder.Pooling"/> is disabled so the lock
+	/// connection is dedicated (never reset/reused by the pool as a different backend session), ensuring a
+	/// dropped session surfaces as a broken connection rather than silently continuing on a new backend
+	/// that does not hold the advisory lock — which would otherwise yield false-positive leadership
+	/// (split-brain).
+	/// </remarks>
+	/// <param name="connectionString">The caller-supplied connection string.</param>
+	/// <returns>The hardened connection string.</returns>
+	private static string BuildLockConnectionString(string connectionString)
+	{
+		var builder = new NpgsqlConnectionStringBuilder(connectionString)
+		{
+			Pooling = false,
+		};
+
+		return builder.ConnectionString;
 	}
 
 	/// <inheritdoc/>
@@ -164,15 +190,20 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 
 		if (wasLeader)
 		{
+			string? previousLeader;
+
 			lock (_lock)
 			{
 				_isLeader = false;
-				var previousLeader = _currentLeaderId;
+				previousLeader = _currentLeaderId;
 				_currentLeaderId = null;
-
-				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 			}
+
+			// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
+			// snapshot taken under the lock keeps the event args consistent (no torn read).
+			var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
+			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, resource));
 		}
 	}
 
@@ -211,7 +242,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	{
 		try
 		{
-			_connection = new NpgsqlConnection(_pgOptions.ConnectionString);
+			_connection = new NpgsqlConnection(_connectionString);
 			await _connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			await using var command = new NpgsqlCommand("SELECT pg_try_advisory_lock(@lockKey)", _connection)
@@ -331,12 +362,38 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	}
 
 	/// <summary>
-	/// Verifies that the Postgres connection holding the advisory lock is still alive.
+	/// Verifies that the current backend session still actually holds the advisory lock — ownership, not
+	/// merely connection liveness.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// Postgres advisory locks are session-scoped and released when the connection closes.
-	/// Verifying the connection is alive is a reliable proxy for lock ownership.
+	/// The probe queries <c>pg_locks</c> for a granted advisory lock owned by the current backend
+	/// (<c>pid = pg_backend_pid()</c>). Because this connection is dedicated (pooling disabled, see
+	/// <see cref="BuildLockConnectionString"/>) and only ever takes this one advisory lock, "this backend
+	/// holds a granted advisory lock" is equivalent to "we still hold our lock" — no lock-key decoding is
+	/// required.
+	/// </para>
+	/// <para>
+	/// A plain connection-liveness check (<c>SELECT 1</c>) is insufficient: across a failover or a
+	/// reconnect, the connection can answer queries on a <em>new</em> backend that never re-acquired the
+	/// advisory lock. Liveness would falsely report continued ownership while another node acquires the
+	/// lock — a silent split-brain. The new backend holds no advisory lock, so this probe correctly
+	/// returns <see langword="false"/> and leadership is relinquished.
+	/// </para>
+	/// <para>
+	/// <b>Structural guarantee (bd-zg4zga, Npgsql):</b> unlike <c>Microsoft.Data.SqlClient</c>, Npgsql has no
+	/// transparent connection-resiliency, and this lock connection disables pooling
+	/// (<see cref="BuildLockConnectionString"/>). Consequently a lost backend session cannot resurface as a
+	/// <em>live-but-not-owning</em> connection — it can only surface as a broken connection, caught by the
+	/// <c>State != Open</c> guard below (<c>session loss ⟹ State≠Open ⟹ leadership relinquished</c>). The
+	/// "alive-but-not-owning" false-positive is therefore <em>structurally inexpressible</em> here, which is a
+	/// stronger guarantee than a behavioral check; the <c>pg_locks</c> ownership probe is the honest
+	/// ownership verification (and defense-in-depth for any future reconnect-capable configuration).
+	/// </para>
+	/// <para>
+	/// This addresses the reachable failover/pool-reset split-brain. The orthogonal paused/stalled-leader
+	/// split-brain (which no connectivity check can catch) is mitigated by fencing tokens, tracked
+	/// separately as <c>umemwa</c>.
 	/// </para>
 	/// </remarks>
 	private async Task<bool> VerifyLockAsync(CancellationToken cancellationToken)
@@ -348,13 +405,15 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 
 		try
 		{
-			await using var command = new NpgsqlCommand("SELECT 1", _connection)
+			await using var command = new NpgsqlCommand(
+				"SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND granted)",
+				_connection)
 			{
 				CommandTimeout = _pgOptions.CommandTimeoutSeconds
 			};
 
-			_ = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-			return true;
+			var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+			return result is true;
 		}
 		catch
 		{
@@ -388,6 +447,8 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 
 	private async Task LoseLeadershipAsync()
 	{
+		string? previousLeader;
+
 		lock (_lock)
 		{
 			if (!_isLeader)
@@ -396,15 +457,17 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 			}
 
 			_isLeader = false;
-			var previousLeader = _currentLeaderId;
+			previousLeader = _currentLeaderId;
 			_currentLeaderId = null;
-
-			var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
-			LogLostLeadership(CandidateId, resource);
-
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, resource));
 		}
+
+		var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		LogLostLeadership(CandidateId, resource);
+
+		// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
+		// snapshot taken under the lock keeps the event args consistent (no torn read).
+		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, resource));
 
 		if (_connection != null)
 		{

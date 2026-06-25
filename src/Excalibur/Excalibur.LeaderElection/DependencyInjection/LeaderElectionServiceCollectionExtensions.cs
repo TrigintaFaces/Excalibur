@@ -8,6 +8,7 @@ using Excalibur.Dispatch.LeaderElection;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -44,6 +45,11 @@ internal static class LeaderElectionServiceCollectionExtensions
 			.Configure(configure)
 			.ValidateOnStart();
 
+		// bd-gmq2j7: enforce the cross-property timing rule (Renew+Grace+skew < Lease) on the
+		// generic path. Idempotent via TryAddEnumerable.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
+
 		// Non-keyed convenience aliases: forward to keyed "default" so consumers
 		// can inject ILeaderElection / ILeaderElectionFactory directly without [FromKeyedServices("default")].
 		services.TryAddSingleton<ILeaderElection>(sp =>
@@ -73,6 +79,11 @@ internal static class LeaderElectionServiceCollectionExtensions
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+
+		// bd-gmq2j7: enforce the cross-property timing rule (Renew+Grace+skew < Lease) on the
+		// generic configuration-bound path. Idempotent via TryAddEnumerable.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
 
 		return services;
 	}

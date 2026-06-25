@@ -125,6 +125,12 @@ internal static class DispatchTelemetryConstants
 		public const string BatchProcessor = "Excalibur.Dispatch.BatchProcessor";
 
 		/// <summary>
+		/// Circuit breaker middleware metrics. Mirrors <see cref="ActivitySources.CircuitBreakerMiddleware"/>
+		/// (same name — the source+meter pairing convention).
+		/// </summary>
+		public const string CircuitBreakerMiddleware = "Excalibur.Dispatch.CircuitBreakerMiddleware";
+
+		/// <summary>
 		/// Messaging metrics (MetricsLoggingMiddleware).
 		/// </summary>
 		public const string Messaging = "Excalibur.Dispatch.Messaging";

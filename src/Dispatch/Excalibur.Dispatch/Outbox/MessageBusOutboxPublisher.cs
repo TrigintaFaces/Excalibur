@@ -409,6 +409,8 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				CorrelationId = message.CorrelationId,
 			};
 
+			RestoreTraceParent(context, message);
+
 			if (message.PartitionKey is not null)
 			{
 				context.GetOrCreateRoutingFeature().PartitionKey = message.PartitionKey;
@@ -440,6 +442,20 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			LogFailedToPublishToTransport(message.Id, transport.TransportName, ex);
 
 			return TransportPublishResult.Failure(message.Id, transport.TransportName, ex.Message, ex);
+		}
+	}
+
+	/// <summary>
+	/// Restores the staged W3C <c>traceparent</c> from the outbox message headers onto the rebuilt publish
+	/// context (FR-A2, 5l0da9), so the transport-serialized envelope carries it and the distributed trace
+	/// continues producer → consumer. Mirrors the inbound restore in <c>DispatchContextInitializer</c>.
+	/// </summary>
+	private static void RestoreTraceParent(MessageContext context, OutboundMessage message)
+	{
+		if (message.Headers.TryGetValue("traceparent", out var value) &&
+			value is string traceParent && !string.IsNullOrEmpty(traceParent))
+		{
+			context.GetOrCreateIdentityFeature().TraceParent = traceParent;
 		}
 	}
 
@@ -543,6 +559,8 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			MessageId = message.Id,
 			CorrelationId = message.CorrelationId,
 		};
+
+		RestoreTraceParent(context, message);
 
 		if (message.PartitionKey is not null)
 		{

@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.Logging;
@@ -164,9 +165,12 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 	/// <summary>
 	/// Creates message headers for the outbox store.
 	/// </summary>
-	private static Dictionary<string, object> CreateMessageHeaders(OutboxContext outboxContext, OutboundMessageRequest outboundMessage)
+	private static Dictionary<string, object> CreateMessageHeaders(
+		OutboxContext outboxContext,
+		OutboundMessageRequest outboundMessage,
+		string? traceParent)
 	{
-		var headers = new Dictionary<string, object>(capacity: 6, comparer: StringComparer.Ordinal)
+		var headers = new Dictionary<string, object>(capacity: 7, comparer: StringComparer.Ordinal)
 		{
 			["MessageType"] = outboundMessage.Message.GetType().AssemblyQualifiedName ?? outboundMessage.Message.GetType().Name,
 			["SourceMessageType"] = outboxContext.SourceMessageType,
@@ -186,6 +190,14 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		if (outboxContext.TenantId != null)
 		{
 			headers["TenantId"] = outboxContext.TenantId;
+		}
+
+		// FR-A1 (kxksig): persist the W3C traceparent so the staged envelope carries the producer trace
+		// context, symmetric with the Correlation/Causation/Tenant capture above. Additive and only written
+		// when present (EC-A1); caller-set precedence (FR-A4) is already applied by the caller.
+		if (!string.IsNullOrEmpty(traceParent))
+		{
+			headers["traceparent"] = traceParent;
 		}
 
 		return headers;
@@ -225,8 +237,6 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 	/// <summary>
 	/// Stages all outbound messages using the new IOutboxStore interface.
 	/// </summary>
-	[SuppressMessage("Style", "IDE0060:Remove unused parameter",
-		Justification = "Context parameter reserved for future message context enrichment during staging")]
 	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Middleware.OutboxStagingMiddleware.SerializeMessageToBytes(IDispatchMessage)")]
 	[RequiresDynamicCode("Calls Excalibur.Dispatch.Middleware.OutboxStagingMiddleware.SerializeMessageToBytes(IDispatchMessage)")]
 	private async Task StageOutboundMessagesWithStoreAsync(
@@ -242,6 +252,11 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 
 		LogStagingOutboundMessagesWithStore(outboxContext.OutboundMessages.Count);
 
+		// Capture the current W3C trace context once for this staging batch (FR-A1, kxksig): the caller-set
+		// traceparent (FR-A4) takes precedence, falling back to the ambient Activity's id. Null when neither
+		// is present, in which case no traceparent header is written (EC-A1).
+		var traceParent = context.GetTraceParent() ?? Activity.Current?.Id;
+
 		foreach (var outboundMessage in outboxContext.OutboundMessages)
 		{
 			try
@@ -249,7 +264,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 				// Create outbound message for new store interface
 				var messageType = outboundMessage.Message.GetType().Name;
 				var payload = SerializeMessageToBytes(outboundMessage.Message);
-				var headers = CreateMessageHeaders(outboxContext, outboundMessage);
+				var headers = CreateMessageHeaders(outboxContext, outboundMessage, traceParent);
 
 				var storeMessage = new OutboundMessage(
 					messageType,

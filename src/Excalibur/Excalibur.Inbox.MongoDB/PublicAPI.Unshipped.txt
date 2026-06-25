@@ -1,2 +1,1 @@
 #nullable enable
-Excalibur.Inbox.MongoDB.MongoDbInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

@@ -65,16 +65,22 @@ public interface ILeaderElection
 ### Registration
 
 ```csharp
-// 1. Register Redis connection
-services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect("localhost:6379"));
+// 1. Register leader election with the Redis provider (fluent builder)
+services.AddExcalibur(excalibur =>
+    excalibur.AddLeaderElection(le =>
+        le.UseRedis(redis => redis
+            .ConnectionString("localhost:6379")
+            .LockKey("myapp:leader"))));
 
-// 2. Register leader election
-services.AddRedisLeaderElection("myapp:leader", options =>
+// 2. Configure timing options.
+//    Validated at startup (ValidateOnStart): RenewInterval + GracePeriod + 1s
+//    clock-skew margin must be strictly less than LeaseDuration, otherwise the
+//    host fails fast to prevent a split-brain overlap window.
+services.Configure<LeaderElectionOptions>(options =>
 {
     options.LeaseDuration = TimeSpan.FromSeconds(30);
     options.RenewInterval = TimeSpan.FromSeconds(10);
-    options.GracePeriod = TimeSpan.FromSeconds(15);
+    options.GracePeriod = TimeSpan.FromSeconds(15);   // 10 + 15 + 1 = 26s < 30s ✓
     options.InstanceId = Environment.MachineName;
 });
 ```

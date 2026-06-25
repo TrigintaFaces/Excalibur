@@ -178,7 +178,15 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 					await lifecycle.StartAsync(cancellationToken).ConfigureAwait(false);
 				}
 
-				_startedAdapters.Add(name);
+				// Track the started adapter under the lock; the await above ran outside it (NFR-B1),
+				// symmetric with the ITransportLifecycleManager path.
+				lock (_lock)
+				{
+					if (!_startedAdapters.Contains(name))
+					{
+						_startedAdapters.Add(name);
+					}
+				}
 
 				LogTransportAdapterStarted(name);
 			}
@@ -200,19 +208,31 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 			}
 		}
 
-		LogTransportAdapterStartupSummary(_startedAdapters.Count, transportNames.Count);
+		int startedCount;
+		lock (_lock)
+		{
+			startedCount = _startedAdapters.Count;
+		}
+
+		LogTransportAdapterStartupSummary(startedCount, transportNames.Count);
 	}
 
 	/// <inheritdoc/>
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
-		if (_startedAdapters.Count == 0)
+		int startedCount;
+		lock (_lock)
+		{
+			startedCount = _startedAdapters.Count;
+		}
+
+		if (startedCount == 0)
 		{
 			LogNoTransportAdaptersToStop();
 			return;
 		}
 
-		LogStoppingTransportAdapters(_startedAdapters.Count, _options.DrainTimeoutSeconds);
+		LogStoppingTransportAdapters(startedCount, _options.DrainTimeoutSeconds);
 
 		// Create a combined token that includes the drain timeout
 		using var drainCts = new CancellationTokenSource(_options.DrainTimeout);
@@ -227,10 +247,20 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 
 	private async Task StopStartedAdaptersAsync(CancellationToken cancellationToken)
 	{
-		// Stop adapters in reverse order of startup
-		for (var i = _startedAdapters.Count - 1; i >= 0; i--)
+		// Snapshot the started adapters under the lock and clear the shared collection up front;
+		// the stop I/O below runs outside the lock (NFR-B1). A concurrent StartTransportAsync that
+		// adds after this snapshot stays tracked in _startedAdapters and is not stopped here.
+		List<string> adaptersToStop;
+		lock (_lock)
 		{
-			var name = _startedAdapters[i];
+			adaptersToStop = [.. _startedAdapters];
+			_startedAdapters.Clear();
+		}
+
+		// Stop adapters in reverse order of startup
+		for (var i = adaptersToStop.Count - 1; i >= 0; i--)
+		{
+			var name = adaptersToStop[i];
 			var adapter = _transportRegistry.GetTransportAdapter(name);
 
 			if (adapter is null)
@@ -259,8 +289,6 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 				LogTransportAdapterStopFailed(name, ex.Message, ex);
 			}
 		}
-
-		_startedAdapters.Clear();
 	}
 
 	#region ITransportLifecycleManager Implementation

@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
@@ -28,6 +29,19 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 	: IDispatchMiddleware
 {
 	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.CircuitBreakerMiddleware, "1.0.0");
+
+	// Static library Meter (ADR-142 lifecycle) — process-lifetime, fixed name mirroring ActivitySource (p9w9vk).
+	private static readonly Meter Meter = new(DispatchTelemetryConstants.Meters.CircuitBreakerMiddleware, "1.0.0");
+
+	private static readonly Counter<long> TransitionsCounter = Meter.CreateCounter<long>(
+		"dispatch.circuit_breaker.transitions",
+		unit: "transitions",
+		description: "Number of circuit breaker state transitions, tagged with circuit.key, from_state and to_state.");
+
+	private static readonly Counter<long> RejectionsCounter = Meter.CreateCounter<long>(
+		"dispatch.circuit_breaker.rejections",
+		unit: "rejections",
+		description: "Number of requests rejected because the circuit breaker was open, tagged with circuit.key.");
 
 	private readonly CircuitBreakerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private readonly ITelemetrySanitizer _sanitizer = sanitizer ?? throw new ArgumentNullException(nameof(sanitizer));
@@ -87,6 +101,8 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 				_ = (activity?.SetTag("circuit.rejected", value: true));
 				_ = (activity?.SetStatus(ActivityStatusCode.Error, "Circuit breaker open"));
 
+				RejectionsCounter.Add(1, new KeyValuePair<string, object?>("circuit.key", circuitKey));
+
 				return MessageResult.Failed(new MessageProblemDetails
 				{
 					Type = "CircuitBreakerOpen",
@@ -99,7 +115,9 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 			}
 
 			// Move to half-open state
+			var fromHalfOpen = state.State;
 			state.TransitionToHalfOpen();
+			EmitTransition(circuitKey, fromHalfOpen, state.State);
 			LogCircuitBreakerHalfOpen(circuitKey);
 			_ = (activity?.SetTag("circuit.transition", "half_open"));
 		}
@@ -110,7 +128,9 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 
 			if (result.IsSuccess)
 			{
+				var fromSuccess = state.State;
 				state.RecordSuccess();
+				EmitTransition(circuitKey, fromSuccess, state.State);
 				_ = (activity?.SetTag("circuit.success", value: true));
 
 				if (state.State == CircuitState.HalfOpen)
@@ -121,7 +141,9 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 			}
 			else
 			{
+				var fromFailure = state.State;
 				state.RecordFailure();
+				EmitTransition(circuitKey, fromFailure, state.State);
 				_ = (activity?.SetTag("circuit.failure", value: true));
 
 				if (state.State == CircuitState.Open)
@@ -136,7 +158,9 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 		}
 		catch (Exception ex)
 		{
+			var fromException = state.State;
 			state.RecordFailure();
+			EmitTransition(circuitKey, fromException, state.State);
 			_ = (activity?.SetTag("circuit.exception", value: true));
 			activity?.SetSanitizedErrorStatus(ex, _sanitizer);
 
@@ -162,6 +186,33 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 	}
 
 	private static DateTimeOffset CreateTimestamp() => DateTimeOffset.UtcNow;
+
+	/// <summary>
+	/// Emits the circuit-breaker transition counter (FR-D1, p9w9vk) when the state actually changed, tagged
+	/// with <c>circuit.key</c>, <c>from_state</c> and <c>to_state</c>. Additive to the existing logs/Activity
+	/// tags. A no-op when <paramref name="from"/> equals <paramref name="to"/> (no real transition).
+	/// </summary>
+	private static void EmitTransition(string circuitKey, CircuitState from, CircuitState to)
+	{
+		if (from == to)
+		{
+			return;
+		}
+
+		TransitionsCounter.Add(
+			1,
+			new KeyValuePair<string, object?>("circuit.key", circuitKey),
+			new KeyValuePair<string, object?>("from_state", ToStateTag(from)),
+			new KeyValuePair<string, object?>("to_state", ToStateTag(to)));
+	}
+
+	private static string ToStateTag(CircuitState state) => state switch
+	{
+		CircuitState.Closed => "closed",
+		CircuitState.Open => "open",
+		CircuitState.HalfOpen => "half_open",
+		_ => "unknown",
+	};
 
 	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
 	[LoggerMessage(MiddlewareEventId.CircuitBreakerStateOpen, LogLevel.Warning,

@@ -171,15 +171,19 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 		{
 			await ReleaseLockAsync().ConfigureAwait(false);
 
+			string? previousLeader;
+
 			lock (_lock)
 			{
 				_isLeader = false;
-				var previousLeader = _currentLeaderId;
+				previousLeader = _currentLeaderId;
 				_currentLeaderId = null;
-
-				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockKey));
-				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockKey));
 			}
+
+			// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
+			// snapshot taken under the lock keeps the event args consistent (no torn read).
+			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockKey));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockKey));
 		}
 	}
 
@@ -354,6 +358,8 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 
 	private void LoseLeadership()
 	{
+		string? previousLeader;
+
 		lock (_lock)
 		{
 			if (!_isLeader)
@@ -362,14 +368,16 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 			}
 
 			_isLeader = false;
-			var previousLeader = _currentLeaderId;
+			previousLeader = _currentLeaderId;
 			_currentLeaderId = null;
-
-			LogLostLeadership(CandidateId, _lockKey);
-
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockKey));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockKey));
 		}
+
+		LogLostLeadership(CandidateId, _lockKey);
+
+		// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
+		// snapshot taken under the lock keeps the event args consistent (no torn read).
+		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockKey));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockKey));
 	}
 
 	// LoggerMessage delegates

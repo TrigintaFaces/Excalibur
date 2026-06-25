@@ -67,9 +67,27 @@ Core message dispatching metrics.
 
 ---
 
+### Excalibur.Dispatch.CircuitBreakerMiddleware
+
+State-transition and rejection counters emitted directly by `CircuitBreakerMiddleware` whenever the
+middleware is in the pipeline — **no opt-in observability service required**. Subscribe to this meter to
+alert on breaker trips out of the box.
+
+| Metric | Type | Unit | Description |
+|--------|------|------|-------------|
+| `dispatch.circuit_breaker.transitions` | Counter | transitions | Circuit breaker state transitions (emitted only on an actual state change) |
+| `dispatch.circuit_breaker.rejections` | Counter | rejections | Requests rejected because the circuit was open |
+
+**Tags:**
+- `dispatch.circuit_breaker.transitions` — `circuit.key`, `from_state`, `to_state` (state values: `closed`, `open`, `half_open`)
+- `dispatch.circuit_breaker.rejections` — `circuit.key`
+
+---
+
 ### Excalibur.Dispatch.CircuitBreaker
 
-Circuit breaker state and operations.
+Circuit breaker state and operations, emitted by the optional `CircuitBreakerMetrics` instrumentation in
+the Observability package (registered when you add Dispatch observability metrics).
 
 | Metric | Type | Unit | Description |
 |--------|------|------|-------------|
@@ -79,7 +97,7 @@ Circuit breaker state and operations.
 | `dispatch.circuitbreaker.successes` | Counter | count | Successful requests tracked by circuit |
 | `dispatch.circuitbreaker.state` | ObservableGauge | state | Current circuit state (0=Closed, 1=Open, 2=HalfOpen) |
 
-**Tags:** `circuit_name`, `state`
+**Tags:** `circuit_name` (and `exception_type` on `dispatch.circuitbreaker.failures`)
 
 ---
 

@@ -103,9 +103,11 @@ public sealed class PostgresLeaderElectionExtensionsShould
 			election =>
 			{
 				election.InstanceId = "instance-a";
+				// RenewInterval + GracePeriod + clock-skew margin must be < LeaseDuration
+				// (cross-property rule, bd-ol729k); these values are incidental to this test.
 				election.LeaseDuration = TimeSpan.FromSeconds(3);
-				election.RenewInterval = TimeSpan.FromSeconds(1);
-				election.GracePeriod = TimeSpan.FromSeconds(1);
+				election.RenewInterval = TimeSpan.FromMilliseconds(500);
+				election.GracePeriod = TimeSpan.FromMilliseconds(500);
 			});
 
 		await using var provider = services.BuildServiceProvider();

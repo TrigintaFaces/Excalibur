@@ -177,6 +177,30 @@ services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
 
 The builder automatically registers `LeaderElectionOptions` with `ValidateDataAnnotations` and `ValidateOnStart`.
 
+### Lease Timing Invariant
+
+`LeaderElectionOptionsValidator` (registered for every distributed provider) enforces a cross-property
+timing rule at startup. A configuration that violates it **fails fast** via `ValidateOnStart` rather than
+silently risking a split-brain overlap:
+
+```
+RenewInterval + GracePeriod + 1s (clock-skew margin) < LeaseDuration
+```
+
+(In addition to the simpler `RenewInterval < LeaseDuration` and `GracePeriod < LeaseDuration` bounds.)
+
+**Why:** the renewal loop waits one `RenewInterval`, attempts a renewal, then self-demotes only after
+`GracePeriod` elapses without success — so the holder relinquishes leadership roughly
+`RenewInterval + GracePeriod` after its last successful renewal. If the lease key expires (at
+`LeaseDuration`) *before* the holder self-demotes, another node can acquire the lease while this node still
+believes it leads. Requiring the self-demotion deadline (plus a 1-second clock-skew margin) to fall
+strictly before lease expiry closes that window.
+
+**Defaults** (`Lease = 15s`, `Renew = 5s`, `Grace = 5s`) satisfy the rule: self-demotion at ~10s + 1s
+margin = 11s, a ~4s margin before the 15s lease expiry. Tighten `LeaseDuration` for faster failover at the
+cost of more renewal traffic; if you raise `RenewInterval` or `GracePeriod`, raise `LeaseDuration` to keep
+the sum below it.
+
 ### Pre-Built Options
 
 For scenarios where options are constructed externally (e.g., from configuration or testing):
@@ -614,7 +638,7 @@ PostgreSQL implementation features:
 - Factory pattern for multiple independent elections
 - AOT-safe with `[GeneratedRegex]` SQL identifier validation and `JsonSerializerContext`
 - `ValidateDataAnnotations` + `ValidateOnStart` on all options
-- `IValidateOptions<LeaderElectionOptions>` cross-property validator (`RenewInterval < LeaseDuration`)
+- `IValidateOptions<LeaderElectionOptions>` cross-property validator (see [Lease timing invariant](#lease-timing-invariant))
 
 #### Health-Based Election (Postgres)
 

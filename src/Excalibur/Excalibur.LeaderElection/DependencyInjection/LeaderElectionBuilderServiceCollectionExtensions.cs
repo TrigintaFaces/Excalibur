@@ -7,6 +7,7 @@ using Excalibur.LeaderElection.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -40,6 +41,13 @@ internal static class LeaderElectionBuilderServiceCollectionExtensions
 		// Register base options with validation
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.ValidateOnStart();
+
+		// bd-gmq2j7: enforce the cross-property timing rule (Renew+Grace+skew < Lease) for ALL
+		// providers selected via the builder (SqlServer/Consul/Kubernetes/MongoDB/Redis/InMemory),
+		// which funnel through this shared path. Idempotent via TryAddEnumerable — re-registration
+		// (e.g. a provider that also registers it) does not double-validate.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
 
 		// bd-x6rg45: fail loud at host start if the consumer forgot to pick a provider.
 		// Idempotent via TryAddEnumerable — re-registering AddLeaderElection does not

@@ -126,6 +126,26 @@ Each span carries tags that you can filter and group by:
 | `transport` | `kafka` / `rabbitmq` | Filter by transport |
 | `dispatch.message_id` | `abc-123` | Trace a specific message |
 
+### Traces Connect Across the Outbox
+
+When you use the outbox pattern, the dispatch pipeline propagates the **W3C `traceparent`** end to end so
+a single trace survives the async hop:
+
+1. **Staging** captures the ambient `Activity.Current` (the active `traceparent`) when a message is written
+   to the outbox. A `traceparent` you set yourself takes precedence; if there is no ambient activity and no
+   caller value, no header is written.
+2. **Publishing** restores that `traceparent` onto the outgoing transport context.
+3. **Dispatch** re-parents the consumer span to the restored context — so the downstream
+   `dispatch.{MessageType}` span is a **child** of the original producer trace (a `Consumer`-kind span)
+   rather than a new disconnected root.
+
+If an ambient activity is already in scope on the consumer side, the restored context is attached as an
+`ActivityLink` instead of hijacking the local trace. A malformed or absent `traceparent` fails open — the
+span starts as a normal in-process root, never throwing.
+
+The result: a request that flows producer → outbox → publish → consumer shows up as **one connected trace**
+in your backend instead of two orphaned ones.
+
 ## Health Check Setup
 
 Health checks provide a quick binary signal for load balancers and orchestrators.

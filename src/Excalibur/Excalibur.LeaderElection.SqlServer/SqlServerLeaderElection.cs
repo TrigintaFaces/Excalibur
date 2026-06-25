@@ -49,12 +49,38 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 		IOptions<LeaderElectionOptions> options,
 		ILogger<SqlServerLeaderElection> logger)
 	{
-		_connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+		ArgumentNullException.ThrowIfNull(connectionString);
+		_connectionString = BuildLockConnectionString(connectionString);
 		_lockResource = lockResource ?? throw new ArgumentNullException(nameof(lockResource));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		CandidateId = _options.InstanceId ?? (Environment.MachineName + "-" + Guid.NewGuid().ToString("N")[..8]);
+	}
+
+	/// <summary>
+	/// Builds the connection string used for the lock-holding connection, hardened so that a lost
+	/// session-scoped <c>sp_getapplock</c> is never masked by a transparently-reconnected connection.
+	/// </summary>
+	/// <remarks>
+	/// The application lock is session-scoped: it lives on the physical connection's server session and
+	/// is released when that session ends. <see cref="SqlConnectionStringBuilder.Pooling"/> is disabled so
+	/// the lock connection is dedicated (never reset/reused by the pool), and
+	/// <see cref="SqlConnectionStringBuilder.ConnectRetryCount"/> is set to 0 so a dropped session surfaces
+	/// immediately as a closed/broken connection rather than silently reconnecting to a NEW session that
+	/// does not hold the lock — which would otherwise yield false-positive leadership (split-brain).
+	/// </remarks>
+	/// <param name="connectionString">The caller-supplied connection string.</param>
+	/// <returns>The hardened connection string.</returns>
+	private static string BuildLockConnectionString(string connectionString)
+	{
+		var builder = new SqlConnectionStringBuilder(connectionString)
+		{
+			Pooling = false,
+			ConnectRetryCount = 0,
+		};
+
+		return builder.ConnectionString;
 	}
 
 	/// <inheritdoc/>
@@ -154,15 +180,19 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 		if (wasLeader)
 		{
+			string? previousLeader;
+
 			lock (_lock)
 			{
 				_isLeader = false;
-				var previousLeader = _currentLeaderId;
+				previousLeader = _currentLeaderId;
 				_currentLeaderId = null;
-
-				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource));
-				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockResource));
 			}
+
+			// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock:
+			// the snapshot taken under the lock keeps the event args consistent (no torn read).
+			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource));
+			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockResource));
 		}
 	}
 
@@ -334,27 +364,34 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	}
 
 	/// <summary>
-	/// Verifies that the SQL Server connection holding the application lock is still alive.
+	/// Verifies that the current session still actually holds the <c>sp_getapplock</c> application lock —
+	/// ownership, not merely connection liveness.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// <b>Known limitation:</b> This method only verifies that the underlying connection is alive
-	/// by executing <c>SELECT 1</c>. It does not query the actual <c>sp_getapplock</c> lock state
-	/// because SQL Server does not provide a reliable, non-blocking mechanism to check whether a
-	/// specific application lock is still held on the current session.
+	/// <c>APPLOCK_MODE('public', resource, 'Session')</c> returns the lock mode held by the <em>current
+	/// session</em> for the resource, or <c>'NoLock'</c> if this session does not hold it. This is a
+	/// reliable, non-blocking ownership probe.
 	/// </para>
 	/// <para>
-	/// The <c>sp_getapplock</c> lock is session-scoped: it is automatically released when the
-	/// connection is closed or broken. Therefore, verifying connection liveness is a reasonable
-	/// proxy for lock ownership. If the connection drops, the lock is released server-side, and
-	/// this method returns <see langword="false"/>, triggering the grace period logic in the
-	/// renewal loop.
+	/// A plain connection-liveness check (<c>SELECT 1</c>) is insufficient: across an AlwaysOn/failover
+	/// event, a pool reset, or a transparent reconnect, the connection can answer queries on a <em>new</em>
+	/// server session that never re-acquired the application lock. Liveness would falsely report continued
+	/// ownership while another node acquires the lock on the new primary — a silent split-brain. Combined
+	/// with the hardened connection (pooling and connection-resiliency disabled, see
+	/// <see cref="BuildLockConnectionString"/>), a lost session now surfaces as either a closed connection
+	/// or a <c>'NoLock'</c> result, both of which relinquish leadership.
+	/// </para>
+	/// <para>
+	/// This addresses the reachable failover/pool-reset split-brain. The orthogonal paused/stalled-leader
+	/// split-brain (which no connectivity check can catch) is mitigated by fencing tokens, tracked
+	/// separately as <c>umemwa</c>.
 	/// </para>
 	/// </remarks>
 	/// <param name="cancellationToken">Token to cancel the verification.</param>
 	/// <returns>
-	/// <see langword="true"/> if the connection is alive (implying the lock is still held);
-	/// <see langword="false"/> if the connection is closed, broken, or the check fails.
+	/// <see langword="true"/> if the current session still holds the application lock;
+	/// <see langword="false"/> if it does not, the connection is closed/broken, or the check fails.
 	/// </returns>
 	private async Task<bool> VerifyLockAsync(CancellationToken cancellationToken)
 	{
@@ -365,12 +402,11 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 		try
 		{
-			// Verify connection is alive — sp_getapplock is session-scoped, so a live
-			// connection implies the lock is still held. There is no reliable non-blocking
-			// API to query sp_getapplock lock ownership directly.
-			await using var command = new SqlCommand("SELECT 1", _connection);
-			_ = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-			return true;
+			await using var command = new SqlCommand("SELECT APPLOCK_MODE('public', @Resource, 'Session')", _connection);
+			_ = command.Parameters.AddWithValue("@Resource", _lockResource);
+
+			var mode = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
+			return mode is not null && !string.Equals(mode, "NoLock", StringComparison.OrdinalIgnoreCase);
 		}
 		catch
 		{
@@ -403,6 +439,8 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 	private async Task LoseLeadershipAsync()
 	{
+		string? previousLeader;
+
 		lock (_lock)
 		{
 			if (!_isLeader)
@@ -411,14 +449,16 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 			}
 
 			_isLeader = false;
-			var previousLeader = _currentLeaderId;
+			previousLeader = _currentLeaderId;
 			_currentLeaderId = null;
-
-			LogLostLeadership(CandidateId, _lockResource);
-
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockResource));
 		}
+
+		LogLostLeadership(CandidateId, _lockResource);
+
+		// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
+		// snapshot taken under the lock keeps the event args consistent (no torn read).
+		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockResource));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockResource));
 
 		// Clean up connection asynchronously
 		if (_connection != null)

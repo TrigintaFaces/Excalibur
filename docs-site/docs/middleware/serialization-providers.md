@@ -195,7 +195,8 @@ services.AddAvroSerializer(opts =>
 ### Considerations
 
 - Schema-based contract definition
-- Native integration with Kafka and Confluent Schema Registry
+- Reader and writer must share the same schema -- this serializer does not perform Avro writer-schema resolution (schema evolution); a schema skew raises a deserialization error rather than mis-decoding
+- Well suited to Kafka and Hadoop pipelines; for Confluent Schema Registry integration (schema IDs, compatibility modes) use the Kafka transport's `UseConfluentSchemaRegistry()` -- see [Kafka Schema Registry](../transports/kafka-schema-registry.md)
 - Configurable buffer size for encoding operations (default: 4096 bytes)
 
 ---
