@@ -38,6 +38,14 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 	/// </summary>
 	private const int MaxCacheEntries = 1024;
 
+	/// <summary>
+	/// Generic, non-leaking detail returned to the caller when authorization evaluation faults.
+	/// The full exception is logged server-side (see <see cref="LogAuthorizationError"/>); this constant
+	/// is intentionally free of any exception message, stack, or PII so nothing internal crosses the
+	/// trust boundary in the consumer-facing response body.
+	/// </summary>
+	internal const string ServerErrorDetail = "An internal error occurred while evaluating authorization.";
+
 	private readonly IHttpContextAccessor _httpContextAccessor;
 	private readonly IAuthorizationService _authorizationService;
 	private readonly ILogger<AspNetCoreAuthorizationMiddleware> _logger;
@@ -155,8 +163,11 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 		}
 		catch (Exception ex)
 		{
+			// An evaluation FAULT is not an authorization DENIAL: log the full exception server-side and
+			// return a generic 500 with NO exception text. Leaking ex.Message across the trust boundary
+			// discloses internal detail; mapping a fault to 403 masks a 500-class error as a denial.
 			LogAuthorizationError(messageType.Name, ex);
-			return CreateForbiddenResult($"An error occurred during authorization evaluation: {ex.Message}");
+			return CreateServerErrorResult();
 		}
 
 		LogAuthorizationGranted(messageType.Name);
@@ -293,6 +304,26 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 			ErrorCode = 403,
 			Status = 403,
 			Detail = detail,
+			Instance = string.Empty,
+		};
+
+		return MessageResult.Failed(problemDetails);
+	}
+
+	/// <summary>
+	/// Creates a fail-closed 500-class result for an authorization-evaluation fault. The detail is the
+	/// generic <see cref="ServerErrorDetail"/> constant — it never carries the exception message, stack,
+	/// or any PII, so no internal detail is disclosed to the caller.
+	/// </summary>
+	private static IMessageResult CreateServerErrorResult()
+	{
+		var problemDetails = new MessageProblemDetails
+		{
+			Type = "about:blank",
+			Title = "Authorization Error",
+			ErrorCode = 500,
+			Status = 500,
+			Detail = ServerErrorDetail,
 			Instance = string.Empty,
 		};
 

@@ -435,7 +435,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		await using var processor = CreateProcessor(inboxStore: inboxStore);
 
 		var successful = new List<(string MessageId, string HandlerType)> { ("inbox-success", "HandlerA") };
-		var failedToRetry = new List<(string MessageId, string HandlerType)> { ("inbox-retry", "HandlerB") };
+		var failedToRetry = new List<(string MessageId, string HandlerType, int Attempt)> { ("inbox-retry", "HandlerB", 1) };
 		var failedToDeadLetter = new List<(string MessageId, string HandlerType)> { ("inbox-dlq", "HandlerC") };
 
 		// Act
@@ -477,7 +477,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var task = (Task?)PerformBatchDatabaseOperationsAsyncMethod.Invoke(
 			processor,
 			[new List<(string MessageId, string HandlerType)>(),
-				new List<(string MessageId, string HandlerType)>(),
+				new List<(string MessageId, string HandlerType, int Attempt)>(),
 				new List<(string MessageId, string HandlerType)>(),
 				CancellationToken.None]);
 		if (task is null)

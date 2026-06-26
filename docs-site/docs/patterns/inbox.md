@@ -161,6 +161,31 @@ ON [inbox].[ProcessedMessages] ([ExpiresAt])
 WHERE [ExpiresAt] < GETUTCDATE();
 ```
 
+## Retry Backoff Schedule
+
+When an inbox entry fails processing, the inbox processor computes an exponential backoff delay (`IBackoffCalculator.CalculateDelay(attempt)`) and records the absolute next-attempt time on the entry's `NextAttemptAt` column. The retryable-fetch predicate excludes the entry until that time elapses:
+
+```sql
+WHERE Status = @FailedStatus
+  AND RetryCount < @MaxRetries
+  AND (NextAttemptAt IS NULL OR NextAttemptAt <= @now)
+```
+
+so the configured retry delay **genuinely throttles redelivery** rather than re-admitting a failed entry on a fixed window.
+
+Backoff scheduling uses the optional `IBackoffSchedulableInboxStore` capability (`MarkFailedWithBackoffAsync`). The SQL Server inbox store implements it; stores that do not implement it fall back to the existing `MarkFailedAsync` immediate-retry path (fail-open, no crash). The capability is forwarded transparently through the telemetry and encrypting inbox-store decorators.
+
+:::warning Schema migration (SQL Server)
+The `NextAttemptAt` column backs this feature. **Existing SQL Server inbox tables must add it** — the store does not auto-create or alter tables:
+
+```sql
+ALTER TABLE [inbox].[ProcessedMessages]
+    ADD [NextAttemptAt] DATETIMEOFFSET NULL;
+```
+
+A `NULL` `NextAttemptAt` keeps the entry immediately eligible, so existing rows are unaffected.
+:::
+
 ## Message Identity
 
 ### Default Identity

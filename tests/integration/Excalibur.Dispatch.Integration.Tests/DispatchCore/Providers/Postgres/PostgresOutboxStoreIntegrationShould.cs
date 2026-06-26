@@ -293,7 +293,8 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			    occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			    attempts INT NOT NULL DEFAULT 0,
 			    dispatcher_id VARCHAR(100),
-			    dispatcher_timeout TIMESTAMPTZ
+			    dispatcher_timeout TIMESTAMPTZ,
+			    next_attempt_at TIMESTAMPTZ
 			);
 
 			CREATE TABLE IF NOT EXISTS outbox_dead_letters (

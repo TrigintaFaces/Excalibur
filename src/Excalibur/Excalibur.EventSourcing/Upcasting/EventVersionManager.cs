@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 
@@ -30,7 +31,8 @@ public partial class EventVersionManager
 	private static readonly CompositeFormat NoUpgradePathFoundFormat =
 			CompositeFormat.Parse(Resources.EventVersionManager_NoUpgradePathFoundFormat);
 
-	private readonly Dictionary<string, List<IEventUpgrader>> _upgraders = [];
+	private readonly ConcurrentDictionary<string, List<IEventUpgrader>> _upgraders = new(StringComparer.Ordinal);
+	private readonly Lock _registrationLock = new();
 	private readonly ILogger<EventVersionManager> _logger;
 
 	/// <summary>
@@ -53,28 +55,32 @@ public partial class EventVersionManager
 	{
 		ArgumentNullException.ThrowIfNull(upgrader);
 
-		if (!_upgraders.TryGetValue(upgrader.EventType, out var upgraderList))
+		// Top-level lock eliminates the TOCTOU between GetOrAdd (which may create or return an existing
+		// list) and the subsequent conflict-check + mutation, and serializes concurrent registrations.
+		// Mirrors the hardened sibling SnapshotVersionManager so the two parallel managers are consistent.
+		// RegisterUpgrader is a startup-time call, so contention is negligible.
+		lock (_registrationLock)
 		{
-			upgraderList = [];
-			_upgraders[upgrader.EventType] = upgraderList;
+			var upgraderList = _upgraders.GetOrAdd(upgrader.EventType, static _ => []);
+
+			// Check for conflicts
+			var existingUpgrader = upgraderList.FirstOrDefault(u =>
+				u.FromVersion == upgrader.FromVersion && u.ToVersion == upgrader.ToVersion);
+
+			if (existingUpgrader is not null)
+			{
+				throw new InvalidOperationException(
+						string.Format(
+								CultureInfo.CurrentCulture,
+								UpgraderAlreadyExistsFormat,
+								upgrader.EventType,
+								upgrader.FromVersion,
+								upgrader.ToVersion));
+			}
+
+			upgraderList.Add(upgrader);
 		}
 
-		// Check for conflicts
-		var existingUpgrader = upgraderList.FirstOrDefault(u =>
-			u.FromVersion == upgrader.FromVersion && u.ToVersion == upgrader.ToVersion);
-
-		if (existingUpgrader != null)
-		{
-			throw new InvalidOperationException(
-					string.Format(
-							CultureInfo.CurrentCulture,
-							UpgraderAlreadyExistsFormat,
-							upgrader.EventType,
-							upgrader.FromVersion,
-							upgrader.ToVersion));
-		}
-
-		upgraderList.Add(upgrader);
 		LogUpgraderRegistered(upgrader.EventType, upgrader.FromVersion, upgrader.ToVersion);
 	}
 

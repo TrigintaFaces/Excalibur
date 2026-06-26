@@ -14,6 +14,40 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ---
 
+## June 2026 — Reliability & Wiring Correctness (Sprint 850)
+
+A focused sweep closing a class of **wiring/registration/correctness** gaps where advertised behavior did not actually fire, plus concurrency/memory hazards. Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), green across the 10-shard full CI run plus Docker container shards, with both independent reviews (code + architecture/CSO) approved at zero blocking findings. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but **SQL Server inbox users must add the new `NextAttemptAt` column** (below), and you should review the items for behavior you may have relied on.
+
+### Retry middleware now classifies failed *results* instead of retrying every failure
+
+- **`RetryMiddleware` now retries a failed `IMessageResult` only when its RFC 7807 status is transient — `408`, `429`, or `5xx` — matching Polly / `HttpClientFactory` `HandleTransientHttpError` semantics.** Previously it retried *every* non-success result, which re-ran non-idempotent handlers on permanent client errors (validation / 4xx). A `4xx` result other than 408/429, and a failed result with **no** `ProblemDetails`/`Status`, are now treated as **permanent → not retried** (a deliberately returned failure with no transient signal is a handler statement that retry will not help). **Exception-based retry is unchanged** — genuine transient faults surface as exceptions and continue to be handled by the existing exception filters (`RetryableExceptions` / `NonRetryableExceptions`). If you relied on the old "retry all failures" behavior for a result that returns a non-transient status, return a transient status (or throw a retryable exception) instead. See [Retry Middleware](./middleware/built-in.md#retry-middleware).
+- **Exponential backoff can no longer overflow.** Every backoff strategy (including `ExponentialWithJitter`, which previously returned an *uncapped* delay) now clamps the computed milliseconds against `MaxDelay` **before** constructing the `TimeSpan`, so a high attempt count collapses to `MaxDelay` instead of throwing `OverflowException` on a non-finite value.
+
+### Inbox retry now honors exponential backoff
+
+- **The inbox processor now schedules failed entries with the computed exponential backoff instead of a hardcoded 5-minute window.** On a failure it persists `NextAttemptAt = now + IBackoffCalculator.CalculateDelay(attempt)`, and the retryable-fetch predicate becomes `NextAttemptAt IS NULL OR NextAttemptAt <= now` — so the configured backoff genuinely throttles redelivery (mirroring the Sprint 849 outbox fix). This uses the new optional `IBackoffSchedulableInboxStore` capability (`MarkFailedWithBackoffAsync`); the SQL Server inbox store implements it, stores without it fall back to the existing immediate-retry path (fail-open), and the capability is forwarded transparently through the telemetry and encrypting inbox-store decorators.
+- **SQL Server inbox users must add a `NextAttemptAt DATETIMEOFFSET NULL` column** to the inbox table (the store does not auto-create tables). See [Inbox → Retry Backoff Schedule](./patterns/inbox.md#retry-backoff-schedule).
+
+### Postgres outbox now supports retry backoff
+
+- **The Postgres outbox store now implements `IBackoffSchedulableOutboxStore`** (`MarkFailedWithBackoffAsync`), so the computed backoff is applied and the claim query excludes not-yet-due rows — signature-identical to the SQL Server store for cross-provider consistency. Other non-SQL-Server providers (Redis/Mongo/Elasticsearch/DynamoDB/Cosmos) retain the existing immediate-retry fail-open behavior and are tracked as follow-ups. See [Outbox → Ordering and Retry Scheduling](./patterns/outbox.md#ordering-and-retry-scheduling).
+
+### Sagas persist before they dispatch, and missing sagas hit a handler
+
+- **A saga's emitted commands and events are now buffered during `HandleAsync` and dispatched only *after* the saga state is durably persisted (save-then-dispatch).** Previously a command was dispatched immediately and `SaveAsync` ran afterward, so a persistence failure followed by replay re-dispatched the command → duplicate side effects. Now a `SaveAsync` failure dispatches nothing and the emitted messages re-buffer on the next delivery. This is internal to the coordinator — `SagaBase.SendCommandAsync`/`PublishEventAsync` remain the same `protected` helpers you call; they no longer return a dispatch result because dispatch happens later. Per-emit FIFO order is preserved.
+- **`ISagaNotFoundHandler<TSaga>` is now invoked when an event arrives for a non-existent saga.** A default `LoggingNotFoundHandler<TSaga>` is registered out of the box (logs the orphaned continuation, behavior preserved). Register a custom handler with `WithNotFoundHandler<TSaga, THandler>()` to dead-letter / park / compensate instead of dropping the event. See [Sagas](./sagas/index.md).
+
+### ASP.NET Core authorization faults return 500, not a leaky 403
+
+- **When the ASP.NET Core authorization middleware's evaluation *throws*, it now returns HTTP 500 with a generic sanitized message and logs the full exception server-side** — instead of the previous 403 carrying the raw `ex.Message`, which both masked a server-class error as a denial and leaked internal detail across the trust boundary. An authorization **denial** (not an exception) still returns 403, unchanged.
+
+### Internal concurrency hardening
+
+- **Leader-election renewal timestamps** (Redis / Postgres / SQL Server) are now read/written lock-free via `Interlocked` on a `long` ticks field, eliminating a torn multi-field read that could miscompute the grace/split-brain window.
+- **Event-sourcing internals** were hardened: the snapshot-tracking dictionary is now bounded (cap ≈ 1024, re-derive on miss) to prevent unbounded growth for high-cardinality aggregates; `EventVersionManager`'s upgrader map is now thread-safe (`ConcurrentDictionary` + lock, matching `SnapshotVersionManager`); and a handler-warmup-cache TOCTOU NRE on first dispatch was closed with a single local-copy read.
+
+---
+
 ## June 2026 — Outbox/Inbox Reliability Hardening (Sprint 849)
 
 A focused sweep closing the "advertised-but-broken" gaps on the default dispatch and outbox path: the default pipeline now actually runs, outbox ordering keys are persisted and honored, and the computed retry backoff is genuinely applied. Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), green across the 10-shard full CI run plus Docker SQL Server container shards, with both independent reviews (code + architecture/CSO) approved at zero blocking findings. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but SQL Server outbox users must add the new ordering/backoff columns (below), and review the items for behavior you may have relied on.

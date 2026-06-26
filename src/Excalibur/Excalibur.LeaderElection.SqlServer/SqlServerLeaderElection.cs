@@ -34,7 +34,9 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
 	private int _disposed;
-	private DateTimeOffset _lastSuccessfulRenewal;
+	// Stored as UTC ticks accessed via Interlocked (a58yu6): the renewal task reads/writes this
+	// lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset would tear.
+	private long _lastSuccessfulRenewalTicks;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerLeaderElection"/> class.
@@ -331,7 +333,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 					if (!stillLeader)
 					{
 						// Check if we've exceeded the grace period
-						var elapsed = DateTimeOffset.UtcNow - _lastSuccessfulRenewal;
+						var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
 						if (elapsed > _options.GracePeriod)
 						{
 							await LoseLeadershipAsync().ConfigureAwait(false);
@@ -339,7 +341,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 					}
 					else
 					{
-						_lastSuccessfulRenewal = DateTimeOffset.UtcNow;
+						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
 					}
 				}
 			}
@@ -353,7 +355,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 				if (_isLeader)
 				{
-					var elapsed = DateTimeOffset.UtcNow - _lastSuccessfulRenewal;
+					var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
 					if (elapsed > _options.GracePeriod)
 					{
 						await LoseLeadershipAsync().ConfigureAwait(false);
@@ -428,7 +430,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 			previousLeader = _currentLeaderId;
 			_isLeader = true;
 			_currentLeaderId = CandidateId;
-			_lastSuccessfulRenewal = DateTimeOffset.UtcNow;
+			Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
 		}
 
 		LogBecameLeader(CandidateId, _lockResource);

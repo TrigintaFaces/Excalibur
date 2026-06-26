@@ -119,6 +119,17 @@ public sealed class InboxEntry
 	public DateTimeOffset? LastAttemptAt { get; set; }
 
 	/// <summary>
+	/// Gets or sets the absolute time before which a failed entry must not be re-claimed for retry.
+	/// </summary>
+	/// <value>
+	/// UTC timestamp computed as <c>now + backoff(attempt)</c> when the entry was marked failed with a
+	/// backoff schedule, or <see langword="null"/> when no backoff is recorded (the entry is eligible as
+	/// soon as the store's re-admission predicate otherwise allows). Honored by stores implementing
+	/// <see cref="IBackoffSchedulableInboxStore"/>.
+	/// </value>
+	public DateTimeOffset? NextAttemptAt { get; set; }
+
+	/// <summary>
 	/// Gets or sets the correlation identifier for tracing.
 	/// </summary>
 	/// <value> Correlation ID for distributed tracing and message flow tracking. </value>

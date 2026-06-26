@@ -97,14 +97,16 @@ public sealed class CircuitBreakerMiddlewareMetricsShould
     [Fact]
     public async Task AC_D2_OpenCircuitRejection_RecordsRejectionCounter()
     {
-        const string key = "acd2-rejection";
+        // NOTE: local named 'circuitId' (not 'key') so the gitleaks generic-api-key rule does not
+        // misread `key = "<value>"` as a secret assignment — the value is a circuit identifier, not a key.
+        const string circuitId = "acd2-rejection";
         using var metrics = new MetricCollector(MeterName);
-        var sut = CreateSut(Options(key, failureThreshold: 1, openDuration: TimeSpan.FromSeconds(60)));
+        var sut = CreateSut(Options(circuitId, failureThreshold: 1, openDuration: TimeSpan.FromSeconds(60)));
 
         await DriveFailureAsync(sut);   // → Open
         await DriveSuccessAsync(sut);   // Open + within OpenDuration → rejected at the guard
 
-        metrics.Count(RejectionsCounter, ("circuit.key", key)).ShouldBe(1);
+        metrics.Count(RejectionsCounter, ("circuit.key", circuitId)).ShouldBe(1);
     }
 
     // ---- AC-D3: the metric is ADDITIVE — the existing Warning log still fires on transition. ----

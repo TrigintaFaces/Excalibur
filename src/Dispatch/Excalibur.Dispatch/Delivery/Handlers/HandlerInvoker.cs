@@ -42,7 +42,13 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	/// Warmup cache for thread-safe population during startup (PERF-13/PERF-14).
 	/// Null after freeze is called.
 	/// </summary>
-	private static ConcurrentDictionary<(Type HandlerType, Type MessageType), InvokerFunc>? _warmupCache = new();
+	/// <remarks>
+	/// Declared <see langword="volatile" /> so the hot path can read it into a local exactly once and
+	/// observe a concurrent <see cref="FreezeCache" /> nulling it out; this prevents a torn read /
+	/// <see cref="NullReferenceException" /> in the window between the <see cref="_isFrozen" /> check and
+	/// the warmup-dictionary dereference.
+	/// </remarks>
+	private static volatile ConcurrentDictionary<(Type HandlerType, Type MessageType), InvokerFunc>? _warmupCache = new();
 
 	/// <summary>
 	/// Frozen cache for optimal read performance after warmup (PERF-13/PERF-14).
@@ -127,9 +133,28 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 			return lateInvoker(handler, message, cancellationToken);
 		}
 
-		// Phase 1 (warmup): Thread-safe population using ConcurrentDictionary
-		var invoker = _warmupCache!.GetOrAdd(cacheKey, static key => BuildInvoker(key.HandlerType, key.MessageType));
-		return invoker(handler, message, cancellationToken);
+		// Phase 1 (warmup): Thread-safe population using ConcurrentDictionary.
+		// Read the volatile field exactly once into a local. FreezeCache can null _warmupCache out
+		// concurrently after the _isFrozen check above observed false; binding it to a local means we
+		// either use a live dictionary or detect the race deterministically — never dereference null.
+		var warmup = _warmupCache;
+		if (warmup is not null)
+		{
+			var invoker = warmup.GetOrAdd(cacheKey, static key => BuildInvoker(key.HandlerType, key.MessageType));
+			return invoker(handler, message, cancellationToken);
+		}
+
+		// Lost the race with FreezeCache between the _isFrozen check and here: the warmup dictionary was
+		// frozen and cleared. _frozenCache is guaranteed published (FreezeCache writes it before nulling
+		// the volatile _warmupCache), so consult it before falling back to an uncached build.
+		if (_frozenCache is { } frozen && frozen.TryGetValue(cacheKey, out var racedInvoker))
+		{
+			return racedInvoker(handler, message, cancellationToken);
+		}
+
+		// Frozen but this pair was never warmed: build and invoke without caching (rare cold path).
+		var fallbackInvoker = BuildInvoker(cacheKey.handlerType, cacheKey.messageType);
+		return fallbackInvoker(handler, message, cancellationToken);
 	}
 
 	/// <summary>

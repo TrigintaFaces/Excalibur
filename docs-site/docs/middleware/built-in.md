@@ -445,6 +445,24 @@ services.Configure<RetryOptions>(options =>
 });
 ```
 
+### What Gets Retried
+
+The retry middleware distinguishes **transient** from **permanent** failures, matching Polly / `HttpClientFactory` `HandleTransientHttpError` semantics:
+
+| Outcome | Retried? |
+|---------|----------|
+| Failed `IMessageResult` with RFC 7807 status `408`, `429`, or `5xx` | **Yes** (transient) |
+| Failed `IMessageResult` with a `4xx` status other than 408/429 | **No** (permanent client error — retrying cannot fix it and risks re-running a non-idempotent handler) |
+| Failed `IMessageResult` with no `ProblemDetails` / no `Status` | **No** (a returned failure with no transient signal is a handler statement that retry will not help) |
+| Successful `IMessageResult` | **No** |
+| **Thrown exception** | Governed separately by `RetryableExceptions` / `NonRetryableExceptions` (above) — unchanged |
+
+:::note Behavior change (Sprint 850)
+Earlier versions retried *every* non-success result. If you previously relied on a non-transient result being retried, return a transient status (408/429/5xx) or throw a retryable exception instead. Genuine transient faults typically surface as exceptions and are handled by the exception path. See [What's New](../whats-new.md).
+:::
+
+The computed backoff delay is always clamped to `MaxDelay` before the wait `TimeSpan` is constructed, so a high attempt count can never overflow — it collapses to `MaxDelay`.
+
 ### Backoff Strategies
 
 | Strategy | Description |

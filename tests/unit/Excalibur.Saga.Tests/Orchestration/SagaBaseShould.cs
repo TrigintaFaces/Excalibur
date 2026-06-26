@@ -277,27 +277,37 @@ public sealed class SagaBaseShould : UnitTestBase
 	#region SendCommandAsync Tests
 
 	[Fact]
-	public async Task DispatchCommandWithSagaCorrelation()
+	public async Task BufferCommandUntilFlush_ThenDispatchWithSagaCorrelation()
 	{
-		// Arrange
+		// lc178k (S-E1 save-then-dispatch): SendCommandAsync must NOT dispatch — it buffers the command with
+		// its saga-correlated context captured at emit time. Dispatch happens only when the coordinator flushes
+		// the buffer (after SaveAsync succeeds). RED on pre-fix immediate-dispatch (the command would already be
+		// dispatched before any flush). Strengthens the old "dispatched with correlation" assertion: it now also
+		// pins (a) NO dispatch before flush and (b) correlation survives the deferral.
 		var sagaId = Guid.NewGuid();
 		var state = new TestSagaState { SagaId = sagaId };
 		var saga = new TestSaga(state, _dispatcher, _logger);
 		var command = new TestCommand { Data = "test" };
 
-		A.CallTo(() => _dispatcher.DispatchAsync(
-			A<TestCommand>._,
+		// The flush dispatches through the buffer's static IDispatchMessage type, so the recorded call is
+		// DispatchAsync<IDispatchMessage> (not <TestCommand>) — assert that instantiation.
+		A.CallTo(() => _dispatcher.DispatchAsync<IDispatchMessage>(
+			A<IDispatchMessage>._,
 			A<IMessageContext>._,
 			A<CancellationToken>._))
 			.Returns(Task.FromResult(MessageResult.Success()));
 
-		// Act
-		var result = await saga.CallSendCommandAsync(command);
+		// Act 1 — emit: buffered, NOT dispatched.
+		await saga.CallSendCommandAsync(command);
 
-		// Assert
-		result.ShouldNotBeNull();
-		A.CallTo(() => _dispatcher.DispatchAsync(
-			command,
+		A.CallTo(() => _dispatcher.DispatchAsync<IDispatchMessage>(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		// Act 2 — coordinator flush (post-save): dispatched exactly once, saga correlation preserved.
+		await saga.CallFlushPendingDispatchesAsync();
+
+		A.CallTo(() => _dispatcher.DispatchAsync<IDispatchMessage>(
+			A<IDispatchMessage>.That.IsSameAs(command),
 			A<IMessageContext>.That.Matches(ctx =>
 				ctx.GetItem<string>("saga.id") == sagaId.ToString() &&
 				ctx.GetItem<string>("saga.type") == nameof(TestSaga)),
@@ -310,27 +320,34 @@ public sealed class SagaBaseShould : UnitTestBase
 	#region PublishEventAsync Tests
 
 	[Fact]
-	public async Task DispatchEventWithSagaCorrelation()
+	public async Task BufferEventUntilFlush_ThenDispatchWithSagaCorrelation()
 	{
-		// Arrange
+		// lc178k (S-E1 save-then-dispatch): PublishEventAsync must NOT dispatch — it buffers the event with its
+		// saga-correlated context, dispatched only on the coordinator's post-save flush. RED on pre-fix
+		// immediate-dispatch. Pins NO dispatch before flush + correlation preserved across the deferral.
 		var sagaId = Guid.NewGuid();
 		var state = new TestSagaState { SagaId = sagaId };
 		var saga = new TestSaga(state, _dispatcher, _logger);
 		var @event = new TestEvent { Data = "test" };
 
-		A.CallTo(() => _dispatcher.DispatchAsync(
-			A<TestEvent>._,
+		// Flush dispatches through the buffer's static IDispatchMessage type → DispatchAsync<IDispatchMessage>.
+		A.CallTo(() => _dispatcher.DispatchAsync<IDispatchMessage>(
+			A<IDispatchMessage>._,
 			A<IMessageContext>._,
 			A<CancellationToken>._))
 			.Returns(Task.FromResult(MessageResult.Success()));
 
-		// Act
-		var result = await saga.CallPublishEventAsync(@event);
+		// Act 1 — emit: buffered, NOT dispatched.
+		await saga.CallPublishEventAsync(@event);
 
-		// Assert
-		result.ShouldNotBeNull();
-		A.CallTo(() => _dispatcher.DispatchAsync(
-			@event,
+		A.CallTo(() => _dispatcher.DispatchAsync<IDispatchMessage>(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		// Act 2 — coordinator flush (post-save): dispatched exactly once, saga correlation preserved.
+		await saga.CallFlushPendingDispatchesAsync();
+
+		A.CallTo(() => _dispatcher.DispatchAsync<IDispatchMessage>(
+			A<IDispatchMessage>.That.IsSameAs(@event),
 			A<IMessageContext>.That.Matches(ctx =>
 				ctx.GetItem<string>("saga.id") == sagaId.ToString() &&
 				ctx.GetItem<string>("saga.type") == nameof(TestSaga)),
@@ -379,13 +396,16 @@ public sealed class SagaBaseShould : UnitTestBase
 		public Task CallCancelTimeoutAsync(string timeoutId, CancellationToken cancellationToken = default)
 			=> CancelTimeoutAsync(timeoutId, cancellationToken);
 
-		public Task<IMessageResult> CallSendCommandAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
+		public Task CallSendCommandAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
 			where TCommand : IDispatchMessage
 			=> SendCommandAsync(command, cancellationToken);
 
-		public Task<IMessageResult> CallPublishEventAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+		public Task CallPublishEventAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
 			where TEvent : IDispatchMessage
 			=> PublishEventAsync(@event, cancellationToken);
+
+		public Task CallFlushPendingDispatchesAsync(CancellationToken cancellationToken = default)
+			=> FlushPendingDispatchesAsync(cancellationToken);
 	}
 
 	private sealed class TestTimeoutData

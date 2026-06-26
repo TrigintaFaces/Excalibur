@@ -75,10 +75,32 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	private readonly TimeProvider _timeProvider;
 	private readonly ILogger? _logger;
 
-	// Tracked per aggregate ID for auto-snapshot decision context (thread-safe for concurrent loads/saves)
+	// Tracked per aggregate ID for auto-snapshot decision context (thread-safe for concurrent loads/saves).
+	// Bounded by MaxTrackedAggregates so a high-cardinality aggregate space cannot grow this map without limit.
+	private const int MaxTrackedAggregates = 1024;
 	private readonly ConcurrentDictionary<string, SnapshotTrackingState> _snapshotTracking = new(StringComparer.Ordinal);
 
 	private readonly record struct SnapshotTrackingState(long Version, DateTimeOffset Timestamp);
+
+	/// <summary>
+	/// Records the latest snapshot-tracking state for an aggregate while bounding the total number of
+	/// tracked entries.
+	/// </summary>
+	/// <remarks>
+	/// Updates to an already-tracked aggregate always apply; a brand-new aggregate is added only while the
+	/// map is below <see cref="MaxTrackedAggregates" />. Beyond the cap, a later miss makes <c>SaveAsync</c>
+	/// re-derive the auto-snapshot decision from the aggregate's own version, so the policy degrades safely
+	/// rather than leaking memory. Mirrors the bounded-cache pattern used by RetryMiddleware.
+	/// </remarks>
+	/// <param name="aggregateId"> The aggregate identifier. </param>
+	/// <param name="state"> The snapshot-tracking state to record. </param>
+	private void TrackSnapshotState(string aggregateId, SnapshotTrackingState state)
+	{
+		if (_snapshotTracking.ContainsKey(aggregateId) || _snapshotTracking.Count < MaxTrackedAggregates)
+		{
+			_snapshotTracking[aggregateId] = state;
+		}
+	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate, TKey}" /> class.
@@ -221,7 +243,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 				snapshotVersion = snapshot.Version;
 
 				// Track snapshot state for auto-snapshot decisions in SaveAsync
-				_snapshotTracking[stringId] = new SnapshotTrackingState(snapshot.Version, snapshot.CreatedAt);
+				TrackSnapshotState(stringId, new SnapshotTrackingState(snapshot.Version, snapshot.CreatedAt));
 			}
 		}
 
@@ -378,7 +400,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 					.ConfigureAwait(false);
 
 				// Update tracked state after successful snapshot
-				_snapshotTracking[stringId] = new SnapshotTrackingState(aggregate.Version, _timeProvider.GetUtcNow());
+				TrackSnapshotState(stringId, new SnapshotTrackingState(aggregate.Version, _timeProvider.GetUtcNow()));
 			}
 			catch (Exception ex) when (ex is not OperationCanceledException)
 			{
@@ -425,7 +447,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 							.ConfigureAwait(false);
 
 						// Update tracked state after successful auto-snapshot
-						_snapshotTracking[stringId] = new SnapshotTrackingState(aggregate.Version, _timeProvider.GetUtcNow());
+						TrackSnapshotState(stringId, new SnapshotTrackingState(aggregate.Version, _timeProvider.GetUtcNow()));
 
 						AutoSnapshotMetrics.Created.Add(1);
 					}

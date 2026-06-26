@@ -256,7 +256,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 	#region Error Handling
 
 	[Fact]
-	public async Task InvokeAsync_ReturnForbidden_WhenAuthorizationServiceThrows()
+	public async Task InvokeAsync_Return500WithSanitizedDetail_WhenAuthorizationServiceThrows()
 	{
 		// Arrange
 		var httpContext = CreateAuthenticatedHttpContext();
@@ -277,9 +277,16 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		// Act
 		var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert
+		// Assert — S850 yq7m0s (S-F1): an authorization-EVALUATION exception fails closed as HTTP 500
+		// with the generic sanitized detail, never the raw ex.Message ("Authorization service failure").
+		// Pre-fix this path returned 403 + raw message; this lock RED-proves the 500-sanitize fix.
 		result.ShouldNotBeNull();
 		result.Succeeded.ShouldBeFalse();
+		_ = result.ProblemDetails.ShouldNotBeNull();
+		result.ProblemDetails.ErrorCode.ShouldBe(500);
+		result.ProblemDetails.Status.ShouldBe(500);
+		result.ProblemDetails.Detail.ShouldBe(AspNetCoreAuthorizationMiddleware.ServerErrorDetail);
+		result.ProblemDetails.Detail.ShouldNotContain("Authorization service failure");
 	}
 
 	#endregion

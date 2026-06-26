@@ -29,7 +29,7 @@ namespace Excalibur.Inbox.SqlServer;
 /// using SQL Server's MERGE statement with HOLDLOCK hint for proper isolation.
 /// </para>
 /// </remarks>
-public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin
+public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerInboxOptions _options;
@@ -375,7 +375,7 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 
 		var sql = $"""
 		           SELECT MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt, ProcessedAt,
-		           	   Status, LastError, RetryCount, LastAttemptAt, CorrelationId, TenantId, Source
+		           	   Status, LastError, RetryCount, LastAttemptAt, NextAttemptAt, CorrelationId, TenantId, Source
 		           FROM {_options.QualifiedTableName}
 		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType
 		           """;
@@ -470,6 +470,56 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask MarkFailedWithBackoffAsync(
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		// Set RetryCount EXACTLY (the processor passes the consumed attempt count it used to compute
+		// nextAttemptAt) and persist the backoff schedule, so the re-admission claim (GetFailedEntriesAsync)
+		// excludes this entry until nextAttemptAt has elapsed -- the inbox half of FR-R3.2 (aed1gl),
+		// mirroring SqlServerOutboxStore.MarkFailedWithBackoffAsync.
+		var sql = $"""
+		           UPDATE {_options.QualifiedTableName}
+		           SET Status = @FailedStatus, LastError = @LastError, RetryCount = @RetryCount,
+		           	LastAttemptAt = @LastAttemptAt, NextAttemptAt = @NextAttemptAt
+		           WHERE MessageId = @MessageId AND HandlerType = @HandlerType
+		           """;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				MessageId = messageId,
+				HandlerType = handlerType,
+				FailedStatus = (int)InboxStatus.Failed,
+				LastError = errorMessage,
+				RetryCount = retryCount,
+				LastAttemptAt = DateTimeOffset.UtcNow,
+				NextAttemptAt = nextAttemptAt
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		_logger.LogWarning(
+			"Marked inbox entry as failed with backoff for message {MessageId} and handler {HandlerType} (next attempt at {NextAttemptAt:O}): {Error}",
+			messageId, handlerType, nextAttemptAt, errorMessage);
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
@@ -479,11 +529,12 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 		var sql = $"""
 		           SELECT TOP (@BatchSize)
 		           	MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt, ProcessedAt,
-		           	Status, LastError, RetryCount, LastAttemptAt, CorrelationId, TenantId, Source
+		           	Status, LastError, RetryCount, LastAttemptAt, NextAttemptAt, CorrelationId, TenantId, Source
 		           FROM {_options.QualifiedTableName}
 		           WHERE Status = @FailedStatus
 		           	AND RetryCount < @MaxRetries
 		           	AND (@OlderThan IS NULL OR LastAttemptAt < @OlderThan)
+		           	AND (NextAttemptAt IS NULL OR NextAttemptAt <= @Now)
 		           ORDER BY RetryCount ASC, LastAttemptAt ASC
 		           """;
 
@@ -492,7 +543,7 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 
 		var command = new CommandDefinition(
 			sql,
-			new { BatchSize = batchSize, FailedStatus = (int)InboxStatus.Failed, MaxRetries = maxRetries, OlderThan = olderThan },
+			new { BatchSize = batchSize, FailedStatus = (int)InboxStatus.Failed, MaxRetries = maxRetries, OlderThan = olderThan, Now = DateTimeOffset.UtcNow },
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
@@ -505,7 +556,7 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 	{
 		var sql = $"""
 		           SELECT MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt, ProcessedAt,
-		           	   Status, LastError, RetryCount, LastAttemptAt, CorrelationId, TenantId, Source
+		           	   Status, LastError, RetryCount, LastAttemptAt, NextAttemptAt, CorrelationId, TenantId, Source
 		           FROM {_options.QualifiedTableName}
 		           ORDER BY ReceivedAt DESC
 		           """;
@@ -619,6 +670,7 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 			LastError = row.LastError,
 			RetryCount = row.RetryCount,
 			LastAttemptAt = row.LastAttemptAt,
+			NextAttemptAt = row.NextAttemptAt,
 			CorrelationId = row.CorrelationId,
 			TenantId = row.TenantId,
 			Source = row.Source
@@ -642,6 +694,7 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 		public string? LastError { get; set; }
 		public int RetryCount { get; set; }
 		public DateTimeOffset? LastAttemptAt { get; set; }
+		public DateTimeOffset? NextAttemptAt { get; set; }
 		public string? CorrelationId { get; set; }
 		public string? TenantId { get; set; }
 		public string? Source { get; set; }

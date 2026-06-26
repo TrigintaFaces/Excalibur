@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Messaging;
 
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Diagnostics;
+using Excalibur.Saga.Handlers;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -171,7 +172,20 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			sagaState = await sagaStore.LoadAsync<TSagaState>(Guid.Parse(evt.SagaId), cancellationToken).ConfigureAwait(false);
 			if (sagaState is null)
 			{
-				LogSagaNotFound(evt.SagaId, evt.GetType().Name);
+				// Invoke the registered ISagaNotFoundHandler<TSaga> extension point (ckavfs / ADR-336).
+				// The default LoggingNotFoundHandler<TSaga> is registered out of the box, so this is normally
+				// satisfiable and logs the not-found event. A consumer can register a custom handler to
+				// dead-letter / park / compensate the orphaned continuation instead of silently dropping it.
+				// Fail-open: if no handler is resolvable, fall back to the bare warning log (behavior preserved).
+				var notFoundHandler = serviceProvider.GetService<ISagaNotFoundHandler<TSaga>>();
+				if (notFoundHandler is not null)
+				{
+					await notFoundHandler.HandleAsync(evt, evt.SagaId, cancellationToken).ConfigureAwait(false);
+				}
+				else
+				{
+					LogSagaNotFound(evt.SagaId, evt.GetType().Name);
+				}
 
 				return;
 			}
@@ -222,6 +236,11 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		// store compares it and persists the bump (writing the new version back), throwing ConcurrencyException if
 		// another handler advanced the saga since we loaded it. No caller version arithmetic.
 		await sagaStore.SaveAsync(sagaState, cancellationToken).ConfigureAwait(false);
+
+		// Save-then-dispatch (lc178k): the saga buffered the commands/events it emitted during HandleAsync;
+		// now that its state is durably persisted, flush them in emit order. A SaveAsync failure above throws
+		// before reaching here -> nothing was dispatched, and the messages re-buffer on the next delivery.
+		await saga.FlushPendingDispatchesAsync(cancellationToken).ConfigureAwait(false);
 
 		if (saga.IsCompleted)
 		{

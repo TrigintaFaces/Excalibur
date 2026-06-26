@@ -39,7 +39,8 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		           WITH cte_outbox AS (
 		                   SELECT message_id
 		                   FROM {outboxTableName}
-		                   WHERE dispatcher_id IS NULL OR NOW() > dispatcher_timeout
+		                   WHERE (dispatcher_id IS NULL OR NOW() > dispatcher_timeout)
+		                     AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
 		                   ORDER BY occurred_on
 		                   LIMIT {batchSize}
 		                   )

@@ -50,16 +50,26 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	protected internal ISagaTimeoutStore? TimeoutStore { get; set; }
 
 	/// <summary>
-	/// Gets the message dispatcher used to send commands and publish events as part of the saga orchestration.
+	/// Gets the message dispatcher used to flush the buffered commands and events after the saga state is
+	/// persisted. Private by design (mxh44e): a saga subclass cannot reach the dispatcher, so it can ONLY emit
+	/// via <see cref="SendCommandAsync{TCommand}"/>/<see cref="PublishEventAsync{TEvent}"/> (which buffer) and
+	/// dispatch happens solely on the coordinator-driven flush -- making "dispatch-before-save" structurally
+	/// inexpressible from saga code (completes GUIDE ruling #3, enforce-invariants-structurally).
 	/// </summary>
 	/// <value>The current <see cref="Dispatcher"/> value.</value>
-	protected IDispatcher Dispatcher { get; } = dispatcher;
+	private IDispatcher Dispatcher { get; } = dispatcher;
 
 	/// <summary>
 	/// Gets the logger instance for recording saga execution information, warnings, and errors.
 	/// </summary>
 	/// <value>The current <see cref="Logger"/> value.</value>
 	protected ILogger Logger { get; } = logger;
+
+	// Save-then-dispatch buffer (lc178k): commands/events emitted during HandleAsync are queued here with
+	// their saga-correlated context and dispatched by the coordinator ONLY after SaveAsync succeeds, in emit
+	// (FIFO) order. The saga instance is created fresh per event, so this list is naturally scoped to a single
+	// event and single-threaded -- no synchronization needed.
+	private readonly List<(IDispatchMessage Message, IMessageContext Context)> _pendingDispatches = [];
 
 	/// <summary>
 	/// Determines whether the saga can handle the specified event message. Implementations should examine the event type and saga state to
@@ -220,7 +230,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <typeparam name="TCommand">The type of command to send.</typeparam>
 	/// <param name="command">The command message to send.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task that represents the asynchronous operation, containing the message result.</returns>
+	/// <returns>A task that completes once the message has been buffered for save-then-dispatch (lc178k); the message is dispatched by the coordinator after the saga state is persisted.</returns>
 	/// <remarks>
 	/// <para>
 	/// This convenience method automatically attaches saga correlation metadata to the message context:
@@ -235,13 +245,17 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// is created.
 	/// </para>
 	/// </remarks>
-	protected async Task<IMessageResult> SendCommandAsync<TCommand>(
+	protected Task SendCommandAsync<TCommand>(
 		TCommand command,
 		CancellationToken cancellationToken)
 		where TCommand : IDispatchMessage
 	{
-		var context = CreateSagaCorrelatedContext();
-		return await Dispatcher.DispatchAsync(command, context, cancellationToken).ConfigureAwait(false);
+		// Save-then-dispatch (lc178k): buffer the command with its saga-correlated context captured NOW
+		// (correlation reflects the handling moment). The SagaCoordinator flushes the buffer only AFTER the
+		// saga state is persisted, so a SaveAsync failure dispatches nothing and a replay re-buffers without
+		// double-dispatching. Dispatch is unreachable from saga code -> "dispatch-before-save" is inexpressible.
+		_pendingDispatches.Add((command, CreateSagaCorrelatedContext()));
+		return Task.CompletedTask;
 	}
 
 	/// <summary>
@@ -250,7 +264,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <typeparam name="TEvent">The type of event to publish.</typeparam>
 	/// <param name="event">The event message to publish.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task that represents the asynchronous operation, containing the message result.</returns>
+	/// <returns>A task that completes once the message has been buffered for save-then-dispatch (lc178k); the message is dispatched by the coordinator after the saga state is persisted.</returns>
 	/// <remarks>
 	/// <para>
 	/// This convenience method automatically attaches saga correlation metadata to the message context:
@@ -265,13 +279,34 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// is created.
 	/// </para>
 	/// </remarks>
-	protected async Task<IMessageResult> PublishEventAsync<TEvent>(
+	protected Task PublishEventAsync<TEvent>(
 		TEvent @event,
 		CancellationToken cancellationToken)
 		where TEvent : IDispatchMessage
 	{
-		var context = CreateSagaCorrelatedContext();
-		return await Dispatcher.DispatchAsync(@event, context, cancellationToken).ConfigureAwait(false);
+		// Save-then-dispatch (lc178k): see SendCommandAsync. Events share the same per-event FIFO buffer and
+		// are dispatched by the coordinator only after the saga state is persisted.
+		_pendingDispatches.Add((@event, CreateSagaCorrelatedContext()));
+		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Dispatches all commands and events buffered during event handling, in emit (FIFO) order. Invoked by the
+	/// saga coordinator ONLY after the saga state has been durably persisted (save-then-dispatch), so a
+	/// persistence failure dispatches nothing and the emitted messages are replayed (re-buffered) on the next
+	/// delivery. Internal by design: a saga subclass cannot trigger dispatch, which makes "dispatch-before-save"
+	/// structurally inexpressible (lc178k).
+	/// </summary>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns>A task that represents the asynchronous flush operation.</returns>
+	internal async Task FlushPendingDispatchesAsync(CancellationToken cancellationToken)
+	{
+		foreach (var (message, context) in _pendingDispatches)
+		{
+			_ = await Dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
+		}
+
+		_pendingDispatches.Clear();
 	}
 
 	// Source-generated logging methods

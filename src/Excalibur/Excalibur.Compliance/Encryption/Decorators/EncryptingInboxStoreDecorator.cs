@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Encryption.Decorators;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin
+internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore
 {
 	private readonly IInboxStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
@@ -160,6 +160,27 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	{
 		// errorMessage is not encrypted by the core MarkFailedAsync path; delegate the admin overload likewise.
 		return ((IInboxStoreAdmin)_inner).MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, cancellationToken);
+	}
+
+	/// <inheritdoc />
+	public ValueTask MarkFailedWithBackoffAsync(
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		CancellationToken cancellationToken)
+	{
+		// Forward the optional backoff-schedule capability. Unlike dead-lettering (a mandatory terminal
+		// transition that fails LOUD), backoff is an optimization: if the inner store doesn't support it,
+		// fall back to the plain failed status (fail-open) so the decorator never regresses behavior.
+		// errorMessage is not encrypted on the failure path, so no field encryption is needed here.
+		if (_inner is IBackoffSchedulableInboxStore schedulable)
+		{
+			return schedulable.MarkFailedWithBackoffAsync(messageId, handlerType, errorMessage, retryCount, nextAttemptAt, cancellationToken);
+		}
+
+		return _inner.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken);
 	}
 
 	/// <inheritdoc />

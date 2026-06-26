@@ -95,7 +95,7 @@ public sealed class RetryMiddlewareShould
 			timestamps.Add(DateTime.UtcNow);
 			if (attemptCount < 3)
 			{
-				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test failure" }));
+				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test failure", Status = 500 }));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
@@ -183,7 +183,7 @@ public sealed class RetryMiddlewareShould
 			attemptCount++;
 			if (attemptCount < 2)
 			{
-				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
@@ -221,7 +221,7 @@ public sealed class RetryMiddlewareShould
 			attemptCount++;
 			if (attemptCount < 3)
 			{
-				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
@@ -255,7 +255,7 @@ public sealed class RetryMiddlewareShould
 			attemptCount++;
 			if (attemptCount < 3)
 			{
-				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
@@ -317,7 +317,7 @@ public sealed class RetryMiddlewareShould
 			attemptCount++;
 			if (attemptCount < 3)
 			{
-				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
@@ -351,7 +351,7 @@ public sealed class RetryMiddlewareShould
 			attemptCount++;
 			if (attemptCount < 4)
 			{
-				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
@@ -382,7 +382,7 @@ public sealed class RetryMiddlewareShould
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
 			attemptCount++;
-			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 		}
 
 		// Act
@@ -418,7 +418,7 @@ public sealed class RetryMiddlewareShould
 			attemptCount++;
 			if (attemptCount < 3)
 			{
-				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
@@ -490,7 +490,7 @@ public sealed class RetryMiddlewareShould
 			attemptCount++;
 			if (attemptCount < 3)
 			{
-				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+				return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
@@ -525,7 +525,7 @@ public sealed class RetryMiddlewareShould
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
 			attemptCount++;
-			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 		}
 
 		// Act
@@ -580,7 +580,7 @@ public sealed class RetryMiddlewareShould
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
 			attemptCount++;
-			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 		}
 
 		// Act
@@ -807,7 +807,7 @@ public sealed class RetryMiddlewareShould
 		{
 			attemptCount++;
 			cts.Cancel();
-			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 		}
 
 		// Act & Assert
@@ -836,7 +836,7 @@ public sealed class RetryMiddlewareShould
 		{
 			attemptCount++;
 			ct.ThrowIfCancellationRequested();
-			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test" }));
+			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Test", Status = 500 }));
 		}
 
 		// Act & Assert
@@ -1000,6 +1000,7 @@ public sealed class RetryMiddlewareShould
 				{
 					Type = "Error",
 					Title = $"Failure {attemptCount}",
+					Status = 500,
 				}));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
@@ -1044,6 +1045,7 @@ public sealed class RetryMiddlewareShould
 				{
 					Type = "Error",
 					Title = "Failed result",
+					Status = 500,
 				}));
 			}
 			if (attemptCount == 3)
@@ -1088,6 +1090,7 @@ public sealed class RetryMiddlewareShould
 				{
 					Type = "Error",
 					Title = "Test",
+					Status = 500,
 				}));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
@@ -1124,6 +1127,7 @@ public sealed class RetryMiddlewareShould
 				{
 					Type = "Error",
 					Title = "Test",
+					Status = 500,
 				}));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
@@ -1161,6 +1165,7 @@ public sealed class RetryMiddlewareShould
 				{
 					Type = "Error",
 					Title = "Test",
+					Status = 500,
 				}));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
@@ -1201,6 +1206,7 @@ public sealed class RetryMiddlewareShould
 				{
 					Type = "Error",
 					Title = "Test",
+					Status = 500,
 				}));
 			}
 			return new ValueTask<IMessageResult>(MessageResult.Success());
@@ -1215,4 +1221,114 @@ public sealed class RetryMiddlewareShould
 	}
 
 	#endregion Logging Verification Tests
+
+	#region S-C1 Result-Status Classification Locks (l9htms — author≠impl)
+
+	[Fact]
+	public async Task NotRetryFailedResult_WhenStatusIsUnclassified()
+	{
+		// S-C1 (l9htms) LOAD-BEARING lock (SA 15534): a Failed result carrying NO transient Status must NOT
+		// be retried — the Microsoft/Polly allowlist-transient contract. RED on the pre-fix retry-all
+		// behavior (which invoked the delegate MaxAttempts times). The 17 mechanics tests now carry
+		// Status=500, so the unclassified→no-retry contract must be pinned POSITIVELY here, not by absence.
+		var options = new RetryOptions
+		{
+			MaxAttempts = 3,
+			BaseDelay = TimeSpan.FromMilliseconds(1),
+			BackoffStrategy = BackoffStrategy.Fixed,
+		};
+		var middleware = CreateMiddleware(options);
+		var message = new FakeDispatchMessage();
+		var context = new FakeMessageContext();
+		var attemptCount = 0;
+
+		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
+		{
+			attemptCount++;
+			// No Status → unclassified failure.
+			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Unclassified" }));
+		}
+
+		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+
+		result.IsSuccess.ShouldBeFalse();
+		attemptCount.ShouldBe(1, "an unclassified failure (null Status) must not be retried (S-C1 allowlist-transient)");
+	}
+
+	[Theory]
+	[InlineData(500, 3)] // transient (5xx) → retried to exhaustion (MaxAttempts)
+	[InlineData(503, 3)] // transient (5xx)
+	[InlineData(408, 3)] // transient (Request Timeout)
+	[InlineData(429, 3)] // transient (Too Many Requests)
+	[InlineData(400, 1)] // permanent (4xx) → invoked once, no retry
+	[InlineData(403, 1)] // permanent (Forbidden)
+	[InlineData(404, 1)] // permanent (Not Found)
+	public async Task ClassifyResultStatus_RetryTransientNotPermanent(int status, int expectedAttempts)
+	{
+		// S-C1 (l9htms): retryable = 5xx OR 408 OR 429; permanent = every other 4xx (invoked exactly once).
+		// RED on pre-fix retry-all (every status reached MaxAttempts). The exception path is intentionally
+		// NOT exercised — that seam (ShouldRetryException) is untouched by l9htms.
+		var options = new RetryOptions
+		{
+			MaxAttempts = 3,
+			BaseDelay = TimeSpan.FromMilliseconds(1),
+			BackoffStrategy = BackoffStrategy.Fixed,
+		};
+		var middleware = CreateMiddleware(options);
+		var message = new FakeDispatchMessage();
+		var context = new FakeMessageContext();
+		var attemptCount = 0;
+
+		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
+		{
+			attemptCount++;
+			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Classified", Status = status }));
+		}
+
+		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+
+		result.IsSuccess.ShouldBeFalse();
+		attemptCount.ShouldBe(expectedAttempts);
+	}
+
+	#endregion S-C1 Result-Status Classification Locks
+
+	#region S-C2 Delay-Overflow Cap Lock (0hj15f — author≠impl)
+
+	[Fact]
+	public async Task NotThrowAndCapDelay_WhenExponentialBackoffWouldOverflow()
+	{
+		// S-C2 (0hj15f): exponential growth can drive the computed delay past TimeSpan.MaxValue (overflow /
+		// non-finite) BEFORE any cap is applied. The single ClampMs funnel must compute the delay as a double
+		// and Math.Min it against MaxDelay BEFORE TimeSpan.FromMilliseconds, so InvokeAsync never throws
+		// OverflowException. RED on pre-fix (FromMilliseconds(base*2^n) throws). BaseDelay (5e14 ms) is a VALID
+		// TimeSpan (< TimeSpan.MaxValue.TotalMilliseconds ≈ 9.22e14) whose *2 (1e15) overflows the TimeSpan
+		// range — exactly the unclamped path. MaxDelay is tiny (1ms) so the clamped retries run fast.
+		var options = new RetryOptions
+		{
+			MaxAttempts = 4,
+			BaseDelay = TimeSpan.FromMilliseconds(5e14), // valid TimeSpan; base*2 = 1e15 > TimeSpan.MaxValue.TotalMilliseconds (~9.22e14)
+			MaxDelay = TimeSpan.FromMilliseconds(1),
+			BackoffStrategy = BackoffStrategy.Exponential,
+			UseJitter = false,
+		};
+		var middleware = CreateMiddleware(options);
+		var message = new FakeDispatchMessage();
+		var context = new FakeMessageContext();
+		var attemptCount = 0;
+
+		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
+		{
+			attemptCount++;
+			return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails { Type = "Error", Title = "Transient", Status = 500 }));
+		}
+
+		// Must complete without OverflowException; the clamped delay keeps the run fast.
+		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+
+		result.IsSuccess.ShouldBeFalse();
+		attemptCount.ShouldBe(4); // transient → retried to exhaustion, every delay clamped to MaxDelay
+	}
+
+	#endregion S-C2 Delay-Overflow Cap Lock
 }

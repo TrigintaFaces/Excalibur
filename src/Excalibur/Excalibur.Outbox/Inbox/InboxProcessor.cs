@@ -589,8 +589,15 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		// attempt >= _options.MaxAttempts dead-letter branch); a hardcoded lower value would strand
 		// entries that are excluded from re-fetch yet still below the dead-letter threshold.
 		var admin = (IInboxStoreAdmin)_inboxStore;
+
+		// Re-admission throttle (aed1gl, SA Option C — two-layer): the PRIMARY throttle is per-entry
+		// NextAttemptAt persisted by IBackoffSchedulableInboxStore (real exponential backoff). This
+		// olderThan value is the small always-on FAIL-SAFE floor -- the BASE retry delay, NOT a magic
+		// 5-min window -- so "immediate re-admit" is structurally inexpressible for ANY store/decorator
+		// (no tight loop), while being <= the smallest backoff step so it never dominates a sub-5-min step.
+		var reAdmissionFloor = DateTimeOffset.UtcNow - _backoffCalculator.CalculateDelay(1);
 		var records = await admin
-			.GetFailedEntriesAsync(_options.MaxAttempts, DateTimeOffset.UtcNow.AddMinutes(-5), batchSize, cancellationToken)
+			.GetFailedEntriesAsync(_options.MaxAttempts, reAdmissionFloor, batchSize, cancellationToken)
 			.ConfigureAwait(false);
 
 		return records.ToList().AsReadOnly();
@@ -633,7 +640,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		var stopwatch = ValueStopwatch.StartNew();
 		// Track (messageId, handlerType) pairs for composite key operations
 		var successfulMessages = new ConcurrentBag<(string MessageId, string HandlerType)>();
-		var failedToRetryMessages = new ConcurrentBag<(string MessageId, string HandlerType)>();
+		var failedToRetryMessages = new ConcurrentBag<(string MessageId, string HandlerType, int Attempt)>();
 		var failedToDeadLetter =
 			new ConcurrentBag<(string MessageId, IInboxMessage Message, Exception? Exception, DeadLetterReason Reason)>();
 		// Transient circuit-breaker-open: leave for retry with the attempt count UNCHANGED (no attempt
@@ -710,11 +717,11 @@ public sealed partial class InboxProcessor : IInboxProcessor
 						var backoffDelay = _backoffCalculator.CalculateDelay(attempt);
 						LogRetryWithBackoff(message.ExternalMessageId, attempt, backoffDelay.TotalMilliseconds);
 
-						failedToRetryMessages.Add((message.ExternalMessageId, message.MessageType));
+						failedToRetryMessages.Add((message.ExternalMessageId, message.MessageType, attempt));
 					}
 					else
 					{
-						failedToRetryMessages.Add((message.ExternalMessageId, message.MessageType));
+						failedToRetryMessages.Add((message.ExternalMessageId, message.MessageType, attempt));
 					}
 
 					throw; // Re-throw for Batching to track
@@ -758,10 +765,9 @@ public sealed partial class InboxProcessor : IInboxProcessor
 				await _inboxStore.MarkProcessedAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
 			}
 
-			foreach (var (messageId, handlerType) in failedToRetryMessages)
+			foreach (var (messageId, handlerType, attempt) in failedToRetryMessages)
 			{
-				await _inboxStore.MarkFailedAsync(messageId, handlerType, ErrorConstants.ProcessingFailedRetryAttempt, cancellationToken)
-					.ConfigureAwait(false);
+				await MarkFailedForRetryAsync(messageId, handlerType, attempt, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -789,9 +795,26 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		return successful.Count;
 	}
 
+	private Task MarkFailedForRetryAsync(string messageId, string handlerType, int attempt, CancellationToken cancellationToken)
+	{
+		// aed1gl (S-B1, SA Option C): if the store persists a per-entry next-attempt time, record
+		// now + CalculateDelay(attempt) so the re-admission claim honors exponential backoff (the PRIMARY
+		// throttle). Stores that don't support it fall back to the plain failed status (fail-open) and rely
+		// on the processor's small always-on fail-safe floor (ReserveBatchRecordsAsync) to avoid a tight loop.
+		if (_inboxStore is IBackoffSchedulableInboxStore schedulable)
+		{
+			var nextAttemptAt = DateTimeOffset.UtcNow + _backoffCalculator.CalculateDelay(attempt);
+			return schedulable.MarkFailedWithBackoffAsync(
+				messageId, handlerType, ErrorConstants.ProcessingFailedRetryAttempt, attempt, nextAttemptAt, cancellationToken).AsTask();
+		}
+
+		return _inboxStore.MarkFailedAsync(
+			messageId, handlerType, ErrorConstants.ProcessingFailedRetryAttempt, cancellationToken).AsTask();
+	}
+
 	private async Task PerformBatchDatabaseOperationsAsync(
 		List<(string MessageId, string HandlerType)> successfulMessages,
-		List<(string MessageId, string HandlerType)> failedToRetry,
+		List<(string MessageId, string HandlerType, int Attempt)> failedToRetry,
 		List<(string MessageId, string HandlerType)> failedToDeadLetter,
 		CancellationToken cancellationToken)
 	{
@@ -809,10 +832,9 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		if (failedToRetry.Count > 0)
 		{
 			// Process failed-to-retry messages individually
-			foreach (var (messageId, handlerType) in failedToRetry)
+			foreach (var (messageId, handlerType, attempt) in failedToRetry)
 			{
-				tasks.Add(_inboxStore
-					.MarkFailedAsync(messageId, handlerType, ErrorConstants.ProcessingFailedRetryAttempt, cancellationToken).AsTask());
+				tasks.Add(MarkFailedForRetryAsync(messageId, handlerType, attempt, cancellationToken));
 			}
 		}
 

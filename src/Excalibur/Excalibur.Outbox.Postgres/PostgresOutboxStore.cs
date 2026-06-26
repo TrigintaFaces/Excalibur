@@ -31,7 +31,7 @@ public sealed partial class PostgresOutboxStore(
 	IDb db,
 	IOptions<PostgresOutboxStoreOptions> options,
 	ILogger<PostgresOutboxStore> logger,
-	PostgresOutboxStoreMetrics? metrics = null) : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, ITransactionalOutboxWriter, IDisposable
+	PostgresOutboxStoreMetrics? metrics = null) : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable
 {
 	private readonly IDb _db = db ?? throw new ArgumentNullException(nameof(db));
 	private readonly PostgresOutboxStoreOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -649,6 +649,46 @@ public sealed partial class PostgresOutboxStore(
 
 		// Otherwise, unreserve so it can be retried
 		// Note: This is a simplified implementation - in practice you'd need better session management
+	}
+
+	/// <summary>
+	/// Marks a message as failed and records an exponential-backoff schedule so it is not re-claimed for retry
+	/// until <paramref name="nextAttemptAt"/> has elapsed (q29qfg, the Postgres half of the outbox backoff).
+	/// </summary>
+	/// <param name="messageId"> Unique identifier of the message that failed. </param>
+	/// <param name="errorMessage"> Error message describing the failure. </param>
+	/// <param name="retryCount"> Current retry attempt count. </param>
+	/// <param name="nextAttemptAt"> Absolute time before which the message must not be re-claimed. </param>
+	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
+	/// <returns> A task representing the asynchronous operation. </returns>
+	public async ValueTask MarkFailedWithBackoffAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+		ArgumentOutOfRangeException.ThrowIfNegative(retryCount);
+
+		// Increment attempts, persist next_attempt_at, and free the reservation in one atomic statement so the
+		// reservation claim re-evaluates the message -- gated by next_attempt_at, so the computed backoff delay
+		// genuinely throttles re-delivery rather than the coarse reservation timeout.
+		var req = new SetOutboxMessageBackoff(
+			messageId,
+			nextAttemptAt,
+			_options.QualifiedOutboxTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		_ = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
+
+		// If max retries exceeded, move to dead letter (same ceiling as MarkFailedAsync).
+		if (retryCount >= _options.MaxAttempts)
+		{
+			_ = await MoveToDeadLetter(messageId, cancellationToken).ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>

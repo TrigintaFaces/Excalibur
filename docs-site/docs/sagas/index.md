@@ -260,6 +260,53 @@ catch (ConcurrencyException)
 The SQL saga store previously issued an unconditional last-writer-wins `UPDATE` that ignored `Version`, so concurrent saves for one saga could lose updates. The save path now always enforces the version check; there is no save path that ignores `Version`.
 :::
 
+## Save-Then-Dispatch Ordering
+
+Commands and events a saga emits during `HandleAsync` — via the `SendCommandAsync` / `PublishEventAsync` helpers on `SagaBase<TState>` — are **buffered** and dispatched only **after** the saga state has been durably persisted:
+
+```
+HandleAsync(event)
+  → SendCommandAsync(cmd)   // buffered, NOT dispatched yet
+  → PublishEventAsync(evt)  // buffered, NOT dispatched yet
+→ ISagaStore.SaveAsync(state)        // state + processed-eventId persisted FIRST
+→ FlushPendingDispatchesAsync()      // buffered messages dispatched, in emit (FIFO) order
+```
+
+This guarantees that a `SaveAsync` failure dispatches **nothing**: the event is re-delivered later and the saga re-buffers its emissions without double-dispatching, so a persistence failure can never leave the saga state behind already-sent side effects. Dispatch is driven by the coordinator after the save, so a saga subclass cannot trigger an early "dispatch-before-save" — the ordering is structural.
+
+:::info Changed in Sprint 850 (bd-lc178k)
+Previously emitted commands were dispatched immediately and `SaveAsync` ran afterward, so a persistence failure followed by replay re-dispatched the command (duplicate side effects). `SendCommandAsync` / `PublishEventAsync` remain the same `protected` helpers; they now return after buffering (no dispatch result) because the actual dispatch happens after the save.
+:::
+
+## Handling Events for Missing Sagas
+
+When a correlated event arrives for a saga instance that does not exist (already completed, expired, or never started), the coordinator invokes the registered `ISagaNotFoundHandler<TSaga>` instead of silently dropping the event. A default `LoggingNotFoundHandler<TSaga>` is registered out of the box, so the orphaned continuation is always logged.
+
+Register a custom handler to dead-letter, park, or compensate the orphaned event:
+
+```csharp
+public sealed class OrderSagaNotFoundHandler : ISagaNotFoundHandler<OrderSaga>
+{
+    public Task HandleAsync(object message, string sagaId, CancellationToken cancellationToken)
+    {
+        // e.g. route to a dead-letter queue, raise a compensation, or alert
+        return Task.CompletedTask;
+    }
+}
+
+// Registration (ISagaBuilder fluent API):
+services.AddExcalibur(x => x.AddSagas(saga =>
+    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
+        .WithCoordination()
+        .WithNotFoundHandler<OrderSaga, OrderSagaNotFoundHandler>()));
+```
+
+`WithNotFoundHandler<TSaga>()` (no handler type) registers the default logging handler explicitly. Registration uses `TryAdd` semantics, so your custom handler replaces the default only when registered first. If no handler is resolvable, the coordinator falls back to a warning log (fail-open).
+
+:::info Changed in Sprint 850 (bd-ckavfs)
+`ISagaNotFoundHandler<TSaga>` existed but was never invoked — the saga-not-found branch only logged and returned. It is now resolved and called.
+:::
+
 ## Persistence Providers
 
 Each provider plugs into the `ISagaBuilder` fluent API:

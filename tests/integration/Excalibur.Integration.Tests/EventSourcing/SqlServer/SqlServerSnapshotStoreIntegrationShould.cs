@@ -317,6 +317,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 				Version BIGINT NOT NULL,
 				Data VARBINARY(MAX) NOT NULL,
 				CreatedAt DATETIME2 NOT NULL,
+				Metadata VARBINARY(MAX) NULL,
 				PRIMARY KEY (AggregateId, AggregateType)
 			)
 			""";

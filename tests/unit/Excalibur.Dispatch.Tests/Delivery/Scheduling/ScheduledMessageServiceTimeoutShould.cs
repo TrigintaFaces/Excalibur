@@ -203,34 +203,40 @@ public sealed class ScheduledMessageServiceTimeoutShould
 	[Fact]
 	public async Task ExecuteAsync_ContinuesAfterException()
 	{
-		// Arrange
+		// Arrange -- first poll throws, every subsequent poll succeeds. Signal the moment the
+		// service polls AGAIN after the exception (n >= 2), which deterministically proves the
+		// loop recovered. (ADR-213 recipe: no short auto-expiring CTS run-window, no Task.Delay
+		// poll -- both flake under CI thread-pool starvation.)
 		var callCount = 0;
+		var recoveredAfterException = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var store = A.Fake<IScheduleStore>();
 		_ = A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				var n = Interlocked.Increment(ref callCount);
 				if (n == 1) throw new InvalidOperationException("Transient error");
+				_ = recoveredAfterException.TrySetResult();
 				return Task.FromResult<IEnumerable<IScheduledMessage>>(Array.Empty<IScheduledMessage>());
 			});
 
 		var service = CreateService(store: store);
 
-		// Act
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-		await service.StartAsync(cts.Token);
-
-		// Poll until the service has been called more than once (recovery after exception)
-		var deadline = DateTime.UtcNow.AddSeconds(5);
-		while (Volatile.Read(ref callCount) <= 1 && DateTime.UtcNow < deadline)
+		// Act -- non-expiring start token; StopAsync alone drives shutdown. (A short-lived start
+		// token links into the BackgroundService stopping token and can cancel the loop before it
+		// recovers under CI load -- the exact flake this refactor removes.)
+		await service.StartAsync(CancellationToken.None);
+		try
 		{
-			await Task.Delay(100);
+			await WaitHelpers.AwaitSignalAsync(recoveredAfterException.Task, TimeSpan.FromSeconds(30));
+		}
+		finally
+		{
+			await service.StopAsync(CancellationToken.None);
 		}
 
-		await cts.CancelAsync();
-		await service.StopAsync(CancellationToken.None);
-
-		// Assert
+		// Assert -- the second poll fired only AFTER the first-call exception, so awaiting its
+		// signal proves continues-after-exception deterministically (stronger than a bare
+		// callCount>1 that a single non-throwing poll could satisfy).
 		callCount.ShouldBeGreaterThan(1);
 	}
 }

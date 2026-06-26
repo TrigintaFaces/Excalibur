@@ -240,8 +240,17 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			return false;
 		}
 
-		// Check if result indicates a retryable failure For now, we retry all failures unless specifically marked as non-retryable
-		return true;
+		// Classify the returned failure by its RFC 7807 status code, matching Polly / HttpClientFactory
+		// HandleTransientHttpError semantics:
+		//  - transient (retry): 5xx server errors, plus 408 Request Timeout and 429 Too Many Requests.
+		//  - permanent (no retry): 4xx client errors other than 408/429 — retrying cannot fix them and
+		//    risks a non-idempotent re-run.
+		//  - unclassified (no ProblemDetails, or no Status): no retry. A deliberately returned failure with
+		//    no transient signal is a handler statement that retry won't help; genuine transient faults
+		//    surface as exceptions and are handled by ShouldRetryException (which is intentionally untouched).
+		var status = result.ProblemDetails?.Status;
+
+		return status is 408 or 429 or (>= 500 and <= 599);
 	}
 
 	private static bool ShouldRetryException(RetryOptions options, Exception exception, int attempt)
@@ -269,31 +278,48 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 
 	private static TimeSpan CalculateDelay(RetryOptions options, int attempt)
 	{
-		var baseDelay = options.BaseDelay;
+		var baseMs = options.BaseDelay.TotalMilliseconds;
 
-		var delay = options.BackoffStrategy switch
+		var delayMs = options.BackoffStrategy switch
 		{
-			BackoffStrategy.Fixed => baseDelay,
-			BackoffStrategy.Linear => TimeSpan.FromMilliseconds(baseDelay.TotalMilliseconds * attempt),
-			BackoffStrategy.Exponential => TimeSpan.FromMilliseconds(baseDelay.TotalMilliseconds * Math.Pow(2, attempt - 1)),
-			BackoffStrategy.ExponentialWithJitter => CalculateExponentialWithJitter(options, baseDelay, attempt),
-			_ => baseDelay,
+			BackoffStrategy.Fixed => baseMs,
+			BackoffStrategy.Linear => baseMs * attempt,
+			BackoffStrategy.Exponential => baseMs * Math.Pow(2, attempt - 1),
+			BackoffStrategy.ExponentialWithJitter => CalculateExponentialWithJitterMs(options, baseMs, attempt),
+			_ => baseMs,
 		};
 
-		// Apply maximum delay limit
-		if (delay > options.MaxDelay)
-		{
-			delay = options.MaxDelay;
-		}
-
-		return delay;
+		// Every backoff strategy funnels its raw millisecond delay through ClampMs, the single seam that
+		// constructs the resulting TimeSpan. This makes an uncapped or non-finite delay structurally
+		// inexpressible: the cap is applied before TimeSpan.FromMilliseconds, never after.
+		return ClampMs(delayMs, options.MaxDelay);
 	}
 
-	private static TimeSpan CalculateExponentialWithJitter(RetryOptions options, TimeSpan baseDelay, int attempt)
+	/// <summary>
+	/// Converts a raw delay expressed in milliseconds into a bounded <see cref="TimeSpan" />, guaranteeing
+	/// the result is finite and never exceeds <paramref name="maxDelay" />.
+	/// </summary>
+	/// <param name="milliseconds"> The raw delay in milliseconds, which may have overflowed to a non-finite value. </param>
+	/// <param name="maxDelay"> The maximum permitted delay. </param>
+	/// <returns> A <see cref="TimeSpan" /> in the range <c>[TimeSpan.Zero, maxDelay]</c>. </returns>
+	private static TimeSpan ClampMs(double milliseconds, TimeSpan maxDelay)
 	{
-		var exponentialDelay = baseDelay.TotalMilliseconds * Math.Pow(2, attempt - 1);
+		// Exponential growth (Math.Pow) can overflow to PositiveInfinity / NaN before any cap is applied;
+		// collapsing that to the cap avoids the OverflowException that TimeSpan.FromMilliseconds would throw
+		// on a non-finite input.
+		if (!double.IsFinite(milliseconds))
+		{
+			return maxDelay;
+		}
+
+		var capped = Math.Min(milliseconds, maxDelay.TotalMilliseconds);
+		return TimeSpan.FromMilliseconds(Math.Max(0d, capped));
+	}
+
+	private static double CalculateExponentialWithJitterMs(RetryOptions options, double baseMs, int attempt)
+	{
+		var exponentialDelay = baseMs * Math.Pow(2, attempt - 1);
 		var jitter = GetSecureRandomDouble() * options.JitterFactor;
-		var jitteredDelay = exponentialDelay * (1 + jitter);
-		return TimeSpan.FromMilliseconds(jitteredDelay);
+		return exponentialDelay * (1 + jitter);
 	}
 }

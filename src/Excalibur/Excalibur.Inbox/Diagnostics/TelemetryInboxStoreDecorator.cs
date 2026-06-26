@@ -12,7 +12,7 @@ namespace Excalibur.Inbox.Diagnostics;
 /// Telemetry decorator for <see cref="IInboxStore"/> that instruments operations
 /// with counters and histograms.
 /// </summary>
-internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IDisposable
+internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IBackoffSchedulableInboxStore, IDisposable
 {
 	/// <summary>
 	/// The meter name for inbox store telemetry.
@@ -214,6 +214,38 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 		finally
 		{
 			RecordOperation("mark_failed", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkFailedWithBackoffAsync(
+		string messageId,
+		string handlerType,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		CancellationToken cancellationToken)
+	{
+		var start = Stopwatch.GetTimestamp();
+
+		try
+		{
+			// Backoff is an optional optimization (fail-open): forward to the inner store if it supports the
+			// schedule, otherwise fall back to the plain failed status so the decorator never regresses behavior.
+			if (_inner is IBackoffSchedulableInboxStore schedulable)
+			{
+				await schedulable.MarkFailedWithBackoffAsync(messageId, handlerType, errorMessage, retryCount, nextAttemptAt, cancellationToken)
+					.ConfigureAwait(false);
+			}
+			else
+			{
+				await _inner.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken)
+					.ConfigureAwait(false);
+			}
+		}
+		finally
+		{
+			RecordOperation("mark_failed_with_backoff", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
 		}
 	}
 

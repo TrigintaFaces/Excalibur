@@ -481,7 +481,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 	#region Error Handling Tests
 
 	[Fact]
-	public async Task Return403_WhenAuthorizationServiceThrows()
+	public async Task Return500_WhenAuthorizationServiceThrows()
 	{
 		SetupAuthenticatedUser();
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
@@ -492,10 +492,17 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
 
+		// S850 yq7m0s (S-F1): an authorization-EVALUATION exception must fail closed as HTTP 500 with a
+		// generic sanitized detail — NOT 403 (which is a policy denial) and NOT leaking ex.Message. Pre-fix
+		// returned 403 + raw "Service error" → RED; GREEN on the CreateServerErrorResult fix. (Literal is
+		// hardcoded: this project is not in the middleware's InternalsVisibleTo set — keep in sync with
+		// AspNetCoreAuthorizationMiddleware.ServerErrorDetail.)
 		result.IsSuccess.ShouldBeFalse();
 		_ = result.ProblemDetails.ShouldNotBeNull();
-		result.ProblemDetails.ErrorCode.ShouldBe(403);
-		result.ProblemDetails.Detail.ShouldContain("error");
+		result.ProblemDetails.ErrorCode.ShouldBe(500);
+		result.ProblemDetails.Status.ShouldBe(500);
+		result.ProblemDetails.Detail.ShouldBe("An internal error occurred while evaluating authorization.");
+		result.ProblemDetails.Detail.ShouldNotContain("Service error");
 	}
 
 	#endregion

@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Saga.Handlers;
 using Excalibur.Saga.Orchestration;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -372,6 +373,145 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 
 	#endregion
 
+	#region S-E2 Saga-Not-Found Handler Lock (ckavfs — author≠impl)
+
+	[Fact]
+	public async Task InvokeRegisteredNotFoundHandler_WhenSagaNotFoundForContinuationEvent()
+	{
+		// ckavfs (S-E2 / ADR-336): when a correlated event arrives for a saga that does not exist, the
+		// registered ISagaNotFoundHandler<TSaga> extension point MUST be resolved and invoked with
+		// (message, sagaId, ct) — not silently log-and-dropped. RED on the pre-fix coordinator, which
+		// only called LogSagaNotFound and never resolved/invoked the handler. Mirrors the existing
+		// ReturnEarlyWhenSagaNotFoundForContinuationEvent setup (continuation event + LoadAsync→null),
+		// adding a registered handler to a local service provider and asserting it was called.
+		var messageContext = A.Fake<IMessageContext>();
+		var sagaId = Guid.NewGuid();
+		var evt = new TestContinuationEvent { SagaId = sagaId.ToString(), StepId = "step-1" };
+		var sagaInfo = new SagaInfo(typeof(TestSaga), typeof(TestSagaState));
+		sagaInfo.StartsWith<TestStartEvent>();
+		sagaInfo.Handles<TestContinuationEvent>();
+
+		// Concrete spy (not A.Fake): FakeItEasy cannot proxy a generic interface parameterized with the
+		// private nested TestSaga type (DynamicProxy can't access it).
+		var notFoundHandler = new SpyNotFoundHandler();
+		var sagaStore = A.Fake<ISagaStore>();
+		// LoadAsync → null = saga-not-found branch. Explicit (a bare fake would return a non-null dummy
+		// TestSagaState, making the saga look "found" and skipping the handler path). Mirrors the sibling
+		// ReturnEarlyWhenSagaNotFoundForContinuationEvent setup.
+		A.CallTo(() => sagaStore.LoadAsync<TestSagaState>(A<Guid>._, A<CancellationToken>._))
+			.Returns((TestSagaState?)null);
+
+		var services = new ServiceCollection();
+		services.AddSingleton(sagaStore);
+		services.AddSingleton(A.Fake<IDispatcher>());
+		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
+		services.AddSingleton<ISagaNotFoundHandler<TestSaga>>(notFoundHandler);
+		var serviceProvider = services.BuildServiceProvider();
+		var coordinator = new SagaCoordinator(serviceProvider, sagaStore, _logger);
+
+		// Act
+		await coordinator.HandleEventInternalAsync<TestSaga, TestSagaState>(
+			messageContext, evt, sagaInfo, CancellationToken.None);
+
+		// Assert — the registered handler is invoked exactly once with the orphaned event + its saga id.
+		notFoundHandler.CallCount.ShouldBe(1);
+		notFoundHandler.LastMessage.ShouldBeSameAs(evt);
+		notFoundHandler.LastSagaId.ShouldBe(sagaId.ToString());
+	}
+
+	#endregion S-E2 Saga-Not-Found Handler Lock
+
+	#region S-E1 Save-Then-Dispatch Lock (lc178k — author≠impl)
+
+	[Fact]
+	public async Task NotDispatchBufferedMessages_WhenSaveFails()
+	{
+		// lc178k (S-E1) KEYSTONE: the coordinator flushes the saga's buffered emissions ONLY after SaveAsync
+		// succeeds. If SaveAsync throws, NOTHING is dispatched (the emissions re-buffer on the next delivery —
+		// no double-dispatch). RED on pre-fix immediate-dispatch: there, SendCommandAsync dispatched DURING
+		// HandleAsync, before SaveAsync, so a save failure still leaked a dispatch. This is the structural
+		// "dispatch-before-save is inexpressible" invariant (SA 15528 clause c / PM 15559).
+		var messageContext = A.Fake<IMessageContext>();
+		var sagaId = Guid.NewGuid();
+		var evt = new TestContinuationEvent { SagaId = sagaId.ToString(), StepId = "step-1" };
+		var sagaInfo = new SagaInfo(typeof(EmittingSaga), typeof(EmittingSagaState));
+		sagaInfo.StartsWith<TestStartEvent>();
+		sagaInfo.Handles<TestContinuationEvent>();
+
+		var dispatcher = A.Fake<IDispatcher>();
+		var sagaStore = A.Fake<ISagaStore>();
+		var existingState = new EmittingSagaState { SagaId = sagaId };
+		A.CallTo(() => sagaStore.LoadAsync<EmittingSagaState>(A<Guid>._, A<CancellationToken>._))
+			.Returns(existingState);
+		A.CallTo(() => sagaStore.SaveAsync(A<EmittingSagaState>._, A<CancellationToken>._))
+			.ThrowsAsync(new InvalidOperationException("save failed"));
+
+		var services = new ServiceCollection();
+		services.AddSingleton(sagaStore);
+		services.AddSingleton(dispatcher); // the saga (via ActivatorUtilities) emits onto THIS dispatcher
+		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
+		var serviceProvider = services.BuildServiceProvider();
+		var coordinator = new SagaCoordinator(serviceProvider, sagaStore, _logger);
+
+		// Act — SaveAsync throws; the coordinator surfaces it and must dispatch NOTHING.
+		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await coordinator.HandleEventInternalAsync<EmittingSaga, EmittingSagaState>(
+				messageContext, evt, sagaInfo, CancellationToken.None));
+
+		// Assert — the buffered command was never flushed (save failed before the flush point). Match ANY
+		// DispatchAsync instantiation by method name: the pre-fix immediate path dispatched the concrete
+		// DispatchAsync<EmittedCommand>, while the post-fix flush would use DispatchAsync<IDispatchMessage> —
+		// a generic-specific matcher (<IDispatchMessage>) is VACUOUS against the pre-fix surface (verified:
+		// it passed pre-fix in the RED-proof). Method-name matching is non-vacuous on both surfaces.
+		A.CallTo(dispatcher)
+			.Where(call => call.Method.Name == nameof(IDispatcher.DispatchAsync))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task DispatchBufferedMessages_AfterSuccessfulSave()
+	{
+		// lc178k (S-E1) POSITIVE keystone companion (nk0yek, SENTINEL coverage catch): the coordinator MUST
+		// flush — i.e. dispatch — the saga's buffered emissions AFTER a SUCCESSFUL save. Without this positive
+		// lock, the failure-path keystone (NotDispatchBufferedMessages_WhenSaveFails) passes VACUOUSLY if
+		// SagaCoordinator's `await saga.FlushPendingDispatchesAsync(...)` (SagaCoordinator.cs:243) were deleted:
+		// nothing would ever dispatch and the negative lock would still be green. RED on a flush-deletion
+		// mutant (no dispatch); GREEN on the real coordinator. Together with the negative lock this makes the
+		// save-then-dispatch keystone non-vacuous in both directions.
+		var messageContext = A.Fake<IMessageContext>();
+		var sagaId = Guid.NewGuid();
+		var evt = new TestContinuationEvent { SagaId = sagaId.ToString(), StepId = "step-1" };
+		var sagaInfo = new SagaInfo(typeof(EmittingSaga), typeof(EmittingSagaState));
+		sagaInfo.StartsWith<TestStartEvent>();
+		sagaInfo.Handles<TestContinuationEvent>();
+
+		var dispatcher = A.Fake<IDispatcher>();
+		var sagaStore = A.Fake<ISagaStore>();
+		var existingState = new EmittingSagaState { SagaId = sagaId };
+		A.CallTo(() => sagaStore.LoadAsync<EmittingSagaState>(A<Guid>._, A<CancellationToken>._))
+			.Returns(existingState);
+		// SaveAsync left unconfigured → succeeds (completed task) = the happy save-then-dispatch path.
+
+		var services = new ServiceCollection();
+		services.AddSingleton(sagaStore);
+		services.AddSingleton(dispatcher); // the saga (via ActivatorUtilities) emits onto THIS dispatcher
+		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
+		var serviceProvider = services.BuildServiceProvider();
+		var coordinator = new SagaCoordinator(serviceProvider, sagaStore, _logger);
+
+		// Act — save succeeds, so the coordinator flushes the buffer post-save.
+		await coordinator.HandleEventInternalAsync<EmittingSaga, EmittingSagaState>(
+			messageContext, evt, sagaInfo, CancellationToken.None);
+
+		// Assert — the buffered command WAS dispatched (post-save flush). Match ANY DispatchAsync
+		// instantiation by method name (the flush dispatches via DispatchAsync<IDispatchMessage>).
+		A.CallTo(dispatcher)
+			.Where(call => call.Method.Name == nameof(IDispatcher.DispatchAsync))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	#endregion S-E1 Save-Then-Dispatch Lock
+
 	#region Helper Methods
 
 	private static TestSagaEvent CreateTestSagaEvent() =>
@@ -384,7 +524,44 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 
 	#region Test Doubles
 
+	private sealed class SpyNotFoundHandler : ISagaNotFoundHandler<TestSaga>
+	{
+		public int CallCount { get; private set; }
+		public object? LastMessage { get; private set; }
+		public string? LastSagaId { get; private set; }
+
+		public Task HandleAsync(object message, string sagaId, CancellationToken cancellationToken)
+		{
+			CallCount++;
+			LastMessage = message;
+			LastSagaId = sagaId;
+			return Task.CompletedTask;
+		}
+	}
+
 	private sealed class TestSagaState : SagaState
+	{
+	}
+
+	private sealed class EmittingSagaState : SagaState
+	{
+	}
+
+	// A saga whose HandleAsync emits a command — used to prove save-then-dispatch (lc178k): the emission
+	// buffers and is only dispatched on the coordinator's post-save flush.
+	private sealed class EmittingSaga(
+		EmittingSagaState initialState,
+		IDispatcher dispatcher,
+		ILogger<EmittingSaga> logger)
+		: SagaBase<EmittingSagaState>(initialState, dispatcher, logger)
+	{
+		public override bool HandlesEvent(object eventMessage) => true;
+
+		public override async Task HandleAsync(object eventMessage, CancellationToken cancellationToken) =>
+			await SendCommandAsync(new EmittedCommand(), cancellationToken);
+	}
+
+	private sealed class EmittedCommand : IDispatchMessage
 	{
 	}
 

@@ -46,7 +46,9 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
 	private volatile bool _disposed;
-	private DateTimeOffset _lastSuccessfulRenewal;
+	// Stored as UTC ticks accessed via Interlocked (a58yu6): the renewal task reads/writes this
+	// lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset would tear.
+	private long _lastSuccessfulRenewalTicks;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresLeaderElection"/> class.
@@ -329,7 +331,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 					var stillLeader = await VerifyLockAsync(cancellationToken).ConfigureAwait(false);
 					if (!stillLeader)
 					{
-						var elapsed = DateTimeOffset.UtcNow - _lastSuccessfulRenewal;
+						var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
 						if (elapsed > _electionOptions.GracePeriod)
 						{
 							await LoseLeadershipAsync().ConfigureAwait(false);
@@ -337,7 +339,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 					}
 					else
 					{
-						_lastSuccessfulRenewal = DateTimeOffset.UtcNow;
+						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
 					}
 				}
 			}
@@ -351,7 +353,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 
 				if (_isLeader)
 				{
-					var elapsed = DateTimeOffset.UtcNow - _lastSuccessfulRenewal;
+					var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
 					if (elapsed > _electionOptions.GracePeriod)
 					{
 						await LoseLeadershipAsync().ConfigureAwait(false);
@@ -435,7 +437,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 			previousLeader = _currentLeaderId;
 			_isLeader = true;
 			_currentLeaderId = CandidateId;
-			_lastSuccessfulRenewal = DateTimeOffset.UtcNow;
+			Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
 		}
 
 		var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
