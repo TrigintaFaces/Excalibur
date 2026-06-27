@@ -4,6 +4,7 @@
 using Dapper;
 
 using Excalibur.Data;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
 using Excalibur.Saga.SqlServer;
@@ -420,11 +421,60 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 		loaded.Version.ShouldBe(2L);
 	}
 
+	/// <summary>
+	/// 1f5om2 (S853, DATA-CORRUPTION) — author≠impl TYPE-ISOLATION regression lock (TestsDeveloper).
+	/// SqlServer has no <c>SagaStoreConformanceTestBase</c> subclass (it uses this TestContainers harness),
+	/// so the uniform type-isolation contract is covered here against a real SQL Server: a typed
+	/// <c>LoadAsync&lt;TSagaState&gt;(id)</c> MUST return <see langword="null"/> when the saga stored at
+	/// <c>id</c> is a DIFFERENT type that merely shares the Guid — never mis-deserialize the wrong-typed blob.
+	/// </summary>
+	/// <remarks>
+	/// The fix (<c>LoadSagaRequest&lt;TSagaState&gt;</c>) scopes the SELECT to
+	/// <c>WHERE SagaId = @SagaId AND SagaType = @SagaType</c>, with the discriminator
+	/// <c>typeof(TSagaState).Name</c> matching what <c>SaveSagaRequest</c> persists. RED on the pre-fix
+	/// load-by-<c>SagaId</c>-only path (which deserialized the stored "TestSagaState" blob into
+	/// <see cref="TypeIsolationOtherSagaState"/>); GREEN on the type-scoped load. NON-SKIPPED real infra —
+	/// runs against the SQL Server container like its 13 sibling integration facts (no mock).
+	/// Production RED-proof deferred post-commit (FrontendDeveloper's src is reserved; do not modify src/).
+	/// </remarks>
+	[Fact]
+	public async Task ReturnNull_WhenLoadingDifferentSagaTypeAtSameSagaId()
+	{
+		// Arrange — persist a TestSagaState at the id (the store records SagaType = "TestSagaState").
+		await InitializeSagaTableAsync();
+		var store = CreateSagaStore();
+		var sagaId = Guid.NewGuid();
+		var state = TestSagaState.Create(sagaId);
+		state.Status = "Started";
+		await store.SaveAsync(state, TestCancellationToken);
+
+		// Sanity — the correct type loads (guards against a vacuous always-null result).
+		var sameType = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
+		_ = sameType.ShouldNotBeNull();
+
+		// Act — load the SAME id as a DIFFERENT saga type (SagaType "TypeIsolationOtherSagaState").
+		var loaded = await store.LoadAsync<TypeIsolationOtherSagaState>(sagaId, TestCancellationToken);
+
+		// Assert — the wrong-typed saga must NOT be returned (no mis-deserialization).
+		loaded.ShouldBeNull(
+			"LoadAsync<TSagaState>(id) must return null when the saga at id is a different type (1f5om2)");
+	}
+
 	private SqlServerSagaStore CreateSagaStore()
 	{
 		var logger = NullLogger<SqlServerSagaStore>.Instance;
 		var serializer = new DispatchJsonSerializer();
 		return new SqlServerSagaStore(_sqlFixture.ConnectionString, logger, serializer);
+	}
+
+	/// <summary>
+	/// A distinct saga-state type used only to drive the 1f5om2 type-isolation lock. Its simple type name
+	/// ("TypeIsolationOtherSagaState") differs from the persisted "TestSagaState", so the type-scoped load
+	/// filter excludes the stored row.
+	/// </summary>
+	private sealed class TypeIsolationOtherSagaState : SagaState
+	{
+		public string OtherData { get; set; } = string.Empty;
 	}
 
 	private async Task InitializeSagaTableAsync()

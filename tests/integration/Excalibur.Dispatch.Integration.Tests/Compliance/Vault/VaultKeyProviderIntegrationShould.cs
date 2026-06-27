@@ -35,17 +35,25 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 			return default;
 		}
 
+		_provider = CreateProvider(_cache);
+		return default;
+	}
+
+	// Builds a VaultKeyProvider against the live container. The cache is a parameter so a test can construct
+	// a SECOND, independent instance (fresh cache) to prove durable cross-instance suspension (vihqw6).
+	private VaultKeyProvider CreateProvider(IMemoryCache cache)
+	{
 		var options = Microsoft.Extensions.Options.Options.Create(new VaultOptions
 		{
 			VaultUri = new Uri(_fixture.VaultAddress),
 			Auth = { AuthMethod = VaultAuthMethod.Token, Token = _fixture.Token },
-			TransitMountPath = "transit",
-			KeyNamePrefix = "excalibur-test-",
-			MetadataCacheDuration = TimeSpan.FromMinutes(5)
+			Keys = new() { TransitMountPath = "transit", KeyNamePrefix = "excalibur-test-" },
+			MetadataCacheDuration = TimeSpan.FromMinutes(5),
+			// SuspendedKeysMountPath defaults to "secret" (KV v2, mounted by the Vault dev container);
+			// SuspendedKeysPath defaults to "excalibur-dispatch/suspended-keys".
 		});
 
-		_provider = new VaultKeyProvider(options, _cache, _logger);
-		return default;
+		return new VaultKeyProvider(options, cache, _logger);
 	}
 
 	private void SkipIfUnavailable()
@@ -284,22 +292,92 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	}
 
 	[Fact]
-	public async Task SuspendKey_UpdatesKeyConfig()
+	public async Task SuspendKey_DurablyMarksKeySuspended_AcrossAFreshProviderInstance()
 	{
-		SkipIfUnavailable();
+		// vihqw6 (MS-A7 · SECURITY) — author≠impl, NON-SKIPPED real-Vault lock. REPLACES the prior skip-gated
+		// SuspendKey_UpdatesKeyConfig that only asserted a bool (mock-equivalent, never ran in CI) — the exact
+		// gap SENTINEL's review (16498) flagged: a security fix proven only against a mock that can't enforce
+		// Vault's server-side validation. This lock proves the REAL behavior against real Vault.
+		//
+		// Contract (SA pin 16528/16541 — block-both via KeyStatus.Suspended, durable KV marker):
+		//   - after SuspendKeyAsync, GetKey*/GetKeyVersion report KeyStatus.Suspended — the GetKey* gate every
+		//     framework crypto consumer honors (AesGcmEncryptionProvider refuses Suspended on encrypt AND decrypt);
+		//   - GetActiveKeyAsync EXCLUDES the suspended key (no new encryption can acquire it);
+		//   - DURABLE: a FRESH provider instance (new object, fresh cache, same Vault) still reports Suspended —
+		//     proving the marker is persisted in Vault, not an in-memory set that lifts on restart (Reviewer 16509).
+		// RED on the pre-fix impl (11804f02c): SuspendKeyAsync set min_encryption_version > latest, which Vault
+		// rejects (400) → it threw on its happy path → this test's suspend call throws → RED. GREEN on the fix.
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"vihqw6 is a SECURITY regression lock and MUST run against real Vault — it is never skipped. " +
+			(_fixture.InitializationError ?? "Vault container required."));
 
-		// Arrange
 		var keyId = $"suspend-{Guid.NewGuid():N}";
-		_ = await _provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+		try
+		{
+			// Arrange — a real Transit key, confirmed Active.
+			_ = await _provider!.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+			var before = await _provider.GetKeyAsync(keyId, CancellationToken.None);
+			_ = before.ShouldNotBeNull();
+			before!.Status.ShouldBe(KeyStatus.Active);
 
-		// Act
-		var result = await _provider.SuspendKeyAsync(keyId, "Security incident", CancellationToken.None);
+			// Act — suspend (RED on the pre-fix throwing impl; GREEN on the durable-marker fix).
+			var suspended = await _provider.SuspendKeyAsync(keyId, "Security incident", CancellationToken.None);
+			suspended.ShouldBeTrue();
 
-		// Assert
-		result.ShouldBeTrue();
+			// Assert (same instance) — GetKey* reports Suspended; GetActiveKey excludes it.
+			var afterByKey = await _provider.GetKeyAsync(keyId, CancellationToken.None);
+			_ = afterByKey.ShouldNotBeNull();
+			afterByKey!.Status.ShouldBe(KeyStatus.Suspended,
+				"a suspended key must surface as Suspended so the encryptor refuses both encrypt and decrypt");
 
-		// Cleanup
-		_ = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
+			var afterByVersion = await _provider.GetKeyVersionAsync(keyId, before.Version, CancellationToken.None);
+			_ = afterByVersion.ShouldNotBeNull();
+			afterByVersion!.Status.ShouldBe(KeyStatus.Suspended);
+
+			var active = await _provider.GetActiveKeyAsync(keyId, CancellationToken.None);
+			(active is null || active.KeyId != keyId).ShouldBeTrue("GetActiveKeyAsync must exclude a suspended key");
+
+			// Assert (DURABILITY) — a brand-new provider instance with its OWN cache still sees Suspended.
+			using var freshCache = new MemoryCache(new MemoryCacheOptions());
+			using var instanceB = CreateProvider(freshCache);
+			var fromInstanceB = await instanceB.GetKeyAsync(keyId, CancellationToken.None);
+			_ = fromInstanceB.ShouldNotBeNull();
+			fromInstanceB!.Status.ShouldBe(KeyStatus.Suspended,
+				"suspension MUST be durable (persisted in Vault) and visible to a fresh provider instance — " +
+				"an in-memory marker would report Active here");
+		}
+		finally
+		{
+			_ = await _provider!.DeleteKeyAsync(keyId, 30, CancellationToken.None);
+		}
+	}
+
+	[Fact]
+	public async Task SuspendKey_DoesNotAffectADifferentLiveKey()
+	{
+		// vihqw6 non-regression (Reviewer gate-item-5 corrected): suspending one key must NOT impact another —
+		// the durable marker is keyed per keyId, so a different key stays Active and usable.
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"vihqw6 SECURITY lock — never skipped. " + (_fixture.InitializationError ?? "Vault container required."));
+
+		var suspendedId = $"susp-{Guid.NewGuid():N}";
+		var liveId = $"live-{Guid.NewGuid():N}";
+		try
+		{
+			_ = await _provider!.RotateKeyAsync(suspendedId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+			_ = await _provider.RotateKeyAsync(liveId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+
+			(await _provider.SuspendKeyAsync(suspendedId, "incident", CancellationToken.None)).ShouldBeTrue();
+
+			var live = await _provider.GetKeyAsync(liveId, CancellationToken.None);
+			_ = live.ShouldNotBeNull();
+			live!.Status.ShouldBe(KeyStatus.Active, "suspending one key must not affect a different key");
+		}
+		finally
+		{
+			_ = await _provider!.DeleteKeyAsync(suspendedId, 30, CancellationToken.None);
+			_ = await _provider!.DeleteKeyAsync(liveId, 30, CancellationToken.None);
+		}
 	}
 
 	[Fact]

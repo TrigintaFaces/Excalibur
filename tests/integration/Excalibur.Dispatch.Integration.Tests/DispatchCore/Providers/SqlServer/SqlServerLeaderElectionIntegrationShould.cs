@@ -128,7 +128,15 @@ public sealed class SqlServerLeaderElectionIntegrationShould : IntegrationTestBa
 		var method = typeof(SqlServerLeaderElection).GetMethod(
 			"VerifyLockAsync", BindingFlags.NonPublic | BindingFlags.Instance);
 		method.ShouldNotBeNull();
-		return await (Task<bool>)method!.Invoke(election, [CancellationToken.None])!;
+
+		// rqntzf 3-state refactor: VerifyLockAsync now returns Task<LeaderVerifyResult>
+		// (StillLeader / DefinitivelyLost / Indeterminate), not Task<bool>. "Still owns the lock" maps
+		// to StillLeader only — a released applock on the live session probes APPLOCK_MODE='NoLock' →
+		// DefinitivelyLost → false (the ownership signal this lock binds; pre-fix SELECT-1 liveness → true).
+		var task = (Task)method!.Invoke(election, [CancellationToken.None])!;
+		await task.ConfigureAwait(false);
+		var result = task.GetType().GetProperty("Result")!.GetValue(task)!;
+		return string.Equals(result.ToString(), "StillLeader", StringComparison.Ordinal);
 	}
 
 	/// <summary>

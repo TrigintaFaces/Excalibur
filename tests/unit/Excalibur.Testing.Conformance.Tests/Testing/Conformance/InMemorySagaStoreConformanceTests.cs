@@ -27,6 +27,12 @@ public sealed class InMemorySagaStoreConformanceTests : SagaStoreConformanceTest
 	/// <inheritdoc />
 	protected override ISagaStore CreateStore() => new InMemorySagaStore();
 
+	// InMemorySagaStore is a genuine optimistic-concurrency implementation (expected-version CAS +
+	// no-resurrect guard, InMemorySagaStore.SaveAsync) since boxiyl (S853), so the keystone facts run
+	// NON-SKIPPED against real optimistic logic (verify-against-real-infra: a real impl, not a mock).
+	/// <inheritdoc />
+	protected override bool SupportsOptimisticConcurrency => true;
+
 	#region Save Tests
 
 	[Fact]
@@ -90,4 +96,20 @@ public sealed class InMemorySagaStoreConformanceTests : SagaStoreConformanceTest
 		SaveAsync_WithDefaultValues_ShouldSucceed();
 
 	#endregion Edge Cases
+
+	#region Optimistic Concurrency Tests (e1tsq2 / FR-D5)
+
+	[Fact]
+	public Task StaleSave_ThrowsConcurrencyException_NoLostUpdate_Test() =>
+		StaleSave_ThrowsConcurrencyException_NoLostUpdate();
+
+	[Fact]
+	public Task StaleSave_OnMissingSaga_DoesNotResurrect_Test() =>
+		StaleSave_OnMissingSaga_DoesNotResurrect();
+
+	[Fact]
+	public Task LoadAsync_ReturnsAuthoritativeVersion_AndReloadMutateSaveSucceeds_Test() =>
+		LoadAsync_ReturnsAuthoritativeVersion_AndReloadMutateSaveSucceeds();
+
+	#endregion Optimistic Concurrency Tests
 }

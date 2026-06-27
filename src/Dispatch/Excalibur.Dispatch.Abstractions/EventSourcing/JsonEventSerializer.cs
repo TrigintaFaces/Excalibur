@@ -18,11 +18,20 @@ public sealed class JsonEventSerializer : IEventSerializer
 	private const int MaxTypeCacheSize = 1024;
 	private readonly JsonSerializerOptions _options;
 	private readonly ConcurrentDictionary<string, Type> _typeCache;
+	private readonly bool _allowAssemblyScan;
+	private readonly IEventTypeRegistry? _registry;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="JsonEventSerializer" /> class.
 	/// </summary>
 	/// <param name="options">Optional JSON serializer options to use.</param>
+	/// <param name="allowAssemblyScan">
+	/// When <see langword="true"/>, an unregistered type name is resolved by scanning all loaded
+	/// assemblies. This is an explicit, trusted-environment opt-in: the unbounded scan can resolve an
+	/// attacker-chosen (gadget-chain) type, so it is <see langword="false"/> by default and an unknown
+	/// type name is rejected with <see cref="UnknownEventTypeException"/>. The flag is symmetric with the
+	/// reflection/trim opt-in this constructor already represents.
+	/// </param>
 	/// <remarks>
 	/// This reflection-based serializer is the trim/AOT opt-in gate: constructing it surfaces the
 	/// <c>IL2026</c>/<c>IL3050</c> warnings. Use <c>AotJsonEventSerializer</c> for an AOT-safe path. The
@@ -30,7 +39,26 @@ public sealed class JsonEventSerializer : IEventSerializer
 	/// </remarks>
 	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming. Use AotJsonEventSerializer for an AOT-safe path.")]
 	[RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
-	public JsonEventSerializer(JsonSerializerOptions? options = null)
+	public JsonEventSerializer(JsonSerializerOptions? options = null, bool allowAssemblyScan = false)
+		: this(registry: null, options, allowAssemblyScan)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="JsonEventSerializer" /> class that consults a
+	/// consumer-registered event-type registry (c6wd6f) before any assembly scan.
+	/// </summary>
+	/// <param name="registry">
+	/// Optional event-type registry (populated via <c>AddEventTypes&lt;T&gt;()</c>). When provided,
+	/// <see cref="ResolveType"/> resolves registered types <em>independently of the scan</em>, so the
+	/// secure default (<paramref name="allowAssemblyScan"/> <see langword="false"/>) is usable for event
+	/// sourcing while an unregistered/attacker-chosen type stays unresolvable without the opt-in scan.
+	/// </param>
+	/// <param name="options">Optional JSON serializer options to use.</param>
+	/// <param name="allowAssemblyScan">See the public constructor.</param>
+	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming. Use AotJsonEventSerializer for an AOT-safe path.")]
+	[RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
+	internal JsonEventSerializer(IEventTypeRegistry? registry, JsonSerializerOptions? options = null, bool allowAssemblyScan = false)
 	{
 		_options = options ?? new JsonSerializerOptions
 		{
@@ -39,6 +67,8 @@ public sealed class JsonEventSerializer : IEventSerializer
 			Converters = { new JsonStringEnumConverter() },
 		};
 		_typeCache = new ConcurrentDictionary<string, Type>(StringComparer.Ordinal);
+		_allowAssemblyScan = allowAssemblyScan;
+		_registry = registry;
 	}
 
 	/// <inheritdoc />
@@ -94,9 +124,37 @@ public sealed class JsonEventSerializer : IEventSerializer
 			return cachedType;
 		}
 
+		// c6wd6f: consult the consumer-registered allow-list FIRST, independent of the scan. A registered
+		// type resolves securely (no reflection scan), making the secure default usable for event sourcing;
+		// an unregistered type still falls through to the scan gate below (rejected unless opted in).
+		var registered = _registry?.ResolveType(typeName);
+		if (registered is not null)
+		{
+			if (_typeCache.Count < MaxTypeCacheSize)
+			{
+				_ = _typeCache.TryAdd(typeName, registered);
+			}
+
+			return registered;
+		}
+
+		// wpynky / S-E: the unbounded AppDomain.GetAssemblies() scan is the gadget-chain vector — it can
+		// resolve an attacker-chosen type from any loaded assembly. It is OFF by default: an unregistered
+		// type name is rejected unless the consumer explicitly opted into the scan (accepting the resolution
+		// risk in a trusted environment, symmetric with the reflection opt-in this serializer represents).
+		if (!_allowAssemblyScan)
+		{
+			throw new UnknownEventTypeException(
+				$"Cannot resolve event type '{typeName}': it is not registered and the assembly scan is " +
+				"disabled. Register your event types with AddEventTypes<T>() / AddEventTypesFromAssembly(...) " +
+				"(secure, recommended), or use AotJsonEventSerializer (source-generated type map), or " +
+				"construct JsonEventSerializer(allowAssemblyScan: true) to enable the reflection assembly " +
+				"scan in a trusted environment.");
+		}
+
 		// Resolve from loaded assemblies to support both full names and assembly-qualified names
 		var resolvedType = SearchLoadedAssemblies(typeName)
-			?? throw new InvalidOperationException(
+			?? throw new UnknownEventTypeException(
 				$"Cannot resolve type: '{typeName}'. Ensure the assembly containing this type is loaded. " +
 				"If using short type names, the type must be discoverable in loaded assemblies.");
 

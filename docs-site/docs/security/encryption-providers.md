@@ -156,26 +156,21 @@ dotnet add package Excalibur.Compliance.Vault
 ### Setup
 
 ```csharp
-// With options callback
-services.AddVaultKeyManagement(options =>
+// Core connection settings via the fluent builder
+services.AddVaultKeyManagement(vault =>
+    vault.VaultUri(new Uri("https://vault.example.com:8200"))
+         .TransitMountPath("transit")
+         .KeyNamePrefix("dispatch-"));   // Keys named: dispatch-{keyId}
+
+// Authentication (and other grouped sub-options) via Configure<VaultOptions>
+services.Configure<VaultOptions>(options =>
 {
-    options.Address = "https://vault.example.com:8200";
-    options.Token = "s.your-vault-token";
-    options.TransitMountPath = "transit";
-    options.KeyNamePrefix = "dispatch-";  // Keys named: dispatch-{keyId}
+    options.Auth.AuthMethod = VaultAuthMethod.Token;
+    options.Auth.Token = "s.your-vault-token";
 });
 
-// With pre-built options
-var vaultOptions = new VaultOptions
-{
-    Address = "https://vault.example.com:8200",
-    Token = "s.your-vault-token"
-};
-services.AddVaultKeyManagement(vaultOptions);
-
-// From configuration section
-services.AddVaultKeyManagement(
-    configuration.GetSection("Vault"));
+// Or bind the whole VaultOptions from an appsettings "Vault" section
+services.AddVaultKeyManagement(vault => vault.BindConfiguration("Vault"));
 ```
 
 ---

@@ -77,6 +77,9 @@ builder.Services.AddSingleton<ITenantShardMap>(
 // CreateTenantOrderHandler is discovered.
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 // HTTP context is required so the scoped ITenantId resolver can read the
 // X-Tenant-Id header from the inbound request.
 builder.Services.AddHttpContextAccessor();

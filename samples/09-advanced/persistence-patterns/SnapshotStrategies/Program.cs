@@ -39,8 +39,8 @@ builder.Services.AddLogging(logging =>
 // Configure Dispatch messaging
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
-// Add event serializer
-builder.Services.AddSingleton<IEventSerializer, JsonEventSerializer>();
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // Add in-memory event store for demo
 builder.Services.AddInMemoryEventStore();

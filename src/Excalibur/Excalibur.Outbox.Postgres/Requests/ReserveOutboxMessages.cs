@@ -35,6 +35,12 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
+		// Atomic claim: the CTE locks the eligible rows it selects (FOR UPDATE) and SKIP LOCKED steps
+		// over rows already locked by a concurrent dispatcher's in-flight transaction, so each row is
+		// claimed by exactly one dispatcher (no overlapping batches -> no double-dispatch). Without the
+		// row lock, two concurrent dispatchers could SELECT overlapping rows before either UPDATE landed
+		// and both would claim the same message. This mirrors the SqlServer claim's READPAST/UPDLOCK/
+		// ROWLOCK hints (GetUnsentMessagesRequest.cs). The locking clause MUST follow LIMIT.
 		var sql = $"""
 		           WITH cte_outbox AS (
 		                   SELECT message_id
@@ -43,6 +49,7 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		                     AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
 		                   ORDER BY occurred_on
 		                   LIMIT {batchSize}
+		                   FOR UPDATE SKIP LOCKED
 		                   )
 		                   UPDATE {outboxTableName}
 		                   SET dispatcher_id = @DispatcherId,

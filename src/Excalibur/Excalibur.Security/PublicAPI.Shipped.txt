@@ -17,11 +17,6 @@ Excalibur.Security.Argon2idPasswordHasher
 Excalibur.Security.Argon2idPasswordHasher.Argon2idPasswordHasher(Microsoft.Extensions.Options.IOptions<Excalibur.Security.Argon2Options!>! options) -> void
 Excalibur.Security.Argon2idPasswordHasher.HashPasswordAsync(string! password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.PasswordHashResult!>!
 Excalibur.Security.Argon2idPasswordHasher.VerifyPasswordAsync(string! password, Excalibur.Security.PasswordHashResult! storedHash, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.PasswordVerificationResult>!
-Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions
-const Excalibur.Security.Argon2Options.SectionName = "Argon2" -> string!
-static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Argon2Options!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Excalibur.Security.AuthenticationFailedResult
 Excalibur.Security.AuthenticationFailedResult.AuthenticationFailedResult() -> void
 Excalibur.Security.AuthenticationFailedResult.AuthorizationResult.get -> object?
@@ -47,7 +42,7 @@ Excalibur.Security.AuthenticationFailureReason.TokenExpired = 2 -> Excalibur.Sec
 Excalibur.Security.AuthenticationFailureReason.UnknownError = 4 -> Excalibur.Security.AuthenticationFailureReason
 Excalibur.Security.AuthenticationFailureReason.ValidationError = 3 -> Excalibur.Security.AuthenticationFailureReason
 Excalibur.Security.CompositeMessageSigningService
-Excalibur.Security.CompositeMessageSigningService.CompositeMessageSigningService(System.Collections.Generic.IEnumerable<Excalibur.Security.ISignatureAlgorithmProvider!>! providers, Microsoft.Extensions.Options.IOptions<Excalibur.Security.SigningOptions!>! options, Excalibur.Security.IKeyProvider! keyProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.CompositeMessageSigningService!>! logger) -> void
+Excalibur.Security.CompositeMessageSigningService.CompositeMessageSigningService(System.Collections.Generic.IEnumerable<Excalibur.Security.ISignatureAlgorithmProvider!>! providers, Microsoft.Extensions.Options.IOptions<Excalibur.Security.SigningOptions!>! options, Excalibur.Security.IKeyProvider! keyProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.CompositeMessageSigningService!>! logger, System.TimeProvider? timeProvider = null) -> void
 Excalibur.Security.CompositeMessageSigningService.CreateSignedMessageAsync(string! content, Excalibur.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.SignedMessage!>!
 Excalibur.Security.CompositeMessageSigningService.Dispose() -> void
 Excalibur.Security.CompositeMessageSigningService.SignMessageAsync(byte[]! content, Excalibur.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
@@ -131,7 +126,7 @@ Excalibur.Security.EnvironmentVariableCredentialStore.GetCredentialAsync(string!
 Excalibur.Security.HmacMessageSigningService
 Excalibur.Security.HmacMessageSigningService.CreateSignedMessageAsync(string! content, Excalibur.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.SignedMessage!>!
 Excalibur.Security.HmacMessageSigningService.Dispose() -> void
-Excalibur.Security.HmacMessageSigningService.HmacMessageSigningService(Microsoft.Extensions.Options.IOptions<Excalibur.Security.SigningOptions!>! options, Excalibur.Security.IKeyProvider! keyProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.HmacMessageSigningService!>! logger) -> void
+Excalibur.Security.HmacMessageSigningService.HmacMessageSigningService(Microsoft.Extensions.Options.IOptions<Excalibur.Security.SigningOptions!>! options, Excalibur.Security.IKeyProvider! keyProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.HmacMessageSigningService!>! logger, System.TimeProvider? timeProvider = null) -> void
 Excalibur.Security.HmacMessageSigningService.SignMessageAsync(byte[]! content, Excalibur.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Security.HmacMessageSigningService.SignMessageAsync(string! content, Excalibur.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
 Excalibur.Security.HmacMessageSigningService.ValidateSignedMessageAsync(Excalibur.Security.SignedMessage! signedMessage, Excalibur.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
@@ -483,7 +478,6 @@ Excalibur.Security.SecurityEventType.SecurityPolicyViolation = 13 -> Excalibur.S
 Excalibur.Security.SecurityEventType.SuspiciousActivity = 8 -> Excalibur.Security.SecurityEventType
 Excalibur.Security.SecurityEventType.ValidationError = 5 -> Excalibur.Security.SecurityEventType
 Excalibur.Security.SecurityEventType.ValidationFailure = 4 -> Excalibur.Security.SecurityEventType
-Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions
 Excalibur.Security.SecurityOptions
 Excalibur.Security.SecurityOptions.Authentication.get -> Excalibur.Security.SecurityAuthenticationOptions!
 Excalibur.Security.SecurityOptions.Authentication.set -> void
@@ -551,13 +545,13 @@ Excalibur.Security.SigningContext.Format.set -> void
 Excalibur.Security.SigningContext.IncludeTimestamp.get -> bool
 Excalibur.Security.SigningContext.IncludeTimestamp.set -> void
 Excalibur.Security.SigningContext.KeyId.get -> string?
-Excalibur.Security.SigningContext.SignedAt.get -> System.DateTimeOffset?
-Excalibur.Security.SigningContext.SignedAt.set -> void
 Excalibur.Security.SigningContext.KeyId.set -> void
 Excalibur.Security.SigningContext.Metadata.get -> System.Collections.Generic.IDictionary<string!, string!>!
 Excalibur.Security.SigningContext.Metadata.init -> void
 Excalibur.Security.SigningContext.Purpose.get -> string?
 Excalibur.Security.SigningContext.Purpose.set -> void
+Excalibur.Security.SigningContext.SignedAt.get -> System.DateTimeOffset?
+Excalibur.Security.SigningContext.SignedAt.set -> void
 Excalibur.Security.SigningContext.SigningContext() -> void
 Excalibur.Security.SigningContext.TenantId.get -> string?
 Excalibur.Security.SigningContext.TenantId.set -> void
@@ -586,8 +580,11 @@ Excalibur.Security.VerificationException
 Excalibur.Security.VerificationException.VerificationException() -> void
 Excalibur.Security.VerificationException.VerificationException(string! message) -> void
 Excalibur.Security.VerificationException.VerificationException(string! message, System.Exception! innerException) -> void
+Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SecurityExcaliburBuilderExtensions
+Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions
 Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions
+const Excalibur.Security.Argon2Options.SectionName = "Argon2" -> string!
 const Excalibur.Security.Diagnostics.SecurityEventId.AsymmetricKeyNotFound = 70241 -> int
 const Excalibur.Security.Diagnostics.SecurityEventId.AsymmetricKeyRetrieved = 70240 -> int
 const Excalibur.Security.Diagnostics.SecurityEventId.AuditEntryCreated = 70602 -> int
@@ -803,6 +800,10 @@ static Excalibur.Security.CredentialValidationResult.Success() -> Excalibur.Secu
 static Excalibur.Security.InputValidationResult.Failure(params string![]! errors) -> Excalibur.Security.InputValidationResult!
 static Excalibur.Security.InputValidationResult.Success() -> Excalibur.Security.InputValidationResult!
 static Excalibur.Security.KeyProviderExtensions.StoreKeyPairAsync(this Excalibur.Security.IKeyProvider! provider, string! keyId, byte[]! privateKey, byte[]! publicKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Argon2Options!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SecurityExcaliburBuilderExtensions.UseSecurity(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddAsymmetricSigning(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.SigningOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.SecurityOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -814,7 +815,6 @@ static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.Add
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddMessageSigning(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.SigningOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddRateLimiting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddRateLimiting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.RateLimitingOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SecurityExcaliburBuilderExtensions.UseSecurity(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddDispatchSecurity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddInputValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecureCredentialManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

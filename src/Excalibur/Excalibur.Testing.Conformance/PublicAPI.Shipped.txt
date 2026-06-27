@@ -721,6 +721,7 @@ virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.GenerateSagaId
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.LoadAsync_AfterMultipleUpdates_ShouldReturnLatest() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.LoadAsync_ExistingSaga_ShouldReturnState() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.LoadAsync_NonExistent_ShouldReturnNull() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.LoadAsync_ReturnsAuthoritativeVersion_AndReloadMutateSaveSucceeds() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.Sagas_ShouldIsolateBySagaId() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.SaveAndLoad_ShouldPreserveAllProperties() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.SaveAndLoad_ShouldPreserveDateTimeValues() -> System.Threading.Tasks.Task!
@@ -728,6 +729,9 @@ virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.SaveAsync_Comp
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.SaveAsync_ExistingSaga_ShouldUpdate() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.SaveAsync_NewSaga_ShouldSucceed() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.SaveAsync_WithDefaultValues_ShouldSucceed() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.StaleSave_OnMissingSaga_DoesNotResurrect() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.StaleSave_ThrowsConcurrencyException_NoLostUpdate() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.SupportsOptimisticConcurrency.get -> bool
 virtual Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.UpdateOneSaga_ShouldNotAffectOthers() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ScheduleStoreConformanceTestKit.CleanupAsync() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.ScheduleStoreConformanceTestKit.CompleteAsync_AlreadyCompleted_ShouldBeIdempotent() -> System.Threading.Tasks.Task!

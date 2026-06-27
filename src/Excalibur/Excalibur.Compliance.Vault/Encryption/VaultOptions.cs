@@ -19,6 +19,11 @@ namespace Excalibur.Compliance.Vault;
 /// <item>Multiple authentication methods</item>
 /// </list>
 /// </para>
+/// <para>
+/// Detailed configuration is grouped into focused sub-options (<see cref="Transit"/>, <see cref="Auth"/>,
+/// <see cref="Keys"/>, <see cref="Retry"/>, <see cref="Suspension"/>) so this root type stays within the
+/// Microsoft-first ≤10-property interface-segregation budget.
+/// </para>
 /// </remarks>
 public sealed class VaultOptions
 {
@@ -28,21 +33,6 @@ public sealed class VaultOptions
 	/// <example>https://vault.example.com:8200</example>
 	[Required]
 	public Uri? VaultUri { get; set; }
-
-	/// <summary>
-	/// Gets or sets the mount path for the Transit secrets engine.
-	/// Default is "transit".
-	/// </summary>
-	public string TransitMountPath { get; set; } = "transit";
-
-	/// <summary>
-	/// Gets or sets the key name prefix for keys managed by this provider.
-	/// Default is "excalibur-dispatch-".
-	/// </summary>
-	/// <remarks>
-	/// Keys are named using the pattern: {KeyNamePrefix}{keyId}
-	/// </remarks>
-	public string KeyNamePrefix { get; set; } = "excalibur-dispatch-";
 
 	/// <summary>
 	/// Gets or sets the namespace (enterprise feature).
@@ -85,6 +75,12 @@ public sealed class VaultOptions
 	/// </summary>
 	/// <value> The retry sub-options. </value>
 	public VaultRetryOptions Retry { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets durable key-suspension marker configuration.
+	/// </summary>
+	/// <value> The suspension sub-options. </value>
+	public VaultSuspensionOptions Suspension { get; set; } = new();
 }
 
 /// <summary>
@@ -172,6 +168,19 @@ public sealed class VaultKeyOptions
 	/// Gets or sets whether key derivation should be enabled. Default is false.
 	/// </summary>
 	public bool EnableKeyDerivation { get; set; }
+
+	/// <summary>
+	/// Gets or sets the mount path for the Transit secrets engine (where the keys live). Default is "transit".
+	/// </summary>
+	public string TransitMountPath { get; set; } = "transit";
+
+	/// <summary>
+	/// Gets or sets the key name prefix for keys managed by this provider. Default is "excalibur-dispatch-".
+	/// </summary>
+	/// <remarks>
+	/// Keys are named using the pattern: {KeyNamePrefix}{keyId}
+	/// </remarks>
+	public string KeyNamePrefix { get; set; } = "excalibur-dispatch-";
 }
 
 /// <summary>
@@ -193,6 +202,31 @@ public sealed class VaultRetryOptions
 	/// Gets or sets the initial delay for exponential backoff. Default is 1 second.
 	/// </summary>
 	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
+}
+
+/// <summary>
+/// Durable key-suspension marker configuration for HashiCorp Vault.
+/// </summary>
+/// <remarks>
+/// Vault Transit has no native "disable key for encryption" primitive, so <c>SuspendKeyAsync</c>
+/// records suspension as a durable KV marker (read back when the key's status is resolved) rather than
+/// an in-memory set that would not survive a restart. The mounted KV v2 engine and the provider's
+/// token write/read access to <see cref="Path"/> are prerequisites for key suspension.
+/// </remarks>
+public sealed class VaultSuspensionOptions
+{
+	/// <summary>
+	/// Gets or sets the Vault KV v2 mount path used to durably persist key-suspension markers.
+	/// Default is "secret".
+	/// </summary>
+	public string MountPath { get; set; } = "secret";
+
+	/// <summary>
+	/// Gets or sets the path prefix (within <see cref="MountPath"/>) under which per-key suspension
+	/// markers are stored. The marker for a key is written at <c>{Path}/{keyId}</c>.
+	/// Default is "excalibur-dispatch/suspended-keys".
+	/// </summary>
+	public string Path { get; set; } = "excalibur-dispatch/suspended-keys";
 }
 
 /// <summary>

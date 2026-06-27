@@ -44,7 +44,7 @@ Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.IsBeginning.get -> bool
 Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.ToBase64() -> string!
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.CosmosDbCdcProcessor(Microsoft.Azure.Cosmos.CosmosClient! client, Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore! stateStore, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor!>! logger) -> void
+Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.CosmosDbCdcProcessor(Microsoft.Azure.Cosmos.CosmosClient! client, Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore! stateStore, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CdcFatalErrorOptions<Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!>!>? fatalErrorOptions = null, Excalibur.Dispatch.IMessageFailureClassifier? failureClassifier = null) -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.Dispose() -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!>!

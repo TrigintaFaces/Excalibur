@@ -104,11 +104,48 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		// Register core AWS SQS services
 		RegisterAwsSqsServices(services);
 
+		// Flow the configured FIFO selectors to the message bus so ConfigureFifo applies on the
+		// wire (MessageGroupId + MessageDeduplicationId) rather than being a silently-inert option.
+		if (adapterOptions.HasFifoOptions)
+		{
+			var fifo = adapterOptions.FifoOptions!;
+			_ = services.Configure<AwsSqsFifoOptions>(o =>
+			{
+				o.ContentBasedDeduplication = fifo.ContentBasedDeduplication;
+				o.MessageGroupIdSelector = fifo.MessageGroupIdSelector;
+				o.DeduplicationIdSelector = fifo.DeduplicationIdSelector;
+			});
+		}
+
+		// Configure the AwsSqsOptions the message bus requires (its ctor takes IOptions<AwsSqsOptions>).
+		// Nothing else registered it, so the advertised AddAwsSqsTransport(...) ->
+		// GetRequiredService<AwsSqsMessageBus>() path threw at runtime on the missing dependency. Map it
+		// from the configured adapter options, mirroring the AwsSqsFifoOptions Configure flow above.
+		_ = services.AddOptions<AwsSqsOptions>().Configure(o =>
+		{
+			o.QueueUrl = adapterOptions.HasQueueMappings
+				? new Uri(adapterOptions.QueueMappings.Values.First())
+				: null;
+			o.UseFifoQueue = adapterOptions.HasFifoOptions;
+			o.ContentBasedDeduplication =
+				adapterOptions.HasFifoOptions && adapterOptions.FifoOptions!.ContentBasedDeduplication;
+
+			if (!string.IsNullOrWhiteSpace(adapterOptions.Region))
+			{
+				o.Region = adapterOptions.Region;
+			}
+		});
+
 		// Register the transport adapter with the transport factory
 		RegisterTransportAdapter(services, name, adapterOptions);
 
 		// Register ITransportSubscriber with telemetry decorator
 		RegisterSubscriber(services, name, adapterOptions);
+
+		// Route the rich ITransportSender/ITransportReceiver classes through DI so configured
+		// capabilities (FIFO group/dedup, batching) are reachable on the AddAwsSqsTransport path
+		// instead of orphaned (kek7vm shared-seam wiring).
+		RegisterTransportSenderReceiver(services, name, adapterOptions);
 
 		return services;
 	}
@@ -153,6 +190,10 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		// Register AWS SQS client
 		services.TryAddSingleton<IAmazonSQS>(static _ => new AmazonSQSClient());
 
+		// Ensure IOptions<AwsSqsFifoOptions> resolves for the message bus even when no FIFO queue
+		// is configured (defaults to empty options, leaving group/dedup ids unset).
+		_ = services.AddOptions<AwsSqsFifoOptions>();
+
 		// Register SQS message bus
 		services.TryAddSingleton<AwsSqsMessageBus>();
 
@@ -194,6 +235,37 @@ public static class AwsSqsTransportServiceCollectionExtensions
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)
 		_ = services.AddTransportAdapterLifecycle();
+	}
+
+	/// <summary>
+	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
+	/// implementations keyed by transport name so they are instantiated and reachable on the
+	/// <c>AddAwsSqsTransport</c> path. Without this, the rich SQS sender/receiver classes are
+	/// orphaned and configured capabilities are silently inert (kek7vm). <c>TryAdd*</c> lets a
+	/// consumer override the registration (Microsoft-first).
+	/// </summary>
+	private static void RegisterTransportSenderReceiver(
+		IServiceCollection services,
+		string name,
+		AwsSqsTransportAdapterOptions adapterOptions)
+	{
+		var queueUrl = adapterOptions.HasQueueMappings
+			? adapterOptions.QueueMappings.Values.First()
+			: name;
+
+		services.TryAddKeyedSingleton<ITransportSender>(name, (sp, _) =>
+		{
+			var sqsClient = sp.GetRequiredService<IAmazonSQS>();
+			var logger = sp.GetRequiredService<ILogger<SqsTransportSender>>();
+			return new SqsTransportSender(sqsClient, queueUrl, logger);
+		});
+
+		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
+		{
+			var sqsClient = sp.GetRequiredService<IAmazonSQS>();
+			var logger = sp.GetRequiredService<ILogger<SqsTransportReceiver>>();
+			return new SqsTransportReceiver(sqsClient, queueUrl, logger);
+		});
 	}
 
 	/// <summary>

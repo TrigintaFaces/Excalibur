@@ -432,38 +432,59 @@ internal sealed class SecurityAuditMaintenanceService
 	}
 
 	/// <summary>
-	/// Deletes the specific archived events from Elasticsearch by their document IDs.
+	/// The fallback page size for the paginated delete when the configured query size is non-positive.
+	/// </summary>
+	private const int DefaultDeleteBatchSize = 1000;
+
+	/// <summary>
+	/// Deletes the specific archived events from Elasticsearch by their document IDs, in bounded
+	/// pages.
 	/// </summary>
 	/// <remarks>
-	/// Only the IDs confirmed written to the (flushed and closed) archive are deleted. This
-	/// replaces the previous unbounded <c>DeleteByQuery(MatchAll)</c>, which destroyed the entire
-	/// audit index — including recent events that were never archived.
+	/// Two independent safety bounds apply. First, only the IDs confirmed written to the (flushed and
+	/// closed) archive are deleted — this replaces the previous unbounded <c>DeleteByQuery(MatchAll)</c>,
+	/// which destroyed the entire audit index. Second, the archived IDs are paginated into chunks of the
+	/// configured batch size and each <c>DeleteByQuery</c> is capped with <c>MaxDocs = batchSize</c>, so a
+	/// large archival run never issues a single mass-delete (resource-safety / no one unbounded delete).
 	/// </remarks>
 	private async Task DeleteArchivedEventsByIdsAsync(
 		IReadOnlyCollection<string> archivedIds,
 		CancellationToken cancellationToken)
 	{
-		try
-		{
-			var ids = new Ids(archivedIds.Select(static id => (Id)id).ToList());
-			var deleteResponse = await _elasticsearchClient.DeleteByQueryAsync<SecurityAuditEvent>(
-				d => d
-					.Indices("security-audit-*")
-					.Query(q => q.Ids(i => i.Values(ids))),
-				cancellationToken).ConfigureAwait(false);
+		var batchSize = _configuration.MaxQueryResultSize > 0
+			? _configuration.MaxQueryResultSize
+			: DefaultDeleteBatchSize;
 
-			if (!deleteResponse.IsValidResponse)
-			{
-				_logger.LogWarning("Failed to delete archived events: {Error}", deleteResponse.DebugInformation);
-			}
-			else
-			{
-				_logger.LogInformation("Deleted {Count} archived events from Elasticsearch", deleteResponse.Deleted);
-			}
-		}
-		catch (Exception ex)
+		var totalDeleted = 0L;
+
+		foreach (var chunk in archivedIds.Chunk(batchSize))
 		{
-			_logger.LogError(ex, "Failed to delete archived events");
+			try
+			{
+				var ids = new Ids(chunk.Select(static id => (Id)id).ToList());
+				var deleteResponse = await _elasticsearchClient.DeleteByQueryAsync<SecurityAuditEvent>(
+					d => d
+						.Indices("security-audit-*")
+						.Query(q => q.Ids(i => i.Values(ids)))
+						.MaxDocs(chunk.Length),
+					cancellationToken).ConfigureAwait(false);
+
+				if (!deleteResponse.IsValidResponse)
+				{
+					_logger.LogWarning("Failed to delete archived events page: {Error}", deleteResponse.DebugInformation);
+				}
+				else
+				{
+					totalDeleted += deleteResponse.Deleted ?? 0;
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to delete archived events page of {Count}", chunk.Length);
+			}
 		}
+
+		_logger.LogInformation(
+			"Deleted {Count} archived events from Elasticsearch in pages of {BatchSize}", totalDeleted, batchSize);
 	}
 }

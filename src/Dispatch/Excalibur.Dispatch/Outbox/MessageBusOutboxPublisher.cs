@@ -419,6 +419,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			}
 
 			RestoreTraceParent(context, message);
+			RestoreBaggage(context, message);
 
 			if (message.PartitionKey is not null)
 			{
@@ -465,6 +466,44 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			value is string traceParent && !string.IsNullOrEmpty(traceParent))
 		{
 			context.GetOrCreateIdentityFeature().TraceParent = traceParent;
+		}
+	}
+
+	/// <summary>
+	/// Restores the staged W3C <c>baggage</c> from the outbox message headers back onto the rebuilt publish
+	/// context (FR-D6, 4desh8), symmetric with <see cref="RestoreTraceParent" />. Without this the producer's
+	/// baggage is written into the staged envelope (<c>OutboxStagingMiddleware.GetBaggageHeader</c>) but silently
+	/// dropped on the outbox hop, so it never reaches the next consumer. Each <c>name=value</c> member is
+	/// percent-decoded (folds 7npc0q W3C percent-encoding) and written back into the context items keyed
+	/// <c>baggage.{name}</c> — the exact slot the capture (<c>DispatchContextInitializer</c>) and stage-write read.
+	/// Malformed members are skipped rather than throwing (best-effort propagation).
+	/// </summary>
+	private static void RestoreBaggage(MessageContext context, OutboundMessage message)
+	{
+		if (!message.Headers.TryGetValue("baggage", out var value) ||
+			value is not string baggage || string.IsNullOrEmpty(baggage))
+		{
+			return;
+		}
+
+		foreach (var rawMember in baggage.Split(','))
+		{
+			var member = rawMember.Trim();
+			if (member.Length == 0)
+			{
+				continue;
+			}
+
+			var separator = member.IndexOf('=', StringComparison.Ordinal);
+			if (separator <= 0)
+			{
+				// No key, or empty key — malformed member, skip (best-effort).
+				continue;
+			}
+
+			var name = Uri.UnescapeDataString(member[..separator]);
+			var baggageValue = Uri.UnescapeDataString(member[(separator + 1)..]);
+			context.Items[$"baggage.{name}"] = baggageValue;
 		}
 	}
 
@@ -579,6 +618,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 
 		RestoreTraceParent(context, message);
+		RestoreBaggage(context, message);
 
 		if (message.PartitionKey is not null)
 		{

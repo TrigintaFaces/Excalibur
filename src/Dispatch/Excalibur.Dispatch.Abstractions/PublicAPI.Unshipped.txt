@@ -1,5 +1,1 @@
 #nullable enable
-Excalibur.Dispatch.IBackoffSchedulableInboxStore
-Excalibur.Dispatch.IBackoffSchedulableInboxStore.MarkFailedWithBackoffAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.DateTimeOffset nextAttemptAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.InboxEntry.NextAttemptAt.get -> System.DateTimeOffset?
-Excalibur.Dispatch.InboxEntry.NextAttemptAt.set -> void

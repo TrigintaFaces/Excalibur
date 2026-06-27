@@ -50,6 +50,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 {
 	private readonly CosmosDbOptions _options;
 	private readonly ILogger<CosmosDbPersistenceProvider> _logger;
+	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
 	private Database? _database;
@@ -61,12 +62,21 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	/// </summary>
 	/// <param name="options">The Cosmos DB options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="checkpointStore">
+	/// Optional durable change-feed checkpoint store. Supplied by DI (the registered
+	/// <see cref="IChangeFeedCheckpointStore"/> — the in-memory default, or the durable Cosmos store when
+	/// the consumer opts in via <c>AddCosmosDbChangeFeedCheckpointStore</c>); flowed into every change-feed
+	/// subscription so continuation survives restarts. <see langword="null"/> only for manual construction
+	/// without DI (in-memory-only continuation, prior behavior). See bd-egwtku / bd-ydln24.
+	/// </param>
 	public CosmosDbPersistenceProvider(
 		IOptions<CosmosDbOptions> options,
-		ILogger<CosmosDbPersistenceProvider> logger)
+		ILogger<CosmosDbPersistenceProvider> logger,
+		IChangeFeedCheckpointStore? checkpointStore = null)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_checkpointStore = checkpointStore;
 		_options.Validate();
 
 		Name = _options.Name;
@@ -436,7 +446,8 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		var subscription = new CosmosDbChangeFeedSubscription<TDocument>(
 			container,
 			options ?? ChangeFeedOptions.Default,
-			_logger);
+			_logger,
+			_checkpointStore);
 
 		await subscription.StartAsync(cancellationToken).ConfigureAwait(false);
 		return subscription;

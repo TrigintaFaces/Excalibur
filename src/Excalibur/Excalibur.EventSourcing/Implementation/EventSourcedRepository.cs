@@ -82,6 +82,18 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 	private readonly record struct SnapshotTrackingState(long Version, DateTimeOffset Timestamp);
 
+	// Records events that were appended on the eventually-consistent (non-transactional) path but whose
+	// integration-event outbox staging had not yet completed (FR-A5). A staging failure leaves this
+	// breadcrumb so a retried SaveAsync re-stages the SAME events idempotently (event-id keyed) WITHOUT
+	// re-appending — re-appending would raise a stale-version ConcurrencyException and orphan the events.
+	// Bounded by MaxPendingStages (same skip-when-full policy as _snapshotTracking) so a pathological run
+	// of staging failures cannot grow the map without limit. In-process only: this is the in-sprint slice
+	// of the exactly-once epic (02sj2h); durable cross-process exactly-once is out of scope here.
+	private const int MaxPendingStages = 1024;
+	private readonly ConcurrentDictionary<string, PendingOutboxStage> _pendingStages = new(StringComparer.Ordinal);
+
+	private sealed record PendingOutboxStage(IReadOnlyList<IDomainEvent> Events);
+
 	/// <summary>
 	/// Records the latest snapshot-tracking state for an aggregate while bounding the total number of
 	/// tracked entries.
@@ -100,6 +112,55 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		{
 			_snapshotTracking[aggregateId] = state;
 		}
+	}
+
+	/// <summary>
+	/// Records an appended-but-not-yet-staged breadcrumb for the eventually-consistent path while bounding
+	/// the total number of tracked entries (FR-A5).
+	/// </summary>
+	/// <remarks>
+	/// Mirrors the bounded skip-when-full policy of <see cref="TrackSnapshotState" />: an existing entry is
+	/// always refreshed; a new entry is added only while the map is below <see cref="MaxPendingStages" />.
+	/// Beyond the cap a later miss simply means a retry re-appends (the pre-fix behavior), so the safety
+	/// degrades to the original semantics rather than leaking memory.
+	/// </remarks>
+	/// <param name="aggregateId"> The aggregate identifier. </param>
+	/// <param name="stage"> The pending-stage breadcrumb to record. </param>
+	private void TrackPendingStage(string aggregateId, PendingOutboxStage stage)
+	{
+		if (_pendingStages.ContainsKey(aggregateId) || _pendingStages.Count < MaxPendingStages)
+		{
+			_pendingStages[aggregateId] = stage;
+		}
+	}
+
+	/// <summary>
+	/// Determines whether two event sequences carry the same ordered set of event identifiers.
+	/// </summary>
+	/// <remarks>
+	/// Used to confirm a retried <c>SaveAsync</c> is re-submitting the exact events a prior attempt already
+	/// appended (FR-A5) before skipping the re-append. A mismatch means the breadcrumb belongs to a
+	/// different unit of work, so the normal append path runs.
+	/// </remarks>
+	/// <param name="recorded"> The events recorded by the prior attempt. </param>
+	/// <param name="current"> The events submitted by the current attempt. </param>
+	/// <returns> <see langword="true" /> if both sequences have identical ordered event ids. </returns>
+	private static bool EventIdsMatch(IReadOnlyList<IDomainEvent> recorded, IReadOnlyList<IDomainEvent> current)
+	{
+		if (recorded.Count != current.Count)
+		{
+			return false;
+		}
+
+		for (var i = 0; i < recorded.Count; i++)
+		{
+			if (!string.Equals(recorded[i].EventId, current[i].EventId, StringComparison.Ordinal))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/// <summary>
@@ -275,6 +336,17 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		var eventsToApply = new List<IDomainEvent>(storedEvents.Count);
 		foreach (var storedEvent in storedEvents)
 		{
+			// GDPR erasure (FR-A7): an erased stream is tombstoned in place with the closed,
+			// framework-controlled ErasedEventMarker.EventType discriminator (its payload nulled/replaced).
+			// Recognize the tombstone STRUCTURALLY — by the marker constant, checked positively and BEFORE
+			// any deserialization attempt — and return the defined erased sentinel instead of failing loud.
+			// This is never a "deserialize failed => assume erased" heuristic (which would mask genuine
+			// corruption as erasure); strict no-skip is preserved for every other deserialization failure.
+			if (string.Equals(storedEvent.EventType, ErasedEventMarker.EventType, StringComparison.Ordinal))
+			{
+				return CreateErasedSentinel(aggregateId);
+			}
+
 			// Do NOT silently skip a stored event during rehydration — skipping corrupts the
 			// source-of-truth aggregate (it would replay an incomplete history into a wrong state).
 			// Fail loud so the caller never receives a silently-truncated aggregate.
@@ -294,6 +366,20 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 		return aggregate;
 	}
+
+	/// <summary>
+	/// Builds the defined erased sentinel returned when an aggregate's event stream has been GDPR-erased
+	/// (tombstoned). (FR-A7)
+	/// </summary>
+	/// <remarks>
+	/// The sentinel is a non-null aggregate in its initial state (Version 0) with no event or snapshot
+	/// data applied. It is deliberately distinct from <see langword="null"/> (the never-existed result of
+	/// <see cref="GetByIdAsync"/>) and from a thrown exception (genuine corruption). It is built fresh from
+	/// the factory so no residual snapshot data is surfaced for an aggregate whose history was erased.
+	/// </remarks>
+	/// <param name="aggregateId"> The aggregate identifier. </param>
+	/// <returns> A non-null aggregate in its initial (erased) state. </returns>
+	private TAggregate CreateErasedSentinel(TKey aggregateId) => _aggregateFactory(aggregateId);
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
@@ -348,20 +434,40 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		else
 		{
 			// Non-transactional path: append events first.
-			var result = await _eventStore.AppendAsync(
-				stringId,
-				aggregate.AggregateType,
-				uncommittedEvents,
-				expectedVersion,
-				cancellationToken).ConfigureAwait(false);
+			// Idempotent re-stage (FR-A5): a prior attempt may have appended these exact events but then
+			// failed during outbox staging, leaving a pending-stage breadcrumb. In that case re-appending
+			// would raise a stale-version ConcurrencyException and orphan the appended events — so skip the
+			// re-append and go straight to re-staging the SAME events.
+			var pending = _pendingStages.GetValueOrDefault(stringId);
+			var alreadyAppended = pending is not null && EventIdsMatch(pending.Events, uncommittedEvents);
 
-			ThrowIfAppendFailed(result, aggregate);
+			if (!alreadyAppended)
+			{
+				var result = await _eventStore.AppendAsync(
+					stringId,
+					aggregate.AggregateType,
+					uncommittedEvents,
+					expectedVersion,
+					cancellationToken).ConfigureAwait(false);
+
+				ThrowIfAppendFailed(result, aggregate);
+
+				// Append committed. Record the appended-but-not-yet-staged breadcrumb BEFORE staging so a
+				// staging failure below leaves a retry trail that skips the (now stale-version) re-append.
+				if (strategy == OutboxStagingStrategy.EventuallyConsistent && _outboxStore is not null)
+				{
+					TrackPendingStage(stringId, new PendingOutboxStage(uncommittedEvents));
+				}
+			}
 
 			// Eventually-consistent: stage integration events after successful append.
 			if (strategy == OutboxStagingStrategy.EventuallyConsistent && _outboxStore is not null)
 			{
 				await StageIntegrationEventsAsync(
 					stringId, aggregate, uncommittedEvents, cancellationToken).ConfigureAwait(false);
+
+				// Staging completed for the whole stream — clear the retry breadcrumb.
+				_pendingStages.TryRemove(stringId, out _);
 			}
 
 			// Deferred: no staging here; events are picked up later by a background service.
@@ -601,6 +707,12 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	/// <summary>
 	/// Attempts to upgrade snapshot data if auto-upgrading is enabled and the version differs.
 	/// </summary>
+	/// <remarks>
+	/// Fail-closed (FR-A1): when auto-snapshot-upgrade is enabled, the stored snapshot's schema version
+	/// differs from the target, and no upgrader path exists, this throws an
+	/// <see cref="InvalidOperationException"/> rather than returning the stale snapshot -- applying a
+	/// snapshot from an unsupported schema would silently corrupt the rehydrated aggregate.
+	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[RequiresUnreferencedCode("Snapshot upgrading may reference types not preserved during trimming.")]
 	[RequiresDynamicCode("Snapshot upgrading may require dynamic code generation for serialization.")]
@@ -626,7 +738,18 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 		if (!_snapshotVersionManager.CanUpgrade(aggregateType, currentSchemaVersion, _targetSnapshotVersion))
 		{
-			return snapshot;
+			// Fail-closed (FR-A1): auto-snapshot-upgrade is enabled and the stored snapshot's schema
+			// version differs from the target, but no upgrader path is registered. Applying the stale
+			// snapshot would rehydrate the aggregate from a schema the code no longer understands -- a
+			// silent-corruption hazard. Refuse it loudly, mirroring the events-path refusal to skip an
+			// unresolvable event during rehydration (see GetByIdAsync / DeserializeEvent throws), rather
+			// than returning a stale-schema aggregate.
+			throw new InvalidOperationException(
+				$"Snapshot for aggregate '{snapshot.AggregateId}' ({aggregateType}) is at schema version " +
+				$"{currentSchemaVersion} but the target snapshot schema version is {_targetSnapshotVersion}, " +
+				$"and no upgrader path is registered while automatic snapshot upgrading is enabled. Refusing " +
+				$"to apply the stale snapshot and return a corrupt aggregate; register a snapshot upgrader for " +
+				$"this version range, or disable EnableAutoSnapshotUpgrade.");
 		}
 
 		var upgradedData = _snapshotVersionManager.UpgradeSnapshot(
@@ -741,7 +864,24 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			}
 
 			var outboundMessage = CreateOutboundMessage(@event, aggregateId, aggregate.AggregateType);
-			await _outboxStore!.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
+			try
+			{
+				await _outboxStore!.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
+			}
+			catch (InvalidOperationException ex) when (ex is not ObjectDisposedException)
+			{
+				// Idempotent re-stage (FR-A5): per IOutboxStore.StageMessageAsync's contract, staging a
+				// message whose (event-id keyed) id already exists throws InvalidOperationException. That
+				// happens when a prior attempt staged this event before failing later in the loop; treat the
+				// duplicate as an idempotent no-op and continue so the retry completes the remaining events
+				// without re-appending or producing duplicates.
+				//
+				// r09b2d (FR-C1): scope this catch to the duplicate-id contract ONLY. ObjectDisposedException
+				// derives from InvalidOperationException, so a disposed/faulted outbox store would otherwise be
+				// silently swallowed here as a no-op — a silent integration-event drop (data-loss-adjacent).
+				// The `when` filter lets ObjectDisposedException (and any non-duplicate fault surfaced as one)
+				// propagate so the failure is loud, never a lost message.
+			}
 		}
 	}
 
@@ -777,7 +917,11 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 		return new OutboundMessage
 		{
-			Id = Guid.NewGuid().ToString(),
+			// Idempotency key (FR-A5): derive the message id deterministically from the event id so a
+			// re-stage of the same event produces the same message id. The outbox store rejects a duplicate
+			// id, making a retried stage a no-op rather than a duplicate. EventId is a required, stable,
+			// per-event identifier on IDomainEvent (framework-stamped UUID v7 for DomainEvent-derived events).
+			Id = @event.EventId,
 			MessageType = @event.EventType,
 			Payload = Encoding.UTF8.GetBytes(eventData),
 			Headers = headers,

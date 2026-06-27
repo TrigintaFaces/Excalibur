@@ -177,7 +177,7 @@ internal sealed partial class KafkaMessageBus(
 
 		if (!string.IsNullOrEmpty(traceParent))
 		{
-			message.Headers.Add("trace-parent", Encoding.UTF8.GetBytes(traceParent));
+			message.Headers.Add("traceparent", Encoding.UTF8.GetBytes(traceParent));
 		}
 
 		await EnsureTopicExistsAsync(_topic, cancellationToken).ConfigureAwait(false);

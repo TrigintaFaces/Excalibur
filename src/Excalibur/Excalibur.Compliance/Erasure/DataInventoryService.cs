@@ -19,10 +19,16 @@ namespace Excalibur.Compliance.Erasure;
 /// The data inventory service supports:
 /// </para>
 /// <list type="bullet">
-/// <item><description>Automatic discovery from [PersonalData] attributed fields</description></item>
-/// <item><description>Manual registration for custom data locations</description></item>
+/// <item><description>Registration-based discovery of actionable data locations (via <see cref="RegisterDataLocationAsync"/>)</description></item>
 /// <item><description>Data mapping for GDPR RoPA (Records of Processing Activities)</description></item>
 /// </list>
+/// <para>
+/// Inventory does NOT synthesize erase-able locations from <c>[PersonalData]</c> attributes (the attribute
+/// carries no storage location). Instead, <c>[PersonalData]</c> annotations drive a <b>coverage gate</b>
+/// (vxp56x): an annotated category with no registered/discovered location forces a non-Completed erasure
+/// certificate, so annotated personal data is never silently skipped. To make annotated data actionable,
+/// register its location via <see cref="RegisterDataLocationAsync"/>.
+/// </para>
 /// </remarks>
 public sealed partial class DataInventoryService : IDataInventoryService
 {

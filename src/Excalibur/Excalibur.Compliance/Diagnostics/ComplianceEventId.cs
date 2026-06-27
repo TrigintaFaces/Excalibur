@@ -635,6 +635,15 @@ public static class ComplianceEventId
 	/// <summary>Retention enforcement processing error.</summary>
 	public const int RetentionEnforcementProcessingError = 92966;
 
+	/// <summary>Retention contributor completed an enforcement pass.</summary>
+	public const int RetentionContributorCompleted = 92967;
+
+	/// <summary>Retention contributor failed an enforcement pass.</summary>
+	public const int RetentionContributorFailed = 92968;
+
+	/// <summary>Retention enforcement ran with no contributors registered (nothing deleted).</summary>
+	public const int RetentionNoContributorsRegistered = 92969;
+
 	/// <summary>Consent recorded.</summary>
 	public const int ConsentRecorded = 92970;
 

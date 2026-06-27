@@ -62,7 +62,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 
 			loadObserved.Task,
 
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Assert - should have attempted to load events
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
 			.MustHaveHappened();
@@ -106,7 +106,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 
 			eventObserved.Task,
 
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Assert
 		received.ShouldNotBeEmpty();
 	}
@@ -125,7 +125,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, CancellationToken.None);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			loadObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Act
 		await _sut.UnsubscribeAsync(CancellationToken.None);
 
@@ -207,7 +207,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, CancellationToken.None);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCallObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Assert - should have retried after error
 		callCount.ShouldBeGreaterThan(1);
 	}

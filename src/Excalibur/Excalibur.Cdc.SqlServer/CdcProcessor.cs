@@ -52,7 +52,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	private readonly Channel<DataChangeEvent> _cdcQueue;
 	private readonly int _queueSize;
 
-	private readonly CdcFatalErrorHandler? _onFatalError;
+	private readonly CdcFatalErrorHandler<DataChangeEvent>? _onFatalError;
 
 	private readonly SemaphoreSlim _executionLock = new(1, 1);
 
@@ -93,7 +93,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IDataAccessPolicyFactory policyFactory,
 			ILogger<CdcProcessor> logger,
-			IOptions<CdcFatalErrorOptions>? fatalErrorOptions = null)
+			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions = null)
 		: this(appLifetime, dbConfig, cdcRepository, stateStoreConnection,
 			   stateStoreOptions, policyFactory, logger, fatalErrorOptions,
 			   idempotencyFilter: null)
@@ -121,7 +121,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IDataAccessPolicyFactory policyFactory,
 			ILogger<CdcProcessor> logger,
-			IOptions<CdcFatalErrorOptions>? fatalErrorOptions,
+			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions,
 			ICdcIdempotencyFilter? idempotencyFilter)
 	{
 		ArgumentNullException.ThrowIfNull(appLifetime);

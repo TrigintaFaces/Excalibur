@@ -44,7 +44,7 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 	}
 
 	[Fact]
-	public void RegisterSagaStore_ViaBuilder()
+	public void NotRegisterSagaStoreImplicitly_ViaBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -54,15 +54,10 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 		// Act
 		builder.AddExcaliburOrchestration();
 
-		// Assert - verify keyed ISagaStore registration exists
-		var descriptor = services.FirstOrDefault(d =>
-			d.ServiceType == typeof(ISagaStore) && d.IsKeyedService);
-		descriptor.ShouldNotBeNull();
-
-		// Verify the concrete InMemorySagaStore is also registered
-		services.ShouldContain(d =>
-			d.ServiceType == typeof(InMemorySagaStore) &&
-			d.Lifetime == ServiceLifetime.Singleton);
+		// Assert (iuv3s1) - the builder orchestration path registers NO in-memory store implicitly
+		// (delegates to services.AddExcaliburOrchestration()). RED on the pre-fix code.
+		services.ShouldNotContain(d => d.ServiceType == typeof(ISagaStore) && d.IsKeyedService);
+		services.ShouldNotContain(d => d.ServiceType == typeof(InMemorySagaStore));
 	}
 
 	[Fact]

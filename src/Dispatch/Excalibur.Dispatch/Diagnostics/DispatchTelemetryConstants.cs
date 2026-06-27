@@ -144,6 +144,21 @@ internal static class DispatchTelemetryConstants
 		/// Serialization pool metrics (Utf8JsonWriterPool).
 		/// </summary>
 		public const string Serialization = "Excalibur.Dispatch.Serialization";
+
+		/// <summary>
+		/// Inbox middleware metrics. Mirrors <see cref="ActivitySources.Inbox"/> (source+meter pairing convention).
+		/// </summary>
+		public const string Inbox = "Excalibur.Dispatch.Inbox";
+
+		/// <summary>
+		/// Retry middleware metrics. Mirrors <see cref="ActivitySources.RetryMiddleware"/> (source+meter pairing convention).
+		/// </summary>
+		public const string RetryMiddleware = "Excalibur.Dispatch.RetryMiddleware";
+
+		/// <summary>
+		/// Poison message / dead-letter routing metrics. Mirrors <see cref="ActivitySources.PoisonMessageMiddleware"/>.
+		/// </summary>
+		public const string PoisonMessage = "Excalibur.Dispatch.PoisonMessage.Middleware";
 	}
 
 	/// <summary>

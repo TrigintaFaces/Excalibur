@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 
 using Avro;
@@ -52,6 +53,67 @@ public sealed class AvroSerializer : ISerializer
 		_bufferSize = options.BufferSize;
 	}
 
+	// --- Avro single-object-encoding wire format (skew detection / fail-closed) ------------------------
+	//
+	// Every payload is framed with the Apache Avro single-object-encoding header (the STANDARD, not a
+	// bespoke format): a 2-byte marker (0xC3 0x01) followed by the 8-byte little-endian CRC-64-AVRO
+	// (Rabin) fingerprint of the WRITER schema. Avro binary is not self-describing, so on read this
+	// fingerprint is what lets us detect a writer/reader schema skew. On a mismatch with no resolvable
+	// writer schema we FAIL CLOSED (throw SchemaMismatchException) instead of positionally decoding
+	// against the wrong schema — which would silently corrupt field values (AC-F4 "no silent corruption
+	// on version skew"). The fingerprint prefix is also the shared substrate for future writer-schema
+	// resolution (real schema evolution): the wire format does not change when that lands.
+
+	private const byte SingleObjectMarker0 = 0xC3;
+	private const byte SingleObjectMarker1 = 0x01;
+
+	/// <summary>Length of the single-object-encoding header: 2-byte marker + 8-byte fingerprint.</summary>
+	private const int HeaderLength = 10;
+
+	/// <summary>
+	/// Writes the Avro single-object-encoding header (marker + 8-byte LE writer-schema fingerprint)
+	/// into <paramref name="destination"/>, which MUST be at least <see cref="HeaderLength"/> bytes.
+	/// </summary>
+	private static void WriteHeader(Schema writerSchema, Span<byte> destination)
+	{
+		destination[0] = SingleObjectMarker0;
+		destination[1] = SingleObjectMarker1;
+		var fingerprint = SchemaNormalization.ParsingFingerprint64(writerSchema);
+		BinaryPrimitives.WriteInt64LittleEndian(destination.Slice(2, sizeof(long)), fingerprint);
+	}
+
+	/// <summary>
+	/// Validates the single-object-encoding header on <paramref name="data"/> against the reader schema
+	/// and returns the Avro payload (the bytes after the header). Fails closed: throws
+	/// <see cref="SchemaMismatchException"/> if the header is missing/invalid, or if the writer-schema
+	/// fingerprint does not match the reader's and no writer schema can be resolved.
+	/// </summary>
+	/// <remarks>
+	/// The fingerprint-mismatch branch is the seam where writer-schema resolution (real schema
+	/// evolution) will plug in: resolve the writer schema by fingerprint via the serializer registry,
+	/// then decode with <c>SpecificDatumReader(writerSchema, readerSchema)</c>. Until that capability is
+	/// committed, a mismatch fails closed rather than mis-decoding.
+	/// </remarks>
+	private static ReadOnlySpan<byte> ValidatePayload(ReadOnlySpan<byte> data, Schema readerSchema, Type type)
+	{
+		if (data.Length < HeaderLength || data[0] != SingleObjectMarker0 || data[1] != SingleObjectMarker1)
+		{
+			throw SchemaMismatchException.MissingHeader(type);
+		}
+
+		var writerFingerprint = BinaryPrimitives.ReadInt64LittleEndian(data.Slice(2, sizeof(long)));
+		var readerFingerprint = SchemaNormalization.ParsingFingerprint64(readerSchema);
+
+		if (writerFingerprint != readerFingerprint)
+		{
+			// Skew detected. Writer-schema resolution would be attempted here (registry lookup by
+			// fingerprint) before failing; absent that capability, fail closed — never positional-decode.
+			throw SchemaMismatchException.Skew(type, writerFingerprint, readerFingerprint);
+		}
+
+		return data[HeaderLength..];
+	}
+
 	/// <inheritdoc />
 	public string Name => "Avro";
 
@@ -83,9 +145,10 @@ public sealed class AvroSerializer : ISerializer
 			encoder.Flush();
 
 			var bytes = stream.ToArray();
-			var span = bufferWriter.GetSpan(bytes.Length);
-			bytes.CopyTo(span);
-			bufferWriter.Advance(bytes.Length);
+			var span = bufferWriter.GetSpan(HeaderLength + bytes.Length);
+			WriteHeader(record.Schema, span);
+			bytes.CopyTo(span[HeaderLength..]);
+			bufferWriter.Advance(HeaderLength + bytes.Length);
 		}
 		catch (AvroException ex)
 		{
@@ -107,11 +170,18 @@ public sealed class AvroSerializer : ISerializer
 #pragma warning disable RS0030 // Activator.CreateInstance<T>() is required for Avro deserialization (ISpecificRecord requires instance creation)
 			var instance = (ISpecificRecord)Activator.CreateInstance<T>()!;
 #pragma warning restore RS0030
+			// Fail-closed skew detection: validate the writer-schema fingerprint before decoding.
+			var payload = ValidatePayload(data, instance.Schema, typeof(T));
 			var reader = new SpecificDatumReader<ISpecificRecord>(instance.Schema, instance.Schema);
-			using var stream = new MemoryStream(data.ToArray());
+			using var stream = new MemoryStream(payload.ToArray());
 			var decoder = new BinaryDecoder(stream);
 			var result = reader.Read(instance, decoder);
 			return (T)result;
+		}
+		catch (SchemaMismatchException)
+		{
+			// Fail-closed signal — never wrap/swallow into a generic serialization error.
+			throw;
 		}
 		catch (SerializationException)
 		{
@@ -142,7 +212,12 @@ public sealed class AvroSerializer : ISerializer
 			var encoder = new BinaryEncoder(stream);
 			writer.Write(record, encoder);
 			encoder.Flush();
-			return stream.ToArray();
+
+			var payload = stream.ToArray();
+			var result = new byte[HeaderLength + payload.Length];
+			WriteHeader(record.Schema, result);
+			payload.CopyTo(result, HeaderLength);
+			return result;
 		}
 		catch (AvroException ex)
 		{
@@ -164,10 +239,17 @@ public sealed class AvroSerializer : ISerializer
 		try
 		{
 			var instance = CreateInstance(type);
+			// Fail-closed skew detection: validate the writer-schema fingerprint before decoding.
+			var payload = ValidatePayload(data, instance.Schema, type);
 			var reader = new SpecificDatumReader<ISpecificRecord>(instance.Schema, instance.Schema);
-			using var stream = new MemoryStream(data.ToArray());
+			using var stream = new MemoryStream(payload.ToArray());
 			var decoder = new BinaryDecoder(stream);
 			return reader.Read(instance, decoder);
+		}
+		catch (SchemaMismatchException)
+		{
+			// Fail-closed signal — never wrap/swallow into a generic serialization error.
+			throw;
 		}
 		catch (SerializationException)
 		{

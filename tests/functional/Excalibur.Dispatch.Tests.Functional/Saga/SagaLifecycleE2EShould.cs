@@ -313,9 +313,9 @@ public sealed class SagaLifecycleE2EShould : FunctionalTestBase
 		services.AddDispatchHandlers(typeof(SagaLifecycleE2EShould).Assembly);
 		services.AddExcaliburOrchestration();
 
-		// Bridge keyed ISagaStore to non-keyed for SagaCoordinator constructor
-		services.AddSingleton<ISagaStore>(static sp =>
-			sp.GetRequiredKeyedService<ISagaStore>("default"));
+		// iuv3s1: the in-memory store is no longer an implicit default — opt in explicitly. This also
+		// registers the keyed "default" + non-keyed ISagaStore alias the SagaCoordinator ctor needs.
+		services.AddInMemorySagaStore();
 
 		// SagaHandlingMiddleware needs concrete SagaCoordinator (not just ISagaCoordinator)
 		services.AddSingleton<SagaCoordinator>(static sp =>

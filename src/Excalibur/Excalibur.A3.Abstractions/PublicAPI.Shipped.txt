@@ -82,6 +82,8 @@ Excalibur.A3.Authorization.Grant.GrantedBy.get -> string!
 Excalibur.A3.Authorization.Grant.GrantedBy.init -> void
 Excalibur.A3.Authorization.Grant.GrantedOn.get -> System.DateTimeOffset
 Excalibur.A3.Authorization.Grant.GrantedOn.init -> void
+Excalibur.A3.Authorization.Grant.IsActive(System.DateTimeOffset asOf) -> bool
+Excalibur.A3.Authorization.Grant.IsExpired(System.DateTimeOffset asOf) -> bool
 Excalibur.A3.Authorization.Grant.Qualifier.get -> string!
 Excalibur.A3.Authorization.Grant.Qualifier.init -> void
 Excalibur.A3.Authorization.Grant.TenantId.get -> string?
@@ -111,6 +113,7 @@ Excalibur.A3.Authorization.IGrantQueryStore.GetMatchingGrantsAsync(string? userI
 Excalibur.A3.Authorization.IGrantStore
 Excalibur.A3.Authorization.IGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.A3.Authorization.IGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.A3.Authorization.IGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
 Excalibur.A3.Authorization.IGrantStore.GetService(System.Type! serviceType) -> object?
 Excalibur.A3.Authorization.IGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!

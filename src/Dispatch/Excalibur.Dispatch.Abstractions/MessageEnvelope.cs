@@ -272,6 +272,45 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	[JsonIgnore]
 	public object? Result { get; set; }
 
+	// ===== Grouped facade views (zero-allocation read-only views over the flat backing fields) =====
+	// These compose the envelope's flat fields into focused (<=10 property) value-type views without
+	// changing the pooled storage layout; Reset()/Clone() continue to operate on the flat fields.
+
+	/// <summary>
+	/// Gets a focused read-only view of the message identity fields.
+	/// </summary>
+	/// <value> A zero-allocation <see cref="EnvelopeIdentity"/> facade over the envelope's flat fields. </value>
+	[JsonIgnore]
+	public EnvelopeIdentity Identity => new(this);
+
+	/// <summary>
+	/// Gets a focused read-only view of the message routing fields.
+	/// </summary>
+	/// <value> A zero-allocation <see cref="EnvelopeRouting"/> facade over the envelope's flat fields. </value>
+	[JsonIgnore]
+	public EnvelopeRouting Routing => new(this);
+
+	/// <summary>
+	/// Gets a focused read-only view of the message timing fields.
+	/// </summary>
+	/// <value> A zero-allocation <see cref="EnvelopeTiming"/> facade over the envelope's flat fields. </value>
+	[JsonIgnore]
+	public EnvelopeTiming Timing => new(this);
+
+	/// <summary>
+	/// Gets a focused read-only view of the message observability fields.
+	/// </summary>
+	/// <value> A zero-allocation <see cref="EnvelopeObservability"/> facade over the envelope's flat fields. </value>
+	[JsonIgnore]
+	public EnvelopeObservability Observability => new(this);
+
+	/// <summary>
+	/// Gets a focused read-only view of the message transport and delivery fields.
+	/// </summary>
+	/// <value> A zero-allocation <see cref="EnvelopeTransport"/> facade over the envelope's flat fields. </value>
+	[JsonIgnore]
+	public EnvelopeTransport Transport => new(this);
+
 	#endregion Core Message Properties
 
 	#region Extended Properties

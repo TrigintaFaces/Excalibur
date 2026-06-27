@@ -52,7 +52,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			IServiceProvider serviceProvider,
 			IDataAccessPolicyFactory policyFactory,
 			ILogger<DataChangeEventProcessor> logger,
-			IOptions<CdcFatalErrorOptions>? fatalErrorOptions = null)
+			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions = null)
 			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, logger, fatalErrorOptions)
 	{
 		ArgumentNullException.ThrowIfNull(serviceProvider);
@@ -75,7 +75,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			IServiceProvider serviceProvider,
 			IDataAccessPolicyFactory policyFactory,
 			ILogger<DataChangeEventProcessor> logger,
-			IOptions<CdcFatalErrorOptions>? fatalErrorOptions,
+			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions,
 			ICdcIdempotencyFilter? idempotencyFilter)
 			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, logger, fatalErrorOptions, idempotencyFilter)
 	{

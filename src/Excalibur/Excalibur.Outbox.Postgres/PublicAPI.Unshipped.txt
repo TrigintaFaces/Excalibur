@@ -1,2 +1,1 @@
 #nullable enable
-Excalibur.Outbox.Postgres.PostgresOutboxStore.MarkFailedWithBackoffAsync(string! messageId, string! errorMessage, int retryCount, System.DateTimeOffset nextAttemptAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

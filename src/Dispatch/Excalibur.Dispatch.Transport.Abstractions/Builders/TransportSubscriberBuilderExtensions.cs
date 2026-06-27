@@ -6,6 +6,8 @@ using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Transport.Decorators;
 
+using Microsoft.Extensions.Logging;
+
 namespace Excalibur.Dispatch.Transport.Builders;
 
 /// <summary>
@@ -44,4 +46,39 @@ public static class TransportSubscriberBuilderExtensions
 		Func<TransportReceivedMessage, string?, CancellationToken, Task> deadLetterHandler,
 		Meter? meter = null) =>
 		builder.Use(inner => new DeadLetterTransportSubscriber(inner, deadLetterHandler, transportName, meter));
+
+	/// <summary>
+	/// Adds self-healing reconnect/backoff to the subscriber pipeline (bd-no0lue/kxexrz): when the inner
+	/// subscription faults with a non-cancellation error the loop backs off and re-subscribes, so a transient
+	/// receive/stream fault no longer silently kills the subscriber. Cooperative cancellation propagates and is
+	/// never retried.
+	/// </summary>
+	/// <remarks>
+	/// The backoff schedule is supplied as a <see cref="Func{T, TResult}"/> (1-based attempt number → delay)
+	/// so this package takes no resilience-library dependency (mirrors <c>UseDeadLetterQueue</c>'s delegate
+	/// seam). The DI/transport layer owns the concrete, <b>clamped</b> schedule — e.g. the in-house
+	/// <c>ExponentialBackoffCalculator</c> whose <c>MaxDelay</c> caps the wait (bd-7npc0q) — so unbounded
+	/// exponential growth can never produce an absurd reconnect delay.
+	/// </remarks>
+	/// <param name="builder">The subscriber builder.</param>
+	/// <param name="backoffDelay">
+	/// The backoff schedule: given the 1-based reconnect attempt number, returns the (clamped) delay to wait
+	/// before the next re-subscribe. Required — the caller supplies a bounded schedule.
+	/// </param>
+	/// <param name="loggerFactory">The logger factory used to create the reconnect decorator's logger.</param>
+	/// <returns>The builder for chaining.</returns>
+	public static TransportSubscriberBuilder UseReconnect(
+		this TransportSubscriberBuilder builder,
+		Func<int, TimeSpan> backoffDelay,
+		ILoggerFactory loggerFactory)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(backoffDelay);
+		ArgumentNullException.ThrowIfNull(loggerFactory);
+
+		return builder.Use(inner => new ReconnectingTransportSubscriber(
+			inner,
+			backoffDelay,
+			loggerFactory.CreateLogger<ReconnectingTransportSubscriber>()));
+	}
 }

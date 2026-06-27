@@ -83,11 +83,11 @@ public sealed partial class ContextObservabilityMiddleware(
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 
-		var stageName = GetCurrentStageName(context);
+		var stageName = GetCurrentStageNameSafe(context);
 		using var activity = s_activitySource.StartActivity($"ContextObservability.{stageName}");
 
-		// Enrich the activity with context information
-		_traceEnricher.EnrichActivity(activity, context);
+		// Enrich the activity with context information (instrumentation -- fail open)
+		EnrichActivitySafe(activity, context, stageName);
 
 		var stopwatch = ValueStopwatch.StartNew();
 		ContextSnapshot? beforeSnapshot = null;
@@ -95,29 +95,214 @@ public sealed partial class ContextObservabilityMiddleware(
 
 		try
 		{
-			// Capture context state before processing
-			beforeSnapshot = CaptureContextSnapshot(context, $"{stageName}.Before");
-			_tracker.RecordContextState(context, $"{stageName}.Before", GetStageMetadata());
+			// Capture context state before processing (instrumentation -- fail open, never prevents dispatch)
+			beforeSnapshot = CapturePreInstrumentationSafe(context, stageName);
 
-			// Validate context integrity
-			ValidateContextIntegrityAndFail(context, stageName);
+			// Validate context integrity. Instrumentation failures fail open; the deliberate opt-in
+			// fail-closed policy (FailOnIntegrityViolation -> ContextIntegrityException) still propagates.
+			ValidateContextIntegritySafe(context, stageName);
 
-			// Process the message
+			// Process the message. The handler call is OUTSIDE every instrumentation swallow: a genuine
+			// handler exception propagates unchanged through the catch below.
 			var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 
-			// Capture after state and record success
-			afterSnapshot = ProcessSuccessPath(context, beforeSnapshot, stageName, stopwatch);
+			// Capture after state and record success (instrumentation -- fail open). The real handler
+			// result is always returned; only the deliberate FailOnSizeThresholdExceeded policy throws.
+			afterSnapshot = ProcessSuccessPathSafe(context, beforeSnapshot, stageName, stopwatch);
 
 			return result;
 		}
 		catch (Exception ex)
 		{
-			HandlePipelineException(ex, context, stageName, stopwatch);
+			// Reached only by a genuine handler exception or a deliberate opt-in policy exception
+			// (ContextIntegrityException / ContextSizeExceededException). Record failure instrumentation
+			// (itself fail-open) and re-throw the original exception unchanged.
+			HandlePipelineExceptionSafe(ex, context, stageName, stopwatch);
 			throw;
 		}
 		finally
 		{
-			EmitDiagnosticEventIfEnabled(context, stageName, beforeSnapshot, afterSnapshot, GetElapsedMilliseconds(stopwatch));
+			EmitDiagnosticEventIfEnabledSafe(context, stageName, beforeSnapshot, afterSnapshot, GetElapsedMilliseconds(stopwatch));
+		}
+	}
+
+	[SuppressMessage("Design", "CA1031:Do not catch general exception types",
+		Justification = "Fail-open instrumentation: stage-name resolution must not prevent dispatch. Cancellation is rethrown.")]
+	private string GetCurrentStageNameSafe(IMessageContext context)
+	{
+		try
+		{
+			return GetCurrentStageName(context);
+		}
+		catch (OperationCanceledException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			LogInstrumentationFailed(ex, "Unknown");
+			return "Unknown";
+		}
+	}
+
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "Context observability captures diagnostic snapshots and handles trimmed data defensively.")]
+	[UnconditionalSuppressMessage(
+		"Aot",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Context observability uses JSON serialization for diagnostics.")]
+	[SuppressMessage("Design", "CA1031:Do not catch general exception types",
+		Justification = "Fail-open instrumentation: a trace-enrichment failure must not prevent dispatch. Cancellation is rethrown.")]
+	private void EnrichActivitySafe(Activity? activity, IMessageContext context, string stageName)
+	{
+		try
+		{
+			_traceEnricher.EnrichActivity(activity, context);
+		}
+		catch (OperationCanceledException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			// Fail open: a trace-enrichment failure must not prevent dispatch.
+			LogInstrumentationFailed(ex, stageName);
+		}
+	}
+
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "Context observability captures diagnostic snapshots and handles trimmed data defensively.")]
+	[UnconditionalSuppressMessage(
+		"Aot",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Context observability uses JSON serialization for diagnostics.")]
+	[SuppressMessage("Design", "CA1031:Do not catch general exception types",
+		Justification = "Fail-open instrumentation: a snapshot/record failure must not prevent dispatch. Cancellation is rethrown.")]
+	private ContextSnapshot? CapturePreInstrumentationSafe(IMessageContext context, string stageName)
+	{
+		try
+		{
+			var beforeSnapshot = CaptureContextSnapshot(context, $"{stageName}.Before");
+			_tracker.RecordContextState(context, $"{stageName}.Before", GetStageMetadata());
+			return beforeSnapshot;
+		}
+		catch (OperationCanceledException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			// Fail open: a snapshot/record failure must not prevent dispatch.
+			LogInstrumentationFailed(ex, stageName);
+			return null;
+		}
+	}
+
+	[SuppressMessage("Design", "CA1031:Do not catch general exception types",
+		Justification = "Fail-open instrumentation: an unexpected validation failure must not prevent dispatch. The deliberate ContextIntegrityException policy and cancellation are rethrown.")]
+	private void ValidateContextIntegritySafe(IMessageContext context, string stageName)
+	{
+		try
+		{
+			ValidateContextIntegrityAndFail(context, stageName);
+		}
+		catch (ContextIntegrityException)
+		{
+			// Deliberate opt-in fail-closed policy (FailOnIntegrityViolation) -- propagate.
+			throw;
+		}
+		catch (OperationCanceledException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			// Fail open: an unexpected validation/instrumentation failure must not prevent dispatch.
+			LogInstrumentationFailed(ex, stageName);
+		}
+	}
+
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "Context observability captures diagnostic snapshots and handles trimmed data defensively.")]
+	[UnconditionalSuppressMessage(
+		"Aot",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Context observability uses JSON serialization for diagnostics.")]
+	[SuppressMessage("Design", "CA1031:Do not catch general exception types",
+		Justification = "Fail-open instrumentation: a post-instrumentation failure must not lose or alter the real handler result. The deliberate ContextSizeExceededException policy and cancellation are rethrown.")]
+	private ContextSnapshot? ProcessSuccessPathSafe(
+		IMessageContext context,
+		ContextSnapshot? beforeSnapshot,
+		string stageName,
+		ValueStopwatch stopwatch)
+	{
+		try
+		{
+			return ProcessSuccessPath(context, beforeSnapshot, stageName, stopwatch);
+		}
+		catch (ContextSizeExceededException)
+		{
+			// Deliberate opt-in fail-closed policy (FailOnSizeThresholdExceeded) -- propagate.
+			throw;
+		}
+		catch (OperationCanceledException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			// Fail open: post-instrumentation failure must not lose or alter the real handler result.
+			LogInstrumentationFailed(ex, stageName);
+			return null;
+		}
+	}
+
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "Context observability captures diagnostic snapshots and handles trimmed data defensively.")]
+	[UnconditionalSuppressMessage(
+		"Aot",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Context observability uses JSON serialization for diagnostics.")]
+	[SuppressMessage("Design", "CA1031:Do not catch general exception types",
+		Justification = "Fail-open instrumentation: failure-path instrumentation must not mask the original exception being propagated.")]
+	private void HandlePipelineExceptionSafe(Exception exception, IMessageContext context, string stageName, ValueStopwatch stopwatch)
+	{
+		try
+		{
+			HandlePipelineException(exception, context, stageName, stopwatch);
+		}
+		catch (Exception instrumentationEx)
+		{
+			// Fail open: failure-path instrumentation must not mask the original exception being propagated.
+			LogInstrumentationFailed(instrumentationEx, stageName);
+		}
+	}
+
+	[SuppressMessage("Design", "CA1031:Do not catch general exception types",
+		Justification = "Fail-open instrumentation: runs in a finally and must never throw (it would mask the handler result or exception).")]
+	private void EmitDiagnosticEventIfEnabledSafe(
+		IMessageContext context,
+		string stageName,
+		ContextSnapshot? beforeSnapshot,
+		ContextSnapshot? afterSnapshot,
+		long elapsedMilliseconds)
+	{
+		try
+		{
+			EmitDiagnosticEventIfEnabled(context, stageName, beforeSnapshot, afterSnapshot, elapsedMilliseconds);
+		}
+		catch (Exception ex)
+		{
+			// Runs in a finally: must never throw (it would mask the handler result or exception). Swallow all.
+			LogInstrumentationFailed(ex, stageName);
 		}
 	}
 
@@ -531,4 +716,8 @@ public sealed partial class ContextObservabilityMiddleware(
 		"ContextFlow diagnostic: Stage={Stage}, MessageId={MessageId}, FieldsBefore={FieldsBefore}, FieldsAfter={FieldsAfter}, SizeBefore={SizeBefore}, SizeAfter={SizeAfter}, ElapsedMs={ElapsedMs}")]
 	private partial void LogContextFlowDiagnostic(string stage, string? messageId, int fieldsBefore, int fieldsAfter, int sizeBefore,
 		int sizeAfter, long elapsedMs);
+
+	[LoggerMessage(ObservabilityEventId.ContextObservabilityInstrumentationFailed, LogLevel.Warning,
+		"Context observability instrumentation failed at stage {Stage} and was skipped; dispatch continues")]
+	private partial void LogInstrumentationFailed(Exception ex, string stage);
 }

@@ -5,8 +5,10 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.DependencyInjection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.SqlServer;
 
@@ -237,7 +239,11 @@ public static class SqlServerLeaderElectionBuilderExtensions
 			// Resolve the connection string from the factory.
 			using var connection = createConnection();
 			var connStr = connection.ConnectionString;
-			return new SqlServerLeaderElection(connStr, resolvedLockResource, leOptions, logger);
+			// ot72w3: optional classifier-accelerated self-demotion (null when none registered → grace-only).
+			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
+			// nxmjpm/ADR-339: optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
+			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			return new SqlServerLeaderElection(connStr, resolvedLockResource, leOptions, logger, failureClassifier, fencingTokenProvider);
 		});
 
 		// Register keyed telemetry wrapper
@@ -267,7 +273,9 @@ public static class SqlServerLeaderElectionBuilderExtensions
 			var connStr = connection.ConnectionString;
 
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-			var inner = new SqlServerLeaderElectionFactory(connStr, loggerFactory);
+			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
+			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+				var inner = new SqlServerLeaderElectionFactory(connStr, loggerFactory, failureClassifier, fencingTokenProvider);
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);

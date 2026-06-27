@@ -33,10 +33,11 @@ Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.Dispose() -> void
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DynamoDbGrantStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore!>! logger) -> void
-Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DynamoDbGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore!>! logger) -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DynamoDbGrantStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore!>! logger, System.TimeProvider? timeProvider = null) -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DynamoDbGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore!>! logger, System.TimeProvider? timeProvider = null) -> void
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.FindUserGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetService(System.Type! serviceType) -> object?
@@ -186,11 +187,14 @@ Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.DeleteA
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.DynamoDbProjectionStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection!>!>! logger) -> void
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.QueryCursorAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, string? cursor, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.CursorPagedResult<TProjection!>!>!
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.AutoCreateTable.get -> bool
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.AutoCreateTable.set -> void
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.DynamoDbProjectionStoreOptions() -> void
+Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.JsonSerializerOptions.get -> System.Text.Json.JsonSerializerOptions?
+Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.JsonSerializerOptions.set -> void
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.PartitionKeyName.get -> string!
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.PartitionKeyName.set -> void
 Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.TableName.get -> string!
@@ -241,6 +245,7 @@ const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.BatchGetExecuted =
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.BatchWriteExecuted = 103205 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CapacityUnitsConsumed = 103500 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcBatchReceived = 103422 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcFatalError = 103427 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcIteratorExpired = 103425 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionConfirmed = 103423 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionDataMissing = 103441 -> int
@@ -342,7 +347,3 @@ virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.AddOrUpdateAsy
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.ScanAsync(Amazon.DynamoDBv2.Model.ScanRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TDocument!>!>!
-
-Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStore<TProjection>.QueryCursorAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, string? cursor, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.CursorPagedResult<TProjection!>!>!
-Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.JsonSerializerOptions.get -> System.Text.Json.JsonSerializerOptions?
-Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions.JsonSerializerOptions.set -> void

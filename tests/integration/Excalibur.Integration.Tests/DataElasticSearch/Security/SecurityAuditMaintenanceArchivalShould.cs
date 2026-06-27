@@ -118,8 +118,9 @@ public sealed class SecurityAuditMaintenanceArchivalShould : ElasticsearchIntegr
 	}
 
 	// SecurityAuditMaintenanceService is internal; this assembly is not a friend assembly, so construct it
-	// via its internal ctor (ElasticsearchClient, AuditOptions, ILogger) and invoke through reflection —
-	// the established pattern for internal components. SecurityAuditEvent and AuditOptions are public.
+	// via its internal ctor (ElasticsearchClient, AuditOptions, IAuditSigningKeyProvider, ILogger) and invoke
+	// through reflection — the established pattern for internal components. SecurityAuditEvent, AuditOptions,
+	// and IAuditSigningKeyProvider are public.
 	private object CreateMaintenanceService()
 	{
 		var serviceType = typeof(AuditOptions).Assembly
@@ -132,8 +133,22 @@ public sealed class SecurityAuditMaintenanceArchivalShould : ElasticsearchIntegr
 			serviceType,
 			BindingFlags.NonPublic | BindingFlags.Instance,
 			binder: null,
-			args: [Client, options, NullLogger.Instance],
+			args: [Client, options, new TestAuditSigningKeyProvider(), NullLogger.Instance],
 			culture: null)!;
+	}
+
+	// Minimal in-test IAuditSigningKeyProvider double. The archival path under test is date-bound
+	// delete; it does not mint or verify integrity tags here, so a fixed non-empty key satisfies the
+	// ctor dependency without affecting the archival behavior being asserted.
+	private sealed class TestAuditSigningKeyProvider : IAuditSigningKeyProvider
+	{
+		private static readonly byte[] SigningKey = new byte[32];
+
+		public ValueTask<(string KeyId, byte[] Key)> GetCurrentSigningKeyAsync(CancellationToken cancellationToken)
+			=> ValueTask.FromResult(("test-key", SigningKey));
+
+		public ValueTask<byte[]?> GetSigningKeyAsync(string keyId, CancellationToken cancellationToken)
+			=> ValueTask.FromResult<byte[]?>(SigningKey);
 	}
 
 	private static async Task InvokeArchiveAsync(object service, DateTimeOffset cutoff, string archiveLocation)

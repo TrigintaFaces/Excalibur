@@ -30,6 +30,7 @@ Excalibur.Inbox.Postgres.PostgresInboxStore.GetFailedEntriesAsync(int maxRetries
 Excalibur.Inbox.Postgres.PostgresInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxStatistics!>
 Excalibur.Inbox.Postgres.PostgresInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.Postgres.PostgresInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Postgres.PostgresInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Postgres.PostgresInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Postgres.PostgresInboxStore.MarkProcessingAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Postgres.PostgresInboxStore.PostgresInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Postgres.PostgresInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Postgres.PostgresInboxStore!>! logger) -> void

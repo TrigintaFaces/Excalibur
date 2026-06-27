@@ -1,9 +1,1 @@
 #nullable enable
-Excalibur.Data.ElasticSearch.Security.AuditOptions.IntegrityKeyId.get -> string!
-Excalibur.Data.ElasticSearch.Security.AuditOptions.IntegrityKeyId.init -> void
-Excalibur.Data.ElasticSearch.Security.AuditOptions.IntegritySigningKey.get -> byte[]?
-Excalibur.Data.ElasticSearch.Security.AuditOptions.IntegritySigningKey.init -> void
-Excalibur.Data.ElasticSearch.Security.IAuditSigningKeyProvider
-Excalibur.Data.ElasticSearch.Security.IAuditSigningKeyProvider.GetCurrentSigningKeyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(string! KeyId, byte[]! Key)>
-Excalibur.Data.ElasticSearch.Security.IAuditSigningKeyProvider.GetSigningKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]?>
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SecurityAuditor(Elastic.Clients.Elasticsearch.ElasticsearchClient! elasticsearchClient, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.Security.AuditOptions!>! auditOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.Security.SecurityMonitoringOptions!>! monitoringOptions, Excalibur.Data.ElasticSearch.Security.IAuditSigningKeyProvider! signingKeyProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Security.SecurityAuditor!>! logger) -> void

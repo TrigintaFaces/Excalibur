@@ -5,6 +5,8 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Observability.Metrics;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 
 /// <summary>
@@ -20,14 +22,14 @@ public sealed class MetricsMiddlewareShould : UnitTestBase
 	public MetricsMiddlewareShould()
 	{
 		_metrics = A.Fake<IDispatchMetrics>();
-		_middleware = new MetricsMiddleware(_metrics);
+		_middleware = new MetricsMiddleware(_metrics, NullLogger<MetricsMiddleware>.Instance);
 	}
 
 	[Fact]
 	public void Constructor_ThrowsArgumentNullException_WhenMetricsIsNull()
 	{
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => new MetricsMiddleware(null!));
+		_ = Should.Throw<ArgumentNullException>(() => new MetricsMiddleware(null!, NullLogger<MetricsMiddleware>.Instance));
 	}
 
 	[Fact]

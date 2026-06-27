@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.ErrorHandling;
@@ -26,6 +27,14 @@ public sealed partial class PoisonMessageMiddleware : IDispatchMiddleware, IDisp
 	private readonly ILogger<PoisonMessageMiddleware> _logger;
 	private readonly ActivitySource _activitySource;
 	private volatile bool _disposed;
+
+	// fypqgz / L5: dead-letter routing metrics. Static library Meter (ADR-142 lifecycle) mirroring the
+	// ActivitySource name. Counts messages moved to the dead-letter queue, tagged by detector + reason.
+	private static readonly Meter PoisonMeter = new(DispatchTelemetryConstants.Meters.PoisonMessage, "1.0.0");
+	private static readonly Counter<long> DeadLetteredCounter = PoisonMeter.CreateCounter<long>(
+		"dispatch.poison.dead_lettered",
+		unit: "messages",
+		description: "Number of poison messages moved to the dead-letter queue, tagged with poison.detector and poison.reason.");
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PoisonMessageMiddleware" /> class.
@@ -131,6 +140,18 @@ public sealed partial class PoisonMessageMiddleware : IDispatchMiddleware, IDisp
 						detectionResult.Reason ?? "Unknown reason",
 						cancellationToken,
 						ex).ConfigureAwait(false);
+
+					// Metric tags MUST be low-cardinality: detectionResult.Reason is a free-form string?
+					// (AdvancedPoisonMessageDetector/custom detectors can embed per-message text), so it
+					// is NEVER used as a metric tag — that would risk unbounded tag cardinality
+					// (observability backend blow-up / soft DoS). The bounded discriminator is the
+					// detector name; the dead-letter reason is the bounded DeadLetterReason enum value
+					// for this poison-detection site. The rich free-form reason is preserved on the
+					// Activity span above (poison.reason tag) for per-message diagnostics.
+					DeadLetteredCounter.Add(
+						1,
+						new KeyValuePair<string, object?>("poison.detector", detectionResult.DetectorName),
+						new KeyValuePair<string, object?>("poison.reason", nameof(DeadLetterReason.PoisonMessage)));
 
 					// Return a failed result indicating poison message
 					var problemDetails = new MessageProblemDetails

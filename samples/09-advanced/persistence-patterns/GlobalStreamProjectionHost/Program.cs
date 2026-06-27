@@ -59,6 +59,9 @@ builder.Services.AddExcalibur(excalibur => excalibur
     .AddEventSourcing(es => es
         .UseInMemory()));
 
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 // ============================================================================
 // Step 2: Register the Custom Global Stream Projection
 // ============================================================================

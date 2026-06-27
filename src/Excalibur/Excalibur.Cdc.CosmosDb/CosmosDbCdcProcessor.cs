@@ -7,6 +7,7 @@ using System.Text.Json;
 
 using Excalibur.Cdc.Diagnostics;
 using Excalibur.Data.CosmosDb.Diagnostics;
+using Excalibur.Dispatch;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
@@ -29,6 +30,13 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 	private volatile bool _disposed;
 	private long _eventCount;
 
+	// 14z4ao: optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
+	// an infinite silent reconnect loop (ADR-338). _onFatalError receives the in-flight event for a
+	// per-event fatal, or null for a connection/poll-level fatal.
+	private readonly CdcFatalErrorHandler<CosmosDbDataChangeEvent>? _onFatalError;
+	private readonly IMessageFailureClassifier? _failureClassifier;
+	private CosmosDbDataChangeEvent? _inFlightEvent;
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CosmosDbCdcProcessor"/> class.
 	/// </summary>
@@ -36,11 +44,21 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 	/// <param name="stateStore">The state store for position tracking.</param>
 	/// <param name="options">The CDC options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="fatalErrorOptions">
+	/// Optional fatal-error handling. When omitted (or its handler is <see langword="null"/>), a fatal
+	/// error rethrows and stops the processor (fail-loud — never an infinite silent reconnect loop).
+	/// </param>
+	/// <param name="failureClassifier">
+	/// Optional shared classifier deciding whether a processing error is fatal (non-retryable) or
+	/// transient. When omitted, a conservative built-in fallback is used.
+	/// </param>
 	public CosmosDbCdcProcessor(
 		CosmosClient client,
 		ICosmosDbCdcStateStore stateStore,
 		IOptions<CosmosDbCdcOptions> options,
-		ILogger<CosmosDbCdcProcessor> logger)
+		ILogger<CosmosDbCdcProcessor> logger,
+		IOptions<CdcFatalErrorOptions<CosmosDbDataChangeEvent>>? fatalErrorOptions = null,
+		IMessageFailureClassifier? failureClassifier = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(stateStore);
@@ -53,6 +71,8 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		_client = client;
 		_stateStore = stateStore;
 		_logger = logger;
+		_onFatalError = fatalErrorOptions?.Value.OnFatalError;
+		_failureClassifier = failureClassifier;
 		_currentPosition = _options.ChangeFeed.StartPosition ?? CosmosDbCdcPosition.Beginning();
 	}
 
@@ -87,7 +107,33 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 			}
 			catch (Exception ex)
 			{
+				// pxhqri: delegate the fatal-vs-transient decision to the single shared guard
+				// (CdcFatalGuard.Decide) — the same unit the regression lock binds — instead of an inline
+				// `catch when IsFatal` filter. The durable checkpoint advance (ConfirmPositionAsync) happens
+				// ONLY on the success path of ProcessBatchInternalAsync, AFTER every event in the batch was
+				// handed off; this catch never advances, and a fault unwinds before that ConfirmPositionAsync,
+				// so a fault (fatal or transient) never advances the checkpoint past the failing change
+				// (decision.AdvanceCheckpoint is false on every fault). 14z4ao behavior is byte-preserved.
+				var decision = CdcFatalGuard.Decide(ex, _failureClassifier);
+
+				if (decision.Stop)
+				{
+					// Fatal (non-retryable) — stop loud, never an infinite silent reconnect.
+					LogFatalError(ex);
+
+					if (_onFatalError is not null)
+					{
+						// In-flight event for a per-event fatal; null for a connection/poll-level fatal.
+						await _onFatalError(ex, _inFlightEvent).ConfigureAwait(false);
+						return; // handler took over → terminal; do not reconnect.
+					}
+
+					throw; // default: fail-loud — propagate and stop.
+				}
+
+				// Transient (decision.Reconnect) — reconnect and retry from the un-advanced checkpoint.
 				LogProcessingError(_options.ProcessorName, ex);
+				_inFlightEvent = null;
 
 				// Wait before retrying on error
 				try
@@ -226,7 +272,11 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 				{
 					var changeEvent = CreateChangeEvent(document, lastPosition);
 
+					// Track the in-flight event so a fatal raised by the handler is attributed to it; the fatal
+					// path unwinds before the post-batch ConfirmPositionAsync (durable checkpoint not advanced).
+					_inFlightEvent = changeEvent;
 					await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+					_inFlightEvent = null;
 					processedCount++;
 					Interlocked.Increment(ref _eventCount);
 				}
@@ -274,13 +324,17 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 			PageSizeHint = _options.ChangeFeed.MaxBatchSize,
 		};
 
-		// SDK 3.47.0 provides Incremental mode only (LatestVersion is an alias).
-		// AllVersionsAndDeletes mode requires SDK 3.50.0+ with ChangeFeedMode.AllVersionsAndDeletes.
-		// Only Incremental/LatestVersion mode is currently supported.
+		// AllVersionsAndDeletes (full-fidelity) change feed is PREVIEW-ONLY in the .NET Cosmos SDK:
+		// ChangeFeedMode.AllVersionsAndDeletes + ChangeFeedItem<T> ship in -preview packages
+		// (>= 3.32.0-preview) and are NOT in the public surface of the pinned STABLE 3.58.0
+		// (reflection-verified: ChangeFeedItem<T> is internal; ChangeFeedMode exposes only
+		// Incremental/LatestVersion). A shipping framework must not take a preview Azure dependency,
+		// so full-fidelity is gated to bd-ajt1iy (revisit on stable GA). Stable mode is Incremental.
 		if (_options.ChangeFeed.Mode == CosmosDbCdcMode.AllVersionsAndDeletes)
 		{
 			throw new NotSupportedException(
-				"AllVersionsAndDeletes mode is not supported in the current SDK version.");
+				"AllVersionsAndDeletes change feed mode is not available in the stable Cosmos .NET SDK " +
+				"(preview-only); tracked in bd-ajt1iy. Use Incremental/LatestVersion mode.");
 		}
 
 		var mode = ChangeFeedMode.Incremental;
@@ -410,4 +464,8 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 
 	[LoggerMessage(DataCosmosDbEventId.CdcBatchError, LogLevel.Error, "Error in batch for processor '{ProcessorName}' after processing {Count} events")]
 	private partial void LogBatchError(string processorName, int count, Exception exception);
+
+	[LoggerMessage(DataCosmosDbEventId.CdcFatalError, LogLevel.Critical,
+		"Fatal (non-retryable) error in CosmosDb CDC processor — stopping; the failure is surfaced to the configured handler or rethrown (no silent reconnect)")]
+	private partial void LogFatalError(Exception ex);
 }

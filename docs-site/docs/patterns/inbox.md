@@ -79,8 +79,9 @@ services.AddDispatch(dispatch =>
 services.AddSqlServerInboxStore(options =>
 {
     options.ConnectionString = connectionString;
-    options.SchemaName = "inbox";
-    options.TableName = "ProcessedMessages";
+    // Optional: defaults to schema "dbo", table "inbox_messages"
+    options.SchemaName = "dbo";
+    options.TableName = "inbox_messages";
 });
 ```
 
@@ -110,8 +111,8 @@ public class CreateOrderHandler : IEventHandler<OrderCreatedEvent>
 services.AddSqlServerInboxStore(options =>
 {
     options.ConnectionString = connectionString;
-    options.SchemaName = "inbox";
-    options.TableName = "ProcessedMessages";
+    options.SchemaName = "dbo";              // default
+    options.TableName = "inbox_messages";    // default
     options.CommandTimeoutSeconds = 30;
     options.MaxRetryCount = 3;
 });
@@ -141,24 +142,36 @@ services.AddInMemoryInboxStore();
 
 ### SQL Server
 
+The store does **not** auto-create the table — create it before starting the application. The default table is `[dbo].[inbox_messages]`; override the schema/table via `SchemaName` / `TableName`. Entries are keyed by the composite `(MessageId, HandlerType)`, so the same message can be tracked independently per handler.
+
 ```sql
-CREATE SCHEMA [inbox];
+CREATE TABLE [dbo].[inbox_messages] (
+    [MessageId]     NVARCHAR(255)  NOT NULL,
+    [HandlerType]   NVARCHAR(500)  NOT NULL,
+    [MessageType]   NVARCHAR(500)  NOT NULL,
+    [Payload]       VARBINARY(MAX) NOT NULL,
+    [Metadata]      NVARCHAR(MAX)  NULL,            -- JSON
+    [ReceivedAt]    DATETIMEOFFSET NOT NULL,
+    [ProcessedAt]   DATETIMEOFFSET NULL,
+    [Status]        INT            NOT NULL DEFAULT 0,
+    [LastError]     NVARCHAR(MAX)  NULL,
+    [RetryCount]    INT            NOT NULL DEFAULT 0,
+    [LastAttemptAt] DATETIMEOFFSET NULL,
+    [NextAttemptAt] DATETIMEOFFSET NULL,            -- retry backoff: failed entry not re-admitted until this time
+    [CorrelationId] NVARCHAR(255)  NULL,
+    [TenantId]      NVARCHAR(255)  NULL,
+    [Source]        NVARCHAR(255)  NULL,
 
-CREATE TABLE [inbox].[ProcessedMessages] (
-    [Id] BIGINT IDENTITY(1,1) NOT NULL,
-    [MessageId] NVARCHAR(100) NOT NULL,
-    [MessageType] NVARCHAR(500) NOT NULL,
-    [HandlerType] NVARCHAR(500) NOT NULL,
-    [ProcessedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [ExpiresAt] DATETIME2 NOT NULL,
-
-    CONSTRAINT [PK_ProcessedMessages] PRIMARY KEY CLUSTERED ([Id]),
-    CONSTRAINT [UQ_ProcessedMessages] UNIQUE ([MessageId], [HandlerType])
+    CONSTRAINT [PK_inbox_messages] PRIMARY KEY CLUSTERED ([MessageId], [HandlerType])
 );
 
-CREATE INDEX [IX_ProcessedMessages_ExpiresAt]
-ON [inbox].[ProcessedMessages] ([ExpiresAt])
-WHERE [ExpiresAt] < GETUTCDATE();
+-- Backs the failed-entry re-admission claim (status + retry-visibility window).
+CREATE INDEX [IX_inbox_messages_Retry]
+ON [dbo].[inbox_messages] ([Status], [RetryCount], [NextAttemptAt], [LastAttemptAt]);
+
+-- Backs the cleanup of processed entries (DELETE WHERE Status = Processed AND ProcessedAt < cutoff).
+CREATE INDEX [IX_inbox_messages_Cleanup]
+ON [dbo].[inbox_messages] ([Status], [ProcessedAt]);
 ```
 
 ## Retry Backoff Schedule
@@ -176,10 +189,10 @@ so the configured retry delay **genuinely throttles redelivery** rather than re-
 Backoff scheduling uses the optional `IBackoffSchedulableInboxStore` capability (`MarkFailedWithBackoffAsync`). The SQL Server inbox store implements it; stores that do not implement it fall back to the existing `MarkFailedAsync` immediate-retry path (fail-open, no crash). The capability is forwarded transparently through the telemetry and encrypting inbox-store decorators.
 
 :::warning Schema migration (SQL Server)
-The `NextAttemptAt` column backs this feature. **Existing SQL Server inbox tables must add it** — the store does not auto-create or alter tables:
+The `NextAttemptAt` column backs this feature and is included in the [schema above](#sql-server). **Inbox tables created before this column existed must add it** — the store does not auto-create or alter tables:
 
 ```sql
-ALTER TABLE [inbox].[ProcessedMessages]
+ALTER TABLE [dbo].[inbox_messages]
     ADD [NextAttemptAt] DATETIMEOFFSET NULL;
 ```
 

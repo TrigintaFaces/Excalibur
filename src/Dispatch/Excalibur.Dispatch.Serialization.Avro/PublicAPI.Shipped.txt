@@ -12,6 +12,18 @@ Excalibur.Dispatch.Serialization.Avro.AvroSerializer.Name.get -> string!
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.Serialize<T>(T value, System.Buffers.IBufferWriter<byte>! bufferWriter) -> void
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.SerializeObject(object! value, System.Type! type) -> byte[]!
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.Version.get -> string!
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.ReaderFingerprint.get -> long?
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.ReaderFingerprint.init -> void
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.SchemaMismatchException() -> void
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.SchemaMismatchException(string! message) -> void
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.SchemaMismatchException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.TargetType.get -> System.Type?
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.TargetType.init -> void
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.WriterFingerprint.get -> long?
+Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.WriterFingerprint.init -> void
 Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions
+static Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.MissingHeader(System.Type! type) -> Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException!
+static Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException.Skew(System.Type! type, long writerFingerprint, long readerFingerprint) -> Excalibur.Dispatch.Serialization.Avro.SchemaMismatchException!
 static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.AddAvroSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.AddAvroSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -45,8 +45,8 @@ public sealed class JsonEventSerializerBoundedCacheShould : UnitTestBase
 	[RequiresDynamicCode("Test requires dynamic code")]
 	public void ResolveType_CachesWithinCapacity()
 	{
-		// Arrange
-		var serializer = new JsonEventSerializer();
+		// Arrange — caching only occurs on the assembly-scan path; opt in explicitly (wpynky).
+		var serializer = new JsonEventSerializer(allowAssemblyScan: true);
 		var typeName = typeof(string).AssemblyQualifiedName;
 
 		// Act — resolve the same type twice
@@ -62,8 +62,8 @@ public sealed class JsonEventSerializerBoundedCacheShould : UnitTestBase
 	[RequiresDynamicCode("Test requires dynamic code")]
 	public void ResolveType_StillWorksWhenCacheIsFull()
 	{
-		// Arrange
-		var serializer = new JsonEventSerializer();
+		// Arrange — caching only occurs on the assembly-scan path; opt in explicitly (wpynky).
+		var serializer = new JsonEventSerializer(allowAssemblyScan: true);
 
 		// Fill the cache to capacity by using reflection to pre-populate
 		var cacheField = typeof(JsonEventSerializer)
@@ -93,8 +93,8 @@ public sealed class JsonEventSerializerBoundedCacheShould : UnitTestBase
 	[RequiresDynamicCode("Test requires dynamic code")]
 	public void ResolveType_DoesNotExceedCapacity()
 	{
-		// Arrange
-		var serializer = new JsonEventSerializer();
+		// Arrange — caching only occurs on the assembly-scan path; opt in explicitly (wpynky).
+		var serializer = new JsonEventSerializer(allowAssemblyScan: true);
 		var cacheField = typeof(JsonEventSerializer)
 			.GetField("_typeCache", BindingFlags.NonPublic | BindingFlags.Instance)!;
 		var cache = (ConcurrentDictionary<string, Type>)cacheField.GetValue(serializer)!;

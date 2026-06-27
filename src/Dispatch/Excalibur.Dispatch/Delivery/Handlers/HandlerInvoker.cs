@@ -26,7 +26,8 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// <item>Freeze transition: ToFrozenDictionary() when cache stabilizes</item>
 /// <item>Frozen phase: FrozenDictionary for zero-sync O(1) lookups</item>
 /// </list>
-/// Call <see cref="FreezeCache"/> after handler registration is complete (e.g., via UseOptimizedDispatch).
+/// Call <see cref="FreezeCache"/> after handler registration is complete (automatically after application
+/// startup when dispatch cache optimization is enabled, or manually via <c>IDispatchCacheManager.FreezeAll()</c>).
 /// </para>
 /// </remarks>
 [RequiresUnreferencedCode("Uses reflection to find and invoke handler methods dynamically")]

@@ -4,6 +4,8 @@
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Observability.Metrics;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 
 /// <summary>
@@ -20,7 +22,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 	public MetricsMiddlewareDepthCoverageShould()
 	{
 		_metrics = A.Fake<IDispatchMetrics>();
-		_sut = new MetricsMiddleware(_metrics);
+		_sut = new MetricsMiddleware(_metrics, NullLogger<MetricsMiddleware>.Instance);
 	}
 
 	/// <summary>

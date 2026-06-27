@@ -30,7 +30,8 @@ public sealed partial class RedisEventStore : IEventStore
 
 	/// <summary>
 	/// Lua script for atomic append with optimistic concurrency control.
-	/// Checks that the current stream length equals the expected version before appending events.
+	/// For a new-aggregate create (<c>expectedVersion == -1</c>) the stream must be empty;
+	/// otherwise the current stream length must equal the expected version before appending events.
 	/// Returns the new stream length on success, or -1 on concurrency conflict.
 	/// </summary>
 	/// <remarks>
@@ -43,6 +44,12 @@ public sealed partial class RedisEventStore : IEventStore
 
 		-- Check current stream length for concurrency control
 		local current_length = redis.call('XLEN', stream_key)
+		-- New-aggregate create (expected_version == -1): the stream MUST be empty.
+		-- Without this guard two concurrent creates would both append (lost-write / double-create).
+		if expected_version == -1 and current_length ~= 0 then
+			return {-1, current_length}
+		end
+		-- Existing-aggregate append: stream length must match the expected version.
 		if expected_version >= 0 and current_length ~= expected_version then
 			return {-1, current_length}
 		end

@@ -81,6 +81,31 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 					break;
 			}
 		}
+
+		// e6y51s: the base ApplySnapshot now throws NotSupportedException unless overridden (fail-closed
+		// against silent state loss). The snapshot-restore paths exercised below (GetByIdAsync with a
+		// snapshot from the snapshot manager) call LoadFromSnapshot -> ApplySnapshot, so this aggregate
+		// must rehydrate its own state from the snapshot rather than rely on the silent base no-op.
+		protected override void ApplySnapshot(ISnapshot snapshot)
+		{
+			if (snapshot.Data.IsEmpty)
+			{
+				return;
+			}
+
+			var state = JsonSerializer.Deserialize<SnapshotState>(snapshot.Data.Span);
+			if (state is not null)
+			{
+				Data = state.Data ?? Data;
+				Value = state.Value ?? Value;
+			}
+		}
+
+		private sealed record SnapshotState
+		{
+			public string? Data { get; init; }
+			public string? Value { get; init; }
+		}
 	}
 
 	#endregion

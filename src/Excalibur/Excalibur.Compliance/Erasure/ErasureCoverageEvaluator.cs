@@ -33,11 +33,20 @@ internal static class ErasureCoverageEvaluator
 	/// <param name="locations">The discovered personal-data locations.</param>
 	/// <param name="deletedKeyIds">The per-subject key IDs that were actually deleted (crypto-shred).</param>
 	/// <param name="contributors">The registered erasure contributors.</param>
-	/// <returns>The uncovered store-kind names and the exemptions actually in play for this erasure.</returns>
+	/// <param name="annotatedCategories">
+	/// The <see cref="PersonalDataCategory"/> values present on <see cref="PersonalDataAttribute"/>-annotated
+	/// members in the domain (vxp56x). A category here that is NOT represented by any discovered/registered
+	/// location is an <b>annotated-but-undiscovered</b> coverage gap — annotated personal data the inventory
+	/// never located, so erasure cannot be reported Completed. Correspondence is by category name
+	/// (case-insensitive): the only dimension <see cref="PersonalDataAttribute"/> and <see cref="DataLocation"/>
+	/// share. Conservative by design — an annotated category with no matching location is treated as a gap.
+	/// </param>
+	/// <returns>The uncovered store-kind names, uncovered annotated categories, and the exemptions in play.</returns>
 	public static CoverageOutcome Evaluate(
 		IReadOnlyList<DataLocation> locations,
 		IReadOnlyCollection<string> deletedKeyIds,
-		IEnumerable<IErasureContributor> contributors)
+		IEnumerable<IErasureContributor> contributors,
+		IReadOnlySet<PersonalDataCategory> annotatedCategories)
 	{
 		var deletedKeySet = new HashSet<string>(deletedKeyIds, StringComparer.Ordinal);
 
@@ -88,7 +97,22 @@ internal static class ErasureCoverageEvaluator
 			_ = uncovered.Add(location.StoreKind.Value);
 		}
 
-		return new CoverageOutcome(uncovered, exemptions);
+		// vxp56x — annotated-but-undiscovered detection. A [PersonalData] category that no discovered/
+		// registered location represents means annotated personal data the inventory never located. Feed it
+		// into the SAME coverage gate so a "Completed" certificate over silently-skipped annotated data is
+		// structurally inexpressible (enforce-invariants-structurally). Conservative category-name match.
+		var coveredCategories = new HashSet<string>(
+			locations.Select(static l => l.DataCategory), StringComparer.OrdinalIgnoreCase);
+		var uncoveredAnnotated = new HashSet<string>(StringComparer.Ordinal);
+		foreach (var category in annotatedCategories)
+		{
+			if (!coveredCategories.Contains(category.ToString()))
+			{
+				_ = uncoveredAnnotated.Add(category.ToString());
+			}
+		}
+
+		return new CoverageOutcome(uncovered, exemptions, uncoveredAnnotated);
 	}
 
 	/// <summary>The legal basis and reason for a default store-kind erasure exemption (FR-4a).</summary>
@@ -96,6 +120,13 @@ internal static class ErasureCoverageEvaluator
 }
 
 /// <summary>The result of partitioning discovered locations by erasure coverage.</summary>
+/// <param name="UncoveredStoreKinds">Discovered locations not covered by crypto-shred, contributor, or exemption.</param>
+/// <param name="Exemptions">The declared exemptions actually in play for this erasure (FR-4a).</param>
+/// <param name="UncoveredAnnotatedCategories">
+/// [PersonalData]-annotated categories with no discovered/registered location (vxp56x) — annotated personal
+/// data the inventory never located. A non-empty set forces a non-Completed outcome.
+/// </param>
 internal sealed record CoverageOutcome(
 	IReadOnlyCollection<string> UncoveredStoreKinds,
-	IReadOnlyList<ErasureException> Exemptions);
+	IReadOnlyList<ErasureException> Exemptions,
+	IReadOnlyCollection<string> UncoveredAnnotatedCategories);

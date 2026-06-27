@@ -58,7 +58,7 @@ internal sealed partial class GooglePubSubMessageBus(
 		var message = new PubsubMessage { Data = ByteString.CopyFromUtf8(body) };
 		if (!string.IsNullOrEmpty(traceParent))
 		{
-			message.Attributes["trace-parent"] = traceParent;
+			message.Attributes["traceparent"] = traceParent;
 		}
 
 		_ = await client.PublishAsync(message).ConfigureAwait(false);
@@ -83,7 +83,7 @@ internal sealed partial class GooglePubSubMessageBus(
 		var message = new PubsubMessage { Data = ByteString.CopyFromUtf8(body) };
 		if (!string.IsNullOrEmpty(traceParent))
 		{
-			message.Attributes["trace-parent"] = traceParent;
+			message.Attributes["traceparent"] = traceParent;
 		}
 
 		_ = await client.PublishAsync(message).ConfigureAwait(false);
@@ -108,7 +108,7 @@ internal sealed partial class GooglePubSubMessageBus(
 		var message = new PubsubMessage { Data = ByteString.CopyFromUtf8(body) };
 		if (!string.IsNullOrEmpty(traceParent))
 		{
-			message.Attributes["trace-parent"] = traceParent;
+			message.Attributes["traceparent"] = traceParent;
 		}
 
 		_ = await client.PublishAsync(message).ConfigureAwait(false);

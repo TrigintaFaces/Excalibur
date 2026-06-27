@@ -784,11 +784,38 @@ public sealed class VaultKeyProviderShould
 		suspended.ShouldBeFalse();
 	}
 
+	[Fact]
+	public async Task SuspendKeyAsync_DoesNotUseTheRejectedMinEncryptionVersionMechanism()
+	{
+		// vihqw6 (MS-A7 · SECURITY) — author≠impl regression lock. REPLACES the prior
+		// _RaisesMinimumEncryptionVersionAboveLatest assertion, whose premise was infeasible: HashiCorp Vault
+		// Transit CAPS min_encryption_version at the latest key version (setting it above → 400), so the prior
+		// "fix" threw a VaultApiException on its own happy path and never suspended (SENTINEL review 16498).
+		//
+		// SA pin (16528/16541): suspension is a DURABLE Vault KV marker — written by SuspendKeyAsync and read
+		// back at the GetKey* gate as KeyStatus.Suspended — NOT a Transit key-config mutation. This lock guards
+		// that the rejected mechanism does not return: SuspendKeyAsync MUST NOT call
+		// UpdateEncryptionKeyConfigAsync (the min_encryption_version path). RED on the pre-fix impl (which DID
+		// call it with the rejected options). The durable cross-process persistence + block-both behavior is
+		// proven end-to-end against REAL Vault in VaultKeyProviderIntegrationShould (a mock cannot enforce
+		// Vault's server-side validation — the very gap that let the original bug ship green).
+		var setup = CreateProviderWithTransit();
+		A.CallTo(() => setup.Transit.ReadEncryptionKeyAsync("dispatch-orders", "transit", A<string?>._))
+			.Returns(Task.FromResult(new Secret<EncryptionKeyInfo> { Data = CreateKeyInfo(4, includeVersionKeys: true) }));
+
+		var suspended = await setup.Provider.SuspendKeyAsync("orders", "compromised", CancellationToken.None);
+
+		suspended.ShouldBeTrue();
+		A.CallTo(() => setup.Transit.UpdateEncryptionKeyConfigAsync(
+				A<string>._, A<UpdateKeyRequestOptions>._, A<string>._))
+			.MustNotHaveHappened();
+	}
+
 	private static VaultOptions CreateValidOptions() =>
 		new()
 		{
 			VaultUri = new Uri("http://127.0.0.1:8200"),
-			KeyNamePrefix = "dispatch-",
+			Keys = new() { KeyNamePrefix = "dispatch-" },
 			Auth =
 			{
 				AuthMethod = VaultAuthMethod.Token,

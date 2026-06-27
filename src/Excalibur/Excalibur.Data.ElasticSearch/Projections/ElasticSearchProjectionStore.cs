@@ -324,16 +324,17 @@ public sealed partial class ElasticSearchProjectionStore<
 	private static Action<QueryDescriptor<TProjection>> BuildFilterCondition(
 		string fieldName,
 		ProjectionFieldType fieldType,
+		bool requiresKeywordSuffix,
 		FilterOperator op,
 		object value)
 	{
 		return op switch
 		{
 			FilterOperator.Equals => q => q.Term(t => t
-				.Field(GetExactMatchFieldName(fieldName, fieldType))
+				.Field(GetExactMatchFieldName(fieldName, requiresKeywordSuffix))
 				.Value(ConvertToFieldValue(value))),
 			FilterOperator.NotEquals => q => q.Bool(b => b.MustNot(mn => mn.Term(t => t
-				.Field(GetExactMatchFieldName(fieldName, fieldType))
+				.Field(GetExactMatchFieldName(fieldName, requiresKeywordSuffix))
 				.Value(ConvertToFieldValue(value))))),
 			FilterOperator.GreaterThan => BuildRangeCondition(
 				fieldName,
@@ -355,10 +356,10 @@ public sealed partial class ElasticSearchProjectionStore<
 				fieldType,
 				value,
 				RangeOperator.LessThanOrEqual),
-			FilterOperator.In => BuildInCondition(fieldName, fieldType, value),
+			FilterOperator.In => BuildInCondition(fieldName, fieldType, requiresKeywordSuffix, value),
 			FilterOperator.Contains => q => q.Wildcard(w => w.Field(fieldName).Value($"*{value}*").CaseInsensitive(true)),
 			_ => q => q.Term(t => t
-				.Field(GetExactMatchFieldName(fieldName, fieldType))
+				.Field(GetExactMatchFieldName(fieldName, requiresKeywordSuffix))
 				.Value(ConvertToFieldValue(value)))
 		};
 	}
@@ -366,13 +367,14 @@ public sealed partial class ElasticSearchProjectionStore<
 	private static Action<QueryDescriptor<TProjection>> BuildInCondition(
 		string fieldName,
 		ProjectionFieldType fieldType,
+		bool requiresKeywordSuffix,
 		object value)
 	{
 		if (value is not IEnumerable enumerable || value is string)
 		{
 			// Single value, treat as equals
 			return q => q.Term(t => t
-				.Field(GetExactMatchFieldName(fieldName, fieldType))
+				.Field(GetExactMatchFieldName(fieldName, requiresKeywordSuffix))
 				.Value(ConvertToFieldValue(value)));
 		}
 
@@ -389,7 +391,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		}
 
 		return q => q.Terms(t => t
-			.Field(GetExactMatchFieldName(fieldName, fieldType))
+			.Field(GetExactMatchFieldName(fieldName, requiresKeywordSuffix))
 			.Terms(new TermsQueryField(values)));
 	}
 
@@ -506,7 +508,8 @@ public sealed partial class ElasticSearchProjectionStore<
 			return definition;
 		}
 
-		return new ProjectionFieldDefinition(ToCamelCase(propertyName), ProjectionFieldType.Unknown);
+		// Unknown/undeclared field → treated as ES-dynamic (`text` + `.keyword`), so exact-match needs the suffix.
+		return new ProjectionFieldDefinition(ToCamelCase(propertyName), ProjectionFieldType.Unknown, RequiresKeywordSuffix: true);
 	}
 
 	private static string GetFieldPath(ProjectionFieldDefinition fieldDefinition)
@@ -514,22 +517,38 @@ public sealed partial class ElasticSearchProjectionStore<
 		return fieldDefinition.JsonName;
 	}
 
-	private static string GetExactMatchFieldName(string fieldName, ProjectionFieldType fieldType)
+	// 5jo6tm: the exact-match (`.keyword`) decision comes from the DECLARED ES mapping (see
+	// BuildFieldDefinitions), NOT a re-inference from the runtime property type. A `keyword`-mapped field is
+	// already exact-match → queried as-is; a `text`-mapped field is exact-matched via its `.keyword`
+	// sub-field. This keeps query field naming consistent-by-construction with ElasticIndexMappingBuilder
+	// (which maps string/Guid/enum to `keyword` by default) — previously the query always appended
+	// `.keyword`, so exact-match/sort on the default keyword mappings queried a non-existent sub-field and
+	// silently matched nothing.
+	private static string GetExactMatchFieldName(string fieldName, bool requiresKeywordSuffix)
 	{
-		return fieldType is ProjectionFieldType.String or ProjectionFieldType.Unknown
-			? $"{fieldName}.keyword"
-			: fieldName;
+		return requiresKeywordSuffix ? $"{fieldName}.keyword" : fieldName;
 	}
 
-	private static string GetSortFieldName(string fieldName, ProjectionFieldType fieldType)
+	private static string GetSortFieldName(string fieldName, bool requiresKeywordSuffix)
 	{
-		return GetExactMatchFieldName(fieldName, fieldType);
+		return GetExactMatchFieldName(fieldName, requiresKeywordSuffix);
 	}
 
 	private static IReadOnlyDictionary<string, ProjectionFieldDefinition> BuildFieldDefinitions()
 	{
 		var definitions = new Dictionary<string, ProjectionFieldDefinition>(
 			StringComparer.OrdinalIgnoreCase);
+
+		// 5jo6tm: derive each field's type AND exact-match treatment from the SAME declared ES mapping the
+		// index is built from (ElasticIndexMappingBuilder) — explicit (IElasticIndexConfiguration) or inferred.
+		// This makes query-side field naming consistent-by-construction with the index mapping instead of a
+		// second source of truth (the runtime PropertyType) that re-diverged on every field-type addition.
+		var declaredMapping = ElasticIndexMappingBuilder.BuildMappingProperties<TProjection>();
+		var declaredByName = new Dictionary<string, IProperty>(StringComparer.OrdinalIgnoreCase);
+		foreach (var mapping in declaredMapping)
+		{
+			declaredByName[mapping.Key.ToString()] = mapping.Value;
+		}
 
 		foreach (var property in typeof(TProjection).GetProperties(BindingFlags.Public | BindingFlags.Instance))
 		{
@@ -541,8 +560,8 @@ public sealed partial class ElasticSearchProjectionStore<
 			var jsonName =
 				property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
 				ToCamelCase(property.Name);
-			var fieldType = GetFieldType(property.PropertyType);
-			var definition = new ProjectionFieldDefinition(jsonName, fieldType);
+			var (fieldType, requiresKeywordSuffix) = ClassifyDeclaredField(declaredByName, jsonName);
+			var definition = new ProjectionFieldDefinition(jsonName, fieldType, requiresKeywordSuffix);
 
 			_ = definitions.TryAdd(property.Name, definition);
 			_ = definitions.TryAdd(jsonName, definition);
@@ -551,36 +570,32 @@ public sealed partial class ElasticSearchProjectionStore<
 		return definitions;
 	}
 
-	private static ProjectionFieldType GetFieldType(Type propertyType)
+	// Classifies a field by its DECLARED Elasticsearch property type (5jo6tm), returning both the value-
+	// semantics type (for range/term conversion) and whether exact-match/sort needs the `.keyword` sub-field:
+	//   - `keyword`  → exact-match as-is (NO suffix)            — the default for string/Guid/enum mappings
+	//   - `text`     → exact-match via the `.keyword` sub-field — the standard explicit analyzed-text pattern
+	//   - date/bool/number → exact-match on the field directly (no suffix)
+	//   - absent (complex/dynamic) → ES dynamically maps strings as `text` + `.keyword`, so suffix is needed
+	private static (ProjectionFieldType FieldType, bool RequiresKeywordSuffix) ClassifyDeclaredField(
+		IReadOnlyDictionary<string, IProperty> declaredByName,
+		string jsonName)
 	{
-		var type = Nullable.GetUnderlyingType(propertyType) ?? propertyType;
-
-		if (type == typeof(string) || type == typeof(Guid) || type.IsEnum)
+		if (declaredByName.TryGetValue(jsonName, out var declared))
 		{
-			return ProjectionFieldType.String;
+			return declared switch
+			{
+				KeywordProperty => (ProjectionFieldType.String, false),
+				TextProperty => (ProjectionFieldType.String, true),
+				DateProperty => (ProjectionFieldType.Date, false),
+				BooleanProperty => (ProjectionFieldType.Bool, false),
+				IntegerNumberProperty or LongNumberProperty or DoubleNumberProperty => (ProjectionFieldType.Numeric, false),
+				_ => (ProjectionFieldType.Unknown, true),
+			};
 		}
 
-		if (type == typeof(DateTime) || type == typeof(DateTimeOffset))
-		{
-			return ProjectionFieldType.Date;
-		}
-
-		if (type == typeof(bool))
-		{
-			return ProjectionFieldType.Bool;
-		}
-
-		if (type == typeof(byte) || type == typeof(sbyte) ||
-			type == typeof(short) || type == typeof(ushort) ||
-			type == typeof(int) || type == typeof(uint) ||
-			type == typeof(long) || type == typeof(ulong) ||
-			type == typeof(float) || type == typeof(double) ||
-			type == typeof(decimal))
-		{
-			return ProjectionFieldType.Numeric;
-		}
-
-		return ProjectionFieldType.Unknown;
+		// Not in the declared mapping (complex/nested type) → ES dynamic mapping maps a string as `text` with
+		// a `.keyword` sub-field, so exact-match/sort still needs the suffix (unchanged for dynamic fields).
+		return (ProjectionFieldType.Unknown, true);
 	}
 
 	private static string ToCamelCase(string value)
@@ -627,7 +642,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		{
 			var fieldDefinition = ResolveFieldDefinition(options.OrderBy);
 			var fieldName = GetFieldPath(fieldDefinition);
-			var sortField = GetSortFieldName(fieldName, fieldDefinition.FieldType);
+			var sortField = GetSortFieldName(fieldName, fieldDefinition.RequiresKeywordSuffix);
 			descriptor = options.Descending
 				? descriptor.Sort(s => s.Field(sortField, f => f.Order(SortOrder.Desc)))
 				: descriptor.Sort(s => s.Field(sortField, f => f.Order(SortOrder.Asc)));
@@ -662,6 +677,7 @@ public sealed partial class ElasticSearchProjectionStore<
 				conditions.Add(BuildFilterCondition(
 					fieldName,
 					fieldDefinition.FieldType,
+					fieldDefinition.RequiresKeywordSuffix,
 					parsed.Operator,
 					value));
 			}
@@ -784,5 +800,8 @@ public sealed partial class ElasticSearchProjectionStore<
 		"Failed to create index '{IndexName}': {ErrorMessage}")]
 	private partial void LogIndexCreationFailed(string indexName, string errorMessage);
 
-	private sealed record ProjectionFieldDefinition(string JsonName, ProjectionFieldType FieldType);
+	private sealed record ProjectionFieldDefinition(
+		string JsonName,
+		ProjectionFieldType FieldType,
+		bool RequiresKeywordSuffix);
 }

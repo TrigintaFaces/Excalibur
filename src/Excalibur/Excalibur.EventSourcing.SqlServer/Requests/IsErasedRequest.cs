@@ -27,12 +27,14 @@ internal sealed class IsErasedRequest : DataRequestBase<IDbConnection, bool>
 		var qualifiedTable = SqlTableName.Format(schema, table);
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		// EventType tombstone marker is the centralized framework-controlled constant (closed value, no
+		// injection risk) so all stores and the rehydration path agree on the same discriminator.
 		var sql = $"""
 			SELECT CASE WHEN EXISTS (
 			    SELECT 1 FROM {qualifiedTable}
 			    WHERE AggregateId = @AggregateId
 			      AND AggregateType = @AggregateType
-			      AND EventType = '$erased'
+			      AND EventType = '{ErasedEventMarker.EventType}'
 			) THEN 1 ELSE 0 END
 			""";
 #pragma warning restore CA2100

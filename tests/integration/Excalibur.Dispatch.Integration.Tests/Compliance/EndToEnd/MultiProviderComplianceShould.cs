@@ -61,8 +61,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		{
 			VaultUri = new Uri(_fixture.Vault.VaultAddress),
 			Auth = { AuthMethod = VaultAuthMethod.Token, Token = _fixture.Vault.Token },
-			TransitMountPath = "transit",
-			KeyNamePrefix = "excalibur-e2e-",
+			Keys = new() { TransitMountPath = "transit", KeyNamePrefix = "excalibur-e2e-" },
 			MetadataCacheDuration = TimeSpan.FromMinutes(5)
 		});
 		_vaultProvider = new VaultKeyProvider(vaultOptions, _cache, _vaultLogger);

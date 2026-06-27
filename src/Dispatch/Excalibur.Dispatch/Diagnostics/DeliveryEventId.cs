@@ -296,6 +296,12 @@ public static class DeliveryEventId
 	/// <summary>Dead letter cleanup completed.</summary>
 	public const int DeadLetterCleanupCompleted = 40487;
 
+	/// <summary>An exhausted in-process dispatch was routed to the dead-letter queue (8o3c3p).</summary>
+	public const int DeadLetterOnExhaustionEnqueued = 40488;
+
+	/// <summary>Best-effort dead-letter-on-exhaustion enqueue failed; the original exhausted result still flows up (fail-open).</summary>
+	public const int DeadLetterOnExhaustionEnqueueFailed = 40489;
+
 	// ========================================
 	// 40500-40599: Scheduling Core
 	// ========================================

@@ -32,7 +32,7 @@ internal sealed class IsErasedRequest : DataRequestBase<IDbConnection, bool>
 			    SELECT 1 FROM {qualifiedTable}
 			    WHERE aggregate_id = @AggregateId
 			      AND aggregate_type = @AggregateType
-			      AND event_type = '$erased'
+			      AND event_type = @ErasedMarker
 			)
 			""";
 #pragma warning restore CA2100
@@ -40,6 +40,8 @@ internal sealed class IsErasedRequest : DataRequestBase<IDbConnection, bool>
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
+		// cm4108: single source of truth for the erased-event sentinel (parameterized, injection-clean).
+		parameters.Add("@ErasedMarker", ErasedEventMarker.EventType);
 
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 

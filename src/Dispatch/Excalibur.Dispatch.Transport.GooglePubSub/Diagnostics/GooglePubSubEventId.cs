@@ -520,4 +520,7 @@ public static class GooglePubSubEventId
 
 	/// <summary>Transport subscriber: disposed.</summary>
 	public const int TransportSubscriberDisposed = 23927;
+
+	/// <summary>Subscription delivery-guarantee configuration validated at startup (abyfxr).</summary>
+	public const int SubscriptionConfigValidated = 23930;
 }

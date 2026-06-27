@@ -32,6 +32,7 @@ internal sealed partial class DefaultRetryPolicy : IRetryPolicy
 {
 	private readonly RetryPolicyOptions _options;
 	private readonly IBackoffCalculator _backoff;
+	private readonly IMessageFailureClassifier _classifier;
 	private readonly ILogger _logger;
 	private readonly bool _hasRetriableFilters;
 	private readonly bool _hasNonRetriableFilters;
@@ -45,15 +46,21 @@ internal sealed partial class DefaultRetryPolicy : IRetryPolicy
 	/// configured from the provided options.
 	/// </param>
 	/// <param name="logger">Optional logger instance.</param>
+	/// <param name="classifier">
+	/// Optional shared failure classifier used to decide whether an unfiltered exception is retryable.
+	/// If null, defaults to <see cref="DefaultMessageFailureClassifier"/>.
+	/// </param>
 	public DefaultRetryPolicy(
 		RetryPolicyOptions options,
 		IBackoffCalculator? backoff = null,
-		ILogger<DefaultRetryPolicy>? logger = null)
+		ILogger<DefaultRetryPolicy>? logger = null,
+		IMessageFailureClassifier? classifier = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
 		_options = options;
 		_logger = logger ?? NullLogger<DefaultRetryPolicy>.Instance;
+		_classifier = classifier ?? new DefaultMessageFailureClassifier();
 		_backoff = backoff ?? new ExponentialBackoffCalculator(
 			options.Backoff.BaseDelay,
 			options.Backoff.MaxDelay,
@@ -157,7 +164,10 @@ internal sealed partial class DefaultRetryPolicy : IRetryPolicy
 			return _options.RetriableExceptions.Contains(exceptionType);
 		}
 
-		// By default, retry all non-cancellation exceptions
-		return true;
+		// No explicit filter matched: defer to the shared failure classifier (shu41d / S-A) so the
+		// retry-vs-dead-letter decision is consistent across the pipeline. Only transient failures are
+		// retried; permanent and poison failures are abandoned immediately rather than retried to the
+		// attempt cap (a poison message can never succeed, so retrying it just delays the dead-letter).
+		return _classifier.Classify(ex) == MessageFailureKind.Transient;
 	}
 }

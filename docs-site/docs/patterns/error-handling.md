@@ -256,9 +256,9 @@ The `IDeadLetterQueue` interface provides a transport-agnostic DLQ that works wi
 ```csharp
 // Query dead letter entries
 var entries = await dlq.GetEntriesAsync(
+    cancellationToken,
     DeadLetterQueryFilter.ByReason(DeadLetterReason.MaxRetriesExceeded),
-    limit: 50,
-    cancellationToken);
+    limit: 50);
 
 // Replay a single entry after fixing the issue
 await dlq.ReplayAsync(entryId, cancellationToken);
@@ -349,7 +349,7 @@ public class DeadLetterHealthCheck : IHealthCheck
         CancellationToken ct)
     {
         var count = await _dlq.GetCountAsync(
-            DeadLetterQueryFilter.PendingOnly(), ct);
+            ct, DeadLetterQueryFilter.PendingOnly());
 
         return count switch
         {
@@ -413,8 +413,8 @@ Fix the validation logic or data, then replay:
 
 ```csharp
 var failures = await dlq.GetEntriesAsync(
-    DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed),
-    cancellationToken: ct);
+    ct,
+    DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed));
 
 // Review each entry
 foreach (var entry in failures)
@@ -438,8 +438,8 @@ These are permanent. The message payload is corrupt or the schema has changed. R
 
 ```csharp
 var deserializationFailures = await dlq.GetEntriesAsync(
-    DeadLetterQueryFilter.ByReason(DeadLetterReason.DeserializationFailed),
-    cancellationToken: ct);
+    ct,
+    DeadLetterQueryFilter.ByReason(DeadLetterReason.DeserializationFailed));
 
 // These rarely succeed on replay -- purge after investigation (admin operation)
 var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();

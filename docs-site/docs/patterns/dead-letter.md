@@ -98,6 +98,33 @@ builder.Services.AddDispatch(dispatch =>
 });
 ```
 
+### Auto-Dead-Letter on Retry Exhaustion
+
+For in-process dispatches, the opt-in `DeadLetterOnExhaustionMiddleware` automatically routes a message
+to the dead-letter queue once it exhausts **every** retry attempt, without writing a custom poison
+detector. Register it with `AddDeadLetterOnExhaustion()`:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+// Opt in to auto-dead-letter on retry exhaustion.
+builder.Services.AddDeadLetterOnExhaustion();
+
+// Place the middleware UPSTREAM of the retry middleware so the retry middleware runs as its
+// `next` delegate and the decorator can observe the retry-exhaustion terminal it returns.
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.UseMiddleware<DeadLetterOnExhaustionMiddleware>();
+    // ... retry middleware registered after this ...
+});
+```
+
+- The decorator dead-letters with reason `DeadLetterReason.MaxRetriesExceeded` **only** — it composes with
+  `PoisonMessageMiddleware` (which owns `PoisonMessage` / `DeserializationFailed`) rather than duplicating it.
+- **Fail-safe default:** `AddDeadLetterOnExhaustion()` registers a no-op `NullDeadLetterQueue` via `TryAdd`,
+  so if you have not registered a real `IDeadLetterQueue` the exhaustion is logged and never crashes the
+  pipeline. A consumer-registered `IDeadLetterQueue` takes precedence.
+
 ## IDeadLetterQueue Interface
 
 ```csharp
@@ -540,9 +567,9 @@ public class CustomDeadLetterHandler
         await _dlq.EnqueueAsync(
             message,
             DeadLetterReason.UnhandledException,
+            ct,
             exception,
-            metadata,
-            ct);
+            metadata);
     }
 }
 ```
@@ -596,7 +623,7 @@ public class DeadLetterHealthCheck : IHealthCheck
         CancellationToken ct)
     {
         var count = await _dlq.GetCountAsync(
-            DeadLetterQueryFilter.PendingOnly(), ct);
+            ct, DeadLetterQueryFilter.PendingOnly());
 
         if (count > _threshold)
         {

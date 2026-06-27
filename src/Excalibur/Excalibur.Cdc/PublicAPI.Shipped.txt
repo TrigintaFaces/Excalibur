@@ -22,6 +22,22 @@ Excalibur.Cdc.CdcDataChange.NewValue.init -> void
 Excalibur.Cdc.CdcDataChange.OldValue.get -> object?
 Excalibur.Cdc.CdcDataChange.OldValue.init -> void
 Excalibur.Cdc.CdcDataChangeExtensions
+Excalibur.Cdc.CdcFatalClassifier
+Excalibur.Cdc.CdcFatalDecision
+Excalibur.Cdc.CdcFatalDecision.AdvanceCheckpoint.get -> bool
+Excalibur.Cdc.CdcFatalDecision.AdvanceCheckpoint.init -> void
+Excalibur.Cdc.CdcFatalDecision.CdcFatalDecision() -> void
+Excalibur.Cdc.CdcFatalDecision.CdcFatalDecision(bool AdvanceCheckpoint, bool Stop, bool Reconnect) -> void
+Excalibur.Cdc.CdcFatalDecision.Reconnect.get -> bool
+Excalibur.Cdc.CdcFatalDecision.Reconnect.init -> void
+Excalibur.Cdc.CdcFatalDecision.Stop.get -> bool
+Excalibur.Cdc.CdcFatalDecision.Stop.init -> void
+Excalibur.Cdc.CdcFatalErrorHandler<TEvent>
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.CdcFatalErrorOptions() -> void
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.OnFatalError.get -> Excalibur.Cdc.CdcFatalErrorHandler<TEvent!>?
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.OnFatalError.set -> void
+Excalibur.Cdc.CdcFatalGuard
 Excalibur.Cdc.CdcMappingException
 Excalibur.Cdc.CdcMappingException.CdcMappingException() -> void
 Excalibur.Cdc.CdcMappingException.CdcMappingException(string! message) -> void
@@ -245,6 +261,7 @@ const Excalibur.Cdc.Diagnostics.CdcActivitySource.Name = "Excalibur.Cdc" -> stri
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceDisabled = 3100 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceDrainTimeout = 3105 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceError = 3102 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceErrorBackoff = 3109 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceProcessedChanges = 3104 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceStarting = 3101 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceStopped = 3103 -> int
@@ -263,6 +280,8 @@ static Excalibur.Cdc.CdcBuilderDiscoveryExtensions.TrackTablesFromHandlers(this 
 static Excalibur.Cdc.CdcDataChangeExtensions.GetOldValue<T>(this System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.CdcDataChange!>! changes, string! columnName) -> T
 static Excalibur.Cdc.CdcDataChangeExtensions.GetValue<T>(this System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.CdcDataChange!>! changes, string! columnName) -> T
 static Excalibur.Cdc.CdcDataChangeExtensions.TryGetValue<T>(this System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.CdcDataChange!>! changes, string! columnName, out T? value) -> bool
+static Excalibur.Cdc.CdcFatalClassifier.IsFatal(System.Exception! exception, Excalibur.Dispatch.IMessageFailureClassifier? classifier) -> bool
+static Excalibur.Cdc.CdcFatalGuard.Decide(System.Exception? exception, Excalibur.Dispatch.IMessageFailureClassifier? classifier) -> Excalibur.Cdc.CdcFatalDecision
 static Excalibur.Cdc.CdcReasonCodes.IsRecoverable(string? reasonCode) -> bool
 static Excalibur.Cdc.Diagnostics.CdcActivitySource.Instance.get -> System.Diagnostics.ActivitySource!
 static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartApplyChangeActivity(string! provider, string! changeType) -> System.Diagnostics.Activity?
@@ -282,5 +301,3 @@ static Microsoft.Extensions.DependencyInjection.CdcHealthChecksBuilderExtensions
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.ICdcBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.HasCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
-
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceErrorBackoff = 3109 -> int

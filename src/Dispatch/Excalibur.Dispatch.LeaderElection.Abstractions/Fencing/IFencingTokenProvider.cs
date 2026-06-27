@@ -15,6 +15,16 @@ namespace Excalibur.Dispatch.LeaderElection.Fencing;
 /// <para>
 /// This follows the distributed systems fencing token pattern described by Martin Kleppmann.
 /// </para>
+/// <para>
+/// <b>Consumer pattern (bd-7npc0q): capture-pin the token at the leadership transition.</b> A consumer
+/// must read the token <em>once</em> when it becomes leader (in its <c>BecameLeader</c> handler) and
+/// <em>pin</em> that captured value for the entire leadership tenure, attaching the same fixed token to
+/// every protected operation. Do <em>not</em> call <see cref="GetTokenAsync"/> per-operation: after a
+/// successor advances the high-water mark, a per-operation read would return the successor's <em>newer</em>
+/// token, so a stale leader would fence its own writes <em>through</em> instead of being rejected — defeating
+/// the pattern. The provider mints the token atomically with acquisition (see
+/// <see cref="IssueTokenAsync"/>); the consumer's job is to capture it at that transition and hold it fixed.
+/// </para>
 /// </remarks>
 public interface IFencingTokenProvider
 {

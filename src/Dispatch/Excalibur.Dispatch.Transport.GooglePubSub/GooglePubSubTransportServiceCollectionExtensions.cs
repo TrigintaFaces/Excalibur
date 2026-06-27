@@ -11,9 +11,11 @@ using Excalibur.Dispatch.Transport.Diagnostics;
 using Excalibur.Dispatch.Transport.Google;
 using Excalibur.Dispatch.Transport.GooglePubSub;
 
+using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -117,6 +119,11 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		// Register ITransportSubscriber with telemetry decorator
 		RegisterSubscriber(services, name, transportOptions);
 
+		// Route the rich ITransportSender/ITransportReceiver classes through DI so they are
+		// reachable on the AddGooglePubSubTransport path instead of orphaned (kek7vm shared-seam
+		// wiring). Ordering / exactly-once / flow-control are layered by the abyfxr child on this seam.
+		RegisterTransportSenderReceiver(services, name, transportOptions);
+
 		return services;
 	}
 
@@ -175,8 +182,55 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 				var subscriptionName = new SubscriptionName(
 					transportOptions.ProjectId,
 					transportOptions.SubscriptionId);
-				return SubscriberClient.Create(subscriptionName);
+
+				// abyfxr: the subscriber client uses EmulatorOrProduction so it talks to the SAME endpoint
+				// the fail-loud validator checks (PUBSUB_EMULATOR_HOST when set → emulator; absent →
+				// production credentials, unchanged from today). A transport that subscribes to production
+				// while the validator checks the emulator (or vice-versa) is a false NFR-3 guarantee (SA 17062).
+				if (transportOptions.MaxOutstandingMessages > 0 || transportOptions.MaxOutstandingByteCount > 0)
+				{
+					// abyfxr (FR-A3 c): apply flow-control to the streaming SubscriberClient when configured,
+					// bounding outstanding (unacked) messages/bytes. Flow-control is a streaming-SubscriberClient
+					// concept and does not apply to the raw-pull receiver path (SA Q2). Zero = SDK default.
+					var settings = new SubscriberClient.Settings
+					{
+						FlowControlSettings = new FlowControlSettings(
+							transportOptions.MaxOutstandingMessages > 0 ? transportOptions.MaxOutstandingMessages : null,
+							transportOptions.MaxOutstandingByteCount > 0 ? transportOptions.MaxOutstandingByteCount : null),
+					};
+
+					return new SubscriberClientBuilder
+					{
+						SubscriptionName = subscriptionName,
+						Settings = settings,
+						EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
+					}.Build();
+				}
+
+				return new SubscriberClientBuilder
+				{
+					SubscriptionName = subscriptionName,
+					EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
+				}.Build();
 			});
+
+			// abyfxr (FR-A3 a/b): fail-loud startup validation — if ordering/exactly-once is configured,
+			// verify (read-only) the deployed subscription actually has it, else throw a clear config error
+			// (NFR-3: no silently-inert advertised guarantee). Read-only; never creates the subscription.
+			if (transportOptions.EnableMessageOrdering || transportOptions.EnableExactlyOnceDelivery)
+			{
+				var projectId = transportOptions.ProjectId ?? string.Empty;
+				var subscriptionId = transportOptions.SubscriptionId;
+				var requireOrdering = transportOptions.EnableMessageOrdering;
+				var requireExactlyOnce = transportOptions.EnableExactlyOnceDelivery;
+
+				_ = services.AddSingleton<IHostedService>(sp => new PubSubSubscriptionConfigValidator(
+					projectId,
+					subscriptionId,
+					requireOrdering,
+					requireExactlyOnce,
+					sp.GetRequiredService<ILogger<PubSubSubscriptionConfigValidator>>()));
+			}
 		}
 
 		// Register GooglePubSubMessageBus
@@ -258,6 +312,49 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)
 		_ = services.AddTransportAdapterLifecycle();
+	}
+
+	/// <summary>
+	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
+	/// implementations keyed by transport name so they are instantiated and reachable on the
+	/// <c>AddGooglePubSubTransport</c> path instead of orphaned (kek7vm). <c>TryAdd*</c> lets a
+	/// consumer override the registration (Microsoft-first). The receiver is only registered when a
+	/// subscription is configured, mirroring the subscriber registration.
+	/// </summary>
+	private static void RegisterTransportSenderReceiver(
+		IServiceCollection services,
+		string name,
+		GooglePubSubTransportOptions transportOptions)
+	{
+		// Only register the sender when a topic is configured, mirroring the receiver's
+		// SubscriptionId guard below (kek7vm "each capability registered iff configured").
+		// A subscriber-only config (ProjectId + SubscriptionId, no TopicId) must not build
+		// new TopicName(projectId, null), which throws ArgumentNullException.
+		if (!string.IsNullOrEmpty(transportOptions.TopicId))
+		{
+			var topicName = new TopicName(transportOptions.ProjectId, transportOptions.TopicId).ToString();
+
+			services.TryAddKeyedSingleton<ITransportSender>(name, (sp, _) =>
+			{
+				var apiClient = PublisherServiceApiClient.Create();
+				var logger = sp.GetRequiredService<ILogger<PubSubTransportSender>>();
+				return new PubSubTransportSender(apiClient, topicName, logger);
+			});
+		}
+
+		if (!string.IsNullOrEmpty(transportOptions.SubscriptionId))
+		{
+			var subscriptionName = new SubscriptionName(
+				transportOptions.ProjectId,
+				transportOptions.SubscriptionId).ToString();
+
+			services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
+			{
+				var apiClient = SubscriberServiceApiClient.Create();
+				var logger = sp.GetRequiredService<ILogger<PubSubTransportReceiver>>();
+				return new PubSubTransportReceiver(apiClient, subscriptionName, logger);
+			});
+		}
 	}
 
 	/// <summary>
@@ -510,6 +607,39 @@ public sealed class GooglePubSubTransportOptions
 	/// Gets or sets a value indicating whether to enable OpenTelemetry integration. Default is true.
 	/// </summary>
 	public bool EnableOpenTelemetry { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the subscription requires per-ordering-key FIFO
+	/// delivery (abyfxr, FR-A3). When <see langword="true"/>, the transport validates at startup that
+	/// the configured subscription has message ordering enabled (read-only <c>GetSubscription</c>) and
+	/// throws a clear configuration error if it does not — so a configured-but-unhonored ordering flag
+	/// fails loud instead of being silently inert. The producer already stamps the ordering key; FIFO
+	/// only holds when the subscription itself is ordering-enabled. Default is false.
+	/// </summary>
+	public bool EnableMessageOrdering { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the subscription requires exactly-once delivery
+	/// semantics (abyfxr, FR-A3). When <see langword="true"/>, the transport validates at startup that
+	/// the configured subscription has exactly-once delivery enabled (read-only <c>GetSubscription</c>)
+	/// and throws a clear configuration error if it does not. The dedup delivery behavior itself is
+	/// enforced by Google Pub/Sub at runtime. Default is false.
+	/// </summary>
+	public bool EnableExactlyOnceDelivery { get; set; }
+
+	/// <summary>
+	/// Gets or sets the maximum number of outstanding (unacknowledged) messages the streaming
+	/// subscriber will hold before applying flow control (abyfxr, FR-A3). Zero (default) uses the
+	/// Google client default. Applied to the streaming <c>SubscriberClient</c>'s flow-control settings.
+	/// </summary>
+	public long MaxOutstandingMessages { get; set; }
+
+	/// <summary>
+	/// Gets or sets the maximum total size, in bytes, of outstanding (unacknowledged) messages the
+	/// streaming subscriber will hold before applying flow control (abyfxr, FR-A3). Zero (default)
+	/// uses the Google client default.
+	/// </summary>
+	public long MaxOutstandingByteCount { get; set; }
 
 	/// <summary>
 	/// Gets the message type to topic mappings.

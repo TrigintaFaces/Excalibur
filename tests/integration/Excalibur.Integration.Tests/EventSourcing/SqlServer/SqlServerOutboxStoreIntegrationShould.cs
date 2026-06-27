@@ -392,6 +392,57 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 			failed.Id, "a Failed (non-terminal) message remains claimable — the claim includes Status=3");
 	}
 
+	/// <summary>
+	/// b64hci (SendingMessageCount-SqlServer fix) author≠impl lock: <see cref="OutboxStatistics.SendingMessageCount"/>
+	/// must reflect the LEASED-but-not-terminal (in-flight) rows — computed via <c>SUM(CASE WHEN LeasedAt IS NOT
+	/// NULL …)</c>, mirroring Postgres's <c>dispatcher_id IS NOT NULL</c> reserved semantic — NOT the pre-fix
+	/// <c>SUM(CASE WHEN Status = 1 …)</c> which was permanently 0 (Status=Sending is never written on SqlServer).
+	/// </summary>
+	/// <remarks>
+	/// Authored independently of the implementer (PlatformDeveloper) against the working-tree fix; GREEN/RED is
+	/// verified at the full-CI integration shard (this is a real-SqlServer test, not a unit test). Both directions
+	/// (SA 16188): a leased non-terminal row ⇒ counted; an unleased row AND a terminal/sent row (lease cleared) ⇒
+	/// NOT counted. <b>RED mutant:</b> the pre-fix <c>SUM(Status = 1)</c> predicate returns 0 for all seeded rows
+	/// ⇒ <c>SendingMessageCount</c> is 0, not 3 ⇒ RED.
+	/// </remarks>
+	[Fact]
+	public async Task ReportSendingMessageCount_FromLeasedNonTerminalRows()
+	{
+		if (!_dockerAvailable)
+		{
+			return;
+		}
+
+		await ClearAllMessagesAsync().ConfigureAwait(false);
+		var outboxStore = CreateOutboxStore();
+
+		// Stage 4 and claim them all → 4 leased (LeasedAt set on claim).
+		for (var i = 0; i < 4; i++)
+		{
+			await outboxStore.StageMessageAsync(CreateTestMessage(), CancellationToken.None).ConfigureAwait(false);
+		}
+
+		var claimed = (await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false)).ToList();
+		claimed.Count.ShouldBe(4, "all 4 staged messages should be claimable (and thereby leased)");
+
+		// Mark ONE claimed message sent → terminal; the terminal transition clears its lease (LeasedAt = NULL),
+		// so it must NOT be counted as in-flight. 3 leased non-terminal remain.
+		await outboxStore.MarkSentAsync(claimed[0].Id, CancellationToken.None).ConfigureAwait(false);
+
+		// Stage 2 MORE without claiming → unleased (LeasedAt NULL) → must NOT be counted.
+		for (var i = 0; i < 2; i++)
+		{
+			await outboxStore.StageMessageAsync(CreateTestMessage(), CancellationToken.None).ConfigureAwait(false);
+		}
+
+		var stats = await outboxStore.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+
+		// 3 leased-non-terminal counted; the 1 sent (lease cleared) and the 2 unleased are NOT counted.
+		stats.SendingMessageCount.ShouldBe(
+			3,
+			"SendingMessageCount must count leased-but-not-terminal rows (LeasedAt IS NOT NULL), not the always-0 Status=Sending");
+	}
+
 	private static OutboundMessage CreateTestMessage()
 	{
 		return new OutboundMessage(

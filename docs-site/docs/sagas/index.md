@@ -240,6 +240,7 @@ Saga persistence enforces **optimistic concurrency** so two events arriving for 
 - `SagaState.Version` is the concurrency token — the version the saga was **loaded** at (a brand-new saga is `0`). You perform **no version arithmetic**; the store owns the increment (EF-style).
 - On save, the store performs a versioned compare-and-set: it persists the new state only if the stored row is still at the loaded version, bumping `Version` to `loadedVersion + 1`.
 - If a concurrent write already advanced the row, the save matches no rows and the store throws `ConcurrencyException` — exactly one of the racing saves wins, and no update is lost.
+- **No-resurrect:** a stale-version save targeting a saga that no longer exists (e.g. since deleted/completed) also throws `ConcurrencyException` and does **not** re-create the row — a since-completed saga cannot be resurrected into a zombie by a late event holding an old version.
 
 This behavior is identical whether the saga is driven through `SagaManager` or `SagaCoordinator`. Handle `ConcurrencyException` by reloading the saga and replaying the event (the [idempotent replay](#idempotent-event-replay) guard makes reprocessing safe):
 
@@ -258,6 +259,11 @@ catch (ConcurrencyException)
 :::info Changed in Sprint 840 (bd-eszc06)
 
 The SQL saga store previously issued an unconditional last-writer-wins `UPDATE` that ignored `Version`, so concurrent saves for one saga could lose updates. The save path now always enforces the version check; there is no save path that ignores `Version`.
+:::
+
+:::info Changed in Sprint 853 (bd-e1tsq2, bd-skl8r7)
+
+Optimistic concurrency **and** the no-resurrect guard now hold **uniformly across every saga store provider** — In-Memory, PostgreSQL, MongoDB, Cosmos DB, DynamoDB, and Firestore — not just the SQL stores. Each provider performs the version-gated compare-and-set with its native mechanism (Postgres `WHERE version = @ExpectedVersion`, Cosmos `If-Match` ETag, DynamoDB conditional write, Mongo filtered update, Firestore transaction), and the store owns the version increment.
 :::
 
 ## Save-Then-Dispatch Ordering

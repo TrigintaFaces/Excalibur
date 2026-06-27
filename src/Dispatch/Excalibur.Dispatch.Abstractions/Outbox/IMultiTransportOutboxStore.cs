@@ -210,11 +210,6 @@ public sealed class TransportDeliveryStatistics
 	public int PendingCount { get; set; }
 
 	/// <summary>
-	/// Gets or sets the number of deliveries currently sending.
-	/// </summary>
-	public int SendingCount { get; set; }
-
-	/// <summary>
 	/// Gets or sets the number of successful deliveries.
 	/// </summary>
 	public int SentCount { get; set; }

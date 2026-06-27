@@ -45,8 +45,8 @@ builder.Services.AddLogging(logging =>
 // ============================================================
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
-// Add event serializer (required for event sourcing)
-builder.Services.AddSingleton<IEventSerializer, JsonEventSerializer>();
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // ============================================================
 // Configure SQL Server Event Sourcing

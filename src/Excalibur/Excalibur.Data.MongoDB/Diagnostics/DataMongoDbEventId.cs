@@ -375,6 +375,9 @@ public static class DataMongoDbEventId
 	/// <summary>CDC stream invalidated.</summary>
 	public const int CdcStreamInvalidated = 104939;
 
+	/// <summary>CDC fatal (non-retryable) error — processor stops instead of reconnecting.</summary>
+	public const int CdcFatalError = 104940;
+
 	// ========================================
 	// 104950-104969: Grants
 	// ========================================

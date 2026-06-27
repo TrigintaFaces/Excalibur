@@ -20,8 +20,15 @@
 #   5. A genuine (non-transient) failure after the bounded retries fails LOUD with a non-zero exit and
 #      NEVER silently proceeds — shipping an un-flushed/desynced tracker is worse than aborting.
 #
-# Exit codes: 0 = flushed (or already in sync); 1 = genuine flush failure (diagnose); 2 = on-disk
-#             .jsonl is AHEAD of the DB (foreign change) — reconcile (e.g. `bd sync --import-only`) first.
+# Exit codes: 0 = flushed (or already in sync / staged verified); 1 = genuine flush failure (diagnose);
+#             2 = on-disk .jsonl is AHEAD of the DB (foreign change) — reconcile first;
+#             3 = (--verify-staged only) the STAGED .jsonl is STALE vs the DB (missing fresh closes).
+#
+# Modes:
+#   (default)        flush the working-tree tracker to reflect the DB (steps 1-4 below).
+#   --verify-staged  forge clause-6 / bd-m3dmht backstop: assert the *staged* blob (what `git commit`
+#                    will snapshot — `git show :<jsonl>`) reflects the DB, so a PRE-close snapshot that
+#                    slipped past `git add` cannot be committed. Read-only; never writes the tracker.
 #
 # Knobs (env): BD_FLUSH_ATTEMPTS (default 3), BD_FLUSH_BACKOFF seconds (default 2),
 #              BD_JSONL_PATH (default .beads/issues.jsonl), BD_BIN (default bd), PYTHON_BIN (default python3).
@@ -44,23 +51,109 @@ trap cleanup EXIT
 
 db_dump="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/bd-flush-guard.$$.jsonl")"
 
-# ── Step 1: authoritative DB -> temp dump, bounded-retry on transient contention ────────────────
-# Capture the exit status DIRECTLY (no pipe to head/tail that would mask it — no-pipe-masked-commit).
-attempt=1
-flushed=0
-while [ "$attempt" -le "$ATTEMPTS" ]; do
-    "$BD" export --no-auto-import -o "$db_dump"
-    export_exit=$?
-    if [ "$export_exit" -eq 0 ]; then
-        flushed=1
-        break
-    fi
-    log "export attempt $attempt/$ATTEMPTS failed (exit $export_exit; daemon contention?); retrying..."
-    attempt=$((attempt + 1))
-    [ "$attempt" -le "$ATTEMPTS" ] && sleep "$BACKOFF"
-done
+# produce_db_dump — authoritative DB -> "$db_dump", bounded-retry on transient daemon contention.
+# Captures the export exit status DIRECTLY (no pipe to head/tail that would mask it —
+# no-pipe-masked-commit). Returns 0 on success, 1 on genuine failure after the bounded retries.
+produce_db_dump() {
+    local attempt=1 export_exit
+    while [ "$attempt" -le "$ATTEMPTS" ]; do
+        "$BD" export --no-auto-import -o "$db_dump"
+        export_exit=$?
+        [ "$export_exit" -eq 0 ] && return 0
+        log "export attempt $attempt/$ATTEMPTS failed (exit $export_exit; daemon contention?); retrying..."
+        attempt=$((attempt + 1))
+        [ "$attempt" -le "$ATTEMPTS" ] && sleep "$BACKOFF"
+    done
+    return 1
+}
 
-if [ "$flushed" -ne 1 ]; then
+# content_staleness_check <db-dump> <candidate> — exit 3 if <candidate> is STALE vs <db-dump>
+# (any DB issue missing from the candidate, or an OLDER updated_at for a shared issue). Content-based
+# (parses both, compares id->updated_at) so it is robust to EOL/byte normalization of the staged blob.
+content_staleness_check() {
+    "$PYTHON" - "$1" "$2" <<'PYEOF'
+import json, sys
+from datetime import datetime, timezone
+
+def load(path):
+    out = {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                obj = json.loads(line)
+                iid = obj.get("id")
+                if iid is not None:
+                    out[iid] = obj
+    except FileNotFoundError:
+        pass
+    return out
+
+def parse_ts(value):
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value))
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+    except ValueError:
+        return None
+
+db = load(sys.argv[1])
+cand = load(sys.argv[2])
+
+stale = []
+for iid, dobj in db.items():
+    if iid not in cand:
+        stale.append(f"  {iid}: in the DB but MISSING from the staged .jsonl (un-staged fresh close)")
+        continue
+    bts = parse_ts(dobj.get("updated_at"))
+    cts = parse_ts(cand[iid].get("updated_at"))
+    if bts is not None and cts is not None and cts < bts:
+        stale.append(
+            f"  {iid}: staged updated_at {cand[iid].get('updated_at')} is OLDER than DB {dobj.get('updated_at')}"
+        )
+
+if stale:
+    sys.stderr.write("staged .jsonl is STALE vs the DB:\n" + "\n".join(stale) + "\n")
+    sys.exit(3)
+sys.exit(0)
+PYEOF
+}
+
+# ── Mode: --verify-staged (forge clause-6 / bd-m3dmht backstop) ──────────────────────────────────
+# Assert the STAGED tracker blob reflects the DB; never writes. Makes "commit a stale tracker"
+# structurally inexpressible even if a pre-close snapshot slipped past `git add`.
+if [ "${1:-}" = "--verify-staged" ]; then
+    if ! produce_db_dump; then
+        log "ERROR: 'bd export --no-auto-import' failed after $ATTEMPTS attempts during --verify-staged —"
+        log "       cannot establish the DB ground truth; aborting LOUD."
+        exit 1
+    fi
+    staged_tmp="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/bd-flush-guard-staged.$$.jsonl")"
+    if ! git show ":$JSONL" > "$staged_tmp" 2>/dev/null; then
+        rm -f "$staged_tmp"
+        log "ERROR: '$JSONL' has no staged blob (not staged) — stage the flushed tracker first."
+        exit 1
+    fi
+    content_staleness_check "$db_dump" "$staged_tmp"
+    verify_exit=$?
+    rm -f "$staged_tmp"
+    if [ "$verify_exit" -eq 3 ]; then
+        log "ERROR: STAGED '$JSONL' is STALE vs the DB (a fresh close is not in the staged blob)."
+        log "       Re-run the flush + 'git add $JSONL', then retry the commit (forge clause 6)."
+        exit 3
+    elif [ "$verify_exit" -ne 0 ]; then
+        log "ERROR: staged verification failed (exit $verify_exit) — aborting LOUD."
+        exit 1
+    fi
+    log "STAGED '$JSONL' reflects the DB (--verify-staged OK)."
+    exit 0
+fi
+
+# ── Step 1: authoritative DB -> temp dump, bounded-retry on transient contention ────────────────
+if ! produce_db_dump; then
     log "ERROR: 'bd export --no-auto-import' failed after $ATTEMPTS attempts — likely a genuine failure"
     log "       (corrupt/locked DB). Tracker NOT flushed; aborting LOUD rather than ship a desynced tracker."
     exit 1

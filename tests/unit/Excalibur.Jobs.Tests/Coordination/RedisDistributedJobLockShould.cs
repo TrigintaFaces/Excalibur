@@ -24,11 +24,14 @@ public sealed class RedisDistributedJobLockShould
 		string lockKey = "test:lock",
 		string jobKey = "test-job",
 		string instanceId = "instance-1",
+		string ownerToken = "owner-token-1",
 		DateTimeOffset? acquiredAt = null,
 		DateTimeOffset? expiresAt = null)
 	{
 		var now = DateTimeOffset.UtcNow;
-		// Use internal type via reflection (moved to Jobs.Redis package)
+		// Use internal type via reflection (moved to Jobs.Redis package).
+		// jqlqc8: the ctor now takes a per-acquisition ownerToken (the bare Redis lock value)
+		// between instanceId and acquiredAt — it backs the owner-checked release/extend Lua.
 		var type = typeof(Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator).Assembly
 			.GetType("Excalibur.Jobs.Redis.Coordination.RedisDistributedJobLock")!;
 
@@ -38,6 +41,7 @@ public sealed class RedisDistributedJobLockShould
 			lockKey,
 			jobKey,
 			instanceId,
+			ownerToken,
 			acquiredAt ?? now,
 			expiresAt ?? now.AddMinutes(5),
 			_logger)!;
@@ -90,11 +94,13 @@ public sealed class RedisDistributedJobLockShould
 	[Fact]
 	public async Task ExtendAsync_ExtendsTtl()
 	{
-		// Arrange — use method-name matching to avoid StackExchange.Redis overload ambiguity
+		// Arrange — jqlqc8: ExtendAsync now runs an owner-checked compare-and-PEXPIRE Lua script
+		// (ScriptEvaluateAsync) instead of an unconditional KeyExpireAsync. A Lua return of 1 means
+		// "this acquisition still owns the lock → extended". Match by method name (overload ambiguity).
 		A.CallTo(_database)
-			.Where(call => call.Method.Name == "KeyExpireAsync")
-			.WithReturnType<Task<bool>>()
-			.Returns(true);
+			.Where(call => call.Method.Name == "ScriptEvaluateAsync")
+			.WithReturnType<Task<RedisResult>>()
+			.Returns(Task.FromResult(RedisResult.Create((RedisValue)1)));
 
 		var lockObj = CreateLock();
 		var extendMethod = lockObj.GetType().GetMethod("ExtendAsync")!;
@@ -102,16 +108,21 @@ public sealed class RedisDistributedJobLockShould
 		// Act
 		var result = await (Task<bool>)extendMethod.Invoke(lockObj, [TimeSpan.FromMinutes(10), CancellationToken.None])!;
 
-		// Assert
+		// Assert — owner-checked extend succeeded, and the Lua ran exactly once.
 		result.ShouldBeTrue();
+		A.CallTo(_database)
+			.Where(call => call.Method.Name == "ScriptEvaluateAsync")
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
 	public async Task ExtendAsync_ReturnsFalseWhenDisposed()
 	{
-		// Arrange
-		A.CallTo(() => _database.KeyDeleteAsync(A<RedisKey>._, A<CommandFlags>._))
-			.Returns(true);
+		// Arrange — the dispose path now runs the owner-checked release Lua (ScriptEvaluateAsync).
+		A.CallTo(_database)
+			.Where(call => call.Method.Name == "ScriptEvaluateAsync")
+			.WithReturnType<Task<RedisResult>>()
+			.Returns(Task.FromResult(RedisResult.Create((RedisValue)1)));
 
 		var lockObj = CreateLock();
 
@@ -127,11 +138,14 @@ public sealed class RedisDistributedJobLockShould
 	}
 
 	[Fact]
-	public async Task ReleaseAsync_DeletesRedisKey()
+	public async Task ReleaseAsync_RunsOwnerCheckedDeleteScript()
 	{
-		// Arrange
-		A.CallTo(() => _database.KeyDeleteAsync(A<RedisKey>._, A<CommandFlags>._))
-			.Returns(true);
+		// Arrange — jqlqc8: ReleaseAsync now runs an owner-checked compare-and-DEL Lua (ScriptEvaluateAsync)
+		// keyed on the per-acquisition owner token, NOT an unconditional KeyDeleteAsync.
+		A.CallTo(_database)
+			.Where(call => call.Method.Name == "ScriptEvaluateAsync")
+			.WithReturnType<Task<RedisResult>>()
+			.Returns(Task.FromResult(RedisResult.Create((RedisValue)1)));
 
 		var lockObj = CreateLock(lockKey: "mylock");
 		var releaseMethod = lockObj.GetType().GetMethod("ReleaseAsync")!;
@@ -139,19 +153,22 @@ public sealed class RedisDistributedJobLockShould
 		// Act
 		await (Task)releaseMethod.Invoke(lockObj, [CancellationToken.None])!;
 
-		// Assert
-		A.CallTo(() => _database.KeyDeleteAsync(
-			(RedisKey)"mylock",
-			A<CommandFlags>._))
+		// Assert — the owner-checked release script ran exactly once (the unconditional KeyDeleteAsync is gone).
+		A.CallTo(_database)
+			.Where(call => call.Method.Name == "ScriptEvaluateAsync")
 			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => _database.KeyDeleteAsync(A<RedisKey>._, A<CommandFlags>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
 	public async Task ReleaseAsync_DoesNothing_WhenAlreadyDisposed()
 	{
-		// Arrange
-		A.CallTo(() => _database.KeyDeleteAsync(A<RedisKey>._, A<CommandFlags>._))
-			.Returns(true);
+		// Arrange — owner-checked release runs ScriptEvaluateAsync on the first call.
+		A.CallTo(_database)
+			.Where(call => call.Method.Name == "ScriptEvaluateAsync")
+			.WithReturnType<Task<RedisResult>>()
+			.Returns(Task.FromResult(RedisResult.Create((RedisValue)1)));
 
 		var lockObj = CreateLock();
 		var releaseMethod = lockObj.GetType().GetMethod("ReleaseAsync")!;
@@ -163,25 +180,29 @@ public sealed class RedisDistributedJobLockShould
 		// Act — second release should do nothing
 		await (Task)releaseMethod.Invoke(lockObj, [CancellationToken.None])!;
 
-		// Assert
-		A.CallTo(() => _database.KeyDeleteAsync(A<RedisKey>._, A<CommandFlags>._))
+		// Assert — the owner-checked script does NOT run again after disposal.
+		A.CallTo(_database)
+			.Where(call => call.Method.Name == "ScriptEvaluateAsync")
 			.MustNotHaveHappened();
 	}
 
 	[Fact]
 	public async Task DisposeAsync_ReleasesLock()
 	{
-		// Arrange
-		A.CallTo(() => _database.KeyDeleteAsync(A<RedisKey>._, A<CommandFlags>._))
-			.Returns(true);
+		// Arrange — disposal releases via the owner-checked release Lua (ScriptEvaluateAsync).
+		A.CallTo(_database)
+			.Where(call => call.Method.Name == "ScriptEvaluateAsync")
+			.WithReturnType<Task<RedisResult>>()
+			.Returns(Task.FromResult(RedisResult.Create((RedisValue)1)));
 
 		var lockObj = CreateLock();
 
 		// Act
 		await lockObj.DisposeAsync();
 
-		// Assert
-		A.CallTo(() => _database.KeyDeleteAsync(A<RedisKey>._, A<CommandFlags>._))
+		// Assert — the owner-checked release script ran exactly once.
+		A.CallTo(_database)
+			.Where(call => call.Method.Name == "ScriptEvaluateAsync")
 			.MustHaveHappenedOnceExactly();
 	}
 }

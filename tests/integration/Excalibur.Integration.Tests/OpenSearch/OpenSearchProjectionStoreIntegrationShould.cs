@@ -162,6 +162,37 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 		var count = await _store.CountAsync(null, CancellationToken.None);
 		count.ShouldBeGreaterThanOrEqualTo(2);
 	}
+
+	// Author≠impl regression lock for bd-60460q (MS-A5): OpenSearchProjectionStore.QueryAsync/CountAsync
+	// previously ignored the `filters` parameter and returned/counted the WHOLE index (silent wrong
+	// results). The fix applies the filters as exact-match term queries. Non-vacuity: a unique per-run
+	// `status` value tags exactly one matching doc (A); the pre-fix whole-index scan would return BOTH A
+	// and B (and count >= 2) regardless of the filter -> RED. The fix returns only A and count == 1.
+	[Fact]
+	public async Task ApplyFiltersInQueryAndCount()
+	{
+		if (!_available) return;
+
+		// Unique status value so the filter targets exactly this test's docs, independent of any other
+		// documents the shared index/container may hold.
+		var activeStatus = $"active-{Guid.NewGuid():N}";
+		var closedStatus = $"closed-{Guid.NewGuid():N}";
+
+		await _store!.UpsertAsync("filter-a",
+			new TestOpenSearchProjection { Id = "filter-a", Name = "Alpha", Status = activeStatus }, CancellationToken.None);
+		await _store.UpsertAsync("filter-b",
+			new TestOpenSearchProjection { Id = "filter-b", Name = "Beta", Status = closedStatus }, CancellationToken.None);
+		await Task.Delay(1000);
+
+		var filters = new Dictionary<string, object>(StringComparer.Ordinal) { ["status"] = activeStatus };
+
+		var results = await _store.QueryAsync(filters, null, CancellationToken.None);
+		results.Count.ShouldBe(1, "only the doc whose status matches the filter must be returned");
+		results[0].Id.ShouldBe("filter-a");
+
+		var count = await _store.CountAsync(filters, CancellationToken.None);
+		count.ShouldBe(1, "CountAsync must apply the same filter, not count the whole index");
+	}
 }
 
 public sealed class TestOpenSearchProjection
@@ -169,4 +200,5 @@ public sealed class TestOpenSearchProjection
 	public string Id { get; set; } = string.Empty;
 	public string Name { get; set; } = string.Empty;
 	public int Value { get; set; }
+	public string Status { get; set; } = string.Empty;
 }

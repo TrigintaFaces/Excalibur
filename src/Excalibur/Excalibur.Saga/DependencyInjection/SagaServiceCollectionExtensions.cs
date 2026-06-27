@@ -52,15 +52,42 @@ public static class SagaServiceCollectionExtensions
 		services.TryAddSingleton<ISagaTypeRegistry, SagaTypeRegistry>();
 		services.TryAddSingleton<ISagaDispatchRegistry, SagaDispatchRegistry>();
 
-		// Register InMemorySagaStore as the default fallback saga store.
-		// Uses TryAdd so persistent stores (SqlServer, etc.) registered by
-		// AddExcaliburOrchestration() or provider-specific extensions take precedence.
+		// iuv3s1: do NOT silently bind an in-memory saga store. Saga state is as stateful as the outbox /
+		// event store (it is lost on restart/scale-out), so saga registration adopts the same fail-fast
+		// posture: a "default" ISagaStore is a required deployment decision. The in-memory store is
+		// available only via an explicit opt-in (AddInMemorySagaStore() / ISagaBuilder.UseInMemoryStore()),
+		// and SagaPrerequisiteValidator fails loud at host startup if neither a persistent provider nor the
+		// explicit opt-in registered one. Mirrors EventSourcingPrerequisiteValidator / the signing-key guard.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, SagaPrerequisiteValidator>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Explicitly registers the in-memory <see cref="Excalibur.Dispatch.Messaging.ISagaStore"/> as the
+	/// default saga store. This is an opt-in: it is never registered implicitly, because the in-memory
+	/// store loses all in-flight saga state on restart or scale-out and must not be a silent production
+	/// default. For production, register a persistent provider instead (for example a SQL Server saga store).
+	/// </summary>
+	/// <param name="services">The service collection to add services to.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// Uses <c>TryAdd</c> semantics so a persistent provider registered first wins. Registers the store
+	/// under the keyed <c>"inmemory"</c> and <c>"default"</c> names plus a non-keyed convenience alias.
+	/// </remarks>
+	public static IServiceCollection AddInMemorySagaStore(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
 		services.TryAddSingleton<Excalibur.Saga.Orchestration.InMemorySagaStore>();
 		services.TryAddKeyedSingleton<Excalibur.Dispatch.Messaging.ISagaStore>(
-			"default", (sp, _) => sp.GetRequiredService<Excalibur.Saga.Orchestration.InMemorySagaStore>());
+			"inmemory", (sp, _) => sp.GetRequiredService<Excalibur.Saga.Orchestration.InMemorySagaStore>());
+		services.TryAddKeyedSingleton<Excalibur.Dispatch.Messaging.ISagaStore>(
+			"default", (sp, _) => sp.GetRequiredKeyedService<Excalibur.Dispatch.Messaging.ISagaStore>("inmemory"));
 
-		// Non-keyed ISagaStore convenience alias: forwards to keyed "default" so consumers
-		// can inject ISagaStore directly without [FromKeyedServices("default")].
+		// Non-keyed ISagaStore convenience alias: forwards to keyed "default" so consumers (and the
+		// SagaCoordinator constructor) can inject ISagaStore directly without [FromKeyedServices("default")].
 		services.TryAddSingleton<Excalibur.Dispatch.Messaging.ISagaStore>(sp =>
 			sp.GetRequiredKeyedService<Excalibur.Dispatch.Messaging.ISagaStore>("default"));
 

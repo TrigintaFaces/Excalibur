@@ -4,8 +4,10 @@
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 using Excalibur.Dispatch.LeaderElection.Fencing;
+using Excalibur.LeaderElection.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -35,15 +37,28 @@ public static class LeaderElectionBuilderExtensions
 	/// <param name="builder">The leader election builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
+	/// <para>
 	/// Registers <see cref="FencingTokenMiddleware"/>. The actual
-	/// <see cref="IFencingTokenProvider"/> must be registered separately
-	/// via <see cref="FencingTokenServiceCollectionExtensions.AddFencingTokenSupport{TProvider}"/>.
+	/// <see cref="IFencingTokenProvider"/> must be registered separately — e.g. via
+	/// <c>AddRedisFencingTokenProvider()</c> (Excalibur.LeaderElection.Redis) or
+	/// <see cref="FencingTokenServiceCollectionExtensions.AddFencingTokenSupport{TProvider}"/>.
+	/// </para>
+	/// <para>
+	/// Per ADR-339 (Decision 3), enabling fencing without a registered provider <b>fails loud at host
+	/// startup</b> (via <see cref="FencingTokenPrerequisiteValidator"/>) rather than silently degrading to
+	/// no split-brain protection — the Microsoft <c>ValidateOnStart()</c> fail-fast contract.
+	/// </para>
 	/// </remarks>
 	public static ILeaderElectionBuilder WithFencingTokens(this ILeaderElectionBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
 		builder.Services.TryAddSingleton<FencingTokenMiddleware>();
+
+		// Fail loud at host startup if WithFencingTokens() was called without a registered provider
+		// (ADR-339 Decision 3). TryAddEnumerable keeps this idempotent across repeated calls. [bd-umemwa]
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, FencingTokenPrerequisiteValidator>());
 
 		return builder;
 	}

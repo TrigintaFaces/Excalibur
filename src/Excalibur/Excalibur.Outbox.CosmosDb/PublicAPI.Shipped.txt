@@ -1,6 +1,6 @@
 #nullable enable
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxChangeFeedSubscription
-Excalibur.Outbox.CosmosDb.CosmosDbOutboxChangeFeedSubscription.CosmosDbOutboxChangeFeedSubscription(Microsoft.Azure.Cosmos.Container! container, Excalibur.Data.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Outbox.CosmosDb.CosmosDbOutboxChangeFeedSubscription.CosmosDbOutboxChangeFeedSubscription(Microsoft.Azure.Cosmos.Container! container, Excalibur.Data.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger, Excalibur.Data.CosmosDb.IChangeFeedCheckpointStore? checkpointStore = null) -> void
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxChangeFeedSubscription.CurrentContinuationToken.get -> string?
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxChangeFeedSubscription.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxChangeFeedSubscription.IsActive.get -> bool
@@ -41,7 +41,7 @@ Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.AddAsync(Excalibur.Data.CloudNative.CloudOutboxMessage! message, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudOperationResult<Excalibur.Data.CloudNative.CloudOutboxMessage!>!>!
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.AddBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.CloudNative.CloudOutboxMessage!>! messages, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudBatchResult!>!
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.CleanupOldMessagesAsync(Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudCleanupResult!>!
-Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.CosmosDbOutboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.CosmosDb.CosmosDbOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore!>! logger) -> void
+Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.CosmosDbOutboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.CosmosDb.CosmosDbOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore!>! logger, Excalibur.Data.CosmosDb.IChangeFeedCheckpointStore? checkpointStore = null) -> void
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.GetPendingAsync(Excalibur.Data.CloudNative.IPartitionKey! partitionKey, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<Excalibur.Data.CloudNative.CloudOutboxMessage!>!>!
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.IncrementRetryCountAsync(string! messageId, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, string? errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudOperationResult!>!
@@ -50,7 +50,6 @@ Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.MarkAsPublishedAsync(string! messa
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.MarkBatchAsPublishedAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudBatchResult!>!
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.ProviderType.get -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore.SubscribeToNewMessagesAsync(Excalibur.Data.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.IChangeFeedSubscription<Excalibur.Data.CloudNative.CloudOutboxMessage!>!>!
-Excalibur.Outbox.CosmosDb.OutboxBuilderCosmosDbExtensions
 Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder
 Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder!
 Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder.Client(Microsoft.Azure.Cosmos.CosmosClient! client) -> Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder!
@@ -59,4 +58,5 @@ Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder.ConnectionString(string! connec
 Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder.ContainerName(string! containerName) -> Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder!
 Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder.DatabaseName(string! databaseName) -> Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder!
 Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder.Endpoint(string! endpoint, string! authKey) -> Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder!
+Excalibur.Outbox.CosmosDb.OutboxBuilderCosmosDbExtensions
 static Excalibur.Outbox.CosmosDb.OutboxBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.CosmosDb.ICosmosDbOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!

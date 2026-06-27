@@ -52,15 +52,22 @@ public sealed class InMemorySagaStoreShould
 	[Fact]
 	public async Task ReturnLatestState_AfterMultipleSaves()
 	{
-		// Arrange
+		// Arrange — e1tsq2 (S853): reload-before-save (the orchestration pattern) threads the STORE-owned
+		// version across updates rather than hand-setting it, so the sequence is correct under optimistic
+		// concurrency (and unchanged for last-write-wins).
 		var sagaId = Guid.NewGuid();
-		var state1 = new TestSagaState { SagaId = sagaId, Value = "first", Version = 0 };
-		var state2 = new TestSagaState { SagaId = sagaId, Value = "second", Version = 1 };
-		var state3 = new TestSagaState { SagaId = sagaId, Value = "third", Version = 2 };
 
-		await _sut.SaveAsync(state1, CancellationToken.None);
-		await _sut.SaveAsync(state2, CancellationToken.None);
-		await _sut.SaveAsync(state3, CancellationToken.None);
+		await _sut.SaveAsync(new TestSagaState { SagaId = sagaId, Value = "first" }, CancellationToken.None);
+
+		var second = await _sut.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
+		second.ShouldNotBeNull();
+		second!.Value = "second";
+		await _sut.SaveAsync(second, CancellationToken.None);
+
+		var third = await _sut.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
+		third.ShouldNotBeNull();
+		third!.Value = "third";
+		await _sut.SaveAsync(third, CancellationToken.None);
 
 		// Act
 		var result = await _sut.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
@@ -126,12 +133,12 @@ public sealed class InMemorySagaStoreShould
 	{
 		// Arrange
 		var sagaId = Guid.NewGuid();
-		var originalState = new TestSagaState { SagaId = sagaId, Value = "original", Version = 0 };
-		var updatedState = new TestSagaState { SagaId = sagaId, Value = "updated", Version = 1 };
+		await _sut.SaveAsync(new TestSagaState { SagaId = sagaId, Value = "original" }, CancellationToken.None);
 
-		await _sut.SaveAsync(originalState, CancellationToken.None);
-
-		// Act
+		// Act — e1tsq2: reload-before-save threads the store-owned version (optimistic-concurrency safe).
+		var updatedState = await _sut.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
+		updatedState.ShouldNotBeNull();
+		updatedState!.Value = "updated";
 		await _sut.SaveAsync(updatedState, CancellationToken.None);
 
 		// Assert

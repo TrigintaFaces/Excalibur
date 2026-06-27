@@ -40,6 +40,7 @@ This folder contains all build, validation, and CI scripts for the repository. I
 | `verify-banned-apis.ps1` | Banned API usage checks |
 | `verify-layout.ps1` | Repository layout verification |
 | `verify-providers.ps1` | Provider registration verification |
+| `ci/f5-sweep.sh` | F-5 cross-project sibling-sweep pre-REVIEW gate: greps changed `src/**` type-contract tokens across all `tests/**` projects, lists un-triaged stale-sibling hits (`--self-test` for non-vacuity). See `.claude/rules/process/f5-cross-project-test-sweep.md`. |
 
 ### Audit & Reporting
 

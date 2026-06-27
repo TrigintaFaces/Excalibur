@@ -61,26 +61,6 @@ public sealed class AotSerializationRoundTripShould
 		json.ShouldContain("\"JobName\"");
 	}
 
-	// -- Redis Jobs: RedisLockData --
-
-	[Fact]
-	public void RoundTripRedisLockData()
-	{
-		// Arrange
-		var now = DateTimeOffset.UtcNow;
-		var original = new RedisLockData("instance-1", now, now.AddMinutes(5));
-
-		// Act
-		var json = JsonSerializer.Serialize(original, RedisJobCoordinatorSerializerContext.Default.RedisLockData);
-		var deserialized = JsonSerializer.Deserialize(json, RedisJobCoordinatorSerializerContext.Default.RedisLockData);
-
-		// Assert
-		deserialized.ShouldNotBeNull();
-		deserialized.InstanceId.ShouldBe("instance-1");
-		deserialized.AcquiredAt.ShouldBe(now);
-		deserialized.ExpiresAt.ShouldBe(now.AddMinutes(5));
-	}
-
 	// -- Redis Jobs: RedisJobMessage --
 
 	[Fact]
@@ -146,14 +126,14 @@ public sealed class AotSerializationRoundTripShould
 	public void SerializeRedisTypesWithCamelCasePropertyNames()
 	{
 		// Arrange -- RedisJobCoordinatorSerializerContext uses CamelCase policy
-		var data = new RedisLockData("inst", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(1));
+		var data = new RedisCompletionData("job-1", "inst", true, null, DateTimeOffset.UtcNow);
 
 		// Act
-		var json = JsonSerializer.Serialize(data, RedisJobCoordinatorSerializerContext.Default.RedisLockData);
+		var json = JsonSerializer.Serialize(data, RedisJobCoordinatorSerializerContext.Default.RedisCompletionData);
 
 		// Assert
+		json.ShouldContain("\"jobKey\"");
 		json.ShouldContain("\"instanceId\"");
-		json.ShouldContain("\"acquiredAt\"");
-		json.ShouldContain("\"expiresAt\"");
+		json.ShouldContain("\"completedAt\"");
 	}
 }

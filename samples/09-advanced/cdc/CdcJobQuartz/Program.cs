@@ -172,6 +172,11 @@ builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 
 builder.Services.AddSingleton<IEventSerializer, JsonEventSerializer>();
 
+// c6wd6f: register event types so the FRAMEWORK's event-sourcing serializer (used by
+// IEventSourcedRepository load/replay) resolves them securely without the scan. The AddSingleton above
+// is this sample's OWN CDC IEventSerializer (CdcJobQuartz.Infrastructure) — a distinct type; both coexist.
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 builder.Services.AddExcalibur(excalibur => excalibur
 	// Discover handlers and validators from the application assembly
 	.ScanAssemblies(typeof(Program).Assembly)

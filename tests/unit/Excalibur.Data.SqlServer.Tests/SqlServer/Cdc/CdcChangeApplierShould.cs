@@ -4,6 +4,7 @@
 using System.Reflection;
 using System.Threading.Channels;
 
+using Excalibur.Cdc; // 14z4ao: CdcFatalErrorHandler<TEvent>/CdcFatalErrorOptions<TEvent> lifted to Cdc core
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Domain;
 
@@ -226,7 +227,9 @@ public sealed class CdcChangeApplierShould : UnitTestBase
 	public async Task ProcessBatchAsync_DelegatesErrorToFatalHandler_WhenConfigured()
 	{
 		// Arrange — create processor with fatal error handler
-		var capturedErrors = new List<(Exception Ex, DataChangeEvent Evt)>();
+		// 14z4ao: the lifted CdcFatalErrorHandler<TEvent>(Exception, TEvent?) passes a NULLABLE event
+		// (null on a loop-level fatal); match it so there's no CS8620 nullability mismatch.
+		var capturedErrors = new List<(Exception Ex, DataChangeEvent? Evt)>();
 
 		using var processor = CreateProcessor(onFatalError: async (ex, evt) =>
 		{
@@ -348,7 +351,7 @@ public sealed class CdcChangeApplierShould : UnitTestBase
 
 	// --- Helpers ---
 
-	private static CdcProcessor CreateProcessor(CdcFatalErrorHandler? onFatalError = null)
+	private static CdcProcessor CreateProcessor(CdcFatalErrorHandler<DataChangeEvent>? onFatalError = null)
 	{
 		var appLifetime = A.Fake<IHostApplicationLifetime>();
 		var dbConfig = A.Fake<IDatabaseOptions>();
@@ -367,8 +370,8 @@ public sealed class CdcChangeApplierShould : UnitTestBase
 		A.CallTo(() => policyFactory.GetRetryPolicy()).Returns(noOpPolicy);
 		A.CallTo(() => policyFactory.CreateCircuitBreakerPolicy()).Returns(noOpPolicy);
 
-		IOptions<CdcFatalErrorOptions>? fatalErrorOptions = onFatalError is not null
-			? Microsoft.Extensions.Options.Options.Create(new CdcFatalErrorOptions { OnFatalError = onFatalError })
+		IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions = onFatalError is not null
+			? Microsoft.Extensions.Options.Options.Create(new CdcFatalErrorOptions<DataChangeEvent> { OnFatalError = onFatalError })
 			: null;
 
 		return new CdcProcessor(

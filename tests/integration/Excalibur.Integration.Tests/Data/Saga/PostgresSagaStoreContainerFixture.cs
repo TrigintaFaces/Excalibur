@@ -89,6 +89,7 @@ public sealed class PostgresSagaStoreContainerFixture : ContainerFixtureBase
 				saga_type VARCHAR(256) NOT NULL,
 				state_json JSONB NOT NULL,
 				is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+				version BIGINT NOT NULL DEFAULT 0,
 				created_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				updated_utc TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);

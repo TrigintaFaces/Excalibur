@@ -10,14 +10,6 @@ using Excalibur.Jobs.Coordination;
 namespace Excalibur.Jobs.Redis.Coordination;
 
 /// <summary>
-/// Data stored in Redis when acquiring a distributed lock.
-/// </summary>
-/// <param name="InstanceId">The instance that acquired the lock.</param>
-/// <param name="AcquiredAt">When the lock was acquired.</param>
-/// <param name="ExpiresAt">When the lock expires.</param>
-internal sealed record RedisLockData(string InstanceId, DateTimeOffset AcquiredAt, DateTimeOffset ExpiresAt);
-
-/// <summary>
 /// Data stored in Redis when distributing a job to an instance.
 /// </summary>
 /// <param name="JobKey">The job key.</param>
@@ -40,7 +32,6 @@ internal sealed record RedisCompletionData(string JobKey, string InstanceId, boo
 [JsonSourceGenerationOptions(
 	PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
 	WriteIndented = false)]
-[JsonSerializable(typeof(RedisLockData))]
 [JsonSerializable(typeof(RedisJobMessage))]
 [JsonSerializable(typeof(RedisCompletionData))]
 [JsonSerializable(typeof(JobInstanceInfo))]

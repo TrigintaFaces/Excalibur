@@ -487,7 +487,7 @@ public static class CdcBuilderSqlServerExtensions
 
 			var stateStoreConnection = stateFactory();
 
-			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions>>();
+			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions<DataChangeEvent>>>();
 			var idempotencyFilter = sp.GetService<ICdcIdempotencyFilter>();
 
 			return new CdcProcessor(
@@ -525,7 +525,7 @@ public static class CdcBuilderSqlServerExtensions
 
 			var stateStoreConnection = stateFactory();
 
-			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions>>();
+			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions<DataChangeEvent>>>();
 			var idempotencyFilter = sp.GetService<ICdcIdempotencyFilter>();
 
 			return new DataChangeEventProcessor(

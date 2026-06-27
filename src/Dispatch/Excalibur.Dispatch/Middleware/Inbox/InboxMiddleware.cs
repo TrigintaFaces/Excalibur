@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -45,6 +46,31 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 {
 	private const int MaxCacheEntries = 1024;
 	private static readonly ActivitySource InboxActivitySource = new(DispatchTelemetryConstants.ActivitySources.Inbox, "1.0.0");
+
+	// lnekjc / L5: inbox processing metrics. Static library Meter (ADR-142 lifecycle) mirroring the
+	// ActivitySource name (source+meter pairing). Counts processed messages tagged by result + mode.
+	private static readonly Meter InboxMeter = new(DispatchTelemetryConstants.Meters.Inbox, "1.0.0");
+	private static readonly Counter<long> ProcessedCounter = InboxMeter.CreateCounter<long>(
+		"dispatch.inbox.processed",
+		unit: "messages",
+		description: "Number of inbox messages processed, tagged with inbox.result (success/failure/error) and inbox.mode (full/light).");
+
+	// b5lr6q / MS-D AC-D2: distinct dedup-disposition counter so dedup-rate is observable/alertable.
+	// dispatch.inbox.processed folds a duplicate skip into inbox.result=success (total throughput);
+	// this counter separately records the dedup dispositions (duplicate / timeout-reset) emitted by
+	// the inbox at-most-once guards, so dedup-rate = deduplicated{duplicate} / processed is computable.
+	// inbox.disposition is bounded by construction (the two literals below); inbox.mode is full/light.
+	private static readonly Counter<long> DeduplicatedCounter = InboxMeter.CreateCounter<long>(
+		"dispatch.inbox.deduplicated",
+		unit: "messages",
+		description: "Number of inbox messages skipped or reset by deduplication, tagged with inbox.disposition (duplicate/timeout-reset) and inbox.mode (full/light).");
+
+	// Bounded inbox.disposition / inbox.mode tag values (cardinality safety — bounded by construction).
+	private const string DispositionDuplicate = "duplicate";
+	private const string DispositionTimeoutReset = "timeout-reset";
+	private const string ModeFull = "full";
+	private const string ModeLight = "light";
+
 	private static readonly ConcurrentDictionary<Type, PropertyInfo?> MessageIdPropertyCache = new();
 	private static readonly Func<ILogger, string, string, bool, string, IDisposable?> InboxLogScope =
 		LoggerMessage.DefineScope<string, string, bool, string>(
@@ -130,8 +156,20 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 		LogProcessingMessage(messageId);
 
+		// Re-parent the consumer span on the incoming producer trace (bhwl6e): parse the transmitted
+		// W3C traceparent into the parent ActivityContext so the consumer span CONTINUES the producer's
+		// distributed trace instead of starting a new root. Activity parenting MUST be set at creation;
+		// a missing/malformed traceparent leaves a default context -> a root span (fail-open, never throws).
+		var parentContext = default(ActivityContext);
+		var incomingTraceParent = context.GetTraceParent();
+		if (!string.IsNullOrEmpty(incomingTraceParent))
+		{
+			_ = ActivityContext.TryParse(incomingTraceParent, traceState: null, out parentContext);
+		}
+
 		// Create a tracing activity for inbox processing to enable distributed trace correlation
-		using var inboxActivity = InboxActivitySource.StartActivity("inbox.process", ActivityKind.Consumer);
+		using var inboxActivity = InboxActivitySource.StartActivity(
+			"inbox.process", ActivityKind.Consumer, parentContext);
 		_ = (inboxActivity?.SetTag("messaging.message_id", messageId));
 		_ = (inboxActivity?.SetTag("messaging.handler_type", message.GetType().Name));
 		_ = (inboxActivity?.SetTag("inbox.mode", _inboxStore != null ? "full" : "light"));
@@ -163,16 +201,35 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 				result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 			}
 
+			var inboxMode = _inboxStore != null ? "full" : "light";
 			_ = (inboxActivity?.SetTag("inbox.result", result.Succeeded ? "success" : "failure"));
+			ProcessedCounter.Add(
+				1,
+				new KeyValuePair<string, object?>("inbox.result", result.Succeeded ? "success" : "failure"),
+				new KeyValuePair<string, object?>("inbox.mode", inboxMode));
 			return result;
 		}
 		catch (Exception ex)
 		{
 			_ = (inboxActivity?.SetStatus(ActivityStatusCode.Error, ex.Message));
+			ProcessedCounter.Add(
+				1,
+				new KeyValuePair<string, object?>("inbox.result", "error"),
+				new KeyValuePair<string, object?>("inbox.mode", _inboxStore != null ? "full" : "light"));
 			LogExceptionDuringInboxProcessing(messageId, ex);
 			throw;
 		}
 	}
+
+	/// <summary>
+	/// Records a deduplication disposition (a duplicate skip or a stuck-Processing timeout reset)
+	/// on the <c>dispatch.inbox.deduplicated</c> counter so dedup-rate is independently observable.
+	/// </summary>
+	private static void RecordDeduplicated(string disposition, string mode) =>
+		DeduplicatedCounter.Add(
+			1,
+			new KeyValuePair<string, object?>("inbox.disposition", disposition),
+			new KeyValuePair<string, object?>("inbox.mode", mode));
 
 	/// <summary>
 	/// Extracts the message identifier from the message and context.
@@ -399,14 +456,17 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 					{
 						LogMessageProcessingTimedOut(messageId);
 						existingEntry.Status = InboxStatus.Received;
+						RecordDeduplicated(DispositionTimeoutReset, ModeFull);
 						break; // Fall through to reprocess
 					}
 
 					LogMessageBeingProcessed(messageId);
+					RecordDeduplicated(DispositionDuplicate, ModeFull);
 					return MR.Success();
 
 				case InboxStatus.Processed:
 					LogMessageAlreadyProcessed(messageId);
+					RecordDeduplicated(DispositionDuplicate, ModeFull);
 					return MR.Success();
 
 				case InboxStatus.Failed:
@@ -499,6 +559,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		if (isDuplicate)
 		{
 			LogMessageIsDuplicate(_logger, messageId);
+			RecordDeduplicated(DispositionDuplicate, ModeLight);
 			return MR.Success();
 		}
 

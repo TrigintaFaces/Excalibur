@@ -56,6 +56,9 @@ builder.Services.AddExcalibur(excalibur => excalibur
         configurator.AddJob<ProjectionRebuildJob>("0/30 * * * * ?");
     }));
 
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 // ============================================================================
 // Step 2: Register Materialized Views
 // ============================================================================

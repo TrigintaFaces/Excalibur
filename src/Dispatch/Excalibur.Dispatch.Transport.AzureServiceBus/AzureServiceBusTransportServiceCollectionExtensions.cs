@@ -10,6 +10,7 @@ using Azure.Messaging.ServiceBus;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Azure;
+using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
@@ -114,6 +115,11 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 
 		// Register ITransportSubscriber with telemetry decorator
 		RegisterSubscriber(services, name, transportOptions);
+
+		// Route the rich ITransportSender/ITransportReceiver classes through DI so they are
+		// reachable on the AddAzureServiceBusTransport path instead of orphaned (kek7vm shared-seam
+		// wiring). Session-ordered consumption is layered by the ne79ro child on this wired seam.
+		RegisterTransportSenderReceiver(services, name, transportOptions);
 
 		return services;
 	}
@@ -267,6 +273,54 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)
 		_ = services.AddTransportAdapterLifecycle();
+	}
+
+	/// <summary>
+	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
+	/// implementations keyed by transport name so they are instantiated and reachable on the
+	/// <c>AddAzureServiceBusTransport</c> path instead of orphaned (kek7vm). <c>TryAdd*</c> lets a
+	/// consumer override the registration (Microsoft-first).
+	/// </summary>
+	private static void RegisterTransportSenderReceiver(
+		IServiceCollection services,
+		string name,
+		AzureServiceBusTransportOptions transportOptions)
+	{
+		var entityName = transportOptions.Sender.DefaultEntityName ?? name;
+
+		services.TryAddKeyedSingleton<ITransportSender>(name, (sp, _) =>
+		{
+			var client = sp.GetRequiredService<ServiceBusClient>();
+			var sender = client.CreateSender(entityName);
+			var logger = sp.GetRequiredService<ILogger<ServiceBusTransportSender>>();
+			return new ServiceBusTransportSender(sender, entityName, logger);
+		});
+
+		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
+		{
+			var client = sp.GetRequiredService<ServiceBusClient>();
+			var logger = sp.GetRequiredService<ILogger<ServiceBusTransportReceiver>>();
+
+			if (transportOptions.Processor.RequiresSession)
+			{
+				// ne79ro (FR-A2): consume session-enabled entities with per-session FIFO ordering. The
+				// session-aware seam accepts one session at a time (AcceptNextSessionAsync) so messages
+				// sharing a SessionId are delivered in order; the base receiver/ack/reject path is
+				// unchanged (kek7vm seam). Non-session consumers keep the plain receiver below.
+				var sessionOptions = new ServiceBusSessionReceiverOptions
+				{
+					PrefetchCount = transportOptions.Processor.PrefetchCount,
+					ReceiveMode = transportOptions.Processor.ReceiveMode,
+				};
+				return new ServiceBusTransportReceiver(
+					new ServiceBusSessionReceiverSeam(client, entityName, sessionOptions, logger),
+					entityName,
+					logger);
+			}
+
+			var receiver = client.CreateReceiver(entityName);
+			return new ServiceBusTransportReceiver(receiver, entityName, logger);
+		});
 	}
 
 	/// <summary>

@@ -52,6 +52,12 @@ internal sealed class CosmosDbSagaDocument
 	public bool IsCompleted { get; set; }
 
 	/// <summary>
+	/// Gets or sets the optimistic-concurrency version of the persisted saga state.
+	/// </summary>
+	[JsonPropertyName("version")]
+	public long Version { get; set; }
+
+	/// <summary>
 	/// Gets or sets when the saga was created (UTC).
 	/// </summary>
 	[JsonPropertyName("createdUtc")]

@@ -25,42 +25,104 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 {
 	private readonly IOptions<RetentionEnforcementOptions> _options;
 	private readonly ILogger<RetentionEnforcementService> _logger;
+	private readonly IReadOnlyList<IRetentionContributor> _contributors;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="RetentionEnforcementService"/> class.
 	/// </summary>
 	/// <param name="options">The retention enforcement options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="contributors">
+	/// The registered store-specific retention contributors that perform the actual deletion of expired
+	/// data. When none are registered, enforcement logs a warning and reports zero records cleaned.
+	/// </param>
 	public RetentionEnforcementService(
 		IOptions<RetentionEnforcementOptions> options,
-		ILogger<RetentionEnforcementService> logger)
+		ILogger<RetentionEnforcementService> logger,
+		IEnumerable<IRetentionContributor>? contributors = null)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_contributors = contributors is null ? [] : [.. contributors];
 	}
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover PersonalDataAttribute annotations at runtime.")]
-	public Task<RetentionEnforcementResult> EnforceRetentionAsync(
+	public async Task<RetentionEnforcementResult> EnforceRetentionAsync(
 		CancellationToken cancellationToken)
 	{
-		LogRetentionEnforcementStarted(_options.Value.DryRun);
+		var dryRun = _options.Value.DryRun;
+		LogRetentionEnforcementStarted(dryRun);
 
 		try
 		{
 			var policies = DiscoverRetentionPolicies();
 
-			LogRetentionEnforcementCompleted(policies.Count, _options.Value.DryRun);
+			// Enforcement is policy-driven by the framework, but the actual data-store deletion is performed
+			// by registered IRetentionContributor implementations (mirrors the IErasureContributor seam).
+			// When none are registered we MUST NOT report success while deleting nothing — log a warning and
+			// return zero records cleaned (honest contract; MS-bar: build the fix, never a silent no-op).
+			if (_contributors.Count == 0)
+			{
+				LogRetentionNoContributorsRegistered(policies.Count);
 
-			return Task.FromResult(new RetentionEnforcementResult
+				return new RetentionEnforcementResult
+				{
+					PoliciesEvaluated = policies.Count,
+					RecordsCleaned = 0,
+					IsDryRun = dryRun,
+					CompletedAt = DateTimeOffset.UtcNow,
+				};
+			}
+
+			var context = new RetentionContributorContext
+			{
+				Policies = policies,
+				DryRun = dryRun,
+				AsOf = DateTimeOffset.UtcNow,
+			};
+
+			var totalRecordsCleaned = 0;
+
+			// Fail-open per contributor: a single contributor's failure must not abort the others
+			// (mirrors ErasureService). Failures are logged; the overall pass still reports what was cleaned.
+			foreach (var contributor in _contributors)
+			{
+				try
+				{
+					var result = await contributor.EnforceAsync(context, cancellationToken).ConfigureAwait(false);
+
+					if (result.Success)
+					{
+						totalRecordsCleaned += result.RecordsCleaned;
+						LogRetentionContributorCompleted(contributor.Name, result.RecordsCleaned, dryRun);
+					}
+					else
+					{
+						LogRetentionContributorFailed(contributor.Name, result.ErrorMessage ?? "Unknown error", null);
+					}
+				}
+				catch (OperationCanceledException)
+				{
+					throw;
+				}
+				catch (Exception ex)
+				{
+					LogRetentionContributorFailed(contributor.Name, ex.Message, ex);
+				}
+			}
+
+			LogRetentionEnforcementCompleted(policies.Count, dryRun);
+
+			return new RetentionEnforcementResult
 			{
 				PoliciesEvaluated = policies.Count,
-				RecordsCleaned = 0, // Actual cleanup requires data store integration
-				IsDryRun = _options.Value.DryRun,
-				CompletedAt = DateTimeOffset.UtcNow
-			});
+				RecordsCleaned = totalRecordsCleaned,
+				IsDryRun = dryRun,
+				CompletedAt = DateTimeOffset.UtcNow,
+			};
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
 			LogRetentionEnforcementFailed(ex);
 			throw;
@@ -162,4 +224,22 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 		LogLevel.Error,
 		"Retention enforcement scan failed")]
 	private partial void LogRetentionEnforcementFailed(Exception exception);
+
+	[LoggerMessage(
+		ComplianceEventId.RetentionNoContributorsRegistered,
+		LogLevel.Warning,
+		"Retention enforcement is enabled and evaluated {PolicyCount} policies, but no IRetentionContributor is registered — no data was deleted. Register a retention contributor to enforce cleanup.")]
+	private partial void LogRetentionNoContributorsRegistered(int policyCount);
+
+	[LoggerMessage(
+		ComplianceEventId.RetentionContributorCompleted,
+		LogLevel.Information,
+		"Retention contributor {ContributorName} cleaned {RecordsCleaned} record(s), dry run: {DryRun}")]
+	private partial void LogRetentionContributorCompleted(string contributorName, int recordsCleaned, bool dryRun);
+
+	[LoggerMessage(
+		ComplianceEventId.RetentionContributorFailed,
+		LogLevel.Error,
+		"Retention contributor {ContributorName} failed: {Error}")]
+	private partial void LogRetentionContributorFailed(string contributorName, string error, Exception? exception);
 }

@@ -425,8 +425,9 @@ public sealed class ContextTraceEnricherDepthShould : IDisposable
 		_enricher.EnrichActivity(activity, context);
 
 		// Assert
-		activity.GetTagItem("parent.trace_id").ShouldNotBeNull();
-		activity.GetTagItem("parent.span_id").ShouldNotBeNull();
+		// xsl1n2: parent.trace_id tag removed (superseded by proper parenting) -> must be ABSENT.
+		activity.GetTagItem("parent.trace_id").ShouldBeNull();
+		activity.GetTagItem("parent.span_id").ShouldBeNull();
 	}
 
 	[Fact]

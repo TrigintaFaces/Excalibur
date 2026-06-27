@@ -49,6 +49,9 @@ var eventStoreCs = builder.Configuration.GetConnectionString("EventStore")
 // Dispatch pipeline + handlers from this assembly (CreateOrderHandler, AppendOrderNotesHandler).
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 // On-demand archive runner so the hot→cold boundary is exercisable via HTTP.
 builder.Services.AddSingleton<ManualArchiveRunner>();
 

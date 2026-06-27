@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Globalization;
+
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Postgres.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -36,6 +39,19 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	private readonly LeaderElectionOptions _electionOptions;
 	private readonly ILogger<PostgresLeaderElection> _logger;
 	private readonly string _connectionString;
+	// y6tatp/ADR-339: optional fencing-token provider. When supplied, a monotonic fencing token is minted
+	// (atomically, store-side via a Postgres SEQUENCE) BEFORE leadership is declared at each acquisition, so a
+	// stale leader's token falls below the high-water mark and its protected operations are rejected by
+	// FencingTokenMiddleware. Null when the consumer did not enable fencing (opt-in, backward compatible).
+	private readonly IFencingTokenProvider? _fencingTokenProvider;
+	// The fencing resource id for this election = the advisory lock key as an invariant string (matches the
+	// "resource" used in the leadership events/logs).
+	private readonly string _fencingResourceId;
+
+	// y6tatp: bounded retry budget for minting the fencing token on acquisition before relinquishing
+	// (fail-closed). Small + fixed: the renewal loop supplies the outer retry cadence; this just rides out a
+	// transient store blip without instantly surrendering a freshly-acquired lock. Mirrors the Redis reference.
+	private const int FencingTokenMintMaxAttempts = 3;
 
 	private readonly Lock _lock = new();
 
@@ -56,10 +72,17 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	/// <param name="pgOptions">The Postgres leader election options.</param>
 	/// <param name="electionOptions">The leader election options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="fencingTokenProvider">
+	/// An optional <see cref="IFencingTokenProvider"/> (y6tatp/ADR-339). When supplied, a monotonic fencing
+	/// token is minted at each leadership acquisition (BEFORE leadership is declared); if the mint cannot be
+	/// advanced after bounded retries the candidate relinquishes rather than leading with a stale fence.
+	/// Defaults to <see langword="null"/> (no token issued; opt-in, backward compatible).
+	/// </param>
 	public PostgresLeaderElection(
 		IOptions<PostgresLeaderElectionOptions> pgOptions,
 		IOptions<LeaderElectionOptions> electionOptions,
-		ILogger<PostgresLeaderElection> logger)
+		ILogger<PostgresLeaderElection> logger,
+		IFencingTokenProvider? fencingTokenProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(pgOptions);
 		ArgumentNullException.ThrowIfNull(electionOptions);
@@ -70,6 +93,8 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 		_electionOptions = electionOptions.Value;
 		_logger = logger;
 		_connectionString = BuildLockConnectionString(_pgOptions.ConnectionString);
+		_fencingTokenProvider = fencingTokenProvider;
+		_fencingResourceId = _pgOptions.LockKey.ToString(CultureInfo.InvariantCulture);
 
 		CandidateId = _electionOptions.InstanceId ?? (Environment.MachineName + "-" + Guid.NewGuid().ToString("N")[..8]);
 	}
@@ -258,7 +283,40 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 
 			if (result is true)
 			{
-				BecomeLeader();
+				// y6tatp/ADR-339 (fail-CLOSED fencing): when a provider is configured, advance the fence BEFORE
+				// declaring leadership; on bounded-retry exhaustion RELINQUISH (release the advisory lock, do NOT
+				// become leader). BecomeLeader (and its events) is structurally unreachable unless the mint
+				// succeeded — mirrors the Redis reference (RedisLeaderElection, bd-762uzn).
+				if (_fencingTokenProvider is not null)
+				{
+					long token;
+					try
+					{
+						token = await MintFencingTokenWithRetryAsync(cancellationToken).ConfigureAwait(false);
+					}
+					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+					{
+						throw;
+					}
+					catch (Exception ex)
+					{
+						// Bounded mint retries exhausted: relinquish rather than lead with an un-advanced fence.
+						// ReleaseLockAsync releases the advisory lock + closes the lock connection; the next
+						// renewal iteration re-attempts acquire+mint.
+						LogFencingTokenIssueError(ex, CandidateId, _fencingResourceId);
+						await ReleaseLockAsync().ConfigureAwait(false);
+						return;
+					}
+
+					// Fence advanced — only NOW declare leadership (events fire strictly AFTER the fence advanced).
+					BecomeLeader();
+					LogFencingTokenIssued(CandidateId, token, _fencingResourceId);
+				}
+				else
+				{
+					// No fencing configured (opt-in): declare leadership directly — backward compatible.
+					BecomeLeader();
+				}
 			}
 			else
 			{
@@ -328,6 +386,18 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 				}
 				else
 				{
+					// fro108 (RATIFIED DECISION — grace-only, no rqntzf 3-state acceleration): Postgres
+					// deliberately does NOT adopt the Redis/SqlServer DefinitivelyLost accelerate-on-loss seam.
+					// Under the hardened Npgsql lock connection (pooling + transparent resiliency disabled, see
+					// BuildLockConnectionString) the "alive-but-not-owning" state is structurally inexpressible
+					// (bd-zg4zga): a live connection ALWAYS still owns the advisory lock, and a lost backend can
+					// only surface as State!=Open. So VerifyLockAsync==false is never a definitive loss observed on
+					// a still-queryable session — it is Indeterminate (broken connection / probe threw). There is
+					// therefore NO definitive-loss-while-queryable signal to accelerate on; a 3-state would make the
+					// DefinitivelyLost branch unreachable (a phantom signal). Accelerating on the ambiguous false
+					// would be the very false-relinquish we avoid, so GracePeriod remains the hard — and correct —
+					// split-brain upper bound. (SA-confirmed S854; the paused/stalled-leader split-brain is the
+					// orthogonal concern covered by fencing tokens, umemwa/ptm2bb.)
 					var stillLeader = await VerifyLockAsync(cancellationToken).ConfigureAwait(false);
 					if (!stillLeader)
 					{
@@ -421,6 +491,44 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 		{
 			return false;
 		}
+	}
+
+	/// <summary>
+	/// Mints a monotonic fencing token for the protected resource, retrying a bounded number of times
+	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (y6tatp, fail-CLOSED). The caller mints
+	/// BEFORE declaring leadership and relinquishes if this throws, so the fence is always advanced before
+	/// fenced leadership is granted (ADR-339). Mirrors the Redis reference.
+	/// </summary>
+	/// <param name="cancellationToken">A token to observe while minting.</param>
+	/// <returns>The newly minted, strictly-monotonic fencing token.</returns>
+	/// <exception cref="InvalidOperationException">The mint failed on every bounded attempt.</exception>
+	private async Task<long> MintFencingTokenWithRetryAsync(CancellationToken cancellationToken)
+	{
+		// Caller guarantees a provider is configured before invoking.
+		Exception? lastError = null;
+
+		for (var attempt = 1; attempt <= FencingTokenMintMaxAttempts; attempt++)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			try
+			{
+				return await _fencingTokenProvider!.IssueTokenAsync(_fencingResourceId, cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+				throw;
+			}
+			catch (Exception ex)
+			{
+				lastError = ex;
+			}
+		}
+
+		throw new InvalidOperationException(
+			$"Failed to mint a fencing token for resource '{_fencingResourceId}' after {FencingTokenMintMaxAttempts} attempt(s); " +
+			"relinquishing leadership rather than acting as a fenced leader with an un-advanced fence.",
+			lastError);
 	}
 
 	private void BecomeLeader()
@@ -526,4 +634,12 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	[LoggerMessage(LeaderElectionPostgresEventId.LeaderElectionDisposeError, LogLevel.Warning,
 		"Error during leader election dispose for {CandidateId}")]
 	private partial void LogDisposeError(Exception ex, string candidateId);
+
+	[LoggerMessage(LeaderElectionPostgresEventId.FencingTokenIssued, LogLevel.Information,
+		"Candidate {CandidateId} issued fencing token {Token} for resource {Resource}")]
+	private partial void LogFencingTokenIssued(string candidateId, long token, string resource);
+
+	[LoggerMessage(LeaderElectionPostgresEventId.FencingTokenIssueError, LogLevel.Error,
+		"Candidate {CandidateId} failed to mint a fencing token for resource {Resource} after bounded retries; relinquishing leadership (fail-closed) rather than leading with an un-advanced fence")]
+	private partial void LogFencingTokenIssueError(Exception ex, string candidateId, string resource);
 }

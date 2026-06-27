@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// <summary>
 /// A timezone-aware wrapper around Cronos CronExpression.
 /// </summary>
-public sealed class TimeZoneAwareCronExpression : ICronExpression
+public sealed class TimeZoneAwareCronExpression : ICronExpression, ICronExpressionQuery
 {
 	private readonly CronExpression _cronExpression;
 

@@ -120,7 +120,7 @@ internal sealed partial class AzureEventHubMessageBus(
 		var traceParent = context.GetTraceParent();
 		if (!string.IsNullOrEmpty(traceParent))
 		{
-			evt.Properties["trace-parent"] = traceParent;
+			evt.Properties["traceparent"] = traceParent;
 		}
 
 		_ = batch.TryAdd(evt);

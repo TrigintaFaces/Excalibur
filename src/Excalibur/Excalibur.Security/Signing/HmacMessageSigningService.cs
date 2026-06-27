@@ -43,6 +43,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 	private readonly SigningOptions _options;
 	private readonly ILogger<HmacMessageSigningService> _logger;
 	private readonly IKeyProvider _keyProvider;
+	private readonly TimeProvider _timeProvider;
 	private readonly ConcurrentDictionary<string, (byte[] Key, long ExpiresAtTimestamp)> _keyCache = new(StringComparer.Ordinal);
 	private volatile int _disposed;
 
@@ -52,10 +53,15 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 	/// <param name="options">The signing options.</param>
 	/// <param name="keyProvider">The provider supplying signing keys.</param>
 	/// <param name="logger">The logger used for diagnostics.</param>
+	/// <param name="timeProvider">
+	/// The time source used to stamp signatures and evaluate the signature-age window. Defaults to
+	/// <see cref="TimeProvider.System"/>; inject a fake to make signing/verification deterministically testable.
+	/// </param>
 	public HmacMessageSigningService(
 		IOptions<SigningOptions> options,
 		IKeyProvider keyProvider,
-		ILogger<HmacMessageSigningService> logger)
+		ILogger<HmacMessageSigningService> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(keyProvider);
@@ -64,6 +70,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		_options = options.Value;
 		_keyProvider = keyProvider;
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
 	/// <inheritdoc />
@@ -113,10 +120,19 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 			// Get signing key
 			var key = await GetSigningKeyAsync(context, cancellationToken).ConfigureAwait(false);
 
-			// Prepare data to sign (optionally include timestamp from context)
-			var dataToSign = context.IncludeTimestamp
-				? PrepareDataWithTimestamp(content, context.SignedAt ?? DateTimeOffset.UtcNow)
-				: content;
+			// Prepare data to sign (optionally include timestamp). Capture the signing time ONCE onto the
+			// context so the caller can transmit it; the verifier MUST reuse this exact value — re-deriving
+			// the current time on the verify side would never reproduce the HMAC (qtogpu).
+			byte[] dataToSign;
+			if (context.IncludeTimestamp)
+			{
+				context.SignedAt ??= _timeProvider.GetUtcNow();
+				dataToSign = PrepareDataWithTimestamp(content, context.SignedAt.Value);
+			}
+			else
+			{
+				dataToSign = content;
+			}
 
 			// Create signature based on algorithm
 			var signature = context.Algorithm switch
@@ -192,10 +208,24 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 			// Get signing key
 			var key = await GetSigningKeyAsync(context, cancellationToken).ConfigureAwait(false);
 
-			// Prepare data (with timestamp if needed — use original signing timestamp for verification)
-			var dataToVerify = context.IncludeTimestamp
-				? PrepareDataWithTimestamp(content, context.SignedAt ?? DateTimeOffset.UtcNow)
-				: content;
+			// Prepare data to verify. For a timestamped signature the verifier MUST reuse the transmitted
+			// signing timestamp; if it is absent we fail closed rather than substituting the current time
+			// (which would never reproduce the signer's HMAC) — qtogpu.
+			byte[] dataToVerify;
+			if (context.IncludeTimestamp)
+			{
+				if (context.SignedAt is null)
+				{
+					LogVerificationFailed();
+					return false;
+				}
+
+				dataToVerify = PrepareDataWithTimestamp(content, context.SignedAt.Value);
+			}
+			else
+			{
+				dataToVerify = content;
+			}
 
 			// Compute expected signature
 			var expectedSignature = context.Algorithm switch
@@ -245,7 +275,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		// Capture timestamp ONCE — used both for HMAC data preparation and SignedAt.
 		// This ensures the timestamp embedded in the HMAC matches SignedAt exactly,
 		// so ValidateSignedMessageAsync can reproduce the same hash.
-		var signedAt = DateTimeOffset.UtcNow;
+		var signedAt = _timeProvider.GetUtcNow();
 		context.SignedAt = signedAt;
 
 		var signature = await SignMessageAsync(content, context, cancellationToken).ConfigureAwait(false);
@@ -271,11 +301,13 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		ArgumentNullException.ThrowIfNull(signedMessage);
 		ArgumentNullException.ThrowIfNull(context);
 
-		// Check signature age if configured
+		// Check signature age if configured. The window is BIDIRECTIONAL (clock-skew tolerance): a
+		// signature whose timestamp is too far in the past OR too far in the future (a skewed signer
+		// clock — negative age) is rejected. MaxSignatureAgeMinutes bounds the absolute skew.
 		if (_options.MaxSignatureAgeMinutes > 0)
 		{
-			var age = DateTimeOffset.UtcNow - signedMessage.SignedAt;
-			if (age.TotalMinutes > _options.MaxSignatureAgeMinutes)
+			var age = _timeProvider.GetUtcNow() - signedMessage.SignedAt;
+			if (Math.Abs(age.TotalMinutes) > _options.MaxSignatureAgeMinutes)
 			{
 				LogSignatureExpired(age.TotalMinutes, _options.MaxSignatureAgeMinutes);
 				return null;

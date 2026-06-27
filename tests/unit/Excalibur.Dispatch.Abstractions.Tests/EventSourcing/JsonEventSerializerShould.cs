@@ -15,6 +15,14 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 	private static JsonEventSerializer CreateSerializer(JsonSerializerOptions? options = null)
 		=> new(options);
 
+	// wpynky: the reflection assembly scan is OFF by default (secure-by-default). Tests that exercise
+	// the scan-resolution mechanics (full name, simple-name fallback, caching) opt into it explicitly —
+	// the secure default (unregistered => UnknownEventTypeException) is locked separately in
+	// EventSerializerUnregisteredTypeRejectionShould.
+	[RequiresDynamicCode("Test requires dynamic code")]
+	private static JsonEventSerializer CreateScanningSerializer(JsonSerializerOptions? options = null)
+		=> new(options, allowAssemblyScan: true);
+
 	[Fact]
 	[RequiresDynamicCode("Test requires dynamic code")]
 	public void Constructor_WithNoOptions_CreatesSerializer()
@@ -168,8 +176,8 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 	[RequiresDynamicCode("Test requires dynamic code")]
 	public void ResolveType_WithValidTypeName_ReturnsType()
 	{
-		// Arrange
-		var serializer = CreateSerializer();
+		// Arrange — scan opt-in: this exercises the reflection assembly-scan resolution path.
+		var serializer = CreateScanningSerializer();
 		var fullName = typeof(string).AssemblyQualifiedName;
 
 		// Act
@@ -183,8 +191,8 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 	[RequiresDynamicCode("Test requires dynamic code")]
 	public void ResolveType_WithFullNameOnly_ReturnsType()
 	{
-		// Arrange
-		var serializer = CreateSerializer();
+		// Arrange — scan opt-in: this exercises the reflection assembly-scan resolution path.
+		var serializer = CreateScanningSerializer();
 		var fullNameOnly = typeof(TestDomainEvent).FullName!;
 
 		// Act
@@ -198,8 +206,8 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 	[RequiresDynamicCode("Test requires dynamic code")]
 	public void ResolveType_WithInvalidAssemblySuffix_FallsBackToSimpleTypeName()
 	{
-		// Arrange
-		var serializer = CreateSerializer();
+		// Arrange — scan opt-in: this exercises the reflection assembly-scan resolution path.
+		var serializer = CreateScanningSerializer();
 		var typeName = $"{typeof(TestDomainEvent).FullName}, Missing.Assembly";
 
 		// Act
@@ -213,8 +221,8 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 	[RequiresDynamicCode("Test requires dynamic code")]
 	public void ResolveType_CachesResolvedTypes()
 	{
-		// Arrange
-		var serializer = CreateSerializer();
+		// Arrange — scan opt-in: caching only occurs on the assembly-scan resolution path.
+		var serializer = CreateScanningSerializer();
 		var fullName = typeof(int).AssemblyQualifiedName;
 
 		// Act - resolve twice
@@ -227,13 +235,26 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 
 	[Fact]
 	[RequiresDynamicCode("Test requires dynamic code")]
-	public void ResolveType_WithInvalidTypeName_ThrowsInvalidOperationException()
+	public void ResolveType_WithUnregisteredTypeName_AndScanDisabled_ThrowsUnknownEventTypeException()
 	{
-		// Arrange
+		// Arrange — default serializer: scan disabled, so an unregistered name is rejected.
 		var serializer = CreateSerializer();
 
+		// Act & Assert — strengthened from InvalidOperationException to the specific subtype (wpynky).
+		Should.Throw<UnknownEventTypeException>(
+			() => serializer.ResolveType("NonExistent.Type.That.Does.Not.Exist"));
+	}
+
+	[Fact]
+	[RequiresDynamicCode("Test requires dynamic code")]
+	public void ResolveType_WithUnresolvableTypeName_AndScanEnabled_ThrowsUnknownEventTypeException()
+	{
+		// Arrange — scan enabled, but no loaded assembly exposes the name => still rejected.
+		var serializer = CreateScanningSerializer();
+
 		// Act & Assert
-		Should.Throw<InvalidOperationException>(() => serializer.ResolveType("NonExistent.Type.That.Does.Not.Exist"));
+		Should.Throw<UnknownEventTypeException>(
+			() => serializer.ResolveType("NonExistent.Type.That.Does.Not.Exist"));
 	}
 
 	// Test helper types - internal to avoid CA1034

@@ -15,8 +15,8 @@ public sealed class VaultOptionsShould
 	{
 		var options = new VaultOptions();
 
-		options.TransitMountPath.ShouldBe("transit");
-		options.KeyNamePrefix.ShouldBe("excalibur-dispatch-");
+		options.Keys.TransitMountPath.ShouldBe("transit");
+		options.Keys.KeyNamePrefix.ShouldBe("excalibur-dispatch-");
 		options.MetadataCacheDuration.ShouldBe(TimeSpan.FromMinutes(5));
 		options.HttpTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 		options.EnableDetailedTelemetry.ShouldBeFalse();

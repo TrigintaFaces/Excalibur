@@ -18,7 +18,7 @@ public sealed class TransportDeliveryStatisticsShould
 
 		// Assert
 		stats.PendingCount.ShouldBe(0);
-		stats.SendingCount.ShouldBe(0);
+		// b64hci: TransportDeliveryStatistics.SendingCount removed (provably always-0 dead metric).
 		stats.SentCount.ShouldBe(0);
 		stats.FailedCount.ShouldBe(0);
 		stats.SkippedCount.ShouldBe(0);
@@ -33,7 +33,6 @@ public sealed class TransportDeliveryStatisticsShould
 		var stats = new TransportDeliveryStatistics
 		{
 			PendingCount = 5,
-			SendingCount = 2,
 			SentCount = 100,
 			FailedCount = 3,
 			SkippedCount = 1,
@@ -43,7 +42,6 @@ public sealed class TransportDeliveryStatisticsShould
 
 		// Assert
 		stats.PendingCount.ShouldBe(5);
-		stats.SendingCount.ShouldBe(2);
 		stats.SentCount.ShouldBe(100);
 		stats.FailedCount.ShouldBe(3);
 		stats.SkippedCount.ShouldBe(1);

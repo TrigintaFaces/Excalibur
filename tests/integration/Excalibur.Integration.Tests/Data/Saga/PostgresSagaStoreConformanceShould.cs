@@ -296,27 +296,40 @@ public sealed class PostgresSagaStoreConformanceShould : IAsyncLifetime
 	}
 
 	[Fact]
-	public async Task SaveAsync_ConcurrentWrites_ShouldNotCorrupt()
+	public async Task SaveAsync_ConcurrentWrites_ExactlyOneWins_RestThrowConcurrency()
 	{
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 
 		// Arrange
 		var sagaId = Guid.NewGuid();
 
-		// Act - Concurrent writes with same saga ID (last write wins with INSERT ON CONFLICT)
-		var tasks = Enumerable.Range(0, 5).Select(i =>
-			_sagaStore.SaveAsync(new TestSagaState
+		// Act — 5 concurrent blind saves of the SAME saga at the SAME (new) version. e1tsq2/skl8r7: the
+		// version-gated upsert admits EXACTLY ONE writer; the other four match 0 rows → ConcurrencyException
+		// (no silent lost update). RED on the pre-fix unchecked last-writer-wins upsert (all five "succeed").
+		var outcomes = await Task.WhenAll(Enumerable.Range(0, 5).Select(async i =>
+		{
+			try
 			{
-				SagaId = sagaId,
-				OrderId = $"ORD-CONCURRENT-{i}",
-				CustomerName = $"Customer {i}",
-				TotalAmount = 100.00m + i,
-				Completed = false
-			}, CancellationToken.None));
+				await _sagaStore.SaveAsync(new TestSagaState
+				{
+					SagaId = sagaId,
+					OrderId = $"ORD-CONCURRENT-{i}",
+					CustomerName = $"Customer {i}",
+					TotalAmount = 100.00m + i,
+					Completed = false
+				}, CancellationToken.None).ConfigureAwait(false);
+				return true; // winner
+			}
+			catch (Excalibur.Data.ConcurrencyException)
+			{
+				return false; // loser — rejected with no lost update (the contract)
+			}
+		})).ConfigureAwait(false);
 
-		await Task.WhenAll(tasks).ConfigureAwait(false);
+		// Assert — exactly one winner; the rest rejected with ConcurrencyException; the store stays coherent.
+		outcomes.Count(won => won).ShouldBe(1, "exactly one concurrent writer may win under optimistic concurrency");
+		outcomes.Count(won => !won).ShouldBe(4, "the four losing writers must be rejected with ConcurrencyException (no silent lost update)");
 
-		// Assert - Saga should exist and not be corrupted
 		var loaded = await _sagaStore.LoadAsync<TestSagaState>(sagaId, CancellationToken.None).ConfigureAwait(false);
 		_ = loaded.ShouldNotBeNull();
 		loaded.SagaId.ShouldBe(sagaId);

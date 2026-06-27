@@ -5,7 +5,7 @@
     <AssemblyName>Excalibur.Dispatch.Serialization.Avro</AssemblyName>
     <RootNamespace>Excalibur.Dispatch.Serialization.Avro</RootNamespace>
     <PackageId>Excalibur.Dispatch.Serialization.Avro</PackageId>
-    <Description>Apache Avro serialization plugin for the Excalibur framework. Schema-based binary serialization optimized for streaming and Kafka scenarios. Requires matching reader and writer schemas (no writer-schema resolution).</Description>
+    <Description>Apache Avro serialization plugin for the Excalibur framework. Schema-based binary serialization optimized for streaming and Kafka scenarios. Requires matching reader and writer schemas (no writer-schema resolution); writer/reader schema skew is detected via the Avro single-object-encoding fingerprint and fails closed (throws), never silently mis-decoded.</Description>
     <PackageTags>dispatch;avro;serialization;binary;schema;kafka;streaming;pluggable;cross-language</PackageTags>
   </PropertyGroup>
   <!-- AOT: NOT compatible — Apache.Avro uses runtime schema compilation; AvroSerializer uses Activator.CreateInstance for ISpecificRecord deserialization -->

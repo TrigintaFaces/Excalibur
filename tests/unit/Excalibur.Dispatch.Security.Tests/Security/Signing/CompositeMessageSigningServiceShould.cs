@@ -98,6 +98,39 @@ public sealed class CompositeMessageSigningServiceShould : IDisposable
 		signature.Length.ShouldBe(32); // HMAC-SHA256 = 32 bytes
 	}
 
+	// -- o39j4u: malformed inbound signature is a clean invalid result, not a raw FormatException --
+
+	[Fact]
+	public async Task ReturnFalse_OnMalformedBase64Signature_NotThrowFormatException()
+	{
+		// o39j4u (SECURITY) — author≠impl regression lock. A crafted/malformed inbound signature string
+		// must NOT surface a raw FormatException from Convert.FromBase64String (an unhandled pipeline
+		// throw) — it is simply an INVALID signature → fail-safe `false`. RED on the pre-fix decode path
+		// (the FormatException escaped verification).
+		var hmacKey = RandomNumberGenerator.GetBytes(32);
+		A.CallTo(() => _keyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._)).Returns(hmacKey);
+
+		var providers = new ISignatureAlgorithmProvider[] { new HmacSignatureAlgorithmProvider() };
+		using var sut = new CompositeMessageSigningService(
+			providers,
+			MsOptions.Create(new SigningOptions()),
+			_keyProvider,
+			_logger);
+
+		var context = new SigningContext
+		{
+			Algorithm = SigningAlgorithm.HMACSHA256,
+			IncludeTimestamp = false,
+			KeyId = "test-key",
+		};
+
+		// Act + Assert — a malformed-base64 signature must verify to false, never throw FormatException.
+		var isValid = await sut.VerifySignatureAsync(
+			"test payload", "!!!not-valid-base64!!!", context, CancellationToken.None);
+
+		isValid.ShouldBeFalse("a malformed signature is an invalid signature (fail-safe false), not a raw FormatException");
+	}
+
 	// -- Unsupported algorithm --
 
 	[Fact]

@@ -26,8 +26,9 @@ public enum OutboxStatus
 	/// The message is currently being delivered.
 	/// </summary>
 	/// <remarks>
-	/// This state prevents concurrent delivery attempts of the same message by multiple background services or threads. Messages in this
-	/// state should not be processed again until they transition to a final state.
+	/// Concurrent delivery is guarded by the store's lease columns (e.g. <c>LeasedAt</c>/<c>LeasedBy</c>), not by this status — a claimed
+	/// message is leased while its status remains <see cref="Staged"/> until it reaches a terminal state. This member describes the
+	/// in-flight phase of the multi-transport delivery lifecycle and is not persisted by the single-row outbox claim path.
 	/// </remarks>
 	Sending = 1,
 

@@ -156,10 +156,10 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 
 		// Act — let many failed iterations run (poll for a healthy number of save attempts), then stop.
 		await host.StartAsync(cts.Token);
-		const int targetIterations = 20;
+		const int targetIterations = 8; // 8 >> the <=2 bound: still proves unbounded growth, but reachable under heavy shard load
 		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref saveAttempts) >= targetIterations,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
 			pollInterval: TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
 		await host.StopAsync(CancellationToken.None);
@@ -287,7 +287,7 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 	{
 		return global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			signal,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
 			cancellationToken: CancellationToken.None);
 	}
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,21 +22,29 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 {
 	private readonly PostgresLeaderElectionOptions _pgOptions;
 	private readonly ILoggerFactory _loggerFactory;
+	private readonly IFencingTokenProvider? _fencingTokenProvider;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresLeaderElectionFactory"/> class.
 	/// </summary>
 	/// <param name="pgOptions">The Postgres leader election options.</param>
 	/// <param name="loggerFactory">The logger factory.</param>
+	/// <param name="fencingTokenProvider">
+	/// An optional <see cref="IFencingTokenProvider"/> (y6tatp/ADR-339) propagated to every election this
+	/// factory creates, enabling fail-closed fencing-token issuance on leadership acquisition. Defaults to
+	/// <see langword="null"/> (no fencing).
+	/// </param>
 	public PostgresLeaderElectionFactory(
 		IOptions<PostgresLeaderElectionOptions> pgOptions,
-		ILoggerFactory loggerFactory)
+		ILoggerFactory loggerFactory,
+		IFencingTokenProvider? fencingTokenProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(pgOptions);
 		ArgumentNullException.ThrowIfNull(loggerFactory);
 
 		_pgOptions = pgOptions.Value;
 		_loggerFactory = loggerFactory;
+		_fencingTokenProvider = fencingTokenProvider;
 	}
 
 	/// <inheritdoc/>
@@ -58,7 +67,7 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 		};
 
 		var logger = _loggerFactory.CreateLogger<PostgresLeaderElection>();
-		return new PostgresLeaderElection(Options.Create(pgOptions), Options.Create(electionOptions), logger);
+		return new PostgresLeaderElection(Options.Create(pgOptions), Options.Create(electionOptions), logger, _fencingTokenProvider);
 	}
 
 	/// <inheritdoc/>
@@ -90,7 +99,8 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 			Options.Create(electionOptions),
 			Options.Create(healthOptions),
 			logger,
-			innerLogger);
+			innerLogger,
+			_fencingTokenProvider);
 	}
 
 	/// <summary>

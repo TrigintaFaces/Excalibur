@@ -11,6 +11,13 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.CosmosDb.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
+    <!-- Sibling Cosmos packages call the internal AddCosmosDbChangeFeedDurabilityDefaults shared helper
+         (change-feed durability default + non-durable startup warning) so an ES-only / Outbox-only
+         consumer is never silently non-durable (bd-ydln24). Kept internal — consumers opt into durability
+         via the public AddCosmosDbChangeFeedCheckpointStore, never this. -->
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.CosmosDb" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.CosmosDb" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Azure.Cosmos" />

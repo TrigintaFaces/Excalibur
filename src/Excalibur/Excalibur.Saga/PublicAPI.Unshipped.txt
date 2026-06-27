@@ -1,6 +1,1 @@
 #nullable enable
-*REMOVED*Excalibur.Saga.Orchestration.SagaBase<TSagaState>.Dispatcher.get -> Excalibur.Dispatch.IDispatcher!
-*REMOVED*Excalibur.Saga.Orchestration.SagaBase<TSagaState>.PublishEventAsync<TEvent>(TEvent event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.IMessageResult!>!
-*REMOVED*Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SendCommandAsync<TCommand>(TCommand command, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.IMessageResult!>!
-Excalibur.Saga.Orchestration.SagaBase<TSagaState>.PublishEventAsync<TEvent>(TEvent event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SendCommandAsync<TCommand>(TCommand command, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

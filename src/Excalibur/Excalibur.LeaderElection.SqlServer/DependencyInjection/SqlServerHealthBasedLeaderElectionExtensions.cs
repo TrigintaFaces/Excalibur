@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.SqlServer;
@@ -101,7 +102,9 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 			var healthOptions = sp.GetRequiredService<IOptions<SqlServerHealthBasedLeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerHealthBasedLeaderElection>>();
 			var innerLogger = sp.GetRequiredService<ILogger<SqlServerLeaderElection>>();
-			return new SqlServerHealthBasedLeaderElection(connectionString, lockResource, electionOptions, healthOptions, logger, innerLogger);
+			// ot72w3: optional classifier-accelerated self-demotion (null when none registered → grace-only).
+			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
+			return new SqlServerHealthBasedLeaderElection(connectionString, lockResource, electionOptions, healthOptions, logger, innerLogger, failureClassifier);
 		});
 
 		services.TryAddSingleton<IHealthBasedLeaderElection>(sp =>

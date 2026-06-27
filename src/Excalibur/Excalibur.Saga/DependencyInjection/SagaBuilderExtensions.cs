@@ -15,8 +15,9 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class SagaBuilderExtensions
 {
 	/// <summary>
-	/// Adds saga event coordination services including the in-memory saga store,
-	/// saga coordinator, and the <see cref="SagaHandlingMiddleware"/>.
+	/// Adds saga event coordination services: the saga coordinator and the
+	/// <see cref="SagaHandlingMiddleware"/>. The saga store is NOT registered here (iuv3s1) — register a
+	/// persistent provider or call <see cref="UseInMemoryStore"/> to opt into the in-memory store.
 	/// </summary>
 	/// <param name="builder">The saga builder.</param>
 	/// <returns>The saga builder for chaining.</returns>
@@ -36,6 +37,26 @@ public static class SagaBuilderExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 
 		_ = builder.Services.AddExcaliburOrchestration();
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Explicitly opts into the in-memory saga store as the default <see cref="Excalibur.Dispatch.Messaging.ISagaStore"/>.
+	/// </summary>
+	/// <param name="builder">The saga builder.</param>
+	/// <returns>The saga builder for chaining.</returns>
+	/// <remarks>
+	/// The in-memory store is never registered implicitly (iuv3s1): it loses all in-flight saga state on
+	/// restart or scale-out, so it must be an explicit opt-in rather than a silent production default. For
+	/// production, register a persistent provider instead. Equivalent to
+	/// <see cref="SagaServiceCollectionExtensions.AddInMemorySagaStore"/>.
+	/// </remarks>
+	public static ISagaBuilder UseInMemoryStore(this ISagaBuilder builder)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		_ = builder.Services.AddInMemorySagaStore();
 
 		return builder;
 	}

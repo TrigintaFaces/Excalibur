@@ -29,14 +29,14 @@ internal sealed class ComplianceVaultBuilder : IComplianceVaultBuilder
 	public IComplianceVaultBuilder TransitMountPath(string mountPath)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(mountPath);
-		_options.TransitMountPath = mountPath;
+		_options.Keys.TransitMountPath = mountPath;
 		return this;
 	}
 
 	public IComplianceVaultBuilder KeyNamePrefix(string prefix)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
-		_options.KeyNamePrefix = prefix;
+		_options.Keys.KeyNamePrefix = prefix;
 		return this;
 	}
 
@@ -58,5 +58,30 @@ internal sealed class ComplianceVaultBuilder : IComplianceVaultBuilder
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 		BindConfigurationPath = sectionPath;
 		return this;
+	}
+
+	/// <summary>
+	/// Projects the fields this builder owns — and ONLY those — onto <paramref name="opt"/>, field by field.
+	/// </summary>
+	/// <remarks>
+	/// bd-r5r7fe (enforce-invariants-structurally): this is the single source of truth for "which fields the
+	/// builder configures". Each fluent setter above has exactly one corresponding field-level assignment
+	/// here, co-located in the same class — so a new setter extends the projection in one place and the
+	/// cross-file manual-allowlist desync the original nit warned about becomes inexpressible. The builder
+	/// MUST NOT touch <c>Auth</c>/<c>Retry</c>/<c>Suspension</c>/<c>MetadataCacheDuration</c>/<c>HttpTimeout</c>
+	/// or replace whole <c>Keys</c>: those are owned by the consumer's own <c>Configure&lt;VaultOptions&gt;</c>
+	/// / <c>BindConfiguration</c>, and a wholesale copy here would clobber a consumer's prior configuration
+	/// with builder defaults (the regression this projection exists to prevent — field-level, never object-level).
+	/// </remarks>
+	/// <param name="opt">The DI-managed options instance to project the builder-owned fields onto.</param>
+	internal void ApplyConfiguredFieldsTo(VaultOptions opt)
+	{
+		ArgumentNullException.ThrowIfNull(opt);
+
+		opt.VaultUri = _options.VaultUri;
+		opt.Keys.TransitMountPath = _options.Keys.TransitMountPath;
+		opt.Keys.KeyNamePrefix = _options.Keys.KeyNamePrefix;
+		opt.Namespace = _options.Namespace;
+		opt.EnableDetailedTelemetry = _options.EnableDetailedTelemetry;
 	}
 }

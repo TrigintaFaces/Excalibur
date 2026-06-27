@@ -286,6 +286,12 @@ public sealed class AggregateRootExtendedCoverageShould
             if (@event is TestEvent te)
                 LastValue = te.Value;
         }
+
+        // e6y51s: the base ApplySnapshot now throws NotSupportedException unless overridden (fail-closed
+        // against silent state loss). This aggregate is exercised by the snapshot-restore success path
+        // (LoadFromSnapshot_ApplySnapshotAndSetVersion), so it overrides ApplySnapshot to restore state.
+        protected override void ApplySnapshot(ISnapshot snapshot) =>
+            LastValue = $"snapshot:{snapshot.SnapshotId}";
     }
 
     private sealed record TestEvent : DomainEvent

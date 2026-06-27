@@ -84,6 +84,9 @@ var elasticsearchNodeUris = builder.Configuration
 
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 // ============================================================================
 // 3. AddExcalibur() - single fluent root for ES + Outbox + CDC + IdentityMap
 // ============================================================================

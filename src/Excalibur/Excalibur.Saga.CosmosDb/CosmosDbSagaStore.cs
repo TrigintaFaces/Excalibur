@@ -6,6 +6,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 
+using Excalibur.Data;
 using Excalibur.Data.CosmosDb.Diagnostics;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
@@ -130,6 +131,13 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			}
 
 			var result = _serializer.Deserialize<TSagaState>(document.StateJson);
+			if (result is not null)
+			{
+				// The authoritative optimistic-concurrency version is the dedicated document field, NOT the
+				// version embedded in StateJson (serialized before the store-owns-increment write-back, so it
+				// carries the stale pre-save version). Apply it so load-modify-save gates against the real value.
+				result.Version = document.Version;
+			}
 
 			LogSagaLoaded(sagaType, sagaId);
 			return result;
@@ -155,11 +163,16 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		var sagaType = typeof(TSagaState).Name;
 		var documentId = CosmosDbSagaDocument.CreateId(sagaState.SagaId);
 		var partitionKey = new PartitionKey(sagaType);
+		var expectedVersion = sagaState.Version;
 
-
+		// Optimistic concurrency (bd-e1tsq2), mirroring SqlServerSagaStore's version-gated MERGE: the
+		// persisted version must equal the loaded (expected) version, otherwise a ConcurrencyException is
+		// thrown instead of silently overwriting a newer write (the previous unconditional upsert lost
+		// concurrent updates). IfMatchEtag closes the read->write race window: a writer that commits between
+		// our read and our upsert changes the document's _etag, so the upsert fails with 412 PreconditionFailed.
 		try
 		{
-			// Try to read existing saga to preserve createdUtc
+			// Try to read existing saga to obtain the current version + etag and preserve createdUtc.
 			var readResponse = await _container!.ReadItemAsync<CosmosDbSagaDocument>(
 				documentId,
 				partitionKey,
@@ -167,7 +180,16 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 			var existing = readResponse.Resource;
 
-			// Update document preserving createdUtc
+			if (existing.Version != expectedVersion)
+			{
+				throw new ConcurrencyException(
+					nameof(SagaState),
+					sagaState.SagaId.ToString(),
+					expectedVersion,
+					existing.Version);
+			}
+
+			// Update document preserving createdUtc, advancing the version.
 			var document = new CosmosDbSagaDocument
 			{
 				Id = documentId,
@@ -175,22 +197,51 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				SagaType = sagaType,
 				StateJson = stateJson,
 				IsCompleted = sagaState.Completed,
+				Version = expectedVersion + 1,
 				CreatedUtc = existing.CreatedUtc, // Preserve original
 				UpdatedUtc = now
 			};
 
-			_ = await _container!.UpsertItemAsync(
-				document,
-				partitionKey,
-				new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
-				cancellationToken).ConfigureAwait(false);
+			try
+			{
+				_ = await _container!.UpsertItemAsync(
+					document,
+					partitionKey,
+					new ItemRequestOptions
+					{
+						EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite,
+						IfMatchEtag = readResponse.ETag,
+					},
+					cancellationToken).ConfigureAwait(false);
+			}
+			catch (CosmosException upsertEx) when (upsertEx.StatusCode == HttpStatusCode.PreconditionFailed)
+			{
+				// A concurrent writer modified the document between our read and our write (etag mismatch).
+				throw new ConcurrencyException(
+					nameof(SagaState),
+					sagaState.SagaId.ToString(),
+					expectedVersion,
+					actualVersion: -1L);
+			}
 
 			LogSagaSaved(sagaType, sagaState.SagaId, sagaState.Completed);
 		}
 		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-
 		{
-			// No existing saga, create new with current timestamp as createdUtc
+			// No-resurrect guard (SqlServer reference contract): only a brand-new saga (expected version 0)
+			// may be created. A stale save (expected > 0) against a missing document is a deleted/completed
+			// saga — throw rather than resurrect it at a high version (zombie saga). Mirrors the MERGE's
+			// "@ExpectedVersion = 0"-guarded INSERT branch.
+			if (expectedVersion != 0)
+			{
+				throw new ConcurrencyException(
+					nameof(SagaState),
+					sagaState.SagaId.ToString(),
+					expectedVersion,
+					actualVersion: -1L);
+			}
+
+			// No existing saga, create new with current timestamp as createdUtc.
 			var document = new CosmosDbSagaDocument
 			{
 				Id = documentId,
@@ -198,6 +249,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				SagaType = sagaType,
 				StateJson = stateJson,
 				IsCompleted = sagaState.Completed,
+				Version = expectedVersion + 1,
 				CreatedUtc = now,
 				UpdatedUtc = now
 			};
@@ -213,26 +265,25 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				LogSagaSaved(sagaType, sagaState.SagaId, sagaState.Completed);
 			}
 			catch (CosmosException createEx) when (createEx.StatusCode == HttpStatusCode.Conflict)
-
 			{
-				// Race condition: another process created the document
-				// Re-read and upsert to preserve their createdUtc
+				// Race: another process created the document between our NotFound read and our create. That
+				// is a concurrency conflict — surface it instead of clobbering the other writer's state.
 				var conflictReadResponse = await _container!.ReadItemAsync<CosmosDbSagaDocument>(
 					documentId,
 					partitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
 
-				document.CreatedUtc = conflictReadResponse.Resource.CreatedUtc;
-
-				_ = await _container!.UpsertItemAsync(
-					document,
-					partitionKey,
-					new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
-					cancellationToken).ConfigureAwait(false);
-
-				LogSagaSaved(sagaType, sagaState.SagaId, sagaState.Completed);
+				throw new ConcurrencyException(
+					nameof(SagaState),
+					sagaState.SagaId.ToString(),
+					expectedVersion,
+					conflictReadResponse.Resource.Version);
 			}
 		}
+
+		// Store-owns-increment write-back (mirrors SqlServerSagaStore): advance the in-memory token so a
+		// subsequent save on the same object uses the new persisted version instead of re-conflicting.
+		sagaState.Version = expectedVersion + 1;
 	}
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)

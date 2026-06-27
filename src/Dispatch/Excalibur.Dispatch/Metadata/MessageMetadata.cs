@@ -3,7 +3,7 @@
 
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
-using System.Security.Claims;
+using System.Text.Json.Serialization;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Features;
@@ -19,17 +19,23 @@ namespace Excalibur.Dispatch.Metadata;
 /// Excalibur framework. Use the builder pattern via <see cref="ToBuilder" /> or <see cref="MessageMetadataBuilder" /> to create or modify instances.
 /// </para>
 /// <para>
-/// The record retains strongly-typed properties for all metadata fields for backward compatibility
-/// and efficient direct access. When accessed through the <see cref="IMessageMetadata"/> interface,
-/// non-core properties are available via extension methods that read from the <see cref="Properties"/> dictionary.
+/// The core dispatch identity fields remain on the root to satisfy the <see cref="IMessageMetadata"/> contract.
+/// All other metadata is composed into focused, each-at-most-ten-property value types
+/// (<see cref="MessageIdentity"/>, <see cref="MessageRouting"/>, <see cref="MessageTiming"/>,
+/// <see cref="MessageObservability"/>, <see cref="MessageDelivery"/>, <see cref="MessageEventSourcing"/>,
+/// <see cref="MessageSecurity"/>) following the Microsoft-first sub-option composition pattern.
+/// When accessed through the <see cref="IMessageMetadata"/> interface, non-core values are also
+/// available via extension methods that read from the <see cref="Properties"/> dictionary.
+/// </para>
+/// <para>
+/// The wire (JSON) shape is preserved as a flat object via <see cref="MessageMetadataJsonConverter"/>
+/// so composing the groups does not change serialization output for consumers.
 /// </para>
 /// </remarks>
+[JsonConverter(typeof(MessageMetadataJsonConverter))]
 [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)]
 public sealed record MessageMetadata : IMessageMetadata
 {
-	private static readonly IReadOnlyCollection<string> EmptyRoles = new ReadOnlyCollection<string>([]);
-	private static readonly IReadOnlyCollection<Claim> EmptyClaims = new ReadOnlyCollection<Claim>([]);
-
 	private static readonly IReadOnlyDictionary<string, string> EmptyStringDictionary =
 		new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(StringComparer.Ordinal));
 
@@ -45,16 +51,13 @@ public sealed record MessageMetadata : IMessageMetadata
 		CorrelationId = MessageId;
 		MessageType = string.Empty;
 		ContentType = "application/json";
-		SerializerVersion = "1.0";
-		MessageVersion = "1.0";
-		ContractVersion = "1.0.0";
 		CreatedTimestampUtc = DateTimeOffset.UtcNow;
-		Roles = EmptyRoles;
-		Claims = EmptyClaims;
 		Headers = EmptyStringDictionary;
 		Attributes = EmptyObjectDictionary;
 		Properties = EmptyObjectDictionary;
 		Items = EmptyObjectDictionary;
+		Identity = new MessageIdentity { MessageVersion = "1.0", SerializerVersion = "1.0", ContractVersion = "1.0.0" };
+		Security = new MessageSecurity();
 	}
 
 	// ===== Core Identity Fields (on IMessageMetadata interface) =====
@@ -115,271 +118,7 @@ public sealed record MessageMetadata : IMessageMetadata
 	/// <value> The current <see cref="Headers" /> value. </value>
 	public IReadOnlyDictionary<string, string> Headers { get; init; }
 
-	// ===== Identity/Security (record-only, accessed via MetadataIdentityExtensions on interface) =====
-
-	/// <summary>
-	/// Gets an external system identifier for the message.
-	/// </summary>
-	/// <value> The current <see cref="ExternalId" /> value. </value>
-	public string? ExternalId { get; init; }
-
-	/// <summary>
-	/// Gets the W3C trace parent identifier for distributed tracing.
-	/// </summary>
-	/// <value> The current <see cref="TraceParent" /> value. </value>
-	public string? TraceParent { get; init; }
-
-	/// <summary>
-	/// Gets the W3C trace state information for distributed tracing.
-	/// </summary>
-	/// <value> The current <see cref="TraceState" /> value. </value>
-	public string? TraceState { get; init; }
-
-	/// <summary>
-	/// Gets the W3C baggage information for cross-service communication.
-	/// </summary>
-	/// <value> The current <see cref="Baggage" /> value. </value>
-	public string? Baggage { get; init; }
-
-	/// <summary>
-	/// Gets the identifier of the user associated with the message.
-	/// </summary>
-	/// <value> The current <see cref="UserId" /> value. </value>
-	public string? UserId { get; init; }
-
-	/// <summary>
-	/// Gets the collection of user roles associated with the message.
-	/// </summary>
-	/// <value> The current <see cref="Roles" /> value. </value>
-	public IReadOnlyCollection<string> Roles { get; init; }
-
-	/// <summary>
-	/// Gets the collection of security claims associated with the message.
-	/// </summary>
-	/// <value> The current <see cref="Claims" /> value. </value>
-	public IReadOnlyCollection<Claim> Claims { get; init; }
-
-	/// <summary>
-	/// Gets the tenant identifier for multi-tenant scenarios.
-	/// </summary>
-	/// <value> The current <see cref="TenantId" /> value. </value>
-	public string? TenantId { get; init; }
-
-	// ===== Versioning (record-only, accessed via MetadataVersioningExtensions on interface) =====
-
-	/// <summary>
-	/// Gets the encoding used for the message content.
-	/// </summary>
-	/// <value> The current <see cref="ContentEncoding" /> value. </value>
-	public string? ContentEncoding { get; init; }
-
-	/// <summary>
-	/// Gets the version of the message format.
-	/// </summary>
-	/// <value> The current <see cref="MessageVersion" /> value. </value>
-	public required string MessageVersion { get; init; }
-
-	/// <summary>
-	/// Gets the version of the serializer used for the message.
-	/// </summary>
-	/// <value> The current <see cref="SerializerVersion" /> value. </value>
-	public required string SerializerVersion { get; init; }
-
-	/// <summary>
-	/// Gets the version of the message contract.
-	/// </summary>
-	/// <value> The current <see cref="ContractVersion" /> value. </value>
-	public required string ContractVersion { get; init; }
-
-	// ===== Routing (record-only, accessed via MetadataRoutingExtensions on interface) =====
-
-	/// <summary>
-	/// Gets the destination for the message.
-	/// </summary>
-	/// <value> The current <see cref="Destination" /> value. </value>
-	public string? Destination { get; init; }
-
-	/// <summary>
-	/// Gets the reply-to address for the message.
-	/// </summary>
-	/// <value> The current <see cref="ReplyTo" /> value. </value>
-	public string? ReplyTo { get; init; }
-
-	/// <summary>
-	/// Gets the session identifier for the message.
-	/// </summary>
-	/// <value> The current <see cref="SessionId" /> value. </value>
-	public string? SessionId { get; init; }
-
-	/// <summary>
-	/// Gets the partition key for message distribution.
-	/// </summary>
-	/// <value> The current <see cref="PartitionKey" /> value. </value>
-	public string? PartitionKey { get; init; }
-
-	/// <summary>
-	/// Gets the routing key for message routing decisions.
-	/// </summary>
-	/// <value> The current <see cref="RoutingKey" /> value. </value>
-	public string? RoutingKey { get; init; }
-
-	/// <summary>
-	/// Gets the group identifier for message grouping.
-	/// </summary>
-	/// <value> The current <see cref="GroupId" /> value. </value>
-	public string? GroupId { get; init; }
-
-	/// <summary>
-	/// Gets the sequence number within the message group.
-	/// </summary>
-	/// <value> The current <see cref="GroupSequence" /> value. </value>
-	public long? GroupSequence { get; init; }
-
-	// ===== Temporal (record-only, accessed via MetadataTemporalExtensions on interface) =====
-
-	/// <summary>
-	/// Gets the UTC timestamp when the message was sent.
-	/// </summary>
-	/// <value> The current <see cref="SentTimestampUtc" /> value. </value>
-	public DateTimeOffset? SentTimestampUtc { get; init; }
-
-	/// <summary>
-	/// Gets the UTC timestamp when the message was received.
-	/// </summary>
-	/// <value> The current <see cref="ReceivedTimestampUtc" /> value. </value>
-	public DateTimeOffset? ReceivedTimestampUtc { get; init; }
-
-	/// <summary>
-	/// Gets the UTC timestamp when the message is scheduled to be enqueued.
-	/// </summary>
-	/// <value> The current <see cref="ScheduledEnqueueTimeUtc" /> value. </value>
-	public DateTimeOffset? ScheduledEnqueueTimeUtc { get; init; }
-
-	/// <summary>
-	/// Gets the time-to-live duration for the message.
-	/// </summary>
-	/// <value> The current <see cref="TimeToLive" /> value. </value>
-	public TimeSpan? TimeToLive { get; init; }
-
-	/// <summary>
-	/// Gets the UTC timestamp when the message expires.
-	/// </summary>
-	/// <value> The current <see cref="ExpiresAtUtc" /> value. </value>
-	public DateTimeOffset? ExpiresAtUtc { get; init; }
-
-	// ===== Delivery/Transport (record-only, accessed via MetadataTransportExtensions on interface) =====
-
-	/// <summary>
-	/// Gets the number of delivery attempts for the message.
-	/// </summary>
-	/// <value> The current <see cref="DeliveryCount" /> value. </value>
-	public int DeliveryCount { get; init; }
-
-	/// <summary>
-	/// Gets the maximum number of delivery attempts allowed.
-	/// </summary>
-	/// <value> The current <see cref="MaxDeliveryCount" /> value. </value>
-	public int? MaxDeliveryCount { get; init; }
-
-	/// <summary>
-	/// Gets the error message from the last delivery attempt.
-	/// </summary>
-	/// <value> The current <see cref="LastDeliveryError" /> value. </value>
-	public string? LastDeliveryError { get; init; }
-
-	/// <summary>
-	/// Gets the name of the dead letter queue for failed messages.
-	/// </summary>
-	/// <value> The current <see cref="DeadLetterQueue" /> value. </value>
-	public string? DeadLetterQueue { get; init; }
-
-	/// <summary>
-	/// Gets the reason why the message was sent to the dead letter queue.
-	/// </summary>
-	/// <value> The current <see cref="DeadLetterReason" /> value. </value>
-	public string? DeadLetterReason { get; init; }
-
-	/// <summary>
-	/// Gets the detailed error description for dead letter messages.
-	/// </summary>
-	/// <value> The current <see cref="DeadLetterErrorDescription" /> value. </value>
-	public string? DeadLetterErrorDescription { get; init; }
-
-	/// <summary>
-	/// Gets the priority level of the message.
-	/// </summary>
-	/// <value> The current <see cref="Priority" /> value. </value>
-	public int? Priority { get; init; }
-
-	/// <summary>
-	/// Gets a value indicating whether the message is durable and should survive broker restarts.
-	/// </summary>
-	/// <value> The current <see cref="Durable" /> value. </value>
-	public bool? Durable { get; init; }
-
-	/// <summary>
-	/// Gets a value indicating whether the message requires duplicate detection.
-	/// </summary>
-	/// <value> The current <see cref="RequiresDuplicateDetection" /> value. </value>
-	public bool? RequiresDuplicateDetection { get; init; }
-
-	/// <summary>
-	/// Gets the time window for duplicate detection.
-	/// </summary>
-	/// <value> The current <see cref="DuplicateDetectionWindow" /> value. </value>
-	public TimeSpan? DuplicateDetectionWindow { get; init; }
-
-	// ===== Event Sourcing (record-only, accessed via MetadataEventSourcingExtensions on interface) =====
-
-	/// <summary>
-	/// Gets the identifier of the aggregate for event sourcing.
-	/// </summary>
-	/// <value> The current <see cref="AggregateId" /> value. </value>
-	public string? AggregateId { get; init; }
-
-	/// <summary>
-	/// Gets the type of the aggregate for event sourcing.
-	/// </summary>
-	/// <value> The current <see cref="AggregateType" /> value. </value>
-	public string? AggregateType { get; init; }
-
-	/// <summary>
-	/// Gets the version of the aggregate for event sourcing.
-	/// </summary>
-	/// <value> The current <see cref="AggregateVersion" /> value. </value>
-	public long? AggregateVersion { get; init; }
-
-	/// <summary>
-	/// Gets the name of the event stream.
-	/// </summary>
-	/// <value> The current <see cref="StreamName" /> value. </value>
-	public string? StreamName { get; init; }
-
-	/// <summary>
-	/// Gets the position within the event stream.
-	/// </summary>
-	/// <value> The current <see cref="StreamPosition" /> value. </value>
-	public long? StreamPosition { get; init; }
-
-	/// <summary>
-	/// Gets the global position in the event store.
-	/// </summary>
-	/// <value> The current <see cref="GlobalPosition" /> value. </value>
-	public long? GlobalPosition { get; init; }
-
-	/// <summary>
-	/// Gets the type of the event for event sourcing.
-	/// </summary>
-	/// <value> The current <see cref="EventType" /> value. </value>
-	public string? EventType { get; init; }
-
-	/// <summary>
-	/// Gets the version of the event for event sourcing.
-	/// </summary>
-	/// <value> The current <see cref="EventVersion" /> value. </value>
-	public int? EventVersion { get; init; }
-
-	// ===== Removed collections (record-only, accessed via MetadataCollectionExtensions on interface) =====
+	// ===== Extensibility bags (record-only) =====
 
 	/// <summary>
 	/// Gets the dictionary of message attributes.
@@ -393,6 +132,50 @@ public sealed record MessageMetadata : IMessageMetadata
 	/// <value> The current <see cref="Items" /> value. </value>
 	public IReadOnlyDictionary<string, object> Items { get; init; }
 
+	// ===== Composed focused value-type groups (each <=10 properties) =====
+
+	/// <summary>
+	/// Gets the supplemental identity and versioning metadata group.
+	/// </summary>
+	/// <value> The current <see cref="Identity" /> value. </value>
+	public MessageIdentity Identity { get; init; }
+
+	/// <summary>
+	/// Gets the routing and addressing metadata group.
+	/// </summary>
+	/// <value> The current <see cref="Routing" /> value. </value>
+	public MessageRouting Routing { get; init; }
+
+	/// <summary>
+	/// Gets the temporal metadata group.
+	/// </summary>
+	/// <value> The current <see cref="Timing" /> value. </value>
+	public MessageTiming Timing { get; init; }
+
+	/// <summary>
+	/// Gets the distributed-tracing observability metadata group.
+	/// </summary>
+	/// <value> The current <see cref="Observability" /> value. </value>
+	public MessageObservability Observability { get; init; }
+
+	/// <summary>
+	/// Gets the delivery and transport-reliability metadata group.
+	/// </summary>
+	/// <value> The current <see cref="Delivery" /> value. </value>
+	public MessageDelivery Delivery { get; init; }
+
+	/// <summary>
+	/// Gets the event-sourcing metadata group.
+	/// </summary>
+	/// <value> The current <see cref="EventSourcing" /> value. </value>
+	public MessageEventSourcing EventSourcing { get; init; }
+
+	/// <summary>
+	/// Gets the security and tenancy metadata group.
+	/// </summary>
+	/// <value> The current <see cref="Security" /> value. </value>
+	public MessageSecurity Security { get; init; }
+
 	// ===== Interface methods =====
 
 	/// <inheritdoc />
@@ -402,67 +185,76 @@ public sealed record MessageMetadata : IMessageMetadata
 			.WithMessageId(MessageId)
 			.WithCorrelationId(CorrelationId)
 			.WithCausationId(CausationId)
-			.WithExternalId(ExternalId)
-			.WithTraceParent(TraceParent)
-			.WithTraceState(TraceState)
-			.WithBaggage(Baggage)
-			.WithUserId(UserId)
-			.WithTenantId(TenantId)
+			.WithExternalId(Identity.ExternalId)
+			.WithTraceParent(Observability.TraceParent)
+			.WithTraceState(Observability.TraceState)
+			.WithBaggage(Observability.Baggage)
+			.WithUserId(Security.UserId)
+			.WithTenantId(Security.TenantId)
 			.WithMessageType(MessageType)
 			.WithContentType(ContentType)
-			.WithContentEncoding(ContentEncoding)
-			.WithMessageVersion(MessageVersion)
-			.WithSerializerVersion(SerializerVersion)
-			.WithContractVersion(ContractVersion)
+			.WithContentEncoding(Identity.ContentEncoding)
+			.WithMessageVersion(Identity.MessageVersion ?? "1.0")
+			.WithSerializerVersion(Identity.SerializerVersion ?? "1.0")
+			.WithContractVersion(Identity.ContractVersion ?? "1.0.0")
 			.WithSource(Source)
-			.WithDestination(Destination)
-			.WithReplyTo(ReplyTo)
-			.WithSessionId(SessionId)
-			.WithPartitionKey(PartitionKey)
-			.WithRoutingKey(RoutingKey)
-			.WithGroupId(GroupId)
-			.WithGroupSequence(GroupSequence)
+			.WithDestination(Routing.Destination)
+			.WithReplyTo(Routing.ReplyTo)
+			.WithSessionId(Routing.SessionId)
+			.WithPartitionKey(Routing.PartitionKey)
+			.WithRoutingKey(Routing.RoutingKey)
+			.WithGroupId(Routing.GroupId)
+			.WithGroupSequence(Routing.GroupSequence)
 			.WithCreatedTimestampUtc(CreatedTimestampUtc)
-			.WithSentTimestampUtc(SentTimestampUtc)
-			.WithReceivedTimestampUtc(ReceivedTimestampUtc)
-			.WithScheduledEnqueueTimeUtc(ScheduledEnqueueTimeUtc)
-			.WithTimeToLive(TimeToLive)
-			.WithExpiresAtUtc(ExpiresAtUtc)
-			.WithDeliveryCount(DeliveryCount)
-			.WithMaxDeliveryCount(MaxDeliveryCount)
-			.WithLastDeliveryError(LastDeliveryError)
-			.WithDeadLetterQueue(DeadLetterQueue)
-			.WithDeadLetterReason(DeadLetterReason)
-			.WithDeadLetterErrorDescription(DeadLetterErrorDescription)
-			.WithPriority(Priority)
-			.WithDurable(Durable)
-			.WithRequiresDuplicateDetection(RequiresDuplicateDetection)
-			.WithDuplicateDetectionWindow(DuplicateDetectionWindow);
+			.WithSentTimestampUtc(Timing.SentTimestampUtc)
+			.WithReceivedTimestampUtc(Timing.ReceivedTimestampUtc)
+			.WithScheduledEnqueueTimeUtc(Timing.ScheduledEnqueueTimeUtc)
+			.WithTimeToLive(Timing.TimeToLive)
+			.WithExpiresAtUtc(Timing.ExpiresAtUtc)
+			.WithDeliveryCount(Delivery.DeliveryCount)
+			.WithMaxDeliveryCount(Delivery.MaxDeliveryCount)
+			.WithLastDeliveryError(Delivery.LastDeliveryError)
+			.WithDeadLetterQueue(Delivery.DeadLetterQueue)
+			.WithDeadLetterReason(Delivery.DeadLetterReason)
+			.WithDeadLetterErrorDescription(Delivery.DeadLetterErrorDescription)
+			.WithPriority(Delivery.Priority)
+			.WithDurable(Delivery.Durable)
+			.WithRequiresDuplicateDetection(Delivery.RequiresDuplicateDetection)
+			.WithDuplicateDetectionWindow(Delivery.DuplicateDetectionWindow);
 
 		// Add event sourcing metadata
-		if (AggregateId != null || AggregateType != null || AggregateVersion != null || StreamName != null || StreamPosition != null)
+		if (EventSourcing.AggregateId != null
+			|| EventSourcing.AggregateType != null
+			|| EventSourcing.AggregateVersion != null
+			|| EventSourcing.StreamName != null
+			|| EventSourcing.StreamPosition != null)
 		{
-			_ = builder.WithEventSourcing(AggregateId, AggregateType, AggregateVersion, StreamName, StreamPosition);
+			_ = builder.WithEventSourcing(
+				EventSourcing.AggregateId,
+				EventSourcing.AggregateType,
+				EventSourcing.AggregateVersion,
+				EventSourcing.StreamName,
+				EventSourcing.StreamPosition);
 		}
 
-		if (GlobalPosition.HasValue)
+		if (EventSourcing.GlobalPosition.HasValue)
 		{
-			_ = builder.WithGlobalPosition(GlobalPosition.Value);
+			_ = builder.WithGlobalPosition(EventSourcing.GlobalPosition.Value);
 		}
 
-		if (EventType != null)
+		if (EventSourcing.EventType != null)
 		{
-			_ = builder.WithEventType(EventType);
+			_ = builder.WithEventType(EventSourcing.EventType);
 		}
 
-		if (EventVersion.HasValue)
+		if (EventSourcing.EventVersion.HasValue)
 		{
-			_ = builder.WithEventVersion(EventVersion.Value);
+			_ = builder.WithEventVersion(EventSourcing.EventVersion.Value);
 		}
 
 		// Add roles and claims
-		_ = builder.WithRoles(Roles);
-		_ = builder.WithClaims(Claims);
+		_ = builder.WithRoles(Security.Roles);
+		_ = builder.WithClaims(Security.Claims);
 
 		// Add extensible collections
 		_ = builder.AddHeaders(Headers);
@@ -522,73 +314,73 @@ public sealed record MessageMetadata : IMessageMetadata
 			errors.Add("ContentType is required and cannot be empty.");
 		}
 
-		if (string.IsNullOrWhiteSpace(MessageVersion))
+		if (string.IsNullOrWhiteSpace(Identity.MessageVersion))
 		{
 			errors.Add("MessageVersion is required and cannot be empty.");
 		}
 
-		if (string.IsNullOrWhiteSpace(SerializerVersion))
+		if (string.IsNullOrWhiteSpace(Identity.SerializerVersion))
 		{
 			errors.Add("SerializerVersion is required and cannot be empty.");
 		}
 
-		if (string.IsNullOrWhiteSpace(ContractVersion))
+		if (string.IsNullOrWhiteSpace(Identity.ContractVersion))
 		{
 			errors.Add("ContractVersion is required and cannot be empty.");
 		}
 
 		// Logical validation
-		if (DeliveryCount < 0)
+		if (Delivery.DeliveryCount < 0)
 		{
 			errors.Add("DeliveryCount cannot be negative.");
 		}
 
-		if (MaxDeliveryCount is <= 0)
+		if (Delivery.MaxDeliveryCount is <= 0)
 		{
 			errors.Add("MaxDeliveryCount must be greater than zero if specified.");
 		}
 
-		if (Priority is < 0)
+		if (Delivery.Priority is < 0)
 		{
 			errors.Add("Priority cannot be negative.");
 		}
 
-		if (TimeToLive <= TimeSpan.Zero)
+		if (Timing.TimeToLive <= TimeSpan.Zero)
 		{
 			errors.Add("TimeToLive must be positive if specified.");
 		}
 
-		if (ExpiresAtUtc.HasValue && SentTimestampUtc.HasValue && ExpiresAtUtc.Value <= SentTimestampUtc.Value)
+		if (Timing.ExpiresAtUtc.HasValue && Timing.SentTimestampUtc.HasValue && Timing.ExpiresAtUtc.Value <= Timing.SentTimestampUtc.Value)
 		{
 			errors.Add("ExpiresAtUtc must be after SentTimestampUtc.");
 		}
 
-		if (ScheduledEnqueueTimeUtc.HasValue && CreatedTimestampUtc > ScheduledEnqueueTimeUtc.Value)
+		if (Timing.ScheduledEnqueueTimeUtc.HasValue && CreatedTimestampUtc > Timing.ScheduledEnqueueTimeUtc.Value)
 		{
 			errors.Add("ScheduledEnqueueTimeUtc cannot be before CreatedTimestampUtc.");
 		}
 
-		if (AggregateVersion is < 0)
+		if (EventSourcing.AggregateVersion is < 0)
 		{
 			errors.Add("AggregateVersion cannot be negative.");
 		}
 
-		if (StreamPosition is < 0)
+		if (EventSourcing.StreamPosition is < 0)
 		{
 			errors.Add("StreamPosition cannot be negative.");
 		}
 
-		if (GlobalPosition is < 0)
+		if (EventSourcing.GlobalPosition is < 0)
 		{
 			errors.Add("GlobalPosition cannot be negative.");
 		}
 
-		if (EventVersion is < 0)
+		if (EventSourcing.EventVersion is < 0)
 		{
 			errors.Add("EventVersion cannot be negative.");
 		}
 
-		if (GroupSequence is < 0)
+		if (Routing.GroupSequence is < 0)
 		{
 			errors.Add("GroupSequence cannot be negative.");
 		}
@@ -609,10 +401,8 @@ public sealed record MessageMetadata : IMessageMetadata
 			CorrelationId = messageId,
 			MessageType = "Unknown",
 			ContentType = "application/json",
-			SerializerVersion = "1.0",
-			MessageVersion = "1.0",
-			ContractVersion = "1.0.0",
 			CreatedTimestampUtc = DateTimeOffset.UtcNow,
+			Identity = new MessageIdentity { SerializerVersion = "1.0", MessageVersion = "1.0", ContractVersion = "1.0.0" },
 		};
 	}
 

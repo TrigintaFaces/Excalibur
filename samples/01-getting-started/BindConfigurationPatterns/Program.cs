@@ -74,6 +74,9 @@ builder.Services.AddExcalibur(excalibur =>
 	});
 });
 
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 var app = builder.Build();
 
 app.MapGet("/", (IConfiguration cfg) => Results.Json(new

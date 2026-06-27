@@ -63,7 +63,7 @@ internal sealed partial class AzureServiceBusMessageBus(
 		var traceParent = context.GetTraceParent();
 		if (!string.IsNullOrEmpty(traceParent) && message.ApplicationProperties != null)
 		{
-			message.ApplicationProperties["trace-parent"] = traceParent;
+			message.ApplicationProperties["traceparent"] = traceParent;
 		}
 
 		await _sender.SendMessageAsync(message, cancellationToken).ConfigureAwait(false);
@@ -92,7 +92,7 @@ internal sealed partial class AzureServiceBusMessageBus(
 		var traceParent = context.GetTraceParent();
 		if (!string.IsNullOrEmpty(traceParent) && message.ApplicationProperties != null)
 		{
-			message.ApplicationProperties["trace-parent"] = traceParent;
+			message.ApplicationProperties["traceparent"] = traceParent;
 		}
 
 		await _sender.SendMessageAsync(message, cancellationToken).ConfigureAwait(false);
@@ -121,7 +121,7 @@ internal sealed partial class AzureServiceBusMessageBus(
 		var traceParent = context.GetTraceParent();
 		if (!string.IsNullOrEmpty(traceParent) && message.ApplicationProperties != null)
 		{
-			message.ApplicationProperties["trace-parent"] = traceParent;
+			message.ApplicationProperties["traceparent"] = traceParent;
 		}
 
 		await _sender.SendMessageAsync(message, cancellationToken).ConfigureAwait(false);

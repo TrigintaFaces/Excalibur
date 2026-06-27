@@ -267,7 +267,7 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 		throw new NotSupportedException(
 			$"Snapshot creation is not implemented for {GetType().Name}. " +
 			"How to fix: Override CreateSnapshot() in your aggregate class to return an ISnapshot representing current state. " +
-			"Also override RestoreFromSnapshot() to rehydrate from the snapshot.");
+			"Also override ApplySnapshot() to rehydrate from the snapshot.");
 	}
 
 	/// <inheritdoc/>
@@ -346,12 +346,36 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 	/// </summary>
 	/// <param name="snapshot">The snapshot to apply.</param>
 	/// <remarks>
+	/// <para>
 	/// Override this method to deserialize snapshot data and restore aggregate state.
-	/// The default implementation does nothing.
+	/// It must be overridden in lock-step with <see cref="CreateSnapshot"/>: an aggregate
+	/// that produces snapshots must also know how to consume them.
+	/// </para>
+	/// <para>
+	/// The base implementation is fail-closed. It throws <see cref="NotSupportedException"/>
+	/// rather than silently no-op'ing, because reaching it means a snapshot was produced
+	/// (only an overridden <see cref="CreateSnapshot"/> can persist one) but
+	/// <see cref="ApplySnapshot"/> was not overridden to consume it. Silently returning
+	/// would load empty state and then stamp <see cref="Version"/> from the snapshot in
+	/// <see cref="LoadFromSnapshot"/> &#8212; silent state corruption. Aggregates that do not
+	/// support snapshots never reach this method, because their <see cref="CreateSnapshot"/>
+	/// also throws and so no snapshot is ever created to load.
+	/// </para>
 	/// </remarks>
+	/// <exception cref="NotSupportedException">
+	/// Always thrown by the base implementation, indicating <see cref="ApplySnapshot"/> was not
+	/// overridden to match an overridden <see cref="CreateSnapshot"/>.
+	/// </exception>
 	protected virtual void ApplySnapshot(ISnapshot snapshot)
 	{
-		// Default implementation does nothing.
-		// Override in derived class to apply snapshot state.
+		// Fail-closed and symmetric with the base CreateSnapshot, which also throws.
+		// Reaching here means CreateSnapshot was overridden (a snapshot exists to load) but
+		// ApplySnapshot was not. Throwing prevents silently loading empty state and then
+		// stamping Version from the snapshot in LoadFromSnapshot (silent data corruption).
+		throw new NotSupportedException(
+			$"Snapshot application is not implemented for {GetType().Name}, but a snapshot was supplied. " +
+			"This aggregate overrides CreateSnapshot() (which produced the snapshot) but does not override ApplySnapshot(). " +
+			"How to fix: Override ApplySnapshot(ISnapshot) in your aggregate class to rehydrate state from the snapshot, " +
+			"matching the state captured by your overridden CreateSnapshot().");
 	}
 }

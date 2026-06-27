@@ -46,4 +46,8 @@ public sealed partial class FirestoreCdcProcessor
 	[LoggerMessage(DataFirestoreEventId.CdcEventDropped, LogLevel.Warning,
 		"CDC processor '{ProcessorName}' dropped event for document '{DocumentId}' — channel full")]
 	private partial void LogEventDropped(string processorName, string documentId);
+
+	[LoggerMessage(DataFirestoreEventId.CdcFatalError, LogLevel.Critical,
+		"Fatal (non-retryable) error in Firestore CDC processor — stopping; the failure is surfaced to the configured handler or rethrown (no silent reconnect)")]
+	private partial void LogFatalError(Exception ex);
 }

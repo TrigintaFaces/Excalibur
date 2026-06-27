@@ -1532,7 +1532,6 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			? $"""
 			   SELECT
 			   	SUM(CASE WHEN Status = 0 THEN 1 ELSE 0 END) AS PendingCount,
-			   	SUM(CASE WHEN Status = 1 THEN 1 ELSE 0 END) AS SendingCount,
 			   	SUM(CASE WHEN Status = 2 THEN 1 ELSE 0 END) AS SentCount,
 			   	SUM(CASE WHEN Status = 3 THEN 1 ELSE 0 END) AS FailedCount,
 			   	SUM(CASE WHEN Status = 4 THEN 1 ELSE 0 END) AS SkippedCount,
@@ -1542,7 +1541,6 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			: $"""
 			   SELECT
 			   	SUM(CASE WHEN Status = 0 THEN 1 ELSE 0 END) AS PendingCount,
-			   	SUM(CASE WHEN Status = 1 THEN 1 ELSE 0 END) AS SendingCount,
 			   	SUM(CASE WHEN Status = 2 THEN 1 ELSE 0 END) AS SentCount,
 			   	SUM(CASE WHEN Status = 3 THEN 1 ELSE 0 END) AS FailedCount,
 			   	SUM(CASE WHEN Status = 4 THEN 1 ELSE 0 END) AS SkippedCount,
@@ -1566,7 +1564,6 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			return new TransportDeliveryStatistics
 			{
 				PendingCount = row?.PendingCount ?? 0,
-				SendingCount = row?.SendingCount ?? 0,
 				SentCount = row?.SentCount ?? 0,
 				FailedCount = row?.FailedCount ?? 0,
 				SkippedCount = row?.SkippedCount ?? 0,
@@ -1816,7 +1813,6 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	private sealed class TransportStatisticsRow
 	{
 		public int PendingCount { get; set; }
-		public int SendingCount { get; set; }
 		public int SentCount { get; set; }
 		public int FailedCount { get; set; }
 		public int SkippedCount { get; set; }

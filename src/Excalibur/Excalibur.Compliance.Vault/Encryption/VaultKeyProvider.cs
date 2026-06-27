@@ -91,7 +91,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 		var cacheKey = GetCacheKey(keyId);
 		if (_cache.TryGetValue(cacheKey, out KeyMetadata? cached))
 		{
-			return cached;
+			return await ApplySuspensionStatusAsync(keyId, cached, cancellationToken).ConfigureAwait(false);
 		}
 
 		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -101,7 +101,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 
 			var keyInfo = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
 				keyName,
-				_options.TransitMountPath).ConfigureAwait(false);
+				_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 			if (keyInfo?.Data is null)
 			{
@@ -112,7 +112,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 			var metadata = MapToKeyMetadata(keyId, keyInfo.Data);
 			CacheMetadata(cacheKey, metadata);
 
-			return metadata;
+			return await ApplySuspensionStatusAsync(keyId, metadata, cancellationToken).ConfigureAwait(false);
 		}
 		catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
 		{
@@ -134,7 +134,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 		var cacheKey = GetCacheKey(keyId, version);
 		if (_cache.TryGetValue(cacheKey, out KeyMetadata? cached))
 		{
-			return cached;
+			return await ApplySuspensionStatusAsync(keyId, cached, cancellationToken).ConfigureAwait(false);
 		}
 
 		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -144,7 +144,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 
 			var keyInfo = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
 				keyName,
-				_options.TransitMountPath).ConfigureAwait(false);
+				_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 			if (keyInfo?.Data is null)
 			{
@@ -162,7 +162,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 			var metadata = MapToKeyMetadata(keyId, keyInfo.Data, version);
 			CacheMetadata(cacheKey, metadata);
 
-			return metadata;
+			return await ApplySuspensionStatusAsync(keyId, metadata, cancellationToken).ConfigureAwait(false);
 		}
 		catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
 		{
@@ -189,7 +189,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 		try
 		{
 			var keys = await _vaultClient.V1.Secrets.Transit.ReadAllEncryptionKeysAsync(
-				_options.TransitMountPath).ConfigureAwait(false);
+				_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 			if (keys?.Data?.Keys is null)
 			{
@@ -199,18 +199,18 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 			foreach (var keyName in keys.Data.Keys)
 			{
 				// Only include keys with our prefix
-				if (!keyName.StartsWith(_options.KeyNamePrefix, StringComparison.Ordinal))
+				if (!keyName.StartsWith(_options.Keys.KeyNamePrefix, StringComparison.Ordinal))
 				{
 					continue;
 				}
 
-				var keyId = keyName[_options.KeyNamePrefix.Length..];
+				var keyId = keyName[_options.Keys.KeyNamePrefix.Length..];
 
 				try
 				{
 					var keyInfo = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
 						keyName,
-						_options.TransitMountPath).ConfigureAwait(false);
+						_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 					if (keyInfo?.Data is null)
 					{
@@ -218,6 +218,13 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 					}
 
 					var metadata = MapToKeyMetadata(keyId, keyInfo.Data);
+
+					// Surface a durably-suspended key as Suspended so status filtering (e.g. Active) excludes
+					// it and an admin status filter can still list it (bd-vihqw6).
+					if (await IsKeySuspendedAsync(keyId, cancellationToken).ConfigureAwait(false))
+					{
+						metadata = metadata with { Status = KeyStatus.Suspended };
+					}
 
 					// Apply filters
 					if (status.HasValue && metadata.Status != status.Value)
@@ -269,7 +276,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 			{
 				var existingKey = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
 					keyName,
-					_options.TransitMountPath).ConfigureAwait(false);
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 				if (existingKey?.Data is not null)
 				{
@@ -287,12 +294,12 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 				// Rotate existing key
 				await _vaultClient.V1.Secrets.Transit.RotateEncryptionKeyAsync(
 					keyName,
-					_options.TransitMountPath).ConfigureAwait(false);
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 				// Get updated key info
 				var rotatedKey = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
 					keyName,
-					_options.TransitMountPath).ConfigureAwait(false);
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 				var newMetadata = MapToKeyMetadata(keyId, rotatedKey.Data);
 
@@ -317,12 +324,12 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 				await _vaultClient.V1.Secrets.Transit.CreateEncryptionKeyAsync(
 					keyName,
 					createRequest,
-					_options.TransitMountPath).ConfigureAwait(false);
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 				// Get the newly created key info
 				var newKey = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
 					keyName,
-					_options.TransitMountPath).ConfigureAwait(false);
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 				var newMetadata = MapToKeyMetadata(keyId, newKey.Data);
 
@@ -364,12 +371,12 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 			await _vaultClient.V1.Secrets.Transit.UpdateEncryptionKeyConfigAsync(
 				keyName,
 				updateRequest,
-				_options.TransitMountPath).ConfigureAwait(false);
+				_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 			// Now delete the key
 			await _vaultClient.V1.Secrets.Transit.DeleteEncryptionKeyAsync(
 				keyName,
-				_options.TransitMountPath).ConfigureAwait(false);
+				_options.Keys.TransitMountPath).ConfigureAwait(false);
 
 			InvalidateCache(keyId);
 
@@ -389,6 +396,15 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Suspension is enforced at the Excalibur provider boundary, not at the Vault server. A suspended key is
+	/// recorded as a DURABLE KV marker and surfaced as <see cref="KeyStatus.Suspended"/> from this provider's
+	/// retrieval path, so the framework's encryption provider refuses it for both encryption and decryption.
+	/// It does NOT revoke the key at the Vault server for a raw, non-framework Vault client (Vault Transit has
+	/// no native key-disable primitive — <c>min_encryption_version</c> is capped at the latest version). For
+	/// server-side, any-client enforcement, an operator can additionally apply a Vault ACL policy denying
+	/// <c>transit/encrypt/&lt;key&gt;</c> as defense-in-depth. Suspension survives process restarts.
+	/// </remarks>
 	public async Task<bool> SuspendKeyAsync(string keyId, string reason, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -398,40 +414,51 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
-			var keyName = GetKeyName(keyId);
-
-			// Get current key info to find latest version
-			var keyInfo = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
-				keyName,
-				_options.TransitMountPath).ConfigureAwait(false);
-
-			if (keyInfo?.Data is null)
+			// Verify the key exists before suspending it (the contract returns false for an unknown key).
+			EncryptionKeyInfo? keyData;
+			try
+			{
+				var keyInfo = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
+					GetKeyName(keyId),
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
+				keyData = keyInfo?.Data;
+			}
+			catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
 			{
 				LogKeyNotFoundForSuspension(keyId);
 				return false;
 			}
 
-			// Set min_encryption_version to prevent new encryptions Vault uses MinEncryptionVersion on the config update
-			var updateRequest = new UpdateKeyRequestOptions
+			if (keyData is null)
 			{
-				// Setting a version higher than latest prevents encryption We'll use LatestVersion + 1 to effectively disable the key
+				LogKeyNotFoundForSuspension(keyId);
+				return false;
+			}
+
+			// Durably record the suspension (bd-vihqw6). Vault Transit has NO native "disable key for
+			// encryption" primitive — min_encryption_version is CAPPED at the latest version, so the previous
+			// "LatestVersion + 1" was rejected by Vault (400) and threw on the happy path (worse than a no-op).
+			// Suspension is enforced at the provider boundary: persist a DURABLE marker in Vault KV (NOT an
+			// in-memory set, which would lift on restart) keyed by keyId. Key-status resolution then surfaces
+			// the key as KeyStatus.Suspended, and AesGcmEncryptionProvider already refuses a Suspended key for
+			// BOTH encrypt and decrypt — so the key is unusable for any cryptographic operation through the
+			// framework. Genuine KV failures propagate (no broad swallow); only key-not-found returns false.
+			var marker = new Dictionary<string, object>(StringComparer.Ordinal)
+			{
+				["reason"] = reason,
+				["suspendedAt"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
 			};
 
-			await _vaultClient.V1.Secrets.Transit.UpdateEncryptionKeyConfigAsync(
-				keyName,
-				updateRequest,
-				_options.TransitMountPath).ConfigureAwait(false);
+			_ = await _vaultClient.V1.Secrets.KeyValue.V2.WriteSecretAsync(
+				GetSuspensionMarkerPath(keyId),
+				marker,
+				mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
 
 			InvalidateCache(keyId);
 
 			LogKeySuspended(keyId, reason);
 
 			return true;
-		}
-		catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
-		{
-			LogKeyNotFoundForSuspension(keyId);
-			return false;
 		}
 		finally
 		{
@@ -445,8 +472,12 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var cacheKey = $"active:{purpose ?? "default"}";
-		if (_cache.TryGetValue(cacheKey, out KeyMetadata? cached))
+		if (_cache.TryGetValue(cacheKey, out KeyMetadata? cached)
+			&& cached is not null
+			&& !await IsKeySuspendedAsync(cached.KeyId, cancellationToken).ConfigureAwait(false))
 		{
+			// Bypass the cache if the cached active key has since been suspended — re-resolve via
+			// ListKeysAsync, which excludes suspended keys, so a suspended key is never returned as active.
 			return cached;
 		}
 
@@ -574,7 +605,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 		return new VaultClient(vaultClientSettings);
 	}
 
-	private string GetKeyName(string keyId) => $"{_options.KeyNamePrefix}{keyId}";
+	private string GetKeyName(string keyId) => $"{_options.Keys.KeyNamePrefix}{keyId}";
 
 	private string GetCacheKey(string keyId, int? version = null) =>
 		version.HasValue ? $"vault:{keyId}:v{version}" : $"vault:{keyId}:latest";
@@ -586,6 +617,63 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 	{
 		_cache.Remove(GetCacheKey(keyId));
 		_cache.Remove($"active:default");
+		_cache.Remove(GetSuspensionCacheKey(keyId));
+	}
+
+	private string GetSuspensionMarkerPath(string keyId) => $"{_options.Suspension.Path}/{keyId}";
+
+	private static string GetSuspensionCacheKey(string keyId) => $"suspended:{keyId}";
+
+	/// <summary>
+	/// Returns whether the key carries a durable suspension marker in Vault KV. The result is cached for
+	/// <see cref="VaultOptions.MetadataCacheDuration"/> and invalidated on suspend; a missing marker means
+	/// "not suspended", while a genuine Vault error propagates (an error is never silently treated as
+	/// "not suspended").
+	/// </summary>
+	private async Task<bool> IsKeySuspendedAsync(string keyId, CancellationToken cancellationToken)
+	{
+		var cacheKey = GetSuspensionCacheKey(keyId);
+		if (_cache.TryGetValue(cacheKey, out bool cachedSuspended))
+		{
+			return cachedSuspended;
+		}
+
+		bool suspended;
+		try
+		{
+			var marker = await _vaultClient.V1.Secrets.KeyValue.V2.ReadSecretAsync(
+				GetSuspensionMarkerPath(keyId),
+				mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+			suspended = marker?.Data?.Data is not null;
+		}
+		catch (VaultSharp.Core.VaultApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+		{
+			suspended = false;
+		}
+
+		_ = _cache.Set(cacheKey, suspended, _options.MetadataCacheDuration);
+		return suspended;
+	}
+
+	/// <summary>
+	/// Surfaces a durably-suspended key as <see cref="KeyStatus.Suspended"/> regardless of its
+	/// Transit-derived status, so the framework encryption provider (<c>AesGcmEncryptionProvider</c>) refuses
+	/// it for both encrypt and decrypt (bd-vihqw6). Applied AFTER (possibly cached) retrieval and gated on the separately-invalidated
+	/// suspension cache, so a stale metadata cache cannot resurrect a suspended key as usable.
+	/// </summary>
+	private async Task<KeyMetadata?> ApplySuspensionStatusAsync(
+		string keyId,
+		KeyMetadata? metadata,
+		CancellationToken cancellationToken)
+	{
+		if (metadata is null)
+		{
+			return null;
+		}
+
+		return await IsKeySuspendedAsync(keyId, cancellationToken).ConfigureAwait(false)
+			? metadata with { Status = KeyStatus.Suspended }
+			: metadata;
 	}
 
 	private static bool IsKeyNotFoundException(VaultSharp.Core.VaultApiException ex) =>

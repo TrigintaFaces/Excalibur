@@ -337,7 +337,9 @@ public sealed class GetOutboxStatisticsRequestShould : UnitTestBase
 
 		// Assert
 		request.Command.CommandText.ShouldContain("Status = 0"); // Staged
-		request.Command.CommandText.ShouldContain("Status = 1"); // Sending
+		// 18lb0t: the in-flight/"sending" count is now lease-based (Status=1/Sending is never persisted on the
+		// single-row outbox — concurrency is lease-guarded), so the SendingCount column counts LeasedAt IS NOT NULL.
+		request.Command.CommandText.ShouldContain("LeasedAt IS NOT NULL"); // Sending (in-flight = leased)
 		request.Command.CommandText.ShouldContain("Status = 2"); // Sent
 		request.Command.CommandText.ShouldContain("Status = 3"); // Failed
 		request.Command.CommandText.ShouldContain("Status = 4"); // PartiallyFailed

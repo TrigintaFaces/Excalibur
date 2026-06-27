@@ -29,7 +29,7 @@ internal sealed partial class CdcChangeApplier
 	private readonly CdcCheckpointManager _checkpointManager;
 	private readonly Domain.OrderedEventProcessor _orderedEventProcessor;
 	private readonly ILogger _logger;
-	private readonly CdcFatalErrorHandler? _onFatalError;
+	private readonly CdcFatalErrorHandler<DataChangeEvent>? _onFatalError;
 	private readonly ICdcIdempotencyFilter? _idempotencyFilter;
 
 	private static readonly Counter<long> EventsProcessedCounter = CdcTelemetryConstants.Meter.CreateCounter<long>(
@@ -58,7 +58,7 @@ internal sealed partial class CdcChangeApplier
 		CdcCheckpointManager checkpointManager,
 		Domain.OrderedEventProcessor orderedEventProcessor,
 		ILogger logger,
-		CdcFatalErrorHandler? onFatalError,
+		CdcFatalErrorHandler<DataChangeEvent>? onFatalError,
 		ICdcIdempotencyFilter? idempotencyFilter = null)
 	{
 		_dbConfig = dbConfig;

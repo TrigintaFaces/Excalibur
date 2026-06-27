@@ -7,6 +7,8 @@ Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.BindConfiguration(string! s
 Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! connectionFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcRelationalStateStoreBuilder!>! configure) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder
 Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder.BatchSize(int size) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
@@ -68,7 +70,7 @@ Excalibur.Cdc.Postgres.PostgresCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.P
 Excalibur.Cdc.Postgres.PostgresCdcProcessor.Dispose() -> void
 Excalibur.Cdc.Postgres.PostgresCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Cdc.Postgres.PostgresCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Postgres.PostgresCdcPosition>!
-Excalibur.Cdc.Postgres.PostgresCdcProcessor.PostgresCdcProcessor(Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.Postgres.PostgresCdcOptions!>! options, Excalibur.Cdc.Postgres.IPostgresCdcStateStore! stateStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.Postgres.PostgresCdcProcessor!>! logger) -> void
+Excalibur.Cdc.Postgres.PostgresCdcProcessor.PostgresCdcProcessor(Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.Postgres.PostgresCdcOptions!>! options, Excalibur.Cdc.Postgres.IPostgresCdcStateStore! stateStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.Postgres.PostgresCdcProcessor!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CdcFatalErrorOptions<Excalibur.Cdc.Postgres.PostgresDataChangeEvent!>!>? fatalErrorOptions = null, Excalibur.Dispatch.IMessageFailureClassifier? failureClassifier = null) -> void
 Excalibur.Cdc.Postgres.PostgresCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.Postgres.PostgresDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.Postgres.PostgresCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.Postgres.PostgresDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Postgres.PostgresCdcRecoveryOptions
@@ -181,6 +183,7 @@ Microsoft.Extensions.DependencyInjection.PostgresCdcExtensions
 const Excalibur.Cdc.Postgres.Diagnostics.CdcPostgresEventId.CdcConfirmedPosition = 102306 -> int
 const Excalibur.Cdc.Postgres.Diagnostics.CdcPostgresEventId.CdcConnectedToReplicationStream = 102302 -> int
 const Excalibur.Cdc.Postgres.Diagnostics.CdcPostgresEventId.CdcCreatedReplicationSlot = 102303 -> int
+const Excalibur.Cdc.Postgres.Diagnostics.CdcPostgresEventId.CdcFatalError = 102309 -> int
 const Excalibur.Cdc.Postgres.Diagnostics.CdcPostgresEventId.CdcProcessedChange = 102305 -> int
 const Excalibur.Cdc.Postgres.Diagnostics.CdcPostgresEventId.CdcProcessingError = 102308 -> int
 const Excalibur.Cdc.Postgres.Diagnostics.CdcPostgresEventId.CdcProcessorStarting = 102300 -> int
@@ -232,5 +235,3 @@ static Microsoft.Extensions.DependencyInjection.PostgresCdcExtensions.AddPostgre
 static Microsoft.Extensions.DependencyInjection.PostgresCdcExtensions.AddPostgresCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.Postgres.PostgresCdcOptions!>! configure, System.Func<System.IServiceProvider!, Excalibur.Cdc.Postgres.IPostgresCdcStateStore!>! stateStoreFactory, System.Action<Excalibur.Cdc.Postgres.PostgresCdcStateStoreOptions!>? configureStateStoreOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresCdcExtensions.AddPostgresCdcWithInMemoryState(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.Postgres.PostgresCdcOptions!>! configure, System.Action<Excalibur.Cdc.Postgres.PostgresCdcStateStoreOptions!>? configureStateStoreOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Cdc.Postgres.PostgresCdcPosition.Start -> Excalibur.Cdc.Postgres.PostgresCdcPosition
-Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Cdc; // 14z4ao: CdcFatalErrorOptions<TEvent> lifted to Cdc core
 using Excalibur.Cdc.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
@@ -12,7 +13,7 @@ public sealed class CdcFatalErrorOptionsShould
 	[Fact]
 	public void HaveNullOnFatalErrorByDefault()
 	{
-		var options = new CdcFatalErrorOptions();
+		var options = new CdcFatalErrorOptions<DataChangeEvent>();
 
 		options.OnFatalError.ShouldBeNull();
 	}
@@ -20,7 +21,7 @@ public sealed class CdcFatalErrorOptionsShould
 	[Fact]
 	public void AcceptCustomFatalErrorHandler()
 	{
-		var options = new CdcFatalErrorOptions
+		var options = new CdcFatalErrorOptions<DataChangeEvent>
 		{
 			OnFatalError = (_, _) => Task.CompletedTask
 		};

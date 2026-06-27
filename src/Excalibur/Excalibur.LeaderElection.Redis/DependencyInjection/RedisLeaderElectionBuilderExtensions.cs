@@ -5,8 +5,10 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.DependencyInjection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.Redis;
 
@@ -107,7 +109,11 @@ public static class RedisLeaderElectionBuilderExtensions
 			var redis = sp.GetRequiredService<IConnectionMultiplexer>();
 			var options = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<RedisLeaderElection>>();
-			return new RedisLeaderElection(redis, lockKey, options, logger);
+			// ot72w3: optional classifier-accelerated self-demotion (null when none registered → grace-only).
+			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
+			// umemwa/ADR-339: optional fencing-token issuance at acquisition (null when fencing not enabled).
+			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			return new RedisLeaderElection(redis, lockKey, options, logger, failureClassifier, fencingTokenProvider);
 		});
 
 		// Register keyed with telemetry decorator
@@ -128,7 +134,9 @@ public static class RedisLeaderElectionBuilderExtensions
 		{
 			var redis = sp.GetRequiredService<IConnectionMultiplexer>();
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-			var inner = new RedisLeaderElectionFactory(redis, loggerFactory);
+			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
+			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			var inner = new RedisLeaderElectionFactory(redis, loggerFactory, failureClassifier, fencingTokenProvider);
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName)
 				?? new Meter(LeaderElectionTelemetryConstants.MeterName);

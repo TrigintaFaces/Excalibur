@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -25,6 +27,23 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 	private readonly string _lockKey;
 	private readonly LeaderElectionOptions _options;
 	private readonly ILogger<RedisLeaderElection> _logger;
+	// ot72w3: optional split-brain-safety refinement (parity with SqlServerLeaderElection). When
+	// supplied, a renewal fault classified as definitively Permanent relinquishes leadership IMMEDIATELY
+	// (accelerate-only); transient, poison, unclassified, or absent-classifier faults all retain the full
+	// grace-period wait. Classification can only SHORTEN time-to-relinquish, never extend it — the grace
+	// period stays the hard upper bound, so no split-brain window is ever added.
+	private readonly IMessageFailureClassifier? _failureClassifier;
+	// umemwa/ADR-339: optional fencing-token provider. When supplied, a monotonic fencing token is issued
+	// (atomically, store-side) at each leadership acquisition so a stale leader's token falls below the
+	// high-water mark and its protected operations are rejected by FencingTokenMiddleware. Null when the
+	// consumer did not enable fencing (no token issued — fully backward compatible, opt-in).
+	private readonly IFencingTokenProvider? _fencingTokenProvider;
+
+	// 762uzn: bounded retry budget for minting the fencing token on acquisition before relinquishing
+	// (fail-closed). Small + fixed: the renewal loop supplies the outer retry cadence (RenewInterval),
+	// this just rides out a transient store blip without instantly surrendering a freshly-acquired lease.
+	private const int FencingTokenMintMaxAttempts = 3;
+
 	private readonly Lock _lock = new();
 
 	private CancellationTokenSource? _renewalCts;
@@ -44,16 +63,34 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 	/// <param name="lockKey">The Redis key for the leader lock (e.g., "myapp:leader").</param>
 	/// <param name="options">The leader election options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="failureClassifier">
+	/// An optional <see cref="IMessageFailureClassifier"/> (ot72w3). When supplied, a renewal-loop fault
+	/// classified <see cref="MessageFailureKind.Permanent"/> triggers an immediate self-demotion instead of
+	/// waiting the full grace period; transient, poison, unclassified, or absent-classifier faults retain
+	/// the grace-period wait. The classifier can only accelerate (never delay) relinquish, so the grace
+	/// period remains the hard upper bound on stale-leader tenure. Defaults to <see langword="null"/>
+	/// (grace-only behavior — fully backward compatible, opt-in).
+	/// </param>
+	/// <param name="fencingTokenProvider">
+	/// An optional <see cref="IFencingTokenProvider"/> (umemwa/ADR-339). When supplied, a monotonic fencing
+	/// token is issued at each leadership acquisition (at the <c>BecomeLeader</c> transition), advancing the
+	/// resource's high-water mark so a previous leader's token is rejected by the fencing middleware.
+	/// Defaults to <see langword="null"/> (no token issued — fully backward compatible, opt-in).
+	/// </param>
 	public RedisLeaderElection(
 		IConnectionMultiplexer redis,
 		string lockKey,
 		IOptions<LeaderElectionOptions> options,
-		ILogger<RedisLeaderElection> logger)
+		ILogger<RedisLeaderElection> logger,
+		IMessageFailureClassifier? failureClassifier = null,
+		IFencingTokenProvider? fencingTokenProvider = null)
 	{
 		_redis = redis ?? throw new ArgumentNullException(nameof(redis));
 		_lockKey = lockKey ?? throw new ArgumentNullException(nameof(lockKey));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_failureClassifier = failureClassifier;
+		_fencingTokenProvider = fencingTokenProvider;
 
 		CandidateId = _options.InstanceId ?? (Environment.MachineName + "-" + Guid.NewGuid().ToString("N")[..8]);
 	}
@@ -206,7 +243,46 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 
 			if (acquired)
 			{
-				BecomeLeader();
+				// 762uzn/msmwr9 (fail-CLOSED fencing): when a fencing-token provider is configured the fence
+				// MUST be advanced BEFORE leadership is declared. SET NX returning acquired=true is itself the
+				// genuine-acquisition signal (this candidate transitioned from not-holding to holding the key),
+				// so exactly one token is minted per acquisition (ADR-339 Decision 1).
+				if (_fencingTokenProvider is not null)
+				{
+					long token;
+					try
+					{
+						token = await MintFencingTokenWithRetryAsync(cancellationToken).ConfigureAwait(false);
+					}
+					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+					{
+						throw;
+					}
+					catch (Exception ex)
+					{
+						// Bounded mint retries exhausted: RELINQUISH rather than lead with an un-advanced fence
+						// (the split-brain hazard 762uzn left open as fail-OPEN). Release the lock we just
+						// acquired and do NOT declare leadership; the next renewal iteration re-attempts
+						// acquire+mint. This is the structural fail-closed coupling — the leadership grant below
+						// is unreachable unless the mint above succeeded.
+						LogFencingTokenIssueError(ex, CandidateId, _lockKey);
+						await ReleaseLockAsync().ConfigureAwait(false);
+						return;
+					}
+
+					// Fence advanced — only NOW declare leadership. BecomeLeader fires BecameLeader/
+					// LeaderChanged, so (msmwr9) those events are observed strictly AFTER the fence advanced.
+					if (BecomeLeader())
+					{
+						LogFencingTokenIssued(CandidateId, token, _lockKey);
+					}
+				}
+				else
+				{
+					// No fencing configured (opt-in): there is no fence to advance, so declare leadership
+					// directly — fully backward compatible with the no-fencing guarantee the consumer accepted.
+					_ = BecomeLeader();
+				}
 			}
 			else
 			{
@@ -268,20 +344,23 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 				}
 				else
 				{
-					// Renew lease
-					var renewed = await RenewLeaseAsync(cancellationToken).ConfigureAwait(false);
-					if (!renewed)
+					// Renew lease (3-state: rqntzf)
+					var verify = await RenewLeaseAsync(cancellationToken).ConfigureAwait(false);
+					if (verify == LeaderVerifyResult.StillLeader)
 					{
-						// Check if we've exceeded the grace period
-						var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
-						if (elapsed > _options.GracePeriod)
-						{
-							LoseLeadership();
-						}
+						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
 					}
 					else
 					{
-						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
+						// rqntzf: a DEFINITIVELY-lost renew (owner-token Lua returned 0 — another holder owns the
+						// key) relinquishes immediately via the accelerate-only ShouldRelinquish seam; an
+						// Indeterminate renew (connection/transport fault) passes definitivelyLost=false so it stays
+						// grace-gated — no false-relinquish on a transient blip. Grace stays the hard upper bound.
+						var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
+						if (ShouldRelinquish(kind: null, definitivelyLost: verify == LeaderVerifyResult.DefinitivelyLost, elapsed, _options.GracePeriod))
+						{
+							LoseLeadership();
+						}
 					}
 				}
 			}
@@ -295,8 +374,16 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 
 				if (_isLeader)
 				{
+					// ot72w3: a definitively-Permanent fault (e.g. auth/config) cannot recover by waiting, so it
+					// relinquishes UNCONDITIONALLY this iteration (immediate, no elapsed dependence). Transient/
+					// poison/unclassified faults — and the absent-classifier default — relinquish only once the full
+					// grace period has elapsed (split-brain-safe / false-relinquish avoidance). Classification can
+					// only ADD the immediate-relinquish trigger, never relax the grace bound, so a stale leader can
+					// never hold past GracePeriod regardless of fault.
 					var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
-					if (elapsed > _options.GracePeriod)
+					// An exception is ambiguous about lock ownership (we couldn't probe), so definitivelyLost=false:
+					// only the classifier's Permanent verdict accelerates here; everything else stays grace-gated.
+					if (ShouldRelinquish(_failureClassifier?.Classify(ex), definitivelyLost: false, elapsed, _options.GracePeriod))
 					{
 						LoseLeadership();
 					}
@@ -305,7 +392,7 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 		}
 	}
 
-	private async Task<bool> RenewLeaseAsync(CancellationToken cancellationToken)
+	private async Task<LeaderVerifyResult> RenewLeaseAsync(CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
@@ -326,16 +413,27 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 				[_lockKey],
 				[CandidateId, (long)_options.LeaseDuration.TotalMilliseconds]).ConfigureAwait(false);
 
-			return (long)result == 1;
+			// rqntzf: the owner-token Lua returns 1 when we still own the lock (renewed), or 0 when the stored
+			// value no longer matches our token — an affirmative, DEFINITIVE loss (another holder took it). A
+			// thrown connection/transport error is ambiguous and handled below as Indeterminate.
+			return (long)result == 1 ? LeaderVerifyResult.StillLeader : LeaderVerifyResult.DefinitivelyLost;
 		}
 		catch (Exception ex)
 		{
+			// Connection/transport fault — we could not establish ownership either way; grace-gated.
 			LogRenewalWarning(ex, CandidateId);
-			return false;
+			return LeaderVerifyResult.Indeterminate;
 		}
 	}
 
-	private void BecomeLeader()
+	/// <summary>
+	/// Transitions this candidate to leadership if it is not already the leader.
+	/// </summary>
+	/// <returns>
+	/// <see langword="true"/> if a leadership transition occurred (this call became leader);
+	/// <see langword="false"/> if this candidate was already the leader (re-entrancy guard).
+	/// </returns>
+	private bool BecomeLeader()
 	{
 		string? previousLeader;
 
@@ -343,7 +441,7 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 		{
 			if (_isLeader)
 			{
-				return;
+				return false;
 			}
 
 			previousLeader = _currentLeaderId;
@@ -356,6 +454,100 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 
 		BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockKey));
 		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, CandidateId, _lockKey));
+
+		return true;
+	}
+
+	/// <summary>
+	/// Mints a monotonic fencing token for the protected resource, retrying a bounded number of times
+	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (762uzn, fail-CLOSED). The caller mints
+	/// BEFORE declaring leadership and relinquishes if this throws, so the fence is always advanced before
+	/// fenced leadership is granted (umemwa/ADR-339 Decision 1).
+	/// </summary>
+	/// <remarks>
+	/// The store-atomic mint (Redis <c>INCR</c>) advances the resource's cluster-wide high-water mark so a
+	/// previous leader's now-lower token is rejected by <c>FencingTokenMiddleware</c>. A bounded retry rides
+	/// out a transient store blip without instantly surrendering leadership, but once exhausted the method
+	/// throws so the caller can relinquish: fencing is a split-brain safety control, so we never proceed as
+	/// leader with an un-advanced fence (Microsoft "cross-cutting fails open" does NOT apply to a safety
+	/// boundary). The renewal loop re-attempts acquire+mint on its next iteration.
+	/// </remarks>
+	/// <param name="cancellationToken">A token to observe while minting.</param>
+	/// <returns>The newly minted, strictly-monotonic fencing token.</returns>
+	/// <exception cref="InvalidOperationException">The mint failed on every bounded attempt.</exception>
+	private async Task<long> MintFencingTokenWithRetryAsync(CancellationToken cancellationToken)
+	{
+		// Caller guarantees a provider is configured before invoking.
+		Exception? lastError = null;
+
+		for (var attempt = 1; attempt <= FencingTokenMintMaxAttempts; attempt++)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			try
+			{
+				return await _fencingTokenProvider!.IssueTokenAsync(_lockKey, cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+				throw;
+			}
+			catch (Exception ex)
+			{
+				lastError = ex;
+			}
+		}
+
+		throw new InvalidOperationException(
+			$"Failed to mint a fencing token for resource '{_lockKey}' after {FencingTokenMintMaxAttempts} attempt(s); " +
+			"relinquishing leadership rather than acting as a fenced leader with an un-advanced fence.",
+			lastError);
+	}
+
+	/// <summary>
+	/// Decides whether leadership must be relinquished for a renewal-loop fault (ot72w3). A definitively
+	/// <see cref="MessageFailureKind.Permanent"/> fault relinquishes <em>unconditionally</em> (immediate,
+	/// independent of <paramref name="elapsed"/>); every other classification — transient, poison, or an
+	/// absent/null classifier — relinquishes only once <paramref name="elapsed"/> exceeds the full
+	/// <paramref name="gracePeriod"/>.
+	/// </summary>
+	/// <remarks>
+	/// The Permanent <em>and</em> definitive-loss cases are additional <em>OR</em> triggers over the grace
+	/// check, so each can only cause an <em>earlier</em> relinquish, never relax the grace bound — a stale
+	/// leader can never hold past <paramref name="gracePeriod"/> regardless of the fault. Mirrors
+	/// <c>SqlServerLeaderElection</c> (no fork); a pure static so the accelerate-only invariant is bound
+	/// structurally. Using an unconditional boolean (not an <c>elapsed &gt; Zero</c> comparison) keeps immediate
+	/// relinquish correct under a non-monotonic clock.
+	/// </remarks>
+	/// <param name="kind">The classification of the renewal fault, or <see langword="null"/> when no classifier is configured.</param>
+	/// <param name="definitivelyLost">
+	/// <see langword="true"/> when the renewal verify <em>definitively</em> established that this candidate no
+	/// longer holds the lock (rqntzf: the owner-token Lua returned 0 — another holder owns the key). An
+	/// ambiguous/indeterminate verify (connection/transport fault) passes <see langword="false"/> so it stays
+	/// grace-gated and never false-relinquishes.
+	/// </param>
+	/// <param name="elapsed">Time since the last successful renewal.</param>
+	/// <param name="gracePeriod">The configured grace period (the hard upper bound).</param>
+	/// <returns><see langword="true"/> if leadership should be relinquished this iteration.</returns>
+	internal static bool ShouldRelinquish(MessageFailureKind? kind, bool definitivelyLost, TimeSpan elapsed, TimeSpan gracePeriod)
+		=> kind == MessageFailureKind.Permanent || definitivelyLost || elapsed > gracePeriod;
+
+	/// <summary>
+	/// The three-state outcome of a renewal-time lock-ownership verify (rqntzf). Distinguishes a
+	/// <em>definitive</em> loss (the owner-token Lua affirmatively reported another holder owns the key) from an
+	/// <em>indeterminate</em> result (a connection/transport fault) so that only the former accelerates
+	/// relinquish; the latter stays grace-gated to avoid a false-relinquish on a transient blip.
+	/// </summary>
+	private enum LeaderVerifyResult
+	{
+		/// <summary>The renew confirmed this candidate still holds the lock (Lua returned 1, lease extended).</summary>
+		StillLeader,
+
+		/// <summary>The renew affirmatively established this candidate no longer holds the lock (Lua returned 0).</summary>
+		DefinitivelyLost,
+
+		/// <summary>Ownership could not be established (connection/transport fault) — grace-gated.</summary>
+		Indeterminate,
 	}
 
 	private void LoseLeadership()
@@ -411,6 +603,14 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 
 	[LoggerMessage(LeaderElectionEventId.RedisBecameLeader, LogLevel.Information, "Candidate {CandidateId} became leader for key {Key}")]
 	partial void LogBecameLeader(string candidateId, string key);
+
+	[LoggerMessage(LeaderElectionEventId.RedisFencingTokenIssued, LogLevel.Information,
+		"Candidate {CandidateId} issued fencing token {Token} for resource {Resource}")]
+	partial void LogFencingTokenIssued(string candidateId, long token, string resource);
+
+	[LoggerMessage(LeaderElectionEventId.RedisFencingTokenIssueError, LogLevel.Error,
+		"Candidate {CandidateId} failed to mint a fencing token for resource {Resource} after bounded retries; relinquishing leadership (fail-closed) rather than leading with an un-advanced fence")]
+	partial void LogFencingTokenIssueError(Exception ex, string candidateId, string resource);
 
 	[LoggerMessage(LeaderElectionEventId.RedisLostLeadership, LogLevel.Warning, "Candidate {CandidateId} lost leadership for key {Key}")]
 	partial void LogLostLeadership(string candidateId, string key);

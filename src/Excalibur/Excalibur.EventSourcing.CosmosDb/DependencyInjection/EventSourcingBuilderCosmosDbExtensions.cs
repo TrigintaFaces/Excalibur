@@ -113,6 +113,12 @@ public static class EventSourcingBuilderCosmosDbExtensions
 		builder.Services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("cosmosdb"));
 		builder.Services.TryAddSingleton<ICloudNativeEventStore>(sp => sp.GetRequiredService<CosmosDbEventStore>());
+
+		// Change-feed durability default + non-durable startup warning, shared with the Cosmos data provider.
+		// Registering here means an event-store-only consumer (no AddExcaliburCosmosDb) still gets the default
+		// checkpoint store and is warned when continuation is non-durable, instead of silently replaying from
+		// the start position on every restart (bd-egwtku / bd-ydln24).
+		_ = builder.Services.AddCosmosDbChangeFeedDurabilityDefaults();
 	}
 
 	private static void RegisterBuilderManagedClient(

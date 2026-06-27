@@ -32,8 +32,11 @@ public sealed class EventSourcingJourneyE2EShould : IAsyncDisposable
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		// Use JSON serializer (MemoryPack requires explicit type registration per type)
-		_ = services.AddSingleton<IEventSerializer>(new JsonEventSerializer());
+		// Use JSON serializer (MemoryPack requires explicit type registration per type).
+		// wpynky/c6wd6f: the secure default rejects unregistered event types (assembly scan OFF). These
+		// E2E event types live in this trusted test assembly, so opt into the assembly scan rather than
+		// registering each type — matching the documented trusted-environment opt-in.
+		_ = services.AddSingleton<IEventSerializer>(new JsonEventSerializer(allowAssemblyScan: true));
 
 		_ = services.AddExcaliburEventSourcing(builder =>
 			builder.AddRepository<TestOrderAggregate, string>(_ => new TestOrderAggregate()));

@@ -126,6 +126,118 @@ public sealed class ErasureCoverageGateShould
         result.Success.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task NotReportCompletedWhenAnAnnotatedCategoryHasNoDiscoveredLocation()
+    {
+        // bd-vxp56x — an [PersonalData]-annotated category (Health) exists in the domain, but the discovered
+        // inventory has NO location for it (the consumer annotated but never registered it). The discovered
+        // location IS store-covered (EventStore contributor + crypto-shred), so ONLY the annotated-coverage
+        // gate can block completion — isolating the new gate. RED on the pre-fix code (no annotation scan →
+        // the annotated-but-unregistered Health data is silently skipped and the cert reports Completed).
+        var requestId = Guid.NewGuid();
+        SetupScheduledRequest(requestId);
+        A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(true));
+
+        var inventory = new DataInventory
+        {
+            DataSubjectId = "abc123hash",
+            Locations =
+            [
+                new DataLocation
+                {
+                    StoreKind = DataStoreKind.EventStore,        // store-covered by the contributor below
+                    TableName = "Events",
+                    FieldName = "Data",
+                    DataCategory = "Identity",                   // does NOT cover the annotated "Health"
+                    RecordId = "evt-1",
+                    KeyId = "key-1",                             // crypto-shredded
+                },
+            ],
+            AssociatedKeys = [new KeyReference { KeyId = "key-1", KeyScope = EncryptionKeyScope.User }],
+        };
+        A.CallTo(() => _dataInventoryService.DiscoverAsync(
+                A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(inventory));
+
+        var sut = CreateServiceWithAnnotations(
+            new StubAnnotationSource(PersonalDataCategory.Health),
+            CreateContributor("EventStore", DataStoreKind.EventStore, recordsAffected: 1));
+
+        // Act
+        var result = await sut.ExecuteAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+        // Assert — annotated Health data was never located ⇒ erasure must NOT report Completed.
+        result.Success.ShouldBeFalse(
+            "annotated personal data (Health) with no discovered location must block a Completed certificate");
+        A.CallTo(() => _store.RecordCompletionAsync(requestId, A<int>._, A<int>._, A<Guid>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task ReportCompletedWhenEveryAnnotatedCategoryHasACoveringLocation()
+    {
+        // Control (non-vacuous) — the annotated category (Identity) IS represented by a discovered, covered
+        // location, so the annotated-coverage gate does not fire and erasure completes. Proves the gate keys
+        // on the annotated-vs-covered MATCH, not a blanket failure.
+        var requestId = Guid.NewGuid();
+        SetupScheduledRequest(requestId);
+        A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(true));
+
+        var inventory = new DataInventory
+        {
+            DataSubjectId = "abc123hash",
+            Locations =
+            [
+                new DataLocation
+                {
+                    StoreKind = DataStoreKind.EventStore,
+                    TableName = "Events",
+                    FieldName = "Data",
+                    DataCategory = "Identity",                   // matches the annotated category
+                    RecordId = "evt-1",
+                    KeyId = "key-1",
+                },
+            ],
+            AssociatedKeys = [new KeyReference { KeyId = "key-1", KeyScope = EncryptionKeyScope.User }],
+        };
+        A.CallTo(() => _dataInventoryService.DiscoverAsync(
+                A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(inventory));
+
+        var sut = CreateServiceWithAnnotations(
+            new StubAnnotationSource(PersonalDataCategory.Identity),
+            CreateContributor("EventStore", DataStoreKind.EventStore, recordsAffected: 1));
+
+        // Act
+        var result = await sut.ExecuteAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+    }
+
+    /// <summary>Deterministic in-test <see cref="IPersonalDataAnnotationSource"/> for the annotated-coverage gate.</summary>
+    private sealed class StubAnnotationSource(params PersonalDataCategory[] categories) : IPersonalDataAnnotationSource
+    {
+        public IReadOnlySet<PersonalDataCategory> GetAnnotatedCategories() => new HashSet<PersonalDataCategory>(categories);
+    }
+
+    private ErasureService CreateServiceWithAnnotations(
+        IPersonalDataAnnotationSource annotations,
+        params IErasureContributor[] contributors)
+    {
+        var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+        {
+            Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+        });
+        return new ErasureService(
+            _store, _keyAdmin, options,
+            NullLogger<ErasureService>.Instance,
+            _legalHoldService, _dataInventoryService,
+            annotations, contributors);
+    }
+
     private static IErasureContributor CreateContributor(string name, DataStoreKind covers, int recordsAffected)
     {
         var contributor = A.Fake<IErasureContributor>();

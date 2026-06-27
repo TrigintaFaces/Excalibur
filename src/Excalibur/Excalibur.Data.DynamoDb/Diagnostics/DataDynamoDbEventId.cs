@@ -149,6 +149,9 @@ public static class DataDynamoDbEventId
 	/// <summary>CDC processing error.</summary>
 	public const int CdcProcessingError = 103426;
 
+	/// <summary>CDC fatal (non-retryable) error — processor stops instead of reconnecting.</summary>
+	public const int CdcFatalError = 103427;
+
 	// ========================================
 	// 103440-103459: CDC State Store
 	// ========================================

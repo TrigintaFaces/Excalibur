@@ -41,6 +41,15 @@ if git diff --cached --name-only --diff-filter=ACM | grep -qx '.beads/issues.jso
         echo -e "${RED}  (foreign change) — reconcile first (e.g. 'bd sync --import-only'), then retry the commit.${NC}"
         exit 1
     fi
+    # ── Staged-tracker backstop (bd-m3dmht / forge clause 6) ────────────────────────────────────
+    # Verify the *staged* blob (what the commit will snapshot) actually reflects the DB — a pre-close
+    # snapshot that slipped past the re-stage above is caught HERE, not discovered in committed HEAD.
+    if ! bash "$REPO_ROOT/eng/ci/bd-flush-guard.sh" --verify-staged; then
+        echo -e "${RED}✗ COMMIT REJECTED: staged .beads/issues.jsonl is STALE vs the DB (forge clause 6).${NC}"
+        echo -e "${RED}  A fresh close is not in the staged blob. Re-run the flush + 'git add .beads/issues.jsonl', then retry.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Staged Beads tracker verified against DB${NC}"
 fi
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

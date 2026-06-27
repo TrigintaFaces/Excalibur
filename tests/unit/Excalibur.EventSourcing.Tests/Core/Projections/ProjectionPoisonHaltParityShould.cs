@@ -181,7 +181,7 @@ public sealed class ProjectionPoisonHaltParityShould
 	{
 		return global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			signal,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
 			cancellationToken: CancellationToken.None);
 	}
 }

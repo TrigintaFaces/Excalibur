@@ -1603,6 +1603,9 @@ Excalibur.Compliance.IReEncryptionService
 Excalibur.Compliance.IReEncryptionService.EstimateAsync(Excalibur.Compliance.ReEncryptionOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ReEncryptionEstimate!>!
 Excalibur.Compliance.IReEncryptionService.ReEncryptAsync<T>(T! entity, Excalibur.Compliance.ReEncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ReEncryptionResult!>!
 Excalibur.Compliance.IReEncryptionService.ReEncryptBatchAsync<T>(System.Collections.Generic.IAsyncEnumerable<T!>! entities, Excalibur.Compliance.ReEncryptionOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Compliance.ReEncryptionResult<T!>!>!
+Excalibur.Compliance.IRetentionContributor
+Excalibur.Compliance.IRetentionContributor.EnforceAsync(Excalibur.Compliance.RetentionContributorContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RetentionContributorResult!>!
+Excalibur.Compliance.IRetentionContributor.Name.get -> string!
 Excalibur.Compliance.IRetentionEnforcementService
 Excalibur.Compliance.IRetentionEnforcementService.EnforceRetentionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.RetentionEnforcementResult!>!
 Excalibur.Compliance.IRetentionEnforcementService.GetRetentionPoliciesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.RetentionPolicy!>!>!
@@ -2413,6 +2416,20 @@ Excalibur.Compliance.ReportSummary.TenantId.get -> string?
 Excalibur.Compliance.ReportSummary.TenantId.init -> void
 Excalibur.Compliance.ReportSummary.Title.get -> string!
 Excalibur.Compliance.ReportSummary.Title.init -> void
+Excalibur.Compliance.RetentionContributorContext
+Excalibur.Compliance.RetentionContributorContext.AsOf.get -> System.DateTimeOffset
+Excalibur.Compliance.RetentionContributorContext.AsOf.init -> void
+Excalibur.Compliance.RetentionContributorContext.DryRun.get -> bool
+Excalibur.Compliance.RetentionContributorContext.DryRun.init -> void
+Excalibur.Compliance.RetentionContributorContext.Policies.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.RetentionPolicy!>!
+Excalibur.Compliance.RetentionContributorContext.Policies.init -> void
+Excalibur.Compliance.RetentionContributorResult
+Excalibur.Compliance.RetentionContributorResult.ErrorMessage.get -> string?
+Excalibur.Compliance.RetentionContributorResult.ErrorMessage.init -> void
+Excalibur.Compliance.RetentionContributorResult.RecordsCleaned.get -> int
+Excalibur.Compliance.RetentionContributorResult.RecordsCleaned.init -> void
+Excalibur.Compliance.RetentionContributorResult.Success.get -> bool
+Excalibur.Compliance.RetentionContributorResult.Success.init -> void
 Excalibur.Compliance.RetentionEnforcementOptions
 Excalibur.Compliance.RetentionEnforcementOptions.BatchSize.get -> int
 Excalibur.Compliance.RetentionEnforcementOptions.BatchSize.set -> void
@@ -2849,6 +2866,8 @@ static Excalibur.Compliance.ReEncryptionResult.Succeeded(string! sourceProviderI
 static Excalibur.Compliance.ReEncryptionResult<T>.Failed(T! entity, string! errorMessage, System.Exception? exception = null) -> Excalibur.Compliance.ReEncryptionResult<T!>!
 static Excalibur.Compliance.ReEncryptionResult<T>.Succeeded(T! entity, string! sourceProviderId, string! targetProviderId, int fieldsReEncrypted, System.TimeSpan duration) -> Excalibur.Compliance.ReEncryptionResult<T!>!
 static Excalibur.Compliance.RecoveryToken.Combine(System.Collections.Generic.IEnumerable<Excalibur.Compliance.RecoveryToken!>! tokens) -> Excalibur.Compliance.RecoveryToken!
+static Excalibur.Compliance.RetentionContributorResult.Failed(string! errorMessage) -> Excalibur.Compliance.RetentionContributorResult!
+static Excalibur.Compliance.RetentionContributorResult.Succeeded(int recordsCleaned) -> Excalibur.Compliance.RetentionContributorResult!
 static Excalibur.Compliance.TrustServicesCriteriaExtensions.GetCategory(this Excalibur.Compliance.TrustServicesCriterion criterion) -> Excalibur.Compliance.TrustServicesCategory
 static Excalibur.Compliance.TrustServicesCriteriaExtensions.GetCriteria(this Excalibur.Compliance.TrustServicesCategory category) -> System.Collections.Generic.IEnumerable<Excalibur.Compliance.TrustServicesCriterion>!
 static Excalibur.Compliance.TrustServicesCriteriaExtensions.GetDisplayName(this Excalibur.Compliance.TrustServicesCriterion criterion) -> string!

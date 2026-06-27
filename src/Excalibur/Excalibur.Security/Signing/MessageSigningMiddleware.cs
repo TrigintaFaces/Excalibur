@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 
 using Excalibur.Dispatch;
@@ -95,6 +96,16 @@ public sealed partial class MessageSigningMiddleware : IDispatchMiddleware
 
 			return await ProcessOutgoingMessageAsync(message, context, nextDelegate, activity, cancellationToken).ConfigureAwait(false);
 		}
+		catch (VerificationException ex)
+		{
+			// VerificationException is a SIBLING of SigningException (not a subclass), so it would
+			// otherwise escape the catch below. A failed/failing inbound verification is an authorization
+			// outcome, not an internal error — return Failed(AuthorizationError), never an unhandled throw.
+			LogSigningOperationFailed(ex, message.GetType().Name);
+			_ = (activity?.SetTag("signature.error", ex.Message));
+
+			return MessageResult.Failed(MessageProblemDetails.AuthorizationError("Message signature verification failed"));
+		}
 		catch (SigningException ex)
 		{
 			LogSigningOperationFailed(ex, message.GetType().Name);
@@ -176,10 +187,15 @@ public sealed partial class MessageSigningMiddleware : IDispatchMiddleware
 			signingContext,
 			cancellationToken).ConfigureAwait(false);
 
-		// Store signature in context
+		// Store signature in context (transmitted with the message). The signing service stamped the
+		// EXACT timestamp embedded in the HMAC onto signingContext.SignedAt — transmit that value, not a
+		// fresh UtcNow, so the verifier reproduces the same hash (qtogpu).
 		context.SetProperty("MessageSignature", signature);
 		context.SetProperty("SignatureAlgorithm", signingContext.Algorithm.ToString());
-		context.SetProperty("SignedAt", DateTimeOffset.UtcNow);
+		if (signingContext.SignedAt.HasValue)
+		{
+			context.SetProperty("SignedAt", signingContext.SignedAt.Value.ToString("O", CultureInfo.InvariantCulture));
+		}
 
 		LogMessageSigned(message.GetType().Name, signingContext.Algorithm);
 	}
@@ -213,6 +229,15 @@ public sealed partial class MessageSigningMiddleware : IDispatchMiddleware
 			Enum.TryParse<SigningAlgorithm>(algorithm, out var alg))
 		{
 			signingContext.Algorithm = alg;
+		}
+
+		// Restore the transmitted signing timestamp so verification reproduces the signer's HMAC input.
+		// Without this the rebuilt context has no SignedAt and a timestamped signature fails closed
+		// rather than the verifier re-deriving the current time (qtogpu).
+		if (context.TryGetValue<string>("SignedAt", out var signedAtRaw) &&
+			DateTimeOffset.TryParse(signedAtRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var transmittedSignedAt))
+		{
+			signingContext.SignedAt = transmittedSignedAt;
 		}
 
 		// Serialize message for verification

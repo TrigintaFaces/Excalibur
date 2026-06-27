@@ -1261,11 +1261,19 @@ Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableAuto
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableAutoAckExtension.set -> void
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableDeadLetterTopic.get -> bool
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableDeadLetterTopic.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableExactlyOnceDelivery.get -> bool
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableExactlyOnceDelivery.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableMessageOrdering.get -> bool
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableMessageOrdering.set -> void
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableOpenTelemetry.get -> bool
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableOpenTelemetry.set -> void
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.GooglePubSubTransportOptions() -> void
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxConcurrentMessages.get -> int
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxConcurrentMessages.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxOutstandingByteCount.get -> long
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxOutstandingByteCount.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxOutstandingMessages.get -> long
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxOutstandingMessages.set -> void
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxPullMessages.get -> int
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxPullMessages.set -> void
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.Name.get -> string?
@@ -1427,6 +1435,7 @@ const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberMe
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberModifyVisibilityFailed = 23813 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberNotFound = 23816 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberReceiveFailed = 23810 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriptionConfigValidated = 23930 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriptionCreated = 23011 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TaskCleanupCancelled = 23221 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TaskCleanupDisposed = 23222 -> int

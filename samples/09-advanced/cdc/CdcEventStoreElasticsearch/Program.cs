@@ -148,7 +148,9 @@ builder.Services
 
 builder.Services
 	.AddDispatch(typeof(Program).Assembly);
-// IEventSerializer (JsonEventSerializer) is auto-registered by AddDispatch()
+// IEventSerializer (JsonEventSerializer) is auto-registered by AddDispatch().
+// c6wd6f: register event types so the secure-default serializer resolves them without the scan.
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // ============================================================================
 // CDC Processing (Fluent Builder Pattern)

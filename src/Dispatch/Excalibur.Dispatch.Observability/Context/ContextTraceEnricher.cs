@@ -70,9 +70,6 @@ public sealed partial class ContextTraceEnricher(
 			// Add baggage items for cross-service propagation
 			AddBaggageItems(context);
 
-			// Link to parent trace if available
-			LinkToParentTrace(activity, context);
-
 			// Add events for significant context states
 			AddContextEvents(activity, context);
 
@@ -586,34 +583,6 @@ public sealed partial class ContextTraceEnricher(
 		}
 	}
 
-	private void LinkToParentTrace(Activity activity, IMessageContext context)
-	{
-		var traceParent = context.GetTraceParent();
-		if (string.IsNullOrWhiteSpace(traceParent))
-		{
-			return;
-		}
-
-		try
-		{
-			// Parse W3C trace parent
-			if (ActivityContext.TryParse(traceParent, traceState: null, out var parentContext))
-			{
-				// Note: In OpenTelemetry, parent must be set during activity creation This is documented as a limitation
-				_ = activity.SetTag("parent.trace_id", parentContext.TraceId.ToString());
-				_ = activity.SetTag("parent.span_id", parentContext.SpanId.ToString());
-			}
-		}
-		catch (FormatException ex)
-		{
-			LogTraceParentParseFormatError(ex, traceParent);
-		}
-		catch (ArgumentException ex)
-		{
-			LogTraceParentParseArgumentError(ex, traceParent);
-		}
-	}
-
 	// Source-generated logging methods
 	[LoggerMessage(ObservabilityEventId.ActivityEnriched, LogLevel.Debug,
 		"Enriched activity {ActivityName} with context from message {MessageId}")]
@@ -646,14 +615,6 @@ public sealed partial class ContextTraceEnricher(
 	[LoggerMessage(ObservabilityEventId.ContextEventAdded, LogLevel.Debug,
 		"Added context event {EventName} to span for message {MessageId}")]
 	private partial void LogContextEventAdded(string eventName, string messageId);
-
-	[LoggerMessage(ObservabilityEventId.TraceParentParseFormatError, LogLevel.Debug,
-		"Failed to parse trace parent: {TraceParent} - format error")]
-	private partial void LogTraceParentParseFormatError(Exception ex, string traceParent);
-
-	[LoggerMessage(ObservabilityEventId.TraceParentParseArgumentError, LogLevel.Debug,
-		"Failed to parse trace parent: {TraceParent} - invalid argument")]
-	private partial void LogTraceParentParseArgumentError(Exception ex, string traceParent);
 
 	[LoggerMessage(ObservabilityEventId.FailedEnrichOperationInvalid, LogLevel.Error,
 		"Failed to enrich activity with context - operation is not valid")]

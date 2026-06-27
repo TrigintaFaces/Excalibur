@@ -16,11 +16,19 @@ internal static class TypeResolver
 	/// <summary>
 	/// Resolves a type by name using the appropriate method based on runtime mode.
 	/// </summary>
+	/// <param name="typeName">The type name to resolve.</param>
+	/// <param name="allowAssemblyScan">
+	/// 6v2z7q: when <see langword="true"/>, an unregistered type name falls back to an unbounded scan of all
+	/// loaded assemblies (JIT only). That scan is the gadget-chain vector, so it defaults to <see langword="false"/>:
+	/// the secure default resolves only registry-registered types. Pass <see langword="true"/> ONLY when the type
+	/// name is trusted (e.g. migrating the consumer's own store); untrusted names (e.g. a remote dead-letter
+	/// envelope) MUST leave it <see langword="false"/>. Mirrors the c6wd6f secure default.
+	/// </param>
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "RuntimeFeature check ensures AOT path avoids reflection")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
 		Justification = "JIT fallback resolves types from loaded assemblies via reflection")]
-	public static Type? ResolveType(string typeName)
+	public static Type? ResolveType(string typeName, bool allowAssemblyScan = false)
 	{
 		if (string.IsNullOrEmpty(typeName))
 		{
@@ -39,7 +47,15 @@ internal static class TypeResolver
 			return null;
 		}
 
-		// JIT path: fall back to loaded assemblies
+		// 6v2z7q: the unbounded JIT assembly scan is the gadget-chain vector — an untrusted type name can
+		// resolve an attacker-chosen type from any loaded assembly. It is OFF by default; only a caller that
+		// KNOWS the type name is trusted opts in. An unregistered type otherwise resolves to null.
+		if (!allowAssemblyScan)
+		{
+			return null;
+		}
+
+		// JIT path (opt-in only): fall back to loaded assemblies
 		return ResolveFromLoadedAssemblies(typeName);
 	}
 
@@ -47,9 +63,9 @@ internal static class TypeResolver
 	/// Ensures a type can be resolved, throwing an exception if not found.
 	/// </summary>
 	/// <exception cref="TypeLoadException"> Thrown when the type cannot be resolved. </exception>
-	public static Type ResolveTypeRequired(string typeName)
+	public static Type ResolveTypeRequired(string typeName, bool allowAssemblyScan = false)
 	{
-		var type = ResolveType(typeName);
+		var type = ResolveType(typeName, allowAssemblyScan);
 		if (type == null)
 		{
 			var mode = AotDetection.IsAotCompiled ? "AOT" : "JIT";

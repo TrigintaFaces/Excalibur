@@ -37,8 +37,14 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 
 		// Read the authoritative Version column (bd-eszc06) so the loaded state carries the persisted
 		// optimistic-concurrency version, which the store then uses as the compare-and-swap basis on save.
-		var sql = $"SELECT StateJson, IsCompleted, Version FROM {qualifiedTableName} WHERE SagaId = @SagaId;";
+		// Type-isolation (1f5om2): scope the load to BOTH SagaId AND SagaType. The store persists SagaType on
+		// save, so loading by SagaId alone would return a saga of a DIFFERENT type that happens to share the
+		// Guid, then deserialize its StateJson into the wrong TSagaState (silent data corruption). A typed
+		// LoadAsync<TSagaState>(id) must return null when no saga of that type exists at the id — the contract
+		// already enforced structurally by InMemory (`state is TSagaState`), Cosmos, Firestore, and DynamoDb.
+		var sql = $"SELECT StateJson, IsCompleted, Version FROM {qualifiedTableName} WHERE SagaId = @SagaId AND SagaType = @SagaType;";
 		Parameters.Add("SagaId", sagaId);
+		Parameters.Add("SagaType", typeof(TSagaState).Name);
 		Command = CreateCommand(sql, cancellationToken: cancellationToken);
 		ResolveAsync = async conn =>
 		{

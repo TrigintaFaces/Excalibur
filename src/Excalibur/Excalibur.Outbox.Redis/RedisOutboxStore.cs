@@ -129,6 +129,30 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	                                           return {ok = 'SUCCESS'}
 	                                           """;
 
+	// Lua script for atomic StageMessage (bd-5jo6tm) - dedup-claim + full-hash write + index add
+	// in a SINGLE indivisible step. Redis executes the whole script atomically, so a crash can
+	// never leave an orphan partial hash (a claimed id with no payload and absent from every
+	// claimable index, which would be invisible to the poller AND block re-staging the id).
+	// KEYS[1]=message key, KEYS[2]=target index (staged | scheduled).
+	// ARGV[1]=messageId, ARGV[2]=index score, ARGV[3..]=flattened hash field/value pairs.
+	private const string StageMessageLuaScript = """
+	                                             local key = KEYS[1]
+	                                             local indexKey = KEYS[2]
+	                                             local messageId = ARGV[1]
+	                                             local score = ARGV[2]
+
+	                                             -- Atomic dedup: claim by whole-key existence. Exactly ONE concurrent stager wins.
+	                                             if redis.call('EXISTS', key) == 1 then
+	                                             	return 'ALREADY_EXISTS'
+	                                             end
+
+	                                             -- Write ALL message fields and add to the claimable index in one atomic step.
+	                                             redis.call('HSET', key, unpack(ARGV, 3))
+	                                             redis.call('ZADD', indexKey, score, messageId)
+
+	                                             return 'SUCCESS'
+	                                             """;
+
 	private static readonly CompositeFormat MessageAlreadyExistsFormat =
 		CompositeFormat.Parse("Message with ID '{0}' already exists in the outbox.");
 
@@ -193,51 +217,53 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		var key = GetMessageKey(message.Id);
 
-		// Store message as hash - use HSETNX pattern to check uniqueness atomically
-		// First, check if the message hash already exists by trying to get any field
-		var existingType = await _database!.HashGetAsync(key, "MessageType").ConfigureAwait(false);
-		if (existingType.HasValue)
-		{
-			throw new InvalidOperationException(
-				string.Format(
-					CultureInfo.InvariantCulture,
-					MessageAlreadyExistsFormat,
-					message.Id));
-		}
-
-		// Store message as hash
-		var entries = SerializeToHashEntries(message);
-		await _database!.HashSetAsync(key, entries).ConfigureAwait(false);
-
-		// Verify we actually created it (another thread might have beaten us)
-		var actualType = await _database!.HashGetAsync(key, "MessageType").ConfigureAwait(false);
-		if (actualType != message.MessageType)
-		{
-			throw new InvalidOperationException(
-				string.Format(
-					CultureInfo.InvariantCulture,
-					MessageAlreadyExistsFormat,
-					message.Id));
-		}
-
-		// Add to appropriate index
-		// Scheduled messages always go to scheduled index (even if scheduled in the past)
-		// GetUnsentMessagesAsync will move due scheduled messages to staged
+		// bd-5jo6tm: stage the message ATOMICALLY — dedup-claim + full-hash write + index add happen
+		// in a single Lua script, so a crash can never leave an orphan partial hash. The prior path was
+		// three separate round-trips (HSETNX claim -> HashSet remaining fields -> SortedSetAdd to index):
+		// a crash between the claim and the field-write left a hash holding only the claimed MessageType,
+		// with no payload and absent from every claimable index — invisible to the poller AND blocking
+		// re-staging the id (the message was silently lost). Folding all three into one indivisible script
+		// makes that partial state structurally inexpressible. The bd-grjjz0 atomic-dedup guarantee is
+		// preserved as the whole-key EXISTS guard inside the script (exactly one concurrent stager wins).
+		RedisKey indexKey;
+		long score;
 		if (message.ScheduledAt.HasValue)
 		{
-			_ = await _database!.SortedSetAddAsync(
-				GetScheduledIndexKey(),
-				message.Id,
-				message.ScheduledAt.Value.ToUnixTimeMilliseconds()).ConfigureAwait(false);
+			// Scheduled messages always go to the scheduled index (even if scheduled in the past);
+			// GetUnsentMessagesAsync moves due scheduled messages to the staged index.
+			indexKey = GetScheduledIndexKey();
+			score = message.ScheduledAt.Value.ToUnixTimeMilliseconds();
 		}
 		else
 		{
-			// Score: priority (inverted, lower = higher priority) + creation timestamp for ordering
-			var score = ((double)message.Priority * 1_000_000_000_000) + message.CreatedAt.ToUnixTimeMilliseconds();
-			_ = await _database!.SortedSetAddAsync(
-				GetStagedIndexKey(),
-				message.Id,
-				score).ConfigureAwait(false);
+			// Score: priority (inverted, lower = higher priority) + creation timestamp for ordering.
+			indexKey = GetStagedIndexKey();
+			score = (message.Priority * 1_000_000_000_000L) + message.CreatedAt.ToUnixTimeMilliseconds();
+		}
+
+		var entries = SerializeToHashEntries(message);
+		var argv = new RedisValue[2 + (entries.Length * 2)];
+		argv[0] = message.Id;
+		argv[1] = score;
+		var argvIndex = 2;
+		foreach (var entry in entries)
+		{
+			argv[argvIndex++] = entry.Name;
+			argv[argvIndex++] = entry.Value;
+		}
+
+		var result = await _database!.ScriptEvaluateAsync(
+			StageMessageLuaScript,
+			[key, indexKey],
+			argv).ConfigureAwait(false);
+
+		if (string.Equals(result.ToString(), "ALREADY_EXISTS", StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					MessageAlreadyExistsFormat,
+					message.Id));
 		}
 
 		LogMessageStaged(message.Id, message.MessageType, message.Destination);

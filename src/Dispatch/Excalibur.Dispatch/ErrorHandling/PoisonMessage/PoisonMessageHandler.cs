@@ -163,8 +163,12 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 				return false;
 			}
 
-			// Deserialize the original message - uses TypeResolver for AOT compatibility
-			var messageType = TypeResolution.TypeResolver.ResolveType(deadLetterMessage.MessageType);
+			// Deserialize the original message - uses TypeResolver for AOT compatibility.
+			// 6v2z7q: EXPLICIT allowAssemblyScan: false — a dead-letter message's stored type name is untrusted
+			// input (THE gadget-chain vector), so it must never fall back to the unbounded assembly scan; only
+			// registry-resolved types replay. Stated explicitly (not defaulted) to keep the secure posture visible
+			// at the vector site and immune to a future default-flip (enforce-invariants-structurally).
+			var messageType = TypeResolution.TypeResolver.ResolveType(deadLetterMessage.MessageType, allowAssemblyScan: false);
 			if (messageType == null)
 			{
 				LogCannotReplayMessageTypeNotFound(messageId, deadLetterMessage.MessageType);

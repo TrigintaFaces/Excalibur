@@ -1,3 +1,1 @@
 #nullable enable
-Excalibur.Inbox.SqlServer.SqlServerInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Inbox.SqlServer.SqlServerInboxStore.MarkFailedWithBackoffAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.DateTimeOffset nextAttemptAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 using Excalibur.Data.CloudNative;
+using Excalibur.Data.CosmosDb;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
@@ -24,6 +25,8 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 	private readonly Container _container;
 	private readonly IChangeFeedOptions _options;
 	private readonly ILogger _logger;
+	private readonly IChangeFeedCheckpointStore? _checkpointStore;
+	private readonly string _checkpointKey;
 	private readonly CancellationTokenSource _cts = new();
 
 	private bool _isActive;
@@ -35,15 +38,25 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 	/// <param name="container">The Cosmos DB container.</param>
 	/// <param name="options">The change feed options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="checkpointStore">
+	/// Optional durable checkpoint store. When supplied, the continuation token is loaded on start and
+	/// persisted after each batch so the subscription resumes across restarts instead of replaying from
+	/// the configured start position. When <see langword="null"/> (default), behavior is unchanged
+	/// (continuation tracked in memory only). See bd-egwtku.
+	/// </param>
 	public CosmosDbOutboxChangeFeedSubscription(
 		Container container,
 		IChangeFeedOptions options,
-		ILogger logger)
+		ILogger logger,
+		IChangeFeedCheckpointStore? checkpointStore = null)
 	{
 		_container = container ?? throw new ArgumentNullException(nameof(container));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_checkpointStore = checkpointStore;
 
+		// Stable, restart-invariant checkpoint key (NOT SubscriptionId, which carries a per-process Guid).
+		_checkpointKey = $"outbox-cf-{container.Id}";
 		SubscriptionId = $"outbox-cf-{Guid.NewGuid():N}";
 	}
 
@@ -94,6 +107,13 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
 		var linkedToken = linkedCts.Token;
 
+		// Resume from the durable checkpoint (if configured) before the first iterator.
+		if (CurrentContinuationToken is null && _checkpointStore is not null)
+		{
+			CurrentContinuationToken =
+				await _checkpointStore.LoadAsync(_checkpointKey, linkedToken).ConfigureAwait(false);
+		}
+
 		var startTime = GetStartTime();
 		var iterator = CreateChangeFeedIterator(startTime);
 
@@ -143,7 +163,13 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 			}
 
 			LogReceivedBatch(SubscriptionId, response.Count);
-			CurrentContinuationToken = response.ContinuationToken;
+
+			// Capture THIS page's "resume-after-this-page" continuation token before yielding; persist it
+			// only AFTER the consumer has processed (pulled) the page (post-yield, below) — never before —
+			// so a crash mid-page resumes from BEFORE the page (at-least-once), never advancing past
+			// unprocessed changes. bd-ydln24 / SA seam 17195.
+			var pageContinuationToken = response.ContinuationToken;
+			CurrentContinuationToken = pageContinuationToken;
 
 			long sequenceNumber = 0;
 			foreach (var doc in response)
@@ -163,6 +189,15 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 					DateTimeOffset.UtcNow,
 					response.ContinuationToken ?? string.Empty,
 					sequenceNumber++);
+			}
+
+			// Persist AFTER the whole page has been yielded to (and processed by) the consumer, so progress
+			// survives a restart without ever advancing past an unprocessed change. No-op when no store is
+			// configured (prior in-memory-only behavior).
+			if (_checkpointStore is not null && !string.IsNullOrEmpty(pageContinuationToken))
+			{
+				await _checkpointStore.SaveAsync(_checkpointKey, pageContinuationToken, linkedToken)
+					.ConfigureAwait(false);
 			}
 		}
 	}

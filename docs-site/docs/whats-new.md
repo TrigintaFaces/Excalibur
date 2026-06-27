@@ -14,6 +14,63 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ---
 
+## June 2026 — Integration Correctness Hardening (Sprint 853)
+
+A correctness-first sweep closing severe data-loss, lost-update, and lost-write defects across the integration providers (saga stores, outbox stores, projection stores, distributed locks, and the Vault key provider). Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), is green across the 10-shard full CI run plus the Docker container shards, and passed both independent reviews (code + architecture/CSO) at zero blocking findings. As a greenfield framework there are no consumer data migrations; these are behavioral **corrections**, so review them for behavior you may have relied on.
+
+### Saga concurrency and no-resurrect now hold across every provider
+
+- **Optimistic concurrency and a no-resurrect guard now apply uniformly to all six saga store providers** — In-Memory, PostgreSQL, MongoDB, Cosmos DB, DynamoDB, and Firestore — not just the SQL stores. A conflicting save (two events racing for one saga) throws `ConcurrencyException` so exactly one writer wins and no update is lost, and a stale-version save targeting a since-deleted/completed saga is rejected rather than re-creating a zombie row. Each provider uses its native mechanism (Postgres `WHERE version = @ExpectedVersion`, Cosmos `If-Match` ETag, DynamoDB conditional write, Mongo filtered update, Firestore transaction) and the store owns the version increment. Handle `ConcurrencyException` by reloading and replaying the event (the idempotent-replay guard makes reprocessing safe). See [Sagas → Optimistic Concurrency](./sagas/index.md#optimistic-concurrency).
+
+### Vault key suspension is now enforced
+
+- **`VaultKeyProvider.SuspendKeyAsync` now durably suspends a key so it is refused for both encrypt and decrypt**, instead of being a silent no-op. HashiCorp Vault Transit has no native server-side suspend, so suspension is recorded as a durable provider-side marker and the key is surfaced as `KeyStatus.Suspended` — the crypto path then refuses it on both sides, consistent with the In-Memory, Azure, and AWS providers. See [Encryption Architecture → Key Lifecycle](./security/encryption-architecture.md#key-lifecycle).
+
+### Integration-provider data-correctness fixes
+
+- **ElasticSearch outbox cleanup no longer deletes the entire outbox.** The cleanup query is now bounded to already-`Sent` messages older than the cutoff, replacing a `DeleteByQuery(MatchAll)` that could wipe live, unsent messages (data loss).
+- **The PostgreSQL outbox claim now uses `FOR UPDATE SKIP LOCKED`**, so concurrent processors no longer claim and double-dispatch the same message.
+- **The OpenSearch projection store now applies query filters.** `QueryAsync` previously ignored filter criteria and returned the wrong result set.
+- **Redis outbox enqueue de-duplication is now atomic** (single `HSETNX` stage), closing a race where a duplicate could be staged under concurrency.
+- **The Redis distributed job lock now carries a per-acquisition owner token**, so release and extend only affect the lock the caller actually holds — one instance can no longer release or extend another instance's lock.
+
+---
+
+## June 2026 — Reliability, Telemetry & Security Hardening (Sprint 852)
+
+A focused hardening sweep across error handling, CDC, serialization, observability, and security. Each change carries a non-vacuous independent regression lock (red on the pre-fix code), is green across the 10-shard full CI run plus container shards, and passed both independent reviews (code + architecture/CSO) at zero blocking findings. As a greenfield framework there are no consumer data migrations, but two items below change a default or remove a property — review them for behavior you may have relied on.
+
+### Opt-in auto-dead-letter on retry exhaustion
+
+- **The new opt-in `DeadLetterOnExhaustionMiddleware` (registered via `AddDeadLetterOnExhaustion()`) automatically routes an in-process dispatch to the dead-letter queue once it exhausts every retry attempt**, dead-lettering with reason `DeadLetterReason.MaxRetriesExceeded`. Place it upstream of the retry middleware. It composes with `PoisonMessageMiddleware` (which owns the poison/deserialization reasons) rather than duplicating it, and registers a fail-safe no-op `NullDeadLetterQueue` via `TryAdd` so a consumer without a real `IDeadLetterQueue` is logged rather than crashed. See [Dead Letter → Auto-Dead-Letter on Retry Exhaustion](./patterns/dead-letter.md#auto-dead-letter-on-retry-exhaustion).
+
+### Avro serialization fails closed on schema skew
+
+- **The Avro serializer now detects writer/reader schema skew and fails closed with `SchemaMismatchException` instead of positionally mis-decoding.** Every payload is framed with the Avro single-object-encoding header (writer-schema fingerprint); on a fingerprint mismatch — or a payload missing the header — deserialization throws rather than silently corrupting field values. Avro still does not perform writer-schema resolution (schema evolution); version your types explicitly so every payload is read with the schema it was written with. See [Serialization Providers → Avro](./middleware/serialization-providers.md#avro).
+
+### Event-type assembly scanning is now an explicit, secure-by-default opt-in
+
+- **`JsonEventSerializer` no longer scans all loaded assemblies to resolve an unregistered event type by default.** The public constructor gained an `allowAssemblyScan` parameter that defaults to `false`: an unknown type name is now rejected (`UnknownEventTypeException`) instead of resolved by an unbounded reflection scan, which could resolve an attacker-chosen (gadget-chain) type. Types registered via `AddEventTypes<T>()` resolve independently of the scan and are unaffected. If you genuinely relied on assembly-scan resolution in a trusted environment, construct `new JsonEventSerializer(allowAssemblyScan: true)` to restore it.
+
+### CDC fatal-error handling is uniform across all providers
+
+- **The CDC fatal-handoff contract was lifted to the `Excalibur.Cdc` core and made generic (`CdcFatalErrorHandler<TEvent>` / `CdcFatalErrorOptions<TEvent>`), with a new public `CdcFatalClassifier`**, so all six CDC providers (SQL Server, Postgres, MongoDB, Cosmos DB, DynamoDB, Firestore) now hand off fatal errors consistently instead of each provider diverging.
+
+### Outbox statistics report real "sending" counts
+
+- **The SQL Server outbox now reports a real `OutboxStatistics.SendingMessageCount` (derived from active leases) instead of always `0`.** The always-`0`, never-populated `TransportDeliveryStatistics.SendingCount` property was **removed**; use `OutboxStatistics.SendingMessageCount` for in-flight (leased) outbox messages.
+
+### Observability: distinct dedup metric and bounded poison-reason tag
+
+- **A new `dispatch.inbox.deduplicated` counter** (tagged `inbox.disposition` = `duplicate`/`timeout-reset` and `inbox.mode`) separately records dedup dispositions, so dedup-rate is independently observable from total `dispatch.inbox.processed` throughput.
+- **The `poison.reason` metric tag is now bounded to the `DeadLetterReason` enum values**, eliminating an unbounded-cardinality risk from free-form reason strings.
+
+### Leader-election split-brain hardening
+
+- **The `ShouldRelinquish` decision was corrected** so a clock-skew condition and the grace-backstop are OR-combined (either triggers relinquish), closing a split-brain window, with an optional accelerate-only classifier step-down on SQL Server and Redis.
+
+---
+
 ## June 2026 — Reliability & Wiring Correctness (Sprint 850)
 
 A focused sweep closing a class of **wiring/registration/correctness** gaps where advertised behavior did not actually fire, plus concurrency/memory hazards. Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), green across the 10-shard full CI run plus Docker container shards, with both independent reviews (code + architecture/CSO) approved at zero blocking findings. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but **SQL Server inbox users must add the new `NextAttemptAt` column** (below), and you should review the items for behavior you may have relied on.

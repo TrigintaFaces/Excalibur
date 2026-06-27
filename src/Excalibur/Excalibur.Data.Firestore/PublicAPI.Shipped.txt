@@ -33,9 +33,10 @@ Excalibur.Data.Firestore.Authorization.FirestoreGrantStore
 Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.FindUserGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
-Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.FirestoreGrantStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Authorization.FirestoreGrantStore!>! logger) -> void
-Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.FirestoreGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Authorization.FirestoreGrantStore!>! logger) -> void
+Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.FirestoreGrantStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Authorization.FirestoreGrantStore!>! logger, System.TimeProvider? timeProvider = null) -> void
+Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.FirestoreGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Authorization.FirestoreGrantStore!>! logger, System.TimeProvider? timeProvider = null) -> void
 Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
 Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.Firestore.Authorization.FirestoreGrantStore.GetService(System.Type! serviceType) -> object?
@@ -126,6 +127,15 @@ Excalibur.Data.Firestore.FirestorePersistenceProvider.TestConnectionAsync(System
 Excalibur.Data.Firestore.FirestorePersistenceProvider.UpdateAsync<TDocument>(TDocument! document, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, string? etag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudOperationResult<TDocument!>!>!
 Excalibur.Data.Firestore.FirestorePersistenceProvider.ValidateDocumentRequest<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! documentRequest) -> bool
 Excalibur.Data.Firestore.FirestorePersistenceProvider.ValidateRequest<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request) -> bool
+Excalibur.Data.Firestore.IFirestoreDataBuilder
+Excalibur.Data.Firestore.IFirestoreDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
+Excalibur.Data.Firestore.IFirestoreDataBuilder.Client(Google.Cloud.Firestore.FirestoreDb! client) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
+Excalibur.Data.Firestore.IFirestoreDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! clientFactory) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
+Excalibur.Data.Firestore.IFirestoreDataBuilder.CollectionName(string! collectionName) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
+Excalibur.Data.Firestore.IFirestoreDataBuilder.CredentialsJson(string! credentialsJson) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
+Excalibur.Data.Firestore.IFirestoreDataBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
+Excalibur.Data.Firestore.IFirestoreDataBuilder.EmulatorHost(string! emulatorHost) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
+Excalibur.Data.Firestore.IFirestoreDataBuilder.ProjectId(string! projectId) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
 Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>
 Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -181,6 +191,7 @@ const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.BatchWriteExecut
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcConfirmingPosition = 105904 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcDeletingPosition = 105910 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcEventDropped = 105915 -> int
+const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcFatalError = 105916 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcGettingPosition = 105909 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcPositionNotFound = 105911 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcProcessingChange = 105903 -> int
@@ -264,15 +275,6 @@ static Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions
 static Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions.AddFirestoreAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! projectId, string! emulatorHost, string! grantsCollectionName = "authorization_grants", string! activityGroupsCollectionName = "authorization_activity_groups") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions.AddFirestoreGrantStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreProjectionStoreExtensions.AddFirestoreProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions.AddExcaliburFirestore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.IFirestoreDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions.AddFirestoreSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions.AddFirestoreSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Data.Firestore.IFirestoreDataBuilder
-Excalibur.Data.Firestore.IFirestoreDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
-Excalibur.Data.Firestore.IFirestoreDataBuilder.Client(Google.Cloud.Firestore.FirestoreDb! client) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
-Excalibur.Data.Firestore.IFirestoreDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! clientFactory) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
-Excalibur.Data.Firestore.IFirestoreDataBuilder.CollectionName(string! collectionName) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
-Excalibur.Data.Firestore.IFirestoreDataBuilder.CredentialsJson(string! credentialsJson) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
-Excalibur.Data.Firestore.IFirestoreDataBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
-Excalibur.Data.Firestore.IFirestoreDataBuilder.EmulatorHost(string! emulatorHost) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
-Excalibur.Data.Firestore.IFirestoreDataBuilder.ProjectId(string! projectId) -> Excalibur.Data.Firestore.IFirestoreDataBuilder!
-static Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions.AddExcaliburFirestore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.IFirestoreDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

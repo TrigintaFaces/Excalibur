@@ -63,6 +63,9 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 // =============================================================================
 // 3b. Configure Transport Providers (ADR-098 Single Entry Points)
 // =============================================================================

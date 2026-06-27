@@ -45,7 +45,8 @@ builder.Services.AddDispatch(dispatch =>
 // 2. Event serializer — required for event sourcing (serializes domain events)
 // ============================================================================
 
-builder.Services.AddSingleton<IEventSerializer, JsonEventSerializer>();
+// c6wd6f: register event types for secure-by-default resolution (no allowAssemblyScan opt-in).
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // ============================================================================
 // 3. Excalibur event sourcing — InMemory provider for zero-infrastructure demo

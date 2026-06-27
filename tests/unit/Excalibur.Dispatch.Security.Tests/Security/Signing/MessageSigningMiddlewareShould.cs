@@ -217,6 +217,29 @@ public sealed class MessageSigningMiddlewareShould
         result.Succeeded.ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task ReturnFailedResult_OnVerificationException_WithoutEscaping()
+    {
+        // o39j4u (SECURITY) — author≠impl regression lock. VerificationException is a SIBLING of
+        // SigningException (it derives from ApiException, NOT SigningException), so the pre-fix
+        // `catch (SigningException)`-only let a failing/crafted inbound verification ESCAPE as an
+        // unhandled pipeline exception. The middleware MUST instead return a failed (authorization)
+        // result. RED on the pre-fix catch (the VerificationException propagates → InvokeAsync throws).
+        var options = new SigningOptions { Enabled = true, RequireValidSignature = true };
+        var sut = new MessageSigningMiddleware(_signingService, Microsoft.Extensions.Options.Options.Create(options), _logger);
+
+        _contextItems["MessageDirection"] = "Incoming";
+        _contextItems["MessageSignature"] = "crafted-signature";
+
+        A.CallTo(() => _signingService.VerifySignatureAsync(A<string>._, A<string>._, A<SigningContext>._, A<CancellationToken>._))
+            .Throws(new VerificationException("signature verification failed"));
+
+        // Act + Assert — no exception escapes (this await would throw on the pre-fix code) and the
+        // outcome is a failed result (fail-safe authorization), not an unhandled pipeline exception.
+        var result = await sut.InvokeAsync(_message, _context, _nextDelegate, CancellationToken.None);
+        result.Succeeded.ShouldBeFalse("a VerificationException must be converted to a failed authorization result, never escape the pipeline");
+    }
+
     private MessageSigningMiddleware CreateMiddleware()
     {
         return new MessageSigningMiddleware(

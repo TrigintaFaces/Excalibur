@@ -277,11 +277,25 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	/// <inheritdoc/>
 	public async ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken)
 	{
-		var response = await _client.DeleteByQueryAsync<ElasticsearchOutboxDocument>(
-			static d => d
-				.Indices("excalibur-outbox")
-				.Query(q => q.MatchAll(new MatchAllQuery())),
-			cancellationToken).ConfigureAwait(false);
+		// Bounded cleanup: delete ONLY Sent documents whose sentAt is strictly older than the cutoff,
+		// on the CONFIGURED index. Previously this issued a MatchAll DeleteByQuery against a hardcoded
+		// "excalibur-outbox" index literal, deleting the entire live outbox (Staged + recent Sent
+		// included) regardless of olderThan — a data-loss bug (FR MS-A1). The status + sentAt-range
+		// predicate makes "delete an unsent or recent document" inexpressible by this path.
+		var deleteRequest = new DeleteByQueryRequest(_options.IndexName)
+		{
+			Query = new BoolQuery
+			{
+				Must =
+				[
+					new TermQuery { Field = "status", Value = (int)OutboxStatus.Sent },
+					new DateRangeQuery("sentAt") { Lt = (DateMath)olderThan.UtcDateTime },
+				],
+			},
+		};
+
+		var response = await _client.DeleteByQueryAsync(
+			deleteRequest, cancellationToken).ConfigureAwait(false);
 
 		var deleted = (int)(response.Deleted ?? 0);
 		LogMessagesCleanedUp(deleted, olderThan);

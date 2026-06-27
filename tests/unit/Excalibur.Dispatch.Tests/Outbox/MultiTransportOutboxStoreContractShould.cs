@@ -136,7 +136,6 @@ public sealed class MultiTransportOutboxStoreContractShould
 		var stats = new TransportDeliveryStatistics
 		{
 			PendingCount = 5,
-			SendingCount = 2,
 			SentCount = 100,
 			FailedCount = 3,
 			SkippedCount = 1,
@@ -144,8 +143,8 @@ public sealed class MultiTransportOutboxStoreContractShould
 			TransportName = "rabbitmq",
 		};
 
+		// b64hci: TransportDeliveryStatistics.SendingCount removed (provably always-0 dead metric).
 		stats.PendingCount.ShouldBe(5);
-		stats.SendingCount.ShouldBe(2);
 		stats.SentCount.ShouldBe(100);
 		stats.FailedCount.ShouldBe(3);
 		stats.SkippedCount.ShouldBe(1);

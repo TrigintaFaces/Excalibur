@@ -4,7 +4,7 @@
 namespace Excalibur.Dispatch.Transport.Abstractions;
 
 /// <summary>
-/// Event IDs for transport abstractions (20000-20999).
+/// Event IDs for transport abstractions (20000-21099).
 /// </summary>
 /// <remarks>
 /// <para>Subcategory ranges:</para>
@@ -19,6 +19,7 @@ namespace Excalibur.Dispatch.Transport.Abstractions;
 /// <item>20700-20799: Session Management</item>
 /// <item>20800-20899: Batch Processing</item>
 /// <item>20900-20999: Dead Letter Queue</item>
+/// <item>21000-21099: Resilience/Reconnect</item>
 /// </list>
 /// </remarks>
 public static class TransportAbstractionsEventId
@@ -582,4 +583,11 @@ public static class TransportAbstractionsEventId
 
 	/// <summary>Message reprocessed from dead letter queue.</summary>
 	public const int DeadLetterMessageReprocessed = 20911;
+
+	// ========================================
+	// 21000-21099: Resilience/Reconnect
+	// ========================================
+
+	/// <summary>A transport subscriber faulted on its receive/stream loop and is reconnecting after backoff.</summary>
+	public const int SubscriberReconnecting = 21000;
 }

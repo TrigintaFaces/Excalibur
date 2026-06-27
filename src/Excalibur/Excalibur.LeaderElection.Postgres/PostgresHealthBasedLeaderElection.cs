@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Postgres.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -51,12 +52,18 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 	/// <param name="healthOptions">The health-based leader election options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="innerLogger">The logger for the inner leader election.</param>
+	/// <param name="fencingTokenProvider">
+	/// An optional <see cref="IFencingTokenProvider"/> (y6tatp/ADR-339) forwarded to the inner
+	/// <see cref="PostgresLeaderElection"/> for fail-closed fencing-token issuance on acquisition. Defaults to
+	/// <see langword="null"/> (no fencing).
+	/// </param>
 	public PostgresHealthBasedLeaderElection(
 		IOptions<PostgresLeaderElectionOptions> pgOptions,
 		IOptions<LeaderElectionOptions> electionOptions,
 		IOptions<PostgresHealthBasedLeaderElectionOptions> healthOptions,
 		ILogger<PostgresHealthBasedLeaderElection> logger,
-		ILogger<PostgresLeaderElection> innerLogger)
+		ILogger<PostgresLeaderElection> innerLogger,
+		IFencingTokenProvider? fencingTokenProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(pgOptions);
 		ArgumentNullException.ThrowIfNull(electionOptions);
@@ -71,7 +78,7 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 		ValidateIdentifier(_healthOptions.SchemaName, nameof(_healthOptions.SchemaName));
 		ValidateIdentifier(_healthOptions.TableName, nameof(_healthOptions.TableName));
 
-		_inner = new PostgresLeaderElection(pgOptions, electionOptions, innerLogger);
+		_inner = new PostgresLeaderElection(pgOptions, electionOptions, innerLogger, fencingTokenProvider);
 	}
 
 	/// <inheritdoc/>

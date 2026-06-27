@@ -75,10 +75,14 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 			var (basicProperties, body) = CreateRabbitMqMessage(message);
 			var routingKey = ResolveRoutingKey(message);
 
+			// mandatory: true + publisher-confirm tracking: BasicPublishAsync awaits the broker ack
+			// (at-least-once). RabbitMQ.Client v7 surfaces an unroutable mandatory publish as a thrown
+			// PublishReturnException under confirmation tracking — caught below and mapped to a
+			// non-retryable Unroutable failure (never a false success).
 			await _channel.BasicPublishAsync(
 					_exchange,
 					routingKey,
-					mandatory: false,
+					mandatory: true,
 					basicProperties: basicProperties,
 					body: body,
 					cancellationToken)
@@ -87,6 +91,19 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 			LogMessageSent(message.Id, Destination);
 
 			return SendResult.Success(message.Id);
+		}
+		catch (PublishReturnException ex)
+		{
+			// Unroutable mandatory publish (no queue bound) — surfaced by v7 confirm-tracking as a throw.
+			LogMessageReturned(message.Id, Destination, ex.Exchange, ex.RoutingKey);
+			return SendResult.Failure(new SendError
+			{
+				Code = "Unroutable",
+				Message =
+					$"Message '{message.Id}' was returned by the broker as unroutable (no queue bound to "
+					+ $"exchange '{ex.Exchange}' for routing key '{ex.RoutingKey}').",
+				IsRetryable = false,
+			});
 		}
 		catch (Exception ex)
 		{
@@ -131,7 +148,9 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 	/// <inheritdoc />
 	public Task FlushAsync(CancellationToken cancellationToken)
 	{
-		// RabbitMQ publish-confirms flush is handled via GetService → IChannel.WaitForConfirmsAsync().
+		// No-op by design: the sender's channel has publisher-confirm TRACKING enabled (fjtok4), so
+		// BasicPublishAsync already awaits the broker ack on every publish — there is no batch of
+		// unconfirmed publishes to drain. (RabbitMQ.Client v7 removed the v6 WaitForConfirmsAsync batch API.)
 		return Task.CompletedTask;
 	}
 
@@ -245,6 +264,11 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 	[LoggerMessage(RabbitMqEventId.TransportSenderSendFailed, LogLevel.Error,
 		"RabbitMQ transport sender: failed to send message {MessageId} to {Destination}")]
 	private partial void LogSendFailed(string messageId, string destination, Exception exception);
+
+	[LoggerMessage(RabbitMqEventId.TransportSenderMessageReturned, LogLevel.Warning,
+		"RabbitMQ transport sender: message {MessageId} to {Destination} returned as unroutable "
+		+ "(exchange '{Exchange}', routing key '{RoutingKey}')")]
+	private partial void LogMessageReturned(string messageId, string destination, string exchange, string routingKey);
 
 	[LoggerMessage(RabbitMqEventId.TransportSenderBatchSent, LogLevel.Debug,
 		"RabbitMQ transport sender: batch of {Count} messages sent to {Destination}, {SuccessCount} succeeded")]

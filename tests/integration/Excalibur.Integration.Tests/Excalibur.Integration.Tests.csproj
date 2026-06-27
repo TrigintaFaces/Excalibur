@@ -27,6 +27,7 @@
     <PackageReference Include="Testcontainers.Elasticsearch" />
     <PackageReference Include="Testcontainers.CosmosDb" />
     <PackageReference Include="Testcontainers.LocalStack" />
+    <PackageReference Include="Testcontainers.Firestore" />
     <PackageReference Include="Testcontainers.Azurite" />
     <PackageReference Include="Testcontainers.Kafka" />
     <PackageReference Include="Testcontainers.RabbitMq" />
@@ -75,6 +76,10 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data\Excalibur.Data.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Excalibur.Data.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Postgres\Excalibur.Saga.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.MongoDB\Excalibur.Saga.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.CosmosDb\Excalibur.Saga.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.DynamoDb\Excalibur.Saga.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Firestore\Excalibur.Saga.Firestore.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
@@ -103,6 +108,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
+    <!-- bd-834a9c: real-Redis concurrent-create guard regression lock (RedisEventStoreConcurrentCreateGuardShould) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Redis\Excalibur.EventSourcing.Redis.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Caching\Excalibur.Caching.csproj" />
     <!-- Cold store providers for tiered storage integration tests -->
@@ -110,6 +117,15 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.AwsS3\Excalibur.EventSourcing.AwsS3.csproj" />
     <!-- OpenSearch projection store integration tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.OpenSearch\Excalibur.Data.OpenSearch.csproj" />
+    <!-- S853 integration regression locks: ES outbox cleanup (v8k7jo), Redis job-lock (jqlqc8), fencing tokens (umemwa) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.ElasticSearch\Excalibur.Outbox.ElasticSearch.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Redis\Excalibur.Jobs.Redis.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Redis\Excalibur.LeaderElection.Redis.csproj" />
+    <!-- 8aef8d: real-SqlServer dispose-without-stop regression lock (SqlServerLeaderElectionDisposeShould) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.SqlServer\Excalibur.LeaderElection.SqlServer.csproj" />
+    <!-- y6tatp: real-Postgres fencing-token regression lock (PostgresLeaderElectionFencingShould) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Postgres\Excalibur.LeaderElection.Postgres.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

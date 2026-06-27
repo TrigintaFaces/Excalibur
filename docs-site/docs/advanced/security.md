@@ -558,11 +558,13 @@ builder.Services.AddAwsKmsKeyManagement(options =>
 ### HashiCorp Vault
 
 ```csharp
-builder.Services.AddVaultKeyManagement(options =>
+builder.Services.AddVaultKeyManagement(vault =>
+    vault.VaultUri(new Uri(configuration["Vault:Address"]!))
+         .TransitMountPath("transit"));
+
+builder.Services.Configure<VaultOptions>(options =>
 {
-    options.Address = configuration["Vault:Address"];
-    options.TransitMountPath = "transit";
-    options.AuthMethod = VaultAuthMethod.AppRole;
+    options.Auth.AuthMethod = VaultAuthMethod.AppRole;
 });
 ```
 

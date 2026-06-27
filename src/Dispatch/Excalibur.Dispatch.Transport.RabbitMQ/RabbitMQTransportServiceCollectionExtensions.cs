@@ -133,6 +133,10 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		// Register ITransportSubscriber with telemetry decorator
 		RegisterSubscriber(services, name, transportOptions);
 
+		// Route the rich ITransportSender/ITransportReceiver classes through DI so they are
+		// reachable on the AddRabbitMQTransport path instead of orphaned (kek7vm shared-seam wiring).
+		RegisterTransportSenderReceiver(services, name, transportOptions);
+
 		return services;
 	}
 
@@ -387,6 +391,58 @@ public static class RabbitMQTransportServiceCollectionExtensions
 	private static T ExecuteSync<T>(Func<Task<T>> operation) =>
 		Task.Run(operation).GetAwaiter().GetResult();
 #pragma warning restore RS0030
+
+	/// <summary>
+	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
+	/// implementations keyed by transport name so they are instantiated and reachable on the
+	/// <c>AddRabbitMQTransport</c> path instead of orphaned (kek7vm). <c>TryAdd*</c> lets a consumer
+	/// override the registration (Microsoft-first). Publisher-confirm behavior is layered by the
+	/// fjtok4 child on this wired seam.
+	/// </summary>
+	private static void RegisterTransportSenderReceiver(
+		IServiceCollection services,
+		string name,
+		RabbitMQTransportOptions transportOptions)
+	{
+		var queueOptions = transportOptions.Topology.Queues.Count > 0
+			? transportOptions.Topology.Queues[0]
+			: null;
+		var queueName = queueOptions?.Name ?? name;
+		var exchange = transportOptions.Topology.Exchanges.Count > 0
+			? transportOptions.Topology.Exchanges[0].Name
+			: string.Empty;
+		var destination = string.IsNullOrEmpty(exchange) ? queueName : exchange;
+
+		// fjtok4: give the unified sender a DEDICATED channel with publisher confirms + tracking ENABLED
+		// (SA ruling A, msg 16998/17000) so BasicPublishAsync awaits the broker ack = at-least-once —
+		// instead of the shared channel whose confirms are off-by-default (advertised-but-inert). The
+		// receiver/bus stay on the shared channel; this keyed channel is owned/disposed by the container.
+		var senderChannelKey = $"{name}:fjtok4-confirms";
+		services.AddKeyedSingleton<IChannel>(senderChannelKey, (sp, _) =>
+		{
+			var connection = sp.GetRequiredService<IConnection>();
+			var createOptions = new CreateChannelOptions(
+				true,
+				true,
+				outstandingPublisherConfirmationsRateLimiter: null,
+				consumerDispatchConcurrency: null);
+			return ExecuteSync(() => connection.CreateChannelAsync(createOptions));
+		});
+
+		services.TryAddKeyedSingleton<ITransportSender>(name, (sp, _) =>
+		{
+			var channel = sp.GetRequiredKeyedService<IChannel>(senderChannelKey);
+			var logger = sp.GetRequiredService<ILogger<RabbitMqTransportSender>>();
+			return new RabbitMqTransportSender(channel, destination, exchange, queueName, logger);
+		});
+
+		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
+		{
+			var channel = sp.GetRequiredService<IChannel>();
+			var logger = sp.GetRequiredService<ILogger<RabbitMqTransportReceiver>>();
+			return new RabbitMqTransportReceiver(channel, queueName, queueName, logger);
+		});
+	}
 
 	/// <summary>
 	/// Registers a keyed <see cref="ITransportSubscriber"/> composed with telemetry.

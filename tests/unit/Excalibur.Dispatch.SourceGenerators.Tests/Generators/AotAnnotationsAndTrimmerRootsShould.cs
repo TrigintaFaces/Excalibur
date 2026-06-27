@@ -152,8 +152,10 @@ public sealed class AotAnnotationsAndTrimmerRootsShould
 	[Fact]
 	public void TypeResolver_ResolveType_ShouldResolveKnownSystemTypes()
 	{
-		// In JIT mode, Type.GetType fallback should resolve well-known types
-		var result = TypeResolver.ResolveType("System.String");
+		// In JIT mode, the assembly-scan fallback resolves well-known types. 6v2z7q gated that scan behind
+		// allowAssemblyScan (secure default OFF — the gadget-chain vector), so a TRUSTED caller that knows
+		// the type name opts in. This still verifies the JIT fallback capability, on the now-secure path.
+		var result = TypeResolver.ResolveType("System.String", allowAssemblyScan: true);
 		_ = result.ShouldNotBeNull();
 		result.ShouldBe(typeof(string));
 	}

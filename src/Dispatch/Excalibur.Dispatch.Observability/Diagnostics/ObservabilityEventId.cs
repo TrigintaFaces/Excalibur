@@ -138,6 +138,9 @@ public static class ObservabilityEventId
 	/// <summary>Context anomaly logged.</summary>
 	public const int ContextAnomalyLogged = 80114;
 
+	/// <summary>Context observability instrumentation failed and was skipped (fail-open).</summary>
+	public const int ContextObservabilityInstrumentationFailed = 80115;
+
 	// ========================================
 	// 80200-80299: Context Enrichment
 	// ========================================
@@ -230,6 +233,9 @@ public static class ObservabilityEventId
 	/// <summary>Metrics export completed.</summary>
 	public const int MetricsExportCompleted = 80307;
 
+	/// <summary>Metrics instrumentation failed and was skipped (fail-open).</summary>
+	public const int MetricsInstrumentationFailed = 80308;
+
 	// ========================================
 	// 80400-80499: Tracing
 	// ========================================
@@ -254,6 +260,9 @@ public static class ObservabilityEventId
 
 	/// <summary>Trace dropped.</summary>
 	public const int TraceDropped = 80406;
+
+	/// <summary>Trace sampling instrumentation failed and was skipped (fail-open).</summary>
+	public const int TraceSamplingInstrumentationFailed = 80407;
 
 	// ========================================
 	// 80500-80599: Health Checks

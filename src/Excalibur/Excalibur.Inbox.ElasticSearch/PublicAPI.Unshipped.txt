@@ -1,2 +1,1 @@
 #nullable enable
-Excalibur.Inbox.ElasticSearch.ElasticsearchInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

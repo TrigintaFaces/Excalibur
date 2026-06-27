@@ -195,8 +195,10 @@ public static class PluggableSerializationServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Register JsonEventSerializer as IEventSerializer (ADR-295: JSON default, binary opt-in)
-		services.TryAddSingleton<IEventSerializer>(new JsonEventSerializer());
+		// Register JsonEventSerializer as IEventSerializer (ADR-295: JSON default, binary opt-in).
+		// c6wd6f: inject the optional consumer-registered event-type registry so the secure default
+		// resolves registered types without the scan (no registry ⇒ identical to before).
+		services.TryAddSingleton<IEventSerializer>(static sp => new JsonEventSerializer(sp.GetService<IEventTypeRegistry>()));
 
 		return services;
 	}

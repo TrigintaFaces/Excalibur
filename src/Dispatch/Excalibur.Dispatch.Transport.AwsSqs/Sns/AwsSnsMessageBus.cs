@@ -56,7 +56,7 @@ internal sealed partial class AwsSnsMessageBus(
 		var request = new PublishRequest { TopicArn = TopicArn, Message = body };
 		if (!string.IsNullOrEmpty(traceParent))
 		{
-			request.MessageAttributes["trace-parent"] = new MessageAttributeValue { StringValue = traceParent, DataType = "String" };
+			request.MessageAttributes["traceparent"] = new MessageAttributeValue { StringValue = traceParent, DataType = "String" };
 		}
 
 		_ = await client.PublishAsync(request, cancellationToken).ConfigureAwait(false);
@@ -77,7 +77,7 @@ internal sealed partial class AwsSnsMessageBus(
 		var request = new PublishRequest { TopicArn = TopicArn, Message = body };
 		if (!string.IsNullOrEmpty(traceParent))
 		{
-			request.MessageAttributes["trace-parent"] = new MessageAttributeValue { StringValue = traceParent, DataType = "String" };
+			request.MessageAttributes["traceparent"] = new MessageAttributeValue { StringValue = traceParent, DataType = "String" };
 		}
 
 		_ = await client.PublishAsync(request, cancellationToken).ConfigureAwait(false);
@@ -98,7 +98,7 @@ internal sealed partial class AwsSnsMessageBus(
 		var request = new PublishRequest { TopicArn = TopicArn, Message = body };
 		if (!string.IsNullOrEmpty(traceParent))
 		{
-			request.MessageAttributes["trace-parent"] = new MessageAttributeValue { StringValue = traceParent, DataType = "String" };
+			request.MessageAttributes["traceparent"] = new MessageAttributeValue { StringValue = traceParent, DataType = "String" };
 		}
 
 		_ = await client.PublishAsync(request, cancellationToken).ConfigureAwait(false);

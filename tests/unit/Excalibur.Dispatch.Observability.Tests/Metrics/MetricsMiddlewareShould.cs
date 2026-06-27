@@ -4,6 +4,8 @@
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Observability.Metrics;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 
 /// <summary>
@@ -32,13 +34,13 @@ public sealed class MetricsMiddlewareShould
 	[Fact]
 	public void ThrowOnNullMetrics()
 	{
-		Should.Throw<ArgumentNullException>(() => new MetricsMiddleware(null!));
+		Should.Throw<ArgumentNullException>(() => new MetricsMiddleware(null!, NullLogger<MetricsMiddleware>.Instance));
 	}
 
 	[Fact]
 	public void HavePreProcessingStage()
 	{
-		var middleware = new MetricsMiddleware(_fakeMetrics);
+		var middleware = new MetricsMiddleware(_fakeMetrics, NullLogger<MetricsMiddleware>.Instance);
 		middleware.Stage.ShouldBe(DispatchMiddlewareStage.PreProcessing);
 	}
 
@@ -46,7 +48,7 @@ public sealed class MetricsMiddlewareShould
 	public async Task InvokeNextDelegate_AndRecordMetrics()
 	{
 		// Arrange
-		var middleware = new MetricsMiddleware(_fakeMetrics);
+		var middleware = new MetricsMiddleware(_fakeMetrics, NullLogger<MetricsMiddleware>.Instance);
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
@@ -69,7 +71,7 @@ public sealed class MetricsMiddlewareShould
 	public async Task RecordFailure_WhenResultIsNotSuccess()
 	{
 		// Arrange
-		var middleware = new MetricsMiddleware(_fakeMetrics);
+		var middleware = new MetricsMiddleware(_fakeMetrics, NullLogger<MetricsMiddleware>.Instance);
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var failedResult = A.Fake<IMessageResult>();
@@ -91,7 +93,7 @@ public sealed class MetricsMiddlewareShould
 	public async Task RecordFailure_WhenExceptionIsThrown()
 	{
 		// Arrange
-		var middleware = new MetricsMiddleware(_fakeMetrics);
+		var middleware = new MetricsMiddleware(_fakeMetrics, NullLogger<MetricsMiddleware>.Instance);
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 
@@ -110,7 +112,7 @@ public sealed class MetricsMiddlewareShould
 	[Fact]
 	public async Task ThrowOnNullMessage()
 	{
-		var middleware = new MetricsMiddleware(_fakeMetrics);
+		var middleware = new MetricsMiddleware(_fakeMetrics, NullLogger<MetricsMiddleware>.Instance);
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
 
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -120,7 +122,7 @@ public sealed class MetricsMiddlewareShould
 	[Fact]
 	public async Task ThrowOnNullContext()
 	{
-		var middleware = new MetricsMiddleware(_fakeMetrics);
+		var middleware = new MetricsMiddleware(_fakeMetrics, NullLogger<MetricsMiddleware>.Instance);
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
 
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -130,7 +132,7 @@ public sealed class MetricsMiddlewareShould
 	[Fact]
 	public async Task ThrowOnNullNextDelegate()
 	{
-		var middleware = new MetricsMiddleware(_fakeMetrics);
+		var middleware = new MetricsMiddleware(_fakeMetrics, NullLogger<MetricsMiddleware>.Instance);
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			async () => await middleware.InvokeAsync(

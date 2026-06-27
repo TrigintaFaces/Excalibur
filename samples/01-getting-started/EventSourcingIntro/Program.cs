@@ -42,8 +42,10 @@ services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
-// Add event serializer (required for event sourcing)
-services.AddSingleton<IEventSerializer, JsonEventSerializer>();
+// Register event types for secure-by-default resolution (c6wd6f). The default JsonEventSerializer
+// (auto-registered by AddDispatch) resolves these registered types WITHOUT the reflection scan — the
+// secure, production pattern. No allowAssemblyScan opt-in needed.
+services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // Add Excalibur event sourcing with in-memory event store
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>

@@ -75,8 +75,8 @@ var services = new ServiceCollection();
 services.AddLogging(builder =>
 	builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
 
-// Add event serializer
-services.AddSingleton<IEventSerializer, JsonEventSerializer>();
+// c6wd6f: register event types for secure-by-default resolution
+services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // Add Cosmos DB client
 // Note: In production, use CosmosClientOptions for connection pooling, retry policies, etc.

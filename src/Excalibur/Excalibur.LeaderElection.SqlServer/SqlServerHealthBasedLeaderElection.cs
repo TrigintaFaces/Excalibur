@@ -4,7 +4,9 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
 
 using Microsoft.Data.SqlClient;
@@ -51,13 +53,25 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	/// <param name="healthOptions">The health-based leader election options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="innerLogger">The logger for the inner leader election.</param>
+	/// <param name="failureClassifier">
+	/// An optional <see cref="IMessageFailureClassifier"/> (ot72w3) forwarded to the inner
+	/// <see cref="SqlServerLeaderElection"/> for accelerated self-demotion on definitively-permanent
+	/// renewal faults. Defaults to <see langword="null"/> (grace-only behavior).
+	/// </param>
+	/// <param name="fencingTokenProvider">
+	/// An optional <see cref="IFencingTokenProvider"/> (nxmjpm/ADR-339) forwarded to the inner
+	/// <see cref="SqlServerLeaderElection"/> for fail-closed fencing-token issuance on acquisition. Defaults to
+	/// <see langword="null"/> (no fencing).
+	/// </param>
 	public SqlServerHealthBasedLeaderElection(
 		string connectionString,
 		string lockResource,
 		IOptions<LeaderElectionOptions> electionOptions,
 		IOptions<SqlServerHealthBasedLeaderElectionOptions> healthOptions,
 		ILogger<SqlServerHealthBasedLeaderElection> logger,
-		ILogger<SqlServerLeaderElection> innerLogger)
+		ILogger<SqlServerLeaderElection> innerLogger,
+		IMessageFailureClassifier? failureClassifier = null,
+		IFencingTokenProvider? fencingTokenProvider = null)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ArgumentException.ThrowIfNullOrWhiteSpace(lockResource);
@@ -73,7 +87,7 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 		ValidateIdentifier(_healthOptions.SchemaName, nameof(_healthOptions.SchemaName));
 		ValidateIdentifier(_healthOptions.TableName, nameof(_healthOptions.TableName));
 
-		_inner = new SqlServerLeaderElection(connectionString, lockResource, electionOptions, innerLogger);
+		_inner = new SqlServerLeaderElection(connectionString, lockResource, electionOptions, innerLogger, failureClassifier, fencingTokenProvider);
 	}
 
 	/// <inheritdoc/>

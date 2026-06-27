@@ -38,4 +38,7 @@ public static class CdcPostgresEventId
 
 	/// <summary>CDC processing error.</summary>
 	public const int CdcProcessingError = 102308;
+
+	/// <summary>CDC fatal (non-retryable) error — processor stops instead of reconnecting.</summary>
+	public const int CdcFatalError = 102309;
 }

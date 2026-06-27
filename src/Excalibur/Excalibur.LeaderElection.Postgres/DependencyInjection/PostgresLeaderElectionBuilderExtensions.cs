@@ -7,6 +7,7 @@ using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.DependencyInjection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.Postgres;
 
@@ -148,7 +149,9 @@ public static class PostgresLeaderElectionBuilderExtensions
 			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
 			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
-			return new PostgresLeaderElection(pgOptions, electionOptions, logger);
+			// y6tatp/ADR-339: optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
+			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			return new PostgresLeaderElection(pgOptions, electionOptions, logger, fencingTokenProvider);
 		});
 		builder.Services.AddKeyedSingleton<ILeaderElection>("postgres", (sp, _) =>
 		{

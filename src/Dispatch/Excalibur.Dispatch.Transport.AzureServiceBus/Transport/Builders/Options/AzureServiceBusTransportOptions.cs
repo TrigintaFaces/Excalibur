@@ -164,6 +164,18 @@ public sealed class AzureServiceBusProcessorOptions
 	public ServiceBusReceiveMode ReceiveMode { get; set; } = ServiceBusReceiveMode.PeekLock;
 
 	/// <summary>
+	/// Gets or sets a value indicating whether the receiver consumes from <b>session-enabled</b>
+	/// entities with per-session ordered (FIFO) delivery (ne79ro, FR-A2). When <see langword="true"/>,
+	/// <c>AddAzureServiceBusTransport</c> wires a session-aware receiver that accepts one session at a
+	/// time (<c>ServiceBusClient.AcceptNextSessionAsync</c>) so messages sharing a <c>SessionId</c> are
+	/// delivered in order. When <see langword="false"/> (default), the non-session receiver is used
+	/// (no ordering guarantee, no behavior change for existing consumers). The target queue/subscription
+	/// must itself be session-enabled in Azure Service Bus.
+	/// </summary>
+	/// <value><see langword="true"/> to consume ordered sessions; otherwise, <see langword="false"/>. Default is false.</value>
+	public bool RequiresSession { get; set; }
+
+	/// <summary>
 	/// Gets the additional configuration dictionary.
 	/// </summary>
 	/// <value>Dictionary of additional configuration key-value pairs.</value>

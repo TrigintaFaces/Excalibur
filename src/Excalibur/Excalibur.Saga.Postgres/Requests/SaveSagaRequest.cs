@@ -19,8 +19,9 @@ namespace Excalibur.Saga.Postgres;
 /// <typeparam name="TSagaState">The type of the saga state.</typeparam>
 /// <remarks>
 /// <para>
-/// This request uses Postgres's INSERT ON CONFLICT (upsert) pattern for atomic
-/// save operations. If the saga exists, it updates the state; otherwise, it inserts a new record.
+/// This request uses Postgres's <c>INSERT ON CONFLICT</c> (upsert) pattern for an atomic,
+/// single-round-trip, version-gated save. It is the optimistic-concurrency analogue of
+/// <c>SqlServerSagaStore</c>'s version-gated MERGE (skl8r7 / e1tsq2, store-owns-increment).
 /// </para>
 /// <para>
 /// The saga state is serialized to JSONB for efficient storage and querying capabilities.
@@ -48,23 +49,68 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(serializer);
 
-		var sql = $"""
-			INSERT INTO {options.QualifiedTableName}
-				(saga_id, saga_type, state_json, is_completed, created_utc, updated_utc)
-			VALUES
-				(@SagaId, @SagaType, @StateJson::jsonb, @IsCompleted, NOW(), NOW())
-			ON CONFLICT (saga_id) DO UPDATE SET
-				state_json = EXCLUDED.state_json,
-				is_completed = EXCLUDED.is_completed,
-				updated_utc = NOW();
-			""";
+		// Defense-in-depth (bd-r5r7fe): validate the config-sourced qualified table name before interpolating
+		// it into SQL — parity with SqlServer's saga request types. SagaSqlValidator enforces the safe
+		// "schema"."table" identifier shape.
+		SagaSqlValidator.ThrowIfInvalidQualifiedName(options.QualifiedTableName);
+
+		// Optimistic-concurrency compare-and-swap (skl8r7), store-owns-increment (EF-style; mirrors
+		// SqlServerSagaStore's TWO guarded MERGE branches). SagaState.Version is the version the caller LOADED
+		// (the concurrency token; a brand-new saga is 0) -- the caller performs NO version arithmetic. The store
+		// expects the persisted version column to still equal that loaded value and writes the bumped
+		// (loadedVersion + 1).
+		//
+		// SA ruling (skl8r7): branch on the expected version so a deleted/completed saga cannot be RESURRECTED
+		// at a high version (a "zombie" saga). This mirrors SqlServer's MERGE, whose INSERT branch is guarded to
+		// @ExpectedVersion = 0 and whose UPDATE branch is version-gated -- a missing row with a non-zero expected
+		// matches neither branch. Both branches below funnel a non-match to 0 rows affected, which the store
+		// surfaces as a ConcurrencyException (no silent lost update, no resurrection):
+		//   - expected == 0 (new saga) -> INSERT ... ON CONFLICT DO NOTHING. A pre-existing row (a concurrent
+		//     create, or an already-advanced saga) yields 0 rows -- a fresh-insert collision IS a conflict.
+		//   - expected  > 0 (update)   -> UPDATE ... WHERE version = @ExpectedVersion, NO insert. A stale version
+		//     OR a missing row (deleted/zombie saga) matches no row -> 0 rows -> conflict. No INSERT path means a
+		//     deleted saga is never re-created.
+		var expectedVersion = sagaState.Version;
+		var newVersion = sagaState.Version + 1;
 
 		var stateJson = serializer.Serialize(sagaState);
+
+		string sql;
+		if (expectedVersion == 0)
+		{
+			sql = $"""
+				INSERT INTO {options.QualifiedTableName}
+					(saga_id, saga_type, state_json, is_completed, version, created_utc, updated_utc)
+				VALUES
+					(@SagaId, @SagaType, @StateJson::jsonb, @IsCompleted, @NewVersion, NOW(), NOW())
+				ON CONFLICT (saga_id) DO NOTHING;
+				""";
+		}
+		else
+		{
+			sql = $"""
+				UPDATE {options.QualifiedTableName} SET
+					saga_type = @SagaType,
+					state_json = @StateJson::jsonb,
+					is_completed = @IsCompleted,
+					version = @NewVersion,
+					updated_utc = NOW()
+				WHERE saga_id = @SagaId AND version = @ExpectedVersion;
+				""";
+		}
 
 		Parameters.Add("SagaId", sagaState.SagaId);
 		Parameters.Add("SagaType", typeof(TSagaState).Name);
 		Parameters.Add("StateJson", stateJson);
 		Parameters.Add("IsCompleted", sagaState.Completed);
+		Parameters.Add("NewVersion", newVersion);
+
+		// @ExpectedVersion is referenced only by the UPDATE (expected > 0) branch; bind it only there so no
+		// unreferenced parameter is sent on the INSERT path.
+		if (expectedVersion != 0)
+		{
+			Parameters.Add("ExpectedVersion", expectedVersion);
+		}
 
 		Command = CreateCommand(sql, commandTimeout: options.CommandTimeoutSeconds, cancellationToken: cancellationToken);
 		ResolveAsync = conn => conn.ExecuteAsync(Command);

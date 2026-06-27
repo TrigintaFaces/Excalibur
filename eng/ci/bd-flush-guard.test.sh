@@ -156,5 +156,44 @@ else
 	pass "G helper never calls 'bd import'"
 fi
 
+# ── --verify-staged (bd-m3dmht / forge clause 6): the STAGED blob must reflect the DB ────────────
+# verify-staged reads `git show :<jsonl>`, so these cases run inside a throwaway git repo.
+make_repo_with_staged() { # <repo-dir> <staged-content-file>
+	local repo="$1" staged="$2"
+	mkdir -p "$repo/.beads"
+	( cd "$repo" && git init -q && git config user.email t@t && git config user.name t ) >/dev/null 2>&1
+	cp "$staged" "$repo/.beads/issues.jsonl"
+	( cd "$repo" && git add .beads/issues.jsonl ) >/dev/null 2>&1
+}
+run_verify_staged() { # <repo-dir> <db-file>  -> echoes exit code
+	( cd "$1" && BD_BIN="$FAKE_BD" BD_JSONL_PATH=".beads/issues.jsonl" \
+		BD_FLUSH_BACKOFF=0 BD_FLUSH_ATTEMPTS=2 FAKE_MODE=success FAKE_DB_FILE="$2" \
+		bash "$GUARD" --verify-staged >/dev/null 2>&1 )
+}
+
+# ── H: staged MISSING a fresh close present in the DB → exit 3 (the m3dmht footgun) ───────────────
+repo="$WORK/h.repo"; sf="$WORK/h.staged"; db="$WORK/h.db"
+printf '%s\n' "$ISSUE_OLD" > "$sf"                       # staged: only tst-1
+printf '%s\n%s\n' "$ISSUE_OLD" "$ISSUE_TWO" > "$db"      # DB: tst-1 + a fresh tst-2
+make_repo_with_staged "$repo" "$sf"
+run_verify_staged "$repo" "$db"; rc=$?
+[ "$rc" -eq 3 ] && pass "H staged-missing-fresh-close -> exit 3 (loud stale)" || fail "H expected exit 3 (got $rc)"
+
+# ── H2: staged has an OLDER updated_at than the DB → exit 3 ───────────────────────────────────────
+repo="$WORK/h2.repo"; sf="$WORK/h2.staged"; db="$WORK/h2.db"
+printf '%s\n' "$ISSUE_OLD" > "$sf"                       # staged: tst-1 OLD
+printf '%s\n' "$ISSUE_NEW" > "$db"                       # DB: tst-1 NEWer
+make_repo_with_staged "$repo" "$sf"
+run_verify_staged "$repo" "$db"; rc=$?
+[ "$rc" -eq 3 ] && pass "H2 staged-older-than-DB -> exit 3 (loud stale)" || fail "H2 expected exit 3 (got $rc)"
+
+# ── I: staged reflects the DB → exit 0 (no false-positive) ───────────────────────────────────────
+repo="$WORK/i.repo"; sf="$WORK/i.staged"; db="$WORK/i.db"
+printf '%s\n%s\n' "$ISSUE_NEW" "$ISSUE_TWO" > "$sf"
+printf '%s\n%s\n' "$ISSUE_NEW" "$ISSUE_TWO" > "$db"
+make_repo_with_staged "$repo" "$sf"
+run_verify_staged "$repo" "$db"; rc=$?
+[ "$rc" -eq 0 ] && pass "I staged-reflects-DB -> exit 0 (no false-positive)" || fail "I expected exit 0 (got $rc)"
+
 printf '== %s ==\n' "$([ "$FAILURES" -eq 0 ] && echo 'ALL GREEN' || echo "$FAILURES FAILED")"
 [ "$FAILURES" -eq 0 ]

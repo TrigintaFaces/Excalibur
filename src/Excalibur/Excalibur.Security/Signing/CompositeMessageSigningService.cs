@@ -40,6 +40,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 	private readonly SigningOptions _options;
 	private readonly ILogger<CompositeMessageSigningService> _logger;
 	private readonly IKeyProvider _keyProvider;
+	private readonly TimeProvider _timeProvider;
 	private readonly ConcurrentDictionary<string, (byte[] Key, long ExpiresAtTimestamp)> _keyCache = new(StringComparer.Ordinal);
 	private volatile bool _disposed;
 
@@ -50,11 +51,16 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 	/// <param name="options">The signing options.</param>
 	/// <param name="keyProvider">The provider supplying signing keys.</param>
 	/// <param name="logger">The logger used for diagnostics.</param>
+	/// <param name="timeProvider">
+	/// The time source used to stamp signatures and evaluate the signature-age window. Defaults to
+	/// <see cref="TimeProvider.System"/>; inject a fake to make signing/verification deterministically testable.
+	/// </param>
 	public CompositeMessageSigningService(
 		IEnumerable<ISignatureAlgorithmProvider> providers,
 		IOptions<SigningOptions> options,
 		IKeyProvider keyProvider,
-		ILogger<CompositeMessageSigningService> logger)
+		ILogger<CompositeMessageSigningService> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(providers);
 		ArgumentNullException.ThrowIfNull(options);
@@ -65,6 +71,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 		_options = options.Value;
 		_keyProvider = keyProvider;
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
 	/// <inheritdoc />
@@ -113,9 +120,18 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 			var provider = ResolveProvider(context.Algorithm);
 			var key = await GetSigningKeyAsync(context, forVerification: false, cancellationToken).ConfigureAwait(false);
 
-			var dataToSign = context.IncludeTimestamp
-				? PrepareDataWithTimestamp(content, context.SignedAt ?? DateTimeOffset.UtcNow)
-				: content;
+			// Capture the signing time ONCE onto the context so the caller can transmit it; the verifier
+			// MUST reuse this exact value (re-deriving the current time would never reproduce the HMAC) — qtogpu.
+			byte[] dataToSign;
+			if (context.IncludeTimestamp)
+			{
+				context.SignedAt ??= _timeProvider.GetUtcNow();
+				dataToSign = PrepareDataWithTimestamp(content, context.SignedAt.Value);
+			}
+			else
+			{
+				dataToSign = content;
+			}
 
 			var signature = await provider.SignAsync(dataToSign, key, context.Algorithm, cancellationToken).ConfigureAwait(false);
 
@@ -148,12 +164,23 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 		{
 			var actualBytes = Encoding.UTF8.GetBytes(content, 0, content.Length, buffer, 0);
 			var contentBytes = buffer.AsSpan(0, actualBytes).ToArray();
-			var signatureBytes = context.Format switch
+			byte[] signatureBytes;
+			try
 			{
-				SignatureFormat.Base64 => Convert.FromBase64String(signature),
-				SignatureFormat.Hex => Convert.FromHexString(signature),
-				_ => Convert.FromBase64String(signature),
-			};
+				signatureBytes = context.Format switch
+				{
+					SignatureFormat.Base64 => Convert.FromBase64String(signature),
+					SignatureFormat.Hex => Convert.FromHexString(signature),
+					_ => Convert.FromBase64String(signature),
+				};
+			}
+			catch (FormatException)
+			{
+				// A malformed signature string (invalid base64/hex) can never represent a valid signature.
+				// Treat it as a clean invalid-signature outcome (false) rather than letting the raw
+				// FormatException escape the verification pipeline — fail-safe, off the crypto hot path.
+				return false;
+			}
 
 			return await VerifySignatureAsync(contentBytes, signatureBytes, context, cancellationToken).ConfigureAwait(false);
 		}
@@ -180,9 +207,23 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 			var provider = ResolveProvider(context.Algorithm);
 			var key = await GetSigningKeyAsync(context, forVerification: IsAsymmetricAlgorithm(context.Algorithm), cancellationToken).ConfigureAwait(false);
 
-			var dataToVerify = context.IncludeTimestamp
-				? PrepareDataWithTimestamp(content, context.SignedAt ?? DateTimeOffset.UtcNow)
-				: content;
+			// For a timestamped signature the verifier MUST reuse the transmitted signing timestamp; if it
+			// is absent we fail closed rather than substituting the current time (qtogpu).
+			byte[] dataToVerify;
+			if (context.IncludeTimestamp)
+			{
+				if (context.SignedAt is null)
+				{
+					LogVerificationFailed();
+					return false;
+				}
+
+				dataToVerify = PrepareDataWithTimestamp(content, context.SignedAt.Value);
+			}
+			else
+			{
+				dataToVerify = content;
+			}
 
 			var isValid = await provider.VerifyAsync(dataToVerify, signature, key, context.Algorithm, cancellationToken).ConfigureAwait(false);
 
@@ -214,6 +255,11 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 		ArgumentNullException.ThrowIfNull(context);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
+		// Capture the signing time ONCE before signing so the timestamp embedded in the HMAC matches
+		// SignedMessage.SignedAt exactly — ValidateSignedMessageAsync must reproduce the same hash.
+		var signedAt = _timeProvider.GetUtcNow();
+		context.SignedAt = signedAt;
+
 		var signature = await SignMessageAsync(content, context, cancellationToken).ConfigureAwait(false);
 
 		return new SignedMessage
@@ -222,7 +268,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 			Signature = signature,
 			Algorithm = context.Algorithm,
 			KeyId = context.KeyId,
-			SignedAt = DateTimeOffset.UtcNow,
+			SignedAt = signedAt,
 			Metadata = new Dictionary<string, string>(context.Metadata, StringComparer.Ordinal),
 		};
 	}
@@ -237,20 +283,24 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 		ArgumentNullException.ThrowIfNull(context);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		// Check signature age if configured
+		// Check signature age if configured. The window is BIDIRECTIONAL (clock-skew tolerance): a
+		// signature whose timestamp is too far in the past OR too far in the future (a skewed signer
+		// clock — negative age) is rejected. MaxSignatureAgeMinutes bounds the absolute skew.
 		if (_options.MaxSignatureAgeMinutes > 0)
 		{
-			var age = DateTimeOffset.UtcNow - signedMessage.SignedAt;
-			if (age.TotalMinutes > _options.MaxSignatureAgeMinutes)
+			var age = _timeProvider.GetUtcNow() - signedMessage.SignedAt;
+			if (Math.Abs(age.TotalMinutes) > _options.MaxSignatureAgeMinutes)
 			{
 				LogSignatureExpired(age.TotalMinutes, _options.MaxSignatureAgeMinutes);
 				return null;
 			}
 		}
 
-		// Set context from signed message
+		// Set context from signed message, including the transmitted timestamp — verification MUST reuse
+		// the original signing timestamp to reproduce the HMAC (qtogpu).
 		context.Algorithm = signedMessage.Algorithm;
 		context.KeyId = signedMessage.KeyId;
+		context.SignedAt = signedMessage.SignedAt;
 
 		var isValid = await VerifySignatureAsync(
 			signedMessage.Content,

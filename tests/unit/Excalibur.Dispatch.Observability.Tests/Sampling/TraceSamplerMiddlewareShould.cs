@@ -4,6 +4,8 @@
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Observability.Sampling;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Excalibur.Dispatch.Observability.Tests.Sampling;
 
 /// <summary>
@@ -32,13 +34,13 @@ public sealed class TraceSamplerMiddlewareShould
 	[Fact]
 	public void ThrowOnNullSampler()
 	{
-		Should.Throw<ArgumentNullException>(() => new TraceSamplerMiddleware(null!));
+		Should.Throw<ArgumentNullException>(() => new TraceSamplerMiddleware(null!, NullLogger<TraceSamplerMiddleware>.Instance));
 	}
 
 	[Fact]
 	public void HaveStartStage()
 	{
-		var middleware = new TraceSamplerMiddleware(_fakeSampler);
+		var middleware = new TraceSamplerMiddleware(_fakeSampler, NullLogger<TraceSamplerMiddleware>.Instance);
 		middleware.Stage.ShouldBe(DispatchMiddlewareStage.Start);
 	}
 
@@ -49,7 +51,7 @@ public sealed class TraceSamplerMiddlewareShould
 		A.CallTo(() => _fakeSampler.ShouldSample(A<System.Diagnostics.ActivityContext>._, A<string>._))
 			.Returns(false);
 
-		var middleware = new TraceSamplerMiddleware(_fakeSampler);
+		var middleware = new TraceSamplerMiddleware(_fakeSampler, NullLogger<TraceSamplerMiddleware>.Instance);
 		var message = A.Fake<IDispatchMessage>();
 		var (context, items) = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
@@ -71,7 +73,7 @@ public sealed class TraceSamplerMiddlewareShould
 		A.CallTo(() => _fakeSampler.ShouldSample(A<System.Diagnostics.ActivityContext>._, A<string>._))
 			.Returns(true);
 
-		var middleware = new TraceSamplerMiddleware(_fakeSampler);
+		var middleware = new TraceSamplerMiddleware(_fakeSampler, NullLogger<TraceSamplerMiddleware>.Instance);
 		var message = A.Fake<IDispatchMessage>();
 		var (context, items) = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
@@ -93,7 +95,7 @@ public sealed class TraceSamplerMiddlewareShould
 		A.CallTo(() => _fakeSampler.ShouldSample(A<System.Diagnostics.ActivityContext>._, A<string>._))
 			.Returns(true);
 
-		var middleware = new TraceSamplerMiddleware(_fakeSampler);
+		var middleware = new TraceSamplerMiddleware(_fakeSampler, NullLogger<TraceSamplerMiddleware>.Instance);
 		var message = A.Fake<IDispatchMessage>();
 		var (context, _) = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
@@ -115,7 +117,7 @@ public sealed class TraceSamplerMiddlewareShould
 	[Fact]
 	public async Task ThrowOnNullMessage()
 	{
-		var middleware = new TraceSamplerMiddleware(_fakeSampler);
+		var middleware = new TraceSamplerMiddleware(_fakeSampler, NullLogger<TraceSamplerMiddleware>.Instance);
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
 
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -125,7 +127,7 @@ public sealed class TraceSamplerMiddlewareShould
 	[Fact]
 	public async Task ThrowOnNullContext()
 	{
-		var middleware = new TraceSamplerMiddleware(_fakeSampler);
+		var middleware = new TraceSamplerMiddleware(_fakeSampler, NullLogger<TraceSamplerMiddleware>.Instance);
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
 
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -135,7 +137,7 @@ public sealed class TraceSamplerMiddlewareShould
 	[Fact]
 	public async Task ThrowOnNullNextDelegate()
 	{
-		var middleware = new TraceSamplerMiddleware(_fakeSampler);
+		var middleware = new TraceSamplerMiddleware(_fakeSampler, NullLogger<TraceSamplerMiddleware>.Instance);
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			async () => await middleware.InvokeAsync(

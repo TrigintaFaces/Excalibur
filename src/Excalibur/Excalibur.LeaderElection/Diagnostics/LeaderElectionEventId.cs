@@ -247,6 +247,12 @@ public static class LeaderElectionEventId
 	/// <summary>Candidate lost leadership.</summary>
 	public const int RedisLostLeadership = 183009;
 
+	/// <summary>A fencing token was issued on leadership acquisition (ADR-339).</summary>
+	public const int RedisFencingTokenIssued = 183010;
+
+	/// <summary>Failed to issue a fencing token on leadership acquisition (ADR-339).</summary>
+	public const int RedisFencingTokenIssueError = 183011;
+
 	// ========================================
 	// 184000-184999: SqlServer
 	// ========================================
@@ -277,4 +283,10 @@ public static class LeaderElectionEventId
 
 	/// <summary>Candidate lost leadership.</summary>
 	public const int SqlServerLostLeadership = 184008;
+
+	/// <summary>A fencing token was issued on leadership acquisition (ADR-339).</summary>
+	public const int SqlServerFencingTokenIssued = 184009;
+
+	/// <summary>Failed to mint a fencing token on leadership acquisition; leadership relinquished (ADR-339).</summary>
+	public const int SqlServerFencingTokenIssueError = 184010;
 }

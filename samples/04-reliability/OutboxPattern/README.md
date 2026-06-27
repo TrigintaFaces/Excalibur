@@ -177,37 +177,54 @@ services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionStri
 The SQL Server implementation does **not** auto-create tables. You must create them before starting the application:
 
 ```sql
--- Outbox table (dbo.OutboxMessages)
+-- Outbox table (default: dbo.OutboxMessages)
 CREATE TABLE dbo.OutboxMessages (
-    Id              NVARCHAR(256)     NOT NULL PRIMARY KEY,
-    MessageType     NVARCHAR(500)     NOT NULL,
-    Payload         VARBINARY(MAX)    NOT NULL,
-    Headers         NVARCHAR(MAX)     NULL,
-    Destination     NVARCHAR(500)     NOT NULL,
-    CreatedAt       DATETIMEOFFSET    NOT NULL,
-    ScheduledAt     DATETIMEOFFSET    NULL,
-    Status          INT               NOT NULL DEFAULT 0,
-    RetryCount      INT               NOT NULL DEFAULT 0,
-    CorrelationId   NVARCHAR(256)     NULL,
-    CausationId     NVARCHAR(256)     NULL,
-    TenantId        NVARCHAR(256)     NULL,
-    Priority        INT               NOT NULL DEFAULT 0,
-    TargetTransports NVARCHAR(MAX)    NULL,
-    IsMultiTransport BIT              NOT NULL DEFAULT 0,
-    PartitionKey    NVARCHAR(256)     NULL,
-    GroupKey        NVARCHAR(256)     NULL,
-    SequenceNumber  BIGINT            NOT NULL DEFAULT 0,
-    NextAttemptAt   DATETIMEOFFSET    NULL,
-    ProcessedAt     DATETIMEOFFSET    NULL,
-    Error           NVARCHAR(MAX)     NULL
+    Id               NVARCHAR(255)  NOT NULL PRIMARY KEY,
+    MessageType      NVARCHAR(500)  NOT NULL,
+    Payload          VARBINARY(MAX) NOT NULL,
+    Headers          NVARCHAR(MAX)  NULL,
+    Destination      NVARCHAR(255)  NOT NULL,
+    CreatedAt        DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+    ScheduledAt      DATETIMEOFFSET NULL,
+    SentAt           DATETIMEOFFSET NULL,
+    Status           INT            NOT NULL DEFAULT 0,
+    RetryCount       INT            NOT NULL DEFAULT 0,
+    LastError        NVARCHAR(MAX)  NULL,
+    LastAttemptAt    DATETIMEOFFSET NULL,
+    CorrelationId    NVARCHAR(255)  NULL,
+    CausationId      NVARCHAR(255)  NULL,
+    TenantId         NVARCHAR(255)  NULL,
+    Priority         INT            NOT NULL DEFAULT 0,
+    TargetTransports NVARCHAR(MAX)  NULL,
+    IsMultiTransport BIT            NOT NULL DEFAULT 0,
+    LeasedAt         DATETIMEOFFSET NULL,
+    LeasedBy         NVARCHAR(255)  NULL,
+    PartitionKey     NVARCHAR(256)  NULL,   -- ordered delivery: per-partition FIFO
+    GroupKey         NVARCHAR(256)  NULL,   -- logical message grouping
+    SequenceNumber   BIGINT         NOT NULL DEFAULT 0, -- monotonic ordering key
+    NextAttemptAt    DATETIMEOFFSET NULL,   -- retry backoff: not re-claimed until this time
+    INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
+    INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
 );
--- Supports the claim predicate (Status + NextAttemptAt retry visibility) and partition-ordered delivery.
-CREATE INDEX IX_OutboxMessages_Claim ON dbo.OutboxMessages (Status, NextAttemptAt, PartitionKey, SequenceNumber);
 
--- Inbox table (dbo.InboxMessages)
-CREATE TABLE dbo.InboxMessages (
-    MessageId   NVARCHAR(256)     NOT NULL PRIMARY KEY,
-    ProcessedAt DATETIMEOFFSET    NOT NULL
+-- Inbox table (default: dbo.inbox_messages) — keyed by (MessageId, HandlerType)
+CREATE TABLE dbo.inbox_messages (
+    MessageId     NVARCHAR(255)  NOT NULL,
+    HandlerType   NVARCHAR(500)  NOT NULL,
+    MessageType   NVARCHAR(500)  NOT NULL,
+    Payload       VARBINARY(MAX) NOT NULL,
+    Metadata      NVARCHAR(MAX)  NULL,
+    ReceivedAt    DATETIMEOFFSET NOT NULL,
+    ProcessedAt   DATETIMEOFFSET NULL,
+    Status        INT            NOT NULL DEFAULT 0,
+    LastError     NVARCHAR(MAX)  NULL,
+    RetryCount    INT            NOT NULL DEFAULT 0,
+    LastAttemptAt DATETIMEOFFSET NULL,
+    NextAttemptAt DATETIMEOFFSET NULL,
+    CorrelationId NVARCHAR(255)  NULL,
+    TenantId      NVARCHAR(255)  NULL,
+    Source        NVARCHAR(255)  NULL,
+    CONSTRAINT PK_inbox_messages PRIMARY KEY CLUSTERED (MessageId, HandlerType)
 );
 ```
 

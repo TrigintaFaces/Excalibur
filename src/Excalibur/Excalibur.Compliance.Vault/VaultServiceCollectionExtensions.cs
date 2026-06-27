@@ -48,7 +48,7 @@ public static class VaultServiceCollectionExtensions
 		var builder = new ComplianceVaultBuilder(options);
 		configure(builder);
 
-		RegisterOptionsAndServices(services, builder, options);
+		RegisterOptionsAndServices(services, builder);
 
 		return services;
 	}
@@ -59,17 +59,15 @@ public static class VaultServiceCollectionExtensions
 		Justification = "Configuration binding uses reflection by design.")]
 	private static void RegisterOptionsAndServices(
 		IServiceCollection services,
-		ComplianceVaultBuilder builder,
-		VaultOptions options)
+		ComplianceVaultBuilder builder)
 	{
-		_ = services.Configure<VaultOptions>(opt =>
-		{
-			opt.VaultUri = options.VaultUri;
-			opt.TransitMountPath = options.TransitMountPath;
-			opt.KeyNamePrefix = options.KeyNamePrefix;
-			opt.Namespace = options.Namespace;
-			opt.EnableDetailedTelemetry = options.EnableDetailedTelemetry;
-		});
+		// bd-r5r7fe (enforce-invariants-structurally): project ONLY the builder-owned fields into the
+		// DI-managed instance via the builder's single-source-of-truth projection. The builder field-level-
+		// sets exactly the fields it owns and NEVER touches Auth/Retry/Suspension/whole-Keys — those are
+		// owned by the consumer's own Configure<VaultOptions>/BindConfiguration and a wholesale copy would
+		// clobber them. Co-locating the projection with the setters makes the cross-file manual-allowlist
+		// desync (the original nit) inexpressible. This Configure runs before BindConfiguration (below).
+		_ = services.Configure<VaultOptions>(builder.ApplyConfiguredFieldsTo);
 
 		if (builder.BindConfigurationPath is not null)
 		{

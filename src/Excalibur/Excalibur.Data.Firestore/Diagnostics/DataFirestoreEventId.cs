@@ -237,6 +237,9 @@ public static class DataFirestoreEventId
 	/// <summary>CDC event dropped (channel full).</summary>
 	public const int CdcEventDropped = 105915;
 
+	/// <summary>CDC fatal (non-retryable) error — processor stops instead of reconnecting.</summary>
+	public const int CdcFatalError = 105916;
+
 	// ========================================
 	// 106000-106099: Snapshot Store
 	// ========================================

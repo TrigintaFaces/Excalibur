@@ -17,10 +17,19 @@ namespace Tests.Shared.Conformance;
 /// correctly implement the IDb interface contract.
 /// </para>
 /// <para>
+/// <b>Contract note (bd-grwc7r):</b> <see cref="IDb.Connection"/> is a <em>self-healing</em> accessor — by
+/// design it always returns a ready/open connection (the concrete <c>Db.Connection</c> calls
+/// <c>DbConnectionExtensions.Ready()</c>, which re-opens a Closed/Broken connection). Therefore the result
+/// of <see cref="IDb.Close"/> is NOT observable through <see cref="IDb.Connection"/> (accessing it re-opens
+/// the connection). Facts that verify closure observe the <b>underlying</b> <see cref="IDbConnection"/>
+/// returned alongside the IDb from <see cref="CreateDb"/>; a dedicated fact locks the self-heal behaviour
+/// as an explicit, intended invariant.
+/// </para>
+/// <para>
 /// To create conformance tests for your own IDb implementation:
 /// <list type="number">
 ///   <item>Inherit from DbConformanceTestBase</item>
-///   <item>Override CreateDb() to create an instance of your IDb implementation</item>
+///   <item>Override CreateDb() to return your IDb implementation together with the underlying connection it wraps</item>
 ///   <item>Override DisposeDb() to properly clean up the instance</item>
 /// </list>
 /// </para>
@@ -37,10 +46,15 @@ public abstract class DbConformanceTestBase : IDisposable
 	}
 
 	/// <summary>
-	/// Creates a new instance of the IDb implementation under test.
+	/// Creates a new instance of the IDb implementation under test, together with the underlying
+	/// <see cref="IDbConnection"/> it wraps.
 	/// </summary>
-	/// <returns>A configured IDb instance.</returns>
-	protected abstract IDb CreateDb();
+	/// <returns>
+	/// The IDb instance under test and the underlying connection. The underlying connection is exposed so
+	/// that closure can be observed directly (the self-healing <see cref="IDb.Connection"/> accessor re-opens
+	/// a closed connection on access, so it cannot observe a closed state — see bd-grwc7r).
+	/// </returns>
+	protected abstract (IDb Db, IDbConnection Underlying) CreateDb();
 
 	/// <summary>
 	/// Cleans up the IDb instance after each test.
@@ -60,7 +74,7 @@ public abstract class DbConformanceTestBase : IDisposable
 	public void Db_ShouldImplementIDb()
 	{
 		// Arrange
-		var db = CreateDb();
+		var (db, _) = CreateDb();
 
 		try
 		{
@@ -81,7 +95,7 @@ public abstract class DbConformanceTestBase : IDisposable
 	public void Connection_ShouldReturnNonNullConnection()
 	{
 		// Arrange
-		var db = CreateDb();
+		var (db, _) = CreateDb();
 
 		try
 		{
@@ -103,7 +117,7 @@ public abstract class DbConformanceTestBase : IDisposable
 	public void Open_ShouldOpenConnection()
 	{
 		// Arrange
-		var db = CreateDb();
+		var (db, _) = CreateDb();
 
 		try
 		{
@@ -124,7 +138,7 @@ public abstract class DbConformanceTestBase : IDisposable
 	public void Open_WhenAlreadyOpen_ShouldNotThrow()
 	{
 		// Arrange
-		var db = CreateDb();
+		var (db, _) = CreateDb();
 		db.Open();
 
 		try
@@ -147,7 +161,7 @@ public abstract class DbConformanceTestBase : IDisposable
 	public void Close_ShouldCloseConnection()
 	{
 		// Arrange
-		var db = CreateDb();
+		var (db, underlying) = CreateDb();
 		db.Open();
 
 		// Act
@@ -155,8 +169,9 @@ public abstract class DbConformanceTestBase : IDisposable
 
 		try
 		{
-			// Assert
-			db.Connection.State.ShouldBe(ConnectionState.Closed);
+			// Assert — observe the UNDERLYING connection, not db.Connection (which self-heals/re-opens
+			// on access, so it can never report Closed; see bd-grwc7r).
+			underlying.State.ShouldBe(ConnectionState.Closed);
 		}
 		finally
 		{
@@ -168,9 +183,9 @@ public abstract class DbConformanceTestBase : IDisposable
 	public void Close_WhenAlreadyClosed_ShouldNotThrow()
 	{
 		// Arrange
-		var db = CreateDb();
-		// Connection starts closed, ensure it's closed
-		if (db.Connection.State == ConnectionState.Open)
+		var (db, underlying) = CreateDb();
+		// Ensure the underlying connection is closed.
+		if (underlying.State == ConnectionState.Open)
 		{
 			db.Close();
 		}
@@ -191,23 +206,39 @@ public abstract class DbConformanceTestBase : IDisposable
 	#region Connection State Transitions
 
 	[Fact]
-	public void Connection_CanBeOpenedAndClosed()
+	public void Connection_AfterOpen_IsOpen()
 	{
 		// Arrange
-		var db = CreateDb();
+		var (db, _) = CreateDb();
 
 		try
 		{
-			// Act & Assert - Open
+			// Act
 			db.Open();
+
+			// Assert
 			db.Connection.State.ShouldBe(ConnectionState.Open);
-
-			// Act & Assert - Close
+		}
+		finally
+		{
 			db.Close();
-			db.Connection.State.ShouldBe(ConnectionState.Closed);
+			DisposeDb(db);
+		}
+	}
 
-			// Act & Assert - Reopen
-			db.Open();
+	[Fact]
+	public void Connection_AfterClose_ReopensReady()
+	{
+		// Arrange
+		var (db, _) = CreateDb();
+		db.Open();
+		db.Close();
+
+		try
+		{
+			// Assert — the self-heal contract: IDb.Connection ALWAYS returns a ready/open connection,
+			// re-opening it on access even after a Close(). This is intended behaviour every consumer
+			// relies on; locking it makes the invariant explicit (bd-grwc7r).
 			db.Connection.State.ShouldBe(ConnectionState.Open);
 		}
 		finally

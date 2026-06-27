@@ -266,19 +266,23 @@ builder.Services.AddAwsKmsKeyManagement(options =>
 ```csharp
 using Excalibur.Compliance.Vault;
 
-builder.Services.AddVaultKeyManagement(options =>
+// Core connection settings via the fluent builder
+builder.Services.AddVaultKeyManagement(vault =>
+    vault.VaultUri(new Uri("https://vault.example.com:8200"))
+         .TransitMountPath("transit")
+         .KeyNamePrefix("dispatch-"));   // Keys named: dispatch-{keyId}
+
+// Authentication via Configure<VaultOptions> (grouped Auth sub-options)
+builder.Services.Configure<VaultOptions>(options =>
 {
-    options.Address = "https://vault.example.com:8200";
+    // Token auth
+    options.Auth.AuthMethod = VaultAuthMethod.Token;
+    options.Auth.Token = configuration["Vault:Token"];
 
-    // Authentication
-    options.Token = configuration["Vault:Token"];
-    // Or AppRole
-    options.RoleId = configuration["Vault:RoleId"];
-    options.SecretId = configuration["Vault:SecretId"];
-
-    // Transit engine path
-    options.TransitMountPath = "transit";
-    options.KeyName = "dispatch-encryption";
+    // Or AppRole auth
+    // options.Auth.AuthMethod = VaultAuthMethod.AppRole;
+    // options.Auth.AppRoleId = configuration["Vault:RoleId"];
+    // options.Auth.AppRoleSecretId = configuration["Vault:SecretId"];
 });
 ```
 

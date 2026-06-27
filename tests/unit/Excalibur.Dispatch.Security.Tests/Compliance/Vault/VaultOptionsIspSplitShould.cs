@@ -7,9 +7,9 @@ using Excalibur.Compliance.Vault;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Vault;
 
 /// <summary>
-/// Verifies the ISP split of VaultOptions into sub-options (Auth, Keys, Retry)
+/// Verifies the ISP split of VaultOptions into sub-options (Auth, Keys, Retry, Suspension)
 /// and confirms shim removal is complete.
-/// Sprint 564 S564.52: VaultOptions ISP split verification.
+/// Originally S564.52 (Auth/Keys/Retry split); Suspension sub-options added S854 (bd-qiditb).
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Compliance)]
@@ -63,6 +63,20 @@ public sealed class VaultOptionsIspSplitShould
 			$"{string.Join(", ", properties.Select(p => p.Name))}");
 	}
 
+	[Fact]
+	public void SuspensionSubOptions_HaveAtMost10Properties()
+	{
+		// qiditb: durable key-suspension marker config split into its own sub-options
+		// (VaultOptions 12 -> ISP <=10). Assert the sub-type itself stays within budget
+		// so future prop-creep on the sub-type is caught (non-vacuous).
+		var properties = typeof(VaultSuspensionOptions)
+			.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+		properties.Length.ShouldBeLessThanOrEqualTo(10,
+			$"VaultSuspensionOptions has {properties.Length} properties: " +
+			$"{string.Join(", ", properties.Select(p => p.Name))}");
+	}
+
 	#endregion
 
 	#region Sub-Options Initialized
@@ -88,6 +102,13 @@ public sealed class VaultOptionsIspSplitShould
 		options.Retry.ShouldNotBeNull();
 	}
 
+	[Fact]
+	public void HaveNonNullSuspensionSubOptions()
+	{
+		var options = new VaultOptions();
+		options.Suspension.ShouldNotBeNull();
+	}
+
 	#endregion
 
 	#region Root Default Values
@@ -95,15 +116,17 @@ public sealed class VaultOptionsIspSplitShould
 	[Fact]
 	public void HaveDefaultTransitMountPath()
 	{
+		// qiditb: TransitMountPath folded from VaultOptions root into Keys (VaultKeyOptions).
 		var options = new VaultOptions();
-		options.TransitMountPath.ShouldBe("transit");
+		options.Keys.TransitMountPath.ShouldBe("transit");
 	}
 
 	[Fact]
 	public void HaveDefaultKeyNamePrefix()
 	{
+		// qiditb: KeyNamePrefix folded from VaultOptions root into Keys (VaultKeyOptions).
 		var options = new VaultOptions();
-		options.KeyNamePrefix.ShouldBe("excalibur-dispatch-");
+		options.Keys.KeyNamePrefix.ShouldBe("excalibur-dispatch-");
 	}
 
 	[Fact]
@@ -301,8 +324,6 @@ public sealed class VaultOptionsIspSplitShould
 		var options = new VaultOptions
 		{
 			VaultUri = new Uri("https://vault.example.com:8200"),
-			TransitMountPath = "custom-transit",
-			KeyNamePrefix = "myapp-",
 			Namespace = "production",
 			MetadataCacheDuration = TimeSpan.FromMinutes(10),
 			HttpTimeout = TimeSpan.FromSeconds(60),
@@ -316,6 +337,8 @@ public sealed class VaultOptionsIspSplitShould
 			{
 				DefaultKeyType = "ed25519",
 				AllowKeyExport = true,
+				TransitMountPath = "custom-transit",
+				KeyNamePrefix = "myapp-",
 			},
 			Retry = new VaultRetryOptions
 			{
@@ -324,8 +347,8 @@ public sealed class VaultOptionsIspSplitShould
 		};
 
 		options.VaultUri.AbsoluteUri.ShouldBe("https://vault.example.com:8200/");
-		options.TransitMountPath.ShouldBe("custom-transit");
-		options.KeyNamePrefix.ShouldBe("myapp-");
+		options.Keys.TransitMountPath.ShouldBe("custom-transit");
+		options.Keys.KeyNamePrefix.ShouldBe("myapp-");
 		options.Namespace.ShouldBe("production");
 		options.Auth.AuthMethod.ShouldBe(VaultAuthMethod.Kubernetes);
 		options.Auth.KubernetesRole.ShouldBe("vault-role");

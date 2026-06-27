@@ -3,6 +3,7 @@
 
 using Excalibur.Cdc.Diagnostics;
 using Excalibur.Cdc.Postgres.Diagnostics;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -23,6 +24,13 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 	private readonly IPostgresCdcStateStore _stateStore;
 	private readonly ILogger<PostgresCdcProcessor> _logger;
 
+	// 14z4ao: optional fatal-handoff. When a fatal (non-retryable) error occurs the processor stops and
+	// surfaces it loudly instead of an infinite silent reconnect loop (ADR-338). _onFatalError is invoked
+	// with the in-flight event for a per-event fatal, or null for a connection/poll-level fatal.
+	private readonly CdcFatalErrorHandler<PostgresDataChangeEvent>? _onFatalError;
+	private readonly IMessageFailureClassifier? _failureClassifier;
+	private PostgresDataChangeEvent? _inFlightEvent;
+
 	private LogicalReplicationConnection? _replicationConnection;
 	private PostgresCdcPosition _currentPosition;
 	private PostgresCdcPosition _confirmedPosition;
@@ -39,10 +47,21 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 	/// <param name="options">The CDC options.</param>
 	/// <param name="stateStore">The state store for position tracking.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="fatalErrorOptions">
+	/// Optional fatal-error handling. When omitted (or its handler is <see langword="null"/>), a fatal
+	/// error rethrows and stops the processor (fail-loud — never an infinite silent reconnect loop).
+	/// </param>
+	/// <param name="failureClassifier">
+	/// Optional shared classifier deciding whether a processing error is fatal (non-retryable) or
+	/// transient. When omitted, a conservative built-in fallback is used (only definitively non-retryable
+	/// faults are fatal; everything else is retried with backoff).
+	/// </param>
 	public PostgresCdcProcessor(
 		IOptions<PostgresCdcOptions> options,
 		IPostgresCdcStateStore stateStore,
-		ILogger<PostgresCdcProcessor> logger)
+		ILogger<PostgresCdcProcessor> logger,
+		IOptions<CdcFatalErrorOptions<PostgresDataChangeEvent>>? fatalErrorOptions = null,
+		IMessageFailureClassifier? failureClassifier = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(stateStore);
@@ -53,6 +72,8 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 		_stateStore = stateStore;
 		_logger = logger;
+		_onFatalError = fatalErrorOptions?.Value.OnFatalError;
+		_failureClassifier = failureClassifier;
 		_currentPosition = PostgresCdcPosition.Start;
 		_confirmedPosition = PostgresCdcPosition.Start;
 	}
@@ -90,7 +111,39 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			}
 			catch (Exception ex)
 			{
+				// pxhqri: delegate the fatal-vs-transient decision to the single shared guard
+				// (CdcFatalGuard.Decide) — the same unit the regression lock binds — instead of an inline
+				// `catch when IsFatal` filter. The durable checkpoint is advanced ONLY on the success path
+				// (ConfirmCommitAsync inside ProcessChangesAsync); this catch never advances, and the
+				// replication stream unwinds BEFORE that confirm on a fault, so a fault (fatal or transient)
+				// never advances the checkpoint past the failing change (decision.AdvanceCheckpoint is false
+				// on every fault). 14z4ao behavior is byte-preserved.
+				var decision = CdcFatalGuard.Decide(ex, _failureClassifier);
+
+				if (decision.Stop)
+				{
+					// Fatal (non-retryable) — stop loud, never an infinite silent reconnect.
+					LogFatalError(ex);
+
+					if (_replicationConnection is not null)
+					{
+						await _replicationConnection.DisposeAsync().ConfigureAwait(false);
+						_replicationConnection = null;
+					}
+
+					if (_onFatalError is not null)
+					{
+						// In-flight event for a per-event fatal; null for a connection/poll-level fatal.
+						await _onFatalError(ex, _inFlightEvent).ConfigureAwait(false);
+						return; // handler took over → terminal; do not reconnect.
+					}
+
+					throw; // default: fail-loud — propagate and stop.
+				}
+
+				// Transient (decision.Reconnect) — reconnect and retry from the un-advanced checkpoint.
 				LogError(ex);
+				_inFlightEvent = null;
 
 				// Dispose connection to force reconnect
 				if (_replicationConnection is not null)
@@ -381,7 +434,11 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 				// Apply table filter if configured
 				if (ShouldProcessTable(changeEvent.FullTableName))
 				{
+					// Track the in-flight event so a fatal raised by the handler is attributed to it and the
+					// fatal path unwinds before ConfirmCommitAsync (durable checkpoint not advanced past it).
+					_inFlightEvent = changeEvent;
 					await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+					_inFlightEvent = null;
 					count++;
 
 					LogProcessed(changeEvent.ChangeType, changeEvent.FullTableName, changeEvent.Position.LsnString);
@@ -632,4 +689,8 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 	[LoggerMessage(CdcPostgresEventId.CdcProcessingError, LogLevel.Error, "Error in Postgres CDC processor")]
 	private partial void LogError(Exception ex);
+
+	[LoggerMessage(CdcPostgresEventId.CdcFatalError, LogLevel.Critical,
+		"Fatal (non-retryable) error in Postgres CDC processor — stopping; the failure is surfaced to the configured handler or rethrown (no silent reconnect)")]
+	private partial void LogFatalError(Exception ex);
 }

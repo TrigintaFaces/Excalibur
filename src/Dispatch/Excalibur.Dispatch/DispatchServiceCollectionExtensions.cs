@@ -74,6 +74,9 @@ public static class DispatchServiceCollectionExtensions
 		services.TryAddSingleton<IDictionary<string, MessageBusOptions>>(static _ =>
 			new Dictionary<string, MessageBusOptions>(StringComparer.Ordinal));
 		services.TryAddSingleton<IRetryPolicy>(static _ => NoOpRetryPolicy.Instance);
+		// Shared failure classifier (S-A, shu41d): the single retry-vs-dead-letter taxonomy consumed by
+		// the retry policy/middleware and the outbox/inbox/CDC processors. Consumers override via TryAdd.
+		services.TryAddSingleton<IMessageFailureClassifier, DefaultMessageFailureClassifier>();
 		services.TryAddSingleton<FinalDispatchHandler>();
 
 		// Configure handler invocation based on AOT requirements
@@ -85,7 +88,9 @@ public static class DispatchServiceCollectionExtensions
 
 		// Default JSON event serializer (ADR-295: JSON-first). Consumers can override with binary
 		// serializer packages (e.g., AddMemoryPackSerializer()) which register their own IEventSerializer.
-		services.TryAddSingleton<IEventSerializer>(static _ => new JsonEventSerializer());
+		// c6wd6f: inject the optional consumer-registered event-type registry (AddEventTypes<T>()) so the
+		// secure-default serializer resolves registered types without the scan. No registry ⇒ identical to before.
+		services.TryAddSingleton<IEventSerializer>(static sp => new JsonEventSerializer(sp.GetService<IEventTypeRegistry>()));
 
 		// Default no-op telemetry sanitizer — overridden by AddDispatchObservability() with HashingTelemetrySanitizer
 		services.TryAddSingleton<Excalibur.Dispatch.Telemetry.ITelemetrySanitizer>(

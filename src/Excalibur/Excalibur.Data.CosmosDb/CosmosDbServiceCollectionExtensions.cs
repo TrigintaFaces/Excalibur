@@ -153,6 +153,57 @@ public static class CosmosDbServiceCollectionExtensions
 		}
 	}
 
+	/// <summary>
+	/// Registers the durable Cosmos DB-backed <see cref="IChangeFeedCheckpointStore"/>, replacing the
+	/// default in-memory store so change-feed continuation survives process restarts (bd-egwtku).
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="containerFactory">
+	/// Factory that resolves the Cosmos <see cref="Container"/> used to persist checkpoint documents
+	/// (partition key path <c>/subscriptionId</c>); the caller owns the container's creation.
+	/// </param>
+	/// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
+	/// <remarks>
+	/// Call after <c>AddCosmosDb</c>: this replaces the in-memory default registered by the core services,
+	/// so the persistence provider flows the durable store into every change-feed subscription.
+	/// </remarks>
+	public static IServiceCollection AddCosmosDbChangeFeedCheckpointStore(
+		this IServiceCollection services,
+		Func<IServiceProvider, Container> containerFactory)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(containerFactory);
+
+		services.Replace(ServiceDescriptor.Singleton<IChangeFeedCheckpointStore>(
+			sp => new CosmosDbChangeFeedCheckpointStore(containerFactory(sp))));
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers the shared change-feed durability default: the process-local (non-durable)
+	/// <see cref="IChangeFeedCheckpointStore"/>. Idempotent — safe to call from every Cosmos entry point
+	/// (data provider, event store, outbox) so an ES-only or Outbox-only consumer always resolves a
+	/// checkpoint store rather than silently flowing <see langword="null"/> into its change-feed
+	/// subscriptions (bd-egwtku / bd-ydln24).
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
+	/// <remarks>
+	/// The default <see cref="InMemoryChangeFeedCheckpointStore"/> emits a LOUD non-durable warning once on
+	/// construction, so "silently non-durable" cannot re-create the advertised-but-inert bug FR-B1 fixes.
+	/// Registering a durable store via <see cref="AddCosmosDbChangeFeedCheckpointStore"/> replaces this
+	/// default (so the in-memory store is never constructed and the warning never fires).
+	/// </remarks>
+	internal static IServiceCollection AddCosmosDbChangeFeedDurabilityDefaults(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		services.TryAddSingleton<IChangeFeedCheckpointStore, InMemoryChangeFeedCheckpointStore>();
+
+		return services;
+	}
+
 	private static void RegisterCoreServices(IServiceCollection services)
 	{
 		services.TryAddSingleton<CosmosDbPersistenceProvider>();
@@ -161,5 +212,8 @@ public static class CosmosDbServiceCollectionExtensions
 
 		// Register health check
 		services.TryAddSingleton<CosmosDbHealthCheck>();
+
+		// Default change-feed checkpoint store + non-durable startup warning (shared across Cosmos entry points).
+		_ = services.AddCosmosDbChangeFeedDurabilityDefaults();
 	}
 }

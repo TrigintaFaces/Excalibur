@@ -648,31 +648,35 @@ public sealed class SpanEventSerializerShould
 			serializer.ResolveType(null!));
 	}
 
+	// wpynky / SA 15828 + Backend 15829 steer: the positive registry-resolve case is intentionally
+	// NOT unit-tested here — SpanEventSerializer resolves via the process-global static
+	// TypeResolverRegistry, and registering into it (even with Clear-in-finally) risks cross-class
+	// parallel-test pollution (the determinism rule: no process-global mutable state in tests). The
+	// registered-name resolve path is exercised at the integration level; the unit lock here is the
+	// secure-default rejection (below), which is what wpynky hardens.
+
 	[Fact]
-	public void ResolveType_ReturnsCorrectType()
+	public void ResolveType_RejectsScannableUnregisteredType_SecureByDefault()
 	{
-		// Arrange
+		// wpynky security lock (author!=impl): a real, loaded, scannable type (typeof(string)) that is
+		// NOT registered MUST be rejected — SpanEventSerializer never falls back to an assembly scan.
+		// Non-vacuous: if a scan/Type.GetType fallback were reintroduced this name would resolve -> RED.
 		var serializer = new SpanEventSerializer(_serializer);
-		var expectedType = typeof(TestDomainEvent);
-		var typeName = expectedType.AssemblyQualifiedName;
 
-		// Act
-		var result = serializer.ResolveType(typeName!);
-
-		// Assert
-		result.ShouldBe(expectedType);
+		Should.Throw<UnknownEventTypeException>(
+			() => serializer.ResolveType(typeof(string).AssemblyQualifiedName!));
 	}
 
 	[Fact]
-	public void ThrowSerializationException_WhenResolveTypeCannotResolve()
+	public void ThrowUnknownEventTypeException_WhenResolveTypeCannotResolve()
 	{
 		// Arrange
 		var serializer = new SpanEventSerializer(_serializer);
 
-		// Act & Assert
-		var ex = Should.Throw<SerializationException>(() =>
+		// Act & Assert — wpynky: registry miss now throws UnknownEventTypeException (was SerializationException).
+		var ex = Should.Throw<UnknownEventTypeException>(() =>
 			serializer.ResolveType("NonExistent.Type.Name, FakeAssembly"));
-		ex.Message.ShouldContain("Cannot resolve type");
+		ex.Message.ShouldContain("not registered");
 	}
 
 	#endregion

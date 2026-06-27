@@ -30,14 +30,16 @@ internal sealed class EraseEventsRequest : DataRequestBase<IDbConnection, int>
 		var erasureMetadata = $"{{\"erased\":true,\"erasureRequestId\":\"{erasureRequestId}\"}}";
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		// EventType tombstone marker is the centralized framework-controlled constant (closed value, no
+		// injection risk) so all stores and the rehydration path agree on the same discriminator.
 		var sql = $"""
 			UPDATE {qualifiedTable}
 			SET EventData = NULL,
-			    EventType = '$erased',
+			    EventType = '{ErasedEventMarker.EventType}',
 			    Metadata = @ErasureMetadata
 			WHERE AggregateId = @AggregateId
 			  AND AggregateType = @AggregateType
-			  AND EventType <> '$erased'
+			  AND EventType <> '{ErasedEventMarker.EventType}'
 			""";
 #pragma warning restore CA2100
 

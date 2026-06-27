@@ -47,7 +47,7 @@ public sealed class ComplianceVaultBuilderShould : UnitTestBase
     {
         var (builder, options) = CreateBuilder();
         builder.TransitMountPath("secret-transit");
-        options.TransitMountPath.ShouldBe("secret-transit");
+        options.Keys.TransitMountPath.ShouldBe("secret-transit");
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public sealed class ComplianceVaultBuilderShould : UnitTestBase
     {
         var (builder, options) = CreateBuilder();
         builder.KeyNamePrefix("my-app-");
-        options.KeyNamePrefix.ShouldBe("my-app-");
+        options.Keys.KeyNamePrefix.ShouldBe("my-app-");
     }
 
     [Fact]

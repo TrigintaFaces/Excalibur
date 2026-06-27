@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.Redis.Tests" />
+    <InternalsVisibleTo Include="Excalibur.LeaderElection.Tests" />
   </ItemGroup>
   <PropertyGroup>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>

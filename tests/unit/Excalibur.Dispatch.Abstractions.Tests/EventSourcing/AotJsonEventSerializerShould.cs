@@ -131,7 +131,8 @@ public sealed partial class AotJsonEventSerializerShould
 	{
 		var sut = new AotJsonEventSerializer(_registry, _jsonContext);
 
-		var ex = Should.Throw<InvalidOperationException>(() => sut.ResolveType("NonExistent.Event"));
+		// wpynky: strengthened from InvalidOperationException to the specific UnknownEventTypeException.
+		var ex = Should.Throw<UnknownEventTypeException>(() => sut.ResolveType("NonExistent.Event"));
 		ex.Message.ShouldContain("Cannot resolve event type");
 		ex.Message.ShouldContain("NonExistent.Event");
 	}

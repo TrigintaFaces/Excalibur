@@ -33,7 +33,7 @@ public sealed class VaultServiceCollectionExtensionsShould
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<VaultOptions>>().Value;
 		options.VaultUri.ShouldBe(new Uri("http://127.0.0.1:8200"));
-		options.KeyNamePrefix.ShouldBe("unit-");
+		options.Keys.KeyNamePrefix.ShouldBe("unit-");
 	}
 
 	[Fact]
@@ -52,8 +52,8 @@ public sealed class VaultServiceCollectionExtensionsShould
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<VaultOptions>>().Value;
 		options.VaultUri.ShouldBe(new Uri("http://127.0.0.1:18200"));
-		options.TransitMountPath.ShouldBe("custom-transit");
-		options.KeyNamePrefix.ShouldBe("custom-");
+		options.Keys.TransitMountPath.ShouldBe("custom-transit");
+		options.Keys.KeyNamePrefix.ShouldBe("custom-");
 	}
 
 	[Fact]

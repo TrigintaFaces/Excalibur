@@ -2,7 +2,7 @@
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.AppendAsync(string! aggregateId, string! aggregateType, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudAppendResult!>!
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.CloudProvider.get -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
-Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.CosmosDbEventStore(Microsoft.Azure.Cosmos.CosmosClient! cosmosClient, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore!>! logger) -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.CosmosDbEventStore(Microsoft.Azure.Cosmos.CosmosClient! cosmosClient, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore!>! logger, Excalibur.Data.CosmosDb.IChangeFeedCheckpointStore? checkpointStore = null) -> void
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.GetCurrentVersionAsync(string! aggregateId, string! aggregateType, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.GetService(System.Type! serviceType) -> object?
@@ -10,7 +10,7 @@ Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.LoadAsync(string! aggregateI
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.LoadFromVersionAsync(string! aggregateId, string! aggregateType, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, long fromVersion, Excalibur.Data.CloudNative.IConsistencyOptions? consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudEventLoadResult!>!
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.SubscribeToChangesAsync(Excalibur.Data.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.IChangeFeedSubscription<Excalibur.Data.CloudNative.CloudStoredEvent!>!>!
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription
-Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.CosmosDbEventStoreChangeFeedSubscription(Microsoft.Azure.Cosmos.Container! container, Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.CosmosDbEventStoreChangeFeedSubscription(Microsoft.Azure.Cosmos.Container! container, Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions! options, Microsoft.Extensions.Logging.ILogger! logger, Excalibur.Data.CosmosDb.IChangeFeedCheckpointStore? checkpointStore = null) -> void
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.CurrentContinuationToken.get -> string?
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.IsActive.get -> bool
@@ -37,8 +37,6 @@ Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.PartitionKeyPath.set 
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.UseTransactionalBatch.get -> bool
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.UseTransactionalBatch.set -> void
 Excalibur.EventSourcing.CosmosDb.EventSourcingBuilderCosmosDbExtensions
-Microsoft.Extensions.DependencyInjection.CosmosDbTenantShardingExtensions
-static Microsoft.Extensions.DependencyInjection.CosmosDbTenantShardingExtensions.UseCosmosDbTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder
 Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder!
 Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder.Client(Microsoft.Azure.Cosmos.CosmosClient! client) -> Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder!
@@ -47,4 +45,6 @@ Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder.ConnectionString(
 Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder.ContainerName(string! containerName) -> Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder!
 Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder.DatabaseName(string! databaseName) -> Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder!
 Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder.Endpoint(string! endpoint, string! authKey) -> Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder!
+Microsoft.Extensions.DependencyInjection.CosmosDbTenantShardingExtensions
 static Excalibur.EventSourcing.CosmosDb.EventSourcingBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.CosmosDb.ICosmosDbEventSourcingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.CosmosDbTenantShardingExtensions.UseCosmosDbTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

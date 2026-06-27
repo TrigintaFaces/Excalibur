@@ -85,6 +85,9 @@ services.AddDispatch(dispatch =>
 			.Credentials("guest", "guest"));
 });
 
+// c6wd6f: register event types for secure-by-default resolution
+services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 // Register FluentValidation validators from this assembly
 services.AddValidatorsFromAssemblyContaining<CreateOrderValidator>();
 

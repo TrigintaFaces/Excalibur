@@ -367,6 +367,29 @@ public sealed class AesGcmEncryptionProviderShould : IDisposable
 	}
 
 	[Fact]
+	public async Task EncryptAsync_WithSuspendedKey_ThrowsEncryptionException()
+	{
+		// vihqw6 (MS-A7 · SECURITY) — the ENCRYPT half of the block-both contract (SA pin 16538/16541:
+		// KeyStatus.Suspended blocks BOTH ops). Pairs the existing DecryptAsync_WithSuspendedKey test so the
+		// provider-agnostic enforcement is proven symmetric: once a key reports Suspended (via any provider's
+		// GetKey* — the Vault durable-marker gate is proven e2e in VaultKeyProviderIntegrationShould), the
+		// encryptor MUST refuse to encrypt with it, not just decrypt. RED if EncryptAsync omitted the
+		// non-Active status guard.
+		const string keyId = "suspended-encrypt-key";
+		_ = await _keyManagement.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+
+		// Suspend the key (now Suspended via the key-management provider).
+		_ = await _keyManagement.SuspendKeyAsync(keyId, "Security incident", CancellationToken.None);
+
+		// Act & Assert — a suspended key cannot be used to encrypt NEW data.
+		var plaintext = "Test"u8.ToArray();
+		var context = new EncryptionContext { KeyId = keyId };
+		var ex = await Should.ThrowAsync<EncryptionException>(
+			() => _sut.EncryptAsync(plaintext, context, CancellationToken.None));
+		ex.ErrorCode.ShouldBe(EncryptionErrorCode.KeySuspended);
+	}
+
+	[Fact]
 	public async Task EncryptAsync_WithNoActiveKey_ThrowsEncryptionException()
 	{
 		// Arrange - dispose to clear keys, create new provider without auto-generate

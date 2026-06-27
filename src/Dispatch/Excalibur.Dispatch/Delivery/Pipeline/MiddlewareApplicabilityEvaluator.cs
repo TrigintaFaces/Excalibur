@@ -27,7 +27,8 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <item>Freeze transition: ToFrozenDictionary() when cache stabilizes</item>
 /// <item>Frozen phase: FrozenDictionary for zero-sync O(1) lookups</item>
 /// </list>
-/// Call <see cref="FreezeCache"/> after middleware registration is complete (e.g., via UseOptimizedDispatch).
+/// Call <see cref="FreezeCache"/> after middleware registration is complete (automatically after application
+/// startup when dispatch cache optimization is enabled, or manually via <c>IDispatchCacheManager.FreezeAll()</c>).
 /// </para>
 /// </remarks>
 /// <param name="options"> The configuration options. </param>

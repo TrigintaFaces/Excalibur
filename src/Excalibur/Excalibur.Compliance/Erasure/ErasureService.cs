@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -77,6 +78,7 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 	private readonly IOptions<ErasureOptions> _options;
 	private readonly ILogger<ErasureService> _logger;
 	private readonly IEnumerable<IErasureContributor> _contributors;
+	private readonly IPersonalDataAnnotationSource _annotationSource;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ErasureService"/> class.
@@ -96,6 +98,24 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 		ILegalHoldService? legalHoldService,
 		IDataInventoryService? dataInventoryService,
 		IEnumerable<IErasureContributor>? contributors = null)
+		: this(store, keyAdmin, options, logger, legalHoldService, dataInventoryService,
+			IPersonalDataAnnotationSource.CreateDefault(), contributors)
+	{
+	}
+
+	/// <summary>
+	/// Test/internal constructor allowing the <see cref="IPersonalDataAnnotationSource"/> to be injected
+	/// (vxp56x) so the annotated-coverage gate is deterministically verifiable without assembly scanning.
+	/// </summary>
+	internal ErasureService(
+		IErasureStore store,
+		IKeyManagementAdmin keyAdmin,
+		IOptions<ErasureOptions> options,
+		ILogger<ErasureService> logger,
+		ILegalHoldService? legalHoldService,
+		IDataInventoryService? dataInventoryService,
+		IPersonalDataAnnotationSource annotationSource,
+		IEnumerable<IErasureContributor>? contributors = null)
 	{
 		_store = store ?? throw new ArgumentNullException(nameof(store));
 		_keyAdmin = keyAdmin ?? throw new ArgumentNullException(nameof(keyAdmin));
@@ -103,6 +123,7 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_legalHoldService = legalHoldService;
 		_dataInventoryService = dataInventoryService;
+		_annotationSource = annotationSource ?? throw new ArgumentNullException(nameof(annotationSource));
 		_contributors = contributors ?? [];
 	}
 
@@ -469,6 +490,19 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 					+ "no erasure contributor, crypto-shred, or declared exemption covers these locations.");
 			}
 
+			// vxp56x — annotated-but-undiscovered gate: [PersonalData]-annotated categories with no
+			// discovered/registered location mean annotated personal data the inventory never located.
+			// Feeding it into the SAME errors gate makes a "Completed" certificate over silently-skipped
+			// annotated data structurally inexpressible (the Completed branch below requires errors.Count == 0).
+			if (coverage.UncoveredAnnotatedCategories.Count > 0)
+			{
+				errors.Add(
+					"[PersonalData]-annotated personal data was not located by the inventory (categories: "
+					+ $"{string.Join(", ", coverage.UncoveredAnnotatedCategories)}) — register these data locations "
+					+ "(RegisterDataLocationAsync) so erasure can cover them. Erasure is not Completed while "
+					+ "annotated personal data remains undiscovered.");
+			}
+
 			// Determine outcome. Completed is reachable ONLY when there are zero errors AND zero uncovered
 			// locations — the structural invariant: a silent Completed over an uncovered store is inexpressible
 			// because this branch is the only path that does NOT call RecordCompletionAsync.
@@ -531,7 +565,8 @@ public sealed partial class ErasureService : IErasureService, IErasureExecutor
 	private CoverageOutcome EvaluateCoverage(
 		IReadOnlyList<DataLocation> locations,
 		IReadOnlyCollection<string> deletedKeyIds) =>
-		ErasureCoverageEvaluator.Evaluate(locations, deletedKeyIds, _contributors);
+		ErasureCoverageEvaluator.Evaluate(
+			locations, deletedKeyIds, _contributors, _annotationSource.GetAnnotatedCategories());
 
 	/// <summary>
 	/// Computes the SHA-256 hash of a data subject identifier for storage.

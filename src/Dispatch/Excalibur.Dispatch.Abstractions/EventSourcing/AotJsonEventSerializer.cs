@@ -93,7 +93,7 @@ internal sealed class AotJsonEventSerializer : IEventSerializer
 		}
 
 		return _typeRegistry.ResolveType(typeName)
-			?? throw new InvalidOperationException(
+			?? throw new UnknownEventTypeException(
 				$"Cannot resolve event type '{typeName}'. Ensure the type is registered in your " +
 				"EventStoreTypeMap via the [DomainEvent] attribute or explicit registration.");
 	}

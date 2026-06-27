@@ -36,18 +36,22 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 
 		var lockKey = $"{_keyPrefix}locks:{jobKey}";
 		var instanceId = Environment.MachineName + "_" + Environment.ProcessId;
+
+		// The Redis lock VALUE is a unique per-acquisition owner token (a fresh GUID),
+		// NOT the stable instance id. A stable MachineName_ProcessId value cannot
+		// distinguish this acquisition from a later re-acquisition by the same process,
+		// so a stale lock handle could match — and clobber — the new holder's lock. The
+		// per-acquisition token lets release/extend be guarded by an atomic GET==token
+		// compare-and-act (canonical Redlock ownership check). [bd-jqlqc8]
+		var ownerToken = Guid.NewGuid().ToString("N");
 		var expiresAt = DateTimeOffset.UtcNow.Add(lockDuration);
 
-		var lockData = JsonSerializer.Serialize(
-			new RedisLockData(instanceId, DateTimeOffset.UtcNow, expiresAt),
-			RedisJobCoordinatorSerializerContext.Default.RedisLockData);
-
-		var acquired = await _database.StringSetAsync(lockKey, lockData, lockDuration, When.NotExists).ConfigureAwait(false);
+		var acquired = await _database.StringSetAsync(lockKey, ownerToken, lockDuration, When.NotExists).ConfigureAwait(false);
 
 		if (acquired)
 		{
 			_logger.LogDebug("Acquired distributed lock for job {JobKey} by instance {InstanceId}", jobKey, instanceId);
-			return new RedisDistributedJobLock(_database, lockKey, jobKey, instanceId, DateTimeOffset.UtcNow, expiresAt, _logger);
+			return new RedisDistributedJobLock(_database, lockKey, jobKey, instanceId, ownerToken, DateTimeOffset.UtcNow, expiresAt, _logger);
 		}
 
 		_logger.LogDebug("Failed to acquire distributed lock for job {JobKey} by instance {InstanceId}", jobKey, instanceId);

@@ -304,7 +304,11 @@ public static class CdcBuilderPostgresExtensions
 			var optionsValue = options.Value;
 			optionsValue.ConnectionString = connection.ConnectionString;
 
-			return new PostgresCdcProcessor(Options.Create(optionsValue), stateStore, logger);
+			// 14z4ao: wire optional fatal-handoff + shared failure classifier (both no-ops when unregistered).
+			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions<PostgresDataChangeEvent>>>();
+			var failureClassifier = sp.GetService<Excalibur.Dispatch.IMessageFailureClassifier>();
+
+			return new PostgresCdcProcessor(Options.Create(optionsValue), stateStore, logger, fatalErrorOptions, failureClassifier);
 		});
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need

@@ -65,9 +65,9 @@ public static class SecurityServiceCollectionExtensions
 		// Register credential stores (TryAdd = idempotent on repeated calls)
 		services.TryAddSingleton<ICredentialStore, EnvironmentVariableCredentialStore>();
 
-		// Note: Azure Key Vault and AWS Secrets Manager credential stores have been moved to:
-		// - Excalibur.Security.Azure.AddAzureKeyVaultCredentialStore()
-		// - Excalibur.Security.Aws.AddAwsSecretsManagerCredentialStore()
+		// Note: Azure Key Vault and AWS Secrets Manager credential stores live in their own packages:
+		// - Excalibur.Security.Azure: services.AddDispatchSecurityAzure(azure => azure.VaultUri(...).EnableServiceBusValidation())
+		// - Excalibur.Security.Aws: services.AddDispatchSecurityAws(aws => aws.Region(...))
 		// Use those packages for cloud-specific credential management.
 
 		// Add HashiCorp Vault if configured — uses AddSingleton (not TryAdd) because

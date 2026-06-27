@@ -34,6 +34,7 @@ Excalibur.Data.Postgres.Authorization.PostgresGrantStore.DeleteAllActivityGroupG
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.FindUserGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
@@ -60,6 +61,12 @@ Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore.GetMessagesAsync(E
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore.MarkAsReplayedAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore.PostgresDeadLetterStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore!>! logger) -> void
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore.StoreAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Postgres.IPostgresDataBuilder
+Excalibur.Data.Postgres.IPostgresDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
+Excalibur.Data.Postgres.IPostgresDataBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
+Excalibur.Data.Postgres.IPostgresDataBuilder.ConnectionStringName(string! name) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
+Excalibur.Data.Postgres.IPostgresDataBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
+Excalibur.Data.Postgres.IPostgresDataBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
 Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder
 Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder.WithConnectionPooling(bool enabled = true, int minSize = 0, int maxSize = 100) -> Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder!
@@ -429,9 +436,3 @@ virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.Dispose(
 virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.Postgres.IPostgresDataBuilder
-Excalibur.Data.Postgres.IPostgresDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
-Excalibur.Data.Postgres.IPostgresDataBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
-Excalibur.Data.Postgres.IPostgresDataBuilder.ConnectionStringName(string! name) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
-Excalibur.Data.Postgres.IPostgresDataBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
-Excalibur.Data.Postgres.IPostgresDataBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Data.Postgres.IPostgresDataBuilder!

@@ -1110,6 +1110,7 @@ const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.Ses
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.SessionsCleanedUp = 20708 -> int
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.ShutdownHookError = 20119 -> int
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.ShutdownTimeoutExceeded = 20117 -> int
+const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.SubscriberReconnecting = 21000 -> int
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.TopologyRecordingFailed = 20202 -> int
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.TrafficDefaultPolicySet = 20205 -> int
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.TrafficManagerStarted = 20400 -> int
@@ -1131,6 +1132,7 @@ static Excalibur.Dispatch.Transport.Builders.TransportSenderBuilderExtensions.Us
 static Excalibur.Dispatch.Transport.Builders.TransportSenderBuilderExtensions.UseScheduling(this Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder! builder, System.Func<Excalibur.Dispatch.Transport.TransportMessage!, System.DateTimeOffset?>! timeSelector) -> Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder!
 static Excalibur.Dispatch.Transport.Builders.TransportSenderBuilderExtensions.UseTelemetry(this Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder! builder, string! transportName, System.Diagnostics.Metrics.Meter! meter, System.Diagnostics.ActivitySource! activitySource) -> Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder!
 static Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilderExtensions.UseDeadLetterQueue(this Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilder! builder, string! transportName, System.Func<Excalibur.Dispatch.Transport.TransportReceivedMessage!, string?, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! deadLetterHandler, System.Diagnostics.Metrics.Meter? meter = null) -> Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilder!
+static Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilderExtensions.UseReconnect(this Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilder! builder, System.Func<int, System.TimeSpan>! backoffDelay, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory) -> Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilder!
 static Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilderExtensions.UseTelemetry(this Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilder! builder, string! transportName, System.Diagnostics.Metrics.Meter! meter, System.Diagnostics.ActivitySource! activitySource) -> Excalibur.Dispatch.Transport.Builders.TransportSubscriberBuilder!
 static Excalibur.Dispatch.Transport.ChannelConsumeOptions.Default.get -> Excalibur.Dispatch.Transport.ChannelConsumeOptions!
 static Excalibur.Dispatch.Transport.ChannelConsumeOptions.HighThroughput.get -> Excalibur.Dispatch.Transport.ChannelConsumeOptions!

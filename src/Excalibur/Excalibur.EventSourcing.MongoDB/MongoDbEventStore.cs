@@ -574,11 +574,11 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		var filter = Builders<MongoDbEventDocument>.Filter.And(
 			Builders<MongoDbEventDocument>.Filter.Eq(e => e.StreamId, aggregateId),
 			Builders<MongoDbEventDocument>.Filter.Eq(e => e.AggregateType, aggregateType),
-			Builders<MongoDbEventDocument>.Filter.Ne(e => e.EventType, "$erased"));
+			Builders<MongoDbEventDocument>.Filter.Ne(e => e.EventType, ErasedEventMarker.EventType));
 
 		var update = Builders<MongoDbEventDocument>.Update
 			.Set(e => e.Payload, null!)
-			.Set(e => e.EventType, "$erased")
+			.Set(e => e.EventType, ErasedEventMarker.EventType)
 			.Set(e => e.Metadata, null);
 
 		var result = await _eventsCollection!.UpdateManyAsync(filter, update, cancellationToken: cancellationToken)
@@ -598,7 +598,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		var filter = Builders<MongoDbEventDocument>.Filter.And(
 			Builders<MongoDbEventDocument>.Filter.Eq(e => e.StreamId, aggregateId),
 			Builders<MongoDbEventDocument>.Filter.Eq(e => e.AggregateType, aggregateType),
-			Builders<MongoDbEventDocument>.Filter.Eq(e => e.EventType, "$erased"));
+			Builders<MongoDbEventDocument>.Filter.Eq(e => e.EventType, ErasedEventMarker.EventType));
 
 		var count = await _eventsCollection!.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
 			.ConfigureAwait(false);

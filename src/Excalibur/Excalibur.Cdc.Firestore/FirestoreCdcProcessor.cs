@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
 using Excalibur.Cdc.Diagnostics;
+using Excalibur.Dispatch;
 
 using Google.Cloud.Firestore;
 
@@ -46,6 +47,13 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 	private volatile bool _isRunning;
 	private volatile bool _disposed;
 
+	// 14z4ao: optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
+	// silently propagating a raw exception (ADR-338). _onFatalError receives the in-flight event for a
+	// per-event fatal, or null for a connection/listener-level fatal.
+	private readonly CdcFatalErrorHandler<FirestoreDataChangeEvent>? _onFatalError;
+	private readonly IMessageFailureClassifier? _failureClassifier;
+	private FirestoreDataChangeEvent? _inFlightEvent;
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FirestoreCdcProcessor"/> class.
 	/// </summary>
@@ -53,11 +61,21 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 	/// <param name="options">The CDC options.</param>
 	/// <param name="stateStore">The state store for position persistence.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="fatalErrorOptions">
+	/// Optional fatal-error handling. When omitted (or its handler is <see langword="null"/>), a fatal
+	/// error rethrows and stops the processor (fail-loud — never a silent infinite retry).
+	/// </param>
+	/// <param name="failureClassifier">
+	/// Optional shared classifier deciding whether a processing error is fatal (non-retryable) or
+	/// transient. When omitted, a conservative built-in fallback is used.
+	/// </param>
 	public FirestoreCdcProcessor(
 		FirestoreDb db,
 		IOptions<FirestoreCdcOptions> options,
 		IFirestoreCdcStateStore stateStore,
-		ILogger<FirestoreCdcProcessor> logger)
+		ILogger<FirestoreCdcProcessor> logger,
+		IOptions<CdcFatalErrorOptions<FirestoreDataChangeEvent>>? fatalErrorOptions = null,
+		IMessageFailureClassifier? failureClassifier = null)
 	{
 		ArgumentNullException.ThrowIfNull(db);
 		ArgumentNullException.ThrowIfNull(options);
@@ -71,6 +89,8 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 		_options = resolvedOptions;
 		_stateStore = stateStore;
 		_logger = logger;
+		_onFatalError = fatalErrorOptions?.Value.OnFatalError;
+		_failureClassifier = failureClassifier;
 		_currentPosition = FirestoreCdcPosition.Beginning(resolvedOptions.CollectionPath);
 
 		_channel = Channel.CreateBounded<FirestoreDataChangeEvent>(
@@ -443,7 +463,13 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 
 					try
 					{
+						// Track the in-flight event so a fatal raised by the handler is attributed to it. The
+						// durable checkpoint advance (ConfirmPositionAsync) is per-event and runs ONLY after a
+						// successful handoff, so a handler throw skips it — the failed event's position is never
+						// durably confirmed (at-least-once; re-delivered on restart).
+						_inFlightEvent = changeEvent;
 						await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+						_inFlightEvent = null;
 						batchCount++;
 
 						// Update position
@@ -455,9 +481,27 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 						// Auto-confirm position after each successful event
 						await ConfirmPositionAsync(changeEvent.Position, cancellationToken).ConfigureAwait(false);
 					}
+					catch (Exception ex) when (CdcFatalGuard.Decide(ex, _failureClassifier).Stop)
+					{
+						// 14z4ao: a fatal (non-retryable) error — stop loud. ConfirmPositionAsync did NOT run for
+						// this event (the throw is before it on the success path), so the durable checkpoint is
+						// never advanced past the failing change.
+						LogProcessingError(_options.ProcessorName, changeEvent.DocumentId, ex);
+						LogFatalError(ex);
+
+						if (_onFatalError is not null)
+						{
+							// In-flight event for a per-event fatal; null for a listener/connection-level fatal.
+							await _onFatalError(ex, _inFlightEvent).ConfigureAwait(false);
+							return; // handler took over → terminal; stop the consumer loop (no reconnect).
+						}
+
+						throw; // default: fail-loud — propagate and stop.
+					}
 					catch (Exception ex)
 					{
 						LogProcessingError(_options.ProcessorName, changeEvent.DocumentId, ex);
+						_inFlightEvent = null;
 						throw;
 					}
 				}

@@ -204,14 +204,16 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 
 	/// <summary>
 	/// Tests the behavior when saving an older version over a newer version.
-	/// Documents the actual MERGE (upsert) semantics of SqlServerSnapshotStore.
+	/// Verifies the highest-version-wins MERGE semantics of SqlServerSnapshotStore.
 	/// </summary>
 	/// <remarks>
 	/// Sprint 214 - bd-6c8qw: Extended test 2 of 5.
-	/// Current implementation uses last-write-wins semantics.
+	/// Updated S854: the MERGE guard <c>WHEN MATCHED AND source.Version &gt; target.Version</c>
+	/// (impl 2b615bc8c, beads ul45wp/7cc9tu/kvl54c/l8by0s) rejects an older-version write so a
+	/// snapshot is never regressed to a stale version — highest-version-wins, not last-write-wins.
 	/// </remarks>
 	[Fact]
-	public async Task SaveOlderVersion_WhenNewerExists_ReplacesWithLastWrite()
+	public async Task SaveOlderVersion_WhenNewerExists_KeepsNewerVersion()
 	{
 		// Arrange
 		await InitializeSnapshotTableAsync();
@@ -223,14 +225,14 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 
 		await store.SaveSnapshotAsync(snapshotV10, TestCancellationToken);
 
-		// Act - Save older version (last-write-wins behavior)
+		// Act - Attempt to save an OLDER version over the newer one.
 		await store.SaveSnapshotAsync(snapshotV5, TestCancellationToken);
 		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
-		// Assert - Documents current MERGE behavior: last write wins
+		// Assert - Highest-version-wins: the older write is rejected, the newer snapshot is preserved.
 		_ = loaded.ShouldNotBeNull();
-		loaded.Version.ShouldBe(5, "Current impl uses last-write-wins (MERGE upsert)");
-		System.Text.Encoding.UTF8.GetString(loaded.Data.Span).ShouldBe("state-v5");
+		loaded.Version.ShouldBe(10, "MERGE guard 'source.Version > target.Version' rejects the older write");
+		System.Text.Encoding.UTF8.GetString(loaded.Data.Span).ShouldBe("state-v10");
 	}
 
 	/// <summary>

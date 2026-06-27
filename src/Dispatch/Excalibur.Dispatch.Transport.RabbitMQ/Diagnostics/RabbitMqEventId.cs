@@ -309,6 +309,9 @@ public static class RabbitMqEventId
 	/// <summary>Transport sender: disposed.</summary>
 	public const int TransportSenderDisposed = 21803;
 
+	/// <summary>Transport sender: message returned by the broker as unroutable (mandatory publish).</summary>
+	public const int TransportSenderMessageReturned = 21804;
+
 	/// <summary>Transport receiver: message received.</summary>
 	public const int TransportReceiverMessageReceived = 21810;
 

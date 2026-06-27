@@ -146,6 +146,11 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 		{
 			s.Index(_indexName);
 
+			// Apply the caller-supplied filters. Previously this parameter was ignored and the whole
+			// index was returned regardless of filters (MS-A5 silent-wrong-results bug). Empty/null
+			// filters match all (BuildQuery handles that).
+			s.Query(BuildQuery(filters));
+
 			if (options?.Take > 0)
 			{
 				s.Size(options.Take.Value);
@@ -177,10 +182,37 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 		await EnsureIndexAsync(cancellationToken).ConfigureAwait(false);
 
 		var response = await _client.CountAsync<TProjection>(
-			c => c.Index(_indexName),
+			c => c.Index(_indexName).Query(BuildQuery(filters)),
 			cancellationToken).ConfigureAwait(false);
 
 		return response.Count;
+	}
+
+	// Translates the caller's filter dictionary into an OpenSearch query. Empty/null filters match all;
+	// otherwise every (field, value) pair becomes an exact-match term, AND-combined (bool must). String
+	// values target the `.keyword` sub-field produced by dynamic mapping (a term query against the
+	// analyzed text field would not match an exact value) — mirroring the ES projection store's
+	// GetExactMatchFieldName semantics.
+	private static Func<QueryContainerDescriptor<TProjection>, QueryContainer> BuildQuery(
+		IDictionary<string, object>? filters)
+	{
+		if (filters is null || filters.Count == 0)
+		{
+			return static q => q.MatchAll();
+		}
+
+		return q =>
+		{
+			QueryContainer? query = null;
+
+			foreach (var filter in filters)
+			{
+				var fieldName = filter.Value is string ? $"{filter.Key}.keyword" : filter.Key;
+				query &= q.Term(t => t.Field(fieldName).Value(filter.Value));
+			}
+
+			return query ?? q.MatchAll();
+		};
 	}
 
 	private static string GetIndexName(OpenSearchProjectionStoreOptions opts)

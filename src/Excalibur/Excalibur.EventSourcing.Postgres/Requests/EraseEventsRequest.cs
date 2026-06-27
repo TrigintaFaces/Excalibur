@@ -33,11 +33,11 @@ internal sealed class EraseEventsRequest : DataRequestBase<IDbConnection, int>
 		var sql = $"""
 			UPDATE {qualifiedTable}
 			SET event_data = NULL,
-			    event_type = '$erased',
+			    event_type = @ErasedMarker,
 			    metadata = @ErasureMetadata::jsonb
 			WHERE aggregate_id = @AggregateId
 			  AND aggregate_type = @AggregateType
-			  AND event_type <> '$erased'
+			  AND event_type <> @ErasedMarker
 			""";
 #pragma warning restore CA2100
 
@@ -45,6 +45,9 @@ internal sealed class EraseEventsRequest : DataRequestBase<IDbConnection, int>
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@ErasureMetadata", erasureMetadata);
+		// cm4108: single source of truth for the erased-event sentinel (avoids a latent GDPR-erasure
+		// desync if the marker value changes). Parameterized (not inlined) so the SQL stays injection-clean.
+		parameters.Add("@ErasedMarker", ErasedEventMarker.EventType);
 
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 

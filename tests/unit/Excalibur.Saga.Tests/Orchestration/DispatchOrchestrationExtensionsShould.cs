@@ -33,7 +33,7 @@ public sealed class DispatchOrchestrationExtensionsShould
 	}
 
 	[Fact]
-	public void RegisterSagaStore()
+	public void NotRegisterSagaStoreImplicitly()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -41,15 +41,27 @@ public sealed class DispatchOrchestrationExtensionsShould
 		// Act
 		services.AddExcaliburOrchestration();
 
-		// Assert - verify keyed registration exists for ISagaStore
-		var descriptor = services.FirstOrDefault(d =>
-			d.ServiceType == typeof(ISagaStore) && d.IsKeyedService);
-		descriptor.ShouldNotBeNull();
+		// Assert (iuv3s1) - the in-memory store is NOT registered implicitly. RED on the pre-fix code,
+		// which registered a keyed ISagaStore "default" + InMemorySagaStore here (the silent unsafe default).
+		services.ShouldNotContain(d => d.ServiceType == typeof(ISagaStore) && d.IsKeyedService);
+		services.ShouldNotContain(d => d.ServiceType == typeof(InMemorySagaStore));
+	}
 
-		// Verify the concrete InMemorySagaStore is also registered
+	[Fact]
+	public void RegisterPrerequisiteValidatorThatFailsFastWithoutAStore()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act
+		services.AddExcaliburOrchestration();
+
+		// Assert (iuv3s1) - a startup IHostedService prerequisite validator is registered so a missing
+		// saga store fails loud at host start instead of silently binding in-memory.
 		services.ShouldContain(d =>
-			d.ServiceType == typeof(InMemorySagaStore) &&
-			d.Lifetime == ServiceLifetime.Singleton);
+			d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
+			d.ImplementationType != null &&
+			d.ImplementationType.Name == "SagaPrerequisiteValidator");
 	}
 
 	[Fact]
@@ -84,7 +96,7 @@ public sealed class DispatchOrchestrationExtensionsShould
 	}
 
 	[Fact]
-	public void RegisterServicesAsSingleton()
+	public void RegisterCoordinatorAsSingleton()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -92,36 +104,33 @@ public sealed class DispatchOrchestrationExtensionsShould
 		// Act
 		services.AddExcaliburOrchestration();
 
-		// Assert - verify singleton lifetime for keyed ISagaStore
-		var storeDescriptor = services.FirstOrDefault(d =>
-			d.ServiceType == typeof(ISagaStore) && d.IsKeyedService);
-		storeDescriptor.ShouldNotBeNull();
-		storeDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
-
+		// Assert - the coordinator is a singleton. (The store is no longer registered here — iuv3s1;
+		// its lifetime is asserted in SagaDefaultStoreRegistrationShould for the explicit opt-in.)
 		var coordinatorDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ISagaCoordinator));
 		coordinatorDescriptor.ShouldNotBeNull();
 		coordinatorDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
 	[Fact]
-	public void NotOverrideExistingSagaStore()
+	public void BeStoreNeutral_NeitherRegisteringNorOverridingASagaStore()
 	{
-		// Arrange
+		// Arrange — a consumer-supplied persistent "default" store.
 		var services = new ServiceCollection();
 		var fakeSagaStore = A.Fake<ISagaStore>();
-		// Pre-register a keyed "default" ISagaStore to prevent override
 		services.AddKeyedSingleton<ISagaStore>("default", fakeSagaStore);
 
 		// Act
 		services.AddExcaliburOrchestration();
 
-		// Assert - the "default" keyed registration should still be the original fake
+		// Assert (iuv3s1) - orchestration is store-neutral: it neither registers its own InMemory default
+		// nor adds a competing "default", so the consumer's persistent store remains the sole "default".
 		var defaultDescriptors = services.Where(d =>
 			d.ServiceType == typeof(ISagaStore) &&
 			d.IsKeyedService &&
 			Equals(d.ServiceKey, "default")).ToList();
 		defaultDescriptors.Count.ShouldBe(1);
 		defaultDescriptors[0].KeyedImplementationInstance.ShouldBeSameAs(fakeSagaStore);
+		services.ShouldNotContain(d => d.ServiceType == typeof(InMemorySagaStore));
 	}
 
 	[Fact]

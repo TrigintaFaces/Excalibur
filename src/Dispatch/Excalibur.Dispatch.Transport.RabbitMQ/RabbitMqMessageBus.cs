@@ -82,7 +82,7 @@ internal sealed partial class RabbitMqMessageBus(
 		if (!string.IsNullOrEmpty(traceParent))
 		{
 			props.Headers ??= new Dictionary<string, object?>(StringComparer.Ordinal);
-			props.Headers["trace-parent"] = Encoding.UTF8.GetBytes(traceParent);
+			props.Headers["traceparent"] = Encoding.UTF8.GetBytes(traceParent);
 		}
 
 		ApplyPersistence(props);
@@ -119,7 +119,7 @@ internal sealed partial class RabbitMqMessageBus(
 		if (!string.IsNullOrEmpty(traceParent))
 		{
 			props.Headers ??= new Dictionary<string, object?>(StringComparer.Ordinal);
-			props.Headers["trace-parent"] = Encoding.UTF8.GetBytes(traceParent);
+			props.Headers["traceparent"] = Encoding.UTF8.GetBytes(traceParent);
 		}
 
 		ApplyPersistence(props);
@@ -156,7 +156,7 @@ internal sealed partial class RabbitMqMessageBus(
 		if (!string.IsNullOrEmpty(traceParent))
 		{
 			props.Headers ??= new Dictionary<string, object?>(StringComparer.Ordinal);
-			props.Headers["trace-parent"] = Encoding.UTF8.GetBytes(traceParent);
+			props.Headers["traceparent"] = Encoding.UTF8.GetBytes(traceParent);
 		}
 
 		ApplyPersistence(props);

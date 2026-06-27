@@ -47,6 +47,12 @@ internal sealed class MongoDbSagaDocument
 	public bool IsCompleted { get; set; }
 
 	/// <summary>
+	/// Gets or sets the optimistic-concurrency version of the persisted saga state.
+	/// </summary>
+	[BsonElement("version")]
+	public long Version { get; set; }
+
+	/// <summary>
 	/// Gets or sets when the document was created.
 	/// </summary>
 	[BsonElement("createdUtc")]

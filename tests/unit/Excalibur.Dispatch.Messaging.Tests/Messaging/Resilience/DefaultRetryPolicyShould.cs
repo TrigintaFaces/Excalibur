@@ -861,30 +861,33 @@ public sealed class DefaultRetryPolicyShould
 	#region Derived Exception Type Tests
 
 	[Fact]
-	public async Task RetryDerivedExceptionTypes_WhenBaseIsRetriable()
+	public async Task NotRetryDerivedPermanentException_ClassifiedViaBaseType()
 	{
-		// Arrange
+		// S851 (shu41d / ADR-338): with no explicit filter, DefaultRetryPolicy now defers to the shared
+		// failure classifier — only Transient failures are retried; Permanent/Poison are abandoned
+		// immediately (DefaultRetryPolicy.cs:167-171). ArgumentNullException derives from ArgumentException,
+		// which the classifier maps to Permanent via is-a matching, so it must NOT be retried.
+		// (Pre-S851 the default retried all non-cancellation exceptions — that contract changed.)
 		var options = new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 3,
 			Backoff = { BaseDelay = TimeSpan.FromMilliseconds(5) },
 		};
-		// Note: RetriableExceptions check uses exact type matching, not inheritance
-		// So ArgumentNullException (derived from ArgumentException) won't match ArgumentException
 
 		var policy = CreatePolicy(options);
 		var executionCount = 0;
 
-		// Act - With default settings (no specific retriable list), should retry
+		// Act — a derived Permanent exception with no explicit retriable filter configured.
 		_ = await Should.ThrowAsync<ArgumentNullException>(async () =>
 			await policy.ExecuteAsync<string>(ct =>
 			{
 				executionCount++;
-				throw new ArgumentNullException("param", "Derived exception");
+				throw new ArgumentNullException("param", "Derived permanent exception");
 			}, CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 
-		// With default settings (empty retriable list), all non-cancellation exceptions are retried
-		executionCount.ShouldBe(3);
+		// Permanent (classified via the ArgumentException base) ⇒ abandoned immediately, executed exactly
+		// once. Non-vacuous: a regression to the old retry-all default would execute MaxRetryAttempts (3).
+		executionCount.ShouldBe(1);
 	}
 
 	#endregion Derived Exception Type Tests

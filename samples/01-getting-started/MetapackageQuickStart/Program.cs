@@ -79,6 +79,9 @@ else
 	});
 }
 
+// c6wd6f: register event types for secure-by-default resolution
+builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
+
 var app = builder.Build();
 
 app.MapGet("/", () => Results.Text(

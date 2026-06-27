@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 using Excalibur.Data.CloudNative;
+using Excalibur.Data.CosmosDb;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,8 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 	private readonly Container _container;
 	private readonly CosmosDbEventStoreOptions _options;
 	private readonly ILogger _logger;
+	private readonly IChangeFeedCheckpointStore? _checkpointStore;
+	private readonly string _checkpointKey;
 	private readonly CancellationTokenSource _cts = new();
 	private readonly Channel<IChangeFeedEvent<CloudStoredEvent>> _channel;
 
@@ -34,15 +37,24 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 	/// <param name="container">The Cosmos DB container.</param>
 	/// <param name="options">The event store options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="checkpointStore">
+	/// Optional durable checkpoint store. When supplied, the continuation token is loaded on start and
+	/// persisted after each batch so the subscription resumes across restarts instead of replaying the
+	/// whole feed from the beginning. When <see langword="null"/> (default), behavior is unchanged. See bd-egwtku.
+	/// </param>
 	public CosmosDbEventStoreChangeFeedSubscription(
 		Container container,
 		CosmosDbEventStoreOptions options,
-		ILogger logger)
+		ILogger logger,
+		IChangeFeedCheckpointStore? checkpointStore = null)
 	{
 		_container = container ?? throw new ArgumentNullException(nameof(container));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_checkpointStore = checkpointStore;
 
+		// Stable, restart-invariant checkpoint key (NOT SubscriptionId, which carries a per-process Guid).
+		_checkpointKey = $"cosmos-eventstore-{container.Id}";
 		SubscriptionId = $"cosmos-eventstore-{Guid.NewGuid():N}";
 
 		_channel = Channel.CreateBounded<IChangeFeedEvent<CloudStoredEvent>>(
@@ -64,25 +76,35 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 	public string? CurrentContinuationToken => _continuationToken;
 
 	/// <inheritdoc/>
-	public Task StartAsync(CancellationToken cancellationToken)
+	public async Task StartAsync(CancellationToken cancellationToken)
 	{
 		if (_disposed)
 		{
 			throw new ObjectDisposedException(nameof(CosmosDbEventStoreChangeFeedSubscription));
 		}
 
+		// Resume from the durable checkpoint (if configured) instead of always replaying from the
+		// beginning of the feed on every restart (the "continuation lost on restart" bug — bd-egwtku).
+		if (_checkpointStore is not null)
+		{
+			_continuationToken =
+				await _checkpointStore.LoadAsync(_checkpointKey, cancellationToken).ConfigureAwait(false);
+		}
+
+		var startFrom = !string.IsNullOrEmpty(_continuationToken)
+			? ChangeFeedStartFrom.ContinuationToken(_continuationToken)
+			: ChangeFeedStartFrom.Beginning();
+
 		var changeFeedOptions = new ChangeFeedRequestOptions { PageSizeHint = _options.MaxBatchSize };
 
 		_feedIterator = _container.GetChangeFeedIterator<EventDocument>(
-			ChangeFeedStartFrom.Beginning(),
+			startFrom,
 			ChangeFeedMode.LatestVersion,
 			changeFeedOptions);
 
 		_isActive = true;
 
 		_ = PollChangeFeedAsync(_cts.Token);
-
-		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc/>
@@ -139,9 +161,25 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 				shouldBreak = true;
 			}
 
+			string? lastProcessedToken = null;
 			foreach (var item in items)
 			{
 				yield return item;
+
+				// Track the continuation token of the event the consumer has now processed (pulled).
+				if (!string.IsNullOrEmpty(item.ContinuationToken))
+				{
+					lastProcessedToken = item.ContinuationToken;
+				}
+			}
+
+			// Persist the checkpoint AFTER the consumer has processed the drained batch, so durable
+			// continuation reflects CONSUMER progress (at-least-once) — never the producer's channel
+			// read-ahead. No-op when no store is configured (prior in-memory-only behavior). bd-ydln24.
+			if (_checkpointStore is not null && !string.IsNullOrEmpty(lastProcessedToken))
+			{
+				await _checkpointStore.SaveAsync(_checkpointKey, lastProcessedToken, linkedToken)
+					.ConfigureAwait(false);
 			}
 
 			if (shouldBreak)
@@ -211,6 +249,11 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 						await _channel.Writer.WriteAsync(feedEvent, cancellationToken).ConfigureAwait(false);
 					}
 
+					// Track the producer's Cosmos read position in memory only (drives the iterator reset
+					// below). The DURABLE checkpoint is persisted on the CONSUMER side (ReadChangesAsync),
+					// after the consumer has actually processed the events — NOT here, where the events have
+					// only been written to the in-memory channel. Persisting producer read-ahead would lose
+					// channel-buffered events on a crash (at-most-once). bd-ydln24 / SA seam 17195.
 					_continuationToken = response.ContinuationToken;
 				}
 

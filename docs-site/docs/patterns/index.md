@@ -239,9 +239,20 @@ services.AddHealthChecks()
     .AddOutboxHealthCheck();
 
 // Metrics (via OpenTelemetry)
-// - dispatch.outbox.pending_count
-// - dispatch.outbox.processing_time
-// - dispatch.outbox.retry_count
+// Background-processor meter: "Excalibur.Dispatch.BackgroundServices"
+//   (tagged service.type=outbox)
+// - excalibur.background_service.messages_processed  (tags: service.type, operation)
+// - excalibur.background_service.messages_failed     (tags: service.type, operation)
+// - excalibur.background_service.processing_duration (tag:  service.type)
+// - excalibur.background_service.processing_cycles   (tags: service.type, result)
+// - excalibur.background_service.processing_errors   (tags: service.type, error.type)
+// Outbox-store meter: "Excalibur.Outbox.Store"
+// - excalibur.outbox.store.operations         (counter)
+// - excalibur.outbox.store.operation_duration (histogram, ms)
+// - excalibur.outbox.store.messages           (counter)
+//
+// Register the meters: m.AddMeter(BackgroundServiceMetrics.MeterName)
+//                      m.AddMeter(TelemetryOutboxStoreDecorator.MeterName)
 ```
 
 ### Inbox Monitoring
@@ -250,10 +261,9 @@ services.AddHealthChecks()
 services.AddHealthChecks()
     .AddInboxHealthCheck();
 
-// Metrics
-// - dispatch.inbox.duplicate_count
-// - dispatch.inbox.processed_count
-// - dispatch.inbox.storage_size
+// Metrics (via OpenTelemetry)
+// - dispatch.inbox.processed     (tags: inbox.result {success|failure|error}, inbox.mode {full|light})
+// - dispatch.inbox.deduplicated  (tags: inbox.disposition {duplicate|timeout-reset}, inbox.mode {full|light})
 ```
 
 ## In This Section

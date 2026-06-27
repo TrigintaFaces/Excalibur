@@ -231,14 +231,21 @@ public sealed class SpanEventSerializer : IEventSerializer
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
-		Justification = "Delegates to the shared type resolver; type metadata is preserved through event store infrastructure.")]
 	public Type ResolveType(string typeName)
 	{
 		ArgumentNullException.ThrowIfNull(typeName);
 
-		return TypeResolution.TypeResolver.ResolveType(typeName)
-			   ?? throw new SerializationException($"Cannot resolve type: {typeName}");
+		// wpynky / S-E: resolve ONLY via the registered allow-list (no unbounded AppDomain.GetAssemblies()
+		// scan), so an unregistered/attacker-chosen type name cannot be deserialized — the gadget-chain
+		// vector is inexpressible. Registered types resolve identically under JIT and AOT.
+		if (TypeResolution.TypeResolverRegistry.TryResolveType(typeName, out var type) && type is not null)
+		{
+			return type;
+		}
+
+		throw new UnknownEventTypeException(
+			$"Cannot resolve event type '{typeName}': it is not registered. Register the type with the " +
+			"event type map / source generator (the allow-list) so it can be resolved safely.");
 	}
 
 	#endregion IEventSerializer - byte[] and type resolution methods

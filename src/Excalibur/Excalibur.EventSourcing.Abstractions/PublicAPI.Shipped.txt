@@ -59,6 +59,7 @@ Excalibur.EventSourcing.CursorPagedResult<T>.PreviousCursor.init -> void
 Excalibur.EventSourcing.CursorPagedResult<T>.TotalPages.get -> int
 Excalibur.EventSourcing.CursorPagedResult<T>.TotalRecords.get -> long
 Excalibur.EventSourcing.CursorPagedResult<T>.TotalRecords.init -> void
+Excalibur.EventSourcing.ErasedEventMarker
 Excalibur.EventSourcing.EventNotificationContext
 Excalibur.EventSourcing.EventNotificationContext.AggregateId.get -> string!
 Excalibur.EventSourcing.EventNotificationContext.AggregateId.init -> void
@@ -192,6 +193,8 @@ Excalibur.EventSourcing.ISnapshotUpgrader.Upgrade(byte[]! oldSnapshotData) -> by
 Excalibur.EventSourcing.ITenantFilteredEventStore
 Excalibur.EventSourcing.ITenantFilteredEventStore.AppendByTenantAsync(string! aggregateId, string! aggregateType, string! tenantId, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>
 Excalibur.EventSourcing.ITenantFilteredEventStore.LoadByTenantAsync(string! aggregateId, string! aggregateType, string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
+Excalibur.EventSourcing.ITransactionalEventStore
+Excalibur.EventSourcing.ITransactionalEventStore.AppendWithOutboxStagingAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Func<System.Data.IDbTransaction!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! stageOutbox, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>
 Excalibur.EventSourcing.IVersionedProjectionStore<TProjection>
 Excalibur.EventSourcing.IVersionedProjectionStore<TProjection>.GetVersionedAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.VersionedProjection<TProjection!>?>!
 Excalibur.EventSourcing.IVersionedProjectionStore<TProjection>.UpsertVersionedAsync(string! id, TProjection! projection, long? expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -309,6 +312,7 @@ Excalibur.EventSourcing.VersionedProjection<TProjection>
 Excalibur.EventSourcing.VersionedProjection<TProjection>.Projection.get -> TProjection
 Excalibur.EventSourcing.VersionedProjection<TProjection>.Version.get -> long
 Excalibur.EventSourcing.VersionedProjection<TProjection>.VersionedProjection(TProjection projection, long version) -> void
+const Excalibur.EventSourcing.ErasedEventMarker.EventType = "$erased" -> string!
 static Excalibur.EventSourcing.AppendResult.CreateConcurrencyConflict(long expectedVersion, long actualVersion) -> Excalibur.EventSourcing.AppendResult!
 static Excalibur.EventSourcing.AppendResult.CreateFailure(string! errorMessage) -> Excalibur.EventSourcing.AppendResult!
 static Excalibur.EventSourcing.AppendResult.CreateSuccess(long nextExpectedVersion, long firstEventPosition) -> Excalibur.EventSourcing.AppendResult!

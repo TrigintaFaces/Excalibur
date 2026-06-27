@@ -148,8 +148,6 @@ Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.GetMetrics() -> E
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.GracefulDegradationService(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService!>! logger) -> void
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.SetLevel(Excalibur.Dispatch.Resilience.Polly.DegradationLevel level, string! reason) -> void
 Excalibur.Dispatch.Resilience.Polly.HealthMetrics
-Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ActiveConnections.get -> int
-Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ActiveConnections.init -> void
 Excalibur.Dispatch.Resilience.Polly.HealthMetrics.CpuUsagePercent.get -> double
 Excalibur.Dispatch.Resilience.Polly.HealthMetrics.CpuUsagePercent.init -> void
 Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ErrorRate.get -> double
@@ -157,8 +155,6 @@ Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ErrorRate.init -> void
 Excalibur.Dispatch.Resilience.Polly.HealthMetrics.HealthMetrics() -> void
 Excalibur.Dispatch.Resilience.Polly.HealthMetrics.MemoryUsagePercent.get -> double
 Excalibur.Dispatch.Resilience.Polly.HealthMetrics.MemoryUsagePercent.init -> void
-Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ResponseTimeMs.get -> double
-Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ResponseTimeMs.init -> void
 Excalibur.Dispatch.Resilience.Polly.HealthMetrics.Timestamp.get -> System.DateTimeOffset
 Excalibur.Dispatch.Resilience.Polly.HealthMetrics.Timestamp.init -> void
 Excalibur.Dispatch.Resilience.Polly.HedgingOptions

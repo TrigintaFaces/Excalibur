@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Excalibur.Data.CloudNative;
+using Excalibur.Data.CosmosDb;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch.Diagnostics;
 
@@ -32,6 +33,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 	private readonly CosmosDbOutboxOptions _options;
 	private readonly ILogger<CosmosDbOutboxStore> _logger;
+	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 
 	private CosmosClient? _client;
@@ -45,12 +47,20 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 	/// </summary>
 	/// <param name="options">The Cosmos DB outbox options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="checkpointStore">
+	/// Optional durable change-feed checkpoint store (DI-supplied; the registered
+	/// <see cref="IChangeFeedCheckpointStore"/> — in-memory default or the durable Cosmos store when the
+	/// consumer opts in). Flowed into the outbox change-feed subscription so continuation survives restarts.
+	/// <see langword="null"/> only for manual construction without DI (in-memory-only). See bd-egwtku / bd-ydln24.
+	/// </param>
 	public CosmosDbOutboxStore(
 		IOptions<CosmosDbOutboxOptions> options,
-		ILogger<CosmosDbOutboxStore> logger)
+		ILogger<CosmosDbOutboxStore> logger,
+		IChangeFeedCheckpointStore? checkpointStore = null)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_checkpointStore = checkpointStore;
 		_options.Validate();
 	}
 
@@ -581,7 +591,8 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			subscription = new CosmosDbOutboxChangeFeedSubscription(
 				_container!,
 				options ?? ChangeFeedOptions.Default,
-				_logger);
+				_logger,
+				_checkpointStore);
 
 			await subscription.StartAsync(cancellationToken).ConfigureAwait(false);
 			return subscription;

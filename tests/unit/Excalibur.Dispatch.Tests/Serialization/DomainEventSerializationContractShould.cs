@@ -30,6 +30,16 @@ public sealed class DomainEventSerializationContractShould
 		return new JsonEventSerializer(options);
 	}
 
+	// wpynky: the reflection assembly scan is OFF by default. Type-resolution contract tests that rely
+	// on scanning a loaded (but unregistered) type opt in explicitly; the secure default is locked in
+	// EventSerializerUnregisteredTypeRejectionShould.
+	[SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code")]
+	[SuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Test code")]
+	private static JsonEventSerializer CreateScanningSerializer(JsonSerializerOptions? options = null)
+	{
+		return new JsonEventSerializer(options, allowAssemblyScan: true);
+	}
+
 	#region Round-Trip: All IDomainEvent Properties Preserved
 
 	[Fact]
@@ -397,11 +407,12 @@ public sealed class DomainEventSerializationContractShould
 	[Fact]
 	public void ResolveType_ForKnownDomainEvent()
 	{
-		// Arrange
-		var typeName = serializer.GetTypeName(typeof(SimpleContractEvent));
+		// Arrange — scan opt-in: resolving an unregistered loaded type uses the assembly-scan path.
+		var scanningSerializer = CreateScanningSerializer();
+		var typeName = scanningSerializer.GetTypeName(typeof(SimpleContractEvent));
 
 		// Act
-		var resolved = serializer.ResolveType(typeName);
+		var resolved = scanningSerializer.ResolveType(typeName);
 
 		// Assert
 		resolved.ShouldBe(typeof(SimpleContractEvent));
@@ -429,8 +440,8 @@ public sealed class DomainEventSerializationContractShould
 	[Fact]
 	public void ThrowOnUnknownTypeName_WhenResolving()
 	{
-		// Act & Assert
-		Should.Throw<InvalidOperationException>(() =>
+		// Act & Assert — wpynky: strengthened to the specific UnknownEventTypeException (secure default).
+		Should.Throw<UnknownEventTypeException>(() =>
 			serializer.ResolveType("NonExistent.Type.That.Does.Not.Exist"));
 	}
 

@@ -45,8 +45,8 @@ var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Information));
 services.AddMetrics();
 
-// Add event serializer (required for event sourcing)
-services.AddSingleton<IEventSerializer, JsonEventSerializer>();
+// c6wd6f: register event types for secure-by-default resolution
+services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // Add Excalibur event sourcing with in-memory event store and inline projections.
 // The AddProjection<T>() API registers projections that run automatically during

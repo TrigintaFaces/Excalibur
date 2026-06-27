@@ -168,9 +168,10 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 	private static Dictionary<string, object> CreateMessageHeaders(
 		OutboxContext outboxContext,
 		OutboundMessageRequest outboundMessage,
-		string? traceParent)
+		string? traceParent,
+		string? baggage)
 	{
-		var headers = new Dictionary<string, object>(capacity: 7, comparer: StringComparer.Ordinal)
+		var headers = new Dictionary<string, object>(capacity: 8, comparer: StringComparer.Ordinal)
 		{
 			["MessageType"] = outboundMessage.Message.GetType().AssemblyQualifiedName ?? outboundMessage.Message.GetType().Name,
 			["SourceMessageType"] = outboxContext.SourceMessageType,
@@ -200,7 +201,34 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 			headers["traceparent"] = traceParent;
 		}
 
+		// FR-B5 (r4nd4w): persist the W3C baggage so the staged envelope carries the producer's baggage
+		// context, symmetric with the traceparent capture above. Additive and only written when present;
+		// no baggage => no header.
+		if (!string.IsNullOrEmpty(baggage))
+		{
+			headers["baggage"] = baggage;
+		}
+
 		return headers;
+	}
+
+	// Reconstructs the W3C "baggage" header from the in-context baggage items that DispatchContextInitializer
+	// captures from the ambient Activity (keyed "baggage.{name}"). Returns null when no baggage is present so
+	// no header is written (additive). Entries are ordered by key for a deterministic header value. Each member's
+	// name and value are W3C percent-encoded (7npc0q) so values containing the "," / "=" / "%" delimiters survive
+	// the round-trip — MessageBusOutboxPublisher.RestoreBaggage percent-decodes them symmetrically on the hop.
+	private static string? GetBaggageHeader(IMessageContext context)
+	{
+		const string prefix = "baggage.";
+
+		var entries = context.Items
+			.Where(static kvp => kvp.Key.StartsWith(prefix, StringComparison.Ordinal))
+			.OrderBy(static kvp => kvp.Key, StringComparer.Ordinal)
+			.Select(static kvp =>
+				$"{Uri.EscapeDataString(kvp.Key[prefix.Length..])}={Uri.EscapeDataString(kvp.Value?.ToString() ?? string.Empty)}")
+			.ToList();
+
+		return entries.Count > 0 ? string.Join(',', entries) : null;
 	}
 
 	/// <summary>
@@ -257,6 +285,10 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		// is present, in which case no traceparent header is written (EC-A1).
 		var traceParent = context.GetTraceParent() ?? Activity.Current?.Id;
 
+		// Capture the current baggage once for this staging batch (FR-B5, r4nd4w), symmetric with the
+		// traceparent capture above. Null when no baggage is present, in which case no baggage header is written.
+		var baggage = GetBaggageHeader(context);
+
 		foreach (var outboundMessage in outboxContext.OutboundMessages)
 		{
 			try
@@ -264,7 +296,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 				// Create outbound message for new store interface
 				var messageType = outboundMessage.Message.GetType().Name;
 				var payload = SerializeMessageToBytes(outboundMessage.Message);
-				var headers = CreateMessageHeaders(outboxContext, outboundMessage, traceParent);
+				var headers = CreateMessageHeaders(outboxContext, outboundMessage, traceParent, baggage);
 
 				var storeMessage = new OutboundMessage(
 					messageType,

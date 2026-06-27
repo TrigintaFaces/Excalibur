@@ -129,6 +129,12 @@ public static class OutboxBuilderCosmosDbExtensions
 		// Register store services
 		builder.Services.TryAddSingleton<CosmosDbOutboxStore>();
 		builder.Services.TryAddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<CosmosDbOutboxStore>());
+
+		// Change-feed durability default + non-durable startup warning, shared with the Cosmos data provider.
+		// Registering here means an outbox-only consumer (no AddExcaliburCosmosDb) still gets the default
+		// checkpoint store and is warned when continuation is non-durable, instead of silently replaying from
+		// the start position on every restart (bd-egwtku / bd-ydln24).
+		_ = builder.Services.AddCosmosDbChangeFeedDurabilityDefaults();
 	}
 
 	private static void RegisterBuilderManagedClient(

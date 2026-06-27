@@ -562,6 +562,7 @@ const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportReceiverRec
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportReceiverRejectError = 21816 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportSenderBatchSent = 21802 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportSenderDisposed = 21803 -> int
+const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportSenderMessageReturned = 21804 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportSenderMessageSent = 21800 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportSenderSendFailed = 21801 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportSubscriberDisposed = 21827 -> int

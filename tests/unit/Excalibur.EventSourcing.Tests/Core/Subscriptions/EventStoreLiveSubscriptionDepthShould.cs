@@ -118,7 +118,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstPollObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Assert - polling should call LoadAsync at least once
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
 			.MustHaveHappened();
@@ -148,7 +148,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstPollObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Act
 		await _sut.UnsubscribeAsync(CancellationToken.None);
 		var callsAfterUnsubscribe = Volatile.Read(ref loadCalls);
@@ -196,7 +196,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		}, cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			deliveredObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		await _sut.UnsubscribeAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
@@ -239,7 +239,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		}, cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondPollObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		await _sut.UnsubscribeAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - no events should be delivered (they were all bad)

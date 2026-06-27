@@ -20,12 +20,13 @@ Excalibur.Data.CosmosDb.Authorization.CosmosDbAuthorizationOptions.GrantsContain
 Excalibur.Data.CosmosDb.Authorization.CosmosDbAuthorizationOptions.GrantsContainerName.set -> void
 Excalibur.Data.CosmosDb.Authorization.CosmosDbAuthorizationOptions.Validate() -> void
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore
-Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.CosmosDbGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Authorization.CosmosDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore!>! logger) -> void
+Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.CosmosDbGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Authorization.CosmosDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore!>! logger, System.TimeProvider? timeProvider = null) -> void
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.Dispose() -> void
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.FindUserGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
+Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.Data.CosmosDb.Authorization.CosmosDbGrantStore.GetService(System.Type! serviceType) -> object?
@@ -61,7 +62,7 @@ Excalibur.Data.CosmosDb.CosmosDbChangeFeedEvent<TDocument>.PartitionKey.get -> E
 Excalibur.Data.CosmosDb.CosmosDbChangeFeedEvent<TDocument>.SequenceNumber.get -> long
 Excalibur.Data.CosmosDb.CosmosDbChangeFeedEvent<TDocument>.Timestamp.get -> System.DateTimeOffset
 Excalibur.Data.CosmosDb.CosmosDbChangeFeedSubscription<TDocument>
-Excalibur.Data.CosmosDb.CosmosDbChangeFeedSubscription<TDocument>.CosmosDbChangeFeedSubscription(Microsoft.Azure.Cosmos.Container! container, Excalibur.Data.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Data.CosmosDb.CosmosDbChangeFeedSubscription<TDocument>.CosmosDbChangeFeedSubscription(Microsoft.Azure.Cosmos.Container! container, Excalibur.Data.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger, Excalibur.Data.CosmosDb.IChangeFeedCheckpointStore? checkpointStore = null) -> void
 Excalibur.Data.CosmosDb.CosmosDbChangeFeedSubscription<TDocument>.CurrentContinuationToken.get -> string?
 Excalibur.Data.CosmosDb.CosmosDbChangeFeedSubscription<TDocument>.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.CosmosDb.CosmosDbChangeFeedSubscription<TDocument>.IsActive.get -> bool
@@ -127,7 +128,7 @@ Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.Client.get -> Microsoft.Azure.Cosmos.CosmosClient?
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CloudProvider.get -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.ConnectionString.get -> string!
-Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CosmosDbPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.CosmosDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider!>! logger) -> void
+Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CosmosDbPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.CosmosDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider!>! logger, Excalibur.Data.CosmosDb.IChangeFeedCheckpointStore? checkpointStore = null) -> void
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CreateAsync<TDocument>(TDocument! document, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudOperationResult<TDocument!>!>!
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CreateChangeFeedSubscriptionAsync<TDocument>(string! containerName, Excalibur.Data.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument!>!>!
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
@@ -169,6 +170,9 @@ Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.Container.get -> Micro
 Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.ContainerName.get -> string!
 Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.CosmosDbRepositoryBase(Microsoft.Azure.Cosmos.CosmosClient! client, string! databaseName, string! containerName) -> void
 Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId
+Excalibur.Data.CosmosDb.IChangeFeedCheckpointStore
+Excalibur.Data.CosmosDb.IChangeFeedCheckpointStore.LoadAsync(string! subscriptionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Data.CosmosDb.IChangeFeedCheckpointStore.SaveAsync(string! subscriptionId, string! continuationToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.CosmosDb.ICosmosDbDataBuilder
 Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
 Excalibur.Data.CosmosDb.ICosmosDbDataBuilder.Client(Microsoft.Azure.Cosmos.CosmosClient! client) -> Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!
@@ -255,6 +259,7 @@ const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ActivityGroupGrant
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ActivityGroupServiceInitialized = 103700 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcBatchError = 103406 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcBatchProcessed = 103404 -> int
+const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcFatalError = 103407 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcPositionConfirmed = 103403 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcPositionDeleted = 103503 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcPositionLoaded = 103500 -> int
@@ -265,6 +270,7 @@ const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcPositionSaved =
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcProcessingError = 103405 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcStarting = 103400 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.CdcStopping = 103401 -> int
+const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ChangeFeedDurabilityNonDurableWarning = 102803 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ChangeFeedError = 102405 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ChangeFeedItemsProcessed = 102402 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ChangeFeedLeaseAcquired = 102403 -> int
@@ -355,6 +361,7 @@ static Microsoft.Extensions.DependencyInjection.CosmosDbProjectionStoreExtension
 static Microsoft.Extensions.DependencyInjection.CosmosDbProjectionStoreExtensions.AddCosmosDbProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName, System.Action<Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbProjectionStoreExtensions.AddCosmosDbProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions!>! configureShared, System.Action<Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbProjectionStoreExtensions.AddCosmosDbProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName, System.Action<Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CosmosDbServiceCollectionExtensions.AddCosmosDbChangeFeedCheckpointStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Microsoft.Azure.Cosmos.Container!>! containerFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbServiceCollectionExtensions.AddExcaliburCosmosDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.ICosmosDbDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbSnapshotStoreExtensions.AddCosmosDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Data.CosmosDb.CosmosDbRepositoryBase<TDocument>.AddOrUpdateAsync(string! documentId, TDocument! document, string! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!

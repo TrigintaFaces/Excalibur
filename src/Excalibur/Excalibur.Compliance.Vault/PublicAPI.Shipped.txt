@@ -1,4 +1,11 @@
 #nullable enable
+Excalibur.Compliance.Vault.IComplianceVaultBuilder
+Excalibur.Compliance.Vault.IComplianceVaultBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Compliance.Vault.IComplianceVaultBuilder.EnableDetailedTelemetry(bool enable = true) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Compliance.Vault.IComplianceVaultBuilder.KeyNamePrefix(string! prefix) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Compliance.Vault.IComplianceVaultBuilder.Namespace(string! ns) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Compliance.Vault.IComplianceVaultBuilder.TransitMountPath(string! mountPath) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Compliance.Vault.IComplianceVaultBuilder.VaultUri(System.Uri! vaultUri) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
 Excalibur.Compliance.Vault.VaultAuthMethod
 Excalibur.Compliance.Vault.VaultAuthMethod.AppRole = 1 -> Excalibur.Compliance.Vault.VaultAuthMethod
 Excalibur.Compliance.Vault.VaultAuthMethod.Kubernetes = 2 -> Excalibur.Compliance.Vault.VaultAuthMethod
@@ -32,10 +39,14 @@ Excalibur.Compliance.Vault.VaultKeyOptions.EnableConvergentEncryption.get -> boo
 Excalibur.Compliance.Vault.VaultKeyOptions.EnableConvergentEncryption.set -> void
 Excalibur.Compliance.Vault.VaultKeyOptions.EnableKeyDerivation.get -> bool
 Excalibur.Compliance.Vault.VaultKeyOptions.EnableKeyDerivation.set -> void
+Excalibur.Compliance.Vault.VaultKeyOptions.KeyNamePrefix.get -> string!
+Excalibur.Compliance.Vault.VaultKeyOptions.KeyNamePrefix.set -> void
 Excalibur.Compliance.Vault.VaultKeyOptions.MinDecryptionVersion.get -> int
 Excalibur.Compliance.Vault.VaultKeyOptions.MinDecryptionVersion.set -> void
 Excalibur.Compliance.Vault.VaultKeyOptions.MinEncryptionVersion.get -> int
 Excalibur.Compliance.Vault.VaultKeyOptions.MinEncryptionVersion.set -> void
+Excalibur.Compliance.Vault.VaultKeyOptions.TransitMountPath.get -> string!
+Excalibur.Compliance.Vault.VaultKeyOptions.TransitMountPath.set -> void
 Excalibur.Compliance.Vault.VaultKeyOptions.VaultKeyOptions() -> void
 Excalibur.Compliance.Vault.VaultKeyProvider
 Excalibur.Compliance.Vault.VaultKeyProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -54,8 +65,6 @@ Excalibur.Compliance.Vault.VaultOptions.EnableDetailedTelemetry.get -> bool
 Excalibur.Compliance.Vault.VaultOptions.EnableDetailedTelemetry.set -> void
 Excalibur.Compliance.Vault.VaultOptions.HttpTimeout.get -> System.TimeSpan
 Excalibur.Compliance.Vault.VaultOptions.HttpTimeout.set -> void
-Excalibur.Compliance.Vault.VaultOptions.KeyNamePrefix.get -> string!
-Excalibur.Compliance.Vault.VaultOptions.KeyNamePrefix.set -> void
 Excalibur.Compliance.Vault.VaultOptions.Keys.get -> Excalibur.Compliance.Vault.VaultKeyOptions!
 Excalibur.Compliance.Vault.VaultOptions.Keys.set -> void
 Excalibur.Compliance.Vault.VaultOptions.MetadataCacheDuration.get -> System.TimeSpan
@@ -64,8 +73,8 @@ Excalibur.Compliance.Vault.VaultOptions.Namespace.get -> string?
 Excalibur.Compliance.Vault.VaultOptions.Namespace.set -> void
 Excalibur.Compliance.Vault.VaultOptions.Retry.get -> Excalibur.Compliance.Vault.VaultRetryOptions!
 Excalibur.Compliance.Vault.VaultOptions.Retry.set -> void
-Excalibur.Compliance.Vault.VaultOptions.TransitMountPath.get -> string!
-Excalibur.Compliance.Vault.VaultOptions.TransitMountPath.set -> void
+Excalibur.Compliance.Vault.VaultOptions.Suspension.get -> Excalibur.Compliance.Vault.VaultSuspensionOptions!
+Excalibur.Compliance.Vault.VaultOptions.Suspension.set -> void
 Excalibur.Compliance.Vault.VaultOptions.VaultOptions() -> void
 Excalibur.Compliance.Vault.VaultOptions.VaultUri.get -> System.Uri?
 Excalibur.Compliance.Vault.VaultOptions.VaultUri.set -> void
@@ -77,12 +86,11 @@ Excalibur.Compliance.Vault.VaultRetryOptions.MaxRetryAttempts.set -> void
 Excalibur.Compliance.Vault.VaultRetryOptions.RetryDelay.get -> System.TimeSpan
 Excalibur.Compliance.Vault.VaultRetryOptions.RetryDelay.set -> void
 Excalibur.Compliance.Vault.VaultRetryOptions.VaultRetryOptions() -> void
-Excalibur.Compliance.Vault.IComplianceVaultBuilder
-Excalibur.Compliance.Vault.IComplianceVaultBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
-Excalibur.Compliance.Vault.IComplianceVaultBuilder.EnableDetailedTelemetry(bool enable = true) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
-Excalibur.Compliance.Vault.IComplianceVaultBuilder.KeyNamePrefix(string! prefix) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
-Excalibur.Compliance.Vault.IComplianceVaultBuilder.Namespace(string! ns) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
-Excalibur.Compliance.Vault.IComplianceVaultBuilder.TransitMountPath(string! mountPath) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
-Excalibur.Compliance.Vault.IComplianceVaultBuilder.VaultUri(System.Uri! vaultUri) -> Excalibur.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Compliance.Vault.VaultSuspensionOptions
+Excalibur.Compliance.Vault.VaultSuspensionOptions.MountPath.get -> string!
+Excalibur.Compliance.Vault.VaultSuspensionOptions.MountPath.set -> void
+Excalibur.Compliance.Vault.VaultSuspensionOptions.Path.get -> string!
+Excalibur.Compliance.Vault.VaultSuspensionOptions.Path.set -> void
+Excalibur.Compliance.Vault.VaultSuspensionOptions.VaultSuspensionOptions() -> void
 Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions.AddVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Vault.IComplianceVaultBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

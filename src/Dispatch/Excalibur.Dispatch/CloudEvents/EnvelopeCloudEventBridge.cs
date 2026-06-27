@@ -23,7 +23,9 @@ public sealed class EnvelopeCloudEventBridge(ICloudEventEnvelopeConverter conver
 	private const string MapperTypeName =
 		Microsoft.Extensions.DependencyInjection.CloudEventsServiceCollectionExtensions.CloudEventMapperTypeName;
 
-	private static readonly Type MapperOpenGenericType = TypeResolution.TypeResolver.ResolveType(MapperTypeName)
+	// 6v2z7q: trusted — MapperTypeName is a fixed framework-internal type name (a compile-time constant),
+	// not untrusted input, so the assembly-scan fallback is safe here.
+	private static readonly Type MapperOpenGenericType = TypeResolution.TypeResolver.ResolveType(MapperTypeName, allowAssemblyScan: true)
 														 ?? throw new InvalidOperationException(
 															 $"Unable to locate CloudEvent mapper type: {MapperTypeName}");
 

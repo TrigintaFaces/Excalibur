@@ -150,6 +150,55 @@ await foreach (var change in subscription.ReadChangesAsync(ct))
 }
 ```
 
+### Durable Change Feed Continuation
+
+By default, pull-model change-feed subscriptions track their continuation token **in memory**. On a
+process restart that progress is lost and the feed is re-read from the configured start position,
+reprocessing already-handled changes. The default store
+(`InMemoryChangeFeedCheckpointStore`) preserves this non-durable behavior and emits a **one-time
+startup warning** so the trade-off is never silent.
+
+To survive restarts, register the durable Cosmos-backed checkpoint store. Call it **after**
+`AddExcaliburCosmosDb` — it replaces the in-memory default, so every change-feed subscription created
+by the provider flows through the durable store:
+
+```csharp
+services.AddExcaliburCosmosDb(cosmos =>
+{
+    cosmos.ConnectionString(connectionString)
+          .DatabaseName("myapp")
+          .ContainerName("orders");
+});
+
+// Persist change-feed continuation tokens to a Cosmos container.
+// The caller owns the container; partition key path must be /subscriptionId.
+services.AddCosmosDbChangeFeedCheckpointStore(sp =>
+    sp.GetRequiredService<CosmosClient>()
+      .GetContainer("myapp", "changefeed-checkpoints"));
+```
+
+The continuation token is checkpointed per subscription (keyed by the subscription/lease name) and
+reloaded on restart so processing resumes from the last persisted position.
+
+To plug in a different backing store (e.g. SQL Server or Redis), implement `IChangeFeedCheckpointStore`:
+
+```csharp
+public interface IChangeFeedCheckpointStore
+{
+    // Returns the last persisted token, or null if none checkpointed yet.
+    Task<string?> LoadAsync(string subscriptionId, CancellationToken cancellationToken);
+
+    // Persists the latest token, overwriting any prior value.
+    Task SaveAsync(string subscriptionId, string continuationToken, CancellationToken cancellationToken);
+}
+```
+
+:::note Scope
+Durable continuation covers the **pull-model** change-feed subscriptions (the data provider, outbox,
+and event-store subscriptions). The push-model `AllVersionsAndDeletes` processor path is not yet
+covered — it is gated on the Cosmos SDK `ChangeFeedItem<T>` API reaching GA (tracked in `bd-ajt1iy`).
+:::
+
 ## Batch Operations
 
 Execute multiple operations in a single transaction within a partition:

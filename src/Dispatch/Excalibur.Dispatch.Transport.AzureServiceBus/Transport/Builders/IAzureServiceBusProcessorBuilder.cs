@@ -91,6 +91,16 @@ public interface IAzureServiceBusProcessorBuilder
 	/// Thrown when <paramref name="key"/> is null, empty, or whitespace.
 	/// </exception>
 	IAzureServiceBusProcessorBuilder WithConfig(string key, string value);
+
+	/// <summary>
+	/// Enables consumption from a <b>session-enabled</b> entity with per-session ordered (FIFO)
+	/// delivery (ne79ro, FR-A2). When enabled, the transport wires a session-aware receiver that
+	/// accepts one session at a time so messages sharing a <c>SessionId</c> are delivered in order.
+	/// The target queue/subscription must itself be session-enabled in Azure Service Bus.
+	/// </summary>
+	/// <param name="requiresSession"><see langword="true"/> to consume ordered sessions. Default is <see langword="true"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IAzureServiceBusProcessorBuilder RequiresSession(bool requiresSession = true);
 }
 
 /// <summary>
@@ -160,6 +170,13 @@ internal sealed class AzureServiceBusProcessorBuilder : IAzureServiceBusProcesso
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(key);
 		_options.AdditionalConfig[key] = value;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IAzureServiceBusProcessorBuilder RequiresSession(bool requiresSession = true)
+	{
+		_options.RequiresSession = requiresSession;
 		return this;
 	}
 }

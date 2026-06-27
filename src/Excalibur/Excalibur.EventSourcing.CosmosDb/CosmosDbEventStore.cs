@@ -5,6 +5,7 @@ using System.Net;
 using System.Text.Json;
 
 using Excalibur.Data.CloudNative;
+using Excalibur.Data.CosmosDb;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
@@ -25,6 +26,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	private readonly CosmosClient _cosmosClient;
 	private readonly IOptions<CosmosDbEventStoreOptions> _options;
 	private readonly ILogger<CosmosDbEventStore> _logger;
+	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 
 	private Container? _container;
 	private bool _initialized;
@@ -36,14 +38,23 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	/// <param name="cosmosClient">The Cosmos DB client.</param>
 	/// <param name="options">The event store options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="checkpointStore">
+	/// Optional durable change-feed checkpoint store (DI-supplied; the registered
+	/// <see cref="IChangeFeedCheckpointStore"/> — in-memory default or the durable Cosmos store when the
+	/// consumer opts in). Flowed into the event-store change-feed subscription so continuation survives
+	/// restarts. <see langword="null"/> only for manual construction without DI (in-memory-only).
+	/// See bd-egwtku / bd-ydln24.
+	/// </param>
 	public CosmosDbEventStore(
 		CosmosClient cosmosClient,
 		IOptions<CosmosDbEventStoreOptions> options,
-		ILogger<CosmosDbEventStore> logger)
+		ILogger<CosmosDbEventStore> logger,
+		IChangeFeedCheckpointStore? checkpointStore = null)
 	{
 		_cosmosClient = cosmosClient ?? throw new ArgumentNullException(nameof(cosmosClient));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_checkpointStore = checkpointStore;
 	}
 
 	/// <inheritdoc/>
@@ -310,7 +321,8 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		var subscription = new CosmosDbEventStoreChangeFeedSubscription(
 			_container!,
 			_options.Value,
-			_logger);
+			_logger,
+			_checkpointStore);
 
 		return subscription;
 	}

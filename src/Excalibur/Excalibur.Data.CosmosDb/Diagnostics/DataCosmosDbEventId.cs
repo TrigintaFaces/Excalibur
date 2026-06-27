@@ -191,6 +191,14 @@ public static class DataCosmosDbEventId
 	/// <summary>Change feed received batch.</summary>
 	public const int ChangeFeedReceivedBatch = 102802;
 
+	/// <summary>
+	/// Change-feed durable continuation is NOT configured — the in-memory checkpoint default is in effect,
+	/// so continuation is lost on every process restart (the feed replays from its start position). Emitted
+	/// once on construction of the in-memory default store; register a durable store via
+	/// <c>AddCosmosDbChangeFeedCheckpointStore</c> to silence.
+	/// </summary>
+	public const int ChangeFeedDurabilityNonDurableWarning = 102803;
+
 	// ========================================
 	// 102900-102999: Inbox Store
 	// ========================================
@@ -310,6 +318,9 @@ public static class DataCosmosDbEventId
 
 	/// <summary>CDC batch error.</summary>
 	public const int CdcBatchError = 103406;
+
+	/// <summary>CDC fatal (non-retryable) error — processor stops instead of reconnecting.</summary>
+	public const int CdcFatalError = 103407;
 
 	// ========================================
 	// 103500-103599: CDC State Store

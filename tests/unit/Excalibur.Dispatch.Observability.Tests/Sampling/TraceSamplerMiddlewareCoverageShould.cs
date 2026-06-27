@@ -6,6 +6,8 @@ using System.Diagnostics;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Observability.Sampling;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 #pragma warning disable CA2012
 
 namespace Excalibur.Dispatch.Observability.Tests.Sampling;
@@ -23,7 +25,7 @@ public sealed class TraceSamplerMiddlewareCoverageShould
     public TraceSamplerMiddlewareCoverageShould()
     {
         _sampler = A.Fake<ITraceSampler>();
-        _sut = new TraceSamplerMiddleware(_sampler);
+        _sut = new TraceSamplerMiddleware(_sampler, NullLogger<TraceSamplerMiddleware>.Instance);
         _message = A.Fake<IDispatchMessage>();
         _context = A.Fake<IMessageContext>();
         _contextItems = new Dictionary<string, object>();
@@ -109,6 +111,6 @@ public sealed class TraceSamplerMiddlewareCoverageShould
     [Fact]
     public void ThrowArgumentNullExceptionForNullSampler()
     {
-        Should.Throw<ArgumentNullException>(() => new TraceSamplerMiddleware(null!));
+        Should.Throw<ArgumentNullException>(() => new TraceSamplerMiddleware(null!, NullLogger<TraceSamplerMiddleware>.Instance));
     }
 }

@@ -56,6 +56,9 @@ public sealed class LoadSagaRequestShould
 		var sql = request.Command.CommandText;
 		sql.ShouldContain("state_json");
 		sql.ShouldContain("is_completed");
+		// skl8r7 / e1tsq2: the load MUST read the authoritative version column so the loaded state carries
+		// the optimistic-concurrency token the store CASes on at save. RED on the pre-fix select (no version).
+		sql.ShouldContain("version");
 	}
 
 	[Fact]

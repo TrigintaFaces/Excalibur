@@ -200,10 +200,22 @@ public sealed partial class MessageMetadataBuilder
 				_eventVersion = value is int ev ? ev : null;
 				break;
 
-			// Removed collections
+			// Removed collections — ACCUMULATE into the single dict-typed store (yhoc4c).
+			// The public surface for these keys is the "Add*" verbs (AddAttribute/AddAttributes,
+			// AddItem/AddItems), which mean MERGE, never replace. These cases therefore add the supplied
+			// entries to _attributes/_items WITHOUT clearing first, so a chained
+			// .AddAttribute("a",1).AddAttribute("b",2) — which routes each call here via the extension
+			// methods — yields BOTH entries (the prior data-loss bug cleared on every Add). _attributes/
+			// _items is the one canonical store (flushed to Properties[Attributes/Items] as a
+			// ReadOnlyDictionary in Build()), so GetAttributes()/GetItems() read it correctly and the
+			// divergent raw-array store is inexpressible. A true replace would be a separate
+			// Set/With verb (none is currently exposed). A null value clears (explicit reset).
 			case MetadataPropertyKeys.Attributes:
-				_attributes.Clear();
-				if (value is IEnumerable<KeyValuePair<string, object>> attrs)
+				if (value is null)
+				{
+					_attributes.Clear();
+				}
+				else if (value is IEnumerable<KeyValuePair<string, object>> attrs)
 				{
 					foreach (var attr in attrs)
 					{
@@ -213,8 +225,11 @@ public sealed partial class MessageMetadataBuilder
 
 				break;
 			case MetadataPropertyKeys.Items:
-				_items.Clear();
-				if (value is IEnumerable<KeyValuePair<string, object>> items)
+				if (value is null)
+				{
+					_items.Clear();
+				}
+				else if (value is IEnumerable<KeyValuePair<string, object>> items)
 				{
 					foreach (var item in items)
 					{

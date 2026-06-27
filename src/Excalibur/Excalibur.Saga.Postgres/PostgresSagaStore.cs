@@ -134,14 +134,38 @@ public sealed class PostgresSagaStore : ISagaStore
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ResolveAsync(
+		var expectedVersion = sagaState.Version;
+
+		var rowsAffected = await connection.ResolveAsync(
 				new SaveSagaRequest<TSagaState>(sagaState, _options, _serializer, cancellationToken))
 			.ConfigureAwait(false);
 
+		if (rowsAffected == 0)
+		{
+			// The version-gated upsert matched no row: the persisted version no longer equals the expected
+			// (loaded) version, i.e. a concurrent handler advanced this saga between our load and save.
+			// Surface it as a ConcurrencyException instead of silently losing the write (skl8r7).
+			var current = await connection.ResolveAsync(
+					new LoadSagaRequest<TSagaState>(sagaState.SagaId, _options, _serializer, cancellationToken))
+				.ConfigureAwait(false);
+
+			throw new ConcurrencyException(
+				nameof(SagaState),
+				sagaState.SagaId.ToString(),
+				expectedVersion,
+				current?.Version ?? -1L);
+		}
+
+		// Optimistic-concurrency write-back (EF-style; store-owns-increment, skl8r7): on a successful save,
+		// advance the in-memory token to the persisted version so a subsequent save on the SAME object
+		// (create -> save -> mutate -> save) uses the new loaded version rather than re-conflicting on the stale one.
+		sagaState.Version = expectedVersion + 1;
+
 		_logger.LogDebug(
-			"Saved saga {SagaType}/{SagaId}, Completed={IsCompleted}",
+			"Saved saga {SagaType}/{SagaId}, Version={Version}, Completed={IsCompleted}",
 			typeof(TSagaState).Name,
 			sagaState.SagaId,
+			sagaState.Version,
 			sagaState.Completed);
 	}
 

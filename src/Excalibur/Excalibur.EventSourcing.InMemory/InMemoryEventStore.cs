@@ -231,7 +231,11 @@ internal sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 	/// <summary>
 	/// The event type marker used for tombstoned (erased) events.
 	/// </summary>
-	internal const string TombstoneEventType = "$erased";
+	/// <remarks>
+	/// cm4108: sourced from <see cref="ErasedEventMarker.EventType"/> so the sentinel has a single
+	/// source of truth across all event-store providers (avoids a latent GDPR-erasure desync).
+	/// </remarks>
+	internal const string TombstoneEventType = ErasedEventMarker.EventType;
 
 	private static readonly byte[] TombstonePayload = "ERASED"u8.ToArray();
 

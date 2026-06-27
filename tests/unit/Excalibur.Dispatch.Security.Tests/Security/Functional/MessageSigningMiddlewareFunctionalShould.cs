@@ -71,7 +71,11 @@ public sealed class MessageSigningMiddlewareFunctionalShould
     public async Task SignOutgoingMessageAfterProcessing()
     {
         var signingService = A.Fake<IMessageSigningService>();
+        var stampedAt = DateTimeOffset.UtcNow;
+        // Simulate the real signing service stamping the exact HMAC timestamp onto the context
+        // (qtogpu): the middleware must transmit THAT value, not a separately-generated UtcNow.
         A.CallTo(() => signingService.SignMessageAsync(A<string>._, A<SigningContext>._, A<CancellationToken>._))
+            .Invokes((string _, SigningContext ctx, CancellationToken _) => ctx.SignedAt = stampedAt)
             .Returns("test-signature-base64");
 
         var middleware = CreateMiddleware(signingService);
@@ -87,7 +91,9 @@ public sealed class MessageSigningMiddlewareFunctionalShould
         // Verify signature stored in context Items via SetProperty
         items["MessageSignature"].ShouldBe("test-signature-base64");
         items["SignatureAlgorithm"].ShouldNotBeNull();
-        items["SignedAt"].ShouldNotBeNull();
+        // The transmitted SignedAt is the EXACT timestamp the signing service stamped on the context
+        // (round-trip "O" string), not a separately-generated UtcNow (qtogpu).
+        items["SignedAt"].ShouldBe(stampedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]

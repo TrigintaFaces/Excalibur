@@ -10,6 +10,7 @@ using Amazon.DynamoDBv2;
 using Excalibur.Cdc.Diagnostics;
 using Excalibur.Data.DynamoDb;
 using Excalibur.Data.DynamoDb.Diagnostics;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -53,6 +54,13 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 	private DateTimeOffset _lastShardDiscovery = DateTimeOffset.MinValue;
 	private volatile bool _disposed;
 
+	// 14z4ao: optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
+	// an infinite silent reconnect loop (ADR-338). _onFatalError receives the in-flight event for a
+	// per-event fatal, or null for a connection/poll-level fatal.
+	private readonly CdcFatalErrorHandler<DynamoDbDataChangeEvent>? _onFatalError;
+	private readonly IMessageFailureClassifier? _failureClassifier;
+	private DynamoDbDataChangeEvent? _inFlightEvent;
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DynamoDbCdcProcessor"/> class.
 	/// </summary>
@@ -61,12 +69,22 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 	/// <param name="stateStore">The state store for position tracking.</param>
 	/// <param name="options">The CDC options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="fatalErrorOptions">
+	/// Optional fatal-error handling. When omitted (or its handler is <see langword="null"/>), a fatal
+	/// error rethrows and stops the processor (fail-loud — never an infinite silent reconnect loop).
+	/// </param>
+	/// <param name="failureClassifier">
+	/// Optional shared classifier deciding whether a processing error is fatal (non-retryable) or
+	/// transient. When omitted, a conservative built-in fallback is used.
+	/// </param>
 	public DynamoDbCdcProcessor(
 		IAmazonDynamoDB dynamoClient,
 		IAmazonDynamoDBStreams streamsClient,
 		IDynamoDbCdcStateStore stateStore,
 		IOptions<DynamoDbCdcOptions> options,
-		ILogger<DynamoDbCdcProcessor> logger)
+		ILogger<DynamoDbCdcProcessor> logger,
+		IOptions<CdcFatalErrorOptions<DynamoDbDataChangeEvent>>? fatalErrorOptions = null,
+		IMessageFailureClassifier? failureClassifier = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
@@ -75,6 +93,8 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		_stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
 		_options = options.Value;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_onFatalError = fatalErrorOptions?.Value.OnFatalError;
+		_failureClassifier = failureClassifier;
 
 		_options.Validate();
 	}
@@ -113,9 +133,31 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 			{
 				break;
 			}
+			// pxhqri: fatal decision delegated to the single shared guard — CdcFatalGuard.Decide(ex).Stop
+			// is exactly equivalent to the old inline IsFatal (the same unit the regression lock binds).
+			catch (Exception ex) when (CdcFatalGuard.Decide(ex, _failureClassifier).Stop)
+			{
+				// 14z4ao: a fatal (non-retryable) error — stop loud, never an infinite silent reconnect.
+				// The shard position (_shardPositions[shardId]) advances ONLY after a record is successfully
+				// handed off; a handler throw is caught inside ProcessBatchInternalAsync, which re-points the
+				// iterator to AFTER the last handled record and durably confirms only that handled prefix
+				// (never the failed record) before re-surfacing. So the checkpoint is never advanced past the
+				// failing change (at-least-once preserved — it is re-delivered on restart).
+				LogFatalError(ex);
+
+				if (_onFatalError is not null)
+				{
+					// In-flight event for a per-event fatal; null for a connection/poll-level fatal.
+					await _onFatalError(ex, _inFlightEvent).ConfigureAwait(false);
+					break; // handler took over → terminal; do not reconnect.
+				}
+
+				throw; // default: fail-loud — propagate and stop.
+			}
 			catch (Exception ex)
 			{
 				LogProcessingError(_options.ProcessorName, ex);
+				_inFlightEvent = null;
 				// Wait before retrying
 				await Task.Delay(_options.PollInterval, cancellationToken).ConfigureAwait(false);
 			}
@@ -355,10 +397,15 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 					{
 						var changeEvent = CreateChangeEvent(shardId, record);
 
+						// Track the in-flight event so a fatal raised by the handler is attributed to it. On a
+						// throw, _shardPositions is NOT updated for this record (below), so the iterator repoint
+						// and durable confirm in the catch use only the handled prefix — never the failed record.
+						_inFlightEvent = changeEvent;
 						await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
 
 						// Position advances ONLY after the record was successfully handed off.
 						_shardPositions[shardId] = record.Dynamodb.SequenceNumber;
+						_inFlightEvent = null;
 						totalProcessed++;
 					}
 				}
@@ -531,4 +578,8 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 	[LoggerMessage(DataDynamoDbEventId.CdcProcessingError, LogLevel.Error, "Error processing CDC batch for '{ProcessorName}'")]
 	private partial void LogProcessingError(string processorName, Exception exception);
+
+	[LoggerMessage(DataDynamoDbEventId.CdcFatalError, LogLevel.Critical,
+		"Fatal (non-retryable) error in DynamoDB CDC processor — stopping; the failure is surfaced to the configured handler or rethrown (no silent reconnect)")]
+	private partial void LogFatalError(Exception ex);
 }

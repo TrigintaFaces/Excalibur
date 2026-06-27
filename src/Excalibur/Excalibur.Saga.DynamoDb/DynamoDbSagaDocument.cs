@@ -31,6 +31,7 @@ internal static class DynamoDbSagaDocument
 	public const string SagaType = "sagaType";
 	public const string StateJson = "stateJson";
 	public const string IsCompleted = "isCompleted";
+	public const string Version = "version";
 	public const string CreatedUtc = "createdUtc";
 	public const string UpdatedUtc = "updatedUtc";
 	public const string Ttl = "ttl";
@@ -58,6 +59,9 @@ internal static class DynamoDbSagaDocument
 	/// <typeparam name="TSagaState">The type of saga state.</typeparam>
 	/// <param name="sagaState">The saga state to convert.</param>
 	/// <param name="stateJson">The serialized saga state as JSON.</param>
+	/// <param name="newVersion">
+	/// The persisted optimistic-concurrency version to write (the store's bumped <c>loadedVersion + 1</c>).
+	/// </param>
 	/// <param name="createdUtc">The creation timestamp.</param>
 	/// <param name="updatedUtc">The update timestamp.</param>
 	/// <param name="ttlSeconds">Optional TTL in seconds (0 = no TTL).</param>
@@ -65,6 +69,7 @@ internal static class DynamoDbSagaDocument
 	public static Dictionary<string, AttributeValue> FromSagaState<TSagaState>(
 		TSagaState sagaState,
 		string stateJson,
+		long newVersion,
 		DateTimeOffset createdUtc,
 		DateTimeOffset updatedUtc,
 		int ttlSeconds = 0)
@@ -79,6 +84,7 @@ internal static class DynamoDbSagaDocument
 			[SagaType] = new() { S = sagaType },
 			[StateJson] = new() { S = stateJson },
 			[IsCompleted] = new() { BOOL = sagaState.Completed },
+			[Version] = new() { N = newVersion.ToString(CultureInfo.InvariantCulture) },
 			[CreatedUtc] = new() { S = createdUtc.ToString("O", CultureInfo.InvariantCulture) },
 			[UpdatedUtc] = new() { S = updatedUtc.ToString("O", CultureInfo.InvariantCulture) }
 		};

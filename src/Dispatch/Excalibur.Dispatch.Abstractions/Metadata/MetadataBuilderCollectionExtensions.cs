@@ -28,10 +28,13 @@ public static class MetadataBuilderCollectionExtensions
 	}
 
 	/// <summary>
-	/// Sets the attributes dictionary, replacing any existing attributes.
+	/// Adds (merges) the supplied attributes into the message metadata, preserving any already-added
+	/// attributes (yhoc4c). Same-key entries are overwritten; other keys are retained. For a full
+	/// reset, pass <see langword="null"/> to <see cref="IMessageMetadataBuilder.WithProperty"/> with
+	/// the attributes key.
 	/// </summary>
 	/// <param name="builder"> The builder instance. </param>
-	/// <param name="attributes"> The attributes to set. </param>
+	/// <param name="attributes"> The attributes to add. </param>
 	/// <returns> The builder instance for method chaining. </returns>
 	public static IMessageMetadataBuilder AddAttributes(this IMessageMetadataBuilder builder, IEnumerable<KeyValuePair<string, object>> attributes)
 		=> builder.WithProperty(MetadataPropertyKeys.Attributes, attributes);
@@ -76,10 +79,12 @@ public static class MetadataBuilderCollectionExtensions
 		=> builder.WithProperty(key, value);
 
 	/// <summary>
-	/// Sets the items dictionary, replacing any existing items.
+	/// Adds (merges) the supplied items into the message metadata, preserving any already-added items
+	/// (yhoc4c). Same-key entries are overwritten; other keys are retained. For a full reset, pass
+	/// <see langword="null"/> to <see cref="IMessageMetadataBuilder.WithProperty"/> with the items key.
 	/// </summary>
 	/// <param name="builder"> The builder instance. </param>
-	/// <param name="items"> The items to set. </param>
+	/// <param name="items"> The items to add. </param>
 	/// <returns> The builder instance for method chaining. </returns>
 	public static IMessageMetadataBuilder AddItems(this IMessageMetadataBuilder builder, IEnumerable<KeyValuePair<string, object>> items)
 		=> builder.WithProperty(MetadataPropertyKeys.Items, items);

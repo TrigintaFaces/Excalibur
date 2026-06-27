@@ -158,14 +158,17 @@ public sealed partial class CronScheduler(IOptions<CronScheduleOptions> options,
 
 		foreach (var occurrence in occurrences)
 		{
-			// Skip the exact lastRun time
+			// Skip the exact lastRun time (already executed — exclusive lower bound).
 			if (occurrence <= lastRun)
 			{
 				continue;
 			}
 
-			// Don't include future times
-			if (occurrence > now)
+			// Exclude the current (==now) occurrence and any future time (FR-D7, axdtve): the upper bound is
+			// exclusive of the live-fire boundary. The occurrence exactly at `now` is fired by the live scheduler
+			// on this restart, so replaying it here as "missed" would double-fire it. Enforce the exclusive bound
+			// structurally in this loop rather than relying on the underlying query's inclusivity default.
+			if (occurrence >= now)
 			{
 				break;
 			}

@@ -115,6 +115,10 @@ public static class KafkaTransportServiceCollectionExtensions
 		// Register ITransportSubscriber with telemetry decorator
 		RegisterSubscriber(services, name, transportOptions);
 
+		// Route the rich ITransportSender/ITransportReceiver classes through DI so they are
+		// reachable on the AddKafkaTransport path instead of orphaned (kek7vm shared-seam wiring).
+		RegisterTransportSenderReceiver(services, name, transportOptions);
+
 		return services;
 	}
 
@@ -239,6 +243,19 @@ public static class KafkaTransportServiceCollectionExtensions
 			return new ProducerBuilder<string, byte[]>(config).Build();
 		});
 
+		// Register the Kafka consumer used by the transport subscriber/receiver.
+		// The subscriber resolves IConsumer<string, byte[]> from DI (see RegisterSubscriber);
+		// without this registration, resolving the keyed ITransportSubscriber throws because no
+		// consumer is registered. The consumer carries the configured GroupId and manual-commit
+		// policy (EnableAutoCommit defaults to false) so it consumes from a real broker.
+		services.TryAddSingleton<IConsumer<string, byte[]>>(static sp =>
+		{
+			var kafkaOptions = sp.GetRequiredService<IOptions<KafkaOptions>>().Value;
+			var config = KafkaConsumerConfigBuilder.Build(kafkaOptions);
+
+			return new ConsumerBuilder<string, byte[]>(config).Build();
+		});
+
 		// Register the Kafka message bus
 		services.TryAddSingleton<KafkaMessageBus>();
 
@@ -354,6 +371,34 @@ public static class KafkaTransportServiceCollectionExtensions
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)
 		_ = services.AddTransportAdapterLifecycle();
+	}
+
+	/// <summary>
+	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
+	/// implementations keyed by transport name so they are instantiated and reachable on the
+	/// <c>AddKafkaTransport</c> path instead of orphaned (kek7vm). <c>TryAdd*</c> lets a consumer
+	/// override the registration (Microsoft-first).
+	/// </summary>
+	private static void RegisterTransportSenderReceiver(
+		IServiceCollection services,
+		string name,
+		KafkaTransportOptions transportOptions)
+	{
+		var source = transportOptions.ConsumerOptions?.GroupId ?? name;
+
+		services.TryAddKeyedSingleton<ITransportSender>(name, (sp, _) =>
+		{
+			var producer = sp.GetRequiredService<IProducer<string, byte[]>>();
+			var logger = sp.GetRequiredService<ILogger<KafkaTransportSender>>();
+			return new KafkaTransportSender(producer, name, logger);
+		});
+
+		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
+		{
+			var consumer = sp.GetRequiredService<IConsumer<string, byte[]>>();
+			var logger = sp.GetRequiredService<ILogger<KafkaTransportReceiver>>();
+			return new KafkaTransportReceiver(consumer, source, logger);
+		});
 	}
 
 	/// <summary>

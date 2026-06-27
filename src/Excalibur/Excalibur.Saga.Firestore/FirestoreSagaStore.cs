@@ -4,6 +4,7 @@
 #pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Data;
 using Excalibur.Data.Firestore;
 using Excalibur.Data.Firestore.Diagnostics;
 using Excalibur.Dispatch.Messaging;
@@ -106,6 +107,13 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 
 		var stateJson = snapshot.GetValue<string>("stateJson");
 		var result = _serializer.Deserialize<TSagaState>(stateJson);
+		if (result is not null)
+		{
+			// The authoritative optimistic-concurrency version is the dedicated "version" field, NOT the
+			// version embedded in stateJson (serialized before the store-owns-increment write-back, so it
+			// carries the stale pre-save version). Apply it so load-modify-save gates against the real value.
+			result.Version = snapshot.TryGetValue<long>("version", out var persistedVersion) ? persistedVersion : 0L;
+		}
 
 		LogSagaLoaded(typeof(TSagaState).Name, sagaId);
 		return result;
@@ -126,31 +134,62 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 		var sagaType = typeof(TSagaState).Name;
 		var docId = GetDocumentId(sagaState.SagaId, sagaType);
 		var docRef = _collection!.Document(docId);
+		var expectedVersion = sagaState.Version;
 
-		// Read existing to preserve createdUtc
-		var existingSnapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+		// Optimistic concurrency (bd-e1tsq2), honoring this store's documented "uses transactions for
+		// optimistic concurrency" contract (previously a non-transactional read-then-SetAsync that lost
+		// concurrent writes). The read of the current version and the version-gated write happen inside one
+		// Firestore transaction (RunTransactionAsync auto-retries on contention, re-reading on each attempt),
+		// mirroring SqlServerSagaStore's version-gated MERGE: the write only proceeds when the persisted
+		// version equals the loaded (expected) version, otherwise a ConcurrencyException is thrown.
+		await _db!.RunTransactionAsync(
+			async transaction =>
+			{
+				var existingSnapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken).ConfigureAwait(false);
 
-		DateTimeOffset createdUtc;
-		if (existingSnapshot.Exists && existingSnapshot.TryGetValue<Timestamp>("createdUtc", out var createdTimestamp))
-		{
-			createdUtc = createdTimestamp.ToDateTimeOffset();
-		}
-		else
-		{
-			createdUtc = now;
-		}
+				var currentVersion = 0L;
+				var createdUtc = now;
+				if (existingSnapshot.Exists)
+				{
+					if (existingSnapshot.TryGetValue<long>("version", out var persistedVersion))
+					{
+						currentVersion = persistedVersion;
+					}
 
-		var data = new Dictionary<string, object>
-		{
-			["sagaId"] = sagaState.SagaId.ToString(),
-			["sagaType"] = sagaType,
-			["stateJson"] = stateJson,
-			["isCompleted"] = sagaState.Completed,
-			["createdUtc"] = Timestamp.FromDateTimeOffset(createdUtc),
-			["updatedUtc"] = Timestamp.FromDateTimeOffset(now)
-		};
+					if (existingSnapshot.TryGetValue<Timestamp>("createdUtc", out var createdTimestamp))
+					{
+						createdUtc = createdTimestamp.ToDateTimeOffset();
+					}
+				}
 
-		_ = await docRef.SetAsync(data, cancellationToken: cancellationToken).ConfigureAwait(false);
+				if (currentVersion != expectedVersion)
+				{
+					throw new ConcurrencyException(
+						nameof(SagaState),
+						sagaState.SagaId.ToString(),
+						expectedVersion,
+						currentVersion);
+				}
+
+				var data = new Dictionary<string, object>
+				{
+					["sagaId"] = sagaState.SagaId.ToString(),
+					["sagaType"] = sagaType,
+					["stateJson"] = stateJson,
+					["isCompleted"] = sagaState.Completed,
+					["version"] = expectedVersion + 1,
+					["createdUtc"] = Timestamp.FromDateTimeOffset(createdUtc),
+					["updatedUtc"] = Timestamp.FromDateTimeOffset(now)
+				};
+
+				transaction.Set(docRef, data);
+			},
+			options: null,
+			cancellationToken).ConfigureAwait(false);
+
+		// Store-owns-increment write-back (mirrors SqlServerSagaStore): advance the in-memory token so a
+		// subsequent save on the same object uses the new persisted version instead of re-conflicting.
+		sagaState.Version = expectedVersion + 1;
 
 		LogSagaSaved(sagaType, sagaState.SagaId, sagaState.Completed);
 	}

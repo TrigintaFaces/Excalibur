@@ -10,6 +10,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 
+using Excalibur.Data;
 using Excalibur.Data.DynamoDb.Diagnostics;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
@@ -127,6 +128,15 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		var stateJson = response.Item[DynamoDbSagaDocument.StateJson].S;
 		var result = _serializer.Deserialize<TSagaState>(stateJson);
 
+		if (result is not null
+			&& response.Item.TryGetValue(DynamoDbSagaDocument.Version, out var versionAttr)
+			&& long.TryParse(versionAttr.N, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version))
+		{
+			// The version attribute is authoritative for concurrency (skl8r7), independent of any Version
+			// embedded in the JSON blob. The store uses it as the compare-and-swap basis on the next save.
+			result.Version = version;
+		}
+
 		LogSagaLoaded(typeof(TSagaState).Name, sagaId);
 		return result;
 	}
@@ -171,16 +181,81 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			createdUtc = now;
 		}
 
+		// Optimistic-concurrency compare-and-swap (skl8r7), store-owns-increment (mirrors SqlServerSagaStore's
+		// TWO guarded MERGE branches). SagaState.Version is the version the caller LOADED (the concurrency token;
+		// a brand-new saga is 0) -- the caller performs NO version arithmetic. The conditional PutItem is the
+		// atomic CAS.
+		//
+		// SA ruling (skl8r7): the insert leg is guarded to expected == 0 so a deleted/completed saga cannot be
+		// RESURRECTED at a high version (a "zombie" saga). Branching the ConditionExpression by the expected
+		// version is the canonical DynamoDB form (and avoids a value-to-value literal comparison):
+		//   - expected == 0 (new saga) -> "attribute_not_exists(#pk)": the put succeeds only if no item exists;
+		//     a pre-existing row fails the condition (a fresh-insert collision IS a conflict).
+		//   - expected  > 0 (update)   -> "#v = :expectedVersion": the put succeeds only if the persisted version
+		//     still equals the expected one. A missing item (deleted/zombie) has no #v attribute, so the
+		//     comparison is false and the put is REJECTED -> no resurrection. A stale version is likewise
+		//     rejected. ("version" is a DynamoDB reserved word, referenced via the #v name placeholder.)
+		// Either rejection raises ConditionalCheckFailedException, surfaced below as a ConcurrencyException.
+		var expectedVersion = sagaState.Version;
+		var newVersion = expectedVersion + 1;
+
 		var document = DynamoDbSagaDocument.FromSagaState(
 			sagaState,
 			stateJson,
+			newVersion,
 			createdUtc,
 			now,
 			_options.DefaultTtlSeconds);
 
-		var putRequest = new PutItemRequest { TableName = _options.TableName, Item = document };
+		var putRequest = new PutItemRequest
+		{
+			TableName = _options.TableName,
+			Item = document
+		};
 
-		_ = await _client!.PutItemAsync(putRequest, cancellationToken).ConfigureAwait(false);
+		if (expectedVersion == 0)
+		{
+			putRequest.ConditionExpression = "attribute_not_exists(#pk)";
+			putRequest.ExpressionAttributeNames = new Dictionary<string, string>
+			{
+				["#pk"] = DynamoDbSagaDocument.PK
+			};
+		}
+		else
+		{
+			putRequest.ConditionExpression = "#v = :expectedVersion";
+			putRequest.ExpressionAttributeNames = new Dictionary<string, string>
+			{
+				["#v"] = DynamoDbSagaDocument.Version
+			};
+			putRequest.ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+			{
+				[":expectedVersion"] = new() { N = expectedVersion.ToString(CultureInfo.InvariantCulture) }
+			};
+		}
+
+		try
+		{
+			_ = await _client!.PutItemAsync(putRequest, cancellationToken).ConfigureAwait(false);
+		}
+		catch (ConditionalCheckFailedException)
+		{
+			// A concurrent handler advanced this saga between our load and save: surface it as a
+			// ConcurrencyException instead of silently overwriting the winner (the previous unconditional
+			// PutItem was last-writer-wins and lost that update, skl8r7).
+			var current = await LoadAsync<TSagaState>(sagaState.SagaId, cancellationToken).ConfigureAwait(false);
+
+			throw new ConcurrencyException(
+				nameof(SagaState),
+				sagaState.SagaId.ToString(),
+				expectedVersion,
+				current?.Version ?? -1L);
+		}
+
+		// Store-owns-increment write-back (mirrors SqlServerSagaStore): advance the in-memory token so a
+		// subsequent save on the same object uses the new persisted version instead of re-conflicting.
+		sagaState.Version = newVersion;
+
 		LogSagaSaved(sagaType, sagaState.SagaId, sagaState.Completed);
 	}
 
@@ -223,7 +298,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		{
 			_ = await _client!.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
 		}
-		catch (ResourceNotFoundException)
+		catch (Amazon.DynamoDBv2.Model.ResourceNotFoundException)
 		{
 			var createRequest = new CreateTableRequest
 			{

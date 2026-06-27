@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Data;
 using Excalibur.Data.MongoDB.Diagnostics;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
@@ -111,7 +112,14 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var filter = Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaId);
+		// Type-isolation (1f5om2): scope the load to BOTH SagaId AND SagaType. The store persists+indexes
+		// SagaType on save, so loading by SagaId alone would return a saga of a DIFFERENT type that shares the
+		// Guid, then deserialize its StateJson into the wrong TSagaState (silent data corruption). A typed
+		// LoadAsync<TSagaState>(id) must return null when no saga of that type exists at the id — the contract
+		// already enforced structurally by InMemory (`state is TSagaState`), Cosmos, Firestore, and DynamoDb.
+		var filter = Builders<MongoDbSagaDocument>.Filter.And(
+			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaId),
+			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaType, typeof(TSagaState).Name));
 		var document = await _collection!
 			.Find(filter)
 			.FirstOrDefaultAsync(cancellationToken)
@@ -123,6 +131,14 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		}
 
 		var result = _serializer.Deserialize<TSagaState>(document.StateJson);
+		if (result is not null)
+		{
+			// The authoritative optimistic-concurrency version is the dedicated BSON field, NOT the version
+			// embedded in StateJson — the blob is serialized BEFORE the store-owns-increment write-back, so it
+			// carries the stale pre-save version (e.g. 0). Apply the persisted version so load-modify-save
+			// gates against the real value instead of always comparing against the stale embedded one.
+			result.Version = document.Version;
+		}
 
 		LogSagaLoaded(typeof(TSagaState).Name, sagaId);
 		return result;
@@ -140,23 +156,80 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 #pragma warning disable IL2026, IL3050 // AOT: MongoDB saga store uses reflection-based JSON serialization
 		var stateJson = _serializer.Serialize(sagaState);
 #pragma warning restore IL2026, IL3050
-		var now = DateTimeOffset.UtcNow;
+		// UpdatedUtc/CreatedUtc are DateTime fields; use a DateTime value so the Update builder does not emit a
+		// Convert(d.UpdatedUtc, DateTimeOffset) node — the MongoDB LINQ provider cannot translate that and
+		// throws ExpressionNotSupportedException on every real save (the unit tests mock IMongoCollection and
+		// never exercise the translation, so the integration conformance lock is what surfaced it).
+		var now = DateTime.UtcNow;
+		var expectedVersion = sagaState.Version;
 
-		var filter = Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId);
+		// Optimistic concurrency (bd-e1tsq2), mirroring SqlServerSagaStore's version-gated MERGE: the update
+		// only matches a document whose persisted version equals the loaded (expected) version, and advances
+		// it by one. The {_id, version} filter + upsert is the canonical MongoDB pattern:
+		//   - new saga (no document)      -> filter doesn't match -> upsert INSERTs a fresh document;
+		//   - in-sync update              -> filter matches        -> version-gated update succeeds;
+		//   - stale version (concurrent write) -> filter doesn't match -> upsert attempts an INSERT on the
+		//     already-present _id -> E11000 duplicate key, which we surface as ConcurrencyException instead of
+		//     silently overwriting the newer write (the previous blind upsert lost the update).
+		var filter = Builders<MongoDbSagaDocument>.Filter.And(
+			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId),
+			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.Version, expectedVersion));
 
-		// Use UpdateOneAsync with SetOnInsert to preserve createdUtc on updates
 		var update = Builders<MongoDbSagaDocument>.Update
 			.Set(d => d.SagaType, typeof(TSagaState).Name)
 			.Set(d => d.StateJson, stateJson)
 			.Set(d => d.IsCompleted, sagaState.Completed)
 			.Set(d => d.UpdatedUtc, now)
+			.Set(d => d.Version, expectedVersion + 1)
 			.SetOnInsert(d => d.SagaId, sagaState.SagaId)
 			.SetOnInsert(d => d.CreatedUtc, now);
 
-		var options = new UpdateOptions { IsUpsert = true };
+		// No-resurrect guard (SqlServer reference contract): only a brand-new saga (expected version 0) may
+		// be inserted. For a stale save (expected > 0) we do NOT upsert — a missing/version-moved document is
+		// a deleted/completed saga and must throw rather than resurrect at a high version (zombie saga).
+		var isInsert = expectedVersion == 0;
+		var options = new UpdateOptions { IsUpsert = isInsert };
 
-		_ = await _collection!.UpdateOneAsync(filter, update, options, cancellationToken)
-			.ConfigureAwait(false);
+		try
+		{
+			var result = await _collection!.UpdateOneAsync(filter, update, options, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (!isInsert && result.MatchedCount == 0)
+			{
+				// Update-only path matched nothing: the saga was deleted or its version moved on. Throw
+				// instead of resurrecting (mirrors the MERGE's "@ExpectedVersion = 0"-guarded INSERT branch).
+				var current = await _collection!
+					.Find(Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId))
+					.FirstOrDefaultAsync(cancellationToken)
+					.ConfigureAwait(false);
+
+				throw new ConcurrencyException(
+					nameof(SagaState),
+					sagaState.SagaId.ToString(),
+					expectedVersion,
+					current?.Version ?? -1L);
+			}
+		}
+		catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+		{
+			// Reachable only on the insert path (expected == 0): a document already exists at this _id but
+			// not at version 0 → a concurrent create / stale insert. Surface as a concurrency conflict.
+			var current = await _collection!
+				.Find(Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId))
+				.FirstOrDefaultAsync(cancellationToken)
+				.ConfigureAwait(false);
+
+			throw new ConcurrencyException(
+				nameof(SagaState),
+				sagaState.SagaId.ToString(),
+				expectedVersion,
+				current?.Version ?? -1L);
+		}
+
+		// Store-owns-increment write-back (mirrors SqlServerSagaStore): advance the in-memory token so a
+		// subsequent save on the same object uses the new persisted version instead of re-conflicting.
+		sagaState.Version = expectedVersion + 1;
 
 		LogSagaSaved(typeof(TSagaState).Name, sagaState.SagaId, sagaState.Completed);
 	}

@@ -240,7 +240,7 @@ public sealed class RabbitMqMetadataRoundTripShould : IAsyncDisposable
 			Properties =
 			{
 				["tenant-id"] = "acme-corp",
-				["trace-parent"] = "00-abcdef1234567890-1234567890abcdef-01",
+				["traceparent"] = "00-abcdef1234567890-1234567890abcdef-01",
 				["x-retry-count"] = "3",
 			},
 		};
@@ -252,7 +252,7 @@ public sealed class RabbitMqMetadataRoundTripShould : IAsyncDisposable
 		capturedProps.ShouldNotBeNull();
 		capturedProps.Headers.ShouldNotBeNull();
 		capturedProps.Headers.ShouldContainKey("tenant-id");
-		capturedProps.Headers.ShouldContainKey("trace-parent");
+		capturedProps.Headers.ShouldContainKey("traceparent");
 		capturedProps.Headers.ShouldContainKey("x-retry-count");
 
 		// Now simulate the receive side: convert string values to byte[] as RabbitMQ does
@@ -299,7 +299,7 @@ public sealed class RabbitMqMetadataRoundTripShould : IAsyncDisposable
 		received.ShouldNotBeEmpty();
 		var msg = received[0];
 		(msg.Properties["tenant-id"] as string).ShouldBe("acme-corp");
-		(msg.Properties["trace-parent"] as string).ShouldBe("00-abcdef1234567890-1234567890abcdef-01");
+		(msg.Properties["traceparent"] as string).ShouldBe("00-abcdef1234567890-1234567890abcdef-01");
 		(msg.Properties["x-retry-count"] as string).ShouldBe("3");
 	}
 

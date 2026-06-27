@@ -103,7 +103,10 @@ public sealed class RetryMiddlewareShould
 
         result.Succeeded.ShouldBeFalse();
         result.ProblemDetails.ShouldNotBeNull();
-        result.ProblemDetails!.Type.ShouldBe("RetryError");
+        // jj9gon/qu3182 (S852) F-5 flip: a retryable exception (TimeoutException → classifier Transient)
+        // exhausted to the cap now converges on the distinct, reachable RetryExhausted terminal — it no
+        // longer falls through to the generic "RetryError". STRENGTHENED to assert the new contract.
+        result.ProblemDetails!.Type.ShouldBe("RetryExhausted");
     }
 
     [Fact]
@@ -180,6 +183,80 @@ public sealed class RetryMiddlewareShould
             CancellationToken.None);
 
         result.Succeeded.ShouldBeTrue();
+        callCount.ShouldBe(3);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // 7u16zu (AC-4) — in-process leg of the cross-path terminal-failure contract: when in-process
+    // retries are EXHAUSTED, RetryMiddleware surfaces a fail-loud TERMINAL failure to the caller —
+    // never a silent drop / flip-to-success. (The durable legs — Outbox/Inbox DLQ + terminal status
+    // — are regression-locked in their own subsystem tests; this guards the in-process leg.)
+    //
+    // These pin the BEHAVIORAL contract (Succeeded == false after genuine attempt-cap exhaustion) AND,
+    // since the jj9gon/qu3182 (S852) restructure, the distinct terminal Type. They are NON-VACUOUS: each
+    // goes RED if the exhaustion path is mutated to swallow the failure, return Success, or revert to the
+    // generic "RetryError".
+    //
+    // jj9gon (S852, RetryMiddleware.cs:212-241): the `Type = "RetryExhausted"` terminal is now the SINGLE
+    // REACHABLE exhaustion terminal — BOTH the retryable-exception path and the transient-failed-result
+    // path break out of the loop and converge on it (it also emits dispatch.retry.exhausted exactly once,
+    // fixing the qu3182 exception-path undercount). The old "currently unreachable / dead branch" note is
+    // obsolete. So these locks now assert the reachable `RetryExhausted` Type on both code paths.
+
+    [Fact]
+    public async Task ExhaustedRetries_ViaRetryableException_ReturnFailLoudTerminal_NeverSilentDrop()
+    {
+        // Arrange — make the exception retryable so every attempt re-tries to the cap.
+        var options = new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) };
+        options.RetryableExceptions.Add(typeof(InvalidOperationException));
+        var sut = CreateSut(options);
+        var callCount = 0;
+
+        // Act — a transient fault that never recovers across all attempts.
+        var result = await sut.InvokeAsync(
+            A.Fake<IDispatchMessage>(), new MessageContext(),
+            (_, _, _) =>
+            {
+                callCount++;
+                throw new InvalidOperationException("transient — never recovers");
+            },
+            CancellationToken.None);
+
+        // Assert — fail-loud terminal, never silent; genuine exhaustion (every attempt used).
+        result.Succeeded.ShouldBeFalse();
+        result.ProblemDetails.ShouldNotBeNull();
+        result.ProblemDetails!.Type.ShouldBe("RetryExhausted"); // jj9gon: reachable distinct terminal (exception path)
+        callCount.ShouldBe(options.MaxAttempts);
+    }
+
+    [Fact]
+    public async Task ExhaustedRetries_ViaTransientFailedResult_ReturnFailLoudTerminal_NeverSilentDrop()
+    {
+        // Arrange — a transient (500) failed result is retried until the attempt cap.
+        var sut = CreateSut(new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
+        var callCount = 0;
+
+        // Act
+        var result = await sut.InvokeAsync(
+            A.Fake<IDispatchMessage>(), new MessageContext(),
+            (_, _, _) =>
+            {
+                callCount++;
+                return new ValueTask<IMessageResult>(MessageResult.Failed(new MessageProblemDetails
+                {
+                    Type = "Error",
+                    Title = "Error",
+                    ErrorCode = 500,
+                    Status = 500,
+                    Detail = "transient — never recovers",
+                }));
+            },
+            CancellationToken.None);
+
+        // Assert — exhaustion never flips a persistent failure to success.
+        result.Succeeded.ShouldBeFalse();
+        result.ProblemDetails.ShouldNotBeNull();
+        result.ProblemDetails!.Type.ShouldBe("RetryExhausted"); // jj9gon: reachable distinct terminal (failed-result path)
         callCount.ShouldBe(3);
     }
 
