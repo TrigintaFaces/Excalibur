@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Buffers;
-
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch;
@@ -18,6 +16,9 @@ public sealed class MessageEnvelopeBuilder<T>
 	private T? _message;
 	private IMessageContext? _context;
 	private string? _messageId;
+	private DateTimeOffset? _timestamp;
+	private Func<CancellationToken, Task>? _onAcknowledge;
+	private Func<string?, CancellationToken, Task>? _onReject;
 
 	/// <summary>
 	/// Sets the message payload.
@@ -58,28 +59,7 @@ public sealed class MessageEnvelopeBuilder<T>
 	/// <param name="timestamp"> The timestamp when the message was created or sent. </param>
 	public MessageEnvelopeBuilder<T> WithTimestamp(DateTimeOffset timestamp)
 	{
-		_ = timestamp; // Placeholder implementation
-		return this;
-	}
-
-	/// <summary>
-	/// Sets the raw message body.
-	/// </summary>
-	/// <param name="rawBody"> The raw byte representation of the message body. </param>
-	public MessageEnvelopeBuilder<T> WithRawBody(ReadOnlyMemory<byte> rawBody)
-	{
-		_ = rawBody; // Placeholder implementation
-		return this;
-	}
-
-	/// <summary>
-	/// Sets the memory owner for pooled scenarios.
-	/// </summary>
-	/// <param name="memoryOwner"> The memory owner for managing pooled byte arrays. </param>
-	public MessageEnvelopeBuilder<T> WithMemoryOwner(IMemoryOwner<byte> memoryOwner)
-	{
-		ArgumentNullException.ThrowIfNull(memoryOwner);
-		_ = memoryOwner; // Placeholder implementation
+		_timestamp = timestamp;
 		return this;
 	}
 
@@ -94,8 +74,8 @@ public sealed class MessageEnvelopeBuilder<T>
 	{
 		ArgumentNullException.ThrowIfNull(onAcknowledge);
 		ArgumentNullException.ThrowIfNull(onReject);
-		_ = onAcknowledge; // Placeholder implementation
-		_ = onReject; // Placeholder implementation
+		_onAcknowledge = onAcknowledge;
+		_onReject = onReject;
 		return this;
 	}
 
@@ -116,13 +96,24 @@ public sealed class MessageEnvelopeBuilder<T>
 			throw new InvalidOperationException(ErrorMessages.ContextIsRequired);
 		}
 
-		// Create the envelope with the message
-		return new MessageEnvelope(_message)
+		// Create the envelope with the message, then apply the optional builder-supplied slots. The
+		// acknowledge/reject callbacks share the envelope's CancellationToken-bearing signature, so they
+		// are wired directly (the token flows through to the transport I/O).
+		var envelope = new MessageEnvelope(_message)
 		{
 			MessageId = _messageId ?? Uuid7Extensions.GenerateString(),
 			CorrelationId = _context.CorrelationId ?? Uuid7Extensions.GenerateString(),
 			CausationId = _context.CausationId,
 			ContentType = "application/json",
+			AcknowledgeAsync = _onAcknowledge,
+			RejectAsync = _onReject,
 		};
+
+		if (_timestamp is { } timestamp)
+		{
+			envelope.Timestamp = timestamp;
+		}
+
+		return envelope;
 	}
 }

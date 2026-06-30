@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </para>
 /// <para>
 /// Follows the same minimal-interface pattern as <see cref="ITransportSender"/>
-/// and <see cref="ITransportReceiver"/> (ADR-116).
+/// and <see cref="ITransportReceiver"/>.
 /// </para>
 /// </summary>
 public interface ITransportSubscriber : IAsyncDisposable

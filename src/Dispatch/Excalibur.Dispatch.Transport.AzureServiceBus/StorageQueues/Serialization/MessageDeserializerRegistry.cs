@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This follows the Explicit-Generic-DI Registry pattern established in Excalibur.Saga (Sprint 755)
-/// and Excalibur.Dispatch.Caching (Sprint 756). During DI composition, each
+/// This follows the Explicit-Generic-DI Registry pattern established in Excalibur.Saga
+/// and Excalibur.Dispatch.Caching. During DI composition, each
 /// <c>AddStorageQueueMessage&lt;TMessage&gt;()</c> call accumulates a typed registration action.
 /// On first options resolution, the <see cref="MessageDeserializerRegistryPopulator"/> drains
 /// the accumulated actions and freezes the registry.

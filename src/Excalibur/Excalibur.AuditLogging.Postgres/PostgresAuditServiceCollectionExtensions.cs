@@ -75,6 +75,10 @@ public static class PostgresAuditServiceCollectionExtensions
 
 	private static void RegisterPostgresAuditStoreCore(IServiceCollection services)
 	{
+		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider (qa71t5) —
+		// PostgresAuditStore depends on IAuditIntegrityStrategy to tag/verify records.
+		_ = services.AddAuditIntegrity();
+
 		services.TryAddSingleton<PostgresAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<PostgresAuditStore>());
 	}

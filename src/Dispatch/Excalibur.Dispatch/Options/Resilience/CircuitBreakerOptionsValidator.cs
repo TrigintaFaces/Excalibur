@@ -10,7 +10,6 @@ namespace Excalibur.Dispatch.Options.Resilience;
 /// </summary>
 /// <remarks>
 /// Performs cross-property constraint checks for circuit breaker configuration.
-/// Sprint 561 S561.45.
 /// </remarks>
 public sealed class CircuitBreakerOptionsValidator : IValidateOptions<CircuitBreakerOptions>
 {

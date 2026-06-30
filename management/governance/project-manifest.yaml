@@ -18,6 +18,7 @@ projects:
   - path: load-tests/Excalibur.Dispatch.LoadTests/Excalibur.Dispatch.LoadTests.csproj
   - path: samples/01-getting-started/DataAccessIntro/DataAccessIntro.csproj
   - path: samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj
+  - path: samples/12-migration/MediatRMigration/Excalibur.MediatRMigration.csproj
   - path: samples/01-getting-started/EventSourcingIntro/EventSourcingIntro.csproj
   - path: samples/01-getting-started/HelloDispatch/HelloDispatch.csproj
   - path: samples/01-getting-started/InteractiveDemo/InteractiveDemo.csproj
@@ -111,6 +112,7 @@ projects:
   - path: samples/09-advanced/persistence-patterns/CloudStorageSnapshots/CloudStorageSnapshots.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Abstractions/Excalibur.Dispatch.Abstractions.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Analyzers/Excalibur.Dispatch.Analyzers.csproj
+  - path: src/Excalibur/Excalibur.AuditLogging.Abstractions/Excalibur.AuditLogging.Abstractions.csproj
   - path: src/Excalibur/Excalibur.AuditLogging.Aws/Excalibur.AuditLogging.Aws.csproj
   - path: src/Excalibur/Excalibur.AuditLogging.Datadog/Excalibur.AuditLogging.Datadog.csproj
   - path: src/Excalibur/Excalibur.AuditLogging.Elasticsearch/Excalibur.AuditLogging.Elasticsearch.csproj
@@ -153,6 +155,11 @@ projects:
   - path: src/Dispatch/Excalibur.Dispatch.Serialization.Avro/Excalibur.Dispatch.Serialization.Avro.csproj
   - path: src/Dispatch/Excalibur.Dispatch.SourceGenerators.Analyzers/Excalibur.Dispatch.SourceGenerators.Analyzers.csproj
   - path: src/Dispatch/Excalibur.Dispatch.SourceGenerators/Excalibur.Dispatch.SourceGenerators.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Compat.MediatR/Excalibur.Dispatch.Compat.MediatR.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Compat.MediatR.SourceGenerators/Excalibur.Dispatch.Compat.MediatR.SourceGenerators.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Compat.MassTransit/Excalibur.Dispatch.Compat.MassTransit.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Migration.Analyzers/Excalibur.Dispatch.Migration.Analyzers.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Migration.CodeFixes/Excalibur.Dispatch.Migration.CodeFixes.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Testing.Shouldly/Excalibur.Dispatch.Testing.Shouldly.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Testing/Excalibur.Dispatch.Testing.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/Excalibur.Dispatch.Transport.Abstractions.csproj
@@ -275,6 +282,7 @@ projects:
   - path: src/Excalibur/Excalibur.Saga.SqlServer/Excalibur.Saga.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Saga/Excalibur.Saga.csproj
   - path: src/Excalibur/Excalibur.Security.Abstractions/Excalibur.Security.Abstractions.csproj
+  - path: src/Excalibur/Excalibur.Security.AuditLogging/Excalibur.Security.AuditLogging.csproj
   - path: src/Excalibur/Excalibur.Security.Aws/Excalibur.Security.Aws.csproj
   - path: src/Excalibur/Excalibur.Security.Azure/Excalibur.Security.Azure.csproj
   - path: src/Excalibur/Excalibur.Security/Excalibur.Security.csproj
@@ -325,6 +333,9 @@ projects:
   - path: tests/unit/Excalibur.Dispatch.Caching.Tests/Excalibur.Dispatch.Caching.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.ClaimCheck.AwsS3.Tests/Excalibur.Dispatch.ClaimCheck.AwsS3.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests/Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests.csproj
+  - path: tests/unit/Excalibur.Dispatch.Compat.MassTransit.Tests/Excalibur.Dispatch.Compat.MassTransit.Tests.csproj
+  - path: tests/unit/Excalibur.Dispatch.Compat.MediatR.Tests/Excalibur.Dispatch.Compat.MediatR.Tests.csproj
+  - path: tests/unit/Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures/Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures.csproj
   - path: tests/unit/Excalibur.Compliance.Tests/Excalibur.Compliance.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.Configuration.Tests/Excalibur.Dispatch.Configuration.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.DependencyInjection.Tests/Excalibur.Dispatch.DependencyInjection.Tests.csproj
@@ -335,6 +346,7 @@ projects:
   - path: tests/unit/Excalibur.Dispatch.LeaderElection.Abstractions.Tests/Excalibur.Dispatch.LeaderElection.Abstractions.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.Messaging.Tests/Excalibur.Dispatch.Messaging.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.Middleware.Tests/Excalibur.Dispatch.Middleware.Tests.csproj
+  - path: tests/unit/Excalibur.Dispatch.Migration.Tests/Excalibur.Dispatch.Migration.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.Observability.Tests/Excalibur.Dispatch.Observability.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.Options.Tests/Excalibur.Dispatch.Options.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.Patterns.Tests/Excalibur.Dispatch.Patterns.Tests.csproj
@@ -353,6 +365,7 @@ projects:
   - path: tests/unit/Excalibur.Hosting.Tests/Excalibur.Hosting.Tests.csproj
   - path: tests/unit/Excalibur.Jobs.Tests/Excalibur.Jobs.Tests.csproj
   - path: tests/unit/Excalibur.LeaderElection.Tests/Excalibur.LeaderElection.Tests.csproj
+  - path: tests/unit/Excalibur.MediatRMigration.Tests/Excalibur.MediatRMigration.Tests.csproj
   - path: tests/unit/Excalibur.Outbox.Tests/Excalibur.Outbox.Tests.csproj
   - path: tests/unit/Excalibur.Postgres.Tests/Excalibur.Postgres.Tests.csproj
   - path: tests/unit/Excalibur.Saga.Tests/Excalibur.Saga.Tests.csproj

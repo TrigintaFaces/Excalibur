@@ -11,7 +11,6 @@ namespace Excalibur.Saga.Reminders;
 /// <remarks>
 /// Performs cross-property constraint checks that cannot be expressed via
 /// <see cref="System.ComponentModel.DataAnnotations"/> attributes alone.
-/// Sprint 833 bd-1he43e.
 /// </remarks>
 internal sealed class SagaReminderOptionsValidator : IValidateOptions<SagaReminderOptions>
 {

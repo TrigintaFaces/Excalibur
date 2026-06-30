@@ -48,7 +48,7 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ServiceBusTransportReceiver"/>
 	/// class using a pre-built adapter. Used by tests to substitute the SDK via
-	/// the <see cref="IServiceBusReceiverSeam"/> seam (ADR-142 §D7).
+	/// the <see cref="IServiceBusReceiverSeam"/> seam.
 	/// </summary>
 	/// <param name="receiver">The Service Bus receiver adapter.</param>
 	/// <param name="source">The source queue or subscription name.</param>
@@ -157,7 +157,11 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 				}
 				else
 				{
-					await _receiver.DeadLetterMessageAsync(sbMessage, reason ?? "Rejected", rejectCts.Token)
+					await _receiver.DeadLetterMessageAsync(
+							sbMessage,
+							deadLetterReason: "Rejected",
+							deadLetterErrorDescription: reason,
+							rejectCts.Token)
 						.ConfigureAwait(false);
 					LogMessageRejected(message.Id, Source, reason ?? "no reason");
 				}

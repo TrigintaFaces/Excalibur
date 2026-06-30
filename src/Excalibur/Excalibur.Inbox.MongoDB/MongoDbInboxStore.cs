@@ -20,7 +20,7 @@ namespace Excalibur.Inbox.MongoDB;
 /// Uses InsertOneAsync with unique index on (messageId, handlerType) for atomic first-writer-wins semantics.
 /// Catches MongoWriteException with duplicate key error (11000) for conflict detection.
 /// </remarks>
-public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable
+public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
 	private const int DuplicateKeyErrorCode = 11000;
 
@@ -199,6 +199,59 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 			LogTryMarkProcessedDuplicate(_logger, messageId, handlerType, null);
 			return false;
 		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Atomic first-writer-wins claim into the NON-TERMINAL Processing state. The unique _id
+		// (messageId+handlerType) makes InsertOneAsync fail with a duplicate-key error on conflict
+		// (already claimed/processed) => not claimed. Finalized via MarkProcessedAsync, removed via ReleaseAsync.
+		var document = new MongoDbInboxDocument
+		{
+			Id = MongoDbInboxDocument.CreateId(messageId, handlerType),
+			MessageId = messageId,
+			HandlerType = handlerType,
+			MessageType = "Unknown",
+			Status = (int)InboxStatus.Processing,
+			ReceivedAt = DateTimeOffset.UtcNow,
+			LastAttemptAt = DateTimeOffset.UtcNow
+		};
+
+		try
+		{
+			await _collection!.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
+			_logger.LogDebug("Claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			return true;
+		}
+		catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+		{
+			_logger.LogDebug("Claim denied (already claimed/processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			return false;
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Atomic conditional delete: remove the non-terminal claim only (status != Processed) so a
+		// concurrently-finalized entry is never deleted. No-op if already removed or never claimed.
+		var id = MongoDbInboxDocument.CreateId(messageId, handlerType);
+		var filter = Builders<MongoDbInboxDocument>.Filter.And(
+			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id),
+			Builders<MongoDbInboxDocument>.Filter.Ne(d => d.Status, (int)InboxStatus.Processed));
+
+		_ = await _collection!.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

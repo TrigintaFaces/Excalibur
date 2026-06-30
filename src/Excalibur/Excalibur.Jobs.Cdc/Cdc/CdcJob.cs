@@ -44,7 +44,7 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 	/// <param name="factory"> The factory for creating data change event processors. </param>
 	/// <param name="connectionFactory">
 	/// A factory function that creates SQL connections from connection string names.
-	/// Follows the S547 <c>Func&lt;SqlConnection&gt;</c> factory pattern — connection creation
+	/// Follows the <c>Func&lt;SqlConnection&gt;</c> factory pattern — connection creation
 	/// is deferred to the factory, not performed via <c>new SqlConnection(connectionString)</c>.
 	/// Register in DI with <c>services.AddSingleton&lt;Func&lt;string, SqlConnection&gt;&gt;(...)</c>.
 	/// </param>
@@ -73,7 +73,7 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CdcJob" /> class using <see cref="IConfiguration"/>
-	/// to resolve connection strings by name, following the S547 DI factory pattern.
+	/// to resolve connection strings by name, following the DI factory pattern.
 	/// </summary>
 	/// <param name="factory"> The factory for creating data change event processors. </param>
 	/// <param name="configuration"> The application configuration for resolving connection strings. </param>

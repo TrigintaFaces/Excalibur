@@ -1,6 +1,7 @@
 using Excalibur.Dispatch.Validation;
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Middleware.Resilience;
 using Excalibur.Dispatch.Middleware.Versioning;
 
@@ -42,11 +43,11 @@ public sealed class MoreEnumsShould
 	}
 
 	[Fact]
-	public void ResilienceState_HaveExpectedValues()
+	public void CircuitState_HaveExpectedValues()
 	{
-		ResilienceState.Closed.ShouldBe((ResilienceState)0);
-		ResilienceState.Open.ShouldBe((ResilienceState)1);
-		ResilienceState.HalfOpen.ShouldBe((ResilienceState)2);
+		CircuitState.Closed.ShouldBe((CircuitState)0);
+		CircuitState.Open.ShouldBe((CircuitState)1);
+		CircuitState.HalfOpen.ShouldBe((CircuitState)2);
 	}
 
 	// --- Configuration enums ---

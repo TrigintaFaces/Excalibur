@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // ============================================================================
-// Proof-of-Life Consumer App  (bd-s94fvq)
+// Proof-of-Life Consumer App
 // ============================================================================
 //
 // This sample validates the complete Excalibur consumer developer experience:

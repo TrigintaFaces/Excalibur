@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Transport.GooglePubSub;
 
 using Google.Cloud.PubSub.V1;
@@ -129,7 +130,7 @@ public sealed partial class RetryPolicyManager(
 					MaxRetryAttempts = Math.Min(baseStrategy.MaxRetryAttempts, 3),
 					InitialDelay = TimeSpan.FromSeconds(30),
 					MaxDelay = TimeSpan.FromMinutes(10),
-					BackoffType = BackoffType.Exponential,
+					BackoffType = BackoffStrategy.Exponential,
 					JitterEnabled = true,
 				};
 
@@ -143,7 +144,7 @@ public sealed partial class RetryPolicyManager(
 					MaxRetryAttempts = baseStrategy.MaxRetryAttempts + 2,
 					InitialDelay = TimeSpan.FromSeconds(5),
 					MaxDelay = TimeSpan.FromMinutes(2),
-					BackoffType = BackoffType.Linear,
+					BackoffType = BackoffStrategy.Linear,
 					JitterEnabled = true,
 				};
 
@@ -210,18 +211,30 @@ public sealed partial class RetryPolicyManager(
 	{
 		var delays = strategy.BackoffType switch
 		{
-			BackoffType.Constant => Enumerable.Repeat(strategy.InitialDelay, strategy.MaxRetryAttempts),
+			BackoffStrategy.Fixed => Enumerable.Repeat(strategy.InitialDelay, strategy.MaxRetryAttempts),
 
-			BackoffType.Linear => Enumerable.Range(1, strategy.MaxRetryAttempts)
+			BackoffStrategy.Linear => Enumerable.Range(1, strategy.MaxRetryAttempts)
 				.Select(i => TimeSpan.FromMilliseconds(strategy.InitialDelay.TotalMilliseconds * i)),
 
-			BackoffType.Exponential => Enumerable.Range(1, strategy.MaxRetryAttempts)
-				.Select(i => TimeSpan.FromMilliseconds(strategy.InitialDelay.TotalMilliseconds * Math.Pow(2.0, i - 1))),
+			BackoffStrategy.Exponential => Enumerable.Range(1, strategy.MaxRetryAttempts)
+				.Select(i => ExponentialBackoff.Calculate(i, new BackoffParameters
+				{
+					BaseDelay = strategy.InitialDelay,
+					MaxDelay = strategy.MaxDelay,
+					Multiplier = 2.0,
+					UseJitter = false,
+					JitterFactor = 0,
+				})),
 
-			BackoffType.DecorrelatedJitter => Enumerable.Range(1, strategy.MaxRetryAttempts)
-				.Select(i => TimeSpan.FromMilliseconds(strategy.InitialDelay.TotalMilliseconds * Math.Pow(2.0, i - 1)))
-				.Select(delay =>
-					TimeSpan.FromMilliseconds(delay.TotalMilliseconds + (Random.Shared.NextDouble() * delay.TotalMilliseconds * 0.1))),
+			BackoffStrategy.ExponentialWithJitter => Enumerable.Range(1, strategy.MaxRetryAttempts)
+				.Select(i => ExponentialBackoff.Calculate(i, new BackoffParameters
+				{
+					BaseDelay = strategy.InitialDelay,
+					MaxDelay = strategy.MaxDelay,
+					Multiplier = 2.0,
+					UseJitter = true,
+					JitterFactor = 0.1,
+				})),
 
 			_ => throw new InvalidOperationException($"Unknown backoff type: {strategy.BackoffType}"),
 		};
@@ -230,7 +243,7 @@ public sealed partial class RetryPolicyManager(
 		delays = delays.Select(d => d > strategy.MaxDelay ? strategy.MaxDelay : d);
 
 		// Add jitter if enabled
-		if (strategy.JitterEnabled && strategy.BackoffType != BackoffType.DecorrelatedJitter)
+		if (strategy.JitterEnabled && strategy.BackoffType != BackoffStrategy.ExponentialWithJitter)
 		{
 			delays = delays.Select(d =>
 				d + TimeSpan.FromMilliseconds(Random.Shared.Next(0, (int)(d.TotalMilliseconds * 0.2))));

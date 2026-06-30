@@ -24,7 +24,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <see cref="IETag"/>, and <see cref="IClientAddress"/>. Consumers who opted
 /// in to audit through <c>CommandBase&lt;T&gt; + IAmAuditable</c> previously
 /// had to register every sibling by hand — a classic DX failure (see
-/// <c>management/specs/conformance-minimal-wiring-spec.md</c>, bd-20ft0e).
+/// <c>management/specs/conformance-minimal-wiring-spec.md</c>,).
 /// </para>
 /// <para>
 /// <see cref="AddExcaliburAudit"/> bundles the full set. It is idempotent and

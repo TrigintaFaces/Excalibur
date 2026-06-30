@@ -31,6 +31,8 @@ Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkFailedAsync(string! messageId,
 Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkProcessingAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Firestore.FirestoreInboxStore.ReleaseAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Firestore.FirestoreInboxStore.TryClaimAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.Firestore.FirestoreInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.Firestore.IFirestoreInboxBuilder
 Excalibur.Inbox.Firestore.IFirestoreInboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Inbox.Firestore.IFirestoreInboxBuilder!

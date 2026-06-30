@@ -25,6 +25,7 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 			_fakeSqs,
 			"test-source",
 			"https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
+			new AwsSqsVisibilityHeartbeatOptions(),
 			NullLogger<SqsTransportSubscriber>.Instance);
 	}
 
@@ -82,10 +83,13 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 			},
 			cts.Token);
 
-		// Assert
+		// Assert — settlement now uses batch delete (one call per receive batch), not per-message delete.
 		processedIds.ShouldContain("msg-sub-1");
+		A.CallTo(() => _fakeSqs.DeleteMessageBatchAsync(
+			A<DeleteMessageBatchRequest>.That.Matches(r => r.Entries.Exists(e => e.ReceiptHandle == "rh-1")),
+			A<CancellationToken>._)).MustHaveHappened();
 		A.CallTo(() => _fakeSqs.DeleteMessageAsync(A<DeleteMessageRequest>._, A<CancellationToken>._))
-			.MustHaveHappened();
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -124,9 +128,9 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Reject),
 			cts.Token);
 
-		// Assert - Reject deletes the message
-		A.CallTo(() => _fakeSqs.DeleteMessageAsync(
-			A<DeleteMessageRequest>.That.Matches(r => r.ReceiptHandle == "rh-rej"),
+		// Assert - Reject deletes the message via batch delete
+		A.CallTo(() => _fakeSqs.DeleteMessageBatchAsync(
+			A<DeleteMessageBatchRequest>.That.Matches(r => r.Entries.Exists(e => e.ReceiptHandle == "rh-rej")),
 			A<CancellationToken>._)).MustHaveHappened();
 	}
 
@@ -166,10 +170,10 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Requeue),
 			cts.Token);
 
-		// Assert
-		A.CallTo(() => _fakeSqs.ChangeMessageVisibilityAsync(
-			A<ChangeMessageVisibilityRequest>.That.Matches(r =>
-				r.ReceiptHandle == "rh-req" && r.VisibilityTimeout == 0),
+		// Assert — requeue changes visibility to 0 via batch visibility change
+		A.CallTo(() => _fakeSqs.ChangeMessageVisibilityBatchAsync(
+			A<ChangeMessageVisibilityBatchRequest>.That.Matches(r =>
+				r.Entries.Exists(e => e.ReceiptHandle == "rh-req" && e.VisibilityTimeout == 0)),
 			A<CancellationToken>._)).MustHaveHappened();
 	}
 
@@ -209,10 +213,10 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 			(_, _) => throw new InvalidOperationException("Processing failed"),
 			cts.Token);
 
-		// Assert - should change visibility to 0 for retry
-		A.CallTo(() => _fakeSqs.ChangeMessageVisibilityAsync(
-			A<ChangeMessageVisibilityRequest>.That.Matches(r =>
-				r.ReceiptHandle == "rh-err" && r.VisibilityTimeout == 0),
+		// Assert - should change visibility to 0 for retry via batch visibility change
+		A.CallTo(() => _fakeSqs.ChangeMessageVisibilityBatchAsync(
+			A<ChangeMessageVisibilityBatchRequest>.That.Matches(r =>
+				r.Entries.Exists(e => e.ReceiptHandle == "rh-err" && e.VisibilityTimeout == 0)),
 			A<CancellationToken>._)).MustHaveHappened();
 	}
 
@@ -265,28 +269,28 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 	public void ThrowWhenConstructedWithNullSqsClient()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqsTransportSubscriber(null!, "source", "queueUrl", NullLogger<SqsTransportSubscriber>.Instance));
+			new SqsTransportSubscriber(null!, "source", "queueUrl", new AwsSqsVisibilityHeartbeatOptions(), NullLogger<SqsTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void ThrowWhenConstructedWithNullSource()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqsTransportSubscriber(_fakeSqs, null!, "queueUrl", NullLogger<SqsTransportSubscriber>.Instance));
+			new SqsTransportSubscriber(_fakeSqs, null!, "queueUrl", new AwsSqsVisibilityHeartbeatOptions(), NullLogger<SqsTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void ThrowWhenConstructedWithNullQueueUrl()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqsTransportSubscriber(_fakeSqs, "source", null!, NullLogger<SqsTransportSubscriber>.Instance));
+			new SqsTransportSubscriber(_fakeSqs, "source", null!, new AwsSqsVisibilityHeartbeatOptions(), NullLogger<SqsTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void ThrowWhenConstructedWithNullLogger()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqsTransportSubscriber(_fakeSqs, "source", "queueUrl", null!));
+			new SqsTransportSubscriber(_fakeSqs, "source", "queueUrl", new AwsSqsVisibilityHeartbeatOptions(), null!));
 	}
 
 	[Fact]

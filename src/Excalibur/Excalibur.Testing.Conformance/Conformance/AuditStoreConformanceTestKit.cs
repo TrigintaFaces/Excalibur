@@ -587,11 +587,12 @@ public abstract class AuditStoreConformanceTestKit
 				"Both events should be retrievable");
 		}
 
-		// First event should have genesis hash as previous
-		if (string.IsNullOrEmpty(retrieved1.PreviousEventHash))
+		// First (genesis) event has NO prior tag: the keyed-MAC chain (qa71t5) uses a null PreviousEventHash
+		// for the genesis link — the tenant is bound via the canonicalized record, not a tenant-seeded genesis.
+		if (!string.IsNullOrEmpty(retrieved1.PreviousEventHash))
 		{
 			throw new TestFixtureAssertionException(
-				"First event should have PreviousEventHash set (genesis hash)");
+				"First (genesis) event should have a null PreviousEventHash (keyed-MAC chain genesis = null prior tag)");
 		}
 
 		// Second event should link to first event's hash
@@ -605,6 +606,18 @@ public abstract class AuditStoreConformanceTestKit
 		{
 			throw new TestFixtureAssertionException(
 				"Second event's PreviousEventHash should equal first event's EventHash");
+		}
+
+		// EventHash must be the keyed, versioned integrity tag (v1:{keyId}:{mac}) — confirms the keyed-MAC
+		// migration landed (not a bare/unkeyed hash). The keyId is consumer-configured, so assert the
+		// structural shape (version prefix + 3 colon-delimited parts), not a specific key id.
+		foreach (var tag in new[] { retrieved1.EventHash, retrieved2.EventHash })
+		{
+			if (tag is null || !tag.StartsWith("v1:", StringComparison.Ordinal) || tag.Split(':').Length != 3)
+			{
+				throw new TestFixtureAssertionException(
+					$"EventHash should be a keyed versioned tag 'v1:{{keyId}}:{{mac}}', got '{tag ?? "<null>"}'");
+			}
 		}
 	}
 
@@ -769,9 +782,9 @@ public abstract class AuditStoreConformanceTestKit
 				"Both events should have computed EventHash values");
 		}
 
-		// While hashes also differ due to different EventIds and chain position,
-		// verify both are computed (non-null) -- direct hash-content verification
-		// is covered by AuditHasher unit tests.
+		// While tags also differ due to different EventIds and chain position,
+		// verify both are computed (non-null) -- direct keyed-MAC verification
+		// is covered by the IAuditIntegrityStrategy unit/integrity tests.
 		if (string.Equals(result1.EventHash, result2.EventHash, StringComparison.Ordinal))
 		{
 			throw new TestFixtureAssertionException(

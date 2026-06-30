@@ -8,6 +8,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Excalibur.Dispatch.Serialization;
+
 namespace Excalibur.Dispatch;
 
 /// <summary>
@@ -80,8 +82,21 @@ public sealed class JsonEventSerializer : IEventSerializer
 	{
 		ArgumentNullException.ThrowIfNull(domainEvent);
 
-		var json = JsonSerializer.Serialize(domainEvent, domainEvent.GetType(), _options);
-		return Encoding.UTF8.GetBytes(json);
+		// ifgj5w: surface failures as SerializationException (canonical contract) so event-store
+		// read/write failures are uniformly catchable/poison-routable, like SpanEventSerializer.
+		var eventType = domainEvent.GetType();
+		try
+		{
+			return JsonSerializer.SerializeToUtf8Bytes(domainEvent, eventType, _options);
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.WrapObject(eventType, "serialize", ex);
+		}
 	}
 
 	/// <inheritdoc />
@@ -95,11 +110,23 @@ public sealed class JsonEventSerializer : IEventSerializer
 
 		ArgumentNullException.ThrowIfNull(eventType);
 
-		var json = Encoding.UTF8.GetString(data);
-		var @event = JsonSerializer.Deserialize(json, eventType, _options);
+		// ifgj5w: surface failures as SerializationException (canonical contract) so event-store
+		// read failures are uniformly catchable/poison-routable, like SpanEventSerializer.
+		try
+		{
+			var @event = JsonSerializer.Deserialize(data.AsSpan(), eventType, _options);
 
-		return @event as IDomainEvent ??
-			   throw new InvalidOperationException($"Deserialized object is not an IDomainEvent: {eventType}");
+			return @event as IDomainEvent ??
+				   throw new SerializationException($"Deserialized object is not an IDomainEvent: {eventType}");
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.WrapObject(eventType, "deserialize", ex);
+		}
 	}
 
 	/// <inheritdoc />

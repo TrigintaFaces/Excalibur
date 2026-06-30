@@ -8,6 +8,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.AzureServiceBus;
+using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
@@ -55,6 +56,9 @@ internal sealed partial class AzureServiceBusMessageBus(
 		ArgumentNullException.ThrowIfNull(action);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.AzureServiceBus, serviceBusOptions.QueueName, context.MessageId);
+
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(action, action.GetType());
 		ReadOnlyMemory<byte> body = payload;
@@ -84,6 +88,9 @@ internal sealed partial class AzureServiceBusMessageBus(
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.AzureServiceBus, serviceBusOptions.QueueName, context.MessageId);
+
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(evt, evt.GetType());
 		ReadOnlyMemory<byte> body = payload;
@@ -112,6 +119,9 @@ internal sealed partial class AzureServiceBusMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(doc);
 		ArgumentNullException.ThrowIfNull(context);
+
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.AzureServiceBus, serviceBusOptions.QueueName, context.MessageId);
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(doc, doc.GetType());

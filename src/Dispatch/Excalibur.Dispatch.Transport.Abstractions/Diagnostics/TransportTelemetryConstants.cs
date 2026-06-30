@@ -145,6 +145,66 @@ internal static class TransportTelemetryConstants
 	}
 
 	/// <summary>
+	/// OpenTelemetry messaging semantic-convention attribute keys and well-known values.
+	/// These keys follow the OTel <c>messaging.*</c> semantic conventions so that producer and
+	/// consumer spans are interoperable with standard tracing backends, independent of the
+	/// framework-specific <see cref="Tags"/> above.
+	/// </summary>
+	[SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Logical grouping of telemetry constants")]
+	public static class MessagingConventions
+	{
+		/// <summary>
+		/// The messaging system identifier (e.g. "rabbitmq", "kafka", "gcp_pubsub", "servicebus", "aws_sqs", "aws_sns").
+		/// </summary>
+		public const string System = "messaging.system";
+
+		/// <summary>
+		/// The message destination name (queue, topic, exchange, or ARN).
+		/// </summary>
+		public const string DestinationName = "messaging.destination.name";
+
+		/// <summary>
+		/// The messaging operation being performed (e.g. "publish", "receive", "process").
+		/// </summary>
+		public const string Operation = "messaging.operation";
+
+		/// <summary>
+		/// The message identifier, when available.
+		/// </summary>
+		public const string MessageId = "messaging.message.id";
+
+		/// <summary>
+		/// The <see cref="Operation"/> value for a producer publish.
+		/// </summary>
+		public const string OperationPublish = "publish";
+
+		/// <summary>
+		/// Well-known <see cref="System"/> values for the built-in transports.
+		/// </summary>
+		[SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Logical grouping of telemetry constants")]
+		public static class Systems
+		{
+			/// <summary>RabbitMQ messaging system.</summary>
+			public const string RabbitMq = "rabbitmq";
+
+			/// <summary>Apache Kafka messaging system.</summary>
+			public const string Kafka = "kafka";
+
+			/// <summary>Google Cloud Pub/Sub messaging system.</summary>
+			public const string GooglePubSub = "gcp_pubsub";
+
+			/// <summary>Azure Service Bus messaging system.</summary>
+			public const string AzureServiceBus = "servicebus";
+
+			/// <summary>AWS SQS messaging system.</summary>
+			public const string AwsSqs = "aws_sqs";
+
+			/// <summary>AWS SNS messaging system.</summary>
+			public const string AwsSns = "aws_sns";
+		}
+	}
+
+	/// <summary>
 	/// Well-known property keys set by decorators and read by transport implementations.
 	/// These keys are used in <see cref="TransportMessage.Properties"/> to pass transport-specific hints
 	/// without polluting the core interface.

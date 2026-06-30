@@ -39,6 +39,9 @@
   <data name="CronScheduler_UnsupportedTimeZone" xml:space="preserve">
     <value>Timezone '{0}' is not supported. Supported timezones: {1}</value>
   </data>
+  <data name="CronScheduler_ExtendedSyntaxDisabled" xml:space="preserve">
+    <value>Cron expression '{0}' uses extended syntax (L, W, or #), which is disabled. Set CronScheduleOptions.EnableExtendedSyntax to true to allow it.</value>
+  </data>
   <data name="ContractVersionCheckMiddleware_EventVersionIncompatible" xml:space="preserve">
     <value>Event version for {0} ({1}) is incompatible: {2}</value>
   </data>

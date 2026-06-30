@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Middleware.Inbox;
 using Excalibur.Dispatch.Options.Configuration;
+using Excalibur.Dispatch.Serialization;
 
 using FakeItEasy;
 
@@ -121,7 +122,7 @@ public sealed class InboxMiddlewareTraceReparentShould
 			.Returns(false);
 
 		var options = Microsoft.Extensions.Options.Options.Create(new InboxConfigurationOptions { Enabled = true });
-		return new InboxMiddleware(options, inboxStore: null, deduplicator, NullLogger<InboxMiddleware>.Instance);
+		return new InboxMiddleware(options, inboxStore: null, deduplicator, new DispatchJsonSerializer(), NullLogger<InboxMiddleware>.Instance);
 	}
 
 	private static IMessageContext CreateContext(string? traceParent)

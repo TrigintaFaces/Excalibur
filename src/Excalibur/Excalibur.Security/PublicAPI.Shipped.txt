@@ -582,6 +582,7 @@ Excalibur.Security.VerificationException.VerificationException(string! message) 
 Excalibur.Security.VerificationException.VerificationException(string! message, System.Exception! innerException) -> void
 Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SecurityExcaliburBuilderExtensions
+Microsoft.Extensions.DependencyInjection.SecurityHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions
 Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions
 const Excalibur.Security.Argon2Options.SectionName = "Argon2" -> string!
@@ -804,6 +805,7 @@ static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtension
 static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Argon2Options!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityExcaliburBuilderExtensions.UseSecurity(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.SecurityHealthChecksBuilderExtensions.AddSecurityHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "security", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddAsymmetricSigning(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.SigningOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.SecurityOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

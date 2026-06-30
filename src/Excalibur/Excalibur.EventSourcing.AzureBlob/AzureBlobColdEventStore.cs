@@ -4,6 +4,7 @@
 using System.IO.Compression;
 using System.Text.Json;
 
+using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 
@@ -27,6 +28,8 @@ namespace Excalibur.EventSourcing.AzureBlob;
 /// </remarks>
 internal sealed class AzureBlobColdEventStore : IColdEventStore
 {
+	private const int MaxConcurrencyRetries = 5;
+
 	private readonly BlobContainerClient _containerClient;
 	private readonly ILogger<AzureBlobColdEventStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
@@ -59,33 +62,53 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 
 		var blobClient = GetBlobClient(aggregateId);
 
-		// Read existing events if blob exists, then merge
-		var existingEvents = new List<StoredEvent>();
-		if (await BlobExistsAsync(blobClient, cancellationToken).ConfigureAwait(false))
+		// Optimistic-concurrency read-modify-write: a concurrent archive must not silently overwrite
+		// (lost update). We capture the source blob's ETag on read and write conditionally (IfMatch for an
+		// update, IfNoneMatch=* for a create); a precondition failure means another writer raced us, so we
+		// re-read and retry against the now-current blob.
+		for (var attempt = 0; ; attempt++)
 		{
-			existingEvents.AddRange(await ReadEventsFromBlobAsync(blobClient, cancellationToken).ConfigureAwait(false));
+			var (existingEvents, etag) = await TryDownloadForUpdateAsync(blobClient, cancellationToken)
+				.ConfigureAwait(false);
+
+			// Merge: deduplicate by version, keep latest
+			var maxExistingVersion = existingEvents.Count > 0
+				? existingEvents[^1].Version
+				: -1;
+
+			var newEvents = events.Where(e => e.Version > maxExistingVersion).ToList();
+			if (newEvents.Count == 0)
+			{
+				_logger.LogDebug("No new events to archive for {AggregateId}; all versions already in cold storage", aggregateId);
+				return;
+			}
+
+			existingEvents.AddRange(newEvents);
+
+			// IfMatch=etag when updating an existing blob; IfNoneMatch=* (create-only) when none existed.
+			var conditions = etag is { } e
+				? new BlobRequestConditions { IfMatch = e }
+				: new BlobRequestConditions { IfNoneMatch = ETag.All };
+
+			try
+			{
+				await WriteEventsToBlobAsync(blobClient, existingEvents, conditions, cancellationToken)
+					.ConfigureAwait(false);
+
+				_logger.LogDebug(
+					"Archived {NewCount} events for {AggregateId} to blob (total {TotalCount})",
+					newEvents.Count, aggregateId, existingEvents.Count);
+				return;
+			}
+			catch (RequestFailedException ex) when (
+				(ex.Status == 412 || ex.Status == 409) && attempt < MaxConcurrencyRetries)
+			{
+				// Another writer committed between our read and write — re-read and retry.
+				_logger.LogDebug(
+					"Concurrent archive detected for {AggregateId} (status {Status}); retrying (attempt {Attempt})",
+					aggregateId, ex.Status, attempt + 1);
+			}
 		}
-
-		// Merge: deduplicate by version, keep latest
-		var maxExistingVersion = existingEvents.Count > 0
-			? existingEvents[^1].Version
-			: -1;
-
-		var newEvents = events.Where(e => e.Version > maxExistingVersion).ToList();
-		if (newEvents.Count == 0)
-		{
-			_logger.LogDebug("No new events to archive for {AggregateId}; all versions already in cold storage", aggregateId);
-			return;
-		}
-
-		existingEvents.AddRange(newEvents);
-
-		// Write merged events as compressed JSON
-		await WriteEventsToBlobAsync(blobClient, existingEvents, cancellationToken).ConfigureAwait(false);
-
-		_logger.LogDebug(
-			"Archived {NewCount} events for {AggregateId} to blob (total {TotalCount})",
-			newEvents.Count, aggregateId, existingEvents.Count);
 	}
 
 	/// <inheritdoc />
@@ -158,9 +181,38 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 		return events ?? [];
 	}
 
+	/// <summary>
+	/// Downloads the current archive blob (if any) and its ETag in a single request. Returns an empty
+	/// list and a <see langword="null"/> ETag when the blob does not yet exist (create path).
+	/// </summary>
+	private async Task<(List<StoredEvent> Events, ETag? ETag)> TryDownloadForUpdateAsync(
+		BlobClient blobClient,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			var downloadResponse = await blobClient.DownloadContentAsync(cancellationToken).ConfigureAwait(false);
+
+			using var compressedStream = downloadResponse.Value.Content.ToStream();
+			await using var gzipStream = new GZipStream(compressedStream, CompressionMode.Decompress);
+
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
+			var events = await JsonSerializer.DeserializeAsync<List<StoredEvent>>(
+				gzipStream, _jsonOptions, cancellationToken).ConfigureAwait(false);
+#pragma warning restore IL2026, IL3050
+
+			return (events ?? [], downloadResponse.Value.Details.ETag);
+		}
+		catch (RequestFailedException ex) when (ex.Status == 404)
+		{
+			return ([], null);
+		}
+	}
+
 	private async Task WriteEventsToBlobAsync(
 		BlobClient blobClient,
 		List<StoredEvent> events,
+		BlobRequestConditions conditions,
 		CancellationToken cancellationToken)
 	{
 		using var memoryStream = new MemoryStream();
@@ -183,6 +235,7 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 					ContentType = "application/json",
 					ContentEncoding = "gzip",
 				},
+				Conditions = conditions,
 			},
 			cancellationToken).ConfigureAwait(false);
 	}

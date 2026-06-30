@@ -13,7 +13,7 @@ using Microsoft.Data.SqlClient;
 namespace Excalibur.LeaderElection.SqlServer;
 
 /// <summary>
-/// SQL Server-backed <see cref="IFencingTokenProvider"/> implementation (ADR-339, bd-nxmjpm).
+/// SQL Server-backed <see cref="IFencingTokenProvider"/> implementation.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -26,7 +26,7 @@ namespace Excalibur.LeaderElection.SqlServer;
 /// Validation is fail-closed against the current high-water mark: a token is accepted only when it is at or
 /// above the stored sequence value, so a stale leader whose lease was taken over by a new leader (which
 /// advanced the sequence) is rejected. This is the distributed-systems fencing-token pattern described by
-/// Martin Kleppmann, mirroring the Redis reference (<c>RedisFencingTokenProvider</c>, bd-umemwa).
+/// Martin Kleppmann, mirroring the Redis reference.
 /// </para>
 /// <para>
 /// <b>Injection safety:</b> the per-resource sequence name is <c>fencing_</c> + the hex SHA-256 of the

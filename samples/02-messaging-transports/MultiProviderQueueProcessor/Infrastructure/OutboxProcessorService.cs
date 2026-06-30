@@ -13,7 +13,7 @@ namespace MultiProviderQueueProcessor.Infrastructure;
 /// This is a simplified sample implementation. In production, use the framework's
 /// <c>OutboxBackgroundService</c> via
 /// <c>services.AddExcalibur(x =&gt; x.AddOutbox(o =&gt; o.EnableBackgroundProcessing()))</c>
-/// (the canonical builder path per ADR-321/325) which provides retry policies,
+/// (the canonical builder path) which provides retry policies,
 /// circuit breakers, multi-transport support, and metrics.
 /// </para>
 /// </remarks>

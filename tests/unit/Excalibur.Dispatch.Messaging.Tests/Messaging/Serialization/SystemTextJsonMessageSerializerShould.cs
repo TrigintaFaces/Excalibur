@@ -266,13 +266,12 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 	#region Error Handling Tests
 
 	[Fact]
-	public void Serialize_WithNull_ProducesValidOutput()
+	public void Serialize_WithNull_ThrowsArgumentNullException()
 	{
-		// Act - New consolidated serializer follows STJ pattern: null serializes to "null"
-		var result = _sut.SerializeToBytes<SimpleMessage>(null!);
-
-		// Assert
-		_ = result.ShouldNotBeNull();
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior.
+		_ = Should.Throw<ArgumentNullException>(() => _sut.SerializeToBytes<SimpleMessage>(null!));
 	}
 
 	[Fact]

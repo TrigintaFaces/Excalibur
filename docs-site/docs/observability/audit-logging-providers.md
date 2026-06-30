@@ -8,7 +8,7 @@ description: Per-provider setup for Elasticsearch, OpenSearch, Datadog, Splunk, 
 
 Dispatch audit logging uses `IAuditStore` as its core abstraction for compliance-grade storage and `IAuditLogExporter` / audit sinks for search and analytics projections. Provider-specific backends ship audit events to external platforms for analysis, alerting, and compliance reporting.
 
-:::info Compliance Boundary (ADR-290)
+:::info Compliance Boundary
 
 Only SQL Server (and Postgres) backends implement `IAuditStore` with tamper-evident hash chains. Elasticsearch and OpenSearch serve as **audit sinks** -- write-only, search-optimized projections. They are not compliance-grade stores. See [Compliance Audit Logging](../compliance/audit-logging.md#provider-compliance-boundary) for details.
 :::
@@ -57,7 +57,7 @@ services.AddAuditRoleProvider<MyRoleProvider>();
 
 ## Elasticsearch (Audit Sink)
 
-Index audit events into Elasticsearch for full-text search, aggregation dashboards, and real-time alerting. This is a **sink** (write-only) -- not an `IAuditStore` implementation. See [ADR-290](../compliance/audit-logging.md#provider-compliance-boundary) for rationale.
+Index audit events into Elasticsearch for full-text search, aggregation dashboards, and real-time alerting. This is a **sink** (write-only) -- not an `IAuditStore` implementation. See the [provider compliance boundary](../compliance/audit-logging.md#provider-compliance-boundary) for rationale.
 
 ### Installation
 

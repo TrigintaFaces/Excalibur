@@ -37,7 +37,7 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 		_fakeCertStore = A.Fake<IErasureCertificateStore>();
 		_fakeKeyProvider = A.Fake<IKeyManagementProvider>();
 		_fakeInventoryService = A.Fake<IDataInventoryService>();
-		_auditStore = new InMemoryAuditStore();
+		_auditStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		_logger = A.Fake<ILogger<ErasureVerificationService>>();
 
 		// Wire up GetService to return the certificate sub-store

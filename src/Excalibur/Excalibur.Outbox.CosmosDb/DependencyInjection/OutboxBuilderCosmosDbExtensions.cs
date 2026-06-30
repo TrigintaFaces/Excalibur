@@ -103,7 +103,7 @@ public static class OutboxBuilderCosmosDbExtensions
 		{
 			var endpoint = cosmosBuilder.EndpointValue;
 			var authKey = cosmosBuilder.AuthKeyValue!;
-			builder.Services.TryAddSingleton(_ => new CosmosClient(endpoint, authKey));
+			builder.Services.TryAddSingleton(_ => new CosmosClient(endpoint, authKey, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } }));
 
 			// Map to options so the store can create its own client
 			var endpointCapture = endpoint;
@@ -117,7 +117,7 @@ public static class OutboxBuilderCosmosDbExtensions
 		else if (cosmosBuilder.ConnectionStringValue is not null)
 		{
 			var connStr = cosmosBuilder.ConnectionStringValue;
-			builder.Services.TryAddSingleton(_ => new CosmosClient(connStr));
+			builder.Services.TryAddSingleton(_ => new CosmosClient(connStr, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } }));
 
 			// Map to options so the store can create its own client
 			_ = builder.Services.Configure<CosmosDbOutboxOptions>(opt =>

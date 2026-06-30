@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
+using Excalibur.Dispatch.Telemetry;
 
 using Microsoft.Extensions.Logging;
 
@@ -38,7 +39,10 @@ internal sealed class SecurityAuditWriter
 	private readonly ConcurrentQueue<SecurityAuditEvent> _normalEventQueue;
 	private readonly ConcurrentQueue<SecurityAuditEvent> _priorityEventQueue;
 	private readonly Dictionary<ComplianceFramework, ComplianceReporter> _complianceReporters;
+	private readonly ITelemetrySanitizer? _sanitizer;
 	private readonly ILogger _logger;
+
+	private const string PiiRedaction = "***REDACTED***";
 
 	/// <summary>
 	/// Raised when a security event is recorded for real-time monitoring.
@@ -59,6 +63,7 @@ internal sealed class SecurityAuditWriter
 		ConcurrentQueue<SecurityAuditEvent> normalEventQueue,
 		ConcurrentQueue<SecurityAuditEvent> priorityEventQueue,
 		Dictionary<ComplianceFramework, ComplianceReporter> complianceReporters,
+		ITelemetrySanitizer? sanitizer,
 		ILogger logger)
 	{
 		_configuration = configuration;
@@ -66,7 +71,99 @@ internal sealed class SecurityAuditWriter
 		_normalEventQueue = normalEventQueue;
 		_priorityEventQueue = priorityEventQueue;
 		_complianceReporters = complianceReporters;
+		_sanitizer = sanitizer;
 		_logger = logger;
+	}
+
+	/// <summary>
+	/// Masks PII on a security-audit event in place before it is enqueued, when
+	/// <see cref="AuditOptions.MaskPiiInAuditEvents"/> is enabled (the default). Source IP and user agent
+	/// are replaced with a non-reversible fingerprint; free-form detail values have secret-shaped content
+	/// redacted. Fail-closed: a masking error redacts the field, never emits it raw, and never throws on
+	/// the record path (FR-pbnn9g-4).
+	/// </summary>
+	private void MaskPiiIfEnabled(SecurityAuditEvent securityEvent)
+	{
+		if (!_configuration.MaskPiiInAuditEvents)
+		{
+			return; // explicit opt-out — persist raw fields (FR-pbnn9g-3).
+		}
+
+		securityEvent.SourceIpAddress = MaskTag("source.ip", securityEvent.SourceIpAddress);
+		securityEvent.UserAgent = MaskTag("user.agent", securityEvent.UserAgent);
+		MaskDetailValuesInPlace(securityEvent.Details);
+	}
+
+	private string? MaskTag(string tagName, string? rawValue)
+	{
+		if (rawValue is null)
+		{
+			return null;
+		}
+
+		// Sanitizer is guaranteed present when masking is enabled (SecurityAuditor fail-closed backstop);
+		// the null-guard here is defensive and still fails closed (redact), never raw.
+		if (_sanitizer is null)
+		{
+			return PiiRedaction;
+		}
+
+		try
+		{
+			return _sanitizer.SanitizeTag(tagName, rawValue);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogDebug(ex, "Audit PII tag masking failed for {TagName}; field redacted.", tagName);
+			return PiiRedaction;
+		}
+	}
+
+	/// <summary>
+	/// Returns a log-safe rendering of a PII value: when <see cref="AuditOptions.MaskPiiInAuditEvents"/> is
+	/// enabled the value is sanitized to a non-reversible fingerprint (or redacted on failure) before it can
+	/// reach the logger sink; when masking is opted out the raw value is returned (consistent with the
+	/// persisted record on opt-out). This prevents raw user identifiers / IP addresses from bypassing
+	/// masking via the diagnostic log — a second sink (d7ziag).
+	/// </summary>
+	private string? MaskForLog(string tagName, string? rawValue) =>
+		_configuration.MaskPiiInAuditEvents ? MaskTag(tagName, rawValue) : rawValue;
+
+	private object MaskDetailValue(object value)
+	{
+		switch (value)
+		{
+			case string s when !string.IsNullOrEmpty(s):
+				if (_sanitizer is null)
+				{
+					return PiiRedaction;
+				}
+
+				try
+				{
+					return _sanitizer.SanitizePayload(s);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogDebug(ex, "Audit PII payload masking failed; field redacted.");
+					return PiiRedaction;
+				}
+
+			case Dictionary<string, object> nested:
+				MaskDetailValuesInPlace(nested);
+				return nested;
+
+			default:
+				return value;
+		}
+	}
+
+	private void MaskDetailValuesInPlace(Dictionary<string, object> details)
+	{
+		foreach (var key in details.Keys.ToArray())
+		{
+			details[key] = MaskDetailValue(details[key]);
+		}
 	}
 
 	/// <summary>
@@ -101,11 +198,12 @@ internal sealed class SecurityAuditWriter
 				{ ["ActivityType"] = activityEvent.ActivityType, ["Timestamp"] = activityEvent.Timestamp, },
 			};
 
+			MaskPiiIfEnabled(securityEvent);
 			_normalEventQueue.Enqueue(securityEvent);
 
 			_logger.LogDebug(
 				"Security activity audited: {ActivityType} by {UserId}",
-				activityEvent.ActivityType, activityEvent.UserId);
+				activityEvent.ActivityType, MaskForLog("user.id", activityEvent.UserId));
 		}
 		finally
 		{
@@ -152,6 +250,7 @@ internal sealed class SecurityAuditWriter
 				},
 			};
 
+			MaskPiiIfEnabled(securityEvent);
 			_normalEventQueue.Enqueue(securityEvent);
 
 			EventsRecordedCounter.Add(1, new TagList
@@ -168,7 +267,9 @@ internal sealed class SecurityAuditWriter
 
 			_logger.LogDebug(
 				"Authentication event audited: {UserId} from {SourceIp} result: {Result}",
-				authenticationEvent.UserId, authenticationEvent.IpAddress, authenticationEvent.Result);
+				MaskForLog("user.id", authenticationEvent.UserId),
+				MaskForLog("source.ip", authenticationEvent.IpAddress),
+				authenticationEvent.Result);
 
 			return true;
 		}
@@ -218,6 +319,7 @@ internal sealed class SecurityAuditWriter
 				},
 			};
 
+			MaskPiiIfEnabled(securityEvent);
 			_normalEventQueue.Enqueue(securityEvent);
 
 			EventsRecordedCounter.Add(1, new TagList
@@ -234,7 +336,7 @@ internal sealed class SecurityAuditWriter
 
 			_logger.LogDebug(
 				"Data access event audited: {UserId} performed {Operation} on {ResourceType}",
-				dataAccessEvent.UserId, dataAccessEvent.Operation, dataAccessEvent.ResourceType);
+				MaskForLog("user.id", dataAccessEvent.UserId), dataAccessEvent.Operation, dataAccessEvent.ResourceType);
 
 			return true;
 		}
@@ -283,6 +385,7 @@ internal sealed class SecurityAuditWriter
 				},
 			};
 
+			MaskPiiIfEnabled(securityEvent);
 			_normalEventQueue.Enqueue(securityEvent);
 
 			SecurityEventRecorded?.Invoke(this, new SecurityEventRecordedEventArgs(
@@ -295,7 +398,7 @@ internal sealed class SecurityAuditWriter
 
 			_logger.LogInformation(
 				"Configuration change event audited: {UserId} changed {ConfigurationSection}",
-				configurationEvent.ChangedBy, configurationEvent.ConfigurationSection);
+				MaskForLog("user.id", configurationEvent.ChangedBy), configurationEvent.ConfigurationSection);
 
 			return true;
 		}
@@ -335,6 +438,7 @@ internal sealed class SecurityAuditWriter
 				Details = securityEvent.AdditionalData ?? [],
 			};
 
+			MaskPiiIfEnabled(auditEvent);
 			_normalEventQueue.Enqueue(auditEvent);
 
 			SecurityEventRecorded?.Invoke(this, new SecurityEventRecordedEventArgs(
@@ -347,7 +451,7 @@ internal sealed class SecurityAuditWriter
 
 			_logger.LogDebug(
 				"Security event recorded: {EventType} for user {UserId}",
-				securityEvent.EventType, securityEvent.UserId);
+				securityEvent.EventType, MaskForLog("user.id", securityEvent.UserId));
 
 			return true;
 		}
@@ -396,6 +500,7 @@ internal sealed class SecurityAuditWriter
 			};
 
 			// Add to priority queue for incidents -- drained first by timer
+			MaskPiiIfEnabled(auditEvent);
 			_priorityEventQueue.Enqueue(auditEvent);
 
 			EventsRecordedCounter.Add(1, new TagList
@@ -414,7 +519,7 @@ internal sealed class SecurityAuditWriter
 
 			_logger.LogWarning(
 				"Security incident recorded: {IncidentType} affecting user {UserId} - {Description}",
-				securityIncident.IncidentType, securityIncident.AffectedUserId, securityIncident.Description);
+				securityIncident.IncidentType, MaskForLog("user.id", securityIncident.AffectedUserId), securityIncident.Description);
 
 			return true;
 		}

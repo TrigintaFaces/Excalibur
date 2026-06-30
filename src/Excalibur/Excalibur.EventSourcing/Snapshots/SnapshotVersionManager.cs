@@ -182,7 +182,9 @@ public sealed partial class SnapshotVersionManager
 				return currentPath;
 			}
 
-			foreach (var upgrader in upgraders.Where(u => u.FromVersion == currentVersion))
+			// Order candidates by ToVersion for a canonical, registration-order-independent tie-break: when two
+			// equal-length upgrade paths exist, the chosen chain must not depend on DI registration order.
+			foreach (var upgrader in upgraders.Where(u => u.FromVersion == currentVersion).OrderBy(u => u.ToVersion))
 			{
 				if (!visited.Contains(upgrader.ToVersion))
 				{

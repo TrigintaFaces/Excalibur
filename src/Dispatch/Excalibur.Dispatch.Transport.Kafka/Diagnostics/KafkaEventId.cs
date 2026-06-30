@@ -180,6 +180,15 @@ public static class KafkaEventId
 	/// <summary>Kafka event source subscribed to a topic.</summary>
 	public const int EventSourceSubscribed = 22133;
 
+	/// <summary>Kafka partitions lost (non-graceful revocation).</summary>
+	public const int PartitionsLost = 22134;
+
+	/// <summary>Kafka offsets committed in response to partition revocation.</summary>
+	public const int CommitOnRevoke = 22135;
+
+	/// <summary>Kafka commit-on-revoke failed.</summary>
+	public const int CommitOnRevokeFailed = 22136;
+
 	// ========================================
 	// 22200-22299: Schema Registry
 	// ========================================

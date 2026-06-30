@@ -37,7 +37,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 public sealed class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTestKit
 {
 	/// <inheritdoc />
-	protected override IAuditStore CreateStore() => new InMemoryAuditStore();
+	protected override IAuditStore CreateStore() => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 	#region Store Tests
 

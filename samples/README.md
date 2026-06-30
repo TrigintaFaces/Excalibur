@@ -186,7 +186,7 @@ See the [09-advanced README](09-advanced/README.md) for detailed learning tracks
 | [MultiTenantEventSourcing](11-real-world/MultiTenantEventSourcing/) ⚠️ *shard-map reference* | Multi-tenant SaaS composition | Tenant context, routing, per-tenant projections, query scoping |
 | [HealthcareApi](11-real-world/HealthcareApi/) | Vertical-slice architecture | Healthcare domain, per-feature slicing |
 
-> ⚠️ **Reference-scope samples (Sprint 789).** The ⚠️-tagged samples above demonstrate *wiring* but do not yet exercise the composed flow end-to-end. Each sample's README has a "Scope note" section explaining exactly what is and is not demonstrated, and links to its Sprint 790 Beads task for the operational-flow expansion. This applies to `FullStackAddExcalibur` (`bd-hctd97`), `MultiTenantEventSourcing` (`bd-vpna3f`), `CloudStorageSnapshots` in [`09-advanced/persistence-patterns/`](09-advanced/persistence-patterns/CloudStorageSnapshots/) (`bd-jacsb2`), and `GdprCompliance` in [`06-security/`](06-security/GdprCompliance/) (`bd-2jst3j`). Sample compositional quality overall is tracked under umbrella epic `bd-dmsi02`.
+> ⚠️ **Reference-scope samples .** The ⚠️-tagged samples above demonstrate *wiring* but do not yet exercise the composed flow end-to-end. Each sample's README has a "Scope note" section explaining exactly what is and is not demonstrated, and links to its Beads task for the operational-flow expansion. This applies to `FullStackAddExcalibur` , `MultiTenantEventSourcing` , `CloudStorageSnapshots` in [`09-advanced/persistence-patterns/`](09-advanced/persistence-patterns/CloudStorageSnapshots/) , and `GdprCompliance` in [`06-security/`](06-security/GdprCompliance/) . Sample compositional quality overall is tracked under umbrella epic .
 
 ## Running Samples
 
@@ -206,7 +206,7 @@ dotnet run                # Run the sample
 - **Docker Desktop** for samples marked with "Docker" infrastructure
 - Specific cloud SDKs for serverless/cloud samples (documented per sample)
 
-> ⚠️ **Demo credentials — do not use in production.** Several samples use the canonical Microsoft SQL Server demo password `YourStrong@Passw0rd` (from Microsoft's `mcr.microsoft.com/mssql/server` image documentation) in `appsettings.json` / `Program.cs` connection strings. These are **local development only** — they work with the Docker SQL Server container the samples spin up. In any real deployment, load credentials from a secret store (see [`06-security/AzureKeyVault`](06-security/AzureKeyVault/), [`06-security/AwsSecretsManager`](06-security/AwsSecretsManager/)) and never commit them. Tracked under `bd-6lb199`.
+> ⚠️ **Demo credentials — do not use in production.** Several samples use the canonical Microsoft SQL Server demo password `YourStrong@Passw0rd` (from Microsoft's `mcr.microsoft.com/mssql/server` image documentation) in `appsettings.json` / `Program.cs` connection strings. These are **local development only** — they work with the Docker SQL Server container the samples spin up. In any real deployment, load credentials from a secret store (see [`06-security/AzureKeyVault`](06-security/AzureKeyVault/), [`06-security/AwsSecretsManager`](06-security/AwsSecretsManager/)) and never commit them.
 
 ### Build All Samples
 
@@ -237,7 +237,7 @@ See [CONVERSION-GUIDE.md](CONVERSION-GUIDE.md) for complete instructions.
 
 If you started with pure Dispatch messaging and want to add event sourcing, sagas, or read model projections, see [MIGRATION.md](MIGRATION.md).
 
-## Where the Old Folders Went (Sprint 789 reorganization)
+## Where the Old Folders Went (reorganization)
 
 If you're looking for a sample that used to live at `09-advanced/<Something>/`, `13-jobs/`, `14-data-providers/`, `11-aot/`, `12-vertical-slice-api/`, or `10-real-world/`, here is the mapping:
 

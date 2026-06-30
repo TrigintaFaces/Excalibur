@@ -18,11 +18,16 @@ namespace Excalibur.Dispatch.Validation;
 /// <remarks> Initializes a new instance of the <see cref="DefaultValidationService" /> class. </remarks>
 /// <param name="options"> The validation options. </param>
 /// <param name="logger"> The logger instance. </param>
-internal sealed partial class DefaultValidationService(IOptions<ValidationOptions> options, ILogger<DefaultValidationService> logger)
+/// <param name="schemaValidator"> The optional schema validator strategy; when absent and schema validation is enabled, validation surfaces an error rather than silently passing. </param>
+internal sealed partial class DefaultValidationService(
+	IOptions<ValidationOptions> options,
+	ILogger<DefaultValidationService> logger,
+	IMessageSchemaValidator? schemaValidator = null)
 	: IValidationService
 {
 	private readonly ValidationOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private readonly ILogger<DefaultValidationService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly IMessageSchemaValidator? _schemaValidator = schemaValidator;
 
 	/// <summary>
 	/// Validates a message asynchronously.
@@ -106,14 +111,24 @@ internal sealed partial class DefaultValidationService(IOptions<ValidationOption
 	/// <param name="errors"> The collection to add validation errors to. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the asynchronous validation operation. </returns>
-	[SuppressMessage("Style", "RCS1163:Unused parameter", Justification = "Parameters reserved for future implementation")]
-	[SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Parameters reserved for future implementation")]
-	private static async ValueTask ValidateSchemasAsync(object message, MessageValidationContext context, List<ValidationError> errors,
-		CancellationToken cancellationToken) =>
+	private async ValueTask ValidateSchemasAsync(object message, MessageValidationContext context, List<ValidationError> errors,
+		CancellationToken cancellationToken)
+	{
+		if (_schemaValidator is null)
+		{
+			// Schema validation is enabled (ValidationOptions.ValidateSchemas == true) but no
+			// IMessageSchemaValidator is registered. Fail loud rather than silently pass: surface a
+			// validation error so the misconfiguration is visible. (A startup ValidateOnStart guard should
+			// catch this earlier; this is the defensive runtime backstop so the flag is never a silent no-op.)
+			errors.Add(new ValidationError(
+				context.MessageType.Name,
+				"Schema validation is enabled (ValidateSchemas = true) but no IMessageSchemaValidator is registered."));
 
-		// Schema validation logic would go here This could include JSON schema validation, custom schema checks, etc.
-		await ValueTask.CompletedTask
-			.ConfigureAwait(false);
+			return;
+		}
+
+		await _schemaValidator.ValidateAsync(message, context, errors, cancellationToken).ConfigureAwait(false);
+	}
 
 	/// <summary>
 	/// Validates message contracts asynchronously.
@@ -131,19 +146,26 @@ internal sealed partial class DefaultValidationService(IOptions<ValidationOption
 		// Contract validation logic would go here This could include checking message type compatibility, version checks, etc.
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 
-		// Example contract validation
+		// Example contract validation. When FailFast is enabled, stop accumulating errors as soon as the
+		// MaxErrors threshold is reached so the caller is not charged for validation work past the limit.
 		if (context.MessageType == null)
 		{
 			errors.Add(new ValidationError("MessageType", ErrorMessages.MessageTypeIsRequired));
+
+			if (errors.Count >= _options.MaxErrors && _options.FailFast)
+			{
+				return;
+			}
 		}
 
 		if (string.IsNullOrEmpty(context.MessageId))
 		{
 			errors.Add(new ValidationError("MessageId", ErrorMessages.MessageIdIsRequired));
-		}
 
-		if (errors.Count >= _options.MaxErrors && _options.FailFast)
-		{
+			if (errors.Count >= _options.MaxErrors && _options.FailFast)
+			{
+				return;
+			}
 		}
 	}
 

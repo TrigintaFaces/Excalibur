@@ -72,7 +72,7 @@ builder.Services.Configure<RoutingOptions>(static opts =>
 	opts.DefaultRemoteBusName = "rabbitmq");
 
 // ============================================================
-// Configure RabbitMQ transport (ADR-098 Single Entry Point)
+// Configure RabbitMQ transport (Single Entry Point)
 // ============================================================
 // Get connection string from configuration, with fallback for local Docker
 var connectionString = builder.Configuration["RabbitMq:ConnectionString"]

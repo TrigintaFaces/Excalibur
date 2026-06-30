@@ -5,9 +5,12 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Caching.Diagnostics;
+using Excalibur.Dispatch.Features;
 
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Caching;
@@ -18,15 +21,19 @@ namespace Excalibur.Dispatch.Caching;
 /// </summary>
 /// <param name="meterFactory"> The meter factory for DI-managed meter lifecycle. </param>
 /// <param name="options"> Configuration options that control middleware behavior. </param>
+/// <param name="keyBuilder"> Cache key builder used to fold direct invalidation keys into stored cache keys. </param>
+/// <param name="logger"> Logger for fail-open invalidation diagnostics. </param>
 /// <param name="tagTracker"> Tag tracker for resolving tag-to-key mappings across all modes. </param>
 /// <param name="memoryCache"> Memory cache instance (fallback when HybridCache is unavailable). </param>
 /// <param name="hybridCache"> Hybrid cache instance (preferred for all invalidation operations). </param>
-internal sealed class CacheInvalidationMiddleware(
+internal sealed partial class CacheInvalidationMiddleware(
 	IMeterFactory meterFactory,
 	IOptions<CacheOptions> options,
+	ICacheKeyBuilder keyBuilder,
 	ICacheTagTracker? tagTracker = null,
 	IMemoryCache? memoryCache = null,
-	HybridCache? hybridCache = null) : IDispatchMiddleware
+	HybridCache? hybridCache = null,
+	ILogger<CacheInvalidationMiddleware>? logger = null) : IDispatchMiddleware
 {
 	/// <summary>
 	/// Maximum number of entries allowed in the attribute cache.
@@ -50,6 +57,8 @@ internal sealed class CacheInvalidationMiddleware(
 
 	private readonly string[] _defaultTags = options.Value.DefaultTags ?? [];
 	private readonly CacheOptions _options = options.Value;
+	private readonly ICacheKeyBuilder _keyBuilder = keyBuilder;
+	private readonly ILogger<CacheInvalidationMiddleware> _logger = logger ?? NullLogger<CacheInvalidationMiddleware>.Instance;
 	private readonly ICacheTagTracker? _tagTracker = tagTracker;
 	private readonly IMemoryCache? _memoryCache = memoryCache;
 	private readonly HybridCache? _hybridCache = hybridCache;
@@ -84,53 +93,128 @@ internal sealed class CacheInvalidationMiddleware(
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 
-		var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
-
-		// Performance optimization: AD-250-4 - collect tags/keys without List when possible
-		// Use array storage pattern to avoid repeated List allocations
-		var hasTags = false;
-		var hasKeys = false;
-		IEnumerable<string>? invalidatorTags = null;
-		IEnumerable<string>? invalidatorKeys = null;
-
-		if (message is ICacheInvalidator invalidator)
-		{
-			invalidatorTags = invalidator.GetCacheTagsToInvalidate();
-			invalidatorKeys = invalidator.GetCacheKeysToInvalidate();
-			hasTags = invalidatorTags?.Any() == true;
-			hasKeys = invalidatorKeys?.Any() == true;
-		}
-
 		var attr = GetInvalidateCacheAttribute(message.GetType());
 
-		hasTags = hasTags || attr?.Tags?.Length > 0 || _defaultTags.Length > 0;
-
-		// Only allocate if we have something to invalidate
-		if (!hasTags && !hasKeys)
+		// w5iuyn: by default invalidation runs ONLY after the handler returns successfully. When the action opts
+		// in via [InvalidateCache(InvalidateOnFailure = true)], invalidation also runs when the handler throws
+		// (e.g. a command that committed a partial write before failing) — but the handler's original exception
+		// is always the one surfaced, because invalidation is fail-open and never throws.
+		if (attr?.InvalidateOnFailure != true)
 		{
-			return result;
+			var successResult = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+			await InvalidateForMessageAsync(message, context, attr, cancellationToken).ConfigureAwait(false);
+			return successResult;
 		}
 
-		// Build combined tag/key lists only when needed
-		var tags = BuildTagList(invalidatorTags, attr?.Tags);
-		var keys = hasKeys ? (invalidatorKeys?.ToList() ?? []) : [];
-
-		// Record OTel metrics
-		_invalidationCounter.Add(1);
-		if (tags.Count > 0)
+		IMessageResult result;
+		try
 		{
-			_tagsInvalidatedCounter.Add(tags.Count);
+			result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+		catch
+		{
+			// Handler threw: run best-effort invalidation, then re-throw the ORIGINAL handler exception (AC-w5-3).
+			await InvalidateForMessageAsync(message, context, attr, cancellationToken).ConfigureAwait(false);
+			throw;
 		}
 
-		if (keys.Count > 0)
-		{
-			_keysInvalidatedCounter.Add(keys.Count);
-		}
-
-		// Unified invalidation: L1 native tags + tracker-based L2 + direct keys
-		await InvalidateAsync(tags, keys, cancellationToken).ConfigureAwait(false);
-
+		await InvalidateForMessageAsync(message, context, attr, cancellationToken).ConfigureAwait(false);
 		return result;
+	}
+
+	/// <summary>
+	/// Resolves and applies cache invalidation for a processed message. Fails open: any invalidation error is
+	/// logged and swallowed so a cross-cutting cache never breaks the core operation and never masks a handler exception.
+	/// </summary>
+	/// <param name="message"> The message being dispatched. </param>
+	/// <param name="context"> The context associated with the message (source of tenant/user identity). </param>
+	/// <param name="attr"> The resolved invalidate-cache attribute, if any. </param>
+	/// <param name="cancellationToken"> Token used to cancel the operation. </param>
+	private async Task InvalidateForMessageAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		InvalidateCacheAttribute? attr,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			var hasKeys = false;
+			IEnumerable<string>? invalidatorTags = null;
+			IEnumerable<string>? invalidatorKeys = null;
+
+			if (message is ICacheInvalidator invalidator)
+			{
+				invalidatorTags = invalidator.GetCacheTagsToInvalidate();
+				invalidatorKeys = invalidator.GetCacheKeysToInvalidate();
+				hasKeys = invalidatorKeys?.Any() == true;
+			}
+
+			var hasTags = invalidatorTags?.Any() == true || attr?.Tags?.Length > 0 || _defaultTags.Length > 0;
+
+			if (!hasTags && !hasKeys)
+			{
+				return;
+			}
+
+			var tags = BuildTagList(invalidatorTags, attr?.Tags);
+
+			// f8pdos: fold each logical direct key through the key builder (with the invalidating dispatch's
+			// tenant/user identity) so it equals the SHA256(tenant:user:key) a cacheable query stored. A raw
+			// logical key can never match the stored key, so without this the direct-key path is inert.
+			var storageKeys = BuildStorageKeys(invalidatorKeys, hasKeys, context);
+
+			_invalidationCounter.Add(1);
+			if (tags.Count > 0)
+			{
+				_tagsInvalidatedCounter.Add(tags.Count);
+			}
+
+			// f8pdos: count only keys that resolved to a real storage-key removal target.
+			if (storageKeys.Count > 0)
+			{
+				_keysInvalidatedCounter.Add(storageKeys.Count);
+			}
+
+			// Unified invalidation: L1 native tags + tracker-based L2 + direct keys
+			await InvalidateAsync(tags, storageKeys, cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException)
+		{
+			// Best-effort: if cancelled mid-invalidation the core operation is already done — stop quietly.
+		}
+		catch (Exception ex)
+		{
+			// Fail-open: invalidation is cross-cutting and must never break the core operation (AC-f8-4 / AC-w5-3).
+			LogInvalidationFailed(_logger, ex);
+		}
+	}
+
+	/// <summary>
+	/// Folds logical direct-invalidation keys into stored cache keys using the invalidating dispatch's identity.
+	/// Empty/whitespace logical keys (which resolve to no real removal target) are skipped.
+	/// </summary>
+	private List<string> BuildStorageKeys(IEnumerable<string>? invalidatorKeys, bool hasKeys, IMessageContext context)
+	{
+		if (!hasKeys || invalidatorKeys is null)
+		{
+			return [];
+		}
+
+		var tenantId = context.GetTenantId();
+		var userId = context.GetUserId();
+
+		var storageKeys = new List<string>();
+		foreach (var logicalKey in invalidatorKeys)
+		{
+			if (string.IsNullOrEmpty(logicalKey))
+			{
+				continue;
+			}
+
+			storageKeys.Add(_keyBuilder.CreateKey(logicalKey, tenantId, userId));
+		}
+
+		return storageKeys;
 	}
 
 	/// <summary>
@@ -236,4 +320,8 @@ internal sealed class CacheInvalidationMiddleware(
 			}
 		}
 	}
+
+	[LoggerMessage(2552, LogLevel.Warning,
+		"Cache invalidation failed; continuing without invalidation (fail-open).")]
+	private static partial void LogInvalidationFailed(ILogger logger, Exception exception);
 }

@@ -22,6 +22,7 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 	/// <param name="messageType">The type of the message.</param>
 	/// <param name="messageMetadata">The metadata associated with the message.</param>
 	/// <param name="messageBody">The body content of the message.</param>
+	/// <param name="tenantId">The tenant identifier the message was produced under, or <see langword="null"/> when no tenant scope applies.</param>
 	/// <param name="outboxTableName">The name of the outbox table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
@@ -30,13 +31,14 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 		string messageType,
 		string messageMetadata,
 		string messageBody,
+		string? tenantId,
 		string outboxTableName,
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
 		var sql = $"""
-		   INSERT INTO {outboxTableName} (message_id, message_type, message_metadata, message_body, occurred_on, attempts, dispatcher_id, dispatcher_timeout)
-		           VALUES (@MessageId, @MessageType, @MessageMetadata, @MessageBody, NOW(), 0, NULL, NULL);
+		   INSERT INTO {outboxTableName} (message_id, message_type, message_metadata, message_body, tenant_id, occurred_on, attempts, dispatcher_id, dispatcher_timeout)
+		           VALUES (@MessageId, @MessageType, @MessageMetadata, @MessageBody, @TenantId, NOW(), 0, NULL, NULL);
 		   """;
 
 		var parameters = new DynamicParameters();
@@ -44,6 +46,7 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 		parameters.Add("MessageType", messageType, direction: ParameterDirection.Input);
 		parameters.Add("MessageMetadata", messageMetadata, direction: ParameterDirection.Input);
 		parameters.Add("MessageBody", messageBody, direction: ParameterDirection.Input);
+		parameters.Add("TenantId", tenantId, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
 		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);

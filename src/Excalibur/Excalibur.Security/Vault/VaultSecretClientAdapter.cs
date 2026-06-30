@@ -90,7 +90,18 @@ internal sealed class VaultSecretClientAdapter : IVaultSecretClient
 		_ = response.EnsureSuccessStatusCode();
 	}
 
-	private Uri BuildDataPath(string key) => new($"/v1/{_mountPath}/data/{key}", UriKind.Relative);
+	private Uri BuildDataPath(string key)
+	{
+		// Escape each path segment so reserved characters in a consumer-supplied key cannot alter the
+		// request path, while preserving '/' as a legitimate KV v2 nested-path separator.
+		var segments = key.Split('/');
+		for (var i = 0; i < segments.Length; i++)
+		{
+			segments[i] = Uri.EscapeDataString(segments[i]);
+		}
+
+		return new Uri($"/v1/{_mountPath}/data/{string.Join('/', segments)}", UriKind.Relative);
+	}
 }
 
 /// <summary>The KV&#160;v2 write request envelope (<c>{ "data": { ... } }</c>).</summary>

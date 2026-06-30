@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<!-- Sprint 433 S433.2: Cosmos DB Event Store Sample -->
+<!-- Cosmos DB Event Store Sample -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>

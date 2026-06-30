@@ -82,6 +82,13 @@ jobs:
       - name: Restore shipping projects
         run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
+      # bd-afu8wj: Build the Dispatch core FIRST (clean, --no-incremental) before the transitive store
+      # projects. A core public-API lag (RS0016/RS0017 — a public symbol missing its PublicAPI.*.txt
+      # entry) then fails fast HERE with a clear "core public API" error, instead of surfacing late and
+      # confusingly as a downstream store-project build failure (the recurring S859 churn pattern).
+      - name: Build core first (fail fast on core public-API lag)
+        run: dotnet build src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj --configuration Release --no-restore --no-incremental --verbosity quiet
+
       - name: Build shipping projects
         run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
 

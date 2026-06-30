@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
@@ -66,6 +67,9 @@ internal sealed partial class RabbitMqMessageBus(
 		ArgumentNullException.ThrowIfNull(action);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.RabbitMq, _routingKey, context.MessageId);
+
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
 
 		if (cloudEventBridge is not null && cloudEventMapper is not null)
@@ -103,6 +107,9 @@ internal sealed partial class RabbitMqMessageBus(
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.RabbitMq, _routingKey, context.MessageId);
+
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
 
 		if (cloudEventBridge is not null && cloudEventMapper is not null)
@@ -139,6 +146,9 @@ internal sealed partial class RabbitMqMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(doc);
 		ArgumentNullException.ThrowIfNull(context);
+
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.RabbitMq, _routingKey, context.MessageId);
 
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
 

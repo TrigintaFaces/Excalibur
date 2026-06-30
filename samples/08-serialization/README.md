@@ -175,4 +175,4 @@ builder.Services.AddMemoryPackSerializer();
 
 ---
 
-*Category: Serialization | Sprint 432*
+*Category: Serialization*

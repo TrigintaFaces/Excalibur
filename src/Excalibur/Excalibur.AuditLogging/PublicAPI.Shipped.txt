@@ -29,7 +29,7 @@ Excalibur.AuditLogging.Alerting.EvaluationMode.RealTime = 0 -> Excalibur.AuditLo
 Excalibur.AuditLogging.Alerting.IAuditAlertService
 Excalibur.AuditLogging.Alerting.IAuditAlertService.EvaluateAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.AuditLogging.Alerting.IAuditAlertService.RegisterRuleAsync(Excalibur.AuditLogging.Alerting.AuditAlertRule! rule, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.AuditLogging.AuditHasher
+Excalibur.AuditLogging.AuditEventCanonicalizer
 Excalibur.AuditLogging.AuditLogRole
 Excalibur.AuditLogging.AuditLogRole.Administrator = 4 -> Excalibur.AuditLogging.AuditLogRole
 Excalibur.AuditLogging.AuditLogRole.ComplianceOfficer = 3 -> Excalibur.AuditLogging.AuditLogRole
@@ -99,6 +99,7 @@ Excalibur.AuditLogging.Retention.DefaultAuditRetentionService.GetRetentionPolicy
 Excalibur.AuditLogging.Retention.IAuditRetentionService
 Excalibur.AuditLogging.Retention.IAuditRetentionService.EnforceRetentionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.AuditLogging.Retention.IAuditRetentionService.GetRetentionPolicyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.AuditLogging.Retention.AuditRetentionPolicy!>!
+Microsoft.Extensions.DependencyInjection.AuditLoggingHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions
 const Excalibur.AuditLogging.Diagnostics.AuditLoggingEventId.AnnotationAccessDenied = 93600 -> int
 const Excalibur.AuditLogging.Diagnostics.AuditLoggingEventId.AnnotationMetaAuditFailed = 93602 -> int
@@ -151,9 +152,8 @@ const Excalibur.AuditLogging.Diagnostics.AuditLoggingEventId.SiemForwardRetried 
 const Excalibur.AuditLogging.Diagnostics.AuditLoggingEventId.SiemHealthCheckFailed = 93407 -> int
 const Excalibur.AuditLogging.Diagnostics.AuditLoggingEventId.SplunkAuditAdapterCreated = 93201 -> int
 const Excalibur.AuditLogging.Diagnostics.AuditLoggingEventId.SqlServerAuditStoreCreated = 93200 -> int
-static Excalibur.AuditLogging.AuditHasher.ComputeGenesisHash(string? tenantId, System.DateTimeOffset chainInitTime) -> string!
-static Excalibur.AuditLogging.AuditHasher.ComputeHash(Excalibur.Compliance.AuditEvent! auditEvent, string? previousHash) -> string!
-static Excalibur.AuditLogging.AuditHasher.VerifyHash(Excalibur.Compliance.AuditEvent! auditEvent, string? previousHash) -> bool
+static Excalibur.AuditLogging.AuditEventCanonicalizer.Canonicalize(Excalibur.Compliance.AuditEvent! auditEvent) -> byte[]!
+static Microsoft.Extensions.DependencyInjection.AuditLoggingHealthChecksBuilderExtensions.AddAuditStoreHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "audit-store", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAlerting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAlerting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Alerting.AuditAlertOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAnnotations(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

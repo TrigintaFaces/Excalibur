@@ -8,7 +8,7 @@
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
   </PropertyGroup>
-  <!-- Sprint 658 S.3: Updated to use UseOutbox()/UseInbox() middleware pipeline -->
+ <!-- Updated to use UseOutbox/UseInbox middleware pipeline -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox\Excalibur.Outbox.csproj" />

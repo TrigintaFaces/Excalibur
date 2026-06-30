@@ -46,7 +46,7 @@ Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.StopAsync(System.Thre
 Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory
 Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
 Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
-Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.SqlServerLeaderElectionFactory(string! connectionString, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Excalibur.Dispatch.IMessageFailureClassifier? failureClassifier = null, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null) -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.SqlServerLeaderElectionFactory(string! connectionString, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! options, Excalibur.Dispatch.IMessageFailureClassifier? failureClassifier = null, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null) -> void
 Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionOptions
 Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionOptions.ConnectionString.get -> string?
 Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionOptions.ConnectionString.set -> void

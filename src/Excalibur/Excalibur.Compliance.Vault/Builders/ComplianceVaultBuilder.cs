@@ -64,7 +64,7 @@ internal sealed class ComplianceVaultBuilder : IComplianceVaultBuilder
 	/// Projects the fields this builder owns — and ONLY those — onto <paramref name="opt"/>, field by field.
 	/// </summary>
 	/// <remarks>
-	/// bd-r5r7fe (enforce-invariants-structurally): this is the single source of truth for "which fields the
+	/// this is the single source of truth for "which fields the
 	/// builder configures". Each fluent setter above has exactly one corresponding field-level assignment
 	/// here, co-located in the same class — so a new setter extends the projection in one place and the
 	/// cross-file manual-allowlist desync the original nit warned about becomes inexpressible. The builder

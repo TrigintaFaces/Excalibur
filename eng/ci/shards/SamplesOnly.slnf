@@ -3,6 +3,7 @@
     "path": "..\\..\\..\\Excalibur.sln",
     "projects": [
       "samples\\01-getting-started\\DispatchOnly\\Excalibur.DispatchOnly.csproj",
+      "samples\\12-migration\\MediatRMigration\\Excalibur.MediatRMigration.csproj",
       "samples\\01-getting-started\\EventSourcingIntro\\EventSourcingIntro.csproj",
       "samples\\01-getting-started\\WebApiQuickStart\\WebApiQuickStart.csproj",
       "samples\\01-getting-started\\HelloDispatch\\HelloDispatch.csproj",

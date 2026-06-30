@@ -99,7 +99,7 @@ public sealed class SqlServerAuditStoreDepthShould
 		});
 
 		// Act
-		var store = new SqlServerAuditStore(options, EnabledTestLogger.Create<SqlServerAuditStore>());
+		var store = new SqlServerAuditStore(options, AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		// Assert
 		store.ShouldNotBeNull();

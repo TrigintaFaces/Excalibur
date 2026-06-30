@@ -10,7 +10,7 @@
     <!-- Suppress warnings irrelevant for sample code -->
     <NoWarn>$(NoWarn);CA5394</NoWarn>
   </PropertyGroup>
-  <!-- Sprint 429 S429.2: Kafka dedicated sample -->
+ <!-- Kafka dedicated sample -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.Kafka\Excalibur.Dispatch.Transport.Kafka.csproj" />

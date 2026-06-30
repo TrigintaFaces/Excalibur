@@ -23,5 +23,5 @@ internal sealed class ElasticsearchOutboxDocument
 	public DateTimeOffset? ScheduledAt { get; set; }
 	public DateTimeOffset? SentAt { get; set; }
 	public DateTimeOffset? LastAttemptAt { get; set; }
-	public Dictionary<string, string>? Headers { get; set; }
+	public Dictionary<string, object>? Headers { get; set; }
 }

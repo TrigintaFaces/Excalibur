@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Features;
+
 namespace Excalibur.Dispatch;
 
 /// <summary>
@@ -38,6 +40,44 @@ public sealed class OutboundMessage
 		Headers = headers ?? new Dictionary<string, object>(StringComparer.Ordinal);
 		CreatedAt = DateTimeOffset.UtcNow;
 		Status = OutboxStatus.Staged;
+	}
+
+	/// <summary>
+	/// Creates an <see cref="OutboundMessage" /> from a dispatch message and its processing context,
+	/// propagating the cross-cutting context fields (correlation, causation, and tenant) onto the
+	/// staged message in a single place.
+	/// </summary>
+	/// <param name="messageType"> The fully qualified type name of the message. </param>
+	/// <param name="payload"> The serialized message payload. </param>
+	/// <param name="destination"> The destination where the message should be delivered. </param>
+	/// <param name="context"> The message context the cross-cutting fields are copied from. </param>
+	/// <param name="headers"> Optional message headers and metadata. </param>
+	/// <returns> A staged <see cref="OutboundMessage" /> with context fields applied. </returns>
+	/// <remarks>
+	/// <para>
+	/// This is the single canonical mapping from <see cref="IMessageContext" /> to a staged
+	/// <see cref="OutboundMessage" />. Every direct <c>IOutboxStore.EnqueueAsync</c> implementation
+	/// MUST create its message through this factory so that tenant scope (and correlation/causation)
+	/// cannot be silently dropped on a convenience path — making the cross-tenant misdelivery bug
+	/// structurally inexpressible rather than relying on each store to remember to copy the field.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="context" /> is null. </exception>
+	public static OutboundMessage FromContext(
+		string messageType,
+		byte[] payload,
+		string destination,
+		IMessageContext context,
+		IDictionary<string, object>? headers = null)
+	{
+		ArgumentNullException.ThrowIfNull(context);
+
+		return new OutboundMessage(messageType, payload, destination, headers)
+		{
+			CorrelationId = context.CorrelationId,
+			CausationId = context.CausationId,
+			TenantId = context.GetTenantId(),
+		};
 	}
 
 	/// <summary>

@@ -52,6 +52,13 @@ public sealed class DynamoDbInboxOptions
 	public bool UseConsistentReads { get; set; } = true;
 
 	/// <summary>
+	/// Gets or sets a value indicating whether the store creates the inbox table on initialization when it does
+	/// not already exist. When <see langword="false"/>, the table must be provisioned out of band.
+	/// </summary>
+	/// <value><see langword="true"/> to auto-create the table when missing; otherwise <see langword="false"/>. Default <see langword="true"/>.</value>
+	public bool CreateTableIfNotExists { get; set; } = true;
+
+	/// <summary>
 	/// Gets or sets the default TTL in seconds for processed entries.
 	/// </summary>
 	/// <remarks>

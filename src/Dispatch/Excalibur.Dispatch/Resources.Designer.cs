@@ -81,6 +81,15 @@ namespace Excalibur.Dispatch {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Cron expression &apos;{0}&apos; uses extended syntax (L, W, or #), which is disabled. Set CronScheduleOptions.EnableExtendedSyntax to true to allow it..
+        /// </summary>
+        internal static string CronScheduler_ExtendedSyntaxDisabled {
+            get {
+                return ResourceManager.GetString("CronScheduler_ExtendedSyntaxDisabled", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Event version for {0} ({1}) is incompatible: {2}.
         /// </summary>
         internal static string ContractVersionCheckMiddleware_EventVersionIncompatible {

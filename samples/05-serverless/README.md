@@ -170,4 +170,4 @@ services.AddExcaliburGoogleCloudFunctionsServerless(opts =>
 
 ---
 
-*Category: Serverless | Sprint 430*
+*Category: Serverless*

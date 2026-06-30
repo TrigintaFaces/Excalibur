@@ -185,6 +185,43 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 		Should.Throw<ArgumentNullException>(() => _sut.GetService(null!));
 	}
 
+	// bd-jv2toc family lock (GCP): fail-closed when RemainingTime <= DefaultCleanupReserve. Pre-fix
+	// (skip-CancelAfter) ran the handler unbounded; the shared ServerlessHostOptions.ComputeExecutionTimeout
+	// clamp floors the budget at Zero -> immediate cancellation -> TimeoutException. Non-vacuous (2s handler).
+	[Fact]
+	public async Task ExecuteAsync_WhenRemainingTimeBelowCleanupReserve_CancelsImmediatelyAndMapsToTimeout()
+	{
+		var context = A.Fake<IServerlessContext>();
+		A.CallTo(() => context.RemainingTime).Returns(ServerlessHostOptions.DefaultCleanupReserve - TimeSpan.FromMilliseconds(200));
+
+		await Should.ThrowAsync<TimeoutException>(() => _sut.ExecuteAsync(
+			"ping",
+			context,
+			static async (_, _, token) =>
+			{
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(2), token);
+				return "unreachable";
+			},
+			CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task ExecuteAsync_WhenRemainingTimeEqualsCleanupReserve_CancelsImmediatelyAndMapsToTimeout()
+	{
+		var context = A.Fake<IServerlessContext>();
+		A.CallTo(() => context.RemainingTime).Returns(ServerlessHostOptions.DefaultCleanupReserve);
+
+		await Should.ThrowAsync<TimeoutException>(() => _sut.ExecuteAsync(
+			"ping",
+			context,
+			static async (_, _, token) =>
+			{
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(2), token);
+				return "unreachable";
+			},
+			CancellationToken.None));
+	}
+
 	private static void ClearEnvironment()
 	{
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);

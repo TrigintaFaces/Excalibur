@@ -45,6 +45,19 @@ public interface ITransportMessageContext
 	string? CausationId { get; }
 
 	/// <summary>
+	/// Gets the tenant identifier that scopes this message to a single tenant.
+	/// </summary>
+	/// <value>The tenant identifier, or <see langword="null"/> if the message is not tenant-scoped.</value>
+	/// <remarks>
+	/// Tenancy is an isolation invariant: it is modeled as a first-class field (not a loose header) so
+	/// every transport mapper copies it explicitly, mirroring <see cref="CorrelationId"/>. Relying on the
+	/// untyped <see cref="Headers"/> bag risks silently dropping the tenant on any mapper that rebuilds
+	/// context, which can cause cross-tenant misdelivery. The standard wire header key is
+	/// <c>OutboxHeaderNames.TenantId</c> ("tenant-id").
+	/// </remarks>
+	string? TenantId { get; }
+
+	/// <summary>
 	/// Gets the name of the source transport that originated this message.
 	/// </summary>
 	/// <value>

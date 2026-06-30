@@ -36,7 +36,7 @@ public static class ProtobufSerializationExtensions
 	/// services.AddProtobufSerializer();
 	/// </code>
 	/// <para>
-	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer (ADR-295).
+	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer.
 	/// Call this method to opt into Protobuf for Google Cloud Platform and AWS interoperability.
 	/// </para>
 	/// </remarks>
@@ -50,7 +50,12 @@ public static class ProtobufSerializationExtensions
 
 		var serializer = new ProtobufSerializer();
 
-		services.TryAddSingleton<ISerializer>(serializer);
+		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
+		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
+		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
+		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
+		services.RemoveAll<ISerializer>();
+		services.AddSingleton<ISerializer>(serializer);
 
 		_ = services.AddOptions<PluggableSerializationOptions>()
 			.ValidateOnStart();
@@ -86,7 +91,12 @@ public static class ProtobufSerializationExtensions
 
 		var serializer = new ProtobufSerializer(options);
 
-		services.TryAddSingleton<ISerializer>(serializer);
+		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
+		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
+		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
+		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
+		services.RemoveAll<ISerializer>();
+		services.AddSingleton<ISerializer>(serializer);
 
 		_ = services.AddOptions<PluggableSerializationOptions>()
 			.ValidateOnStart();

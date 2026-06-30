@@ -21,7 +21,7 @@ Excalibur.LeaderElection.Redis.RedisLeaderElection.StopAsync(System.Threading.Ca
 Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory
 Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
 Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
-Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory.RedisLeaderElectionFactory(StackExchange.Redis.IConnectionMultiplexer! redis, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Excalibur.Dispatch.IMessageFailureClassifier? failureClassifier = null, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null) -> void
+Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory.RedisLeaderElectionFactory(StackExchange.Redis.IConnectionMultiplexer! redis, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! options, Excalibur.Dispatch.IMessageFailureClassifier? failureClassifier = null, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null) -> void
 Microsoft.Extensions.DependencyInjection.RedisFencingTokenServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.RedisLeaderElectionBuilderExtensions
 static Microsoft.Extensions.DependencyInjection.RedisFencingTokenServiceCollectionExtensions.AddRedisFencingTokenProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

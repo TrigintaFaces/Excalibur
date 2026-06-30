@@ -268,6 +268,15 @@ namespace Excalibur.Security {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Vault URL must use https; the scheme '{0}' would transmit the token and secrets in plaintext. Configure an https:// Vault:Url..
+        /// </summary>
+        internal static string HashiCorpVaultCredentialStore_VaultUrlMustBeHttps {
+            get {
+                return ResourceManager.GetString("HashiCorpVaultCredentialStore_VaultUrlMustBeHttps", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Message signing failed.
         /// </summary>
         internal static string HmacMessageSigningService_MessageSigningFailed {

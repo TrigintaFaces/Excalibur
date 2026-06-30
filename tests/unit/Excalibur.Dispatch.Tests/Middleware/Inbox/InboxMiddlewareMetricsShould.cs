@@ -7,6 +7,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Middleware.Inbox;
 using Excalibur.Dispatch.Options.Configuration;
+using Excalibur.Dispatch.Serialization;
 
 using FakeItEasy;
 
@@ -161,7 +162,7 @@ public sealed class InboxMiddlewareMetricsShould
 			.Returns(isDuplicate);
 
 		var options = Microsoft.Extensions.Options.Options.Create(new InboxConfigurationOptions { Enabled = true });
-		return new InboxMiddleware(options, inboxStore: null, deduplicator, NullLogger<InboxMiddleware>.Instance);
+		return new InboxMiddleware(options, inboxStore: null, deduplicator, new DispatchJsonSerializer(), NullLogger<InboxMiddleware>.Instance);
 	}
 
 	private static InboxMiddleware CreateFullMiddleware(InboxEntry existingEntry)
@@ -171,7 +172,7 @@ public sealed class InboxMiddlewareMetricsShould
 			.Returns(new ValueTask<InboxEntry?>(existingEntry));
 
 		var options = Microsoft.Extensions.Options.Options.Create(new InboxConfigurationOptions { Enabled = true });
-		return new InboxMiddleware(options, store, deduplicator: null, NullLogger<InboxMiddleware>.Instance);
+		return new InboxMiddleware(options, store, deduplicator: null, new DispatchJsonSerializer(), NullLogger<InboxMiddleware>.Instance);
 	}
 
 	private static IMessageContext CreateContext()

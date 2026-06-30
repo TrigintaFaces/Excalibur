@@ -11,7 +11,7 @@ namespace Excalibur.Data.CosmosDb;
 /// <para>
 /// The pull-model change-feed subscriptions track their continuation token in memory; on restart that
 /// progress is lost and the feed is re-read from the configured start position (or the beginning),
-/// reprocessing already-handled changes. A durable checkpoint store closes that gap (bd-egwtku).
+/// reprocessing already-handled changes. A durable checkpoint store closes that gap.
 /// </para>
 /// <para>
 /// The default registration (<see cref="InMemoryChangeFeedCheckpointStore"/>) is process-local and

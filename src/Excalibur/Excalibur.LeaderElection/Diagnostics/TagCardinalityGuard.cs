@@ -15,7 +15,7 @@ namespace Excalibur.LeaderElection.Diagnostics;
 /// Intentional copy of <c>Excalibur.Dispatch.Transport.Diagnostics.TagCardinalityGuard</c>.
 /// Kept separate due to dependency isolation: <c>Excalibur.Dispatch.Transport.Abstractions</c>
 /// carries heavy dependencies (KubernetesClient, Consul, Grpc, Polly) that must not be pulled
-/// into the lightweight <c>Excalibur.LeaderElection</c> package (see Sprint 536, AD-536.2).
+/// into the lightweight <c>Excalibur.LeaderElection</c> package.
 /// </para>
 /// <para>
 /// Thread-safe via <see cref="ConcurrentDictionary{TKey, TValue}"/>. O(1) amortized per call.

@@ -11,7 +11,7 @@
     <AssemblyName>MemoryPackSample</AssemblyName>
     <RootNamespace>MemoryPackSample</RootNamespace>
   </PropertyGroup>
-  <!-- Sprint 432 S432.3: MemoryPack serialization sample -->
+ <!-- MemoryPack serialization sample -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />

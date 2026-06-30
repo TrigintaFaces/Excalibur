@@ -11,7 +11,7 @@ namespace Excalibur.LeaderElection.DependencyInjection;
 /// <summary>
 /// Startup-time prerequisite validator that fails loud at <see cref="IHost.StartAsync"/> if the
 /// consumer called <c>WithFencingTokens()</c> without registering a concrete
-/// <see cref="IFencingTokenProvider"/> (ADR-339 Decision 3).
+/// <see cref="IFencingTokenProvider"/>.
 /// </summary>
 /// <remarks>
 /// <para>

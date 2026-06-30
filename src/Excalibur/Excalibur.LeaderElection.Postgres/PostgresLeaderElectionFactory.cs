@@ -21,6 +21,7 @@ namespace Excalibur.LeaderElection.Postgres;
 public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 {
 	private readonly PostgresLeaderElectionOptions _pgOptions;
+	private readonly IOptions<LeaderElectionOptions> _electionOptions;
 	private readonly ILoggerFactory _loggerFactory;
 	private readonly IFencingTokenProvider? _fencingTokenProvider;
 
@@ -28,21 +29,28 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 	/// Initializes a new instance of the <see cref="PostgresLeaderElectionFactory"/> class.
 	/// </summary>
 	/// <param name="pgOptions">The Postgres leader election options.</param>
+	/// <param name="electionOptions">
+	/// The base leader-election options (lease duration, renewal interval, grace period, instance id) configured by
+	/// the consumer. These are honored by every election this factory creates.
+	/// </param>
 	/// <param name="loggerFactory">The logger factory.</param>
 	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/> (y6tatp/ADR-339) propagated to every election this
+	/// An optional <see cref="IFencingTokenProvider"/> propagated to every election this
 	/// factory creates, enabling fail-closed fencing-token issuance on leadership acquisition. Defaults to
 	/// <see langword="null"/> (no fencing).
 	/// </param>
 	public PostgresLeaderElectionFactory(
 		IOptions<PostgresLeaderElectionOptions> pgOptions,
+		IOptions<LeaderElectionOptions> electionOptions,
 		ILoggerFactory loggerFactory,
 		IFencingTokenProvider? fencingTokenProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(pgOptions);
+		ArgumentNullException.ThrowIfNull(electionOptions);
 		ArgumentNullException.ThrowIfNull(loggerFactory);
 
 		_pgOptions = pgOptions.Value;
+		_electionOptions = electionOptions;
 		_loggerFactory = loggerFactory;
 		_fencingTokenProvider = fencingTokenProvider;
 	}
@@ -61,13 +69,10 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 			CommandTimeoutSeconds = _pgOptions.CommandTimeoutSeconds,
 		};
 
-		var electionOptions = new LeaderElectionOptions
-		{
-			InstanceId = candidateId ?? new LeaderElectionOptions().InstanceId,
-		};
+		var electionOptions = ResolveOptions(_electionOptions, candidateId);
 
 		var logger = _loggerFactory.CreateLogger<PostgresLeaderElection>();
-		return new PostgresLeaderElection(Options.Create(pgOptions), Options.Create(electionOptions), logger, _fencingTokenProvider);
+		return new PostgresLeaderElection(Options.Create(pgOptions), electionOptions, logger, _fencingTokenProvider);
 	}
 
 	/// <inheritdoc/>
@@ -84,10 +89,7 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 			CommandTimeoutSeconds = _pgOptions.CommandTimeoutSeconds,
 		};
 
-		var electionOptions = new LeaderElectionOptions
-		{
-			InstanceId = candidateId ?? new LeaderElectionOptions().InstanceId,
-		};
+		var electionOptions = ResolveOptions(_electionOptions, candidateId);
 
 		var healthOptions = new PostgresHealthBasedLeaderElectionOptions();
 
@@ -96,11 +98,46 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 
 		return new PostgresHealthBasedLeaderElection(
 			Options.Create(pgOptions),
-			Options.Create(electionOptions),
+			electionOptions,
 			Options.Create(healthOptions),
 			logger,
 			innerLogger,
 			_fencingTokenProvider);
+	}
+
+	/// <summary>
+	/// Builds the per-election options, preserving every consumer-configured value
+	/// (<see cref="LeaderElectionOptions.LeaseDuration"/>, <see cref="LeaderElectionOptions.RenewInterval"/>,
+	/// <see cref="LeaderElectionOptions.GracePeriod"/>, etc.) and overriding only the instance identifier when an
+	/// explicit <paramref name="candidateId"/> is supplied. When no candidate id is given, the registered options
+	/// are passed through unchanged so the configured identity and timing are honored.
+	/// </summary>
+	private static IOptions<LeaderElectionOptions> ResolveOptions(IOptions<LeaderElectionOptions> configured, string? candidateId)
+	{
+		if (string.IsNullOrWhiteSpace(candidateId))
+		{
+			return configured;
+		}
+
+		var source = configured.Value;
+		var election = new LeaderElectionOptions
+		{
+			InstanceId = candidateId,
+			LeaseDuration = source.LeaseDuration,
+			RenewInterval = source.RenewInterval,
+			RetryInterval = source.RetryInterval,
+			GracePeriod = source.GracePeriod,
+			EnableHealthChecks = source.EnableHealthChecks,
+			MinimumHealthScore = source.MinimumHealthScore,
+			StepDownWhenUnhealthy = source.StepDownWhenUnhealthy,
+		};
+
+		foreach (var kvp in source.CandidateMetadata)
+		{
+			election.CandidateMetadata[kvp.Key] = kvp.Value;
+		}
+
+		return Options.Create(election);
 	}
 
 	/// <summary>

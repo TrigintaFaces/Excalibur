@@ -300,6 +300,14 @@ public sealed class OutboxOptions
 	/// <summary>
 	/// Gets the unique identifier for this processor instance.
 	/// </summary>
+	/// <remarks>
+	/// When set (e.g. via <c>WithProcessorId</c>), this becomes the SQL Server outbox lease owner
+	/// (<c>SqlServerOutboxOptions.ProcessorId</c> → the persisted <c>LeasedBy</c>), replacing the
+	/// auto-unique <c>{MachineName}:{ProcessId}</c> default (vdcxk4). Concurrency safety does not depend on
+	/// it — <c>SKIP LOCKED</c> row-claiming prevents double-claims and stale-lease reclamation is age-based —
+	/// so a shared value is row-safe; if you set an explicit id, ensuring it is unique per host (where you
+	/// want distinct lease ownership) is your responsibility, exactly as it was for the default you replaced.
+	/// </remarks>
 	/// <value>The processor ID, or <see langword="null"/> to auto-generate.</value>
 	public string? ProcessorId { get; }
 

@@ -148,11 +148,11 @@ public static class Program
 		// provider dependencies.
 		//
 		// Dedicated "enhanced" variants (e.g. AddEnhancedInboxStore) were
-		// considered during Sprint 789 and deferred: once the in-memory and
+ // considered during and deferred: once the in-memory and
 		// SQL-Server stores cover the observed consumer needs, a new package
 		// split will be scoped with a framework-gap justification rather than
 		// shipping option-bearing extensions that duplicate the existing API
-		// surface. Tracked under bd-w8clun.
+ // surface.
 		_ = services.AddSingleton<IInboxStore, InMemoryInboxStore>();
 		_ = services.AddSingleton<IOutboxStore, InMemoryOutboxStore>();
 		_ = services.AddSingleton<IScheduleStore, InMemoryScheduleStore>();

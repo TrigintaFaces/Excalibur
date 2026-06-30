@@ -255,6 +255,52 @@ public interface IAwsSqsTransportBuilder
 	/// </code>
 	/// </example>
 	IAwsSqsTransportBuilder ConfigureCloudEvents(Action<AwsSqsCloudEventOptions> configure);
+
+	/// <summary>
+	/// Sets the maximum number of SDK-level retries the SQS client performs per request.
+	/// </summary>
+	/// <param name="maxRetryAttempts">The maximum retry count (0 disables SDK retries).</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxRetryAttempts"/> is negative.</exception>
+	/// <remarks>
+	/// Maps to <c>AmazonSQSConfig.MaxErrorRetry</c>. When not set, the AWS SDK default applies.
+	/// </remarks>
+	IAwsSqsTransportBuilder UseMaxRetryAttempts(int maxRetryAttempts);
+
+	/// <summary>
+	/// Sets the per-request timeout applied to the SQS client.
+	/// </summary>
+	/// <param name="timeout">The request timeout. Must be greater than <see cref="TimeSpan.Zero"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="timeout"/> is not positive.</exception>
+	/// <remarks>
+	/// Maps to <c>AmazonSQSConfig.Timeout</c>. When not set, the AWS SDK default applies.
+	/// </remarks>
+	IAwsSqsTransportBuilder UseRequestTimeout(TimeSpan timeout);
+
+	/// <summary>
+	/// Configures the in-flight visibility-timeout heartbeat for the wired subscriber.
+	/// </summary>
+	/// <param name="configure">The heartbeat configuration action.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
+	/// <remarks>
+	/// The heartbeat extends a message's visibility while a long-running handler executes,
+	/// preventing redelivery before the handler completes. It is opt-in.
+	/// </remarks>
+	IAwsSqsTransportBuilder ConfigureVisibilityHeartbeat(Action<AwsSqsVisibilityHeartbeatOptions> configure);
+
+	/// <summary>
+	/// Configures optional, opt-in startup provisioning of dead-letter redrive policies and SNS subscriptions.
+	/// </summary>
+	/// <param name="configure">The provisioning configuration action.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="configure"/> is null.</exception>
+	/// <remarks>
+	/// Provisioning is disabled by default; a messaging framework must not mutate cloud
+	/// infrastructure unless the operator explicitly opts in.
+	/// </remarks>
+	IAwsSqsTransportBuilder ConfigureProvisioning(Action<AwsSqsProvisioningOptions> configure);
 }
 
 /// <summary>
@@ -353,6 +399,38 @@ internal sealed class AwsSqsTransportBuilder : IAwsSqsTransportBuilder
 		_options.CloudEventOptions ??= new AwsSqsCloudEventOptions();
 		configure(_options.CloudEventOptions);
 
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IAwsSqsTransportBuilder UseMaxRetryAttempts(int maxRetryAttempts)
+	{
+		ArgumentOutOfRangeException.ThrowIfNegative(maxRetryAttempts);
+		_options.MaxRetryAttempts = maxRetryAttempts;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IAwsSqsTransportBuilder UseRequestTimeout(TimeSpan timeout)
+	{
+		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
+		_options.RequestTimeout = timeout;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IAwsSqsTransportBuilder ConfigureVisibilityHeartbeat(Action<AwsSqsVisibilityHeartbeatOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(configure);
+		configure(_options.VisibilityHeartbeat);
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IAwsSqsTransportBuilder ConfigureProvisioning(Action<AwsSqsProvisioningOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(configure);
+		configure(_options.Provisioning);
 		return this;
 	}
 }

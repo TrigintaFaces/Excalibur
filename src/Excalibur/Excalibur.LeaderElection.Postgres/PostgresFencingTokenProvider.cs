@@ -14,7 +14,7 @@ using Npgsql;
 namespace Excalibur.LeaderElection.Postgres;
 
 /// <summary>
-/// Postgres-backed <see cref="IFencingTokenProvider"/> implementation (ADR-339, bd-y6tatp).
+/// Postgres-backed <see cref="IFencingTokenProvider"/> implementation.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,7 +22,7 @@ namespace Excalibur.LeaderElection.Postgres;
 /// purpose-built, strictly-increasing counter (gaps on rollback are fine — the value only ever increases).
 /// The first leader receives <c>1</c> and every subsequent acquisition is strictly greater, so the monotonic
 /// invariant holds without a read-modify-write race that could mint two equal tokens. Mirrors the Redis
-/// reference (<c>RedisFencingTokenProvider</c>, bd-umemwa) and the SqlServer sibling (bd-nxmjpm).
+/// reference and the SqlServer sibling.
 /// </para>
 /// <para>
 /// Validation is fail-closed against the current high-water mark: a token is accepted only when it is at or

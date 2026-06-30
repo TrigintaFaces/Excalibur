@@ -99,12 +99,12 @@ public static class EventSourcingBuilderCosmosDbExtensions
 		{
 			var endpoint = cosmosBuilder.EndpointValue;
 			var authKey = cosmosBuilder.AuthKeyValue!;
-			builder.Services.TryAddSingleton(_ => new CosmosClient(endpoint, authKey));
+			builder.Services.TryAddSingleton(_ => new CosmosClient(endpoint, authKey, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } }));
 		}
 		else if (cosmosBuilder.ConnectionStringValue is not null)
 		{
 			var connStr = cosmosBuilder.ConnectionStringValue;
-			builder.Services.TryAddSingleton(_ => new CosmosClient(connStr));
+			builder.Services.TryAddSingleton(_ => new CosmosClient(connStr, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } }));
 		}
 
 		// Register store services

@@ -10,22 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 public sealed class DeadLetterEnumsShould
 {
 	[Theory]
-	[InlineData(BackoffType.Constant, 0)]
-	[InlineData(BackoffType.Linear, 1)]
-	[InlineData(BackoffType.Exponential, 2)]
-	[InlineData(BackoffType.DecorrelatedJitter, 3)]
-	public void BackoffTypeHaveCorrectValues(BackoffType type, int expected)
-	{
-		((int)type).ShouldBe(expected);
-	}
-
-	[Fact]
-	public void BackoffTypeDefaultToConstant()
-	{
-		default(BackoffType).ShouldBe(BackoffType.Constant);
-	}
-
-	[Theory]
 	[InlineData(RecommendedAction.Retry, 0)]
 	[InlineData(RecommendedAction.DeadLetter, 1)]
 	[InlineData(RecommendedAction.Quarantine, 2)]

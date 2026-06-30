@@ -47,7 +47,7 @@ Core compliance capabilities provided by Excalibur.Dispatch:
 
 **Status:** ✅ 14/14 NIST 800-53 controls SATISFIED (100% complete)
 
-The FedRAMP compliance epic (i43v) has been successfully closed after a 7-sprint journey (Sprints 265-272):
+The FedRAMP compliance epic has been successfully completed:
 
 - [FedRAMP Overview](fedramp/README.md) - Complete 14/14 control implementation
 - [CM-8 SBOM](fedramp/CM-8-SBOM.md) - Software Bill of Materials (CycloneDX)

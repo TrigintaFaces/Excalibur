@@ -42,6 +42,15 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	protected TReceiver? Receiver { get; private set; }
 	protected IDeadLetterQueueManager? DlqManager { get; private set; }
 
+	/// <summary>
+	/// Optional advanced conformance capabilities (header-surfacing, CloudEvents binding, ack/nack
+	/// redelivery, filtering) the transport supports beyond the body-only send/receive surface. A deriver
+	/// returns a provider to opt in; the capability-gated facts then make real, RED-able assertions against
+	/// it (bd-urttf7). Returns null when the transport supports only body-only send/receive — capability-gated
+	/// facts then no-op for that transport rather than asserting falsely.
+	/// </summary>
+	protected virtual ITransportConformanceCapabilities? AdvancedCapabilities => null;
+
 	public async ValueTask InitializeAsync()
 	{
 		// Fast-path: if a previous test already determined Docker is unavailable, skip immediately

@@ -1,9 +1,8 @@
 # Cloud Storage Snapshots (Cold Event Store)
 
-**Beads:** `bd-h9hr4c` (P2, S789 provider reference) + `bd-jacsb2` (P1, S790 hot/cold flow)
 **Location:** `samples/09-advanced/persistence-patterns/CloudStorageSnapshots/`
 
-> **Canonical hot→cold flow (Sprint 790):**
+> **Canonical hot→cold flow :**
 >
 > ```
 > POST /orders                            -> CreateOrderCommand

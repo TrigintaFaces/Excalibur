@@ -19,138 +19,35 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class ComplianceServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds AES-256-GCM encryption services with in-memory key management.
+	/// Adds compliance encryption services, configured through an <see cref="IComplianceEncryptionBuilder"/>.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// This configuration is suitable for development and testing. For production, use cloud KMS providers (AWS KMS, Azure Key Vault,
-	/// Google Cloud KMS) or register a custom <see cref="IKeyManagementProvider" /> implementation.
+	/// With no <c>With*</c> calls, this registers AES-256-GCM encryption with an in-memory key-management provider
+	/// (suitable for development and testing) and FIPS validation. For production, select a custom key-management
+	/// provider via <see cref="IComplianceEncryptionBuilder.WithKeyManagement{TKeyManagement}"/> (for example a cloud KMS).
 	/// </para>
+	/// <example>
+	/// <code>
+	///services.AddComplianceEncryption(builder =&gt; builder
+	///    .WithEncryption(o =&gt; o.DefaultPurpose = "pii")
+	///    .WithKeyRotation());
+	/// </code>
+	/// </example>
 	/// </remarks>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="configureKeyManagement"> Optional configuration for key management. </param>
-	/// <param name="configureEncryption"> Optional configuration for encryption. </param>
+	/// <param name="configure"> Configures encryption, key management, and rotation via the builder. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddComplianceEncryption(
 		this IServiceCollection services,
-		Action<InMemoryKeyManagementOptions>? configureKeyManagement = null,
-		Action<AesGcmEncryptionOptions>? configureEncryption = null)
+		Action<IComplianceEncryptionBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		// Configure options
-		var keyManagementOptions = new InMemoryKeyManagementOptions();
-		configureKeyManagement?.Invoke(keyManagementOptions);
-
-		var encryptionOptions = new AesGcmEncryptionOptions();
-		configureEncryption?.Invoke(encryptionOptions);
-
-		// Register key management
-		services.TryAddSingleton(keyManagementOptions);
-		services.TryAddSingleton<InMemoryKeyManagementProvider>();
-		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
-		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
-
-		// Register encryption provider
-		services.TryAddSingleton(encryptionOptions);
-		services.TryAddSingleton<AesGcmEncryptionProvider>();
-		services.TryAddSingleton<IEncryptionProvider>(sp => sp.GetRequiredService<AesGcmEncryptionProvider>());
-
-		// Register FIPS detection and validation services
-		services.TryAddSingleton<IFipsDetector, DefaultFipsDetector>();
-		services.TryAddSingleton<FipsValidationService>();
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds AES-256-GCM encryption with key rotation support.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configureKeyManagement"> Optional configuration for key management. </param>
-	/// <param name="configureEncryption"> Optional configuration for encryption. </param>
-	/// <param name="configureRotation"> Optional configuration for rotation. </param>
-	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection AddComplianceEncryptionWithRotation(
-		this IServiceCollection services,
-		Action<InMemoryKeyManagementOptions>? configureKeyManagement = null,
-		Action<AesGcmEncryptionOptions>? configureEncryption = null,
-		Action<RotatingEncryptionOptions>? configureRotation = null)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		// Configure options
-		var keyManagementOptions = new InMemoryKeyManagementOptions();
-		configureKeyManagement?.Invoke(keyManagementOptions);
-
-		var encryptionOptions = new AesGcmEncryptionOptions();
-		configureEncryption?.Invoke(encryptionOptions);
-
-		var rotationOptions = new RotatingEncryptionOptions();
-		configureRotation?.Invoke(rotationOptions);
-
-		// Register key management
-		services.TryAddSingleton(keyManagementOptions);
-		services.TryAddSingleton<InMemoryKeyManagementProvider>();
-		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
-		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
-
-		// Register base encryption provider (internal)
-		services.TryAddSingleton(encryptionOptions);
-		services.TryAddSingleton<AesGcmEncryptionProvider>();
-
-		// Register rotating encryption provider as the primary IEncryptionProvider
-		services.TryAddSingleton(rotationOptions);
-		services.TryAddSingleton(sp => new RotatingEncryptionProvider(
-			sp.GetRequiredService<AesGcmEncryptionProvider>(),
-			sp.GetRequiredService<IKeyManagementProvider>(),
-			sp.GetRequiredService<Logging.ILogger<RotatingEncryptionProvider>>(),
-			rotationOptions));
-		services.TryAddSingleton<IEncryptionProvider>(sp => sp.GetRequiredService<RotatingEncryptionProvider>());
-
-		// Register FIPS detection and validation services
-		services.TryAddSingleton<IFipsDetector, DefaultFipsDetector>();
-		services.TryAddSingleton<FipsValidationService>();
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds compliance encryption with a custom key management provider.
-	/// </summary>
-	/// <typeparam name="TKeyManagement"> The key management provider type. </typeparam>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configureEncryption"> Optional configuration for encryption. </param>
-	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection AddComplianceEncryption<
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-	TKeyManagement>(
-		this IServiceCollection services,
-		Action<AesGcmEncryptionOptions>? configureEncryption = null)
-		where TKeyManagement : class, IKeyManagementProvider
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		var encryptionOptions = new AesGcmEncryptionOptions();
-		configureEncryption?.Invoke(encryptionOptions);
-
-		// Register custom key management
-		services.TryAddSingleton<IKeyManagementProvider, TKeyManagement>();
-
-		// If the custom provider also implements IKeyManagementAdmin, register it
-		if (typeof(IKeyManagementAdmin).IsAssignableFrom(typeof(TKeyManagement)))
-		{
-			services.TryAddSingleton<IKeyManagementAdmin>(sp => (IKeyManagementAdmin)sp.GetRequiredService<IKeyManagementProvider>());
-		}
-
-		// Register encryption provider
-		services.TryAddSingleton(encryptionOptions);
-		services.TryAddSingleton<AesGcmEncryptionProvider>();
-		services.TryAddSingleton<IEncryptionProvider>(sp => sp.GetRequiredService<AesGcmEncryptionProvider>());
-
-		// Register FIPS detection and validation services
-		services.TryAddSingleton<IFipsDetector, DefaultFipsDetector>();
-		services.TryAddSingleton<FipsValidationService>();
+		var builder = new ComplianceEncryptionBuilder(services);
+		configure(builder);
+		builder.Build();
 
 		return services;
 	}

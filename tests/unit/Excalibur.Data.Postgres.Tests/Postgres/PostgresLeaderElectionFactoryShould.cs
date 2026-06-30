@@ -30,48 +30,48 @@ public sealed class PostgresLeaderElectionFactoryShould
 	public void ThrowWhenPgOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new PostgresLeaderElectionFactory(null!, _loggerFactory));
+			new PostgresLeaderElectionFactory(null!, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory));
 	}
 
 	[Fact]
 	public void ThrowWhenLoggerFactoryIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new PostgresLeaderElectionFactory(_pgOptions, null!));
+			new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), null!));
 	}
 
 	[Fact]
 	public void ImplementILeaderElectionFactory()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		factory.ShouldBeAssignableTo<ILeaderElectionFactory>();
 	}
 
 	[Fact]
 	public void CreateElection_ThrowWhenResourceNameIsNull()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		Should.Throw<ArgumentException>(() => factory.CreateElection(null!, null));
 	}
 
 	[Fact]
 	public void CreateElection_ThrowWhenResourceNameIsEmpty()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		Should.Throw<ArgumentException>(() => factory.CreateElection("", null));
 	}
 
 	[Fact]
 	public void CreateElection_ThrowWhenResourceNameIsWhitespace()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		Should.Throw<ArgumentException>(() => factory.CreateElection("   ", null));
 	}
 
 	[Fact]
 	public void CreateElection_ReturnILeaderElection()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		var election = factory.CreateElection("test-resource", null);
 		election.ShouldNotBeNull();
 		election.ShouldBeAssignableTo<ILeaderElection>();
@@ -80,7 +80,7 @@ public sealed class PostgresLeaderElectionFactoryShould
 	[Fact]
 	public void CreateElection_ReturnILeaderElectionWithCandidateId()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		var election = factory.CreateElection("test-resource", "candidate-1");
 		election.ShouldNotBeNull();
 		election.ShouldBeAssignableTo<ILeaderElection>();
@@ -89,7 +89,7 @@ public sealed class PostgresLeaderElectionFactoryShould
 	[Fact]
 	public void CreateElection_ReturnDifferentInstancesForSameResource()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		var election1 = factory.CreateElection("resource-a", null);
 		var election2 = factory.CreateElection("resource-a", null);
 		election1.ShouldNotBeSameAs(election2);
@@ -98,21 +98,21 @@ public sealed class PostgresLeaderElectionFactoryShould
 	[Fact]
 	public void CreateHealthBasedElection_ThrowWhenResourceNameIsNull()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		Should.Throw<ArgumentException>(() => factory.CreateHealthBasedElection(null!, null));
 	}
 
 	[Fact]
 	public void CreateHealthBasedElection_ThrowWhenResourceNameIsEmpty()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		Should.Throw<ArgumentException>(() => factory.CreateHealthBasedElection("", null));
 	}
 
 	[Fact]
 	public void CreateHealthBasedElection_ReturnIHealthBasedLeaderElection()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		var election = factory.CreateHealthBasedElection("health-resource", null);
 		election.ShouldNotBeNull();
 		election.ShouldBeAssignableTo<IHealthBasedLeaderElection>();
@@ -121,7 +121,7 @@ public sealed class PostgresLeaderElectionFactoryShould
 	[Fact]
 	public void CreateHealthBasedElection_ReturnIHealthBasedLeaderElectionWithCandidateId()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		var election = factory.CreateHealthBasedElection("health-resource", "candidate-2");
 		election.ShouldNotBeNull();
 		election.ShouldBeAssignableTo<IHealthBasedLeaderElection>();
@@ -130,12 +130,43 @@ public sealed class PostgresLeaderElectionFactoryShould
 	[Fact]
 	public void CreateElection_ProduceDeterministicLockKeysForSameResourceName()
 	{
-		var factory = new PostgresLeaderElectionFactory(_pgOptions, _loggerFactory);
+		var factory = new PostgresLeaderElectionFactory(_pgOptions, Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()), _loggerFactory);
 		// Both calls should produce the same lock key from the same resource name
 		// This is verified indirectly - both return valid instances without error
 		var election1 = factory.CreateElection("deterministic-resource", null);
 		var election2 = factory.CreateElection("deterministic-resource", null);
 		election1.ShouldNotBeNull();
 		election2.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void CreateElection_PropagatesConfiguredTimingToCreatedElection()
+	{
+		// Non-default timing (defaults are 15s lease / 5s renew). Pre-fix the factory built fresh
+		// default LeaderElectionOptions, silently discarding configured timing -> RED.
+		var configured = new LeaderElectionOptions
+		{
+			LeaseDuration = TimeSpan.FromSeconds(42),
+			RenewInterval = TimeSpan.FromSeconds(13),
+		};
+		var factory = new PostgresLeaderElectionFactory(
+			_pgOptions, Microsoft.Extensions.Options.Options.Create(configured), _loggerFactory);
+
+		var election = factory.CreateElection("timing-resource", null);
+
+		var field = election.GetType().GetField(
+			"_electionOptions",
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+		field.ShouldNotBeNull("PostgresLeaderElection must store resolved options in '_electionOptions'");
+		var resolved = (LeaderElectionOptions)field!.GetValue(election)!;
+		resolved.LeaseDuration.ShouldBe(TimeSpan.FromSeconds(42));
+		resolved.RenewInterval.ShouldBe(TimeSpan.FromSeconds(13));
+	}
+
+	[Fact]
+	public void ThrowWhenElectionOptionsIsNull()
+	{
+		Should.Throw<ArgumentNullException>(() =>
+			new PostgresLeaderElectionFactory(_pgOptions, null!, _loggerFactory));
 	}
 }

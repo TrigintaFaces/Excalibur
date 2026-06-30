@@ -5,9 +5,10 @@ using Excalibur.AuditLogging;namespace Excalibur.AuditLogging.Tests;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
-public sealed class InMemoryAuditStoreShould
+public sealed class InMemoryAuditStoreShould : IDisposable
 {
-    private readonly InMemoryAuditStore _sut = new();
+    private readonly InMemoryAuditStore _sut = new(AuditIntegrityTestStrategy.Create());
+    public void Dispose() => _sut.Dispose();
 
     private static AuditEvent CreateEvent(
         string eventId = "evt-1",

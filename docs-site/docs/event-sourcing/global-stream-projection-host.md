@@ -164,7 +164,7 @@ The host **never silently skips a poison event**. A poison event is one that fai
 - **Batch-level errors** are logged, then the host waits `IdlePollingInterval` before retrying.
 - **Cancellation** triggers graceful shutdown with final checkpoint persistence.
 
-:::warning Changed in Sprint 840 (ADR-336, FR-8)
+:::warning Behavior change
 
 Earlier versions logged a per-event error and **skipped** the event, advancing the checkpoint past it — silently dropping the event from the read model (a data-loss defect). The host now halts-and-marks-unhealthy instead. If you previously relied on skip-to-continue behavior, route known-bad events to an explicit dead-letter/quarantine sink rather than letting them be silently dropped.
 :::

@@ -21,6 +21,7 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 	/// <param name="messageType"> The type of the message. </param>
 	/// <param name="messageMetadata"> The metadata associated with the message. </param>
 	/// <param name="messageBody"> The body content of the message. </param>
+	/// <param name="tenantId"> The tenant identifier the message was produced under, or <see langword="null"/> when no tenant scope applies. </param>
 	/// <param name="scheduledAt"> The scheduled delivery time. </param>
 	/// <param name="outboxTableName"> The name of the outbox table. </param>
 	/// <param name="sqlTimeOutSeconds"> The SQL command timeout in seconds. </param>
@@ -30,6 +31,7 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 		string messageType,
 		string messageMetadata,
 		string messageBody,
+		string? tenantId,
 		DateTimeOffset scheduledAt,
 		string outboxTableName,
 		int sqlTimeOutSeconds,
@@ -37,9 +39,9 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 	{
 		var sql = $"""
 			INSERT INTO {outboxTableName}
-				(message_id, message_type, message_metadata, message_body, occurred_on, attempts, dispatcher_id, dispatcher_timeout, scheduled_at)
+				(message_id, message_type, message_metadata, message_body, tenant_id, occurred_on, attempts, dispatcher_id, dispatcher_timeout, scheduled_at)
 			VALUES
-				(@MessageId, @MessageType, @MessageMetadata, @MessageBody, NOW(), 0, NULL, NULL, @ScheduledAt);
+				(@MessageId, @MessageType, @MessageMetadata, @MessageBody, @TenantId, NOW(), 0, NULL, NULL, @ScheduledAt);
 			""";
 
 		var parameters = new DynamicParameters();
@@ -47,6 +49,7 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 		parameters.Add("MessageType", messageType, direction: ParameterDirection.Input);
 		parameters.Add("MessageMetadata", messageMetadata, direction: ParameterDirection.Input);
 		parameters.Add("MessageBody", messageBody, direction: ParameterDirection.Input);
+		parameters.Add("TenantId", tenantId, direction: ParameterDirection.Input);
 		parameters.Add("ScheduledAt", scheduledAt, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);

@@ -143,8 +143,6 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Dispatch.Observability [DispatchMetrics]", s => s.AddDispatchMetricsInstrumentation());
 		yield return Reg("Excalibur.Dispatch.Observability [CircuitBreakerMetrics]", s => s.AddCircuitBreakerMetrics());
 		yield return Reg("Excalibur.Dispatch.Observability [DLQMetrics]", s => s.AddDeadLetterQueueMetrics());
-		yield return Reg("Excalibur.Dispatch.Observability [W3C]", s => s.AddW3CTracingPropagator());
-		yield return Reg("Excalibur.Dispatch.Observability [B3]", s => s.AddB3TracingPropagator());
 
 		// ══════════════════════════════════════════════════════════
 		// DISPATCH RESILIENCE

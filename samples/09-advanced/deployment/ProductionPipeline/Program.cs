@@ -54,7 +54,7 @@ using Microsoft.Extensions.Hosting;
 //   +-------+
 //
 // The middleware stacks (UseSecurityStack, UseResilienceStack, UseValidationStack)
-// were introduced in Sprint 656 (ADR-220) to simplify production configuration.
+// were introduced in to simplify production configuration.
 //
 // Pipeline ordering matters:
 // - Security runs first to reject unauthorized requests early

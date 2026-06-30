@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for registering the Redis-backed fencing token provider (ADR-339).
+/// Extension methods for registering the Redis-backed fencing token provider.
 /// </summary>
 public static class RedisFencingTokenServiceCollectionExtensions
 {

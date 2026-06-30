@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -102,7 +103,7 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		configure(builder);
 
 		// Register core AWS SQS services
-		RegisterAwsSqsServices(services);
+		RegisterAwsSqsServices(services, adapterOptions);
 
 		// Flow the configured FIFO selectors to the message bus so ConfigureFifo applies on the
 		// wire (MessageGroupId + MessageDeduplicationId) rather than being a silently-inert option.
@@ -141,6 +142,9 @@ public static class AwsSqsTransportServiceCollectionExtensions
 
 		// Register ITransportSubscriber with telemetry decorator
 		RegisterSubscriber(services, name, adapterOptions);
+
+		// Register optional, opt-in startup provisioning (redrive policy + SNS subscriptions).
+		RegisterProvisioning(services, adapterOptions);
 
 		// Route the rich ITransportSender/ITransportReceiver classes through DI so configured
 		// capabilities (FIFO group/dedup, batching) are reachable on the AddAwsSqsTransport path
@@ -185,10 +189,12 @@ public static class AwsSqsTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers the core AWS SQS services with the service collection.
 	/// </summary>
-	private static void RegisterAwsSqsServices(IServiceCollection services)
+	private static void RegisterAwsSqsServices(IServiceCollection services, AwsSqsTransportAdapterOptions adapterOptions)
 	{
-		// Register AWS SQS client
-		services.TryAddSingleton<IAmazonSQS>(static _ => new AmazonSQSClient());
+		// Register AWS SQS client honoring the configured region, retry count, and request timeout.
+		// Previously the client was constructed with `new AmazonSQSClient()`, silently ignoring these
+		// options (unlike the SNS registration, which already honors the region).
+		services.TryAddSingleton<IAmazonSQS>(_ => CreateSqsClient(adapterOptions));
 
 		// Ensure IOptions<AwsSqsFifoOptions> resolves for the message bus even when no FIFO queue
 		// is configured (defaults to empty options, leaving group/dedup ids unset).
@@ -241,9 +247,25 @@ public static class AwsSqsTransportServiceCollectionExtensions
 	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
 	/// implementations keyed by transport name so they are instantiated and reachable on the
 	/// <c>AddAwsSqsTransport</c> path. Without this, the rich SQS sender/receiver classes are
-	/// orphaned and configured capabilities are silently inert (kek7vm). <c>TryAdd*</c> lets a
+	/// orphaned and configured capabilities are silently inert. <c>TryAdd*</c> lets a
 	/// consumer override the registration (Microsoft-first).
 	/// </summary>
+	/// <remarks>
+	/// <para><b>Registered-iff-configured contract scope.</b> The
+	/// "each capability registered only when its config is present" guard is deliberately scoped to
+	/// transports whose capability construction is <i>eager</i> — i.e. building the capability from
+	/// missing config would throw at registration time. Today that is <b>GooglePubSub only</b>
+	/// (<c>new TopicName(projectId, null)</c> throws), so it guards sender on <c>TopicId</c> and
+	/// receiver/subscriber on <c>SubscriptionId</c>.</para>
+	/// <para>AwsSqs, AzureServiceBus, RabbitMq and Kafka register all three capabilities
+	/// <b>unconditionally</b>, and this is <b>intentional</b>: each capability is a <i>lazy factory
+	/// lambda</i> that constructs no infrastructure at registration time (the queue URL / entity is
+	/// resolved only when the keyed service is first resolved and used). An unused capability is
+	/// therefore a harmless never-resolved keyed registration, not an eager failure — adding
+	/// <c>IsNullOrEmpty</c> guards here would be code with no defect to prevent. Any future
+	/// eager-construct transport MUST adopt the GooglePubSub-style guard. A cross-transport
+	/// DI lock binds this scoping non-vacuously (a capability-only config, e.g. SQS subscriber-only).</para>
+	/// </remarks>
 	private static void RegisterTransportSenderReceiver(
 		IServiceCollection services,
 		string name,
@@ -283,7 +305,8 @@ public static class AwsSqsTransportServiceCollectionExtensions
 			var queueUrl = adapterOptions.HasQueueMappings
 				? adapterOptions.QueueMappings.Values.First()
 				: name;
-			var nativeSubscriber = new SqsTransportSubscriber(sqsClient, name, queueUrl, logger);
+			var nativeSubscriber = new SqsTransportSubscriber(
+				sqsClient, name, queueUrl, adapterOptions.VisibilityHeartbeat, logger);
 
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));
@@ -292,6 +315,66 @@ public static class AwsSqsTransportServiceCollectionExtensions
 			return new TransportSubscriberBuilder(nativeSubscriber)
 				.UseTelemetry(name, meter, activitySource)
 				.Build();
+		});
+	}
+
+	/// <summary>
+	/// Creates an <see cref="AmazonSQSClient"/> honoring the configured region, retry count, and timeout.
+	/// </summary>
+	private static AmazonSQSClient CreateSqsClient(AwsSqsTransportAdapterOptions adapterOptions) =>
+		new(CreateSqsConfig(adapterOptions));
+
+	/// <summary>
+	/// Builds the <see cref="AmazonSQSConfig"/> honoring the configured region, retry count, and timeout.
+	/// Kept separate from client construction so the option-to-config mapping is unit-testable without
+	/// resolving AWS credentials.
+	/// </summary>
+	internal static AmazonSQSConfig CreateSqsConfig(AwsSqsTransportAdapterOptions adapterOptions)
+	{
+		ArgumentNullException.ThrowIfNull(adapterOptions);
+
+		var config = new AmazonSQSConfig
+		{
+			MaxErrorRetry = adapterOptions.MaxRetryAttempts,
+		};
+
+		if (!string.IsNullOrWhiteSpace(adapterOptions.Region))
+		{
+			config.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(adapterOptions.Region);
+		}
+
+		if (adapterOptions.RequestTimeout is { } timeout)
+		{
+			config.Timeout = timeout;
+		}
+
+		return config;
+	}
+
+	/// <summary>
+	/// Registers the opt-in provisioning hosted service when provisioning is enabled. The SNS client is
+	/// resolved optionally so SQS-only deployments do not require it.
+	/// </summary>
+	private static void RegisterProvisioning(IServiceCollection services, AwsSqsTransportAdapterOptions adapterOptions)
+	{
+		if (!adapterOptions.Provisioning.Enabled)
+		{
+			return;
+		}
+
+		_ = services.AddSingleton(sp =>
+		{
+			var sqsClient = sp.GetRequiredService<IAmazonSQS>();
+			var snsClient = sp.GetService<Amazon.SimpleNotificationService.IAmazonSimpleNotificationService>();
+			var logger = sp.GetRequiredService<ILogger<AwsSqsProvisioner>>();
+			return new AwsSqsProvisioner(sqsClient, snsClient, logger);
+		});
+
+		_ = services.AddSingleton<IHostedService>(sp =>
+		{
+			var provisioner = sp.GetRequiredService<AwsSqsProvisioner>();
+			var logger = sp.GetRequiredService<ILogger<AwsSqsProvisioningHostedService>>();
+			return new AwsSqsProvisioningHostedService(provisioner, adapterOptions, logger);
 		});
 	}
 }

@@ -167,16 +167,20 @@ public sealed class DefaultAuditContextShould
         }
     }
 
+    // bd-g0jnu0 (ADR-336): FLIPPED from the pre-fix fail-open contract (returned null on store failure).
+    // DefaultAuditContext is now fail-CLOSED end-to-end — a persistence failure must propagate as
+    // AuditPersistenceException, never be masked as a successful-but-null assertion. F-5 strengthen-not-weaken.
     [Fact]
-    public async Task Assert_async_returns_null_when_logger_throws()
+    public async Task Assert_async_throws_AuditPersistenceException_when_logger_throws()
     {
         A.CallTo(() => _fakeAuditLogger.LogAsync(A<AuditEvent>._, A<CancellationToken>._))
             .Throws(new InvalidOperationException("Store unavailable"));
 
-        var result = await _sut.AssertAsync(true, "test", AuditEventType.Compliance, CancellationToken.None);
+        var ex = await Should.ThrowAsync<AuditPersistenceException>(
+            () => _sut.AssertAsync(true, "test", AuditEventType.Compliance, CancellationToken.None));
 
-        // Per spec: log+drop, never throw
-        result.ShouldBeNull();
+        // The original store failure is preserved as the inner cause (no information loss).
+        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
     }
 
     [Fact]
@@ -222,17 +226,37 @@ public sealed class DefaultAuditContextShould
         captured.Reason.ShouldBe("Failed operation");
     }
 
+    // bd-g0jnu0 (ADR-336): FLIPPED from the pre-fix fail-open contract (returned a -1 sentinel on store
+    // failure). A persistence failure on ObserveAsync must now propagate as AuditPersistenceException —
+    // a -1 sentinel masked a real persistence error as a successful-but-dropped observation. F-5 strengthen.
     [Fact]
-    public async Task Observe_async_returns_sentinel_when_logger_throws()
+    public async Task Observe_async_throws_AuditPersistenceException_when_logger_throws()
     {
         A.CallTo(() => _fakeAuditLogger.LogAsync(A<AuditEvent>._, A<CancellationToken>._))
             .Throws(new InvalidOperationException("Store unavailable"));
 
-        var result = await _sut.ObserveAsync("test", AuditEventType.Compliance, AuditOutcome.Success, CancellationToken.None);
+        var ex = await Should.ThrowAsync<AuditPersistenceException>(
+            () => _sut.ObserveAsync("test", AuditEventType.Compliance, AuditOutcome.Success, CancellationToken.None));
 
-        // Sentinel: empty EventId, SequenceNumber = -1
-        result.EventId.ShouldBe(string.Empty);
-        result.SequenceNumber.ShouldBe(-1);
+        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+    }
+
+    // bd-g0jnu0: the MaxAssertionsPerScope log+drop path is DISTINCT from a persistence failure — it
+    // legitimately keeps the -1 sentinel (a deliberate, bounded-by-design drop, not a masked error).
+    // Pinning it here proves the fail-closed flip did NOT collapse the two distinct paths into one.
+    [Fact]
+    public async Task Observe_async_still_returns_sentinel_on_max_assertions_drop_not_throw()
+    {
+        var options = Microsoft.Extensions.Options.Options.Create(new AuditContextOptions { MaxAssertionsPerScope = 1 });
+        var sut = new DefaultAuditContext(_fakeAuditLogger, _timeProvider, options, _logger);
+        sut.Initialize("corr-1", "actor-1", null, null);
+
+        await sut.ObserveAsync("First", AuditEventType.Compliance, AuditOutcome.Success, CancellationToken.None);
+
+        // Second observe is dropped by the cap — NOT a persistence failure, so it returns the sentinel
+        // and does not throw AuditPersistenceException.
+        var dropped = await sut.ObserveAsync("Dropped", AuditEventType.Compliance, AuditOutcome.Success, CancellationToken.None);
+        dropped.SequenceNumber.ShouldBe(-1);
     }
 
     // ========================================

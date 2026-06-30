@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Configuration.Transport;
 /// <see cref="BindingConfigurationBuilder.FromTransport"/> when the named transport
 /// is neither a materialized adapter nor a pending factory) and fails with an
 /// explicit message naming the missing transports and the registration extensions
-/// a consumer can call to resolve the gap. [bd-20ft0e FIX 4]
+/// a consumer can call to resolve the gap.
 /// </para>
 /// </remarks>
 internal sealed class BindingRegistrationValidator : IValidateOptions<BindingRegistrationValidationOptions>

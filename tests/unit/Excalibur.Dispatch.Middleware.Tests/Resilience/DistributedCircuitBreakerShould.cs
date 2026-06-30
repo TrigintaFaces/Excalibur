@@ -374,7 +374,7 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 	#region Circuit State Transition Tests
 
 	[Fact]
-	public async Task ExecuteAsync_WhenCircuitOpenAndNotExpired_ThrowsBrokenCircuitException()
+	public async Task ExecuteAsync_WhenCircuitOpenAndNotExpired_ThrowsCircuitBreakerOpenException()
 	{
 		// Arrange
 		var cb = CreateCircuitBreaker();
@@ -392,9 +392,11 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 			.Returns(stateBytes);
 
 		// Act & Assert
-		var ex = await Should.ThrowAsync<Polly.CircuitBreaker.BrokenCircuitException>(
+		// FR-116-1: open state must throw the canonical CircuitBreakerOpenException,
+		// not Polly's BrokenCircuitException.
+		var ex = await Should.ThrowAsync<CircuitBreakerOpenException>(
 			() => cb.ExecuteAsync(() => Task.FromResult(42), CancellationToken.None));
-		ex.Message.ShouldContain("test-circuit");
+		ex.CircuitName.ShouldBe("test-circuit");
 	}
 
 	[Fact]
@@ -460,34 +462,45 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 	}
 
 	[Fact]
-	public async Task RecordFailureAsync_WhenFailureRateExceedsThreshold_OpensCircuit()
+	public async Task RecordFailureAsync_WhenWindowedFailureRatioExceedsThreshold_OpensCircuit()
 	{
-		// Arrange
+		// Arrange — flipped to the zxb7fp windowed contract (bd-c6bjc3, F-5 stale-sibling).
+		// The open-decision now compares the ROLLING-WINDOW failure ratio (computed from bucketed
+		// RecordWindow attempts persisted in metrics) against FailureRatio, and only trips once at least
+		// MinimumThroughput attempts have accumulated in the SamplingDuration window — NOT a lifetime
+		// cumulative ratio. ConsecutiveFailureThreshold is set high so ONLY the windowed-ratio gate (not
+		// the consecutive-burst fallback) can open the circuit here.
 		var options = new DistributedCircuitBreakerOptions
 		{
-			FailureRatio = 0.5, // 50% failure rate
-			ConsecutiveFailureThreshold = 100 // High so we trigger on ratio first
+			FailureRatio = 0.5,            // trip above 50% windowed failure ratio
+			MinimumThroughput = 10,        // require >= 10 in-window attempts before evaluating the ratio
+			ConsecutiveFailureThreshold = 100 // high: isolate the windowed-ratio gate from the consecutive fallback
 		};
 		var cb = CreateCircuitBreaker(options: options);
 
-		// Simulate existing metrics with high failure rate
-		var existingMetrics = new
+		// Stateful distributed cache so windowed buckets accumulate across calls (the windowed ratio reads
+		// the rolling window round-tripped through metrics; a fixed/injected lifetime counter is ignored now).
+		var store = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+		A.CallTo(() => _cache.SetAsync(A<string>._, A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
+			.Invokes(call => store[(string)call.Arguments[0]!] = (byte[])call.Arguments[1]!)
+			.Returns(Task.CompletedTask);
+		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._))
+			.ReturnsLazily(call => Task.FromResult(store.TryGetValue((string)call.Arguments[0]!, out var v) ? v : (byte[]?)null));
+
+		// Act — 4 successes + 6 failures = 10 in-window attempts at a 60% failure ratio (> 50%), with
+		// consecutive failures peaking at 6 (< 100). Only the windowed-ratio gate can trip on the 10th attempt.
+		for (var i = 0; i < 4; i++)
 		{
-			SuccessCount = 1L, // 1 success
-			FailureCount = 1L, // 1 failure - adding 1 more = 2 failures / 3 total > 50%
-			ConsecutiveFailures = 0L,
-			ConsecutiveSuccesses = 0L
-		};
-		var metricsJson = JsonSerializer.Serialize(existingMetrics);
-		var metricsBytes = System.Text.Encoding.UTF8.GetBytes(metricsJson);
+			await cb.RecordSuccessAsync(CancellationToken.None);
+		}
 
-		A.CallTo(() => _cache.GetAsync(A<string>.That.Contains("metrics"), A<CancellationToken>._))
-			.Returns(metricsBytes);
+		for (var i = 0; i < 6; i++)
+		{
+			await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException($"failure {i}"));
+		}
 
-		// Act
-		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("Another failure"));
-
-		// Assert - State should be set to open due to failure rate
+		// Assert — windowed ratio (6/10 = 60% > 50%) with >= MinimumThroughput attempts opens the circuit
+		// (writes the "state" key). RED on a regression that drops the MinimumThroughput/windowed-ratio gate.
 		A.CallTo(() => _cache.SetAsync(A<string>.That.Contains("state"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}

@@ -238,6 +238,85 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 		}
 	}
 
+	/// <summary>
+	/// bd-cd8h8t — the Postgres outbox MUST persist and reload <c>TenantId</c>. A missing <c>tenant_id</c>
+	/// column write silently drops tenant scope (a multi-tenant isolation defect). Real-infra round-trip
+	/// against a live Postgres container: RED on the pre-fix impl whose INSERT/Reserve SQL omits tenant_id.
+	/// </summary>
+	[Fact]
+	public async Task PersistAndReloadTenantId_AcrossStageAndReserve()
+	{
+		// Arrange
+		_pgFixture.DockerAvailable.ShouldBeTrue("cd8h8t TenantId persistence is a real-Postgres invariant — never skipped.");
+		await InitializeOutboxTableAsync();
+		var (store, _) = CreateOutboxStore();
+		const string ExpectedTenantId = "tenant-abc-123";
+		var message = CreateTestOutboundMessage();
+		message.TenantId = ExpectedTenantId;
+
+		// Act — stage through the real store.
+		await store.StageMessageAsync(message, TestCancellationToken);
+
+		// Assert 1 (INSERT path) — the tenant_id column actually persisted in the database.
+		await using (var connection = new NpgsqlConnection(_pgFixture.ConnectionString))
+		{
+			await connection.OpenAsync(TestCancellationToken);
+			var persisted = await connection.ExecuteScalarAsync<string?>(
+				"SELECT tenant_id FROM outbox WHERE message_id = @id",
+				new { id = message.Id });
+			persisted.ShouldBe(ExpectedTenantId);
+		}
+
+		// Assert 2 (Reserve read-path) — the reloaded message carries the persisted TenantId.
+		var reserved = (await store.ReserveOutboxMessagesAsync("dispatcher-tenant", 10, TestCancellationToken)).ToList();
+		var reloaded = reserved.ShouldHaveSingleItem();
+		reloaded.TenantId.ShouldBe(ExpectedTenantId);
+	}
+
+	/// <summary>
+	/// bd-cd8h8t (scheduled path) — the SCHEDULED outbox path (`ScheduleMessageAsync` → `GetScheduledMessagesAsync`)
+	/// must persist and reload <c>TenantId</c>. This was the path Backend fixed (`ScheduleOutboxMessage` didn't
+	/// accept a tenant; `GetScheduledOutboxMessages` didn't read it). Real-infra round-trip: RED on the pre-fix
+	/// scheduled SQL that omits tenant_id, GREEN once the scheduled INSERT/SELECT carry it.
+	/// </summary>
+	[Fact]
+	public async Task PersistAndReloadTenantId_AcrossScheduleAndGetScheduled()
+	{
+		// Arrange
+		_pgFixture.DockerAvailable.ShouldBeTrue("cd8h8t scheduled-path TenantId persistence is a real-Postgres invariant — never skipped.");
+		await InitializeOutboxTableAsync();
+		var (store, _) = CreateOutboxStore();
+		const string ExpectedTenantId = "tenant-sched-456";
+		var message = new OutboxMessage(
+			Guid.NewGuid().ToString(),
+			"TestMessage",
+			"{\"correlationId\": \"sched-123\"}",
+			"{\"data\": \"scheduled payload\"}",
+			DateTimeOffset.UtcNow)
+		{
+			TenantId = ExpectedTenantId
+		};
+		var scheduledAt = DateTimeOffset.UtcNow.AddMinutes(-1); // already due, so GetScheduled returns it
+
+		// Act — schedule through the real store.
+		await store.ScheduleMessageAsync(message, scheduledAt, TestCancellationToken);
+
+		// Assert 1 (scheduled INSERT) — the tenant_id column persisted in the database.
+		await using (var connection = new NpgsqlConnection(_pgFixture.ConnectionString))
+		{
+			await connection.OpenAsync(TestCancellationToken);
+			var persisted = await connection.ExecuteScalarAsync<string?>(
+				"SELECT tenant_id FROM outbox WHERE message_id = @id",
+				new { id = message.MessageId });
+			persisted.ShouldBe(ExpectedTenantId);
+		}
+
+		// Assert 2 (scheduled read-path) — the reloaded scheduled message carries the persisted TenantId.
+		var scheduled = (await store.GetScheduledMessagesAsync(DateTimeOffset.UtcNow.AddMinutes(1), 10, TestCancellationToken)).ToList();
+		var reloaded = scheduled.ShouldHaveSingleItem();
+		reloaded.TenantId.ShouldBe(ExpectedTenantId);
+	}
+
 	private static OutboundMessage CreateTestOutboundMessage(string? messageId = null)
 	{
 		var message = new OutboundMessage(
@@ -290,11 +369,13 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			    message_type VARCHAR(500) NOT NULL,
 			    message_metadata TEXT,
 			    message_body TEXT NOT NULL,
+			    tenant_id VARCHAR(255),
 			    occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			    attempts INT NOT NULL DEFAULT 0,
 			    dispatcher_id VARCHAR(100),
 			    dispatcher_timeout TIMESTAMPTZ,
-			    next_attempt_at TIMESTAMPTZ
+			    next_attempt_at TIMESTAMPTZ,
+			    scheduled_at TIMESTAMPTZ
 			);
 
 			CREATE TABLE IF NOT EXISTS outbox_dead_letters (

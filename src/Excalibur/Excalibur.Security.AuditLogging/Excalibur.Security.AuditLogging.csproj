@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Security.AuditLogging</PackageId>
+    <Description>Bridges ISecurityEventStore onto the existing IAuditStore (e.g. Excalibur.AuditLogging.SqlServer), giving security events durable, tamper-evident SQL persistence via the audit-store abstraction without duplicating any SQL/Dapper/hash-chain machinery.</Description>
+    <PackageTags>security;audit;compliance;bridge;adapter;sql-server;tamper-evident</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Security\Excalibur.Security.csproj" />
+    <ProjectReference Include="..\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

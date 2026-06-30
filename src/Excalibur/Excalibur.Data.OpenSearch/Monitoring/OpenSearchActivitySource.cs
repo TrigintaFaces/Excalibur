@@ -121,10 +121,26 @@ internal sealed class OpenSearchActivitySource(string name = "Excalibur.Data.Ope
 			_ = activity.SetStatus(ActivityStatusCode.Error, exception.Message);
 		}
 
-		// Record specific response metrics based on response type
-		// TODO: OpenSearch API adaptation needed - OpenSearch.Client uses NEST-style response types
-		// which differ from Elastic 8.x SearchResponse<T>, BulkResponse, IndexResponse patterns.
-		// The OpenSearch.Client equivalents use different property names and structures.
+		// Record server-side response metrics (took/hits/shards). These live on the invariant generic
+		// ISearchResponse<T>; the document type is unknown at this seam, so they are read via the cached
+		// reflection path (sanctioned by this method's declared dynamic-code contract). Best-effort.
+		if (OpenSearchResponseMetricsReflector.TryGetMetrics(response, out var tookMs, out var totalHits, out var shardFailures))
+		{
+			if (tookMs is { } took)
+			{
+				_ = activity.SetTag("opensearch.took", took);
+			}
+
+			if (totalHits is { } hits)
+			{
+				_ = activity.SetTag("opensearch.hits.total", hits);
+			}
+
+			if (shardFailures is { } failed)
+			{
+				_ = activity.SetTag("opensearch.shards.failed", failed);
+			}
+		}
 
 		// Record response body if requested and response is small enough
 		if (recordResponseBody && response.IsValid)

@@ -381,8 +381,9 @@ public sealed class DomainEventSerializationContractShould
 		// Arrange
 		var invalidBytes = Encoding.UTF8.GetBytes("not-valid-json");
 
-		// Act & Assert
-		Should.Throw<JsonException>(() =>
+		// Act & Assert - ifgj5w: deserialize failures surface uniformly as SerializationException
+		// (the raw JsonException is preserved as InnerException) so they are poison-routable.
+		Should.Throw<Excalibur.Dispatch.Serialization.SerializationException>(() =>
 			serializer.DeserializeEvent(invalidBytes, typeof(SimpleContractEvent)));
 	}
 
@@ -395,8 +396,8 @@ public sealed class DomainEventSerializationContractShould
 		var json = """{"name": "test"}""";
 		var bytes = Encoding.UTF8.GetBytes(json);
 
-		// Act & Assert
-		Should.Throw<InvalidOperationException>(() =>
+		// Act & Assert - ifgj5w: wrong-type failures surface uniformly as SerializationException.
+		Should.Throw<Excalibur.Dispatch.Serialization.SerializationException>(() =>
 			serializer.DeserializeEvent(bytes, typeof(NonEventClass)));
 	}
 

@@ -14,7 +14,7 @@ namespace Excalibur.Compliance;
 /// <c>typeof(ISoc2AuditExporter)</c>.
 /// </para>
 /// <para>
-/// <strong>ISP Split (Sprint 551):</strong> Extracted from <see cref="ISoc2ComplianceService"/>
+/// <strong>ISP Split:</strong> Extracted from <see cref="ISoc2ComplianceService"/>
 /// to keep the core interface at or below 5 methods per the Microsoft-First Design Standard.
 /// </para>
 /// </remarks>

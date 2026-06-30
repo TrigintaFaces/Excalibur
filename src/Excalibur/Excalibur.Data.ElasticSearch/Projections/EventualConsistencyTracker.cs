@@ -14,7 +14,6 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 
 /// <summary>
 /// Tracks eventual consistency between write and read models using Elasticsearch indices.
-/// S801 bd-r3xkes: migrated to 4 operation-axis seams per COMPASS msg 1867.
 /// </summary>
 public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IEventualConsistencyTrackerAdmin, IDisposable
 {
@@ -50,7 +49,7 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 
 	/// <summary>
 	/// Initializes a new instance using the 4 seam adapters directly.
-	/// Test entry point (ADR-142 §D7 S801 bd-r3xkes).
+	/// Test entry point.
 	/// </summary>
 	internal EventualConsistencyTracker(
 		IProjectionEventIngest ingest,

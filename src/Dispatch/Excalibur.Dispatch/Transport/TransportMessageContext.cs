@@ -50,6 +50,9 @@ public class TransportMessageContext : ITransportMessageContext
 	public string? CausationId { get; set; }
 
 	/// <inheritdoc/>
+	public string? TenantId { get; set; }
+
+	/// <inheritdoc/>
 	public string? SourceTransport { get; set; }
 
 	/// <inheritdoc/>

@@ -461,8 +461,39 @@ public sealed class SnapshotVersionManagerShould
 		A.CallTo(() => upgrader.AggregateType).Returns(aggregateType);
 		A.CallTo(() => upgrader.FromVersion).Returns(fromVersion);
 		A.CallTo(() => upgrader.ToVersion).Returns(toVersion);
+		A.CallTo(() => upgrader.Upgrade(A<byte[]>._)).ReturnsLazily((byte[] input) => input);
 		return upgrader;
 	}
 
 	#endregion Helper Methods
+
+	#region hsxvez: Canonical (registration-order-independent) BFS tie-break
+
+	[Fact]
+	public void ChooseCanonicalUpgradePath_ByToVersion_RegardlessOfRegistrationOrder()
+	{
+		// hsxvez: when two equal-length upgrade paths exist (1->2->4 and 1->3->4), the chosen chain must be
+		// canonical (lowest ToVersion at the branch = via version 2), NOT dependent on DI registration order.
+		// Arrange — register the version-3 branch FIRST so a registration-order BFS would pick it (RED pre-fix).
+		const string aggregateType = "OrderAggregate";
+		var via3First = CreateMockUpgrader(aggregateType, 1, 3);
+		var via3Second = CreateMockUpgrader(aggregateType, 3, 4);
+		var via2First = CreateMockUpgrader(aggregateType, 1, 2);
+		var via2Second = CreateMockUpgrader(aggregateType, 2, 4);
+
+		var manager = new SnapshotVersionManager(
+			[via3First, via3Second, via2First, via2Second],
+			NullLogger<SnapshotVersionManager>.Instance);
+
+		// Act
+		_ = manager.UpgradeSnapshot(aggregateType, [0x01], fromVersion: 1, toVersion: 4);
+
+		// Assert — the canonical path goes through version 2 (the lower-numbered branch).
+		A.CallTo(() => via2First.Upgrade(A<byte[]>._)).MustHaveHappened();
+		A.CallTo(() => via2Second.Upgrade(A<byte[]>._)).MustHaveHappened();
+		A.CallTo(() => via3First.Upgrade(A<byte[]>._)).MustNotHaveHappened();
+		A.CallTo(() => via3Second.Upgrade(A<byte[]>._)).MustNotHaveHappened();
+	}
+
+	#endregion hsxvez: Canonical (registration-order-independent) BFS tie-break
 }

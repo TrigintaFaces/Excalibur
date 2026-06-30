@@ -193,7 +193,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
             order.TotalAmount,
             order.CreatedAt);
 
-        await _dispatcher.DispatchAsync(@event, cancellationToken);
+        await _dispatcher.DispatchChildAsync(@event, cancellationToken);
 
         return order.Id;
     }
@@ -262,7 +262,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
         // In real app: save to database here
 
         // Dispatch event to all handlers
-        await _dispatcher.DispatchAsync(
+        await _dispatcher.DispatchChildAsync(
             new OrderCreatedEvent(orderId, action.CustomerId, total, DateTime.UtcNow),
             ct);
 

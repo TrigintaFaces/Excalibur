@@ -253,7 +253,12 @@ public static class KafkaTransportServiceCollectionExtensions
 			var kafkaOptions = sp.GetRequiredService<IOptions<KafkaOptions>>().Value;
 			var config = KafkaConsumerConfigBuilder.Build(kafkaOptions);
 
-			return new ConsumerBuilder<string, byte[]>(config).Build();
+			var rebalanceLogger = sp.GetRequiredService<ILoggerFactory>()
+				.CreateLogger("Excalibur.Dispatch.Transport.Kafka.KafkaConsumerRebalance");
+			var builder = new ConsumerBuilder<string, byte[]>(config);
+			KafkaConsumerRebalance.Configure(builder, rebalanceLogger);
+
+			return builder.Build();
 		});
 
 		// Register the Kafka message bus
@@ -376,9 +381,15 @@ public static class KafkaTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
 	/// implementations keyed by transport name so they are instantiated and reachable on the
-	/// <c>AddKafkaTransport</c> path instead of orphaned (kek7vm). <c>TryAdd*</c> lets a consumer
+	/// <c>AddKafkaTransport</c> path instead of orphaned. <c>TryAdd*</c> lets a consumer
 	/// override the registration (Microsoft-first).
 	/// </summary>
+	/// <remarks>
+	/// Unconditional registration is intentional: capabilities are
+	/// lazy factory lambdas that construct no infrastructure at registration time, so the
+	/// registered-iff-configured guard is scoped to eager-construct transports (GooglePubSub) only.
+	/// See the authoritative contract on <c>AwsSqsTransportServiceCollectionExtensions.RegisterTransportSenderReceiver</c>.
+	/// </remarks>
 	private static void RegisterTransportSenderReceiver(
 		IServiceCollection services,
 		string name,

@@ -97,7 +97,7 @@ Current governance status:
 | Certified samples | 55 | `sampleFitness.certified` |
 | Quarantined samples | 0 | `sampleFitness.quarantined` |
 
-All samples are certified and build in CI. The quarantine list was cleared across sprints 608-611 (Docs-Site Overhaul epic).
+All samples are certified and build in CI. The quarantine list has been cleared.
 
 ## Architecture Samples
 

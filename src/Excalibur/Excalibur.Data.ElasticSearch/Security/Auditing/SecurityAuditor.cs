@@ -7,9 +7,12 @@ using System.Diagnostics.Metrics;
 
 using Elastic.Clients.Elasticsearch;
 
+using Excalibur.AuditLogging;
 using Excalibur.Data.ElasticSearch.Diagnostics;
 using Excalibur.Data.ElasticSearch.Internal;
+using Excalibur.Dispatch.Telemetry;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -54,13 +57,23 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	private readonly ConcurrentQueue<SecurityAuditEvent> _priorityEventQueue = new();
 	private readonly Timer _auditEventProcessor;
 	private ConcurrentBag<Task> _trackedTasks = [];
+
+	// d0f69o: flush backoff. When a flush fails (e.g. EnsureLogIntegrity=true with a missing signing key,
+	// where ComputeIntegrityHashAsync fails closed), the failed batch is re-queued. Without backoff the
+	// timer immediately re-dequeues and re-fails — a busy hot-loop pegging CPU. These fields gate the flush
+	// body so retries are spaced by a capped exponential backoff. The deadline is stored as a UTC tick count
+	// (DateTimeOffset.UtcNow.UtcTicks; Environment.TickCount64 is banned project-wide).
+	private const int FlushBackoffBaseMs = 1_000;
+	private const int FlushBackoffMaxMs = 30_000;
+	private long _flushBackoffUntilUtcTicks;
+	private int _consecutiveFlushFailures;
 	private volatile bool _disposed;
 
 	// Focused service delegates
 	private readonly SecurityAuditWriter _writer;
 	private readonly SecurityAuditQueryService _queryService;
 	private readonly SecurityAuditMaintenanceService _maintenanceService;
-	private readonly IAuditSigningKeyProvider _signingKeyProvider;
+	private readonly IAuditIntegrityStrategy _integrityStrategy;
 
 	/// <inheritdoc />
 	public AuditOptions Configuration { get; }
@@ -71,10 +84,13 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	/// <inheritdoc />
 	public IReadOnlyCollection<ComplianceFramework> SupportedComplianceFrameworks { get; }
 
-	// Default signing-key provider used by the non-DI constructors; reads the key lazily from
-	// AuditOptions so a null options argument still surfaces ArgumentNullException from the body.
-	private static IAuditSigningKeyProvider BuildDefaultSigningKeyProvider(IOptions<AuditOptions> auditOptions) =>
-		new OptionsAuditSigningKeyProvider(auditOptions);
+	// Default integrity strategy for the non-DI convenience constructors, built once via the public
+	// AddAuditIntegrity() registration (the shared HmacAuditIntegrityStrategy / OptionsAuditSigningKeyProvider
+	// concretes are internal to the abstractions package). It is stateless and, with no AuditIntegrityOptions
+	// key configured, fails closed — identical to the prior default — so integrity is never silently
+	// downgraded. DI consumers get the real, key-configured strategy injected instead and never trigger this.
+	private static readonly Lazy<IAuditIntegrityStrategy> DefaultIntegrityStrategy = new(static () =>
+		new ServiceCollection().AddOptions().AddAuditIntegrity().BuildServiceProvider().GetRequiredService<IAuditIntegrityStrategy>());
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SecurityAuditor" /> class.
@@ -90,35 +106,37 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
 		ILogger<SecurityAuditor> logger)
 		: this(elasticsearchClient, CreateAuditStore(elasticsearchClient), auditOptions, monitoringOptions,
-			BuildDefaultSigningKeyProvider(auditOptions), logger)
+			DefaultIntegrityStrategy.Value, new DefaultAuditTelemetrySanitizer(), logger)
 	{
 	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SecurityAuditor" /> class with an explicit audit
-	/// signing key provider. This is the dependency-injection entry point.
+	/// integrity strategy. This is the dependency-injection entry point.
 	/// </summary>
 	/// <param name="elasticsearchClient"> The Elasticsearch client for audit log storage. </param>
 	/// <param name="auditOptions"> The audit configuration options. </param>
 	/// <param name="monitoringOptions"> The security monitoring configuration options. </param>
-	/// <param name="signingKeyProvider"> The provider of the keyed-MAC audit signing key. </param>
+	/// <param name="integrityStrategy"> The shared keyed-MAC audit integrity strategy. </param>
+	/// <param name="sanitizer"> The sanitizer used to mask PII on audit events before enqueue; when <see langword="null"/> and <see cref="AuditOptions.MaskPiiInAuditEvents"/> is enabled, construction fails closed. </param>
 	/// <param name="logger"> The logger for operational events. </param>
 	/// <exception cref="ArgumentNullException"> Thrown when required dependencies are null. </exception>
 	public SecurityAuditor(
 		ElasticsearchClient elasticsearchClient,
 		IOptions<AuditOptions> auditOptions,
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
-		IAuditSigningKeyProvider signingKeyProvider,
+		IAuditIntegrityStrategy integrityStrategy,
+		ITelemetrySanitizer? sanitizer,
 		ILogger<SecurityAuditor> logger)
 		: this(elasticsearchClient, CreateAuditStore(elasticsearchClient), auditOptions, monitoringOptions,
-			signingKeyProvider, logger)
+			integrityStrategy, sanitizer, logger)
 	{
 	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SecurityAuditor"/> class
 	/// using a pre-built audit store adapter. Used by tests to substitute the
-	/// SDK via the <see cref="ISecurityAuditStore"/> seam (ADR-142 §D7).
+	/// SDK via the <see cref="ISecurityAuditStore"/> seam.
 	/// </summary>
 	/// <param name="elasticsearchClient">
 	/// The Elasticsearch client (kept on the class for compliance reporters
@@ -136,7 +154,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
 		ILogger<SecurityAuditor> logger)
 		: this(elasticsearchClient, auditStore, auditOptions, monitoringOptions,
-			BuildDefaultSigningKeyProvider(auditOptions), logger)
+			DefaultIntegrityStrategy.Value, new DefaultAuditTelemetrySanitizer(), logger)
 	{
 	}
 
@@ -148,7 +166,8 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	/// <param name="auditStore"> The audit store seam adapter. </param>
 	/// <param name="auditOptions"> The audit configuration options. </param>
 	/// <param name="monitoringOptions"> The security monitoring configuration options. </param>
-	/// <param name="signingKeyProvider"> The provider of the keyed-MAC audit signing key. </param>
+	/// <param name="integrityStrategy"> The shared keyed-MAC audit integrity strategy. </param>
+	/// <param name="sanitizer"> The sanitizer used to mask PII on audit events before enqueue; when <see langword="null"/> and <see cref="AuditOptions.MaskPiiInAuditEvents"/> is enabled, construction fails closed. </param>
 	/// <param name="logger"> The logger for operational events. </param>
 	/// <exception cref="ArgumentNullException"> Thrown when required dependencies are null. </exception>
 	internal SecurityAuditor(
@@ -156,15 +175,27 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		ISecurityAuditStore auditStore,
 		IOptions<AuditOptions> auditOptions,
 		IOptions<SecurityMonitoringOptions> monitoringOptions,
-		IAuditSigningKeyProvider signingKeyProvider,
+		IAuditIntegrityStrategy integrityStrategy,
+		ITelemetrySanitizer? sanitizer,
 		ILogger<SecurityAuditor> logger)
 	{
 		_elasticsearchClient = elasticsearchClient ?? throw new ArgumentNullException(nameof(elasticsearchClient));
 		_auditStore = auditStore ?? throw new ArgumentNullException(nameof(auditStore));
 		Configuration = auditOptions?.Value ?? throw new ArgumentNullException(nameof(auditOptions));
 		_ = monitoringOptions?.Value ?? throw new ArgumentNullException(nameof(monitoringOptions));
-		_signingKeyProvider = signingKeyProvider ?? throw new ArgumentNullException(nameof(signingKeyProvider));
+		_integrityStrategy = integrityStrategy ?? throw new ArgumentNullException(nameof(integrityStrategy));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+		// Fail-closed backstop (defense-in-depth, enforce-invariants-structurally): PII masking is default-on,
+		// so refuse to construct rather than silently persist raw PII when no sanitizer is available. With the
+		// TryAddSingleton default registration this is unreachable via DI; it guards manual/misconfigured wiring.
+		if (Configuration.MaskPiiInAuditEvents && sanitizer is null)
+		{
+			throw new InvalidOperationException(
+				"AuditOptions.MaskPiiInAuditEvents is enabled but no ITelemetrySanitizer is available to mask PII. " +
+				"Register an ITelemetrySanitizer (the ElasticSearch security-audit registration provides a default), " +
+				"or set MaskPiiInAuditEvents = false to explicitly opt out.");
+		}
 
 		_auditSemaphore = new SemaphoreSlim(Environment.ProcessorCount, Environment.ProcessorCount);
 		_complianceReporters = InitializeComplianceReporters();
@@ -172,11 +203,11 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 		// Initialize focused service delegates
 		_writer = new SecurityAuditWriter(
-			Configuration, _auditSemaphore, _normalEventQueue, _priorityEventQueue, _complianceReporters, _logger);
+			Configuration, _auditSemaphore, _normalEventQueue, _priorityEventQueue, _complianceReporters, sanitizer, _logger);
 		_queryService = new SecurityAuditQueryService(
 			_elasticsearchClient, Configuration, _complianceReporters, _logger);
 		_maintenanceService = new SecurityAuditMaintenanceService(
-			_elasticsearchClient, Configuration, _signingKeyProvider, _logger);
+			_elasticsearchClient, Configuration, _integrityStrategy, _logger);
 
 		// Wire up events from delegates
 		_writer.SecurityEventRecorded += (sender, args) => SecurityEventRecorded?.Invoke(this, args);
@@ -482,6 +513,13 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			return;
 		}
 
+		// d0f69o: while a prior flush is in its failure backoff window, skip this attempt so a persistently
+		// failing flush (e.g. missing integrity signing key) does not busy-loop re-dequeue/re-fail/re-queue.
+		if (DateTimeOffset.UtcNow.UtcTicks < Volatile.Read(ref _flushBackoffUntilUtcTicks))
+		{
+			return;
+		}
+
 		var eventsToProcess = new List<SecurityAuditEvent>();
 
 		// Drain priority queue first (incidents), then normal events
@@ -531,6 +569,10 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 					"Stored {EventCount} audit events in Elasticsearch",
 					result.AppendedCount);
 			}
+
+			// Successful flush — clear any failure backoff so the next tick processes promptly.
+			_consecutiveFlushFailures = 0;
+			Volatile.Write(ref _flushBackoffUntilUtcTicks, 0);
 		}
 		catch (Exception ex)
 		{
@@ -541,6 +583,18 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			{
 				_normalEventQueue.Enqueue(evt);
 			}
+
+			// d0f69o: space out retries with a capped exponential backoff so a persistent failure
+			// (e.g. EnsureLogIntegrity=true with no signing key) does not hot-loop. The events remain
+			// queued for retry; only the retry cadence is throttled.
+			var failures = Interlocked.Increment(ref _consecutiveFlushFailures);
+			var shift = System.Math.Min(failures - 1, 30);
+			var delayMs = (int)System.Math.Min(
+				(long)FlushBackoffBaseMs << shift,
+				FlushBackoffMaxMs);
+			Volatile.Write(
+				ref _flushBackoffUntilUtcTicks,
+				DateTimeOffset.UtcNow.UtcTicks + (delayMs * TimeSpan.TicksPerMillisecond));
 		}
 	}
 

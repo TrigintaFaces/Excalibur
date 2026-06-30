@@ -43,7 +43,15 @@ public sealed class SystemTextJsonSerializer : ISerializer
 		_options = options ?? new JsonSerializerOptions
 		{
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-			WriteIndented = false
+			WriteIndented = false,
+
+			// Security: pin an explicit depth bound so the default-options path cannot deserialize a
+			// hostile deeply-nested payload into unbounded recursion (stack overflow). 64 matches the
+			// framework's configured DispatchJsonSerializer; it also equals STJ's implicit default, so
+			// pinning it changes no behavior today while making the bound explicit and immune to a
+			// future framework/runtime default change. See bd-qvbzm4. Callers supplying their own
+			// options own their depth bound.
+			MaxDepth = 64
 		};
 	}
 
@@ -60,14 +68,26 @@ public sealed class SystemTextJsonSerializer : ISerializer
 	/// <inheritdoc />
 	public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
 	{
+		ArgumentNullException.ThrowIfNull(value);
 		ArgumentNullException.ThrowIfNull(bufferWriter);
 
-		using var writer = new Utf8JsonWriter(bufferWriter, new JsonWriterOptions
+		try
 		{
-			Indented = _options.WriteIndented,
-			Encoder = _options.Encoder,
-		});
-		JsonSerializer.Serialize(writer, value, _options);
+			using var writer = new Utf8JsonWriter(bufferWriter, new JsonWriterOptions
+			{
+				Indented = _options.WriteIndented,
+				Encoder = _options.Encoder,
+			});
+			JsonSerializer.Serialize(writer, value, _options);
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.Wrap<T>("serialize", ex);
+		}
 	}
 
 	/// <inheritdoc cref="ISerializer.Deserialize{T}"/>

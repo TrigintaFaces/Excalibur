@@ -89,6 +89,38 @@ public record OutboxMessage : IOutboxMessage
 	}
 
 	/// <summary>
+	/// Creates an <see cref="OutboxMessage"/> from an <see cref="Excalibur.Dispatch.OutboundMessage"/>, carrying the
+	/// common fields — including <see cref="TenantId"/> — in one place so no provider stage path silently drops
+	/// tenant scope during the <c>OutboundMessage → OutboxMessage</c> conversion.
+	/// </summary>
+	/// <remarks>
+	/// This is the canonical conversion: provider outbox stores route their stage paths through it rather than
+	/// re-inlining the bare constructor (which omits <see cref="TenantId"/>). It owns the common-field mapping
+	/// (id, type, headers, payload, created-at, tenant).
+	/// </remarks>
+	/// <param name="message">The outbound message to convert.</param>
+	/// <returns>An outbox message carrying the outbound message's id, type, headers, payload, and tenant.</returns>
+	public static OutboxMessage FromOutboundMessage(Excalibur.Dispatch.OutboundMessage message)
+	{
+		ArgumentNullException.ThrowIfNull(message);
+
+#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+		var headersJson = System.Text.Json.JsonSerializer.Serialize(
+			message.Headers ?? new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal));
+#pragma warning restore IL2026, IL3050
+
+		return new OutboxMessage(
+			message.Id,
+			message.MessageType,
+			headersJson,
+			System.Text.Encoding.UTF8.GetString(message.Payload),
+			DateTimeOffset.UtcNow)
+		{
+			TenantId = message.TenantId,
+		};
+	}
+
+	/// <summary>
 	/// Gets the unique identifier for the message.
 	/// </summary>
 	/// <value>The current <see cref="MessageId"/> value.</value>
@@ -141,4 +173,12 @@ public record OutboxMessage : IOutboxMessage
 	/// </summary>
 	/// <value>The current <see cref="DispatcherTimeout"/> value.</value>
 	public DateTimeOffset? DispatcherTimeout { get; set; }
+
+	/// <summary>
+	/// Gets the tenant identifier this message was produced under (overrides the
+	/// <see cref="IOutboxMessage.TenantId"/> default so the Postgres outbox store's persisted
+	/// <c>tenant_id</c> column round-trips).
+	/// </summary>
+	/// <value>The tenant identifier, or <see langword="null"/> when no tenant scope was carried.</value>
+	public string? TenantId { get; init; }
 }

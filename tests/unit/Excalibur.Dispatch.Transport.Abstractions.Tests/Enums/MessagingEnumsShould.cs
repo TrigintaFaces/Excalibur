@@ -45,15 +45,6 @@ public sealed class MessagingEnumsShould
     }
 
     [Theory]
-    [InlineData(RetryDelayStrategy.Fixed, 0)]
-    [InlineData(RetryDelayStrategy.Exponential, 1)]
-    [InlineData(RetryDelayStrategy.Linear, 2)]
-    public void RetryDelayStrategy_Should_Have_Correct_Values(RetryDelayStrategy strategy, int expected)
-    {
-        ((int)strategy).ShouldBe(expected);
-    }
-
-    [Theory]
     [InlineData(MessagePriority.Low, 0)]
     [InlineData(MessagePriority.Normal, 1)]
     [InlineData(MessagePriority.High, 2)]

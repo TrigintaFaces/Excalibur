@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,7 +23,7 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 	private readonly ILogger _logger;
 	private readonly List<IPatternObserver> _observers = [];
 	private readonly Lock _observerLock = new();
-	private int _state = (int)ResilienceState.Closed;
+	private int _state = (int)CircuitState.Closed;
 	private long _totalRequests;
 	private long _successfulRequests;
 	private long _failedRequests;
@@ -49,7 +50,8 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 				SamplingDuration = TimeSpan.FromSeconds(30),
 				MinimumThroughput = _options.FailureThreshold,
 				BreakDuration = _options.OpenDuration,
-				ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+				// FR-116-2: OperationCanceledException is never a failure — non-tripping.
+				ShouldHandle = new PredicateBuilder().Handle<Exception>(ex => ex is not OperationCanceledException),
 			})
 			.AddTimeout(_options.OperationTimeout)
 			.Build();
@@ -74,14 +76,14 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 	/// <inheritdoc />
 	public PatternHealthStatus HealthStatus => State switch
 	{
-		ResilienceState.Closed => PatternHealthStatus.Healthy,
-		ResilienceState.HalfOpen => PatternHealthStatus.Degraded,
-		ResilienceState.Open => PatternHealthStatus.Unhealthy,
+		CircuitState.Closed => PatternHealthStatus.Healthy,
+		CircuitState.HalfOpen => PatternHealthStatus.Degraded,
+		CircuitState.Open => PatternHealthStatus.Unhealthy,
 		_ => PatternHealthStatus.Unknown,
 	};
 
 	/// <inheritdoc />
-	public ResilienceState State => (ResilienceState)Volatile.Read(ref _state);
+	public CircuitState State => (CircuitState)Volatile.Read(ref _state);
 
 	/// <inheritdoc />
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "MA0061:Method overrides should not change default values", Justification = "Preserves optional cancellation token for consumers.")]
@@ -96,19 +98,20 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 			var result = await _pipeline.ExecuteAsync(async _ => await operation().ConfigureAwait(false), cancellationToken)
 				.ConfigureAwait(false);
 
-			Volatile.Write(ref _state, (int)ResilienceState.Closed);
+			Volatile.Write(ref _state, (int)CircuitState.Closed);
 			_ = Interlocked.Increment(ref _successfulRequests);
 			return result;
 		}
 		catch (BrokenCircuitException)
 		{
-			Volatile.Write(ref _state, (int)ResilienceState.Open);
+			Volatile.Write(ref _state, (int)CircuitState.Open);
 			_ = Interlocked.Increment(ref _rejectedRequests);
 			LogCircuitBreakerRejected(Name);
 			throw new CircuitBreakerOpenException(Name);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
+			// FR-116-2: cancellation is not a failure — non-tripping.
 			_ = Interlocked.Increment(ref _failedRequests);
 			LogOperationFailed(Name, ex);
 			throw;
@@ -139,7 +142,7 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 	public void Reset()
 	{
 		LogResetRequested(Name);
-		Volatile.Write(ref _state, (int)ResilienceState.Closed);
+		Volatile.Write(ref _state, (int)CircuitState.Closed);
 	}
 
 	/// <inheritdoc />
@@ -248,7 +251,7 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 			_observers.Clear();
 		}
 
-		Volatile.Write(ref _state, (int)ResilienceState.Closed);
+		Volatile.Write(ref _state, (int)CircuitState.Closed);
 		GC.SuppressFinalize(this);
 	}
 

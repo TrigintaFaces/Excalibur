@@ -21,7 +21,7 @@ internal sealed class TransportBindingRegistry : IDisposable
 	/// <summary>
 	/// Records a binding reference to a transport name that is not currently
 	/// registered. The startup <c>BindingRegistrationValidator</c> surfaces these
-	/// as <c>ValidateOnStart</c> failures. [bd-20ft0e FIX 4]
+	/// as <c>ValidateOnStart</c> failures.
 	/// </summary>
 	/// <param name="transportName">The transport name referenced by a binding.</param>
 	public void RegisterPendingTransportReference(string transportName)

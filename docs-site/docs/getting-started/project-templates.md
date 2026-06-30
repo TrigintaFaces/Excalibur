@@ -458,7 +458,7 @@ MyCqrs/
 
 ### Unified Builder (All Templates)
 
-All templates use the unified builder patterns from Sprints 499-502:
+All templates use the unified builder patterns:
 
 ```csharp
 // Dispatch API / Worker

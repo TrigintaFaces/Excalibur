@@ -59,6 +59,7 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		                   message_type AS MessageType,
 		                   message_metadata AS MessageMetadata,
 		                   message_body AS MessageBody,
+		                   tenant_id AS TenantId,
 		                   occurred_on AS OccurredOn,
 		                   attempts AS Attempts,
 		                   dispatcher_id AS DispatcherId,

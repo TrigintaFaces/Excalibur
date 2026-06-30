@@ -11,7 +11,10 @@ description: Idempotent message processing with deduplication
 Start with the [Idempotent Consumer Guide](idempotent-consumer.md) to understand why messages get duplicated and how the Outbox and Inbox patterns work together.
 :::
 
-The inbox pattern ensures messages are processed exactly once, preventing duplicate handling when messages are redelivered.
+The inbox pattern deduplicates redelivered messages with an atomic claim-before-execute protocol. The guarantee it provides is precise:
+
+- **Exactly-once for *concurrent* redelivery** — when duplicates race, the atomic claim lets exactly one win; the others are skipped.
+- **At-least-once across a *process crash*** — the claim is persisted before the handler runs, but the claim and the post-handler "mark processed" are two steps, not one transaction. A crash mid-handler leaves the claim to expire and the message to be reclaimed and re-run. **Your handler must be idempotent** to be safe across this boundary.
 
 ## Before You Start
 
@@ -311,7 +314,7 @@ public class SendEmailHandler : IEventHandler<OrderCreatedEvent> { }
 public class UpdateInventoryHandler : IEventHandler<OrderCreatedEvent> { }
 ```
 
-Each handler's processing is tracked independently, so `SendEmailHandler` and `UpdateInventoryHandler` can both process the same `OrderCreatedEvent` exactly once.
+Each handler's processing is tracked independently, so `SendEmailHandler` and `UpdateInventoryHandler` each deduplicate the same `OrderCreatedEvent` separately — concurrent redeliveries are blocked by the atomic claim, and a crash mid-handler results in a reclaim-and-retry (so handlers must be idempotent).
 
 ## Distributed Deduplication
 

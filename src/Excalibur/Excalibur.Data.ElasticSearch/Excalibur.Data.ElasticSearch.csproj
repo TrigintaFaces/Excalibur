@@ -23,6 +23,7 @@
   </ItemGroup>
   <!-- Excalibur internal references (always ProjectReference) -->
   <ItemGroup>
+    <ProjectReference Include="..\Excalibur.AuditLogging.Abstractions\Excalibur.AuditLogging.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.Data\Excalibur.Data.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
   </ItemGroup>

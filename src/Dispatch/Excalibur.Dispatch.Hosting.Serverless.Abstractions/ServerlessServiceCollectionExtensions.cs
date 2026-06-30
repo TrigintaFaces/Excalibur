@@ -36,6 +36,11 @@ public static class ServerlessServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ServerlessHostOptions>, ServerlessHostOptionsValidator>());
 
+		// Fail fast at startup if the options are invalid (parity with the IConfiguration overload).
+		// All provider Add* methods (AddAwsLambdaHosting/AddAzureFunctionsHosting/AddGoogleCloudFunctionsHosting)
+		// delegate here, so without this they would never validate-on-start.
+		_ = services.AddOptions<ServerlessHostOptions>().ValidateOnStart();
+
 		// Configure options if provided
 		if (configureOptions != null)
 		{

@@ -13,19 +13,22 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class ExcaliburBuilderDispatchExtensions
 {
 	/// <summary>
-	/// Configures the Dispatch messaging pipeline within the Excalibur builder.
+	/// Adds the Dispatch messaging pipeline within the Excalibur builder.
 	/// </summary>
 	/// <param name="builder">The Excalibur builder.</param>
 	/// <param name="configure">An optional action to configure the dispatch pipeline.</param>
 	/// <returns>The Excalibur builder for fluent configuration.</returns>
 	/// <remarks>
 	/// <para>
-	/// This bridges the Excalibur unified builder to the Dispatch pipeline builder,
-	/// enabling a single composition root:
+	/// Bridges the Excalibur unified builder to the Dispatch pipeline builder, keeping the
+	/// <c>Add*</c> registration verb consistent with peer subsystem registration methods
+	/// (<c>AddEventSourcing</c>, <c>AddOutbox</c>, <c>AddCdc</c>, <c>AddSagas</c>,
+	/// <c>AddIdentityMap</c>, <c>AddLeaderElection</c>): registration uses <c>Add*</c>, while
+	/// pipeline/middleware ordering uses <c>Use*</c>:
 	/// </para>
 	/// <code>
 	/// services.AddExcalibur(excalibur => excalibur
-	///     .UseDispatch(dispatch => dispatch
+	///     .AddDispatch(dispatch => dispatch
 	///         .AddHandlersFromAssembly(typeof(Program).Assembly)
 	///         .WithDefaults())
 	///     .AddEventSourcing(es => es.UseSqlServer(opts => opts.ConnectionString = connectionString))
@@ -33,11 +36,11 @@ public static class ExcaliburBuilderDispatchExtensions
 	/// </code>
 	/// <para>
 	/// If <paramref name="configure"/> is null, Dispatch is registered with default settings.
-	/// The existing <c>AddDispatch()</c> remains available as a standalone shortcut for
-	/// simple MediatR-replacement scenarios.
+	/// The standalone <c>services.AddDispatch()</c> remains available as a shortcut for simple
+	/// MediatR-replacement scenarios that do not compose the Excalibur application framework.
 	/// </para>
 	/// </remarks>
-	public static IExcaliburBuilder UseDispatch(
+	public static IExcaliburBuilder AddDispatch(
 		this IExcaliburBuilder builder,
 		Action<IDispatchBuilder>? configure = null)
 	{
@@ -47,29 +50,4 @@ public static class ExcaliburBuilderDispatchExtensions
 
 		return builder;
 	}
-
-	/// <summary>
-	/// Adds the Dispatch messaging pipeline within the Excalibur builder.
-	/// </summary>
-	/// <param name="builder">The Excalibur builder.</param>
-	/// <param name="configure">An optional action to configure the dispatch pipeline.</param>
-	/// <returns>The Excalibur builder for fluent configuration.</returns>
-	/// <remarks>
-	/// <para>
-	/// Alias for <see cref="UseDispatch(IExcaliburBuilder, Action{IDispatchBuilder}?)"/> providing
-	/// naming consistency with peer subsystem registration methods (<c>AddEventSourcing</c>,
-	/// <c>AddOutbox</c>, <c>AddCdc</c>, <c>AddSagas</c>, <c>AddIdentityMap</c>,
-	/// <c>AddLeaderElection</c>). Consumers may use either form interchangeably.
-	/// </para>
-	/// <code>
-	/// services.AddExcalibur(excalibur => excalibur
-	///     .AddDispatch(dispatch => dispatch
-	///         .AddHandlersFromAssembly(typeof(Program).Assembly)
-	///         .WithDefaults()));
-	/// </code>
-	/// </remarks>
-	public static IExcaliburBuilder AddDispatch(
-		this IExcaliburBuilder builder,
-		Action<IDispatchBuilder>? configure = null)
-		=> UseDispatch(builder, configure);
 }

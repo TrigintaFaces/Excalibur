@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Threading;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -27,7 +28,12 @@ public static class ThreadingServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	public static IServiceCollection AddDispatchThreading(this IServiceCollection services, Action<ThreadingOptions>? configure = null)
 	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ThreadingOptions>, ThreadingOptionsValidator>());
+
 		_ = services.ConfigureOptions(configure, static _ => { });
+		_ = services.AddOptions<ThreadingOptions>()
+			.ValidateOnStart();
 		_ = services.AddSingleton<IKeyedLock, KeyedLock>();
 		services.TryAddSingleton<BackgroundExecutionMiddleware>();
 
@@ -49,7 +55,12 @@ public static class ThreadingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<ThreadingOptions>().Bind(configuration);
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ThreadingOptions>, ThreadingOptionsValidator>());
+
+		_ = services.AddOptions<ThreadingOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
 		_ = services.AddSingleton<IKeyedLock, KeyedLock>();
 		services.TryAddSingleton<BackgroundExecutionMiddleware>();
 

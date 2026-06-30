@@ -1,0 +1,33 @@
+#nullable enable
+Excalibur.AuditLogging.AuditChainLink
+Excalibur.AuditLogging.AuditChainLink.AuditChainLink() -> void
+Excalibur.AuditLogging.AuditChainLink.AuditChainLink(System.ReadOnlyMemory<byte> CanonicalContent, string! Tag) -> void
+Excalibur.AuditLogging.AuditChainLink.CanonicalContent.get -> System.ReadOnlyMemory<byte>
+Excalibur.AuditLogging.AuditChainLink.CanonicalContent.init -> void
+Excalibur.AuditLogging.AuditChainLink.Tag.get -> string!
+Excalibur.AuditLogging.AuditChainLink.Tag.init -> void
+Excalibur.AuditLogging.AuditChainVerificationResult
+Excalibur.AuditLogging.AuditChainVerificationResult.AuditChainVerificationResult() -> void
+Excalibur.AuditLogging.AuditChainVerificationResult.AuditChainVerificationResult(bool IsValid, int FirstBrokenIndex) -> void
+Excalibur.AuditLogging.AuditChainVerificationResult.FirstBrokenIndex.get -> int
+Excalibur.AuditLogging.AuditChainVerificationResult.FirstBrokenIndex.init -> void
+Excalibur.AuditLogging.AuditChainVerificationResult.IsValid.get -> bool
+Excalibur.AuditLogging.AuditChainVerificationResult.IsValid.init -> void
+Excalibur.AuditLogging.AuditIntegrityOptions
+Excalibur.AuditLogging.AuditIntegrityOptions.AuditIntegrityOptions() -> void
+Excalibur.AuditLogging.AuditIntegrityOptions.KeyId.get -> string!
+Excalibur.AuditLogging.AuditIntegrityOptions.KeyId.init -> void
+Excalibur.AuditLogging.AuditIntegrityOptions.SigningKey.get -> byte[]?
+Excalibur.AuditLogging.AuditIntegrityOptions.SigningKey.init -> void
+Excalibur.AuditLogging.AuditRecordCanonicalizer
+Excalibur.AuditLogging.IAuditIntegrityStrategy
+Excalibur.AuditLogging.IAuditIntegrityStrategy.ComputeTagAsync(System.ReadOnlyMemory<byte> canonicalContent, string? priorTag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
+Excalibur.AuditLogging.IAuditIntegrityStrategy.VerifyAsync(System.ReadOnlyMemory<byte> canonicalContent, string? priorTag, string! tag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.AuditLogging.IAuditIntegrityStrategy.VerifyChainAsync(System.Collections.Generic.IReadOnlyList<Excalibur.AuditLogging.AuditChainLink>! chain, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.AuditLogging.AuditChainVerificationResult>
+Excalibur.AuditLogging.IAuditSigningKeyProvider
+Excalibur.AuditLogging.IAuditSigningKeyProvider.GetCurrentSigningKeyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(string! KeyId, byte[]! Key)>
+Excalibur.AuditLogging.IAuditSigningKeyProvider.GetSigningKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]?>
+Microsoft.Extensions.DependencyInjection.AuditIntegrityServiceCollectionExtensions
+const Excalibur.AuditLogging.AuditRecordCanonicalizer.CanonicalVersion = 1 -> byte
+static Excalibur.AuditLogging.AuditRecordCanonicalizer.Canonicalize(params string?[]! fields) -> byte[]!
+static Microsoft.Extensions.DependencyInjection.AuditIntegrityServiceCollectionExtensions.AddAuditIntegrity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

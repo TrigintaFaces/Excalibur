@@ -48,7 +48,7 @@ public static class TransportSubscriberBuilderExtensions
 		builder.Use(inner => new DeadLetterTransportSubscriber(inner, deadLetterHandler, transportName, meter));
 
 	/// <summary>
-	/// Adds self-healing reconnect/backoff to the subscriber pipeline (bd-no0lue/kxexrz): when the inner
+	/// Adds self-healing reconnect/backoff to the subscriber pipeline: when the inner
 	/// subscription faults with a non-cancellation error the loop backs off and re-subscribes, so a transient
 	/// receive/stream fault no longer silently kills the subscriber. Cooperative cancellation propagates and is
 	/// never retried.
@@ -57,7 +57,7 @@ public static class TransportSubscriberBuilderExtensions
 	/// The backoff schedule is supplied as a <see cref="Func{T, TResult}"/> (1-based attempt number → delay)
 	/// so this package takes no resilience-library dependency (mirrors <c>UseDeadLetterQueue</c>'s delegate
 	/// seam). The DI/transport layer owns the concrete, <b>clamped</b> schedule — e.g. the in-house
-	/// <c>ExponentialBackoffCalculator</c> whose <c>MaxDelay</c> caps the wait (bd-7npc0q) — so unbounded
+	/// <c>ExponentialBackoffCalculator</c> whose <c>MaxDelay</c> caps the wait — so unbounded
 	/// exponential growth can never produce an absurd reconnect delay.
 	/// </remarks>
 	/// <param name="builder">The subscriber builder.</param>

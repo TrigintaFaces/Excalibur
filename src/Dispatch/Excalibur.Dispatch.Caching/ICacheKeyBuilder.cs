@@ -27,4 +27,24 @@ public interface ICacheKeyBuilder
 	[RequiresDynamicCode("JSON serialization requires dynamic code generation for type inspection and property access")]
 	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	string? CreateKey(IDispatchAction action, IMessageContext context);
+
+	/// <summary>
+	/// Builds the stored cache key for a logical key under a tenant/user identity, applying the same identity
+	/// folding and hashing transform as <see cref="CreateKey(IDispatchAction, IMessageContext)"/> — without a live
+	/// <see cref="IMessageContext"/>.
+	/// </summary>
+	/// <param name="logicalKey">The logical cache identity (e.g. the value a cacheable query exposes via <c>GetCacheKey()</c>).</param>
+	/// <param name="tenantId">The tenant identity the entry was stored under, or <see langword="null"/> for the global tenant.</param>
+	/// <param name="userId">The user identity the entry was stored under, or <see langword="null"/> for an anonymous user.</param>
+	/// <returns>
+	/// The storage key that a cacheable query would have stored for <paramref name="logicalKey"/> under the given
+	/// identity. Use this to turn a direct invalidation key into the exact key to remove — a raw logical key can
+	/// never equal the stored hashed key.
+	/// </returns>
+	/// <remarks>
+	/// This overload performs no serialization and is AOT- and trimming-safe. It is intended for direct-key cache
+	/// invalidation, where the tenant/user are derived from the invalidating dispatch's context rather than the
+	/// original cached request.
+	/// </remarks>
+	string CreateKey(string logicalKey, string? tenantId, string? userId);
 }

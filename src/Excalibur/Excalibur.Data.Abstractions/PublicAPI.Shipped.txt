@@ -108,6 +108,8 @@ Excalibur.Data.CloudNative.CloudOutboxMessage.PublishedAt.get -> System.DateTime
 Excalibur.Data.CloudNative.CloudOutboxMessage.PublishedAt.init -> void
 Excalibur.Data.CloudNative.CloudOutboxMessage.RetryCount.get -> int
 Excalibur.Data.CloudNative.CloudOutboxMessage.RetryCount.init -> void
+Excalibur.Data.CloudNative.CloudOutboxMessage.TenantId.get -> string?
+Excalibur.Data.CloudNative.CloudOutboxMessage.TenantId.init -> void
 Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.CloudNative.CloudPersistenceProviderType.CosmosDb = 0 -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.CloudNative.CloudPersistenceProviderType.DynamoDb = 1 -> Excalibur.Data.CloudNative.CloudPersistenceProviderType

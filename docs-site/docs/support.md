@@ -28,12 +28,12 @@ This is an open-source project maintained by volunteers. Response times are best
 | Framework | Status | Support Ends |
 |-----------|--------|--------------|
 | **.NET 10.0 LTS** | Supported (current) | November 2028 |
-| .NET 9.0 | Dropped in Sprint 797 (April 2026) | — |
-| .NET 8.0 LTS | Dropped in Sprint 797 (April 2026) | — |
+| .NET 9.0 | Dropped (April 2026) | — |
+| .NET 8.0 LTS | Dropped (April 2026) | — |
 | .NET 7.0 | EOL | Not supported |
 | .NET 6.0 | EOL | Not supported |
 
-All packages target .NET 10.0 exclusively as of Sprint 797 (April 2026). .NET 8.0 and .NET 9.0 are no longer supported targets. See the [.NET 10 migration guide](./migration/net10-only.md) for consumer project update steps.
+All packages target .NET 10.0 exclusively as of the .NET 10 release (April 2026). .NET 8.0 and .NET 9.0 are no longer supported targets. See the [.NET 10 migration guide](./migration/net10-only.md) for consumer project update steps.
 
 ---
 

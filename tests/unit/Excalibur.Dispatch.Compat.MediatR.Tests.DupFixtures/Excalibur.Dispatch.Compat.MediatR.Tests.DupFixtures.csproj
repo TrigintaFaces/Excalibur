@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Isolated fixture assembly for the nvzo4h duplicate-handler lock. Per ADR-341 §9 / SA C1,
+    dup-fail-fast is per-container over the RegisterServicesFromAssembly set — so a duplicate
+    handler pair MUST live in its own assembly that ONLY the dup-test registers, or it would
+    poison every other test that scans the main test assembly.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compat.MediatR\Excalibur.Dispatch.Compat.MediatR.csproj" />
+    <!-- Compat source generator (ADR-341 §9): emits the registration ModuleInitializer for the dup fixtures. -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compat.MediatR.SourceGenerators\Excalibur.Dispatch.Compat.MediatR.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

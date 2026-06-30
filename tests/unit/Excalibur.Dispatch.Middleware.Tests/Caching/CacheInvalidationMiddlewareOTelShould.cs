@@ -34,10 +34,17 @@ public sealed class CacheInvalidationMiddlewareOTelShould : UnitTestBase
 	private long _invalidationCount;
 	private long _tagsInvalidatedCount;
 	private long _keysInvalidatedCount;
+	private readonly ICacheKeyBuilder _keyBuilder;
 
 	public CacheInvalidationMiddlewareOTelShould()
 	{
 		_meterFactory = new TrackingMeterFactory(new TestMeterFactory(), _ownedMeters);
+
+		// f8pdos: direct keys are folded through the key builder before removal; a deterministic non-empty
+		// transform keeps each direct key a real removal target so the keys_invalidated metric counts it.
+		_keyBuilder = A.Fake<ICacheKeyBuilder>();
+		A.CallTo(() => _keyBuilder.CreateKey(A<string>._, A<string?>._, A<string?>._))
+			.ReturnsLazily((string logicalKey, string? tenantId, string? userId) => $"sk:{logicalKey}");
 
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
@@ -78,7 +85,7 @@ public sealed class CacheInvalidationMiddlewareOTelShould : UnitTestBase
 		});
 
 		var hybridCache = A.Fake<HybridCache>();
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 
 		var message = A.Fake<IDispatchMessage>(o => o.Implements<ICacheInvalidator>());
 		var invalidator = (ICacheInvalidator)message;
@@ -107,7 +114,7 @@ public sealed class CacheInvalidationMiddlewareOTelShould : UnitTestBase
 	{
 		// Arrange
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions { Enabled = false });
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder);
 
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
@@ -141,7 +148,7 @@ public sealed class CacheInvalidationMiddlewareOTelShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Hybrid,
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder);
 
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
@@ -173,7 +180,7 @@ public sealed class CacheInvalidationMiddlewareOTelShould : UnitTestBase
 			DefaultTags = ["default-tag"],
 		});
 		var hybridCache = A.Fake<HybridCache>();
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 
 		var message = A.Fake<IDispatchMessage>(o => o.Implements<ICacheInvalidator>());
 		var invalidator = (ICacheInvalidator)message;

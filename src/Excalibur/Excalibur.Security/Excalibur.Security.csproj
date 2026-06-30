@@ -14,6 +14,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Security.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+    <!-- Shares the internal SecurePlaintextScope helper with the sibling provider package
+         (first-party, internal-first: the secret-scrub helper stays non-public). -->
+    <InternalsVisibleTo Include="Excalibur.Security.Aws" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">

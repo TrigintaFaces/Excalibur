@@ -110,7 +110,7 @@ public static class EventTypeRegistrationServiceCollectionExtensions
 		foreach (var descriptor in services)
 		{
 			if (descriptor.ServiceType == typeof(IEventTypeRegistry)
-				&& descriptor.ImplementationInstance is EventTypeRegistry existing)
+				&& descriptor.GetImplementationInstance() is EventTypeRegistry existing)
 			{
 				return existing;
 			}

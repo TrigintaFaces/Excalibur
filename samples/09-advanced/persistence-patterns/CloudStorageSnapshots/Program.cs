@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // ============================================================================
-// Cloud Storage Snapshots (Cold Event Store) Sample  (bd-h9hr4c)
+// Cloud Storage Snapshots (Cold Event Store) Sample
 // ============================================================================
 //
 // Excalibur supports a "tiered storage" model where a hot event store (SQL

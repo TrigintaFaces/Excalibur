@@ -29,6 +29,10 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	private volatile bool _disposed;
 	private volatile CircuitState _lastKnownState;
 
+	// Number of buckets the rolling sampling window (SamplingDuration) is divided into for the
+	// windowed open decision (zxb7fp). Mirrors Polly v8's rolling-health bucketing shape.
+	private const int WindowBucketCount = 10;
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DistributedCircuitBreaker" /> class.
 	/// </summary>
@@ -57,7 +61,8 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 				SamplingDuration = _options.SamplingDuration,
 				MinimumThroughput = _options.MinimumThroughput,
 				BreakDuration = _options.BreakDuration,
-				ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+				// FR-116-2: OperationCanceledException is never a failure — non-tripping.
+			ShouldHandle = new PredicateBuilder().Handle<Exception>(ex => ex is not OperationCanceledException),
 			})
 			.Build();
 
@@ -111,7 +116,14 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		{
 			if (stateData != null && DateTimeOffset.UtcNow < stateData.OpenUntil)
 			{
-				throw new global::Polly.CircuitBreaker.BrokenCircuitException($"Distributed circuit breaker '{Name}' is open");
+				// FR-116-1 / AC-116-3: translate Polly's BrokenCircuitException to the canonical exception;
+				// never leak Polly internals to callers. Carry the RetryAfter hint (AC-116-7).
+				var retryAfter = stateData.OpenUntil - DateTimeOffset.UtcNow;
+				if (retryAfter < TimeSpan.Zero)
+				{
+					retryAfter = TimeSpan.Zero;
+				}
+				throw new CircuitBreakerOpenException(Name, retryAfter);
 			}
 
 			// Try to transition to half-open
@@ -132,8 +144,9 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			await RecordSuccessCoreAsync(_lastKnownState, cancellationToken).ConfigureAwait(false);
 			return result;
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
+			// FR-116-2: cancellation is not a failure — non-tripping.
 			await RecordFailureAsync(cancellationToken, ex).ConfigureAwait(false);
 			throw;
 		}
@@ -166,6 +179,9 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			metrics.ConsecutiveSuccesses++;
 			metrics.ConsecutiveFailures = 0;
 			metrics.LastSuccess = DateTimeOffset.UtcNow;
+
+			// Count the success as an in-window attempt so the rolling failure ratio has a denominator.
+			metrics.RecordWindow(failure: false, DateTimeOffset.UtcNow.UtcTicks, WindowBucketTicks, WindowBucketCount);
 
 			await SaveMetricsAsync(metrics, cancellationToken).ConfigureAwait(false);
 
@@ -213,15 +229,26 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 				metrics.LastFailureReason = exception.Message;
 			}
 
+			// Count the failure as an in-window attempt AND an in-window failure.
+			var nowTicks = DateTimeOffset.UtcNow.UtcTicks;
+			metrics.RecordWindow(failure: true, nowTicks, WindowBucketTicks, WindowBucketCount);
+
 			await SaveMetricsAsync(metrics, cancellationToken).ConfigureAwait(false);
 
-			// Check if we should open the circuit
-			var total = metrics.SuccessCount + metrics.FailureCount;
-			var failureRate = total > 0 ? (double)metrics.FailureCount / total : 0;
-			if (failureRate > _options.FailureRatio ||
+			// Windowed open decision (Polly v8 semantics, zxb7fp): trip on the failure RATIO only once at
+			// least MinimumThroughput attempts have accumulated within the SamplingDuration window, and
+			// compare the ROLLING-WINDOW ratio (not a lifetime-cumulative one) to FailureRatio. The
+			// ConsecutiveFailures fallback is retained so a hard burst still trips promptly. SamplingDuration
+			// and MinimumThroughput are now genuinely wired (were advertised-but-unwired). Counts are bucketed
+			// by wall-clock; minor inter-instance clock skew merely smears counts across adjacent buckets,
+			// which is acceptable for a breaker heuristic (not a fencing/safety invariant).
+			var (windowAttempts, windowFailureRatio) = metrics.GetWindow(nowTicks, WindowBucketTicks, WindowBucketCount);
+			var windowedRatioTrips = windowAttempts >= _options.MinimumThroughput
+				&& windowFailureRatio > _options.FailureRatio;
+			if (windowedRatioTrips ||
 				metrics.ConsecutiveFailures >= _options.ConsecutiveFailureThreshold)
 			{
-				LogThresholdExceeded(Name, (int)metrics.FailureCount, _options.MinimumThroughput);
+				LogThresholdExceeded(Name, (int)windowAttempts, _options.MinimumThroughput);
 				await TransitionToOpenAsync(cancellationToken).ConfigureAwait(false);
 			}
 		}
@@ -414,6 +441,10 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		// Sliding expirations configured on save will evict stale entries automatically; manual cleanup can be added when required.
 		return Task.CompletedTask;
 	}
+
+	// Width of a single rolling-window bucket in ticks. Guards against a sub-tick width when
+	// SamplingDuration.Ticks < WindowBucketCount.
+	private long WindowBucketTicks => Math.Max(1L, _options.SamplingDuration.Ticks / WindowBucketCount);
 
 	private string GetStateKey() => $"circuit-breaker:{Name}:state";
 

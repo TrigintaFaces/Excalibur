@@ -24,8 +24,8 @@ It serves as:
 
 Following the `HttpContext` pattern, `IMessageContext` exposes only 8 properties. All cross-cutting concerns are accessed through typed feature interfaces, keeping the core interface stable as new concerns are added.
 
-**Before (Sprint 591):** 40 direct properties on `IMessageContext`
-**After (Sprint 592):** 8 core properties + 7 feature interfaces
+**Before:** 40 direct properties on `IMessageContext`
+**After:** 8 core properties + 7 feature interfaces
 
 ### 2. Type Safety via Feature Interfaces
 
@@ -148,12 +148,12 @@ Message contexts are pooled for performance:
 
 ## Evolution History
 
-| Sprint | Change |
+| Stage | Change |
 |--------|--------|
 | Initial | IMessageContext with 40 direct properties |
-| 592 | Decomposed to 8 core + 7 feature interfaces (ADR-166) |
+| Current | Decomposed to 8 core + 7 feature interfaces |
 
-The decomposition was driven by the Microsoft-First Compliance Audit (epic `Excalibur.Dispatch-7umoi`). See ADR-166 (`management/architecture/adr-166-sprint-592-imessagecontext-decomposition.md`) for the full decision record.
+The decomposition follows the Microsoft-First design guidelines, splitting a large interface into focused, segregated capabilities accessed through typed feature interfaces.
 
 ## Next Steps
 

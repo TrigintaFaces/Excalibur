@@ -1,6 +1,6 @@
 #!/bin/bash
 # Azure Functions Deployment Script
-# Sprint 430 S430.1: Azure Functions Serverless Sample
+# Azure Functions Serverless Sample
 #
 # Prerequisites:
 # - Azure CLI installed: https://docs.microsoft.com/cli/azure/install-azure-cli

@@ -64,7 +64,7 @@ builder.Services.AddDispatch(dispatch =>
 // The outbox builder configures the storage provider and processing behavior.
 // The UseOutbox() middleware above handles pipeline integration;
 // IExcaliburBuilder.AddOutbox(...) configures the backend infrastructure
-// as the canonical public path per ADR-321/325 (the legacy
+// as the canonical public path per (the legacy
 // AddExcaliburOutbox aggregator is internal to Excalibur.Outbox).
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {

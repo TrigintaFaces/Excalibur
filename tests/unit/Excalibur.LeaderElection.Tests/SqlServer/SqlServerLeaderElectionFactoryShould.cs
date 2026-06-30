@@ -20,7 +20,7 @@ public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new SqlServerLeaderElectionFactory(null!, loggerFactory));
+			new SqlServerLeaderElectionFactory(null!, loggerFactory, Options.Create(new LeaderElectionOptions())));
 	}
 
 	[Fact]
@@ -28,7 +28,7 @@ public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new SqlServerLeaderElectionFactory(TestConnectionString, null!));
+			new SqlServerLeaderElectionFactory(TestConnectionString, null!, Options.Create(new LeaderElectionOptions())));
 	}
 
 	[Fact]
@@ -36,7 +36,7 @@ public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 	{
 		// Arrange
 		var loggerFactory = new LoggerFactory();
-		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory);
+		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act
 		var election = factory.CreateElection("TestApp.Leader", candidateId: null);
@@ -50,7 +50,7 @@ public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 	{
 		// Arrange
 		var loggerFactory = new LoggerFactory();
-		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory);
+		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act
 		var election = factory.CreateElection("TestApp.Leader", candidateId: "custom-candidate");
@@ -64,7 +64,7 @@ public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 	{
 		// Arrange
 		var loggerFactory = new LoggerFactory();
-		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory);
+		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act
 		var election = factory.CreateElection("TestApp.Leader", candidateId: null);
@@ -81,7 +81,7 @@ public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 	{
 		// Arrange
 		var loggerFactory = new LoggerFactory();
-		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory);
+		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
@@ -93,7 +93,7 @@ public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 	{
 		// Arrange
 		var loggerFactory = new LoggerFactory();
-		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory);
+		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
@@ -105,7 +105,7 @@ public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 	{
 		// Arrange
 		var loggerFactory = new LoggerFactory();
-		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory);
+		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act
 		var election = factory.CreateHealthBasedElection("TestApp.Leader", candidateId: null);
@@ -119,7 +119,7 @@ public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 	{
 		// Arrange
 		var loggerFactory = new LoggerFactory();
-		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory);
+		var factory = new SqlServerLeaderElectionFactory(TestConnectionString, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act
 		var election1 = factory.CreateElection("TestApp.Leader1", candidateId: null);

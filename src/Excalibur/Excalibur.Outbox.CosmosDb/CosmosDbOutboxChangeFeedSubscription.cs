@@ -42,7 +42,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 	/// Optional durable checkpoint store. When supplied, the continuation token is loaded on start and
 	/// persisted after each batch so the subscription resumes across restarts instead of replaying from
 	/// the configured start position. When <see langword="null"/> (default), behavior is unchanged
-	/// (continuation tracked in memory only). See bd-egwtku.
+	/// (continuation tracked in memory only).
 	/// </param>
 	public CosmosDbOutboxChangeFeedSubscription(
 		Container container,
@@ -231,6 +231,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 			AggregateType = doc.AggregateType,
 			CorrelationId = doc.CorrelationId,
 			CausationId = doc.CausationId,
+			TenantId = doc.TenantId,
 			CreatedAt = DateTimeOffset.Parse(doc.CreatedAt, CultureInfo.InvariantCulture),
 			PublishedAt = !string.IsNullOrEmpty(doc.PublishedAt) ? DateTimeOffset.Parse(doc.PublishedAt, CultureInfo.InvariantCulture) : null,
 			RetryCount = doc.RetryCount,
@@ -291,6 +292,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 		public string? AggregateType { get; set; }
 		public string? CorrelationId { get; set; }
 		public string? CausationId { get; set; }
+		public string? TenantId { get; set; }
 		public required string CreatedAt { get; set; }
 		public string? PublishedAt { get; set; }
 		public bool IsPublished { get; set; }

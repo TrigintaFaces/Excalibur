@@ -105,17 +105,14 @@ public sealed class MessagePackPluggableSerializerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Serialize_HandlesNullValue()
+	public void Serialize_RejectsNullValue()
 	{
-		// Arrange — MessagePack serializes null as nil (valid behavior)
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior.
 		ISerializer serializer = new MpkSerializer();
 
-		// Act
-		var result = serializer.SerializeToBytes<TestPluggableMessage>(null!);
-
-		// Assert — should produce a valid MessagePack nil representation
-		result.ShouldNotBeNull();
-		result.Length.ShouldBeGreaterThan(0);
+		_ = Should.Throw<ArgumentNullException>(() => serializer.SerializeToBytes<TestPluggableMessage>(null!));
 	}
 
 	[Fact]
@@ -127,8 +124,10 @@ public sealed class MessagePackPluggableSerializerShould : UnitTestBase
 		ISerializer serializer = new MpkSerializer();
 		var unserializable = new UnserializableType { Data = "test" };
 
-		// Act & Assert — MessagePack throws its own exception for unregistered types
-		_ = Should.Throw<global::MessagePack.MessagePackSerializationException>(() =>
+		// Act & Assert — the write path wraps the library failure in the framework's uniform
+		// SerializationException (bd-sup2o3 write/read symmetry); the raw MessagePackSerializationException
+		// is preserved as the inner exception.
+		_ = Should.Throw<SerializationException>(() =>
 			serializer.SerializeToBytes(unserializable));
 	}
 
@@ -141,10 +140,12 @@ public sealed class MessagePackPluggableSerializerShould : UnitTestBase
 		ISerializer serializer = new MpkSerializer();
 		var unserializable = new UnserializableType { Data = "test" };
 
-		// Act & Assert — the exception from MessagePack should have an inner exception
-		var ex = Should.Throw<global::MessagePack.MessagePackSerializationException>(() =>
+		// Act & Assert — the framework wraps the library failure in SerializationException, preserving
+		// the raw MessagePack exception as the inner (bd-sup2o3 write-path wrapping).
+		var ex = Should.Throw<SerializationException>(() =>
 			serializer.SerializeToBytes(unserializable));
-		ex.InnerException!.ShouldNotBeNull();
+		ex.InnerException.ShouldNotBeNull();
+		_ = ex.InnerException.ShouldBeOfType<global::MessagePack.MessagePackSerializationException>();
 	}
 
 	[Fact]

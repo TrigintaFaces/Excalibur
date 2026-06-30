@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for registering the Postgres-backed fencing token provider (ADR-339, bd-y6tatp).
+/// Extension methods for registering the Postgres-backed fencing token provider.
 /// </summary>
 public static class PostgresFencingTokenServiceCollectionExtensions
 {

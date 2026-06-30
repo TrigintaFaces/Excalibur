@@ -13,7 +13,7 @@ namespace Excalibur.Compliance;
 /// <see cref="GetService"/> with <c>typeof(ISoc2AuditExporter)</c>.
 /// </para>
 /// <para>
-/// <strong>ISP Split (Sprint 551):</strong> ExportForAuditorAsync moved to
+/// <strong>ISP Split:</strong> ExportForAuditorAsync moved to
 /// <see cref="ISoc2AuditExporter"/> to keep the core interface at or below 5 methods.
 /// </para>
 /// </remarks>

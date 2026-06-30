@@ -32,7 +32,7 @@ public partial class IndexLifecycleManager : IIndexLifecycleManager
 	/// Initializes a new instance of the <see cref="IndexLifecycleManager"/>
 	/// class using a pre-built operations adapter. Used by tests to
 	/// substitute the SDK via the <see cref="IIndexLifecycleOperations"/>
-	/// seam (ADR-142 §D7, S800 bd-qhzapp).
+	/// seam.
 	/// </summary>
 	internal IndexLifecycleManager(IIndexLifecycleOperations ops, ILogger<IndexLifecycleManager> logger)
 	{

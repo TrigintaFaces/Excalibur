@@ -43,7 +43,7 @@ public sealed partial class AzureLogicAppsJobProvider
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AzureLogicAppsJobProvider"/>
 	/// class using a pre-built adapter. Used by tests to substitute the SDK via
-	/// the <see cref="IArmClientSeam"/> seam (ADR-142 §D7).
+	/// the <see cref="IArmClientSeam"/> seam.
 	/// </summary>
 	internal AzureLogicAppsJobProvider(
 		IArmClientSeam armClient,

@@ -10,7 +10,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>AddExcaliburWebServices(...)</c> was deleted in S804 (bd-sdhocq A9) per ADR-325 §2.
+/// <c>AddExcaliburWebServices(...)</c> was deleted in per §2.
 /// The pre-unification aggregator bundled API versioning with Excalibur core wiring at
 /// the composition root — consumers now configure API versioning explicitly, and wire
 /// Excalibur via <c>services.AddExcalibur(x => x.ScanAssemblies(...))</c>.

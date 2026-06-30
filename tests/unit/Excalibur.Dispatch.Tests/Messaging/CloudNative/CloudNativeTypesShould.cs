@@ -76,7 +76,7 @@ public sealed class CloudNativeTypesShould
 		metrics.FallbackExecutions.ShouldBe(0);
 		metrics.SuccessRate.ShouldBe(0);
 		metrics.AverageResponseTime.ShouldBe(TimeSpan.Zero);
-		metrics.CurrentState.ShouldBe(ResilienceState.Closed);
+		metrics.CurrentState.ShouldBe(CircuitState.Closed);
 		metrics.ConsecutiveFailures.ShouldBe(0);
 		metrics.ConsecutiveSuccesses.ShouldBe(0);
 	}
@@ -93,7 +93,7 @@ public sealed class CloudNativeTypesShould
 			RejectedRequests = 5,
 			FallbackExecutions = 3,
 			AverageResponseTime = TimeSpan.FromMilliseconds(50),
-			CurrentState = ResilienceState.HalfOpen,
+			CurrentState = CircuitState.HalfOpen,
 			ConsecutiveFailures = 2,
 			ConsecutiveSuccesses = 0,
 		};
@@ -105,7 +105,7 @@ public sealed class CloudNativeTypesShould
 		metrics.RejectedRequests.ShouldBe(5);
 		metrics.FallbackExecutions.ShouldBe(3);
 		metrics.AverageResponseTime.ShouldBe(TimeSpan.FromMilliseconds(50));
-		metrics.CurrentState.ShouldBe(ResilienceState.HalfOpen);
+		metrics.CurrentState.ShouldBe(CircuitState.HalfOpen);
 		metrics.ConsecutiveFailures.ShouldBe(2);
 		metrics.ConsecutiveSuccesses.ShouldBe(0);
 	}
@@ -216,26 +216,26 @@ public sealed class CloudNativeTypesShould
 		var change = new PatternStateChange
 		{
 			Timestamp = timestamp,
-			PreviousState = ResilienceState.Closed,
-			NewState = ResilienceState.Open,
+			PreviousState = CircuitState.Closed,
+			NewState = CircuitState.Open,
 			Reason = "Failure threshold exceeded",
 		};
 		change.Context["failures"] = 10;
 
 		// Assert
 		change.Timestamp.ShouldBe(timestamp);
-		change.PreviousState.ShouldBe(ResilienceState.Closed);
-		change.NewState.ShouldBe(ResilienceState.Open);
+		change.PreviousState.ShouldBe(CircuitState.Closed);
+		change.NewState.ShouldBe(CircuitState.Open);
 		change.Reason.ShouldBe("Failure threshold exceeded");
 		change.Context["failures"].ShouldBe(10);
 	}
 
 	[Fact]
-	public void ResilienceState_HaveExpectedValues()
+	public void CircuitState_HaveExpectedValues()
 	{
-		ResilienceState.Closed.ShouldBe((ResilienceState)0);
-		ResilienceState.Open.ShouldBe((ResilienceState)1);
-		ResilienceState.HalfOpen.ShouldBe((ResilienceState)2);
+		CircuitState.Closed.ShouldBe((CircuitState)0);
+		CircuitState.Open.ShouldBe((CircuitState)1);
+		CircuitState.HalfOpen.ShouldBe((CircuitState)2);
 	}
 
 	[Fact]

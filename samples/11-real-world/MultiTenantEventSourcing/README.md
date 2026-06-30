@@ -1,9 +1,8 @@
 # Multi-Tenant Event Sourcing
 
-**Beads:** `bd-d24o9j` (P2, S789 shard-map reference) + `bd-vpna3f` (P1, S790 command dispatch)
 **Location:** `samples/11-real-world/MultiTenantEventSourcing/`
 
-> **Canonical tenant-aware pipeline (Sprint 790):**
+> **Canonical tenant-aware pipeline :**
 >
 > ```
 > POST /orders  (X-Tenant-Id: tenant-acme)

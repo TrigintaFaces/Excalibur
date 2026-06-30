@@ -116,7 +116,7 @@ else
 	});
 }
 
-// Add AWS SQS message bus (ADR-098 Single Entry Point)
+// Add AWS SQS message bus (Single Entry Point)
 builder.Services.AddAwsSqsTransport("sqs", sqs =>
 {
 	_ = sqs.UseRegion(region)

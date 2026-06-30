@@ -49,7 +49,7 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ServiceBusDeadLetterQueueManager"/>
 	/// class using a pre-built adapter. Used by tests to substitute the SDK via
-	/// the <see cref="IServiceBusClient"/> seam (ADR-142 §D7).
+	/// the <see cref="IServiceBusClient"/> seam.
 	/// </summary>
 	/// <param name="client"> The Service Bus client adapter. </param>
 	/// <param name="options"> The dead letter queue configuration options. </param>

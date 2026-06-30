@@ -44,7 +44,7 @@ public static class LeaderElectionBuilderExtensions
 	/// <see cref="FencingTokenServiceCollectionExtensions.AddFencingTokenSupport{TProvider}"/>.
 	/// </para>
 	/// <para>
-	/// Per ADR-339 (Decision 3), enabling fencing without a registered provider <b>fails loud at host
+	/// Enabling fencing without a registered provider <b>fails loud at host
 	/// startup</b> (via <see cref="FencingTokenPrerequisiteValidator"/>) rather than silently degrading to
 	/// no split-brain protection — the Microsoft <c>ValidateOnStart()</c> fail-fast contract.
 	/// </para>

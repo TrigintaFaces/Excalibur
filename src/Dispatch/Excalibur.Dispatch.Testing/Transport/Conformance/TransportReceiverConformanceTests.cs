@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Testing.Transport;
 
 /// <summary>
 /// Abstract behavioral conformance tests for <see cref="ITransportReceiver"/> implementations.
-/// Verifies that any transport receiver correctly implements the contract defined in ADR-116.
+/// Verifies that any transport receiver correctly implements the transport receiver contract.
 /// </summary>
 /// <remarks>
 /// <para>

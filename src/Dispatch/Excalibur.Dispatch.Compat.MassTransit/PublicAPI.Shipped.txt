@@ -1,0 +1,8 @@
+#nullable enable
+Excalibur.Dispatch.Compat.MassTransit.ConsumeContext<TMessage>
+Excalibur.Dispatch.Compat.MassTransit.ConsumeContext<TMessage>.CancellationToken.get -> System.Threading.CancellationToken
+Excalibur.Dispatch.Compat.MassTransit.ConsumeContext<TMessage>.Message.get -> TMessage!
+Excalibur.Dispatch.Compat.MassTransit.IConsumer<TMessage>
+Excalibur.Dispatch.Compat.MassTransit.IConsumer<TMessage>.Consume(Excalibur.Dispatch.Compat.MassTransit.ConsumeContext<TMessage!>! context) -> System.Threading.Tasks.Task!
+Microsoft.Extensions.DependencyInjection.MassTransitCompatServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.MassTransitCompatServiceCollectionExtensions.AddMassTransitConsumer<TConsumer, TMessage>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

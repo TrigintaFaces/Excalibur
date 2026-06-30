@@ -8,7 +8,9 @@ using Excalibur.Dispatch.Transport.Grpc;
 using Excalibur.Dispatch.Transport.Grpc.DeadLetter;
 using Excalibur.Dispatch.Transport.Grpc.Diagnostics;
 
+using Grpc.Core;
 using Grpc.Net.Client;
+using Grpc.Net.Client.Configuration;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -120,7 +122,11 @@ public static class GrpcTransportServiceCollectionExtensions
 		{
 			var options = sp.GetRequiredService<IOptions<GrpcTransportOptions>>().Value;
 
-			var channelOptions = new GrpcChannelOptions();
+			var channelOptions = new GrpcChannelOptions
+			{
+				HttpHandler = BuildKeepAliveHandler(options),
+			};
+
 			if (options.MaxSendMessageSize.HasValue)
 			{
 				channelOptions.MaxSendMessageSize = options.MaxSendMessageSize.Value;
@@ -129,6 +135,13 @@ public static class GrpcTransportServiceCollectionExtensions
 			if (options.MaxReceiveMessageSize.HasValue)
 			{
 				channelOptions.MaxReceiveMessageSize = options.MaxReceiveMessageSize.Value;
+			}
+
+			var serviceConfig = BuildServiceConfig(options);
+			if (serviceConfig is not null)
+			{
+				channelOptions.ServiceConfig = serviceConfig;
+				channelOptions.MaxRetryAttempts = options.MaxRetryAttempts;
 			}
 
 			return GrpcChannel.ForAddress(options.ServerAddress, channelOptions);
@@ -178,5 +191,81 @@ public static class GrpcTransportServiceCollectionExtensions
 			ServiceDescriptor.Singleton<ITransportAdapter, GrpcTransportAdapter>());
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<ITransportHealthChecker, GrpcTransportAdapter>());
+	}
+
+	/// <summary>
+	/// Builds a <see cref="SocketsHttpHandler"/> configured with HTTP/2 keep-alive and connection
+	/// pooling settings sourced from <paramref name="options"/>. Keep-alive pings prevent
+	/// long-lived subscribe streams from going half-open through idle NAT/load-balancer timeouts.
+	/// </summary>
+	internal static SocketsHttpHandler BuildKeepAliveHandler(GrpcTransportOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+
+		return new SocketsHttpHandler
+		{
+			KeepAlivePingDelay = TimeSpan.FromSeconds(options.KeepAlivePingDelaySeconds),
+			KeepAlivePingTimeout = TimeSpan.FromSeconds(options.KeepAlivePingTimeoutSeconds),
+			KeepAlivePingPolicy = HttpKeepAlivePingPolicy.WithActiveRequests,
+			PooledConnectionIdleTimeout = TimeSpan.FromSeconds(options.PooledConnectionIdleTimeoutSeconds),
+			EnableMultipleHttp2Connections = options.EnableMultipleHttp2Connections,
+		};
+	}
+
+	/// <summary>
+	/// Builds a default gRPC <see cref="ServiceConfig"/> carrying a retry (or hedging) policy that
+	/// applies to all methods, or <see langword="null"/> when neither retries nor hedging are enabled.
+	/// </summary>
+	internal static ServiceConfig? BuildServiceConfig(GrpcTransportOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+
+		if (!options.EnableRetries && !options.EnableHedging)
+		{
+			return null;
+		}
+
+		var methodConfig = new MethodConfig
+		{
+			Names = { MethodName.Default },
+		};
+
+		if (options.EnableHedging)
+		{
+			var hedgingPolicy = new HedgingPolicy
+			{
+				MaxAttempts = options.MaxRetryAttempts,
+				HedgingDelay = TimeSpan.FromSeconds(options.RetryInitialBackoffSeconds),
+			};
+
+			foreach (var statusCode in options.RetryableStatusCodes)
+			{
+				hedgingPolicy.NonFatalStatusCodes.Add(statusCode);
+			}
+
+			methodConfig.HedgingPolicy = hedgingPolicy;
+		}
+		else
+		{
+			var retryPolicy = new RetryPolicy
+			{
+				MaxAttempts = options.MaxRetryAttempts,
+				InitialBackoff = TimeSpan.FromSeconds(options.RetryInitialBackoffSeconds),
+				MaxBackoff = TimeSpan.FromSeconds(options.RetryMaxBackoffSeconds),
+				BackoffMultiplier = options.RetryBackoffMultiplier,
+			};
+
+			foreach (var statusCode in options.RetryableStatusCodes)
+			{
+				retryPolicy.RetryableStatusCodes.Add(statusCode);
+			}
+
+			methodConfig.RetryPolicy = retryPolicy;
+		}
+
+		return new ServiceConfig
+		{
+			MethodConfigs = { methodConfig },
+		};
 	}
 }

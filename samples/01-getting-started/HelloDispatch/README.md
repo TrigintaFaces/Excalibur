@@ -76,4 +76,4 @@ _ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 
 ---
 
-*Category: Getting Started | Sprint 607*
+*Category: Getting Started*

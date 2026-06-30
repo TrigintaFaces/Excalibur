@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Buffers;
+using System.Globalization;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -11,6 +12,8 @@ using Elastic.Clients.Elasticsearch.Core.Search;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Microsoft.Extensions.Logging;
+
+using Excalibur.AuditLogging;
 
 namespace Excalibur.Data.ElasticSearch.Security;
 
@@ -26,13 +29,9 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// </remarks>
 internal sealed class SecurityAuditMaintenanceService
 {
-	// Self-describing keyed-MAC integrity token: "v1:{keyId}:{base64(HMAC-SHA256)}". The keyId travels
-	// with the tag so records remain verifiable across key rotation; the "v1" prefix versions the scheme.
-	private const string IntegrityTagVersion = "v1";
-
 	private readonly ElasticsearchClient _elasticsearchClient;
 	private readonly AuditOptions _configuration;
-	private readonly IAuditSigningKeyProvider _signingKeyProvider;
+	private readonly IAuditIntegrityStrategy _integrityStrategy;
 	private readonly ILogger _logger;
 
 	/// <summary>
@@ -41,12 +40,12 @@ internal sealed class SecurityAuditMaintenanceService
 	internal SecurityAuditMaintenanceService(
 		ElasticsearchClient elasticsearchClient,
 		AuditOptions configuration,
-		IAuditSigningKeyProvider signingKeyProvider,
+		IAuditIntegrityStrategy integrityStrategy,
 		ILogger logger)
 	{
 		_elasticsearchClient = elasticsearchClient;
 		_configuration = configuration;
-		_signingKeyProvider = signingKeyProvider;
+		_integrityStrategy = integrityStrategy;
 		_logger = logger;
 	}
 
@@ -56,46 +55,160 @@ internal sealed class SecurityAuditMaintenanceService
 	internal event EventHandler<AuditArchiveCompletedEventArgs>? AuditArchiveCompleted;
 
 	/// <summary>
-	/// Computes a keyed-MAC (HMAC-SHA256) integrity tag for an audit event, returning a self-describing
-	/// <c>v1:{keyId}:{base64(tag)}</c> token. Because the key is secret and held outside the audit index,
-	/// an actor with write access to the records cannot forge a matching tag (unlike an unkeyed hash).
+	/// Computes the keyed-MAC integrity tag for an audit event via the shared
+	/// <see cref="IAuditIntegrityStrategy"/>, returning a self-describing <c>v1:{keyId}:{base64(tag)}</c>
+	/// token. The Elasticsearch audit stream is a concurrent, best-effort sink (overlapping writers,
+	/// re-queue-on-failure), so each record is tagged as a <b>genesis-null per-event keyed MAC</b>
+	/// (<c>priorTag: null</c>) — no write-time hash-chain, which would false-fail on the substrate's
+	/// legitimate reorder/re-queue (SA ruling 17568; ordering-detection carved to <c>nkz47q</c>).
 	/// </summary>
 	/// <remarks>
-	/// Fails closed: if the signing key cannot be obtained the operation throws rather than emitting an
-	/// unprotected tag.
+	/// Fails closed: the strategy throws if the signing key cannot be obtained, rather than emitting an
+	/// unprotected tag. There is no unkeyed code path.
 	/// </remarks>
-	internal async ValueTask<string> ComputeIntegrityHashAsync(
+	internal ValueTask<string> ComputeIntegrityHashAsync(
 		SecurityAuditEvent auditEvent,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+		_integrityStrategy.ComputeTagAsync(Canonicalize(auditEvent), priorTag: null, cancellationToken);
+
+	/// <summary>
+	/// Produces the deterministic, injective canonical byte representation of an audit event's
+	/// integrity-covered fields, for use as the input to <see cref="IAuditIntegrityStrategy"/>. The
+	/// <see cref="SecurityAuditEvent.IntegrityHash"/> field is excluded (it is the output, not an input), so
+	/// the write and verify paths canonicalize identical bytes.
+	/// </summary>
+	/// <remarks>
+	/// Fields are emitted in a fixed, stable order and each rendered culture-invariantly; the
+	/// <see cref="SecurityAuditEvent.Details"/> entries are ordered by key (ordinal) and preceded by their
+	/// count so a distinct event can never collide to the same bytes. The shared
+	/// <see cref="AuditRecordCanonicalizer"/> length-prefixes and version-stamps the result.
+	/// </remarks>
+	/// <param name="auditEvent">The event whose integrity-covered fields are canonicalized.</param>
+	/// <returns>The canonical bytes (version-prefixed) for keyed-MAC computation/verification.</returns>
+	internal static ReadOnlyMemory<byte> Canonicalize(SecurityAuditEvent auditEvent)
 	{
-		var (keyId, key) = await _signingKeyProvider.GetCurrentSigningKeyAsync(cancellationToken).ConfigureAwait(false);
-		var tag = ComputeMac(key, auditEvent);
-		return $"{IntegrityTagVersion}:{keyId}:{Convert.ToBase64String(tag)}";
+		ArgumentNullException.ThrowIfNull(auditEvent);
+
+		// Canonicalize over the DURABLE projection — what Elasticsearch actually stores and returns — so the
+		// write-time bytes equal the reload-time bytes BY CONSTRUCTION (enforce-invariants-structurally), not
+		// by luck (SA ruling 17652). Two fields are otherwise round-trip-unstable across the ES JSON boundary:
+		//   • Timestamp: signed as Unix MILLISECONDS — ES `date` stores ms precision, so signing the full-tick
+		//     in-memory value mismatches every reloaded record. Unix-ms is the absolute instant, so it is also
+		//     immune to offset normalization on reload.
+		//   • Details: each value normalized to a stable JSON normal form identical whether it is a native CLR
+		//     value (write) or a JsonElement (reload) — never Convert.ToString on a runtime-typed box.
+		var fields = new List<string?>(9 + (auditEvent.Details.Count * 2))
+		{
+			auditEvent.EventId,
+			auditEvent.Timestamp.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+			((int)auditEvent.EventType).ToString(CultureInfo.InvariantCulture),
+			((int)auditEvent.Severity).ToString(CultureInfo.InvariantCulture),
+			auditEvent.Source,
+			auditEvent.UserId,
+			auditEvent.SourceIpAddress,
+			auditEvent.UserAgent,
+			auditEvent.Details.Count.ToString(CultureInfo.InvariantCulture),
+		};
+
+		foreach (var entry in auditEvent.Details.OrderBy(static e => e.Key, StringComparer.Ordinal))
+		{
+			fields.Add(entry.Key);
+			fields.Add(NormalizeDetailValue(entry.Value));
+		}
+
+		return AuditRecordCanonicalizer.Canonicalize([.. fields]);
 	}
 
 	/// <summary>
-	/// Computes the raw HMAC-SHA256 tag over the canonical (integrity-tag-cleared) serialization of the
-	/// event, so the write and verify paths hash identical bytes regardless of the incoming tag value.
+	/// Renders a <see cref="SecurityAuditEvent.Details"/> value to a stable JSON normal form that is identical
+	/// whether the value is a native CLR type (at write/sign time) or a <see cref="JsonElement"/> (after the
+	/// Elasticsearch JSON round-trip at verify time), so the canonical bytes match by construction — including
+	/// <b>nested objects/arrays</b> (e.g. an auth event's <c>Context</c> dictionary). Object keys are emitted in
+	/// ordinal-sorted order on <em>both</em> sides (never <see cref="JsonElement.GetRawText"/>, which preserves
+	/// the stored key order and would diverge from the sorted CLR emission). AOT-safe: explicit
+	/// <see cref="Utf8JsonWriter"/> writes, never reflection-based serialization.
 	/// </summary>
-	private static byte[] ComputeMac(byte[] key, SecurityAuditEvent auditEvent)
+	private static string NormalizeDetailValue(object? value)
 	{
-		// Serialize a copy with the integrity tag cleared so write/verify are symmetric.
-		var canonical = new SecurityAuditEvent
+		var buffer = new ArrayBufferWriter<byte>();
+		using (var writer = new Utf8JsonWriter(buffer))
 		{
-			EventId = auditEvent.EventId,
-			Timestamp = auditEvent.Timestamp,
-			EventType = auditEvent.EventType,
-			Severity = auditEvent.Severity,
-			Source = auditEvent.Source,
-			UserId = auditEvent.UserId,
-			SourceIpAddress = auditEvent.SourceIpAddress,
-			UserAgent = auditEvent.UserAgent,
-			Details = auditEvent.Details,
-			IntegrityHash = string.Empty,
-		};
+			WriteCanonicalValue(writer, value);
+		}
 
-		var eventData = JsonSerializer.Serialize(canonical, SecurityAuditEventSerializerContext.Default.SecurityAuditEvent);
-		return HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(eventData));
+		return Encoding.UTF8.GetString(buffer.WrittenSpan);
+	}
+
+	// Recursively emits a native CLR Details value as canonical JSON (ordinal-sorted object keys). The
+	// reload-path twin is WriteCanonicalElement; together they guarantee write-bytes == reload-bytes.
+	private static void WriteCanonicalValue(Utf8JsonWriter writer, object? value)
+	{
+		switch (value)
+		{
+			case null: writer.WriteNullValue(); break;
+			case JsonElement element: WriteCanonicalElement(writer, element); break;
+			case string s: writer.WriteStringValue(s); break;
+			case bool b: writer.WriteBooleanValue(b); break;
+			case int i: writer.WriteNumberValue(i); break;
+			case long l: writer.WriteNumberValue(l); break;
+			case double d: writer.WriteNumberValue(d); break;
+			case decimal m: writer.WriteNumberValue(m); break;
+			case float f: writer.WriteNumberValue(f); break;
+			case DateTimeOffset dto: writer.WriteStringValue(dto); break;
+			case DateTime dt: writer.WriteStringValue(dt); break;
+			case Guid g: writer.WriteStringValue(g); break;
+			case IDictionary<string, object> dict:
+				writer.WriteStartObject();
+				foreach (var entry in dict.OrderBy(static e => e.Key, StringComparer.Ordinal))
+				{
+					writer.WritePropertyName(entry.Key);
+					WriteCanonicalValue(writer, entry.Value);
+				}
+
+				writer.WriteEndObject();
+				break;
+			case System.Collections.IEnumerable sequence:
+				writer.WriteStartArray();
+				foreach (var item in sequence)
+				{
+					WriteCanonicalValue(writer, item);
+				}
+
+				writer.WriteEndArray();
+				break;
+			default: writer.WriteStringValue(value.ToString()); break;
+		}
+	}
+
+	// Recursively emits a reloaded JsonElement as canonical JSON (ordinal-sorted object keys), mirroring
+	// WriteCanonicalValue so a value canonicalizes identically as a CLR type (write) or JsonElement (read).
+	private static void WriteCanonicalElement(Utf8JsonWriter writer, JsonElement element)
+	{
+		switch (element.ValueKind)
+		{
+			case JsonValueKind.Object:
+				writer.WriteStartObject();
+				foreach (var property in element.EnumerateObject().OrderBy(static p => p.Name, StringComparer.Ordinal))
+				{
+					writer.WritePropertyName(property.Name);
+					WriteCanonicalElement(writer, property.Value);
+				}
+
+				writer.WriteEndObject();
+				break;
+			case JsonValueKind.Array:
+				writer.WriteStartArray();
+				foreach (var item in element.EnumerateArray())
+				{
+					WriteCanonicalElement(writer, item);
+				}
+
+				writer.WriteEndArray();
+				break;
+			default:
+				element.WriteTo(writer); // string / number / true / false / null — canonical scalar
+				break;
+		}
 	}
 
 	/// <summary>
@@ -346,52 +459,22 @@ internal sealed class SecurityAuditMaintenanceService
 	}
 
 	/// <summary>
-	/// Validates the keyed-MAC integrity of an audit event without mutating the original. Fails closed:
-	/// a missing/malformed tag, an unknown/unavailable key, or a MAC mismatch all report the record as a
-	/// violation rather than as valid.
+	/// Validates the keyed-MAC integrity of an audit event without mutating the original, via the shared
+	/// <see cref="IAuditIntegrityStrategy"/> (genesis-null per-event MAC, matching the write path). Fails
+	/// closed: a missing/malformed tag, an unknown/unavailable key, or a MAC mismatch all report the record
+	/// as a violation (<see langword="false"/>) rather than as valid.
 	/// </summary>
-	private async ValueTask<bool> ValidateEventIntegrityAsync(
+	private ValueTask<bool> ValidateEventIntegrityAsync(
 		SecurityAuditEvent auditEvent,
 		CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrEmpty(auditEvent.IntegrityHash))
 		{
-			return false;
+			return ValueTask.FromResult(false);
 		}
 
-		// Parse the self-describing token "v1:{keyId}:{base64(tag)}" (keyId is colon-free by contract).
-		var parts = auditEvent.IntegrityHash.Split(':', 3);
-		if (parts.Length != 3 || !string.Equals(parts[0], IntegrityTagVersion, StringComparison.Ordinal))
-		{
-			return false;
-		}
-
-		var keyId = parts[1];
-
-		byte[] storedTag;
-		try
-		{
-			storedTag = Convert.FromBase64String(parts[2]);
-		}
-		catch (FormatException)
-		{
-			return false;
-		}
-
-		// Fail closed: an unknown/unavailable key means the record cannot be verified -> NOT valid.
-		var key = await _signingKeyProvider.GetSigningKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
-		if (key is null)
-		{
-			_logger.LogWarning(
-				"Audit integrity key '{KeyId}' is unavailable; treating event {EventId} as unverifiable",
-				keyId, auditEvent.EventId);
-			return false;
-		}
-
-		var computedTag = ComputeMac(key, auditEvent);
-
-		// Constant-time comparison to avoid a timing oracle on the MAC.
-		return CryptographicOperations.FixedTimeEquals(computedTag, storedTag);
+		return _integrityStrategy.VerifyAsync(
+			Canonicalize(auditEvent), priorTag: null, auditEvent.IntegrityHash, cancellationToken);
 	}
 
 	/// <summary>

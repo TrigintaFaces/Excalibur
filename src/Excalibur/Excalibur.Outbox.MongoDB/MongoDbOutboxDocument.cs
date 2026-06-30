@@ -162,7 +162,10 @@ internal sealed class MongoDbOutboxDocument
 			CorrelationId = CorrelationId,
 			CausationId = CausationId,
 			TenantId = TenantId,
-			Priority = Priority
+			Priority = Priority,
+			Headers = Headers.Count > 0
+				? new Dictionary<string, object>(Headers, StringComparer.Ordinal)
+				: new Dictionary<string, object>(StringComparer.Ordinal),
 		};
 	}
 }

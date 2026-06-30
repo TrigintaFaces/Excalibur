@@ -9,6 +9,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.AwsSqs;
+using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
@@ -48,6 +49,9 @@ internal sealed partial class AwsSnsMessageBus(
 		ArgumentNullException.ThrowIfNull(action);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.AwsSns, TopicArn, context.MessageId);
+
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(action, action.GetType());
 		var body = Convert.ToBase64String(payload);
@@ -69,6 +73,9 @@ internal sealed partial class AwsSnsMessageBus(
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.AwsSns, TopicArn, context.MessageId);
+
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(evt, evt.GetType());
 		var body = Convert.ToBase64String(payload);
@@ -89,6 +96,9 @@ internal sealed partial class AwsSnsMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(doc);
 		ArgumentNullException.ThrowIfNull(context);
+
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.AwsSns, TopicArn, context.MessageId);
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(doc, doc.GetType());

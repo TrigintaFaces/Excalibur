@@ -38,7 +38,7 @@ public sealed class AuditLoggingCoverageGapShould
 		// ImplementationType decorator registration.
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore());
+		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
 		// Act
@@ -62,7 +62,7 @@ public sealed class AuditLoggingCoverageGapShould
 		// Arrange - verify factory branch preserves the singleton lifetime
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore());
+		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
 		// Act
@@ -79,7 +79,7 @@ public sealed class AuditLoggingCoverageGapShould
 		// Arrange - instance-based registration
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		var instance = new InMemoryAuditStore();
+		var instance = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		_ = services.AddSingleton<IAuditStore>(instance);
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
@@ -599,7 +599,7 @@ public sealed class AuditLoggingCoverageGapShould
 	public async Task InMemoryAuditStore_VerifyChainIntegrityAsync_DetectsTamperedEvents()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var timestamp = new DateTimeOffset(2025, 6, 15, 10, 0, 0, TimeSpan.Zero);
 
 		// Store a valid event
@@ -641,7 +641,7 @@ public sealed class AuditLoggingCoverageGapShould
 	public async Task InMemoryAuditStore_StoreAsync_WithAllOptionalFields()
 	{
 		// Arrange - exercise all fields in the store path
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var auditEvent = new AuditEvent
 		{
 			EventId = "full-fields",
@@ -696,7 +696,7 @@ public sealed class AuditLoggingCoverageGapShould
 	{
 		// Arrange - We verify the Invalid path of VerifyChainIntegrityAsync
 		// by checking the return value structure
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var timestamp = new DateTimeOffset(2025, 3, 1, 0, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -728,7 +728,7 @@ public sealed class AuditLoggingCoverageGapShould
 	public async Task InMemoryAuditStore_QueryAsync_TenantScopeWithMultipleFilters()
 	{
 		// Arrange - exercise tenant-scoped query with all filters
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var timestamp = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -782,225 +782,6 @@ public sealed class AuditLoggingCoverageGapShould
 
 	#endregion InMemoryAuditStore - Edge Cases
 
-	#region AuditHasher - Additional Coverage
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByActorId()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { ActorId = "user-a" };
-		var event2 = CreateTestAuditEvent() with { ActorId = "user-b" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByResourceId()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { ResourceId = "res-a" };
-		var event2 = CreateTestAuditEvent() with { ResourceId = "res-b" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByTenantId()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { TenantId = "tenant-1" };
-		var event2 = CreateTestAuditEvent() with { TenantId = "tenant-2" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByCorrelationId()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { CorrelationId = "corr-a" };
-		var event2 = CreateTestAuditEvent() with { CorrelationId = "corr-b" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersBySessionId()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { SessionId = "sess-a" };
-		var event2 = CreateTestAuditEvent() with { SessionId = "sess-b" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByIpAddress()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { IpAddress = "10.0.0.1" };
-		var event2 = CreateTestAuditEvent() with { IpAddress = "10.0.0.2" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByUserAgent()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { UserAgent = "Chrome/120" };
-		var event2 = CreateTestAuditEvent() with { UserAgent = "Firefox/119" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByReason()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { Reason = "Reason A" };
-		var event2 = CreateTestAuditEvent() with { Reason = "Reason B" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByResourceClassification()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { ResourceClassification = DataClassification.Public };
-		var event2 = CreateTestAuditEvent() with { ResourceClassification = DataClassification.Restricted };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByResourceType()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { ResourceType = "TypeA" };
-		var event2 = CreateTestAuditEvent() with { ResourceType = "TypeB" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByActorType()
-	{
-		// Arrange
-		var event1 = CreateTestAuditEvent() with { ActorType = "Human" };
-		var event2 = CreateTestAuditEvent() with { ActorType = "Service" };
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert
-		hash1.ShouldNotBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_MultipleMetadataKeys_ProducesDeterministicHash()
-	{
-		// Arrange - multiple keys that would sort differently
-		var metadata = new Dictionary<string, string>
-		{
-			["zebra"] = "last",
-			["alpha"] = "first",
-			["middle"] = "middle"
-		};
-
-		var event1 = CreateTestAuditEvent() with { Metadata = metadata };
-		var event2 = CreateTestAuditEvent() with
-		{
-			Metadata = new Dictionary<string, string>
-			{
-				["alpha"] = "first",
-				["middle"] = "middle",
-				["zebra"] = "last"
-			}
-		};
-
-		// Act
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
-
-		// Assert - same content regardless of insertion order
-		hash1.ShouldBe(hash2);
-	}
-
-	[Fact]
-	public void AuditHasher_VerifyHash_ValidChainedEvent()
-	{
-		// Arrange - simulate a chain of two events
-		var event1 = CreateTestAuditEvent() with { EventId = "chain-1" };
-		var hash1 = AuditHasher.ComputeHash(event1, "genesis-hash");
-		var event1WithHash = event1 with { EventHash = hash1 };
-
-		var event2 = CreateTestAuditEvent() with { EventId = "chain-2" };
-		var hash2 = AuditHasher.ComputeHash(event2, hash1);
-		var event2WithHash = event2 with { EventHash = hash2 };
-
-		// Act
-		var isValid1 = AuditHasher.VerifyHash(event1WithHash, "genesis-hash");
-		var isValid2 = AuditHasher.VerifyHash(event2WithHash, hash1);
-
-		// Assert
-		isValid1.ShouldBeTrue();
-		isValid2.ShouldBeTrue();
-	}
-
-	#endregion AuditHasher - Additional Coverage
 
 	#region UseAuditStore - Additional Edge Cases
 

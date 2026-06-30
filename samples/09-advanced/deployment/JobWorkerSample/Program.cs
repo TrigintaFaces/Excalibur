@@ -73,7 +73,7 @@ public class Program
 			// This sample uses Quartz's in-memory job store — no database
 			// required. Swap in a persistent ADO store (SQL Server, Postgres,
 			// etc.) by adding the matching Quartz provider package and
-			// configuring it in place of UseInMemoryStore(). [bd-7rqllt]
+ // configuring it in place of UseInMemoryStore.
 			_ = builder.Services.AddExcalibur(excalibur => excalibur.AddJobs(
 				configureQuartz: q =>
 				{

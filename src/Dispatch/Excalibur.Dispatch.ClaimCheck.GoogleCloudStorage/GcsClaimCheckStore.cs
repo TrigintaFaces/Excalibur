@@ -64,7 +64,7 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GcsClaimCheckStore"/>
 	/// class using a pre-built adapter. Used by tests to substitute the SDK via
-	/// the <see cref="IStorageClientSeam"/> seam (ADR-142 §D7).
+	/// the <see cref="IStorageClientSeam"/> seam.
 	/// </summary>
 	/// <param name="storageClient">The storage client adapter.</param>
 	/// <param name="options">The GCS-specific options.</param>

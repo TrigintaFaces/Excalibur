@@ -77,6 +77,10 @@ public static class DispatchServiceCollectionExtensions
 		// Shared failure classifier (S-A, shu41d): the single retry-vs-dead-letter taxonomy consumed by
 		// the retry policy/middleware and the outbox/inbox/CDC processors. Consumers override via TryAdd.
 		services.TryAddSingleton<IMessageFailureClassifier, DefaultMessageFailureClassifier>();
+		// Public construction seam for fresh, independently-owned circuit-breaker policies (ADR-338, yi59t5).
+		// Consumers that own their breaker lifecycle (e.g. the distributed-cache middleware) resolve this and
+		// call Create(name, options); shared per-transport breakers use ITransportCircuitBreakerRegistry.
+		services.TryAddSingleton<ICircuitBreakerPolicyFactory, CircuitBreakerPolicyFactory>();
 		services.TryAddSingleton<FinalDispatchHandler>();
 
 		// Configure handler invocation based on AOT requirements
@@ -189,10 +193,8 @@ public static class DispatchServiceCollectionExtensions
 					if (handlerInterfaces.Contains(genericDef))
 					{
 						var messageType = descriptor.ServiceType.GetGenericArguments()[0];
-						// Keyed descriptors throw on the non-keyed accessors; read the keyed members (wl9s4v).
-						var handlerType = descriptor.IsKeyedService
-							? descriptor.KeyedImplementationType ?? descriptor.KeyedImplementationInstance?.GetType()
-							: descriptor.ImplementationType ?? descriptor.ImplementationInstance?.GetType();
+						// ybem93: keyed-safe accessors handle the keyed/non-keyed distinction (wl9s4v).
+						var handlerType = descriptor.GetImplementationType() ?? descriptor.GetImplementationInstance()?.GetType();
 
 						if (handlerType is { IsAbstract: false, IsInterface: false })
 						{

@@ -34,12 +34,16 @@ namespace Excalibur.Dispatch.Delivery;
 internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IClaimableDeduplicator, IDisposable
 {
 	/// <summary>
-	/// Maximum number of tracked entries to prevent unbounded memory growth.
-	/// When the cap is reached, new messages are not deduplicated (treated as non-duplicate)
-	/// to maintain correctness while avoiding OOM. The periodic cleanup timer will
-	/// reclaim space as entries expire.
+	/// Maximum number of tracked entries to prevent unbounded memory growth, sourced from
+	/// <see cref="InMemoryDeduplicatorOptions.MaxEntries"/>. Deduplication is a correctness guarantee,
+	/// so the cap is never honored by silently admitting an un-trackable message:
+	/// <list type="bullet">
+	/// <item> The claim path (<see cref="TryClaimAsync"/>) fails CLOSED — a claim that cannot be tracked is denied (returns <see langword="false"/>). </item>
+	/// <item> The record-producing paths (<see cref="IsDuplicateAsync"/>, <see cref="MarkProcessedAsync"/>) throw a transient <see cref="DeduplicationCapacityExceededException"/> so the message is not acked and is redelivered, never silently skipped. </item>
+	/// </list>
+	/// A value of <c>0</c> (or negative) means unbounded (no cap).
 	/// </summary>
-	private const int MaxTrackedEntries = 10_000;
+	private readonly int _maxTrackedEntries;
 
 	private readonly ConcurrentDictionary<string, ProcessedEntry> _processedMessages = new(StringComparer.Ordinal);
 	private readonly ILogger<InMemoryDeduplicator> _logger;
@@ -72,6 +76,9 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 		_logger = logger;
 
 		var opts = options.Value;
+
+		// 0 (or negative) means unbounded; otherwise enforce the configured cap.
+		_maxTrackedEntries = opts.MaxEntries <= 0 ? int.MaxValue : opts.MaxEntries;
 
 		// Only start the cleanup timer when EnableAutomaticCleanup is true
 		if (opts.EnableAutomaticCleanup)
@@ -124,13 +131,10 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 			}
 		}
 
-		// Bounded growth guard: when at capacity, skip dedup tracking to prevent OOM.
-		// The cleanup timer will reclaim space as entries expire.
-		if (_processedMessages.Count >= MaxTrackedEntries)
-		{
-			LogCapacityReached(MaxTrackedEntries);
-			return Task.FromResult(false);
-		}
+		// Not tracked (or expired). At capacity we cannot guarantee the absence of a prior record for
+		// this id (it may never have been admitted), so returning false could silently DROP a real
+		// message. Fail closed: throw transient so the message is not acked and is redelivered.
+		EnsureCapacityOrThrow();
 
 		return Task.FromResult(false);
 	}
@@ -147,12 +151,10 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 			throw new ArgumentOutOfRangeException(nameof(expiry), ErrorMessages.ArgumentMustBePositive);
 		}
 
-		// Bounded growth guard: skip caching when at capacity to prevent OOM.
-		if (_processedMessages.Count >= MaxTrackedEntries)
-		{
-			LogCapacityReached(MaxTrackedEntries);
-			return Task.CompletedTask;
-		}
+		// Bounded growth guard: never silently skip caching (that would defeat dedup for the next
+		// delivery of this message). Fail closed: at capacity throw transient so the message is not
+		// acked and is redelivered, rather than recording nothing and missing a later duplicate.
+		EnsureCapacityOrThrow();
 
 		var now = DateTimeOffset.UtcNow;
 		var expiresAt = now.Add(expiry);
@@ -205,12 +207,15 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 			}
 		}
 
-		// Bounded growth guard: at capacity we cannot track the claim, so admit (no dedup) to preserve
-		// correctness over OOM. The cleanup timer reclaims space as entries expire.
-		if (_processedMessages.Count >= MaxTrackedEntries)
+		// Bounded growth guard: a claim is an exclusive ownership grant, so we must NOT evict another
+		// in-flight claim to make room (that could let the evicted message be processed twice). At
+		// capacity we therefore fail CLOSED — deny the claim. The caller treats this as "not claimed"
+		// and the message is redelivered/retried once cleanup or expiry reclaims space. We never
+		// silently grant a claim we cannot track.
+		if (_maxTrackedEntries != int.MaxValue && _processedMessages.Count >= _maxTrackedEntries)
 		{
-			LogCapacityReached(MaxTrackedEntries);
-			return Task.FromResult(true);
+			LogCapacityReached(_maxTrackedEntries);
+			return Task.FromResult(false);
 		}
 
 		var entry = new ProcessedEntry { MessageId = messageId, ProcessedAt = now, ExpiresAt = now.Add(expiry) };
@@ -324,6 +329,21 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	}
 
 	/// <summary>
+	/// Throws a transient <see cref="DeduplicationCapacityExceededException"/> when the tracking map is at
+	/// capacity. Routing both record-producing entry points (<see cref="IsDuplicateAsync"/> and
+	/// <see cref="MarkProcessedAsync"/>) through this single guard makes "succeed without tracking"
+	/// structurally inexpressible for them — the invariant is <i>never succeed without tracking</i>.
+	/// </summary>
+	private void EnsureCapacityOrThrow()
+	{
+		if (_maxTrackedEntries != int.MaxValue && _processedMessages.Count >= _maxTrackedEntries)
+		{
+			LogCapacityReached(_maxTrackedEntries);
+			throw new DeduplicationCapacityExceededException(_maxTrackedEntries);
+		}
+	}
+
+	/// <summary>
 	/// Performs scheduled cleanup of expired entries.
 	/// </summary>
 	private async Task PerformScheduledCleanupAsync()
@@ -426,6 +446,6 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	private partial void LogScheduledCleanupError(Exception ex);
 
 	[LoggerMessage(DeliveryEventId.DeduplicatorCapacityReached, LogLevel.Warning,
-		"InMemoryDeduplicator capacity reached ({MaxEntries} entries). New messages will not be deduplicated until cleanup reclaims space.")]
+		"InMemoryDeduplicator capacity reached ({MaxEntries} entries). Record-producing operations fail closed (transient) until cleanup or expiry reclaims space.")]
 	private partial void LogCapacityReached(int maxEntries);
 }

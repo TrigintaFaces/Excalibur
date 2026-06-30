@@ -62,8 +62,15 @@ public interface ISerializer
 	/// <typeparam name="T">The type to serialize.</typeparam>
 	/// <param name="value">The value to serialize.</param>
 	/// <param name="bufferWriter">The buffer writer to write serialized data to.</param>
-	/// <exception cref="ArgumentNullException">Thrown when <paramref name="bufferWriter"/> is null.</exception>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="value"/> or <paramref name="bufferWriter"/> is null.</exception>
 	/// <exception cref="SerializationException">Thrown when serialization fails.</exception>
+	/// <remarks>
+	/// <b>Null-argument contract (canonical across all implementations):</b> a <see langword="null"/>
+	/// <paramref name="value"/> is rejected with <see cref="ArgumentNullException"/>, mirroring
+	/// <see cref="SerializeObject(object, Type)"/>. This guarantees that swapping the configured
+	/// serializer (MemoryPack, MessagePack, System.Text.Json, Avro, Protobuf, …) does not change the
+	/// observable null-handling behavior. For value types <typeparamref name="T"/> the guard is a no-op.
+	/// </remarks>
 	void Serialize<T>(T value, IBufferWriter<byte> bufferWriter);
 
 	/// <summary>

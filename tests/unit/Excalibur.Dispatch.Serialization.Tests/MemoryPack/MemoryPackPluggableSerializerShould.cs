@@ -70,13 +70,12 @@ public sealed class MemoryPackPluggableSerializerShould
 	}
 
 	[Fact]
-	public void Serialize_WithNullValue_ProducesValidOutput()
+	public void Serialize_WithNullValue_ThrowsArgumentNullException()
 	{
-		// Act - New consolidated serializer follows STJ pattern: null is serializable
-		var result = _sut.SerializeToBytes<TestPayload>(null!);
-
-		// Assert - MemoryPack serializes null as a valid nil representation
-		_ = result.ShouldNotBeNull();
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior.
+		_ = Should.Throw<ArgumentNullException>(() => _sut.SerializeToBytes<TestPayload>(null!));
 	}
 
 	[Fact]

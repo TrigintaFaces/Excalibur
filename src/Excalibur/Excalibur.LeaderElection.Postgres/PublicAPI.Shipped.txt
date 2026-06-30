@@ -47,7 +47,7 @@ Excalibur.LeaderElection.Postgres.PostgresLeaderElection.StopAsync(System.Thread
 Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory
 Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
 Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
-Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory.PostgresLeaderElectionFactory(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! pgOptions, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null) -> void
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory.PostgresLeaderElectionFactory(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! pgOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! electionOptions, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null) -> void
 Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions
 Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.CommandTimeoutSeconds.get -> int
 Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.CommandTimeoutSeconds.set -> void

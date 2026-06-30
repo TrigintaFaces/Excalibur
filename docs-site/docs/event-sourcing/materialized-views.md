@@ -444,7 +444,7 @@ services.AddPostgresMaterializedViewStore(opts => opts.ConnectionString = connec
 
 **Storage:** JSONB with `INSERT ON CONFLICT` upserts.
 
-**Tables:** (snake_case per ADR-109)
+**Tables:** (snake_case)
 - `materialized_views` (view_name, view_id, data, created_at, updated_at)
 - `materialized_view_positions` (view_name, position, created_at, updated_at)
 

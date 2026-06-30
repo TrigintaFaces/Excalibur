@@ -222,4 +222,4 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 ---
 
-*Category: Observability | Sprint 431*
+*Category: Observability*

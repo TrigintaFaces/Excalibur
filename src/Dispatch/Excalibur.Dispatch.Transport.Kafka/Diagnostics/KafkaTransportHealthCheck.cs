@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Kafka.Diagnostics;
 /// <remarks>
 /// Reports <see cref="HealthStatus.Healthy"/> when the Kafka producer is registered and its
 /// underlying handle is valid, <see cref="HealthStatus.Unhealthy"/> when unavailable.
-/// Register via <c>AddHealthChecks().AddCheck&lt;KafkaTransportHealthCheck&gt;("kafka-transport")</c>.
+/// Register via <c>AddHealthChecks().AddKafkaTransportHealthCheck()</c>.
 /// </remarks>
 internal sealed class KafkaTransportHealthCheck : IHealthCheck
 {

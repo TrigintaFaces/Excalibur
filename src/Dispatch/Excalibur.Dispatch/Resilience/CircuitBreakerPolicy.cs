@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Resilience;
 internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuitBreakerDiagnostics, ICircuitBreakerEvents
 {
 	private readonly CircuitBreakerOptions _options;
-	private readonly ILogger<CircuitBreakerPolicy>? _logger;
+	private readonly ILogger? _logger;
 	private readonly string _name;
 	private readonly Func<Exception, bool>? _shouldHandle;
 	private readonly Lock _lock = new();
@@ -29,12 +29,14 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 	/// </summary>
 	/// <param name="options">The circuit breaker configuration options.</param>
 	/// <param name="name">The name of the circuit breaker (e.g., transport name).</param>
-	/// <param name="logger">Optional logger instance.</param>
+	/// <param name="logger">Optional logger instance. A non-generic <see cref="ILogger"/> is accepted so that
+	/// callers constructing a policy through <see cref="ICircuitBreakerPolicyFactory"/> may forward their own
+	/// logger; the source-generated log methods take <see cref="ILogger"/> directly, so no category is lost.</param>
 	/// <param name="shouldHandle">Optional predicate to determine which exceptions should trip the circuit.</param>
 	public CircuitBreakerPolicy(
 		CircuitBreakerOptions options,
 		string name = "default",
-		ILogger<CircuitBreakerPolicy>? logger = null,
+		ILogger? logger = null,
 		Func<Exception, bool>? shouldHandle = null)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));

@@ -16,16 +16,6 @@ Excalibur.Dispatch.Transport.Kafka.CompatibilityMode.Full = 5 -> Excalibur.Dispa
 Excalibur.Dispatch.Transport.Kafka.CompatibilityMode.FullTransitive = 6 -> Excalibur.Dispatch.Transport.Kafka.CompatibilityMode
 Excalibur.Dispatch.Transport.Kafka.CompatibilityMode.None = 0 -> Excalibur.Dispatch.Transport.Kafka.CompatibilityMode
 Excalibur.Dispatch.Transport.Kafka.CompatibilityModeExtensions
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions.AutoAcknowledge.get -> bool
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions.AutoAcknowledge.set -> void
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions.ConfluentConsumerOptions() -> void
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions.DeadLetterTopic.get -> string?
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions.DeadLetterTopic.set -> void
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions.EnableUpcasting.get -> bool
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions.EnableUpcasting.set -> void
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions.ErrorHandling.get -> Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling
-Excalibur.Dispatch.Transport.Kafka.ConfluentConsumerOptions.ErrorHandling.set -> void
 Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryClient
 Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryClient.ConfluentSchemaRegistryClient(Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryClient!>! logger) -> void
 Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryClient.Dispose() -> void
@@ -67,10 +57,6 @@ Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>.Topic.get -> stri
 Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>.Topic.set -> void
 Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>.Value.get -> TValue?
 Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>.Value.set -> void
-Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling
-Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling.DeadLetter = 1 -> Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling
-Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling.Skip = 0 -> Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling
-Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling.Throw = 2 -> Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling
 Excalibur.Dispatch.Transport.Kafka.DeserializationResult
 Excalibur.Dispatch.Transport.Kafka.DeserializationResult.As<T>() -> T
 Excalibur.Dispatch.Transport.Kafka.DeserializationResult.DeserializationResult(object! message, System.Type! messageType, int schemaId, int version) -> void
@@ -258,6 +244,8 @@ Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxConcurrentCommi
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxConcurrentCommits.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxPollIntervalMs.get -> int
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxPollIntervalMs.set -> void
+Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.PartitionAssignmentStrategy.get -> Confluent.Kafka.PartitionAssignmentStrategy?
+Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.PartitionAssignmentStrategy.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.QueuedMinMessages.get -> int
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.QueuedMinMessages.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.SessionTimeoutMs.get -> int
@@ -400,10 +388,6 @@ Excalibur.Dispatch.Transport.Kafka.KafkaTransportOptions.Name.set -> void
 Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee
 Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee.AtLeastOnce = 0 -> Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee
 Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee.ExactlyOnce = 1 -> Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee
-Excalibur.Dispatch.Transport.Kafka.ProcessingStatus
-Excalibur.Dispatch.Transport.Kafka.ProcessingStatus.DeadLettered = 2 -> Excalibur.Dispatch.Transport.Kafka.ProcessingStatus
-Excalibur.Dispatch.Transport.Kafka.ProcessingStatus.Skipped = 1 -> Excalibur.Dispatch.Transport.Kafka.ProcessingStatus
-Excalibur.Dispatch.Transport.Kafka.ProcessingStatus.Success = 0 -> Excalibur.Dispatch.Transport.Kafka.ProcessingStatus
 Excalibur.Dispatch.Transport.Kafka.SchemaDeprecatedAttribute
 Excalibur.Dispatch.Transport.Kafka.SchemaDeprecatedAttribute.Message.get -> string?
 Excalibur.Dispatch.Transport.Kafka.SchemaDeprecatedAttribute.SchemaDeprecatedAttribute() -> void
@@ -493,6 +477,7 @@ Microsoft.Extensions.DependencyInjection.KafkaAdminServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.KafkaCloudEventsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.KafkaConfluentFormatExtensions
 Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.KafkaHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.KafkaOtelMetricsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.KafkaTransportServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SchemaRegistryServiceCollectionExtensions
@@ -513,6 +498,8 @@ const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.CloudEventReceived = 22300
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.CloudEventToTransportError = 22303 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.CommitOffsetsError = 22116 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.CommitOffsetsFailure = 22115 -> int
+const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.CommitOnRevoke = 22135 -> int
+const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.CommitOnRevokeFailed = 22136 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.CompatibilityCheckError = 22219 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.CompatibilityResult = 22218 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.ConnectionError = 22405 -> int
@@ -567,6 +554,7 @@ const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.OffsetsCommitted = 22114 -
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.PartitionEof = 22122 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.PartitionSelected = 22500 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.PartitionsAssigned = 22106 -> int
+const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.PartitionsLost = 22134 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.PartitionsRevoked = 22107 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.ProduceError = 22111 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.ProducerCreated = 22000 -> int
@@ -707,6 +695,7 @@ static Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollection
 static Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollectionExtensions.AddKafkaDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollectionExtensions.AddKafkaDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! transportName, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollectionExtensions.AddKafkaDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! transportName, System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.KafkaHealthChecksBuilderExtensions.AddKafkaTransportHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "kafka-transport", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.KafkaOtelMetricsServiceCollectionExtensions.AddKafkaOtelMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaTransportServiceCollectionExtensions.AddKafkaTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.IKafkaTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaTransportServiceCollectionExtensions.AddKafkaTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Kafka.IKafkaTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

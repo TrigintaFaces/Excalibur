@@ -688,10 +688,6 @@ Excalibur.Dispatch.Transport.ReprocessResult.SkippedCount.set -> void
 Excalibur.Dispatch.Transport.ReprocessResult.SuccessCount.get -> int
 Excalibur.Dispatch.Transport.ReprocessResult.SuccessCount.set -> void
 Excalibur.Dispatch.Transport.ReprocessResult.TotalCount.get -> int
-Excalibur.Dispatch.Transport.RetryDelayStrategy
-Excalibur.Dispatch.Transport.RetryDelayStrategy.Exponential = 1 -> Excalibur.Dispatch.Transport.RetryDelayStrategy
-Excalibur.Dispatch.Transport.RetryDelayStrategy.Fixed = 0 -> Excalibur.Dispatch.Transport.RetryDelayStrategy
-Excalibur.Dispatch.Transport.RetryDelayStrategy.Linear = 2 -> Excalibur.Dispatch.Transport.RetryDelayStrategy
 Excalibur.Dispatch.Transport.ScheduleInfo
 Excalibur.Dispatch.Transport.ScheduleInfo.CreatedTime.get -> System.DateTimeOffset
 Excalibur.Dispatch.Transport.ScheduleInfo.CreatedTime.set -> void

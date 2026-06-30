@@ -257,4 +257,46 @@ public sealed class CosmosDbSagaDocumentShould
 	}
 
 	#endregion
+
+	#region fmjwqy — Newtonsoft (Cosmos SDK-v3 default) emitted-key lock
+
+	// bd-fmjwqy (S856): CosmosDbSagaDocument is a consumer-injectable Cosmos document, and the Cosmos SDK-v3
+	// DEFAULT serializer is Newtonsoft.Json (STJ is opt-in) — Newtonsoft IGNORES [JsonPropertyName]. The
+	// JsonPropertyName-attribute tests above are necessary but VACUOUS for the default client: they prove the
+	// STJ attribute exists, NOT that Newtonsoft emits the Cosmos-required lowercase keys. This lock asserts the
+	// EMITTED JSON under the DEFAULT (Newtonsoft) serializer — RED on an STJ-only document (Newtonsoft emits
+	// PascalCase 'Id'/'SagaType' → Cosmos lowercase point-read by 'id' + the /sagaType partition-key path miss),
+	// GREEN with the dual STJ + [Newtonsoft.Json.JsonProperty] attrs (the fmjwqy package-wide fix). Mirrors the
+	// i2eabb checkpoint lock for the Saga document (verify-against-real-infra-not-mock: assert emitted shape,
+	// never attribute-presence).
+	[Fact]
+	public void SerializeRequiredLowercaseKeysUnderTheDefaultNewtonsoftSerializer()
+	{
+		var document = Activator.CreateInstance(_documentType)!;
+		_documentType.GetProperty("Id")!.SetValue(document, "saga-fmjwqy-id");
+		_documentType.GetProperty("SagaType")!.SetValue(document, "OrderSaga");
+
+		// JsonConvert with default settings == exactly what the Cosmos SDK-v3 default (Newtonsoft) client emits.
+		var json = Newtonsoft.Json.JsonConvert.SerializeObject(document);
+
+		using var parsed = System.Text.Json.JsonDocument.Parse(json);
+		var root = parsed.RootElement;
+
+		// The document id (Cosmos point-read key) and partition-key field MUST be lowercase under Newtonsoft.
+		root.TryGetProperty("id", out _).ShouldBeTrue(
+			$"fmjwqy — CosmosDbSagaDocument.Id must serialize to lowercase 'id' under the DEFAULT (Newtonsoft) "
+			+ $"serializer (Cosmos point-read by 'id'). Emitted JSON: {json}");
+		root.TryGetProperty("sagaType", out _).ShouldBeTrue(
+			$"fmjwqy — CosmosDbSagaDocument.SagaType (partition-key path /sagaType) must serialize to lowercase "
+			+ $"'sagaType' under the DEFAULT (Newtonsoft) serializer. Emitted JSON: {json}");
+
+		// The PascalCase fallbacks (the STJ-only / no-Newtonsoft-attr defect) must NOT appear.
+		root.TryGetProperty("Id", out _).ShouldBeFalse(
+			"fmjwqy — a PascalCase 'Id' under the default Newtonsoft serializer means Cosmos's point-read by 'id' "
+			+ "returns NotFound (the i2eabb failure class, package-wide).");
+		root.TryGetProperty("SagaType", out _).ShouldBeFalse(
+			"fmjwqy — a PascalCase 'SagaType' breaks the documented /sagaType partition-key path.");
+	}
+
+	#endregion
 }

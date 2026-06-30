@@ -55,7 +55,7 @@ public sealed class LeaderElectionServiceCollectionExtensionsShould : UnitTestBa
 	}
 
 	[Fact]
-	public void FirstOptionsWinsViaTryAddSingleton()
+	public void LastOptionsWinViaConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -66,10 +66,12 @@ public sealed class LeaderElectionServiceCollectionExtensionsShould : UnitTestBa
 		services.AddExcaliburLeaderElection(first);
 		services.AddExcaliburLeaderElection(second);
 
-		// Assert - TryAddSingleton means first wins
+		// Assert — the options-instance overload now routes through AddOptions().Configure() + ValidateOnStart
+		// (892ine/rl25og), so configures are additive and the LAST registration wins (standard Options semantics),
+		// replacing the prior TryAddSingleton first-wins behavior.
 		var provider = services.BuildServiceProvider();
 		var resolved = provider.GetRequiredService<IOptions<LeaderElectionOptions>>();
-		resolved.Value.LeaseDuration.ShouldBe(TimeSpan.FromSeconds(30));
+		resolved.Value.LeaseDuration.ShouldBe(TimeSpan.FromSeconds(999));
 	}
 
 	// --- Fluent chaining ---

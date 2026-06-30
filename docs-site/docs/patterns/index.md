@@ -268,7 +268,7 @@ services.AddHealthChecks()
 
 ## In This Section
 
-- [Idempotent Consumer Guide](idempotent-consumer.md) — Understanding reliable exactly-once messaging
+- [Idempotent Consumer Guide](idempotent-consumer.md) — Understanding effective exactly-once messaging (atomic dedup + idempotent handlers)
 - [Error Handling & Recovery Guide](error-handling.md) — Retries, circuit breakers, dead letter queues, and recovery
 - [Outbox](outbox.md) — Reliable message publishing
 - [Inbox](inbox.md) — Idempotent message processing

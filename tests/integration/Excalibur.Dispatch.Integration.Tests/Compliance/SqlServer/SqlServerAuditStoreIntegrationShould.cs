@@ -204,7 +204,7 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 
 		return new SqlServerAuditStore(
 			Microsoft.Extensions.Options.Options.Create(options),
-			EnabledTestLogger.Create<SqlServerAuditStore>());
+			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
 	}
 
 	private async Task InitializeAuditTableAsync()
@@ -237,8 +237,8 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 			        [UserAgent] NVARCHAR(500) NULL,
 			        [Reason] NVARCHAR(1000) NULL,
 			        [Metadata] NVARCHAR(MAX) NULL,
-			        [PreviousEventHash] NVARCHAR(64) NULL,
-			        [EventHash] NVARCHAR(64) NOT NULL,
+			        [PreviousEventHash] NVARCHAR(512) NULL,
+			        [EventHash] NVARCHAR(512) NOT NULL,
 			        CONSTRAINT [PK_AuditEvents] PRIMARY KEY CLUSTERED ([SequenceNumber] ASC),
 			        CONSTRAINT [UQ_AuditEvents_EventId] UNIQUE NONCLUSTERED ([EventId])
 			    );

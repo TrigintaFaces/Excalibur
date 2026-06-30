@@ -45,9 +45,11 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 			_ = services.AddSingleton<IColdStartOptimizer, GoogleCloudFunctionsColdStartOptimizer>();
 		}
 
-		// Log warnings when consumers enable telemetry options that require
-		// platform SDK integration not yet wired up. This prevents silent no-ops
-		// where consumers think EnableDistributedTracing=true does something.
+		// Distributed tracing and metrics on Google Cloud Functions are platform-provisioned
+		// (Cloud Trace + Cloud Monitoring), enabled by the operator at the function/platform level —
+		// the provider does not wire in-process exporters for these flags. Log this honestly at
+		// Information (not a misleading "not implemented" warning, and not a silent no-op);
+		// deps-bearing in-process exporters gated by the shared telemetry flags are tracked in bd-wh492p.
 		if (options.Telemetry.EnableDistributedTracing)
 		{
 			LogTraceConfiguring();
@@ -117,17 +119,12 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 		{
 			// Create a timeout cancellation token based on remaining execution time
 			using var timeoutCts = new CancellationTokenSource();
-			var remainingTime = context.RemainingTime;
 
-			if (remainingTime > TimeSpan.Zero)
-			{
-				// Reserve some time for cleanup
-				var executionTimeout = remainingTime - TimeSpan.FromMilliseconds(500);
-				if (executionTimeout > TimeSpan.Zero)
-				{
-					timeoutCts.CancelAfter(executionTimeout);
-				}
-			}
+			// Reserve cleanup headroom and fail closed: ComputeExecutionTimeout floors the budget at
+			// Zero, so an invocation already within (or past) the cleanup reserve cancels immediately
+			// instead of running unbounded. Cancellation is ALWAYS scheduled — the fail-open skip is
+			// structurally inexpressible.
+			timeoutCts.CancelAfter(ServerlessHostOptions.ComputeExecutionTimeout(context.RemainingTime));
 
 			using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
 				cancellationToken, timeoutCts.Token);
@@ -196,9 +193,13 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 	[LoggerMessage(GoogleCloudFunctionsEventId.HandlerFailed, LogLevel.Error, "Google Cloud Functions handler execution failed")]
 	private partial void LogHandlerFailed(Exception ex);
 
-	[LoggerMessage(GoogleCloudFunctionsEventId.ConfiguringCloudTrace, LogLevel.Warning, "Google Cloud Trace integration is not yet implemented. Distributed tracing will not be active.")]
+	[LoggerMessage(GoogleCloudFunctionsEventId.ConfiguringCloudTrace, LogLevel.Information,
+		"Distributed tracing on Google Cloud Functions is platform-provisioned via Cloud Trace (enable it at " +
+		"the function/platform level); the provider does not register in-process exporters for this option.")]
 	private partial void LogTraceConfiguring();
 
-	[LoggerMessage(GoogleCloudFunctionsEventId.ConfiguringCloudMonitoring, LogLevel.Warning, "Google Cloud Monitoring integration is not yet implemented. Metrics will not be collected.")]
+	[LoggerMessage(GoogleCloudFunctionsEventId.ConfiguringCloudMonitoring, LogLevel.Information,
+		"Metrics on Google Cloud Functions are platform-provisioned via Cloud Monitoring (enabled at the " +
+		"function/platform level); the provider does not register in-process exporters for this option.")]
 	private partial void LogMetricsConfiguring();
 }

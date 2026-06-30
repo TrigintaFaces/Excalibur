@@ -23,9 +23,13 @@ namespace Excalibur.Dispatch.Caching;
 /// entries outlive cache entries (self-healing on crash/restart).
 /// </para>
 /// <para>
-/// Concurrency: read-modify-write operations on tag sets are not atomic. Concurrent registrations
-/// for the same tag may lose one key (last-writer-wins). This is acceptable for cache invalidation
-/// where the worst case is an extra cache miss. TTL-based self-healing cleans up stale entries.
+/// <b>Concurrency limitation:</b> read-modify-write on a tag's key set over <see cref="IDistributedCache"/>
+/// is <b>not atomic</b> (the abstraction exposes only Get/Set/Remove — no atomic set-add or compare-and-swap).
+/// When two instances register <i>different</i> keys under the <i>same</i> tag concurrently, both read the same
+/// prior set and the later <c>SetAsync</c> overwrites the earlier — a key is dropped (last-writer-wins). A dropped
+/// key is then <b>not invalidated</b> when its tag is invalidated, so that entry serves <b>stale data until its
+/// TTL expires</b> — not merely an extra cache miss. For a backend with an atomic set primitive (e.g. Redis
+/// <c>SADD</c>), a backend-specific tracker that uses it avoids this loss entirely.
 /// </para>
 /// </remarks>
 internal sealed class DistributedCacheTagTracker : ICacheTagTracker

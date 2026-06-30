@@ -76,7 +76,7 @@ public readonly struct DataStoreKind : IEquatable<DataStoreKind>
 	/// <summary>The saga / process-manager state store.</summary>
 	public static DataStoreKind Saga { get; } = new("Saga");
 
-	/// <summary>The audit / security event store (exempt by default; see ADR-336 Amendment 1a).</summary>
+	/// <summary>The audit / security event store.</summary>
 	public static DataStoreKind Audit { get; } = new("Audit");
 
 	/// <summary>A cache store.</summary>

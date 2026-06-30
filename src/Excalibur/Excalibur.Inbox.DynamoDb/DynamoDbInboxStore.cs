@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 using Amazon.DynamoDBv2;
@@ -28,7 +29,9 @@ namespace Excalibur.Inbox.DynamoDb;
 /// attribute_not_exists condition.
 /// </para>
 /// </remarks>
-public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
+[SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+	Justification = "Coordinator store that orchestrates inbox persistence, atomic claim, TTL, and table provisioning through the AWS SDK; high coupling is inherent and cannot be reduced without fragmenting cohesive behavior.")]
+public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly DynamoDbInboxOptions _options;
 	private readonly ILogger<DynamoDbInboxStore> _logger;
@@ -72,7 +75,10 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		_client = client;
 		_options = options.Value;
 		_logger = logger;
-		_initialized = true;
+
+		// Do NOT mark initialized here: a consumer-supplied client still needs InitializeAsync to run the
+		// table auto-create (CreateTableIfNotExists) + TTL enablement, otherwise the table is never created and
+		// access surfaces as ResourceNotFoundException. InitializeAsync preserves this injected client.
 	}
 
 	/// <summary>
@@ -94,16 +100,92 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 				return;
 			}
 
-			_client = CreateClient();
+			// Preserve a consumer-supplied client (injected via the client ctor); only create one when absent.
+			_client ??= CreateClient();
 
-			// Verify connectivity by describing the table
-			_ = await _client!.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
+			// Auto-create the table when missing (so a consumer-supplied client gets a usable table), else just
+			// verify connectivity by describing it.
+			if (_options.CreateTableIfNotExists)
+			{
+				await EnsureTableExistsAsync(cancellationToken).ConfigureAwait(false);
+			}
+			else
+			{
+				_ = await _client!.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
+			}
+
+			// Ensure DynamoDB TTL is enabled on the table so the per-item epoch ttl stamped on terminal
+			// entries is actually honored — TTL is a no-op until enabled on the table.
+			if (_options.DefaultTtlSeconds > 0)
+			{
+				var ttlDescription = await _client!.DescribeTimeToLiveAsync(
+					new DescribeTimeToLiveRequest { TableName = _options.TableName },
+					cancellationToken).ConfigureAwait(false);
+
+				var ttlStatus = ttlDescription.TimeToLiveDescription?.TimeToLiveStatus;
+				if (ttlStatus != TimeToLiveStatus.ENABLED && ttlStatus != TimeToLiveStatus.ENABLING)
+				{
+					_ = await _client!.UpdateTimeToLiveAsync(
+						new UpdateTimeToLiveRequest
+						{
+							TableName = _options.TableName,
+							TimeToLiveSpecification = new TimeToLiveSpecification
+							{
+								Enabled = true,
+								AttributeName = _options.TtlAttributeName
+							}
+						},
+						cancellationToken).ConfigureAwait(false);
+				}
+			}
 
 			_initialized = true;
 		}
 		finally
 		{
 			_ = _initLock.Release();
+		}
+	}
+
+	/// <summary>
+	/// Ensures the inbox table exists, creating it (handler_type HASH + message_id RANGE, pay-per-request) when
+	/// missing and waiting for it to become active. Mirrors the snapshot store's auto-create path.
+	/// </summary>
+	private async Task EnsureTableExistsAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			_ = await _client!.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
+		}
+		catch (ResourceNotFoundException)
+		{
+			var createRequest = new CreateTableRequest
+			{
+				TableName = _options.TableName,
+				KeySchema =
+				[
+					new KeySchemaElement { AttributeName = _options.PartitionKeyAttribute, KeyType = KeyType.HASH },
+					new KeySchemaElement { AttributeName = _options.SortKeyAttribute, KeyType = KeyType.RANGE }
+				],
+				AttributeDefinitions =
+				[
+					new AttributeDefinition { AttributeName = _options.PartitionKeyAttribute, AttributeType = ScalarAttributeType.S },
+					new AttributeDefinition { AttributeName = _options.SortKeyAttribute, AttributeType = ScalarAttributeType.S }
+				],
+				BillingMode = BillingMode.PAY_PER_REQUEST
+			};
+
+			_ = await _client!.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+
+			var describeRequest = new DescribeTableRequest { TableName = _options.TableName };
+			TableStatus status;
+			do
+			{
+				await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+				var describeResponse = await _client!.DescribeTableAsync(describeRequest, cancellationToken)
+					.ConfigureAwait(false);
+				status = describeResponse.Table.TableStatus;
+			} while (status != TableStatus.ACTIVE);
 		}
 	}
 
@@ -194,6 +276,18 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			}
 		};
 
+		// Stamp the per-item TTL (absolute epoch seconds) now that the entry is terminal so the dedup
+		// record is reaped automatically once retention elapses.
+		if (_options.DefaultTtlSeconds > 0)
+		{
+			updateRequest.UpdateExpression += ", #ttl = :ttl";
+			updateRequest.ExpressionAttributeNames["#ttl"] = _options.TtlAttributeName;
+			updateRequest.ExpressionAttributeValues[":ttl"] = new()
+			{
+				N = now.AddSeconds(_options.DefaultTtlSeconds).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)
+			};
+		}
+
 		_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
 		LogMarkedProcessed(messageId, handlerType);
 	}
@@ -258,6 +352,16 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			["retry_count"] = new() { N = "0" }
 		};
 
+		// Terminal on creation (first-writer-wins) → stamp the per-item TTL epoch so the dedup
+		// record is reaped automatically once retention elapses.
+		if (_options.DefaultTtlSeconds > 0)
+		{
+			item[_options.TtlAttributeName] = new AttributeValue
+			{
+				N = now.AddSeconds(_options.DefaultTtlSeconds).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)
+			};
+		}
+
 		var request = new PutItemRequest
 		{
 			TableName = _options.TableName,
@@ -276,6 +380,84 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			// Item already exists - another processor got there first
 			LogDuplicateDetected(messageId, handlerType);
 			return false;
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var now = DateTimeOffset.UtcNow;
+
+		// Atomic first-writer-wins claim into the NON-TERMINAL Processing state via conditional PutItem. The
+		// attribute_not_exists condition fails (ConditionalCheckFailedException) on conflict (already
+		// claimed/processed) => not claimed. Finalized via MarkProcessedAsync, removed via ReleaseAsync. No TTL on
+		// the non-terminal claim (a transient claim must not auto-reap; the terminal record gets the TTL).
+		var item = new Dictionary<string, AttributeValue>
+		{
+			[_options.PartitionKeyAttribute] = new() { S = handlerType },
+			[_options.SortKeyAttribute] = new() { S = messageId },
+			["message_type"] = new() { S = string.Empty },
+			["payload"] = new() { B = new MemoryStream([]) },
+			["status"] = new() { N = ((int)InboxStatus.Processing).ToString() },
+			["received_at"] = new() { S = now.ToString("O") },
+			["retry_count"] = new() { N = "0" }
+		};
+
+		var request = new PutItemRequest
+		{
+			TableName = _options.TableName,
+			Item = item,
+			ConditionExpression = $"attribute_not_exists({_options.PartitionKeyAttribute})"
+		};
+
+		try
+		{
+			_ = await _client!.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
+			LogFirstProcessor(messageId, handlerType);
+			return true;
+		}
+		catch (ConditionalCheckFailedException)
+		{
+			LogDuplicateDetected(messageId, handlerType);
+			return false;
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Atomic conditional delete: remove the non-terminal claim only (status != Processed) so a
+		// concurrently-finalized entry is never deleted. The condition also fails when the item is absent, which
+		// we treat as a no-op (already removed or never claimed).
+		var request = new DeleteItemRequest
+		{
+			TableName = _options.TableName,
+			Key = CreateKey(messageId, handlerType),
+			ConditionExpression = "#s <> :processed",
+			ExpressionAttributeNames = new Dictionary<string, string> { ["#s"] = "status" },
+			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+			{
+				[":processed"] = new() { N = ((int)InboxStatus.Processed).ToString() }
+			}
+		};
+
+		try
+		{
+			_ = await _client!.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
+		}
+		catch (ConditionalCheckFailedException)
+		{
+			// Item is finalized (Processed) or absent — never delete a finalized claim; no-op otherwise.
 		}
 	}
 

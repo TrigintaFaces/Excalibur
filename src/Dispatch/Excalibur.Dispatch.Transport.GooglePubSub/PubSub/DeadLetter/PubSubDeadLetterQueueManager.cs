@@ -61,7 +61,7 @@ internal sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueMan
 	/// Initializes a new instance of the <see cref="PubSubDeadLetterQueueManager"/>
 	/// class using pre-built adapter seams. Used by tests to substitute the
 	/// SDK via <see cref="ISubscriberApiClientSeam"/> and
-	/// <see cref="IPublisherClientSeam"/> (ADR-142 §D7).
+	/// <see cref="IPublisherClientSeam"/>.
 	/// </summary>
 	internal PubSubDeadLetterQueueManager(
 		ISubscriberApiClientSeam subscriberClient,

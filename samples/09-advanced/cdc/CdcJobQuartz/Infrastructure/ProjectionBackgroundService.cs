@@ -26,5 +26,5 @@ public sealed class ProjectionOptions
 // NOTE: ProjectionBackgroundService has been removed.
 // Projection processing is now handled by the framework's inline projection pipeline
 // registered via services.AddExcalibur(x => x.AddEventSourcing(es => es.AddProjection<T>().Inline().WhenHandledBy<>()))
-// (the canonical builder path per ADR-321/325).
+// (the canonical builder path).
 // See Program.cs for the registration.

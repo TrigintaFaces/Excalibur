@@ -278,7 +278,9 @@ public sealed class DispatchJsonSerializer : IDisposable
 
 		if (utf8Json.IsEmpty)
 		{
-			return null;
+			// ihv7fe: empty input is a poison signal, not a silent null — align with the
+			// ISerializer family (PayloadSerializer/SystemTextJsonSerializer) one null/empty policy.
+			throw SerializationException.EmptyPayload();
 		}
 
 		// Check for type resolution if needed
@@ -292,7 +294,9 @@ public sealed class DispatchJsonSerializer : IDisposable
 			}
 		}
 
-		return JsonSerializer.Deserialize(utf8Json, type, _options);
+		// ihv7fe: a null deserialization result throws NullResult (matches the family), not silent null.
+		return JsonSerializer.Deserialize(utf8Json, type, _options)
+			?? throw SerializationException.NullResultForType(type);
 	}
 
 	/// <summary>
@@ -320,7 +324,8 @@ public sealed class DispatchJsonSerializer : IDisposable
 			Telemetry.AddBytesRead(utf8Json.Position);
 		}
 
-		return result;
+		// ihv7fe: a null deserialization result throws NullResult (matches the family), not silent null.
+		return result ?? throw SerializationException.NullResult<T>();
 	}
 
 	/// <summary>
@@ -350,7 +355,8 @@ public sealed class DispatchJsonSerializer : IDisposable
 			Telemetry.AddBytesRead(utf8Json.Position);
 		}
 
-		return result;
+		// ihv7fe: a null deserialization result throws NullResult (matches the family), not silent null.
+		return result ?? throw SerializationException.NullResultForType(type);
 	}
 
 	#endregion
@@ -362,8 +368,9 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// </summary>
 	/// <typeparam name="T"> The type to deserialize to. </typeparam>
 	/// <param name="json"> The JSON string to deserialize. </param>
-	/// <returns> The deserialized object of type T, or null if deserialization fails. </returns>
+	/// <returns> The deserialized object of type <typeparamref name="T"/>. </returns>
 	/// <exception cref="ArgumentException"> Thrown when json is null or whitespace. </exception>
+	/// <exception cref="SerializationException"> Thrown when the payload is empty or deserialization yields a null result. </exception>
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access",
@@ -380,9 +387,10 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// </summary>
 	/// <param name="json"> The JSON string to deserialize. </param>
 	/// <param name="type"> The target type for deserialization. </param>
-	/// <returns> The deserialized object, or null if deserialization fails. </returns>
+	/// <returns> The deserialized object. </returns>
 	/// <exception cref="ArgumentException"> Thrown when json is null or whitespace. </exception>
 	/// <exception cref="ArgumentNullException"> Thrown when type is null. </exception>
+	/// <exception cref="SerializationException"> Thrown when the payload is empty or deserialization yields a null result. </exception>
 	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
 	[RequiresDynamicCode("JSON deserialization with runtime type requires dynamic code generation")]
 	public object? Deserialize(string json, Type type)

@@ -5,6 +5,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Outbox;
 using Excalibur.Dispatch.Options.Middleware;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -21,14 +22,14 @@ public sealed class OutboxStagingMiddlewareShould
 	[Fact]
 	public void ThrowForNullOptions() =>
 		Should.Throw<ArgumentNullException>(() =>
-			new OutboxStagingMiddleware(null!, null, NullLogger<OutboxStagingMiddleware>.Instance));
+			new OutboxStagingMiddleware(null!, null, new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance));
 
 	[Fact]
 	public void ThrowForNullLogger() =>
 		Should.Throw<ArgumentNullException>(() =>
 			new OutboxStagingMiddleware(
 				Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions()),
-				null, null!));
+				null, new DispatchJsonSerializer(), null!));
 
 	[Fact]
 	public void ThrowWhenEnabledWithNoOutboxServices()
@@ -36,7 +37,7 @@ public sealed class OutboxStagingMiddlewareShould
 		var options = Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = true });
 
 		Should.Throw<InvalidOperationException>(() =>
-			new OutboxStagingMiddleware(options, null, NullLogger<OutboxStagingMiddleware>.Instance));
+			new OutboxStagingMiddleware(options, null, new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -44,7 +45,7 @@ public sealed class OutboxStagingMiddlewareShould
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = false });
 
-		var middleware = new OutboxStagingMiddleware(options, null, NullLogger<OutboxStagingMiddleware>.Instance);
+		var middleware = new OutboxStagingMiddleware(options, null, new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance);
 		middleware.ShouldNotBeNull();
 	}
 
@@ -54,7 +55,7 @@ public sealed class OutboxStagingMiddlewareShould
 		var options = Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = true });
 		var store = A.Fake<IOutboxStore>();
 
-		var middleware = new OutboxStagingMiddleware(options, store, NullLogger<OutboxStagingMiddleware>.Instance);
+		var middleware = new OutboxStagingMiddleware(options, store, new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance);
 		middleware.ShouldNotBeNull();
 	}
 
@@ -81,7 +82,7 @@ public sealed class OutboxStagingMiddlewareShould
 		A.CallTo(() => store.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._))
 			.Invokes((OutboundMessage m, CancellationToken _) => captured = m);
 
-		var middleware = new OutboxStagingMiddleware(options, store, NullLogger<OutboxStagingMiddleware>.Instance);
+		var middleware = new OutboxStagingMiddleware(options, store, new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance);
 
 		var context = new Excalibur.Dispatch.Messaging.MessageContext();
 		// Baggage items as captured from the ambient Activity (keyed "baggage.{name}"); ordered by key.
@@ -123,7 +124,7 @@ public sealed class OutboxStagingMiddlewareShould
 		A.CallTo(() => store.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._))
 			.Invokes((OutboundMessage m, CancellationToken _) => captured = m);
 
-		var middleware = new OutboxStagingMiddleware(options, store, NullLogger<OutboxStagingMiddleware>.Instance);
+		var middleware = new OutboxStagingMiddleware(options, store, new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance);
 
 		var context = new Excalibur.Dispatch.Messaging.MessageContext(); // no baggage.* items
 
@@ -140,6 +141,67 @@ public sealed class OutboxStagingMiddlewareShould
 		// Assert
 		captured.ShouldNotBeNull();
 		captured!.Headers.ShouldNotContainKey("baggage");
+	}
+
+	/// <summary>
+	/// 15sf7a engage-test (author≠impl): the outbox WRITE path MUST route through the injected
+	/// <see cref="DispatchJsonSerializer"/> (camelCase property naming + <c>JsonStringEnumConverter</c>),
+	/// symmetric with the READ path (OutboxProcessor) — NOT a raw default <c>JsonSerializer</c>.
+	/// </summary>
+	/// <remarks>
+	/// Structural RED argument: pre-fix, <c>SerializeMessageToBytes</c> called
+	/// <c>JsonSerializer.SerializeToUtf8Bytes(message, message.GetType())</c> with DEFAULT options,
+	/// emitting PascalCase keys and NUMERIC enums. This pins the configured wire format on the persisted
+	/// payload, so any raw-default write (PascalCase <c>"Status":1</c>) fails the assertions.
+	/// </remarks>
+	[Fact]
+	public async Task StagePayloadUsingConfiguredSerializer_CamelCaseAndStringEnums()
+	{
+		// Arrange
+		var options = Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = true });
+		OutboundMessage? captured = null;
+		var store = A.Fake<IOutboxStore>();
+		A.CallTo(() => store.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._))
+			.Invokes((OutboundMessage m, CancellationToken _) => captured = m);
+
+		// The DEFAULT DispatchJsonSerializer already applies camelCase naming + JsonStringEnumConverter
+		// (DispatchJsonSerializer.cs:55-112) — the configured wire contract shared with the read path.
+		var middleware = new OutboxStagingMiddleware(options, store, new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance);
+
+		var context = new Excalibur.Dispatch.Messaging.MessageContext();
+
+		DispatchRequestDelegate next = (msg, ctx, ct) =>
+		{
+			var outboxContext = ctx.GetItem<OutboxContext>("OutboxContext")!;
+			outboxContext.AddOutboundMessage(new SerializerEngageMessage());
+			return new ValueTask<IMessageResult>(Excalibur.Dispatch.MessageResult.Success());
+		};
+
+		// Act
+		_ = await middleware.InvokeAsync(new SerializerEngageMessage(), context, next, CancellationToken.None);
+
+		// Assert
+		captured.ShouldNotBeNull();
+		var json = System.Text.Encoding.UTF8.GetString(captured!.Payload);
+
+		// String enum (configured JsonStringEnumConverter) — RED on the raw-default write which emits the
+		// numeric enum value.
+		json.ShouldContain("Active");
+		json.ShouldNotContain("\"Status\":1");
+
+		// camelCase property naming (configured) — RED on the raw-default PascalCase write.
+		json.ShouldContain("\"status\"");
+	}
+
+	private enum EngageStatus
+	{
+		Pending = 0,
+		Active = 1,
+	}
+
+	private sealed class SerializerEngageMessage : IDispatchMessage
+	{
+		public EngageStatus Status { get; init; } = EngageStatus.Active;
 	}
 
 	private sealed class StagedTestMessage : IDispatchMessage

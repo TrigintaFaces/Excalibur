@@ -31,7 +31,7 @@ public static class PluggableSerializationServiceCollectionExtensions
 	///   <item><see cref="IPayloadSerializer"/> - Singleton facade for internal serialization</item>
 	/// </list>
 	/// <para>
-	/// By default, JSON (System.Text.Json) is the current serializer (ADR-295).
+	/// By default, JSON (System.Text.Json) is the current serializer.
 	/// MemoryPack and other binary formats are opt-in via provider packages.
 	/// Use <see cref="WithSerialization"/> to customize this behavior.
 	/// </para>

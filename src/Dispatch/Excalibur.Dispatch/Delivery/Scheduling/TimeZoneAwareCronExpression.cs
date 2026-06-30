@@ -24,7 +24,7 @@ public sealed class TimeZoneAwareCronExpression : ICronExpression, ICronExpressi
 	/// auto-detects a 6-field expression by counting whitespace-separated fields
 	/// so callers can pass either <c>"*/10 * * * *"</c> (5-field) or
 	/// <c>"*/10 * * * * *"</c> (6-field) without first tuning
-	/// <see cref="Excalibur.Dispatch.Options.Scheduling.CronScheduleOptions.IncludeSeconds"/>. [bd-rjj907]
+	/// <see cref="Excalibur.Dispatch.Options.Scheduling.CronScheduleOptions.IncludeSeconds"/>.
 	/// </param>
 	public TimeZoneAwareCronExpression(string expression, TimeZoneInfo? timeZone = null, bool includeSeconds = false)
 	{

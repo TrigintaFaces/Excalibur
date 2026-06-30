@@ -11,31 +11,40 @@ namespace Excalibur.Dispatch.Middleware.Validation;
 public static class ValidationPipelineExtensions
 {
 	/// <summary>
-	/// Adds validation middleware to the dispatch pipeline.
+	/// Adds the validation <em>middleware only</em> to the dispatch pipeline, without registering any
+	/// validator infrastructure.
 	/// </summary>
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The builder for fluent configuration. </returns>
 	/// <remarks>
 	/// <para>
-	/// The validation middleware runs registered <c>IValidator&lt;T&gt;</c> implementations
-	/// against the incoming message before passing it to downstream handlers.
-	/// If validation fails, a <see cref="Excalibur.Dispatch.Exceptions.ValidationException"/> is thrown.
+	/// <strong>Precondition (loud):</strong> this method adds <see cref="ValidationMiddleware"/> but does
+	/// <em>not</em> register the validator resolver or any <c>IValidator&lt;T&gt;</c>. If no validator
+	/// infrastructure is registered, the middleware has nothing to run and messages pass through
+	/// unvalidated. Use this overload only when you are wiring validator infrastructure yourself (e.g.
+	/// <c>services.AddDispatchValidation()</c> plus your own <c>IValidator&lt;T&gt;</c> registrations).
 	/// </para>
 	/// <para>
-	/// Validators must be registered separately in the DI container. This method only
-	/// adds the middleware to the pipeline.
+	/// For the batteries-included path that registers the validator infrastructure <em>and</em> the
+	/// middleware in one call, use
+	/// <see cref="Excalibur.Dispatch.Validation.ValidationDispatchBuilderExtensions.UseValidation(Excalibur.Dispatch.Configuration.IDispatchBuilder)"/>.
+	/// </para>
+	/// <para>
+	/// The validation middleware runs registered <c>IValidator&lt;T&gt;</c> implementations against the
+	/// incoming message before passing it to downstream handlers. If validation fails, a
+	/// <see cref="Excalibur.Dispatch.Exceptions.ValidationException"/> is thrown.
 	/// </para>
 	/// <para>
 	/// Recommended pipeline order:
 	/// <code>
 	/// builder.UseExceptionMapping()
-	///        .UseValidation()      // Validate early, before authorization
+	///        .UseValidationMiddleware() // Validate early, before authorization (validators registered separately)
 	///        .UseAuthorization()
 	///        .UseRetry();
 	/// </code>
 	/// </para>
 	/// </remarks>
-	public static IDispatchBuilder UseValidation(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseValidationMiddleware(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 

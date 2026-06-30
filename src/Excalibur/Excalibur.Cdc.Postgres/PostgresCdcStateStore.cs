@@ -57,7 +57,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 
 		var sql = $@"
 			SELECT position FROM {_fullTableName}
-			WHERE processor_id = @ProcessorId AND slot_name = @SlotName AND table_name IS NULL
+			WHERE processor_id = @ProcessorId AND slot_name = @SlotName AND table_name = ''
 			ORDER BY updated_at DESC LIMIT 1";
 
 		var position = await connection
@@ -83,8 +83,8 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 
 		var sql = $@"
 			INSERT INTO {_fullTableName} (processor_id, slot_name, table_name, position, updated_at)
-			VALUES (@ProcessorId, @SlotName, NULL, @Position, @UpdatedAt)
-			ON CONFLICT (processor_id, slot_name, COALESCE(table_name, ''))
+			VALUES (@ProcessorId, @SlotName, '', @Position, @UpdatedAt)
+			ON CONFLICT (processor_id, slot_name, table_name)
 			DO UPDATE SET position = @Position, updated_at = @UpdatedAt";
 
 		_ = await connection
@@ -134,8 +134,8 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		var sql = $@"
 			INSERT INTO {_fullTableName}
 			       (processor_id, slot_name, table_name, position, last_event_time, updated_at, event_count)
-			VALUES (@ProcessorId, @SlotName, @TableName, @Position, @LastEventTime, @UpdatedAt, @EventCount)
-			ON CONFLICT (processor_id, slot_name, COALESCE(table_name, ''))
+			VALUES (@ProcessorId, @SlotName, COALESCE(@TableName, ''), @Position, @LastEventTime, @UpdatedAt, @EventCount)
+			ON CONFLICT (processor_id, slot_name, table_name)
 			DO UPDATE SET position = @Position, last_event_time = @LastEventTime,
 			              updated_at = @UpdatedAt, event_count = {_fullTableName}.event_count + @EventCount";
 
@@ -183,7 +183,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 
 		var sql = $@"
 			SELECT position FROM {_fullTableName}
-			WHERE processor_id = @ProcessorId AND table_name IS NULL
+			WHERE processor_id = @ProcessorId AND table_name = ''
 			ORDER BY updated_at DESC LIMIT 1";
 
 		var position = await connection
@@ -213,8 +213,8 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 
 		var sql = $@"
 			INSERT INTO {_fullTableName} (processor_id, slot_name, table_name, position, updated_at)
-			VALUES (@ProcessorId, @SlotName, NULL, @Position, @UpdatedAt)
-			ON CONFLICT (processor_id, slot_name, COALESCE(table_name, ''))
+			VALUES (@ProcessorId, @SlotName, '', @Position, @UpdatedAt)
+			ON CONFLICT (processor_id, slot_name, table_name)
 			DO UPDATE SET position = @Position, updated_at = @UpdatedAt";
 
 		_ = await connection
@@ -243,7 +243,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 
 		var sql = $@"
 			SELECT DISTINCT processor_id AS ProcessorId, position AS Position
-			FROM {_fullTableName} WHERE table_name IS NULL ORDER BY processor_id";
+			FROM {_fullTableName} WHERE table_name = '' ORDER BY processor_id";
 
 		var rows = await connection
 			.QueryAsync<(string ProcessorId, string Position)>(new CommandDefinition(sql, cancellationToken: cancellationToken))
@@ -297,10 +297,10 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		var createTableSql = $@"
 			CREATE TABLE IF NOT EXISTS {_fullTableName} (
 				processor_id VARCHAR(255) NOT NULL, slot_name VARCHAR(255) NOT NULL,
-				table_name VARCHAR(255), position VARCHAR(32) NOT NULL,
+				table_name VARCHAR(255) NOT NULL DEFAULT '', position VARCHAR(32) NOT NULL,
 				last_event_time TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				event_count BIGINT NOT NULL DEFAULT 0,
-				CONSTRAINT pk_{_tableName} PRIMARY KEY (processor_id, slot_name, COALESCE(table_name, ''))
+				CONSTRAINT pk_{_tableName} PRIMARY KEY (processor_id, slot_name, table_name)
 			)";
 		_ = await connection.ExecuteAsync(new CommandDefinition(createTableSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
 

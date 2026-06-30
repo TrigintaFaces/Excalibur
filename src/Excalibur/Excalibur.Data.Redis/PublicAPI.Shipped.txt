@@ -1,5 +1,12 @@
 #nullable enable
 Excalibur.Data.Redis.Diagnostics.DataRedisEventId
+Excalibur.Data.Redis.IRedisDataBuilder
+Excalibur.Data.Redis.IRedisDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.Redis.IRedisDataBuilder!
+Excalibur.Data.Redis.IRedisDataBuilder.ConnectionMultiplexer(StackExchange.Redis.IConnectionMultiplexer! multiplexer) -> Excalibur.Data.Redis.IRedisDataBuilder!
+Excalibur.Data.Redis.IRedisDataBuilder.ConnectionMultiplexerFactory(System.Func<System.IServiceProvider!, StackExchange.Redis.IConnectionMultiplexer!>! factory) -> Excalibur.Data.Redis.IRedisDataBuilder!
+Excalibur.Data.Redis.IRedisDataBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.Redis.IRedisDataBuilder!
+Excalibur.Data.Redis.IRedisDataBuilder.Database(int database) -> Excalibur.Data.Redis.IRedisDataBuilder!
+Excalibur.Data.Redis.IRedisDataBuilder.KeyPrefix(string! prefix) -> Excalibur.Data.Redis.IRedisDataBuilder!
 Excalibur.Data.Redis.RedisConnectionPoolOptions
 Excalibur.Data.Redis.RedisConnectionPoolOptions.AbortOnConnectFail.get -> bool
 Excalibur.Data.Redis.RedisConnectionPoolOptions.AbortOnConnectFail.set -> void
@@ -52,15 +59,8 @@ Excalibur.Data.Redis.RedisProviderOptions.Pool.set -> void
 Excalibur.Data.Redis.RedisProviderOptions.RedisProviderOptions() -> void
 Excalibur.Data.Redis.RedisProviderOptions.UseSsl.get -> bool
 Excalibur.Data.Redis.RedisProviderOptions.UseSsl.set -> void
-Excalibur.Data.Redis.IRedisDataBuilder
-Excalibur.Data.Redis.IRedisDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.Redis.IRedisDataBuilder!
-Excalibur.Data.Redis.IRedisDataBuilder.ConnectionMultiplexer(StackExchange.Redis.IConnectionMultiplexer! multiplexer) -> Excalibur.Data.Redis.IRedisDataBuilder!
-Excalibur.Data.Redis.IRedisDataBuilder.ConnectionMultiplexerFactory(System.Func<System.IServiceProvider!, StackExchange.Redis.IConnectionMultiplexer!>! factory) -> Excalibur.Data.Redis.IRedisDataBuilder!
-Excalibur.Data.Redis.IRedisDataBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.Redis.IRedisDataBuilder!
-Excalibur.Data.Redis.IRedisDataBuilder.Database(int database) -> Excalibur.Data.Redis.IRedisDataBuilder!
-Excalibur.Data.Redis.IRedisDataBuilder.KeyPrefix(string! prefix) -> Excalibur.Data.Redis.IRedisDataBuilder!
+Microsoft.Extensions.DependencyInjection.RedisHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions.AddExcaliburRedis(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Redis.IRedisDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestFailed = 107002 -> int
 const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestSuccessful = 107001 -> int
 const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.DisposeError = 107004 -> int
@@ -86,3 +86,5 @@ const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.PoolStatsFailed = 107006
 const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ProviderRetryWarning = 107202 -> int
 const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.RetryWarning = 107200 -> int
 const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.TransactionExecutionFailed = 107103 -> int
+static Microsoft.Extensions.DependencyInjection.RedisHealthChecksBuilderExtensions.AddRedisHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "redis", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions.AddExcaliburRedis(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Redis.IRedisDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

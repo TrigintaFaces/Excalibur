@@ -17,7 +17,16 @@ namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 [RequiresDynamicCode("JSON serialization may require runtime code generation.")]
 internal sealed class JsonClaimCheckSerializer(JsonSerializerOptions? options = null) : ISerializer
 {
-	private readonly JsonSerializerOptions? _options = options;
+	// unv8i3: when no options are supplied, default to the framework-wide JSON policy
+	// (camelCase + case-insensitive) so payloads interop with every other ISerializer impl.
+	// Without this, null options fall through to System.Text.Json's PascalCase/case-sensitive
+	// defaults — a cross-serializer interop hazard and a convention violation.
+	private readonly JsonSerializerOptions _options = options ?? new JsonSerializerOptions
+	{
+		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+		PropertyNameCaseInsensitive = true,
+		WriteIndented = false,
+	};
 
 	/// <inheritdoc/>
 	public string Name => "Json-Abstraction";

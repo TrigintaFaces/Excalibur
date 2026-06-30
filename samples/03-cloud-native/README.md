@@ -66,4 +66,4 @@ dotnet run --project samples/03-cloud-native/CloudNativePatterns.Examples/ClaimC
 
 ---
 
-*Category: Cloud-Native | Sprint 428*
+*Category: Cloud-Native*

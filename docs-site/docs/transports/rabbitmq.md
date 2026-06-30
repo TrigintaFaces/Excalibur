@@ -159,6 +159,25 @@ services.Configure<RabbitMqOptions>(options =>
 });
 ```
 
+#### Automatic Connection Recovery (Fluent Builder)
+
+When configuring the connection through the fluent builder, use `AutomaticRecovery` to enable recovery and set the reconnection interval in one call:
+
+```csharp
+services.AddRabbitMQTransport(rmq =>
+{
+    rmq.HostName("rabbitmq")
+       .AutomaticRecovery(enabled: true, networkRecoveryInterval: TimeSpan.FromSeconds(10));
+});
+```
+
+`NetworkRecoveryInterval` is the delay between reconnection attempts after a connection drop. When the `networkRecoveryInterval` argument is `null`, the existing configured value is retained.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `AutomaticRecoveryEnabled` | `bool` | `true` | Reconnects automatically after a connection drop. |
+| `NetworkRecoveryInterval` | `TimeSpan` | 10 seconds | Delay between reconnection attempts. |
+
 ### CloudEvents Options
 Use `RabbitMqCloudEventOptions` for CloudEvents-specific features:
 

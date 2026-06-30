@@ -1,21 +1,22 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.ElasticSearch.Resilience;
+using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Resilience;
 
 /// <summary>
-/// Unit tests for the <see cref="CircuitBreakerState"/> enum.
+/// Unit tests for the canonical <see cref="CircuitState"/> enum (bd-116roh: replaces the removed
+/// per-package <c>Excalibur.Data.ElasticSearch.Resilience.CircuitBreakerState</c> with the shared
+/// <c>Excalibur.Dispatch.Resilience.CircuitState</c>).
 /// </summary>
 /// <remarks>
-/// Sprint 514 (S514.2): Resilience unit tests.
-/// Tests verify enum values for circuit breaker states.
+/// Sprint 514 (S514.2): Resilience unit tests — updated S856 (bd-116roh) to use the canonical enum.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Elasticsearch")]
 [Trait(TraitNames.Feature, TestFeatures.Resilience)]
-public sealed class CircuitBreakerStateShould
+public sealed class CircuitStateShould
 {
 	#region Enum Value Tests
 
@@ -23,21 +24,21 @@ public sealed class CircuitBreakerStateShould
 	public void DefineClosedAsZero()
 	{
 		// Assert
-		((int)CircuitBreakerState.Closed).ShouldBe(0);
+		((int)CircuitState.Closed).ShouldBe(0);
 	}
 
 	[Fact]
 	public void DefineOpenAsOne()
 	{
 		// Assert
-		((int)CircuitBreakerState.Open).ShouldBe(1);
+		((int)CircuitState.Open).ShouldBe(1);
 	}
 
 	[Fact]
 	public void DefineHalfOpenAsTwo()
 	{
 		// Assert
-		((int)CircuitBreakerState.HalfOpen).ShouldBe(2);
+		((int)CircuitState.HalfOpen).ShouldBe(2);
 	}
 
 	#endregion
@@ -48,7 +49,7 @@ public sealed class CircuitBreakerStateShould
 	public void HaveThreeDefinedValues()
 	{
 		// Act
-		var values = Enum.GetValues<CircuitBreakerState>();
+		var values = Enum.GetValues<CircuitState>();
 
 		// Assert
 		values.Length.ShouldBe(3);
@@ -58,12 +59,12 @@ public sealed class CircuitBreakerStateShould
 	public void ContainAllExpectedStates()
 	{
 		// Act
-		var values = Enum.GetValues<CircuitBreakerState>();
+		var values = Enum.GetValues<CircuitState>();
 
 		// Assert
-		values.ShouldContain(CircuitBreakerState.Closed);
-		values.ShouldContain(CircuitBreakerState.Open);
-		values.ShouldContain(CircuitBreakerState.HalfOpen);
+		values.ShouldContain(CircuitState.Closed);
+		values.ShouldContain(CircuitState.Open);
+		values.ShouldContain(CircuitState.HalfOpen);
 	}
 
 	#endregion
@@ -71,26 +72,26 @@ public sealed class CircuitBreakerStateShould
 	#region Enum Parse Tests
 
 	[Theory]
-	[InlineData("Closed", CircuitBreakerState.Closed)]
-	[InlineData("Open", CircuitBreakerState.Open)]
-	[InlineData("HalfOpen", CircuitBreakerState.HalfOpen)]
-	public void ParseFromString_WithValidName(string name, CircuitBreakerState expected)
+	[InlineData("Closed", CircuitState.Closed)]
+	[InlineData("Open", CircuitState.Open)]
+	[InlineData("HalfOpen", CircuitState.HalfOpen)]
+	public void ParseFromString_WithValidName(string name, CircuitState expected)
 	{
 		// Act
-		var result = Enum.Parse<CircuitBreakerState>(name);
+		var result = Enum.Parse<CircuitState>(name);
 
 		// Assert
 		result.ShouldBe(expected);
 	}
 
 	[Theory]
-	[InlineData("closed", CircuitBreakerState.Closed)]
-	[InlineData("OPEN", CircuitBreakerState.Open)]
-	[InlineData("halfopen", CircuitBreakerState.HalfOpen)]
-	public void ParseFromString_WithCaseInsensitiveMatch(string name, CircuitBreakerState expected)
+	[InlineData("closed", CircuitState.Closed)]
+	[InlineData("OPEN", CircuitState.Open)]
+	[InlineData("halfopen", CircuitState.HalfOpen)]
+	public void ParseFromString_WithCaseInsensitiveMatch(string name, CircuitState expected)
 	{
 		// Act
-		var result = Enum.Parse<CircuitBreakerState>(name, ignoreCase: true);
+		var result = Enum.Parse<CircuitState>(name, ignoreCase: true);
 
 		// Assert
 		result.ShouldBe(expected);
@@ -104,21 +105,21 @@ public sealed class CircuitBreakerStateShould
 	public void HaveCorrectNameForClosed()
 	{
 		// Assert
-		CircuitBreakerState.Closed.ToString().ShouldBe("Closed");
+		CircuitState.Closed.ToString().ShouldBe("Closed");
 	}
 
 	[Fact]
 	public void HaveCorrectNameForOpen()
 	{
 		// Assert
-		CircuitBreakerState.Open.ToString().ShouldBe("Open");
+		CircuitState.Open.ToString().ShouldBe("Open");
 	}
 
 	[Fact]
 	public void HaveCorrectNameForHalfOpen()
 	{
 		// Assert
-		CircuitBreakerState.HalfOpen.ToString().ShouldBe("HalfOpen");
+		CircuitState.HalfOpen.ToString().ShouldBe("HalfOpen");
 	}
 
 	#endregion
@@ -129,14 +130,14 @@ public sealed class CircuitBreakerStateShould
 	public void ClosedState_IsDefault()
 	{
 		// Assert - Default enum value should be Closed (0)
-		default(CircuitBreakerState).ShouldBe(CircuitBreakerState.Closed);
+		default(CircuitState).ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]
 	public void ClosedState_AllowsRequests()
 	{
 		// This is a semantic test - Closed state should be the "healthy" state
-		var state = CircuitBreakerState.Closed;
+		var state = CircuitState.Closed;
 		((int)state).ShouldBe(0); // Closed = 0 indicates default/healthy
 	}
 
@@ -144,15 +145,15 @@ public sealed class CircuitBreakerStateShould
 	public void OpenState_BlocksRequests()
 	{
 		// This is a semantic test - Open state indicates failures
-		var state = CircuitBreakerState.Open;
-		((int)state).ShouldBeGreaterThan((int)CircuitBreakerState.Closed);
+		var state = CircuitState.Open;
+		((int)state).ShouldBeGreaterThan((int)CircuitState.Closed);
 	}
 
 	[Fact]
 	public void HalfOpenState_IsRecoveryPhase()
 	{
 		// This is a semantic test - HalfOpen is between Closed and Open logically
-		var state = CircuitBreakerState.HalfOpen;
+		var state = CircuitState.HalfOpen;
 		((int)state).ShouldBe(2); // Highest value indicates test phase
 	}
 

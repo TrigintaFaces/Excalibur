@@ -17,7 +17,6 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 /// - InMemoryAuditStore.cs (duplicate EventId throw, Count property)
 /// - RbacAuditStore.cs (CanAccessEvent fallback return false)
 /// - AuditLoggingServiceCollectionExtensions.cs (InnerAuditStoreResolutionFailed)
-/// - AuditHasher.cs (null EventHash in VerifyHash, metadata null value)
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Compliance)]
@@ -30,7 +29,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_StoreAsync_ThrowsOnDuplicateEventId()
 	{
 		// Arrange - store an event, then try storing another with the same EventId
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		var auditEvent = new AuditEvent
 		{
@@ -68,7 +67,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_Count_ReturnsCorrectValue()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		store.Count.ShouldBe(0);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -109,7 +108,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_StoreAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -132,7 +131,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_GetByIdAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -145,7 +144,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_QueryAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -158,7 +157,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -171,7 +170,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_VerifyChainIntegrityAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -187,7 +186,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_GetLastEventAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -203,7 +202,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_StoreAsync_ThrowsOnNullEvent()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => store.StoreAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
@@ -211,7 +210,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_GetByIdAsync_ThrowsOnNullOrWhitespaceEventId()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.GetByIdAsync("", CancellationToken.None)).ConfigureAwait(false);
 		await Should.ThrowAsync<ArgumentException>(
@@ -221,7 +220,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_QueryAsync_ThrowsOnNullQuery()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => store.QueryAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
@@ -229,7 +228,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_CountAsync_ThrowsOnNullQuery()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => store.CountAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
@@ -241,7 +240,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_GetByIdAsync_ReturnsNullForNonExistentEvent()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var result = await store.GetByIdAsync("non-existent", CancellationToken.None).ConfigureAwait(false);
 		result.ShouldBeNull();
 	}
@@ -253,7 +252,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_QueryAsync_ReturnsEmptyForNonExistentTenant()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var result = await store.QueryAsync(
 			new AuditQuery { TenantId = "non-existent-tenant" },
 			CancellationToken.None).ConfigureAwait(false);
@@ -263,7 +262,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_CountAsync_ReturnsZeroForNonExistentTenant()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var count = await store.CountAsync(
 			new AuditQuery { TenantId = "non-existent-tenant" },
 			CancellationToken.None).ConfigureAwait(false);
@@ -278,7 +277,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_VerifyChainIntegrity_ReturnsValidForEmptyRange()
 	{
 		// Arrange - date range with no events
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		_ = await store.StoreAsync(new AuditEvent
 		{
 			EventId = "outside-range",
@@ -307,129 +306,13 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_GetLastEventAsync_ReturnsNullForUnknownTenant()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var result = await store.GetLastEventAsync("unknown-tenant", CancellationToken.None).ConfigureAwait(false);
 		result.ShouldBeNull();
 	}
 
 	#endregion
 
-	#region AuditHasher - VerifyHash Edge Cases
-
-	[Fact]
-	public void AuditHasher_VerifyHash_ReturnsFalse_WhenEventIsNull()
-	{
-		// Act & Assert - null event should return false
-		AuditHasher.VerifyHash(null!, null).ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AuditHasher_VerifyHash_ReturnsFalse_WhenEventHashIsNull()
-	{
-		// Arrange - event with null EventHash
-		var auditEvent = new AuditEvent
-		{
-			EventId = "no-hash",
-			EventType = AuditEventType.DataAccess,
-			Action = "Read",
-			Outcome = AuditOutcome.Success,
-			Timestamp = DateTimeOffset.UtcNow,
-			ActorId = "user-1",
-			EventHash = null
-		};
-
-		// Act & Assert
-		AuditHasher.VerifyHash(auditEvent, null).ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_ThrowsOnNullEvent()
-	{
-		Should.Throw<ArgumentNullException>(() => AuditHasher.ComputeHash(null!, null));
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_HandlesNullMetadataValue()
-	{
-		// Arrange - metadata with null value
-		var auditEvent = new AuditEvent
-		{
-			EventId = "null-meta-val",
-			EventType = AuditEventType.DataAccess,
-			Action = "Read",
-			Outcome = AuditOutcome.Success,
-			Timestamp = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero),
-			ActorId = "user-1",
-			Metadata = new Dictionary<string, string>
-			{
-				["key1"] = "value1",
-				["key2"] = null! // null metadata value
-			}
-		};
-
-		// Act - should not throw, treats null as empty string
-		var hash = AuditHasher.ComputeHash(auditEvent, null);
-
-		// Assert
-		hash.ShouldNotBeNullOrEmpty();
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_DiffersByPreviousHash()
-	{
-		// Arrange
-		var auditEvent = new AuditEvent
-		{
-			EventId = "prev-hash-test",
-			EventType = AuditEventType.DataAccess,
-			Action = "Read",
-			Outcome = AuditOutcome.Success,
-			Timestamp = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero),
-			ActorId = "user-1"
-		};
-
-		// Act
-		var hashWithNull = AuditHasher.ComputeHash(auditEvent, null);
-		var hashWithValue = AuditHasher.ComputeHash(auditEvent, "some-previous-hash");
-
-		// Assert - different previous hash produces different event hash
-		hashWithNull.ShouldNotBe(hashWithValue);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeGenesisHash_DiffersByTenantId()
-	{
-		var initTime = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-		var hash1 = AuditHasher.ComputeGenesisHash(null, initTime);
-		var hash2 = AuditHasher.ComputeGenesisHash("tenant-a", initTime);
-		var hash3 = AuditHasher.ComputeGenesisHash("tenant-b", initTime);
-
-		hash1.ShouldNotBe(hash2);
-		hash2.ShouldNotBe(hash3);
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeHash_WithEmptyMetadata_ProducesConsistentHash()
-	{
-		var auditEvent = new AuditEvent
-		{
-			EventId = "empty-meta",
-			EventType = AuditEventType.DataAccess,
-			Action = "Read",
-			Outcome = AuditOutcome.Success,
-			Timestamp = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero),
-			ActorId = "user-1",
-			Metadata = new Dictionary<string, string>() // empty, not null
-		};
-
-		var hash1 = AuditHasher.ComputeHash(auditEvent, null);
-		var hash2 = AuditHasher.ComputeHash(auditEvent, null);
-
-		hash1.ShouldBe(hash2);
-	}
-
-	#endregion
 
 	#region DefaultAuditLogger - Constructor Null Checks
 
@@ -609,7 +492,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public void AddAuditLogging_Factory_ThrowsOnNullServices()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => AuditLoggingServiceCollectionExtensions.AddAuditLogging(null!, _ => new InMemoryAuditStore()));
+			() => AuditLoggingServiceCollectionExtensions.AddAuditLogging(null!, _ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create())));
 	}
 
 	[Fact]
@@ -678,8 +561,8 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public void AddAuditLogging_Factory_IsIdempotent()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore());
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore());
+		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
 
 		var storeDescriptors = services.Where(d => d.ServiceType == typeof(IAuditStore)).ToList();
 		storeDescriptors.Count.ShouldBe(1);

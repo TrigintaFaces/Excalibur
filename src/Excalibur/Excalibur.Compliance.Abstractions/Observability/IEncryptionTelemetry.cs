@@ -24,7 +24,7 @@ namespace Excalibur.Compliance;
 /// <see cref="GetService"/> with <c>typeof(IEncryptionTelemetryDetails)</c>.
 /// </para>
 /// <para>
-/// <strong>ISP Split (Sprint 551):</strong> UpdateProviderHealth, RecordFieldsMigrated,
+/// <strong>ISP Split:</strong> UpdateProviderHealth, RecordFieldsMigrated,
 /// RecordCacheAccess, and UpdateActiveKeyCount moved to <see cref="IEncryptionTelemetryDetails"/>
 /// to keep the core interface at or below 5 methods.
 /// </para>

@@ -187,7 +187,7 @@ public static class KafkaConfluentFormatExtensions
 
 		foreach (var registration in registrations)
 		{
-			if (registration.ImplementationInstance is MessageBusRegistration busRegistration &&
+			if (registration.GetImplementationInstance() is MessageBusRegistration busRegistration &&
 				string.Equals(busRegistration.Name, "kafka", StringComparison.OrdinalIgnoreCase))
 			{
 				_ = services.Remove(registration);

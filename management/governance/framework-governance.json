@@ -374,7 +374,8 @@
       "samples/11-real-world/HealthcareApi/HealthcareApi.csproj",
       "samples/11-real-world/MultiTenantEventSourcing/MultiTenantEventSourcing.csproj",
       "samples/11-real-world/OrderProcessing/OrderProcessing.csproj",
-      "samples/11-real-world/ProofOfLife/ProofOfLife.csproj"
+      "samples/11-real-world/ProofOfLife/ProofOfLife.csproj",
+      "samples/12-migration/MediatRMigration/Excalibur.MediatRMigration.csproj"
     ],
     "quarantined": [],
     "smokeProfiles": [
@@ -837,6 +838,11 @@
         "project": "samples/11-real-world/ProofOfLife/ProofOfLife.csproj",
         "mode": "build",
         "timeoutSeconds": null
+      },
+      {
+        "project": "samples/12-migration/MediatRMigration/Excalibur.MediatRMigration.csproj",
+        "mode": "run",
+        "timeoutSeconds": 20
       }
     ]
   },

@@ -34,6 +34,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Firestore\Excalibur.EventSourcing.Firestore.csproj" />
     <!-- Redis event sourcing package -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Redis\Excalibur.EventSourcing.Redis.csproj" />
+    <!-- S860 bd-bdzajd: unit-test the internal Sqlite conflict re-read (ReadActualVersionOnFreshConnectionAsync) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Sqlite\Excalibur.EventSourcing.Sqlite.csproj" />
     <!-- From Excalibur.EventSourcing.Postgres.Tests (S510.3) -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
     <!-- Sprint 518: MongoDB and Elasticsearch MV Provider tests -->

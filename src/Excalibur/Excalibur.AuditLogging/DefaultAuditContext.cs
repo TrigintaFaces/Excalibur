@@ -125,8 +125,14 @@ internal sealed partial class DefaultAuditContext : IAuditContext
 		}
 		catch (Exception ex)
 		{
+			// Audit is compliance-critical infrastructure → fail CLOSED. A store-persistence failure must
+			// surface to the caller, never be silently swallowed (the old fail-open return null masked the
+			// genuinely fail-closed IAuditLogger.LogAsync). MaxAssertionsPerScope saturation above stays a
+			// deliberate log+drop — that is a distinct, bounded-by-design path, not a persistence failure.
 			LogAuditContextLoggingFailed(ex, "AssertAsync");
-			return null;
+			throw new AuditPersistenceException(
+				"Failed to persist audit assertion; audit is fail-closed and the failure is propagated.",
+				ex);
 		}
 	}
 
@@ -168,15 +174,13 @@ internal sealed partial class DefaultAuditContext : IAuditContext
 		}
 		catch (Exception ex)
 		{
+			// Fail CLOSED on a store-persistence failure (the old -1 sentinel was fail-open, masking a real
+			// persistence error as a successful-but-dropped observation). The MaxAssertionsPerScope sentinel
+			// above is a SEPARATE, deliberate log+drop path and intentionally still returns the sentinel.
 			LogAuditContextLoggingFailed(ex, "ObserveAsync");
-
-			return new AuditEventId
-			{
-				EventId = string.Empty,
-				EventHash = string.Empty,
-				SequenceNumber = -1,
-				RecordedAt = _timeProvider.GetUtcNow()
-			};
+			throw new AuditPersistenceException(
+				"Failed to persist audit observation; audit is fail-closed and the failure is propagated.",
+				ex);
 		}
 	}
 

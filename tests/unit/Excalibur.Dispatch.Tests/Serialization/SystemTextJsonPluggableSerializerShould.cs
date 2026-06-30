@@ -53,14 +53,13 @@ public sealed class SystemTextJsonPluggableSerializerShould
 	}
 
 	[Fact]
-	public void Serialize_WithNull_ProducesValidOutput()
+	public void Serialize_WithNull_ThrowsArgumentNullException()
 	{
-		// Act — System.Text.Json serializes null as the literal "null"
-		var result = ((ISerializer)_sut).SerializeToBytes<TestMessage>(null!);
-
-		// Assert
-		result.ShouldNotBeNull();
-		result.Length.ShouldBeGreaterThan(0);
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior.
+		_ = Should.Throw<ArgumentNullException>(() =>
+			((ISerializer)_sut).SerializeToBytes<TestMessage>(null!));
 	}
 
 	[Fact]

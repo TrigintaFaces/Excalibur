@@ -50,6 +50,9 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		A.CallTo(() => _context.Items).Returns(new Dictionary<string, object>());
 		A.CallTo(() => _keyBuilder.CreateKey(A<IDispatchAction>._, A<IMessageContext>._))
 			.Returns("test-cache-key");
+		// f8pdos: direct invalidation keys are folded through the key builder before removal — deterministic transform.
+		A.CallTo(() => _keyBuilder.CreateKey(A<string>._, A<string?>._, A<string?>._))
+			.ReturnsLazily((string logicalKey, string? tenantId, string? userId) => $"sk:{logicalKey}");
 	}
 
 	private CachingMiddleware CreateMiddleware(
@@ -803,7 +806,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Memory,
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, tagTracker: tagTracker, memoryCache: memoryCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, tagTracker: tagTracker, memoryCache: memoryCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns(["tag1"]);
@@ -817,7 +820,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 
 		// Assert - both tag-resolved keys and direct keys should be removed
 		A.CallTo(() => memoryCache.Remove("tag-key-1")).MustHaveHappened();
-		A.CallTo(() => memoryCache.Remove("direct-key")).MustHaveHappened();
+		A.CallTo(() => memoryCache.Remove("sk:direct-key")).MustHaveHappened();
 	}
 
 	[Fact]
@@ -834,7 +837,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Distributed,
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, tagTracker: tagTracker, memoryCache: memoryCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, tagTracker: tagTracker, memoryCache: memoryCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns(["tag1"]);
@@ -849,7 +852,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Assert -- tracker resolves tags to keys, memory cache removes all
 		A.CallTo(() => memoryCache.Remove("tag-key-1")).MustHaveHappened();
 		A.CallTo(() => tagTracker.UnregisterKeyAsync("tag-key-1", _ct)).MustHaveHappened();
-		A.CallTo(() => memoryCache.Remove("direct-key")).MustHaveHappened();
+		A.CallTo(() => memoryCache.Remove("sk:direct-key")).MustHaveHappened();
 	}
 
 	// =========================================================================
@@ -866,7 +869,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Distributed
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns([]);
@@ -880,7 +883,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 
 		// Assert
 		A.CallTo(() => hybridCache.RemoveAsync(
-			A<IEnumerable<string>>.That.Contains("dist-key"), _ct)).MustHaveHappened();
+			A<IEnumerable<string>>.That.Contains("sk:dist-key"), _ct)).MustHaveHappened();
 	}
 
 	// =========================================================================

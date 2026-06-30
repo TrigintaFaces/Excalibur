@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
@@ -89,7 +90,7 @@ public sealed class PollyCircuitBreakerWrapperShould : UnitTestBase, IAsyncDispo
 		_wrapper = new PollyCircuitBreakerWrapper(_adapter);
 
 		// Act & Assert
-		_wrapper.State.ShouldBe(ResilienceState.Closed);
+		_wrapper.State.ShouldBe(CircuitState.Closed);
 		_wrapper.State.ShouldBe(_adapter.State);
 	}
 
@@ -213,7 +214,7 @@ public sealed class PollyCircuitBreakerWrapperShould : UnitTestBase, IAsyncDispo
 
 		// Act & Assert - should not throw
 		_wrapper.Reset();
-		_wrapper.State.ShouldBe(ResilienceState.Closed);
+		_wrapper.State.ShouldBe(CircuitState.Closed);
 	}
 
 	#endregion

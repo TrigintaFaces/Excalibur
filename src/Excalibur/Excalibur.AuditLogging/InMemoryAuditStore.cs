@@ -20,34 +20,49 @@ namespace Excalibur.AuditLogging;
 /// </para>
 /// <para> For production, use a persistent store implementation (SQL Server, Postgres, etc.). </para>
 /// </remarks>
-internal sealed class InMemoryAuditStore : IAuditStore
+internal sealed class InMemoryAuditStore : IAuditStore, IDisposable
 {
 	private readonly ConcurrentDictionary<string, AuditEvent> _eventsById = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, List<AuditEvent>> _eventsByTenant = new(StringComparer.Ordinal);
-	private readonly Lock _sequenceLock = new();
+	private readonly SemaphoreSlim _sequenceSemaphore = new(1, 1);
+	private readonly IAuditIntegrityStrategy _integrity;
 	private long _sequenceNumber;
-	private readonly DateTimeOffset _chainInitTime = DateTimeOffset.UtcNow;
+	private volatile bool _disposed;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="InMemoryAuditStore"/> class.
+	/// </summary>
+	/// <param name="integrity">The shared audit-integrity strategy (keyed-MAC + hash-chain).</param>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="integrity"/> is null.</exception>
+	public InMemoryAuditStore(IAuditIntegrityStrategy integrity) =>
+		_integrity = integrity ?? throw new ArgumentNullException(nameof(integrity));
 
 	/// <inheritdoc />
-	public Task<AuditEventId> StoreAsync(AuditEvent auditEvent, CancellationToken cancellationToken)
+	public async Task<AuditEventId> StoreAsync(AuditEvent auditEvent, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(auditEvent);
 		cancellationToken.ThrowIfCancellationRequested();
 
 		var tenantKey = auditEvent.TenantId ?? "_default_";
 
-		lock (_sequenceLock)
+		// Async-safe critical section: the keyed-MAC tag computation is async, so the chain-ordering
+		// invariant (read prior tag -> compute this tag -> append) is held under a SemaphoreSlim, not a
+		// lock (you cannot await inside a lock). Serializing here keeps concurrent appends from forking the chain.
+		await _sequenceSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
 		{
 			_sequenceNumber++;
 			var sequenceNumber = _sequenceNumber;
 
-			// Get previous hash for chain linking
+			// Prior tag for chain linking (null = genesis; the keyed MAC over null-prior + tenant-bearing
+			// canonical content makes a cross-tenant splice fail verification — qa71t5).
 			var previousHash = GetPreviousHash(tenantKey);
 
-			// Compute hash for this event
-			var eventHash = AuditHasher.ComputeHash(auditEvent, previousHash);
+			// Keyed integrity tag for this event.
+			var eventHash = await _integrity.ComputeTagAsync(
+				AuditEventCanonicalizer.Canonicalize(auditEvent), previousHash, cancellationToken).ConfigureAwait(false);
 
-			// Create stored event with hash and chain link
+			// Create stored event with tag and chain link
 			var storedEvent = auditEvent with { PreviousEventHash = previousHash, EventHash = eventHash };
 
 			// Store the event
@@ -62,13 +77,17 @@ internal sealed class InMemoryAuditStore : IAuditStore
 				tenantEvents.Add(storedEvent);
 			}
 
-			return Task.FromResult(new AuditEventId
+			return new AuditEventId
 			{
 				EventId = storedEvent.EventId,
 				EventHash = eventHash,
 				SequenceNumber = sequenceNumber,
 				RecordedAt = DateTimeOffset.UtcNow
-			});
+			};
+		}
+		finally
+		{
+			_ = _sequenceSemaphore.Release();
 		}
 	}
 
@@ -153,7 +172,7 @@ internal sealed class InMemoryAuditStore : IAuditStore
 	}
 
 	/// <inheritdoc />
-	public Task<AuditIntegrityResult> VerifyChainIntegrityAsync(
+	public async Task<AuditIntegrityResult> VerifyChainIntegrityAsync(
 		DateTimeOffset startDate,
 		DateTimeOffset endDate,
 		CancellationToken cancellationToken)
@@ -169,40 +188,43 @@ internal sealed class InMemoryAuditStore : IAuditStore
 
 		if (events.Count == 0)
 		{
-			return Task.FromResult(AuditIntegrityResult.Valid(0, startDate, endDate));
+			return AuditIntegrityResult.Valid(0, startDate, endDate);
 		}
 
 		var violationCount = 0;
 		string? firstViolationEventId = null;
 		string? violationDescription = null;
 
-		// Verify each event's hash
-		for (var i = 0; i < events.Count; i++)
+		// Verify each event's keyed tag against its stored prior tag (a missing tag is itself a violation).
+		foreach (var currentEvent in events)
 		{
-			var currentEvent = events[i];
-			var previousHash = currentEvent.PreviousEventHash;
+			var verified = currentEvent.EventHash is not null
+				&& await _integrity.VerifyAsync(
+					AuditEventCanonicalizer.Canonicalize(currentEvent),
+					currentEvent.PreviousEventHash,
+					currentEvent.EventHash,
+					cancellationToken).ConfigureAwait(false);
 
-			// Verify the current event's hash
-			if (!AuditHasher.VerifyHash(currentEvent, previousHash))
+			if (!verified)
 			{
 				violationCount++;
 				firstViolationEventId ??= currentEvent.EventId;
-				violationDescription ??= $"Hash mismatch for event '{currentEvent.EventId}' at {currentEvent.Timestamp:O}";
+				violationDescription ??= $"Integrity tag mismatch for event '{currentEvent.EventId}' at {currentEvent.Timestamp:O}";
 			}
 		}
 
 		if (violationCount > 0)
 		{
-			return Task.FromResult(AuditIntegrityResult.Invalid(
+			return AuditIntegrityResult.Invalid(
 				events.Count,
 				startDate,
 				endDate,
 				firstViolationEventId!,
 				violationDescription!,
-				violationCount));
+				violationCount);
 		}
 
-		return Task.FromResult(AuditIntegrityResult.Valid(events.Count, startDate, endDate));
+		return AuditIntegrityResult.Valid(events.Count, startDate, endDate);
 	}
 
 	/// <inheritdoc />
@@ -229,12 +251,29 @@ internal sealed class InMemoryAuditStore : IAuditStore
 	/// </summary>
 	public void Clear()
 	{
-		lock (_sequenceLock)
+		_sequenceSemaphore.Wait();
+		try
 		{
 			_eventsById.Clear();
 			_eventsByTenant.Clear();
 			_sequenceNumber = 0;
 		}
+		finally
+		{
+			_ = _sequenceSemaphore.Release();
+		}
+	}
+
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+		_sequenceSemaphore.Dispose();
 	}
 
 	/// <summary>
@@ -244,21 +283,16 @@ internal sealed class InMemoryAuditStore : IAuditStore
 
 	private string? GetPreviousHash(string tenantKey)
 	{
+		// Genesis is a null prior tag (qa71t5): no separate genesis seed is needed because each link's keyed
+		// MAC already covers the tenant via the canonical content, so a cross-tenant splice fails verification.
 		if (!_eventsByTenant.TryGetValue(tenantKey, out var tenantEvents))
 		{
-			// First event in chain - return genesis hash
-			return AuditHasher.ComputeGenesisHash(tenantKey == "_default_" ? null : tenantKey, _chainInitTime);
+			return null;
 		}
 
 		lock (tenantEvents)
 		{
-			var lastEvent = tenantEvents.LastOrDefault();
-			if (lastEvent is null)
-			{
-				return AuditHasher.ComputeGenesisHash(tenantKey == "_default_" ? null : tenantKey, _chainInitTime);
-			}
-
-			return lastEvent.EventHash;
+			return tenantEvents.LastOrDefault()?.EventHash;
 		}
 	}
 

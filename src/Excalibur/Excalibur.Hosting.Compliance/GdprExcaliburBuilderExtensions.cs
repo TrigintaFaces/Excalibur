@@ -17,9 +17,9 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <para>
 /// Thin bridge onto <see cref="IExcaliburBuilder"/> forwarding to the existing
 /// <c>AddGdprErasure</c> <see cref="IServiceCollection"/> extensions in
-/// <c>Excalibur.Compliance</c>. Closes S792-A6 composition-root gap per
-/// ADR-324 (Compliance package placement) — the physical package rename /
-/// migration to <c>Excalibur.Compliance</c> is deferred to S795 per ADR-324
+/// <c>Excalibur.Compliance</c>. Closes -A6 composition-root gap per
+/// (Compliance package placement) — the physical package rename /
+/// migration to <c>Excalibur.Compliance</c> is deferred to per
 /// §Open-Questions §2, so this bridge ships in the separate
 /// <c>Excalibur.Hosting.Compliance</c> package to avoid pulling heavy
 /// compliance transitive dependencies (MongoDB.Driver, Npgsql, QuestPDF) into

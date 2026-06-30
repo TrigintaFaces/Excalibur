@@ -42,9 +42,9 @@ internal static class LeaderElectionPostgresEventId
 	/// <summary>Leader election dispose error.</summary>
 	public const int LeaderElectionDisposeError = 107109;
 
-	/// <summary>A fencing token was issued on leadership acquisition (ADR-339).</summary>
+	/// <summary>A fencing token was issued on leadership acquisition.</summary>
 	public const int FencingTokenIssued = 107110;
 
-	/// <summary>Failed to mint a fencing token on leadership acquisition; leadership relinquished (ADR-339).</summary>
+	/// <summary>Failed to mint a fencing token on leadership acquisition; leadership relinquished.</summary>
 	public const int FencingTokenIssueError = 107111;
 }

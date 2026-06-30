@@ -14,7 +14,7 @@ namespace Excalibur.Data.Persistence;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Per S809 bd-x6rg45 + COMPASS msg 2189: minimal-wiring validators must fail at host
+/// minimal-wiring validators must fail at host
 /// start, not at first data access. Registering this as an <see cref="IHostedService"/>
 /// places the probe in the host's startup pipeline ahead of any domain workload.
 /// </para>

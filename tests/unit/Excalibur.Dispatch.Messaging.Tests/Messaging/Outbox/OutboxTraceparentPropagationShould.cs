@@ -220,6 +220,7 @@ public sealed class OutboxTraceparentPropagationShould
 		new(
 			Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = true }),
 			store,
+			new DispatchJsonSerializer(),
 			NullLogger<OutboxStagingMiddleware>.Instance);
 
 	/// <summary>

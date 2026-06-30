@@ -54,20 +54,23 @@ public sealed class ProtobufSerializationExtensionsShould
 	}
 
 	[Fact]
-	public void AddProtobufSerializer_UsesTryAdd_DoesNotOverrideExisting()
+	public void AddProtobufSerializer_OverridesExistingRegistration_LastWins()
 	{
 		// Arrange - register a fake serializer first
 		var services = new ServiceCollection();
 		var fakeSerializer = A.Fake<ISerializer>();
 		services.AddSingleton(fakeSerializer);
 
-		// Act - Protobuf should NOT override the existing registration (TryAdd)
+		// Act - single source of truth (bd-fbd23t): AddXSerializer deterministically overrides any
+		// prior ISerializer registration so the directly-resolved ISerializer agrees with the
+		// PluggableSerializationOptions.CurrentSerializerName path (both last-registration-wins).
 		_ = services.AddProtobufSerializer();
 
 		// Assert
 		using var provider = services.BuildServiceProvider();
 		var resolved = provider.GetRequiredService<ISerializer>();
-		resolved.ShouldBeSameAs(fakeSerializer);
+		resolved.ShouldNotBeSameAs(fakeSerializer);
+		resolved.Name.ShouldBe("Protobuf");
 	}
 
 	[Fact]
@@ -158,20 +161,21 @@ public sealed class ProtobufSerializationExtensionsShould
 	}
 
 	[Fact]
-	public void AddProtobufSerializer_WithConfigure_UsesTryAdd_DoesNotOverrideExisting()
+	public void AddProtobufSerializer_WithConfigure_OverridesExistingRegistration_LastWins()
 	{
 		// Arrange - register a fake serializer first
 		var services = new ServiceCollection();
 		var fakeSerializer = A.Fake<ISerializer>();
 		services.AddSingleton(fakeSerializer);
 
-		// Act
+		// Act - single source of truth (bd-fbd23t): last-registration-wins on the direct ISerializer path.
 		_ = services.AddProtobufSerializer(_ => { });
 
 		// Assert
 		using var provider = services.BuildServiceProvider();
 		var resolved = provider.GetRequiredService<ISerializer>();
-		resolved.ShouldBeSameAs(fakeSerializer);
+		resolved.ShouldNotBeSameAs(fakeSerializer);
+		resolved.Name.ShouldBe("Protobuf");
 	}
 
 	[Fact]

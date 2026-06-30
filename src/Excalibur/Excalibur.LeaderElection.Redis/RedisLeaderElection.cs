@@ -72,7 +72,7 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 	/// (grace-only behavior — fully backward compatible, opt-in).
 	/// </param>
 	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/> (umemwa/ADR-339). When supplied, a monotonic fencing
+	/// An optional <see cref="IFencingTokenProvider"/>. When supplied, a monotonic fencing
 	/// token is issued at each leadership acquisition (at the <c>BecomeLeader</c> transition), advancing the
 	/// resource's high-water mark so a previous leader's token is rejected by the fencing middleware.
 	/// Defaults to <see langword="null"/> (no token issued — fully backward compatible, opt-in).
@@ -139,11 +139,31 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 
 		LogStarting(CandidateId, _lockKey);
 
-		await TryAcquireLockAsync(cancellationToken).ConfigureAwait(false);
-
-		// Start renewal loop
+		// Start the renewal loop BEFORE the initial acquire so leadership can never be held without a
+		// live renewer. RunRenewalLoopAsync waits one RenewInterval before its first action, so it cannot
+		// race the eager initial acquire (which StartAsync still awaits — preserving synchronous
+		// IsLeader-on-return). This makes "leadership declared with no active renewer" structurally
+		// inexpressible: the renewer task provably pre-exists any BecomeLeader().
 		_renewalCts = new CancellationTokenSource();
 		_renewalTask = RunRenewalLoopAsync(_renewalCts.Token);
+
+		try
+		{
+			await TryAcquireLockAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch
+		{
+			// A cancelled initial acquire must not leak the renewer we just started. Tear it down and
+			// reset start state so the caller can retry, then surface the original exception.
+			await StopRenewerAsync().ConfigureAwait(false);
+
+			lock (_lock)
+			{
+				_isStarted = false;
+			}
+
+			throw;
+		}
 	}
 
 	/// <inheritdoc/>
@@ -167,24 +187,13 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 		await StopCoreAsync().ConfigureAwait(false);
 	}
 
-	private async Task StopCoreAsync()
+	/// <summary>
+	/// Cancels, awaits, and disposes the renewal loop and its cancellation source, leaving both fields
+	/// null. Idempotent and safe when no renewer is running. Shared by the normal stop path and the
+	/// cancelled-start cleanup so a failed <see cref="StartAsync"/> never leaks a background renewer.
+	/// </summary>
+	private async Task StopRenewerAsync()
 	{
-		bool wasLeader;
-
-		lock (_lock)
-		{
-			if (!_isStarted)
-			{
-				return;
-			}
-
-			_isStarted = false;
-			wasLeader = _isLeader;
-		}
-
-		LogStopping(CandidateId);
-
-		// Stop renewal loop
 		if (_renewalCts != null)
 		{
 			await _renewalCts.CancelAsync().ConfigureAwait(false);
@@ -204,6 +213,26 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 			_renewalCts = null;
 			_renewalTask = null;
 		}
+	}
+
+	private async Task StopCoreAsync()
+	{
+		bool wasLeader;
+
+		lock (_lock)
+		{
+			if (!_isStarted)
+			{
+				return;
+			}
+
+			_isStarted = false;
+			wasLeader = _isLeader;
+		}
+
+		LogStopping(CandidateId);
+
+		await StopRenewerAsync().ConfigureAwait(false);
 
 		// Release lock if we hold it
 		if (wasLeader)
@@ -462,7 +491,7 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 	/// Mints a monotonic fencing token for the protected resource, retrying a bounded number of times
 	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (762uzn, fail-CLOSED). The caller mints
 	/// BEFORE declaring leadership and relinquishes if this throws, so the fence is always advanced before
-	/// fenced leadership is granted (umemwa/ADR-339 Decision 1).
+	/// fenced leadership is granted.
 	/// </summary>
 	/// <remarks>
 	/// The store-atomic mint (Redis <c>INCR</c>) advances the resource's cluster-wide high-water mark so a

@@ -121,6 +121,13 @@ internal sealed class Dispatcher(
 	private readonly Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<IMessageResult>>? _finalHandlerDelegate =
 		finalHandler is null ? null : finalHandler.HandleAsync;
 
+	// ec132p: lazily-computed guard that surfaces (loudly, once) any pipeline middleware the streaming
+	// dispatch paths bypass. The bypassed set is invariant for the container, so it is computed on first use.
+	private StreamingPipelineBypassGuard? _streamingBypassGuard;
+
+	private StreamingPipelineBypassGuard StreamingBypassGuard
+		=> _streamingBypassGuard ??= new StreamingPipelineBypassGuard(serviceProvider!);
+
 	/// <summary>
 	/// Dispatches a message through the pipeline with high-performance optimizations.
 	/// </summary>
@@ -2404,6 +2411,9 @@ internal sealed class Dispatcher(
 			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
 		}
 
+		// ec132p: surface (loudly, once) any pipeline middleware this streaming path bypasses.
+		StreamingBypassGuard.WarnIfBypassed(nameof(DispatchStreamingAsync));
+
 		// Resolve the streaming handler from DI
 		var handler = serviceProvider.GetService<IStreamingDocumentHandler<TDocument, TOutput>>()
 					  ?? throw new InvalidOperationException(
@@ -2473,6 +2483,9 @@ internal sealed class Dispatcher(
 			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
 		}
 
+		// ec132p: surface (loudly, once) any pipeline middleware this streaming path bypasses.
+		StreamingBypassGuard.WarnIfBypassed(nameof(DispatchStreamAsync));
+
 		// Resolve the stream consumer handler from DI
 		var handler = serviceProvider.GetService<IStreamConsumerHandler<TDocument>>()
 					  ?? throw new InvalidOperationException(
@@ -2533,6 +2546,9 @@ internal sealed class Dispatcher(
 		{
 			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
 		}
+
+		// ec132p: surface (loudly, once) any pipeline middleware this streaming path bypasses.
+		StreamingBypassGuard.WarnIfBypassed(nameof(DispatchTransformStreamAsync));
 
 		// Resolve the transform handler from DI
 		var handler = serviceProvider.GetService<IStreamTransformHandler<TInput, TOutput>>()
@@ -2601,6 +2617,9 @@ internal sealed class Dispatcher(
 		{
 			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
 		}
+
+		// ec132p: surface (loudly, once) any pipeline middleware this streaming path bypasses.
+		StreamingBypassGuard.WarnIfBypassed(nameof(DispatchWithProgressAsync));
 
 		// Resolve the progress handler from DI
 		var handler = serviceProvider.GetService<IProgressDocumentHandler<TDocument>>()

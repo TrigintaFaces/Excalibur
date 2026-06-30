@@ -29,6 +29,7 @@ namespace Excalibur.AuditLogging.SqlServer;
 public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 {
 	private readonly SqlServerAuditOptions _options;
+	private readonly IAuditIntegrityStrategy _integrity;
 	private readonly ILogger<SqlServerAuditStore> _logger;
 	private readonly SemaphoreSlim _hashChainLock = new(1, 1);
 	private volatile bool _disposed;
@@ -38,9 +39,11 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 	/// </summary>
 	public SqlServerAuditStore(
 		IOptions<SqlServerAuditOptions> options,
+		IAuditIntegrityStrategy integrity,
 		ILogger<SqlServerAuditStore> logger)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_integrity = integrity ?? throw new ArgumentNullException(nameof(integrity));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		if (string.IsNullOrEmpty(_options.ConnectionString))
@@ -77,7 +80,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 				previousHash = lastEvent?.EventHash;
 
 				// Compute hash for this event
-				eventHash = ComputeEventHash(auditEvent, previousHash);
+				eventHash = await ComputeEventTagAsync(auditEvent, previousHash, cancellationToken).ConfigureAwait(false);
 
 				// INSERT must happen inside the lock to preserve hash chain integrity
 				var sequenceNumber = await InsertAuditEventAsync(
@@ -99,7 +102,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 			}
 		}
 
-		eventHash = ComputeEventHash(auditEvent, null);
+		eventHash = await ComputeEventTagAsync(auditEvent, null, cancellationToken).ConfigureAwait(false);
 
 		{
 			var sequenceNumber = await InsertAuditEventAsync(
@@ -232,13 +235,18 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 
 			var row = events[i];
 			var auditEvent = MapToAuditEvent(row);
-			var expectedHash = ComputeEventHash(auditEvent, row.PreviousEventHash);
 
-			if (row.EventHash != expectedHash)
+			// Re-canonicalize the live reloaded fields and verify the keyed tag (Option ii); a missing tag is a violation.
+			var verified = row.EventHash is not null
+				&& await _integrity.VerifyAsync(
+					AuditEventCanonicalizer.Canonicalize(auditEvent), row.PreviousEventHash, row.EventHash, cancellationToken)
+					.ConfigureAwait(false);
+
+			if (!verified)
 			{
 				violationCount++;
 				firstViolationEventId ??= row.EventId;
-				violationDescription ??= $"Hash mismatch for event {row.EventId}: expected {expectedHash}, found {row.EventHash}";
+				violationDescription ??= $"Integrity tag mismatch for event {row.EventId}";
 
 				LogIntegrityHashMismatch(row.EventId);
 			}
@@ -348,8 +356,9 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		}
 	}
 
-	private static string ComputeEventHash(AuditEvent auditEvent, string? previousHash) =>
-		AuditHasher.ComputeHash(auditEvent, previousHash);
+	private async Task<string> ComputeEventTagAsync(AuditEvent auditEvent, string? previousHash, CancellationToken cancellationToken) =>
+		await _integrity.ComputeTagAsync(
+			AuditEventCanonicalizer.Canonicalize(auditEvent), previousHash, cancellationToken).ConfigureAwait(false);
 
 	private static (List<string> WhereClauses, DynamicParameters Parameters) BuildQueryClauses(AuditQuery query)
 	{

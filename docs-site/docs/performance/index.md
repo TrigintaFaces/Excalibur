@@ -109,11 +109,11 @@ Nine micro-optimizations targeting the dispatch hot path:
 | `RoutingDecision.Local` singleton | Cached static property (like `Task.CompletedTask`) |
 | Lock removal on `MessageContext.Success` | Volatile fields + `AggressiveInlining` |
 | Single-lookup `GetOrCreateFeature` | `TryGetValue` + direct store |
-| Lightweight context init (Sprint 660) | Skip `GetTransportBinding` for outbound dispatches when no transport correlation needed |
-| Per-profile middleware bypass (Sprint 660) | Pre-computed `_hasAnyNonRoutingMiddleware` flag skips FrozenDictionary chain lookup |
-| Single transport bus pre-resolution (Sprint 660) | Pre-resolve single non-local bus at construction, bypass ConcurrentDictionary lookup |
-| Routing decision cache (Sprint 660) | `ConcurrentDictionary<Type, RoutingDecision>` for deterministic single-route types |
-| Combined transport fast path (Sprint 660) | All 4 optimizations compose: Wolverine parity improved from 0.59x to 2.3x on SingleCommand |
+| Lightweight context init | Skip `GetTransportBinding` for outbound dispatches when no transport correlation needed |
+| Per-profile middleware bypass | Pre-computed `_hasAnyNonRoutingMiddleware` flag skips FrozenDictionary chain lookup |
+| Single transport bus pre-resolution | Pre-resolve single non-local bus at construction, bypass ConcurrentDictionary lookup |
+| Routing decision cache | `ConcurrentDictionary<Type, RoutingDecision>` for deterministic single-route types |
+| Combined transport fast path | All 4 optimizations compose: Wolverine parity improved from 0.59x to 2.3x on SingleCommand |
 
 ## Memory Allocation Strategy
 

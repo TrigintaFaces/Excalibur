@@ -42,7 +42,7 @@ public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 	[Fact]
 	public void StartInClosedState()
 	{
-		_sut.State.ShouldBe(ResilienceState.Closed);
+		_sut.State.ShouldBe(CircuitState.Closed);
 		_sut.Name.ShouldBe("test-breaker");
 	}
 
@@ -67,7 +67,7 @@ public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 			() => Task.FromResult(42),
 			CancellationToken.None).ConfigureAwait(false);
 		result.ShouldBe(42);
-		_sut.State.ShouldBe(ResilienceState.Closed);
+		_sut.State.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]
@@ -81,7 +81,7 @@ public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 				CancellationToken.None).ConfigureAwait(false);
 		}
 
-		_sut.State.ShouldBe(ResilienceState.Open);
+		_sut.State.ShouldBe(CircuitState.Open);
 		_sut.HealthStatus.ShouldBe(PatternHealthStatus.Unhealthy);
 	}
 
@@ -144,7 +144,7 @@ public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 				CancellationToken.None).ConfigureAwait(false);
 		}
 
-		_sut.State.ShouldBe(ResilienceState.Open);
+		_sut.State.ShouldBe(CircuitState.Open);
 
 		// Wait for open duration
 		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(_options.OpenDuration + TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
@@ -157,14 +157,14 @@ public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 
 		result.ShouldBe(42);
 		// After success in half-open, if not enough successes yet, should remain half-open or transition
-		(_sut.State == ResilienceState.HalfOpen || _sut.State == ResilienceState.Closed).ShouldBeTrue();
+		(_sut.State == CircuitState.HalfOpen || _sut.State == CircuitState.Closed).ShouldBeTrue();
 	}
 
 	[Fact]
 	public void ResetToClosedState()
 	{
 		_sut.Reset();
-		_sut.State.ShouldBe(ResilienceState.Closed);
+		_sut.State.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]
@@ -177,7 +177,7 @@ public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 		var metrics = _sut.GetCircuitBreakerMetrics();
 		metrics.TotalRequests.ShouldBeGreaterThan(0);
 		metrics.SuccessfulRequests.ShouldBeGreaterThan(0);
-		metrics.CurrentState.ShouldBe(ResilienceState.Closed);
+		metrics.CurrentState.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]

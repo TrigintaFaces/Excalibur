@@ -169,6 +169,13 @@ var batchResult = await provider.ExecuteBatchAsync(
     cancellationToken: ct);
 ```
 
+### Atomic event-store append limit
+
+The DynamoDB event store appends a batch as a single all-or-nothing `TransactWriteItems` call. DynamoDB hard-caps `TransactWriteItems` at **100 items**, and offers no atomic primitive beyond that. To guarantee the append contract (no torn event-stream prefix), the store **rejects an atomic append of more than 100 events at the boundary, before any write**:
+
+- `UseTransactionalWrite = true` (default) with **> 100 events** → the append is rejected up front; split the batch into appends of at most 100 events.
+- `UseTransactionalWrite = false` → the consumer has opted into the non-atomic per-item `PutItem` path, so batches larger than 100 events are permitted as documented non-atomic behavior.
+
 ## Configuration Binding
 
 Bind DynamoDB options from `appsettings.json`:

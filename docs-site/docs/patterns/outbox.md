@@ -387,6 +387,50 @@ CREATE TABLE dbo.OutboxMessages (
 `PartitionKey` / `GroupKey` / `SequenceNumber` persist the message ordering keys, and `NextAttemptAt` records the per-message backoff deadline. The background processor claims rows with `WHERE Status IN (Staged, Failed, PartiallyFailed) AND (NextAttemptAt IS NULL OR NextAttemptAt <= @now) ORDER BY PartitionKey, SequenceNumber` — so same-partition messages are delivered in ascending `SequenceNumber`, and a failed message's computed backoff genuinely throttles re-delivery. See [Ordering and Retry Scheduling](#ordering-and-retry-scheduling).
 :::
 
+### PostgreSQL
+
+The PostgreSQL store does **not** auto-create tables — create the schema before starting the application. The `tenant_id` column persists tenant isolation through enqueue → reserve → dispatch; staged messages fail with `column "tenant_id" does not exist` if it is missing.
+
+```sql
+CREATE TABLE IF NOT EXISTS outbox (
+    id                 SERIAL       PRIMARY KEY,
+    message_id         VARCHAR(100) NOT NULL UNIQUE,
+    message_type       VARCHAR(500) NOT NULL,
+    message_metadata   TEXT,
+    message_body       TEXT         NOT NULL,
+    tenant_id          VARCHAR(255),
+    occurred_on        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    attempts           INT          NOT NULL DEFAULT 0,
+    dispatcher_id      VARCHAR(100),
+    dispatcher_timeout TIMESTAMPTZ,
+    next_attempt_at    TIMESTAMPTZ,
+    scheduled_at       TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS outbox_dead_letters (
+    id               SERIAL       PRIMARY KEY,
+    message_id       VARCHAR(100) NOT NULL UNIQUE,
+    message_type     VARCHAR(500) NOT NULL,
+    message_metadata TEXT,
+    message_body     TEXT         NOT NULL,
+    occurred_on      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    attempts         INT          NOT NULL DEFAULT 0,
+    error_message    TEXT,
+    moved_on         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_outbox_unreserved ON outbox (occurred_on) WHERE dispatcher_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_outbox_dispatcher ON outbox (dispatcher_id) WHERE dispatcher_id IS NOT NULL;
+```
+
+:::note Upgrading an existing Postgres outbox schema
+If you already run an earlier `outbox` schema, add the tenant-isolation column before deploying — otherwise staged messages fail with `column "tenant_id" does not exist`:
+
+```sql
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255);
+```
+:::
+
 ## Background Processing
 
 ### Hosted Service (Default)

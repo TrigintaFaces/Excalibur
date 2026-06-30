@@ -68,6 +68,10 @@ F5_STOPLIST='^(Task|ValueTask|Async|CancellationToken|String|Boolean|Int32|Int64
 #        b. a method name immediately preceding '(' — captures interface/abstract
 #           signatures that have no visibility modifier (e.g. GetAllGrantsAsync(...))
 #        c. an enum member: a leading PascalCase identifier followed by ',' or '='
+#   4. multi-line signature-opener recovery: a ctor/method name on an UNCHANGED context
+#      line whose parameter list has a changed line below it (the jv02p5+15sf7a miss — a
+#      ctor-arity change whose type-name line is context, so target-typed `new(...)` call
+#      sites were never swept).
 # then drops the stoplist boilerplate.
 f5_extract_tokens() {
     local input changed
@@ -102,6 +106,43 @@ f5_extract_tokens() {
         printf '%s\n' "$changed" \
             | grep -oE '^[[:space:]]*[A-Z][A-Za-z0-9_]{2,}[[:space:]]*[,=]' \
             | grep -oE '[A-Z][A-Za-z0-9_]{2,}'
+
+        # 4) multi-line signature opener recovery (root cause of the jv02p5+15sf7a misses).
+        #    A ctor/method signature spanning multiple lines:
+        #        public MyStore(            <- the TYPE/METHOD NAME line (often UNCHANGED context)
+        #            IFoo foo,
+        #    +       IBar bar,              <- the only CHANGED line is a parameter
+        #            ILogger logger)
+        #    Passes 1-3 only see CHANGED lines, so the name 'MyStore' is never extracted -> no token is
+        #    swept -> EVERY sibling construction site is missed, including target-typed `new(...)` call
+        #    sites that never spell the type. This stateful pass scans the RAW diff (with +/-/space
+        #    prefixes and hunk context), tracks each open `Name(` signature, and emits Name when ANY
+        #    line inside that signature was changed — recovering the name from unchanged-context openers.
+        printf '%s\n' "$input" \
+            | awk '
+                /^(\+\+\+|---|@@)/ { insig=0; signame=""; sigchg=0; next }   # reset at hunk boundaries
+                {
+                    pfx=substr($0,1,1); content=substr($0,2)
+                    changed=(pfx=="+" || pfx=="-")
+                    if (insig==0) {
+                        if (match(content, /[A-Za-z_][A-Za-z0-9_]*[ \t]*\(/)) {
+                            tok=substr(content, RSTART, RLENGTH)
+                            sub(/[ \t]*\($/, "", tok)
+                            rest=substr(content, RSTART+RLENGTH-1)   # from the "(" onward
+                            # Only a multi-line opener (no ")" closing it on this line) with a
+                            # type/method-shaped PascalCase name.
+                            if (tok ~ /^[A-Z][A-Za-z0-9_][A-Za-z0-9_]+$/ && index(rest, ")")==0) {
+                                insig=1; signame=tok; sigchg=(changed ? 1 : 0); next
+                            }
+                        }
+                    } else {
+                        if (changed) sigchg=1
+                        if (index(content, ")") > 0) {
+                            if (sigchg && signame != "") print signame
+                            insig=0; signame=""; sigchg=0
+                        }
+                    }
+                }'
     } 2>/dev/null \
         | grep -Ev "$F5_STOPLIST" \
         | sort -u
@@ -340,6 +381,37 @@ EOF
     fi
     if printf '%s\n' "$tokens" | grep -qx 'Source'; then
         echo "self-test FAIL: generic stoplisted token 'Source' leaked through" >&2; pass=0
+    fi
+
+    # --- Fixture 1b: multi-line signature recovery (nwiqnp / jv02p5+15sf7a) -
+    # A ctor whose NAME line is unchanged context and whose ONLY changed line is a parameter.
+    # Passes 1-3 see no type token; pass 4 MUST recover 'MultiLineStore' so its (possibly
+    # target-typed `new(...)`) construction sites get swept. A second signature wholly in
+    # context (no +/- inside) MUST NOT be emitted (non-vacuity — don't flood every signature).
+    local ml_fixture ml_tokens
+    ml_fixture="$(cat <<'EOF'
+diff --git a/src/Foo/MultiLineStore.cs b/src/Foo/MultiLineStore.cs
+--- a/src/Foo/MultiLineStore.cs
++++ b/src/Foo/MultiLineStore.cs
+@@ -10,7 +10,8 @@
+     public MultiLineStore(
+         IFoo foo,
++        IBar bar,
+         ILogger logger)
+     {
+     }
+@@ -40,6 +41,6 @@
+     public UntouchedSignature(
+         int alpha,
+         int beta)
+EOF
+)"
+    ml_tokens="$(printf '%s\n' "$ml_fixture" | f5_extract_tokens)"
+    if ! printf '%s\n' "$ml_tokens" | grep -qx 'MultiLineStore'; then
+        echo "self-test FAIL: pass 4 did not recover multi-line signature name 'MultiLineStore' from an unchanged-context opener (the jv02p5+15sf7a miss)" >&2; pass=0
+    fi
+    if printf '%s\n' "$ml_tokens" | grep -qx 'UntouchedSignature'; then
+        echo "self-test FAIL: pass 4 emitted 'UntouchedSignature' whose signature had NO changed line (vacuous over-emission)" >&2; pass=0
     fi
 
     # --- Fixture 2: sibling detection (the real footgun) -------------------

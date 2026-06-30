@@ -11,7 +11,6 @@ namespace Excalibur.Cdc.Processing;
 /// <remarks>
 /// Performs cross-property constraint checks that cannot be expressed via
 /// <see cref="System.ComponentModel.DataAnnotations"/> attributes alone.
-/// Sprint 561 S561.44.
 /// </remarks>
 public sealed class CdcProcessingOptionsValidator : IValidateOptions<CdcProcessingOptions>
 {

@@ -12,7 +12,7 @@ namespace Excalibur.Inbox.Diagnostics;
 /// Telemetry decorator for <see cref="IInboxStore"/> that instruments operations
 /// with counters and histograms.
 /// </summary>
-internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IBackoffSchedulableInboxStore, IDisposable
+internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IBackoffSchedulableInboxStore, IInboxStoreCapabilities, IDisposable
 {
 	/// <summary>
 	/// The meter name for inbox store telemetry.
@@ -43,6 +43,24 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 			unit: "ms",
 			description: "Duration of inbox store operations in milliseconds.");
 	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Reports the EFFECTIVE atomic-claim capability and composes through chains: telemetry can forward a claim
+	/// only when its inner store is itself claim-capable (directly via <see cref="IClaimableInboxStore"/> or
+	/// transitively via a nested <see cref="IInboxStoreCapabilities"/>), so the startup presence-guard rejects a
+	/// telemetry-over-non-claimable-inner instead of throwing at first claim.
+	/// </remarks>
+	public bool SupportsClaim =>
+		_inner is IClaimableInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsClaim);
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Reports the EFFECTIVE durable Processing-tracking capability and composes through chains (see
+	/// <see cref="SupportsClaim"/>).
+	/// </remarks>
+	public bool SupportsProcessingTracking =>
+		_inner is IProcessingTrackingInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsProcessingTracking);
 
 	/// <inheritdoc/>
 	public async ValueTask<InboxEntry> CreateEntryAsync(

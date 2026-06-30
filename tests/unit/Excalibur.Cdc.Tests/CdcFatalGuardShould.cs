@@ -37,7 +37,7 @@ public sealed class CdcFatalGuardShould
 	{
 		var decision = CdcFatalGuard.Decide(exception: null, classifier: null);
 
-		decision.ShouldBe(new CdcFatalDecision(AdvanceCheckpoint: true, Stop: false, Reconnect: false));
+		decision.ShouldBe(new CdcFatalDecision(AdvanceCheckpoint: true, Stop: false));
 	}
 
 	[Theory]
@@ -54,7 +54,7 @@ public sealed class CdcFatalGuardShould
 		var decision = CdcFatalGuard.Decide(exception, classifier: null);
 
 		// Fatal → never advance, stop loudly (no silent reconnect), don't reconnect.
-		decision.ShouldBe(new CdcFatalDecision(AdvanceCheckpoint: false, Stop: true, Reconnect: false));
+		decision.ShouldBe(new CdcFatalDecision(AdvanceCheckpoint: false, Stop: true));
 	}
 
 	[Theory]
@@ -67,8 +67,8 @@ public sealed class CdcFatalGuardShould
 
 		var decision = CdcFatalGuard.Decide(exception, classifier: null);
 
-		// Transient → never advance, don't stop, reconnect and retry from the un-advanced checkpoint.
-		decision.ShouldBe(new CdcFatalDecision(AdvanceCheckpoint: false, Stop: false, Reconnect: true));
+		// Transient → never advance, don't stop (the StartAsync loop then reconnects from the un-advanced checkpoint).
+		decision.ShouldBe(new CdcFatalDecision(AdvanceCheckpoint: false, Stop: false));
 	}
 
 	[Fact]
@@ -81,6 +81,6 @@ public sealed class CdcFatalGuardShould
 
 		var decision = CdcFatalGuard.Decide(new InvalidOperationException("transient without a classifier"), classifier);
 
-		decision.ShouldBe(new CdcFatalDecision(AdvanceCheckpoint: false, Stop: true, Reconnect: false));
+		decision.ShouldBe(new CdcFatalDecision(AdvanceCheckpoint: false, Stop: true));
 	}
 }

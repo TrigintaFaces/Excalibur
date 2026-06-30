@@ -32,8 +32,8 @@ Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.EnableCompre
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.MinCompressionRatio.get -> double
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.MinCompressionRatio.set -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer
-Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! claimCheckProvider, Excalibur.Dispatch.Serialization.ISerializer! baseSerializer, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions? options = null) -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! claimCheckProvider, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions? options = null) -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! claimCheckProvider, Excalibur.Dispatch.Serialization.ISerializer! baseSerializer, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions? options = null) -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ContentType.get -> string!
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.Deserialize<T>(System.ReadOnlySpan<byte> data) -> T
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.DeserializeAsync<T>(byte[]! data, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<T>
@@ -249,6 +249,7 @@ Excalibur.Dispatch.Patterns.TimeRange.EndTime.set -> void
 Excalibur.Dispatch.Patterns.TimeRange.StartTime.get -> System.TimeSpan
 Excalibur.Dispatch.Patterns.TimeRange.StartTime.set -> void
 Excalibur.Dispatch.Patterns.TimeRange.TimeRange() -> void
+Microsoft.Extensions.DependencyInjection.ClaimCheckHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.ClaimCheckServiceCollectionExtensions
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobClaimCheckDeleteError = 91204 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobClaimCheckDeleted = 91203 -> int
@@ -343,5 +344,6 @@ const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ValidationFailed =
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ValidationPassed = 90603 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ValidationRuleApplied = 90602 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.WeightedRoundRobinCreated = 90300 -> int
+static Microsoft.Extensions.DependencyInjection.ClaimCheckHealthChecksBuilderExtensions.AddClaimCheckHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "claim-check", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.ClaimCheckServiceCollectionExtensions.AddClaimCheck<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, bool enableCleanup = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ClaimCheckServiceCollectionExtensions.AddClaimCheck<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions!>? configureOptions = null, bool enableCleanup = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

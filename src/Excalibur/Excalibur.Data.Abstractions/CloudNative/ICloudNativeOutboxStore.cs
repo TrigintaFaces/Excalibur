@@ -139,6 +139,11 @@ public sealed record CloudOutboxMessage
 	public string? CausationId { get; init; }
 
 	/// <summary>
+	/// Gets the tenant identifier, preserving tenant isolation through the cloud-native outbox round-trip.
+	/// </summary>
+	public string? TenantId { get; init; }
+
+	/// <summary>
 	/// Gets when the message was created.
 	/// </summary>
 	public required DateTimeOffset CreatedAt { get; init; }

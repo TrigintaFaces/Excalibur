@@ -32,6 +32,9 @@
     <PackageReference Include="System.Diagnostics.DiagnosticSource" />
   </ItemGroup>
   <ItemGroup>
+    <!-- ybem93: keyed-safe ServiceDescriptorExtensions accessor lives in Dispatch.Abstractions.
+         Excalibur -> Dispatch.Abstractions is the sanctioned dependency direction (dispatch-vs-excalibur). -->
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />
   </ItemGroup>
 </Project>

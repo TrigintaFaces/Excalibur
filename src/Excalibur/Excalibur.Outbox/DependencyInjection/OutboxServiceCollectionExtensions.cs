@@ -234,6 +234,21 @@ public static class OutboxServiceCollectionExtensions
 		// the TryAdd below is a no-op when a non-stub IOutboxDispatcher is already present.
 		RemoveDefaultOutboxDispatcherStub(services);
 		services.TryAddSingleton<Excalibur.Dispatch.IOutboxDispatcher, Excalibur.Dispatch.Delivery.MessageOutbox>();
+
+		// 6mygyz: bridge the consumer-facing parallel knob (OutboxOptions in this package) onto the degree
+		// the OutboxProcessor actually reads (core OutboxDeliveryOptions.BatchProcessing.ParallelProcessingDegree).
+		// They are separate option types in separate packages with no prior translation, so the advertised
+		// EnableParallelProcessing(N) builder was inert. Options-composition resolves OutboxOptions at
+		// configure-time (no stale snapshot); Excalibur.Outbox -> Excalibur.Dispatch core is a downward
+		// reference (SA 18403). No-op unless the consumer enabled parallel processing on the outbox builder.
+		_ = services.AddOptions<Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions>()
+			.Configure<OutboxOptions>((delivery, outbox) =>
+			{
+				if (outbox.EnableParallelProcessing)
+				{
+					delivery.BatchProcessing.ParallelProcessingDegree = outbox.MaxDegreeOfParallelism;
+				}
+			});
 	}
 
 	// A3.Audit registers a fail-fast DefaultOutboxDispatcher via TryAdd so the audit pipeline is
@@ -248,7 +263,7 @@ public static class OutboxServiceCollectionExtensions
 		{
 			var descriptor = services[i];
 			if (descriptor.ServiceType == typeof(Excalibur.Dispatch.IOutboxDispatcher)
-				&& descriptor.ImplementationType?.FullName == A3DefaultOutboxDispatcherFullName)
+				&& descriptor.GetImplementationType()?.FullName == A3DefaultOutboxDispatcherFullName)
 			{
 				services.RemoveAt(i);
 			}

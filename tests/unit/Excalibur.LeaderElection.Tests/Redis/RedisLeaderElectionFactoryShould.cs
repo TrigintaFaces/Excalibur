@@ -18,7 +18,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RedisLeaderElectionFactory(null!, loggerFactory));
+			new RedisLeaderElectionFactory(null!, loggerFactory, Options.Create(new LeaderElectionOptions())));
 	}
 
 	[Fact]
@@ -29,7 +29,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RedisLeaderElectionFactory(redis, null!));
+			new RedisLeaderElectionFactory(redis, null!, Options.Create(new LeaderElectionOptions())));
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 		// Arrange
 		var redis = A.Fake<IConnectionMultiplexer>();
 		var loggerFactory = new LoggerFactory();
-		var factory = new RedisLeaderElectionFactory(redis, loggerFactory);
+		var factory = new RedisLeaderElectionFactory(redis, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act
 		var election = factory.CreateElection("test:leader", candidateId: null);
@@ -53,7 +53,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 		// Arrange
 		var redis = A.Fake<IConnectionMultiplexer>();
 		var loggerFactory = new LoggerFactory();
-		var factory = new RedisLeaderElectionFactory(redis, loggerFactory);
+		var factory = new RedisLeaderElectionFactory(redis, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act
 		var election = factory.CreateElection("test:leader", candidateId: "custom-candidate");
@@ -68,7 +68,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 		// Arrange
 		var redis = A.Fake<IConnectionMultiplexer>();
 		var loggerFactory = new LoggerFactory();
-		var factory = new RedisLeaderElectionFactory(redis, loggerFactory);
+		var factory = new RedisLeaderElectionFactory(redis, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act
 		var election = factory.CreateElection("test:leader", candidateId: null);
@@ -86,7 +86,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 		// Arrange
 		var redis = A.Fake<IConnectionMultiplexer>();
 		var loggerFactory = new LoggerFactory();
-		var factory = new RedisLeaderElectionFactory(redis, loggerFactory);
+		var factory = new RedisLeaderElectionFactory(redis, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
@@ -99,7 +99,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 		// Arrange
 		var redis = A.Fake<IConnectionMultiplexer>();
 		var loggerFactory = new LoggerFactory();
-		var factory = new RedisLeaderElectionFactory(redis, loggerFactory);
+		var factory = new RedisLeaderElectionFactory(redis, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
@@ -112,7 +112,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 		// Arrange
 		var redis = A.Fake<IConnectionMultiplexer>();
 		var loggerFactory = new LoggerFactory();
-		var factory = new RedisLeaderElectionFactory(redis, loggerFactory);
+		var factory = new RedisLeaderElectionFactory(redis, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act & Assert
 		_ = Should.Throw<NotSupportedException>(() =>
@@ -125,7 +125,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 		// Arrange
 		var redis = A.Fake<IConnectionMultiplexer>();
 		var loggerFactory = new LoggerFactory();
-		var factory = new RedisLeaderElectionFactory(redis, loggerFactory);
+		var factory = new RedisLeaderElectionFactory(redis, loggerFactory, Options.Create(new LeaderElectionOptions()));
 
 		// Act
 		var election1 = factory.CreateElection("test:leader1", candidateId: null);

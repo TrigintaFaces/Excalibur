@@ -20,7 +20,7 @@ public sealed class SagaCoordinatorDepthShould
 	public async Task ProcessEventAsyncThrowsWhenMessageContextIsNull()
 	{
 		// Arrange
-		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, NullLogger<SagaCoordinator>.Instance);
+		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), NullLogger<SagaCoordinator>.Instance);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -31,7 +31,7 @@ public sealed class SagaCoordinatorDepthShould
 	public async Task ProcessEventAsyncThrowsWhenEventIsNull()
 	{
 		// Arrange
-		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, NullLogger<SagaCoordinator>.Instance);
+		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), NullLogger<SagaCoordinator>.Instance);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -42,7 +42,7 @@ public sealed class SagaCoordinatorDepthShould
 	public async Task ProcessEventAsyncReturnsWhenNoSagaRegistered()
 	{
 		// Arrange - SagaRegistry has no registrations
-		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, NullLogger<SagaCoordinator>.Instance);
+		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), NullLogger<SagaCoordinator>.Instance);
 		var evt = A.Fake<ISagaEvent>();
 
 		// Act - should not throw, just log and return
@@ -56,7 +56,7 @@ public sealed class SagaCoordinatorDepthShould
 	public async Task HandleEventInternalAsyncThrowsWhenMessageContextIsNull()
 	{
 		// Arrange
-		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, NullLogger<SagaCoordinator>.Instance);
+		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), NullLogger<SagaCoordinator>.Instance);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -68,7 +68,7 @@ public sealed class SagaCoordinatorDepthShould
 	public async Task HandleEventInternalAsyncThrowsWhenEventIsNull()
 	{
 		// Arrange
-		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, NullLogger<SagaCoordinator>.Instance);
+		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), NullLogger<SagaCoordinator>.Instance);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -80,7 +80,7 @@ public sealed class SagaCoordinatorDepthShould
 	public async Task HandleEventInternalAsyncThrowsWhenSagaInfoIsNull()
 	{
 		// Arrange
-		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, NullLogger<SagaCoordinator>.Instance);
+		var sut = new SagaCoordinator(_serviceProvider, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), NullLogger<SagaCoordinator>.Instance);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(async () =>

@@ -7,6 +7,7 @@ using Amazon.SQS.Model;
 
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.AwsSqs;
+using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -86,6 +87,9 @@ internal sealed partial class AwsSqsMessageBus(
 		ArgumentNullException.ThrowIfNull(action);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.AwsSqs, _options.QueueUrl?.ToString(), context.MessageId);
+
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var bytes = serializer.SerializeObject(action, action.GetType());
 		var body = Convert.ToBase64String(bytes);
@@ -111,6 +115,9 @@ internal sealed partial class AwsSqsMessageBus(
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.AwsSqs, _options.QueueUrl?.ToString(), context.MessageId);
+
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var bytes = serializer.SerializeObject(evt, evt.GetType());
 		var body = Convert.ToBase64String(bytes);
@@ -135,6 +142,9 @@ internal sealed partial class AwsSqsMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(doc);
 		ArgumentNullException.ThrowIfNull(context);
+
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.AwsSqs, _options.QueueUrl?.ToString(), context.MessageId);
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var bytes = serializer.SerializeObject(doc, doc.GetType());

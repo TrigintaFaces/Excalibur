@@ -73,16 +73,15 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 	#region Serialize/Deserialize Null Handling (Standard options)
 
 	[Fact]
-	public void Serializer_Serialize_WithNull_ProducesValidOutput()
+	public void Serializer_Serialize_WithNull_ThrowsArgumentNullException()
 	{
 		// Arrange
 		var serializer = new MpkSerializer(MessagePackSerializerOptions.Standard);
 
-		// Act - New consolidated serializer follows STJ pattern: null is serializable
-		var result = serializer.SerializeToBytes<TestMessage>(null!);
-
-		// Assert - MessagePack serializes null as nil (0xC0)
-		result.ShouldNotBeNull();
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior.
+		Should.Throw<ArgumentNullException>(() => serializer.SerializeToBytes<TestMessage>(null!));
 	}
 
 	[Fact]
@@ -127,17 +126,16 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Serializer_WithNoCompressionOptions_Serialize_WithNull_ProducesValidOutput()
+	public void Serializer_WithNoCompressionOptions_Serialize_WithNull_ThrowsArgumentNullException()
 	{
 		// Arrange
 		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
 		var serializer = new MpkSerializer(opts);
 
-		// Act - New consolidated serializer follows STJ pattern: null is serializable
-		var result = serializer.SerializeToBytes<TestMessage>(null!);
-
-		// Assert
-		result.ShouldNotBeNull();
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior.
+		Should.Throw<ArgumentNullException>(() => serializer.SerializeToBytes<TestMessage>(null!));
 	}
 
 	[Fact]
@@ -172,16 +170,15 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 	#region Pluggable Serializer Error Handling
 
 	[Fact]
-	public void PluggableSerializer_Serialize_WithNull_ProducesValidOutput()
+	public void PluggableSerializer_Serialize_WithNull_ThrowsArgumentNullException()
 	{
 		// Arrange
 		var serializer = new MpkSerializer();
 
-		// Act - New consolidated serializer follows STJ pattern: null is serializable via ISerializer path
-		var result = serializer.SerializeToBytes<TestPluggableMessage>(null!);
-
-		// Assert
-		result.ShouldNotBeNull();
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior.
+		Should.Throw<ArgumentNullException>(() => serializer.SerializeToBytes<TestPluggableMessage>(null!));
 	}
 
 	[Fact]

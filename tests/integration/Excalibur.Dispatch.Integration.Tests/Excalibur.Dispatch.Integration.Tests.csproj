@@ -64,6 +64,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance\Excalibur.Compliance.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.AuditLogging\Excalibur.AuditLogging.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.AuditLogging.SqlServer\Excalibur.AuditLogging.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Security.AuditLogging\Excalibur.Security.AuditLogging.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Aws\Excalibur.Compliance.Aws.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Azure\Excalibur.Compliance.Azure.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Vault\Excalibur.Compliance.Vault.csproj" />

@@ -125,7 +125,7 @@ context-less `dispatcher.DispatchAsync(message, ct)` overload.
 - **Workers / console / serverless:** each dispatch gets a **fresh scope** that is disposed when the
   handler completes.
 
-See ADR-335 (Scope-Correct Handler Resolution) for the design and rationale.
+See Scope-Correct Handler Resolution for the design and rationale.
 :::
 
 ## Service Injection

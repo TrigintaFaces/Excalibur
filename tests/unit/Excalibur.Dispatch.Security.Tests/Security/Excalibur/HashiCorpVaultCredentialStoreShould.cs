@@ -438,6 +438,49 @@ public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 		}
 	}
 
+	// bd-9dalqs (ADR-336, defense-in-depth): a non-https Vault:Url would transmit the Vault token and
+	// every secret in plaintext over the wire. Construction must REJECT it (fail fast) rather than silently
+	// leak credentials. Independent engage-test (author!=impl, TestsDeveloper, clause-4 carried): RED on the
+	// pre-fix impl that accepted any scheme; GREEN on the committed scheme-guard.
+	[Theory]
+	[InlineData("http://vault.example.com")]
+	[InlineData("HTTP://vault.example.com")]
+	[InlineData("http://10.0.0.5:8200")]
+	public void RejectNonHttpsVaultUrl(string insecureUrl)
+	{
+		var config = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Vault:Url"] = insecureUrl,
+				["Vault:Token"] = "test-token", // pragma: allowlist secret — example token, not a real credential
+			})
+			.Build();
+
+		Should.Throw<InvalidOperationException>(() =>
+			new HashiCorpVaultCredentialStore(
+				NullLogger<HashiCorpVaultCredentialStore>.Instance, config, new HttpClient()));
+	}
+
+	[Fact]
+	public void AcceptHttpsVaultUrl()
+	{
+		// Control: a proper https:// endpoint constructs cleanly — proves the guard rejects the SCHEME,
+		// not merely any URL (so RejectNonHttpsVaultUrl above is non-vacuous).
+		var config = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["Vault:Url"] = "https://secure-vault.example.com",
+				["Vault:Token"] = "test-token", // pragma: allowlist secret — example token
+			})
+			.Build();
+
+		Should.NotThrow(() =>
+		{
+			using var store = new HashiCorpVaultCredentialStore(
+				NullLogger<HashiCorpVaultCredentialStore>.Instance, config, new HttpClient());
+		});
+	}
+
 	/// <summary>
 	/// Hand-written dictionary-backed fake of the internal <see cref="IVaultSecretClient"/> seam (FakeItEasy
 	/// cannot proxy an internal interface here). Persists writes in-memory so the store→get round-trip exercises

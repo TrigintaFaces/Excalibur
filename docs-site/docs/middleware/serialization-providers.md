@@ -106,6 +106,7 @@ services.AddMessagePackSerializer(
 - Cross-language compatible (C#, Java, Python, Go, JavaScript)
 - LZ4 compression option for further size reduction
 - Key-based format enables schema evolution (add new fields with new keys)
+- **Secure by default:** when registered without explicit options, the provider deserializes in `MessagePackSecurity.UntrustedData` mode — MessagePack-CSharp's guidance for off-process input (transport/inbox payloads), which guards against hostile data (e.g. deep-nesting / hash-collision attacks). A caller that supplies explicit `MessagePackSerializerOptions` owns its own security profile, so include `.WithSecurity(MessagePackSecurity.UntrustedData)` if you build options by hand for untrusted input.
 
 ---
 

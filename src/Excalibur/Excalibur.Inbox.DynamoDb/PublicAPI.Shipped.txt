@@ -2,6 +2,8 @@
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.Connection.get -> Excalibur.Data.DynamoDb.DynamoDbConnectionOptions!
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.Connection.set -> void
+Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.CreateTableIfNotExists.get -> bool
+Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.CreateTableIfNotExists.set -> void
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.DefaultTtlSeconds.get -> int
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.DefaultTtlSeconds.set -> void
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.DynamoDbInboxOptions() -> void
@@ -34,6 +36,8 @@ Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.MarkFailedAsync(string! messageId, s
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.MarkProcessingAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.ReleaseAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.TryClaimAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.DynamoDb.IDynamoDBInboxBuilder
 Excalibur.Inbox.DynamoDb.IDynamoDBInboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Inbox.DynamoDb.IDynamoDBInboxBuilder!

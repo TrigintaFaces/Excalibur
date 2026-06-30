@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Runtime.ExceptionServices;
 
 using Amazon.DynamoDBStreams;
 using Amazon.DynamoDBStreams.Model;
@@ -391,6 +392,8 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 				using var batchActivity = CdcActivitySource.StartProcessBatchActivity("DynamoDb", response.Records.Count);
 
+				Exception? batchFailure = null;
+
 				try
 				{
 					foreach (var record in response.Records)
@@ -419,23 +422,54 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 					if (autoConfirm)
 					{
+						// bd-8p7qwj: the in-catch durable prefix-confirm MUST NOT mask the original handler
+						// exception (root cause). A confirm/position-read failure here is diagnosability-only:
+						// log it and let the handler exception below propagate. At-least-once is unaffected —
+						// the failed record and the rest of the batch are re-delivered on the repointed iterator.
+						try
+						{
+							await ConfirmPositionAsync(
+								await GetCurrentPositionAsync(cancellationToken).ConfigureAwait(false),
+								cancellationToken).ConfigureAwait(false);
+						}
+#pragma warning disable CA1031 // A confirm failure must never replace the root-cause handler exception (FR-N4.1/N4.2).
+						catch (Exception confirmEx)
+#pragma warning restore CA1031
+						{
+							LogPrefixConfirmFailedAfterHandlerError(shardId, confirmEx);
+						}
+					}
+
+					// Capture, do not rethrow here. The structural durability gate below sees
+					// AdvanceCheckpoint=false for any fault and skips the full-batch iterator advance;
+					// the captured handler exception is then re-thrown after the gate (q3w5cv).
+					batchFailure = ex;
+				}
+
+				// STRUCTURAL durability gate (q3w5cv Option A / FR-B2 / ADR-338): the full-batch iterator
+				// advance happens ONLY when the single shared guard permits it. On ANY handler fault
+				// CdcFatalGuard.Decide(batchFailure,…).AdvanceCheckpoint is false, so the iterator is never
+				// advanced past the batch — the in-catch repoint + prefix-confirm above already handled the
+				// at-least-once handled-prefix. Mutating this gate to `if (true)` advances the iterator past
+				// the failed record (overriding the repoint) ⇒ AC-N3.1 RED. Non-vacuous, structural.
+				var decision = CdcFatalGuard.Decide(batchFailure, _failureClassifier);
+				if (decision.AdvanceCheckpoint)
+				{
+					// Entire batch handed off successfully — NOW it is safe to advance the iterator.
+					AdvanceOrRetireShard(shardId, response.NextShardIterator, shardsToRemove);
+
+					// Batch checkpoint: save position once per shard batch instead of per-record.
+					if (autoConfirm)
+					{
 						await ConfirmPositionAsync(
 							await GetCurrentPositionAsync(cancellationToken).ConfigureAwait(false),
 							cancellationToken).ConfigureAwait(false);
 					}
-
-					throw;
 				}
 
-				// Entire batch handed off successfully — NOW it is safe to advance the iterator.
-				AdvanceOrRetireShard(shardId, response.NextShardIterator, shardsToRemove);
-
-				// Batch checkpoint: save position once per shard batch instead of per-record.
-				if (autoConfirm)
+				if (batchFailure is not null)
 				{
-					await ConfirmPositionAsync(
-						await GetCurrentPositionAsync(cancellationToken).ConfigureAwait(false),
-						cancellationToken).ConfigureAwait(false);
+					ExceptionDispatchInfo.Capture(batchFailure).Throw();
 				}
 			}
 			catch (ExpiredIteratorException)
@@ -578,6 +612,10 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 	[LoggerMessage(DataDynamoDbEventId.CdcProcessingError, LogLevel.Error, "Error processing CDC batch for '{ProcessorName}'")]
 	private partial void LogProcessingError(string processorName, Exception exception);
+
+	[LoggerMessage(DataDynamoDbEventId.CdcPrefixConfirmFailedAfterHandlerError, LogLevel.Warning,
+		"Durable prefix-confirm failed after a handler error on shard '{ShardId}'; the original handler exception is preserved and propagated.")]
+	private partial void LogPrefixConfirmFailedAfterHandlerError(string shardId, Exception exception);
 
 	[LoggerMessage(DataDynamoDbEventId.CdcFatalError, LogLevel.Critical,
 		"Fatal (non-retryable) error in DynamoDB CDC processor — stopping; the failure is surfaced to the configured handler or rethrown (no silent reconnect)")]

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// <para>
 /// Different transports diverge on poll-loop failure (some abort the subscription on a receive-level error,
 /// some silently stop on stream-end, none apply backoff). This shared decorator gives them a uniform
-/// reconnect/backoff contract (bd-kxexrz).
+/// reconnect/backoff contract.
 /// </para>
 /// <para>
 /// The backoff schedule is supplied as a <see cref="Func{T, TResult}"/> delegate (attempt number → delay)

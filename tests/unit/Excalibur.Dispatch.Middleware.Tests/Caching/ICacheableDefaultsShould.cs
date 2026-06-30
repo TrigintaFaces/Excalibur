@@ -182,7 +182,7 @@ public sealed class ICacheableDefaultsShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Hybrid
 		});
-		var middleware = new CacheInvalidationMiddleware(new TestMeterFactory(), options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(new TestMeterFactory(), options, A.Fake<ICacheKeyBuilder>(), hybridCache: hybridCache);
 		var context = A.Fake<IMessageContext>();
 		var successResult = A.Fake<IMessageResult>();
 		A.CallTo(() => successResult.Succeeded).Returns(true);
@@ -212,7 +212,7 @@ public sealed class ICacheableDefaultsShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Hybrid
 		});
-		var middleware = new CacheInvalidationMiddleware(new TestMeterFactory(), options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(new TestMeterFactory(), options, A.Fake<ICacheKeyBuilder>(), hybridCache: hybridCache);
 		var context = A.Fake<IMessageContext>();
 		var failedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => failedResult.Succeeded).Returns(false);

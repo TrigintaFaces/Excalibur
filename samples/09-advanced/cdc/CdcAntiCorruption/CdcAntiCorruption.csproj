@@ -12,7 +12,7 @@
     <!-- Suppress warnings irrelevant for sample code -->
     <NoWarn>$(NoWarn);CA1050;CA1506</NoWarn>
   </PropertyGroup>
-  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+ <!-- Updated paths for reorganized sample structure -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />

@@ -98,20 +98,23 @@ public sealed class MemoryPackSerializationServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddMemoryPackSerializer_UseTryAdd_DoesNotOverrideExisting()
+	public void AddMemoryPackSerializer_OverridesExistingRegistration_LastWins()
 	{
 		// Arrange - register a fake serializer first
 		var services = new ServiceCollection();
 		var fakeSerializer = A.Fake<ISerializer>();
 		services.AddSingleton(fakeSerializer);
 
-		// Act - MemoryPack should NOT override the existing registration (TryAdd)
+		// Act - single source of truth (bd-fbd23t): AddXSerializer deterministically overrides any
+		// prior ISerializer registration so the directly-resolved ISerializer agrees with the
+		// PluggableSerializationOptions.CurrentSerializerName path (both last-registration-wins).
 		_ = services.AddMemoryPackSerializer();
 
 		// Assert
 		using var provider = services.BuildServiceProvider();
 		var resolved = provider.GetRequiredService<ISerializer>();
-		resolved.ShouldBeSameAs(fakeSerializer);
+		resolved.ShouldNotBeSameAs(fakeSerializer);
+		resolved.Name.ShouldBe("MemoryPack");
 	}
 
 	#endregion Serializer Functionality Tests

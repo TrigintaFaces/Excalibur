@@ -27,6 +27,14 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 	private readonly IMemoryCache _fakeMemoryCache = A.Fake<IMemoryCache>();
 	private readonly HybridCache _fakeHybridCache = A.Fake<HybridCache>();
 	private readonly ICacheTagTracker _fakeTagTracker = A.Fake<ICacheTagTracker>();
+	private readonly ICacheKeyBuilder _keyBuilder = A.Fake<ICacheKeyBuilder>();
+
+	public CacheInvalidationMiddlewareDepthShould()
+	{
+		// f8pdos: direct invalidation keys are folded through the key builder before removal — deterministic transform.
+		A.CallTo(() => _keyBuilder.CreateKey(A<string>._, A<string?>._, A<string?>._))
+			.ReturnsLazily((string logicalKey, string? tenantId, string? userId) => $"sk:{logicalKey}");
+	}
 
 	public void Dispose()
 	{
@@ -82,7 +90,7 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 
 		// Assert -- keys are still removed directly
 		result.ShouldBe(expectedResult);
-		A.CallTo(() => _fakeMemoryCache.Remove("key-to-remove")).MustHaveHappened();
+		A.CallTo(() => _fakeMemoryCache.Remove("sk:key-to-remove")).MustHaveHappened();
 	}
 
 	[Fact]
@@ -190,7 +198,7 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 
 		// Assert
 		result.ShouldBe(expectedResult);
-		A.CallTo(() => fakeMemoryCache.Remove("fallback-key"))
+		A.CallTo(() => fakeMemoryCache.Remove("sk:fallback-key"))
 			.MustHaveHappened();
 	}
 
@@ -257,6 +265,7 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 		return new CacheInvalidationMiddleware(
 			_meterFactory,
 			MsOptions.Create(options ?? new CacheOptions { Enabled = true }),
+			_keyBuilder,
 			tagTracker,
 			memoryCache,
 			hybridCache);

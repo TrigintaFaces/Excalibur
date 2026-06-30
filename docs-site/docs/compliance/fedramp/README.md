@@ -4,7 +4,7 @@
 
 **Framework:** Excalibur.Dispatch
 **Standard:** NIST 800-53 Rev 5
-**Epic:** i43v - FedRAMP Government Compliance
+**Epic:** FedRAMP Government Compliance
 **Status:** 14/14 technical controls implemented (framework level)
 
 ---
@@ -19,7 +19,7 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 
 ---
 
-## Control Status (Epic i43v)
+## Control Status
 
 | Control | Title | Status | Implementation |
 |---------|-------|--------|----------------|
@@ -38,7 +38,7 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 | **SA-15** | Development Process | ✅ SATISFIED | CI/CD pipeline, automated quality gates |
 | **CM-8** | Component Inventory | ✅ SATISFIED | SBOM generation (CycloneDX) |
 
-**Epic i43v Status:** 14/14 controls (100% complete) - **READY FOR CLOSURE**
+**Status:** 14/14 controls (100% complete)
 
 ---
 

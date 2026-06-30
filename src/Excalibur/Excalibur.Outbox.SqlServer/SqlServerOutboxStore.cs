@@ -323,10 +323,11 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
-		var outboundMessage = new OutboundMessage(
+		var outboundMessage = OutboundMessage.FromContext(
 			message.GetType().FullName ?? message.GetType().Name,
 			SerializePayload(message),
 			"default",
+			context,
 			context.Items.ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal));
 		try
 		{

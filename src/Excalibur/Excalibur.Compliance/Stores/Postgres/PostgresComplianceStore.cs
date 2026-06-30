@@ -69,7 +69,7 @@ public sealed class PostgresComplianceOptions
 /// </para>
 /// <para>
 /// This implementation accepts a <see cref="Func{NpgsqlConnection}"/> factory following
-/// the CDC connection factory pattern (S547). Each operation opens a fresh connection
+/// the CDC connection factory pattern. Each operation opens a fresh connection
 /// from the factory and disposes it when complete.
 /// </para>
 /// <para>

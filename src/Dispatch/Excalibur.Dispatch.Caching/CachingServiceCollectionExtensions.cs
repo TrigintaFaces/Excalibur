@@ -433,6 +433,18 @@ public static class CachingServiceCollectionExtensions
 			var opts = sp.GetRequiredService<IOptions<CacheOptions>>().Value;
 			if (opts.CacheMode is CacheMode.Distributed or CacheMode.Hybrid)
 			{
+				// Prefer the Redis-native tracker (atomic SADD/SMEMBERS/SREM — no lost-update race) whenever a
+				// real Redis connection is registered. This is the correct multi-instance tracker; the generic
+				// DistributedCacheTagTracker below is a best-effort fallback for non-Redis IDistributedCache
+				// backends (e.g. SQL Server) whose abstraction lacks an atomic set primitive.
+				var multiplexer = sp.GetService<StackExchange.Redis.IConnectionMultiplexer>();
+				if (multiplexer is not null)
+				{
+					return new RedisCacheTagTracker(
+						multiplexer,
+						sp.GetRequiredService<IOptions<CacheOptions>>());
+				}
+
 				var distributedCache = sp.GetService<IDistributedCache>();
 				if (distributedCache is not null
 					&& !string.Equals(distributedCache.GetType().Name, "MemoryDistributedCache", StringComparison.Ordinal))

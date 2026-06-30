@@ -3,12 +3,13 @@
 
 
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
 using System.Security;
 
 using Amazon;
 using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
+
+using Excalibur.Security.Internal;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -150,29 +151,38 @@ internal sealed partial class AwsSecretsManagerCredentialStore : IWritableCreden
 
 		LogStoringCredential(key);
 
-		// Convert SecureString to string for the AWS API
-		var credentialValue = SecureStringToString(credential);
-
 		try
 		{
-			if (credentialValue.Length is < 1 or > 65536)
-			{
-				throw new ArgumentException("Credential length must be between 1 and 65536 characters", nameof(credential));
-			}
+			// Expose the plaintext only inside a pinned, zero-on-exit buffer (never a long-lived
+			// unzeroable managed string). The AWS Secrets Manager SDK is string-based, so a transient
+			// string is constructed at the call boundary; that copy is the SDK's surface.
+			await SecurePlaintextScope.UseAsync(
+				credential,
+				async (buffer, ct) =>
+				{
+					if (buffer.Length is < 1 or > 65536)
+					{
+						throw new ArgumentException("Credential length must be between 1 and 65536 characters", nameof(credential));
+					}
 
-			try
-			{
-				_ = await _client.PutSecretValueAsync(
-					new PutSecretValueRequest { SecretId = key, SecretString = credentialValue },
-					cancellationToken).ConfigureAwait(false);
-			}
-			catch (ResourceNotFoundException)
-			{
-				// The secret does not exist yet — create it (idempotent store-or-update).
-				_ = await _client.CreateSecretAsync(
-					new CreateSecretRequest { Name = key, SecretString = credentialValue },
-					cancellationToken).ConfigureAwait(false);
-			}
+					var secretString = new string(buffer);
+					try
+					{
+						_ = await _client.PutSecretValueAsync(
+							new PutSecretValueRequest { SecretId = key, SecretString = secretString },
+							ct).ConfigureAwait(false);
+					}
+					catch (ResourceNotFoundException)
+					{
+						// The secret does not exist yet — create it (idempotent store-or-update).
+						_ = await _client.CreateSecretAsync(
+							new CreateSecretRequest { Name = key, SecretString = secretString },
+							ct).ConfigureAwait(false);
+					}
+
+					return true;
+				},
+				cancellationToken).ConfigureAwait(false);
 
 			// Only logged once the write is durably accepted (never logged-as-success on failure).
 			LogCredentialStored(key);
@@ -185,11 +195,6 @@ internal sealed partial class AwsSecretsManagerCredentialStore : IWritableCreden
 		{
 			LogStorageFailed(ex, key);
 			throw new InvalidOperationException($"Failed to store secret '{key}' in AWS Secrets Manager", ex);
-		}
-		finally
-		{
-			// Clear the transient plaintext copy from memory.
-			Array.Fill(credentialValue.ToCharArray(), '\0');
 		}
 	}
 
@@ -210,23 +215,6 @@ internal sealed partial class AwsSecretsManagerCredentialStore : IWritableCreden
 		return string.IsNullOrWhiteSpace(region)
 			? new AmazonSecretsManagerClient()
 			: new AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(region));
-	}
-
-	private static string SecureStringToString(SecureString secureString)
-	{
-		var ptr = IntPtr.Zero;
-		try
-		{
-			ptr = Marshal.SecureStringToGlobalAllocUnicode(secureString);
-			return Marshal.PtrToStringUni(ptr) ?? string.Empty;
-		}
-		finally
-		{
-			if (ptr != IntPtr.Zero)
-			{
-				Marshal.ZeroFreeGlobalAllocUnicode(ptr);
-			}
-		}
 	}
 
 	// Source-generated logging methods

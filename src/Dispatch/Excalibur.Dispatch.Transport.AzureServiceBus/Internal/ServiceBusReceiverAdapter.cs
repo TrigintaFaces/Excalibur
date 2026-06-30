@@ -45,8 +45,13 @@ internal sealed class ServiceBusReceiverAdapter : IServiceBusReceiverSeam
 	public Task DeadLetterMessageAsync(
 		ServiceBusReceivedMessage message,
 		string? deadLetterReason,
+		string? deadLetterErrorDescription,
 		CancellationToken cancellationToken)
-		=> _inner.DeadLetterMessageAsync(message, deadLetterReason, cancellationToken: cancellationToken);
+		=> _inner.DeadLetterMessageAsync(
+			message,
+			deadLetterReason,
+			deadLetterErrorDescription,
+			cancellationToken: cancellationToken);
 
 	/// <inheritdoc/>
 	public ValueTask DisposeAsync()

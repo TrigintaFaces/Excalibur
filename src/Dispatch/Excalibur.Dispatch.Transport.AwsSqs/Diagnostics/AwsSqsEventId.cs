@@ -755,4 +755,54 @@ public static class AwsSqsEventId
 
 	/// <summary>Transport subscriber: disposed.</summary>
 	public const int TransportSubscriberDisposed = 26127;
+
+	// ========================================
+	// 26129-26139: ITransportSubscriber (batch settlement + visibility heartbeat)
+	// ========================================
+
+	/// <summary>Transport subscriber: batch delete failed for an entry.</summary>
+	public const int TransportSubscriberBatchDeleteFailed = 26129;
+
+	/// <summary>Transport subscriber: batch delete error.</summary>
+	public const int TransportSubscriberBatchDeleteError = 26130;
+
+	/// <summary>Transport subscriber: batch visibility change error.</summary>
+	public const int TransportSubscriberBatchVisibilityError = 26131;
+
+	/// <summary>Transport subscriber: visibility timeout extended by heartbeat.</summary>
+	public const int TransportSubscriberVisibilityExtended = 26132;
+
+	/// <summary>Transport subscriber: visibility timeout extension failed.</summary>
+	public const int TransportSubscriberVisibilityExtendFailed = 26133;
+
+	// ========================================
+	// 26140-26159: Provisioning
+	// ========================================
+
+	/// <summary>Provisioning: applying dead-letter redrive policy to source queue.</summary>
+	public const int ProvisioningRedrivePolicyApplying = 26140;
+
+	/// <summary>Provisioning: dead-letter redrive policy applied.</summary>
+	public const int ProvisioningRedrivePolicyApplied = 26141;
+
+	/// <summary>Provisioning: failed to apply dead-letter redrive policy.</summary>
+	public const int ProvisioningRedrivePolicyFailed = 26142;
+
+	/// <summary>Provisioning: creating SNS-to-SQS subscription.</summary>
+	public const int ProvisioningSubscriptionCreating = 26143;
+
+	/// <summary>Provisioning: SNS-to-SQS subscription created.</summary>
+	public const int ProvisioningSubscriptionCreated = 26144;
+
+	/// <summary>Provisioning: failed to create SNS-to-SQS subscription.</summary>
+	public const int ProvisioningSubscriptionFailed = 26145;
+
+	/// <summary>Provisioning: startup provisioning completed.</summary>
+	public const int ProvisioningCompleted = 26146;
+
+	/// <summary>Provisioning: startup provisioning failed (fail-open).</summary>
+	public const int ProvisioningFailed = 26147;
+
+	/// <summary>Provisioning: skipped because required identifiers are missing.</summary>
+	public const int ProvisioningSkipped = 26148;
 }

@@ -8,7 +8,7 @@
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
   </PropertyGroup>
-  <!-- Sprint 432 S432.1: Protobuf serialization sample -->
+ <!-- Protobuf serialization sample -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Serialization.Protobuf\Excalibur.Dispatch.Serialization.Protobuf.csproj" />

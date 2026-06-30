@@ -79,11 +79,7 @@ public sealed partial class InMemoryOutboxStore : IOutboxStore, IOutboxStoreAdmi
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
 #pragma warning restore IL2026, IL3050
 
-		var outbound = new OutboundMessage(messageType, payload, messageType)
-		{
-			CorrelationId = context.CorrelationId,
-			CausationId = context.CausationId
-		};
+		var outbound = OutboundMessage.FromContext(messageType, payload, messageType, context);
 
 		// Enforce capacity limits
 		EnforceCapacityLimit();

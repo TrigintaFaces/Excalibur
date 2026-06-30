@@ -14,7 +14,99 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ---
 
-## June 2026 — Integration Correctness Hardening (Sprint 853)
+## June 2026 — Provider Conformance Parity & Transport Tuning
+
+A reliability-and-parity sprint: every persistence provider is now held to the same behavioral contract by a shared conformance suite, several provider correctness defects were fixed, and the transports gained the production tuning knobs they were missing. As a greenfield framework there are no consumer data migrations; review the items below for behavior or API you may have relied on.
+
+### Every storage provider is verified against one shared contract
+
+- **Snapshot stores, event stores, outbox stores, and inbox stores now run a single shared conformance suite across all providers.** SQL Server, PostgreSQL, SQLite, Redis, MongoDB, Cosmos DB, DynamoDB, and Firestore are each exercised against the same behavioral facts (round-trip fidelity, version/concurrency semantics, idempotent claims) on real infrastructure using each provider's **default** serializer/client — so a provider either meets the contract or fails the build. This closes the gap where a provider could compile and pass its own unit tests while diverging from the contract on a real server.
+
+### Provider correctness fixes
+
+- **SQLite event store now reports a concurrency conflict instead of an infrastructure error.** A concurrent append that loses the version race now returns a normal concurrency-conflict result (the same shape every other event store returns), rather than surfacing a lower-level connection exception. Optimistic-concurrency retry loops behave consistently across all event-store providers.
+- **The transactional outbox preserves `TenantId` end-to-end.** Both message-conversion paths in the outbox processor now carry `TenantId` through enqueue → reserve → dispatch for the relational and document providers (SQL Server, PostgreSQL, Redis, MongoDB, Elasticsearch, and in-memory), so tenant isolation is not lost in transit.
+- **Elasticsearch and OpenSearch materialized views default to read-your-write consistency.** Per-document writes now default to the `wait_for` refresh policy, so a write is visible to a subsequent read without an arbitrary delay; outbox/inbox statistics are computed with a server-side count instead of materializing large result sets.
+
+### Transport tuning and cleanup
+
+- **gRPC transport** gains first-class resilience options: automatic retries and hedging, keep-alive ping configuration, HTTP/2 connection pooling, and a configurable set of retryable status codes — surfaced on `GrpcTransportOptions`.
+- **AWS SQS transport** gains optional queue **provisioning** (`ConfigureProvisioning` — create queues / dead-letter redrive / SNS subscriptions, fail-open by default) and a **visibility-timeout heartbeat** (`ConfigureVisibilityHeartbeat`) that extends in-flight message visibility for long-running handlers, plus `UseRequestTimeout` and `UseMaxRetryAttempts`.
+- **Google Pub/Sub transport** can auto-apply a dead-letter policy at startup (`AutoApplyDeadLetterPolicy`, `DeadLetterMaxDeliveryAttempts`).
+- **RabbitMQ transport** exposes automatic connection recovery through the fluent builder (`.AutomaticRecovery(enabled, networkRecoveryInterval)`) and `RabbitMQConnectionOptions`.
+- **Kafka transport** exposes the consumer `PartitionAssignmentStrategy` and commits offsets on partition revocation.
+- **AWS Lambda** adds a SnapStart warm-up hook (`AwsLambdaSnapStartHooks.RegisterWarmup`) to reduce cold-start latency.
+- **The inert RabbitMQ "streams" surface has been removed.** `IRabbitMqStreamConsumer`, `RabbitMqStreamOptions`, `StreamOffset`, and `AddRabbitMqStreamQueues` registered no working consumer and have been dropped. If you referenced these types, they were non-functional; use the standard RabbitMQ queue transport instead.
+
+### Compliance encryption uses one builder
+
+- **`AddComplianceEncryption` now takes a single fluent builder.** Replace the previous separate overloads with one call:
+
+  ```csharp
+  services.AddComplianceEncryption(encryption => encryption
+      .WithInMemoryKeyManagement()        // or .WithKeyManagement<TProvider>()
+      .WithEncryption()
+      .WithKeyRotation());
+  ```
+
+  The prior `AddComplianceEncryption<TKeyManagement>(...)` and `AddComplianceEncryptionWithRotation(...)` overloads are removed; the builder expresses the same combinations in one place.
+
+---
+
+## June 2026 — Registration Ergonomics & Reliability Honesty
+
+A wide correctness sprint standardizing the registration surface and making several advertised reliability seams honest about what they actually guarantee. As a greenfield framework there are no consumer data migrations beyond the outbox schema note below; these are behavioral **corrections** and a public-surface simplification, so review them for behavior or API you may have relied on.
+
+### Registration uses one composition root and the `Add*`/`Use*` verb standard
+
+- **`AddDispatch` is the single registration entry point — the `UseDispatch` alias has been removed.** Registration verbs now follow the Microsoft convention: `Add*` registers services (like `AddLogging`/`AddOptions`), while `Use*` is reserved for pipeline/middleware ordering (like `UseRouting`). If you registered Dispatch with `UseDispatch(...)`, rename the call to `AddDispatch(...)` — the behavior is identical. See [Handlers → Registration](./handlers.md) and [Configuration](./core-concepts/configuration.md).
+
+### Idempotency and deduplication tell the truth about their guarantees
+
+- **The inbox/idempotency delivery contract is now documented precisely.** The guarantee is **exactly-once for *concurrent* redelivery** (an atomic claim blocks the second caller) and **at-least-once across a *process crash*** (the claim and the post-handler mark are two steps, not one transaction) — so handlers must be idempotent to be safe across a crash. The docs no longer imply unconditional exactly-once. See [Inbox](./patterns/inbox.md) and the [Idempotent Consumer Guide](./patterns/idempotent-consumer.md).
+- **The in-memory deduplicator fails closed at capacity instead of silently admitting duplicates.** Its capacity is now configurable via `InMemoryDeduplicatorOptions.MaxEntries` (default 100,000; `0` = unbounded). At capacity a claim that cannot be tracked is denied, and the record-producing operations throw a transient `DeduplicationCapacityExceededException` so the message is redelivered rather than admitted without deduplication. If you run light-mode (`UseInMemory = true`) dedup under sustained load, raise `MaxEntries` or switch to a persistent `IInboxStore`. See [Idempotent Consumer → Idempotency Under Load](./patterns/idempotent-consumer.md#idempotency-under-load).
+- **Inbox stores that cannot honor an atomic claim now fail loud at startup** rather than silently degrading to a non-atomic check-then-act path, so a mis-configured store is caught at `ValidateOnStart` instead of producing duplicate processing at runtime.
+
+### Reliability seams: serverless telemetry, multi-tenant outbox
+
+- **Serverless host providers emit an honest telemetry signal.** AWS Lambda, Azure Functions, and Google Cloud Functions now log (at Information level) that in-process telemetry exporters are in use, instead of a silent no-op behind an advertised-but-inert option — and telemetry never breaks the handler.
+- **The Postgres outbox persists `TenantId` across every stage and scheduled path**, preserving tenant isolation through enqueue → reserve → dispatch. **Upgrade note:** consumers on a pre-existing outbox schema must add the `tenant_id` column to the outbox table, or staged messages will fail with `column "tenant_id" does not exist`.
+
+---
+
+## June 2026 — Correctness & Conformance Backlog Burn
+
+A wide correctness/conformance sprint consolidating divergent implementations and wiring up reliability seams that were advertised but inert. Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), is green across the 10-shard full CI run plus the Docker/TestContainers shards, and passed both independent reviews (code + architecture/CSO) at zero blocking findings. As a greenfield framework there are no consumer data migrations; these are behavioral **corrections**, so review them for behavior you may have relied on.
+
+### Serializers fail loud instead of masking data loss
+
+- **The JSON serializer family now agrees on one empty/null contract.** `DispatchJsonSerializer` deserialization throws `SerializationException` on an empty payload (and on a `null` result for a non-nullable type) instead of returning a silent `null`, and the JSON event serializers wrap **write-path** failures in `SerializationException` rather than letting a raw provider exception escape. If you relied on the old silent-null behavior, handle the exception (or guard for empty input) at the call site.
+- **Claim-check payloads serialize with the framework camelCase policy by default** (`JsonClaimCheckSerializer` with no explicit options), so they interoperate with every other serializer in the framework. See [Claim Check → Payload Serialization](./patterns/claim-check.md#payload-serialization).
+
+### Caching is resilient and its resilience options actually engage
+
+- **Caching now fails open on tag-store errors.** A tag-store backend failure during tag registration or poison-marker cleanup is logged and skipped — it never breaks core message dispatch. `DistributedCacheTagTracker` registration is also atomic. See [Caching → Tag Tracking](./performance/caching.md).
+- **`CacheResilienceOptions` (circuit breaker / fallback) is now wired into the cache pipeline** — previously advertised-but-inert configuration now engages, along with fixes for negative-result cache poisoning and hit/miss recording.
+
+### Reliability seams: CDC, outbox, sagas, audit
+
+- **CDC never advances its checkpoint past an unprocessed change.** Every provider routes its per-iteration decision through one shared guard: success advances, a fatal fault stops loudly, a transient fault reconnects from the un-advanced checkpoint — and a mid-batch state-store save no longer masks the original exception. See [CDC Troubleshooting](./operations/cdc-troubleshooting.md#during-the-restore-database-unavailable).
+- **The Redis outbox poll-claim is atomic** (single Lua lease-claim), so concurrent pollers cannot double-claim.
+- **`SagaManager` no longer re-runs a completed saga** — an event for an already-completed saga is skipped at load time (no handler, no save), matching `SagaCoordinator`. See [Sagas → Optimistic Concurrency](./sagas/index.md#optimistic-concurrency).
+- **Audit-trail integrity is consolidated onto one keyed-MAC** over a round-trip-stable canonical serialization, and the security audit writer no longer emits raw PII.
+
+### Security defaults
+
+- **MessagePack deserializes untrusted input safely by default.** Registered without explicit options, the provider uses `MessagePackSecurity.UntrustedData` (guarding against deep-nesting / hash-collision attacks on off-process payloads), and the default System.Text.Json options enforce a bounded depth. See [Serialization Providers → MessagePack](./middleware/serialization-providers.md#messagepack).
+
+### Multi-tenant routing and Cosmos
+
+- **`TenantId` is now first-class on the transport context** and copied by every transport mapper independently of headers, so a tenant is no longer dropped crossing the transport boundary.
+- **Persisted Cosmos documents are serializer-agnostic** — dual-annotated for both System.Text.Json and Newtonsoft, so a consumer-injected `CosmosClient` using the SDK-default (Newtonsoft) serializer still produces correct wire keys. See [Event Sourcing → Providers (Cosmos DB)](./event-sourcing/providers.md).
+
+---
+
+## June 2026 — Integration Correctness Hardening
 
 A correctness-first sweep closing severe data-loss, lost-update, and lost-write defects across the integration providers (saga stores, outbox stores, projection stores, distributed locks, and the Vault key provider). Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), is green across the 10-shard full CI run plus the Docker container shards, and passed both independent reviews (code + architecture/CSO) at zero blocking findings. As a greenfield framework there are no consumer data migrations; these are behavioral **corrections**, so review them for behavior you may have relied on.
 
@@ -36,7 +128,7 @@ A correctness-first sweep closing severe data-loss, lost-update, and lost-write 
 
 ---
 
-## June 2026 — Reliability, Telemetry & Security Hardening (Sprint 852)
+## June 2026 — Reliability, Telemetry & Security Hardening
 
 A focused hardening sweep across error handling, CDC, serialization, observability, and security. Each change carries a non-vacuous independent regression lock (red on the pre-fix code), is green across the 10-shard full CI run plus container shards, and passed both independent reviews (code + architecture/CSO) at zero blocking findings. As a greenfield framework there are no consumer data migrations, but two items below change a default or remove a property — review them for behavior you may have relied on.
 
@@ -71,7 +163,7 @@ A focused hardening sweep across error handling, CDC, serialization, observabili
 
 ---
 
-## June 2026 — Reliability & Wiring Correctness (Sprint 850)
+## June 2026 — Reliability & Wiring Correctness
 
 A focused sweep closing a class of **wiring/registration/correctness** gaps where advertised behavior did not actually fire, plus concurrency/memory hazards. Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), green across the 10-shard full CI run plus Docker container shards, with both independent reviews (code + architecture/CSO) approved at zero blocking findings. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but **SQL Server inbox users must add the new `NextAttemptAt` column** (below), and you should review the items for behavior you may have relied on.
 
@@ -82,7 +174,7 @@ A focused sweep closing a class of **wiring/registration/correctness** gaps wher
 
 ### Inbox retry now honors exponential backoff
 
-- **The inbox processor now schedules failed entries with the computed exponential backoff instead of a hardcoded 5-minute window.** On a failure it persists `NextAttemptAt = now + IBackoffCalculator.CalculateDelay(attempt)`, and the retryable-fetch predicate becomes `NextAttemptAt IS NULL OR NextAttemptAt <= now` — so the configured backoff genuinely throttles redelivery (mirroring the Sprint 849 outbox fix). This uses the new optional `IBackoffSchedulableInboxStore` capability (`MarkFailedWithBackoffAsync`); the SQL Server inbox store implements it, stores without it fall back to the existing immediate-retry path (fail-open), and the capability is forwarded transparently through the telemetry and encrypting inbox-store decorators.
+- **The inbox processor now schedules failed entries with the computed exponential backoff instead of a hardcoded 5-minute window.** On a failure it persists `NextAttemptAt = now + IBackoffCalculator.CalculateDelay(attempt)`, and the retryable-fetch predicate becomes `NextAttemptAt IS NULL OR NextAttemptAt <= now` — so the configured backoff genuinely throttles redelivery (mirroring the outbox fix). This uses the new optional `IBackoffSchedulableInboxStore` capability (`MarkFailedWithBackoffAsync`); the SQL Server inbox store implements it, stores without it fall back to the existing immediate-retry path (fail-open), and the capability is forwarded transparently through the telemetry and encrypting inbox-store decorators.
 - **SQL Server inbox users must add a `NextAttemptAt DATETIMEOFFSET NULL` column** to the inbox table (the store does not auto-create tables). See [Inbox → Retry Backoff Schedule](./patterns/inbox.md#retry-backoff-schedule).
 
 ### Postgres outbox now supports retry backoff
@@ -105,7 +197,7 @@ A focused sweep closing a class of **wiring/registration/correctness** gaps wher
 
 ---
 
-## June 2026 — Outbox/Inbox Reliability Hardening (Sprint 849)
+## June 2026 — Outbox/Inbox Reliability Hardening
 
 A focused sweep closing the "advertised-but-broken" gaps on the default dispatch and outbox path: the default pipeline now actually runs, outbox ordering keys are persisted and honored, and the computed retry backoff is genuinely applied. Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), green across the 10-shard full CI run plus Docker SQL Server container shards, with both independent reviews (code + architecture/CSO) approved at zero blocking findings. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but SQL Server outbox users must add the new ordering/backoff columns (below), and review the items for behavior you may have relied on.
 
@@ -125,17 +217,17 @@ A focused sweep closing the "advertised-but-broken" gaps on the default dispatch
 
 ### Architecture build gate (contributor-facing)
 
-- **Sibling `*_ENFORCE` CI flags and the package-map drift check are now wired to the `ARCH_ENFORCE` gate**, extending the Sprint 848 architecture-boundary enforcement. No runtime impact.
+- **Sibling `*_ENFORCE` CI flags and the package-map drift check are now wired to the `ARCH_ENFORCE` gate**, extending the architecture-boundary enforcement. No runtime impact.
 
 ---
 
-## June 2026 — Projection Correctness + the Transactional Outbox Keystone (Sprint 848)
+## June 2026 — Projection Correctness + Transactional Outbox
 
-A large-batch P1 correctness sweep across the projection stores, options validation, and the architecture build gate — plus the keystone that makes the **transactional event+outbox** path real. Each fix carries a non-vacuous independent regression lock (red on the pre-fix code), all green across the 10-shard full CI run + Docker/emulator container shards, with both independent reviews (code + architecture/CSO) approved at zero blocking findings. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but review the items below for behavior you may have relied on.
+A broad correctness sweep across the projection stores, options validation, and the architecture build gate — plus the change that makes the **transactional event+outbox** path real. Each fix ships with regression coverage and is verified across the full test matrix, including the Docker/emulator container suites. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but review the items below for behavior you may have relied on.
 
 ### Transactional event + outbox staging is now real (and SQL Server supports it)
 
-- **Selecting `OutboxStagingStrategy.Transactional` now atomically appends events and stages outbox messages in one database transaction — for event stores that support it.** Sprint 841 made the strategy *fail fast* when its infrastructure was missing; Sprint 848 builds the path it was guarding. The optional `ITransactionalEventStore` extension of `IEventStore` is now **public** (namespace `Excalibur.EventSourcing`), and `SqlServerEventStore` implements it. Its `AppendWithOutboxStagingAsync` is a **store-owned atomic unit of work**: the store opens and owns a single connection and transaction, runs the optimistic-concurrency check, appends the events, invokes your outbox staging on that *same* transaction (only if the version check passed), then commits — rolling everything back on a concurrency conflict or any staging failure. The transaction never escapes the store, so an event append and its outbox rows can never land on two different transactions.
+- **Selecting `OutboxStagingStrategy.Transactional` now atomically appends events and stages outbox messages in one database transaction — for event stores that support it.** An earlier release made the strategy *fail fast* when its infrastructure was missing; this release builds the path it was guarding. The optional `ITransactionalEventStore` extension of `IEventStore` is now **public** (namespace `Excalibur.EventSourcing`), and `SqlServerEventStore` implements it. Its `AppendWithOutboxStagingAsync` is a **store-owned atomic unit of work**: the store opens and owns a single connection and transaction, runs the optimistic-concurrency check, appends the events, invokes your outbox staging on that *same* transaction (only if the version check passed), then commits — rolling everything back on a concurrency conflict or any staging failure. The transaction never escapes the store, so an event append and its outbox rows can never land on two different transactions.
 - **With SQL Server + an `ITransactionalOutboxWriter` registered, the default `Auto` strategy now resolves to `Transactional`** — integration events can no longer be lost in the crash window between the event append and the outbox stage. NoSQL event stores (which do not implement `ITransactionalEventStore`) continue to use eventually-consistent or deferred staging. See [Outbox Pattern → Event Sourcing Outbox Integration](./patterns/outbox.md).
 
 ### Projection queries apply your filters server-side
@@ -158,9 +250,9 @@ A large-batch P1 correctness sweep across the projection stores, options validat
 
 ---
 
-## June 2026 — Reliability Seam Tail (Sprint 841)
+## June 2026 — Reliability Seam Tail
 
-The P1 tail of the same "advertised-but-unwired" class Sprint 840 opened (governed by ADR-336): seven seams where the framework advertised a durability or compliance guarantee it did not actually honor. With this sweep the class is **closed** — no silent degrade remains on the ADR-336 surface. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but review the items below for behavior you may have relied on. The Dispatch (messaging) abstractions gain three small additive members; nothing is removed.
+The tail of the same "advertised-but-unwired" reliability-seam class: seven seams where the framework advertised a durability or compliance guarantee it did not actually honor. With this sweep the class is **closed** — no silent degrade remains on that surface. These are behavioral **corrections**; as a greenfield framework there are no consumer data migrations, but review the items below for behavior you may have relied on. The Dispatch (messaging) abstractions gain three small additive members; nothing is removed.
 
 ### Credential stores persist for real — and Vault is now opt-in
 
@@ -179,7 +271,7 @@ The P1 tail of the same "advertised-but-unwired" class Sprint 840 opened (govern
 
 ### Elasticsearch inbox cleanup respects the cutoff
 
-- **`ElasticsearchInboxStore.CleanupAsync(olderThan, …)` now deletes only documents older than the cutoff.** It previously issued a `MatchAll` query and deleted **every** inbox document regardless of age. Documents at or newer than `olderThan` are now retained (same correction shape as Sprint 840's audit-archival cutoff fix).
+- **`ElasticsearchInboxStore.CleanupAsync(olderThan, …)` now deletes only documents older than the cutoff.** It previously issued a `MatchAll` query and deleted **every** inbox document regardless of age. Documents at or newer than `olderThan` are now retained (same correction shape as the audit-archival cutoff fix).
 
 ### Transactional outbox staging fails fast instead of degrading silently
 
@@ -187,9 +279,9 @@ The P1 tail of the same "advertised-but-unwired" class Sprint 840 opened (govern
 
 ### Projection hosts no longer silently drop a poison event
 
-- **The continuous `AsyncProjectionProcessingHost` halts on a deserialize-poison event** instead of skipping it and advancing the checkpoint past it (silent read-model drift). An event that fails to deserialize, or deserializes to `null`, now stops processing at that position without advancing the checkpoint, so it is re-attempted on the next read (transient failures self-heal) — bringing the host in line with the Sprint 840 fix to `GlobalStreamProjectionHost`.
+- **The continuous `AsyncProjectionProcessingHost` halts on a deserialize-poison event** instead of skipping it and advancing the checkpoint past it (silent read-model drift). An event that fails to deserialize, or deserializes to `null`, now stops processing at that position without advancing the checkpoint, so it is re-attempted on the next read (transient failures self-heal) — bringing the host in line with the fix to `GlobalStreamProjectionHost`.
 - **The one-shot `ProjectionRebuildService` fails the rebuild on a poison event** rather than skipping it. A deserialize/`null` or apply failure now rethrows and the rebuild ends in a `Failed` state with partial state not persisted; because a rebuild is one-shot there is no checkpoint and nothing is reprocessed — fix the cause and re-run the rebuild.
-- **An *apply* failure in the continuous host is recorded, not halted — and the read model stays rebuildable.** In `AsyncProjectionProcessingHost`, where many projections share one checkpoint, a failure in one projection's apply is recorded per-projection (error + health state + observability); it does **not** halt the shared checkpoint, because halting it would force the projections that *succeeded* to re-apply the event. The full boundary is captured in ADR-336 Amendment 4. See [Projections](./event-sourcing/projections.md).
+- **An *apply* failure in the continuous host is recorded, not halted — and the read model stays rebuildable.** In `AsyncProjectionProcessingHost`, where many projections share one checkpoint, a failure in one projection's apply is recorded per-projection (error + health state + observability); it does **not** halt the shared checkpoint, because halting it would force the projections that *succeeded* to re-apply the event. See [Projections](./event-sourcing/projections.md).
 
 ### SQL Server range queries execute on the real schema
 
@@ -197,9 +289,9 @@ The P1 tail of the same "advertised-but-unwired" class Sprint 840 opened (govern
 
 ---
 
-## June 2026 — Data-Loss & Compliance Sweep (Sprint 840)
+## June 2026 — Data-Loss & Compliance Sweep
 
-A sweep of P0 correctness defects where the framework advertised a durability or compliance guarantee it did not actually honor. Each is governed by ADR-336 (the "advertised-but-unwired reliability seam" anti-pattern + engage-test gate). These are behavioral **corrections** on the Excalibur persistence side; the Dispatch (messaging) framework is unaffected. As a greenfield framework there are no consumer data migrations — review the items below for behavior you may have relied on.
+A sweep of P0 correctness defects where the framework advertised a durability or compliance guarantee it did not actually honor. Each addresses the "advertised-but-unwired reliability seam" anti-pattern. These are behavioral **corrections** on the Excalibur persistence side; the Dispatch (messaging) framework is unaffected. As a greenfield framework there are no consumer data migrations — review the items below for behavior you may have relied on.
 
 ### GDPR erasure now has a structural coverage gate
 
@@ -233,7 +325,7 @@ A sweep of P0 correctness defects where the framework advertised a durability or
 
 ---
 
-## June 2026 — Resilience Correctness (Sprint 839)
+## June 2026 — Resilience Correctness
 
 ### Graceful degradation: windowed error rate
 
@@ -276,7 +368,7 @@ A sweep of P0 correctness defects where the framework advertised a durability or
 
 ---
 
-## May 2026 — Backlog Clear: Zero Open Issues (Sprint 837)
+## May 2026 — Backlog Clear: Zero Open Issues
 
 ### SDK Type Leakage Removal
 
@@ -286,7 +378,7 @@ A sweep of P0 correctness defects where the framework advertised a durability or
 // Before (leaked SDK types):
 var config = new IndexConfiguration { Settings = new IndexSettings() };
 
-// After (ADR-329 compliant):
+// After (no leaked SDK types):
 var config = new IndexConfiguration
 {
     SettingsJson = JsonSerializer.SerializeToElement(new IndexSettings())
@@ -301,11 +393,11 @@ var config = new IndexConfiguration
 
 - **GCP PubSub SDK fakes replaced with interface seams** -- Test files now mock `ISubscriberApiClientSeam` instead of concrete `SubscriberServiceApiClient`, preventing test breakage on GCP SDK updates.
 
-**Sprint 837 achieves zero open Beads issues** — the second time in project history (first was S746). 46,644 tests pass across all CI shards.
+**This release achieves zero open issues** — the second time in project history. 46,644 tests pass across all CI shards.
 
 ---
 
-## May 2026 — xUnit v3 Migration (Sprint 836)
+## May 2026 — xUnit v3 Migration
 
 ### Test Infrastructure
 
@@ -313,7 +405,7 @@ var config = new IndexConfiguration
 
 ---
 
-## May 2026 — CodeAnalysis Upgrade (Sprint 835)
+## May 2026 — CodeAnalysis Upgrade
 
 ### Dependency Upgrade
 
@@ -321,7 +413,7 @@ var config = new IndexConfiguration
 
 ---
 
-## May 2026 — Projection Enhancements (Sprint 834)
+## May 2026 — Projection Enhancements
 
 ### WithSearchText — Automatic Computed Search Field
 
@@ -343,7 +435,7 @@ builder.AddProjection<OrderSummary>(p => p
 
 ---
 
-## May 2026 — Saga P2 Cleanup (Sprint 833)
+## May 2026 — Saga P2 Cleanup
 
 ### Template Fix
 
@@ -366,9 +458,9 @@ builder.AddProjection<OrderSummary>(p => p
 
 ---
 
-## May 2026 — Saga Model Unification + ISagaTimeout (Sprint 832)
+## May 2026 — Saga Model Unification + ISagaTimeout
 
-### Saga Model Unification (ADR-333)
+### Saga Model Unification
 
 - **Model B deleted** -- Removed 32,608 lines of incomplete orchestration abstractions (`ISagaDefinition`, `ISagaOrchestrator`, `ISagaStateStore`, `ISagaStep`, `ISagaContext`, `ISagaRetryPolicy`, `StepResult`, `ISagaMonitoringService`, and all related types). These had zero concrete implementations and caused runtime DI resolution failures via `AddExcaliburAdvancedSagas()`.
 - **Model A is the sole saga model** -- Event-driven choreography via `SagaBase<T>`, `ISagaCoordinator`, and `ISagaStore` with 9 provider implementations (SqlServer, Postgres, MongoDB, CosmosDb, DynamoDB, Firestore, InMemory, Telemetry decorator, TenantRouting).
@@ -390,14 +482,14 @@ builder.AddProjection<OrderSummary>(p => p
 
 ## May 2026 — v1.0 Readiness + Proof-of-Life Validation
 
-### Proof-of-Life Consumer App (Sprint 831)
+### Proof-of-Life Consumer App
 
 - **Full-stack reference sample** -- `samples/11-real-world/ProofOfLife/` validates the complete consumer DX: message dispatching, domain aggregates, event sourcing, projections, and REST API endpoints — all using only public NuGet APIs.
 - **ProjectionRebuildJob sample** -- Demonstrates Quartz-scheduled full projection rebuild via `IJobConfigurator.AddJob<ProjectionRebuildJob>(cron)` and `IMaterializedViewBuilder<T>`.
 - **GlobalStreamProjectionHost sample** -- Demonstrates continuous global stream tailing with `IGlobalStreamProjection<TState>` and configurable `GlobalStreamProjectionOptions`.
 - **ProjectionContext.Replay guard** -- `ArgumentOutOfRangeException` now thrown for negative `globalPosition` values, preventing silent acceptance of invalid replay positions.
 
-### Consumer DX Improvements (Sprints 829–830)
+### Consumer DX Improvements
 
 - **Inline projection consistency guarantee** -- Inline projections run synchronously during `SaveAsync`, guaranteeing read-after-write consistency within the same request.
 - **Event-sourced seed data pattern** -- Documented `IHostedService` recipe for seeding initial aggregates idempotently on application startup.
@@ -407,13 +499,13 @@ builder.AddProjection<OrderSummary>(p => p
 
 ## May 2026 — CDC Resilience + Projection Flat Storage
 
-### CDC Idempotency Filtering (Sprints 825–826)
+### CDC Idempotency Filtering
 
 - **Opt-in event deduplication** -- New `ICdcIdempotencyFilter` with two implementations: `InMemoryCdcIdempotencyFilter` (bounded 10K cache, single-instance) and `SqlServerCdcIdempotencyFilter` (persistent, multi-instance). Register via `UseInMemoryIdempotencyFilter()` or `UseSqlServerIdempotencyFilter()` on `ICdcBuilder`.
 - **SQL Server persistent filter** -- Stores processed event keys in `[Cdc].[CdcProcessedEvents]` with composite PK `(TableName, Lsn, SeqVal)`. Configurable retention, batched cleanup, `IValidateOptions<T>` + `ValidateOnStart()`.
 - See [CDC Idempotency Filtering](./patterns/cdc.md#idempotency-filtering) for full details.
 
-### CDC Performance + Error Recovery (Sprints 824–826)
+### CDC Performance + Error Recovery
 
 - **Batch checkpoint writes** -- Per-table instead of per-event, reducing I/O by up to 50× per poll cycle.
 - **Adaptive polling** -- Skips delay when work was found for lower end-to-end latency. Exponential backoff on errors (capped at 5× polling interval) prevents tight retry storms.
@@ -421,7 +513,7 @@ builder.AddProjection<OrderSummary>(p => p
 - **Point query optimization** -- Reverted `fn_cdc_get_all_changes` from range to point queries to prevent SQL execution timeouts on high-volume tables.
 - **Log noise reduction** -- Per-row success logging demoted to `Debug`; batch summary remains at `Information`.
 
-### Projection Store Flat Storage Refactor (Sprint 827)
+### Projection Store Flat Storage Refactor
 
 - **ElasticSearch** -- Projections stored flat as the document root (no envelope wrapper). Custom repositories using `ElasticRepositoryBase<T>` can query the same index with natural field names.
 - **Cosmos DB, DynamoDB, MongoDB** -- Framework metadata moved to a `_projection` nested object, keeping consumer properties at the document root for natural querying.
@@ -444,14 +536,14 @@ builder.AddProjection<OrderSummary>(p => p
 - **CI performance gate** -- MediatR parity threshold enforced on every PR, preventing performance regressions
 - **5 auto-optimize experiment rounds** -- typeof optimization, cancellation skip, InitializeFast, hot-path reorder
 
-### Container Deployment Guide (Sprint 761)
+### Container Deployment Guide
 
 - **8-section consumer guide** -- Dockerfile recipes (JIT/ReadyToRun/AOT), Kubernetes health probes, GC tuning profiles, graceful shutdown, sidecar patterns, Azure Container Apps, and observability
 - **Sample Dockerfiles** -- Production-ready Dockerfiles for getting-started, transport, and AOT samples with multi-stage builds and non-root execution
 - **Kubernetes manifests** -- Sample deployment YAML with startup/readiness/liveness probes, resource limits, and drain timeout alignment
 - **Health check verification** -- `MultiTransportHealthCheck` confirmed correct: reports Unhealthy before transports finish starting (correct for K8s readiness probes)
 
-### AOT Epic Complete (Sprints 758-762)
+### AOT Epic Complete
 
 - **150 of 170 packages AOT-compatible** -- all remaining 20 are blocked by external SDK dependencies, not Excalibur code
 - **Phase B1 closed** (7/7 Tier 1 packages) -- FluentValidation dual-path with source-generated `IAotValidationDispatcher`
@@ -463,27 +555,27 @@ builder.AddProjection<OrderSummary>(p => p
 - **Generator cleanup** -- 3 disabled generators archived, 2 active generators verified, consolidation evaluated and deferred (current architecture is optimal)
 - **Both epics closed** -- AOT Microsoft-Quality Completeness + Container Deployment Guide, zero open backlog items
 
-### API Unification Epic Complete (Sprints 763-769)
+### API Unification Epic Complete
 
 - **Canonical builder pattern** -- All 18+ SQL Server and Postgres subsystem packages unified to a single `subsystem.UseProvider(Action<IBuilder>)` entry point pattern
-- **SQL Server: 4 canonical connection overloads** -- `ConnectionString`, `ConnectionFactory`, `ConnectionStringName`, `BindConfiguration` (Sprints 763-765)
-- **Postgres: 5 canonical connection overloads** -- Same 4 plus `DataSource(NpgsqlDataSource)` for modern Npgsql pooling (Sprints 766-769)
+- **SQL Server: 4 canonical connection overloads** -- `ConnectionString`, `ConnectionFactory`, `ConnectionStringName`, `BindConfiguration`
+- **Postgres: 5 canonical connection overloads** -- Same 4 plus `DataSource(NpgsqlDataSource)` for modern Npgsql pooling
 - **9 Postgres builder interfaces** -- EventSourcing, Saga, Inbox, LeaderElection, Outbox, Data, CDC, Compliance, AuditLogging
 - **All paths converge to NpgsqlDataSource** -- `ConnectionString` and `ConnectionStringName` create `NpgsqlDataSource` internally for proper pooling
 - **Compliance unification** -- Erasure + DataInventory + LegalHold unified under single `IPostgresComplianceBuilder`
 - **231 Postgres builder tests** across 4 sprints, 10/10 CI shards GREEN on every sprint
-- **MongoDB: 4 canonical connection overloads** -- `ConnectionString`, `Client(IMongoClient)`, `ClientFactory`, `BindConfiguration` (Sprints 773-774)
+- **MongoDB: 4 canonical connection overloads** -- `ConnectionString`, `Client(IMongoClient)`, `ClientFactory`, `BindConfiguration`
 - **7 MongoDB builder interfaces** -- EventSourcing, Saga, Inbox, LeaderElection, Outbox, Data, CDC
 - **227 MongoDB builder tests** across 2 sprints
-- **CosmosDb: 5 canonical connection overloads** -- `ConnectionString`, `Endpoint(+authKey)`, `Client(CosmosClient)`, `ClientFactory`, `BindConfiguration` (Sprint 775)
+- **CosmosDb: 5 canonical connection overloads** -- `ConnectionString`, `Endpoint(+authKey)`, `Client(CosmosClient)`, `ClientFactory`, `BindConfiguration`
 - **6 CosmosDb builder interfaces** -- EventSourcing, Saga, Inbox, Outbox, Data, CDC — 243 tests
-- **Redis: 4 canonical connection overloads** -- `ConnectionString`, `ConnectionMultiplexer`, `MultiplexerFactory`, `BindConfiguration` (Sprint 776)
+- **Redis: 4 canonical connection overloads** -- `ConnectionString`, `ConnectionMultiplexer`, `MultiplexerFactory`, `BindConfiguration`
 - **5 Redis builder interfaces** -- EventSourcing, Inbox, LeaderElection, Outbox, Data — 153 tests
 - **Phase B complete** -- MongoDB + CosmosDb + Redis = 18 non-ADO.NET builders, 623 tests total
 - **Old overloads deleted** -- greenfield policy, no `[Obsolete]` stubs
 - **ValidateOnStart on every builder** -- catches missing connections at startup
 
-### Dispatcher Bug Fix (Sprint 759)
+### Dispatcher Bug Fix
 
 - **Exception propagation fix** -- `DispatchAsync` no longer silently wraps handler exceptions in `MessageResult.Failed()`. Handler exceptions now propagate to callers as expected. 12 exception-swallowing catch blocks removed from the DirectLocal fast path.
 
@@ -526,23 +618,23 @@ builder.AddProjection<OrderSummary>(p => p
 
 ### API Quality
 
-- **Interface Segregation** -- All public interfaces comply with the 5-method gate (94 interfaces decomposed across Sprints 743-745)
+- **Interface Segregation** -- All public interfaces comply with the 5-method gate (94 interfaces decomposed)
 - **Options compliance** -- All Options types comply with the 10-property gate (69 types split with sub-options)
 - **ValidateOnStart everywhere** -- All `Add*` DI registration methods validate options at startup, catching misconfigurations before the first request
-- **Zero quality debt** -- Sprint 746 cleared every open issue (P0 through P3) for the first time in project history
+- **Zero quality debt** -- a prior release cleared every open issue (P0 through P3) for the first time in project history
 
 ### Native AOT
 
 - **150 of 170 packages** are `IsAotCompatible=true` -- all remaining 20 packages are blocked solely by external SDK dependencies (Confluent.Kafka, AWS SDK, Google Cloud SDK, etc.), not by Excalibur code
 - **Phase B1 complete** -- all 7 Tier 1 packages resolved: Saga, Caching, Security, AwsLambda, Compliance, gRPC, Protobuf, FluentValidation
-- **AzureServiceBus AOT support** -- `MessageDeserializerRegistry` typed pattern replaces reflection-based deserialization; first Tier 2 conversion (Sprint 759)
-- **FluentValidation AOT support** -- `AotFluentValidatorResolver` with source-generated `IAotValidationDispatcher` for compile-time type-switch validator dispatch (Sprint 758)
+- **AzureServiceBus AOT support** -- `MessageDeserializerRegistry` typed pattern replaces reflection-based deserialization; first Tier 2 conversion
+- **FluentValidation AOT support** -- `AotFluentValidatorResolver` with source-generated `IAotValidationDispatcher` for compile-time type-switch validator dispatch
 - **gRPC AOT support** -- `GrpcJsonSerializerContext` source-gen replaces reflection-based JSON serialization across all 10 transport types
 - **Caching AOT support** -- `Excalibur.Dispatch.Caching` uses `CachePolicyRegistry` with the Explicit-Generic-DI pattern (zero `MakeGenericType` at runtime)
 - **Saga AOT support** -- `Excalibur.Saga` uses source-gen registry population via `IPostConfigureOptions` pattern (zero `MakeGenericType` at runtime)
 - **AOT sample app** -- Consumer-facing sample with Core Dispatch, EventSourcing, and Transport scenarios that publish and run with `dotnet publish -p:PublishAot=true`
-- **AOT performance benchmarks** -- BenchmarkDotNet baselines: dispatch 3% faster, handler activation 3.87x faster, serialization 15-31% faster in AOT vs JIT paths (Sprint 759)
-- **CI AOT enforcement** -- Suppression baseline gate (992 entries) blocks new unapproved suppressions; AOT binary smoke test verifies published binary runs (Sprint 758)
+- **AOT performance benchmarks** -- BenchmarkDotNet baselines: dispatch 3% faster, handler activation 3.87x faster, serialization 15-31% faster in AOT vs JIT paths
+- **CI AOT enforcement** -- Suppression baseline gate (992 entries) blocks new unapproved suppressions; AOT binary smoke test verifies published binary runs
 - **1,022+ IL suppressions audited** -- every suppression in Tier 1 packages classified as justified or removed
 - **Dual-path architecture** -- `RuntimeFeature.IsDynamicCodeSupported` branching ensures JIT and AOT paths are both first-class
 

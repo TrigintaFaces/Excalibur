@@ -71,6 +71,31 @@ public sealed class RedisOutboxOptions
 	public string? Password { get; set; }
 
 	/// <summary>
+	/// Gets or sets the lease (visibility) timeout in seconds for a claimed message.
+	/// </summary>
+	/// <remarks>
+	/// When a poller claims staged messages for delivery, each claimed message is leased for this
+	/// duration: it is hidden from other pollers (disjoint claim) until either it reaches a terminal
+	/// state (sent/failed/dead-lettered, which clears the lease) or the lease expires. An expired lease
+	/// makes the message claimable again, so a poller that crashes mid-delivery cannot strand a message
+	/// (crash-reclaim / no message loss). Defaults to 300 seconds (5 minutes); set generously above the
+	/// expected per-message delivery time to avoid premature re-claim of in-flight work.
+	/// </remarks>
+	[Range(1, int.MaxValue)]
+	public int LeaseTimeoutSeconds { get; set; } = 300;
+
+	/// <summary>
+	/// Gets or sets the identifier recorded as the lease owner of a claimed message (for diagnostics and
+	/// parity with the SQL Server outbox's <c>LeasedBy</c> column).
+	/// </summary>
+	/// <remarks>
+	/// When <see langword="null"/> or empty, a stable per-instance identifier is generated. Disjoint claim
+	/// is guaranteed structurally by the atomic claim script regardless of this value; it exists for
+	/// observability (which processor holds a given lease).
+	/// </remarks>
+	public string? ProcessorId { get; set; }
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
@@ -84,6 +109,11 @@ public sealed class RedisOutboxOptions
 		if (string.IsNullOrWhiteSpace(KeyPrefix))
 		{
 			throw new InvalidOperationException("Redis outbox key prefix is required.");
+		}
+
+		if (LeaseTimeoutSeconds < 1)
+		{
+			throw new InvalidOperationException("Redis outbox lease timeout must be at least 1 second.");
 		}
 	}
 }

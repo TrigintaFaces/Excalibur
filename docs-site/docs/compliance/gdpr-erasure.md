@@ -58,7 +58,7 @@ services.AddLegalHoldService();
 services.AddErasureScheduler();
 ```
 
-:::tip Minimal wiring (Sprint 790 `bd-20ft0e` FIX 2)
+:::tip Minimal wiring
 
 `AddGdprErasure(...)` now `TryAdd`-registers a default `IKeyManagementAdmin` (the in-memory `InMemoryKeyManagementProvider`), so the call above is sufficient for a working minimal wiring in samples, tests, or local development. Calling `AddComplianceEncryption(...)` later wins via first-registrant-TryAdd semantics when a real KMS provider is required. This closes a class of "hidden sibling dependency" defects where consumers were required to register a provider the public entry point never advertised.
 :::

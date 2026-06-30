@@ -69,11 +69,14 @@ public sealed class KafkaDeadLetterQueueManagerShould : IDisposable
 			dlqOptions,
 			NullLogger<KafkaDeadLetterConsumer>.Instance);
 
+		var retryOptions = Microsoft.Extensions.Options.Options.Create(new KafkaRetryOptions());
+
 		_sut = new KafkaDeadLetterQueueManager(
 			producer,
 			consumer,
 			dlqOptions,
 			kafkaOptions,
+			retryOptions,
 			NullLogger<KafkaDeadLetterQueueManager>.Instance);
 	}
 

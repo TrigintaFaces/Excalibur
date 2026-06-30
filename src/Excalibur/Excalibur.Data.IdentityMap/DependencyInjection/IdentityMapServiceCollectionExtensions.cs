@@ -100,17 +100,19 @@ public static class IdentityMapServiceCollectionExtensions
 			// Resolve the inner store from the original registration
 			IIdentityMapStore inner;
 
-			if (descriptor.ImplementationType is not null)
+			// ybem93: keyed-safe accessors (raw reads throw on keyed descriptors on .NET 8+).
+			var implementationType = descriptor.GetImplementationType();
+			if (implementationType is not null)
 			{
-				inner = (IIdentityMapStore)ActivatorUtilities.CreateInstance(sp, descriptor.ImplementationType);
+				inner = (IIdentityMapStore)ActivatorUtilities.CreateInstance(sp, implementationType);
 			}
-			else if (descriptor.ImplementationFactory is not null)
+			else if (descriptor.GetImplementationFactory() is { } implementationFactory)
 			{
-				inner = (IIdentityMapStore)descriptor.ImplementationFactory(sp);
+				inner = (IIdentityMapStore)implementationFactory(sp);
 			}
-			else if (descriptor.ImplementationInstance is not null)
+			else if (descriptor.GetImplementationInstance() is { } implementationInstance)
 			{
-				inner = (IIdentityMapStore)descriptor.ImplementationInstance;
+				inner = (IIdentityMapStore)implementationInstance;
 			}
 			else
 			{

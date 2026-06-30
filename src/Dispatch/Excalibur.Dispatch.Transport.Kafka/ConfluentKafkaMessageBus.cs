@@ -7,6 +7,8 @@ using System.Text;
 
 using Confluent.Kafka;
 
+using Excalibur.Dispatch.Transport.Diagnostics;
+
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Transport.Kafka;
@@ -60,6 +62,9 @@ internal sealed partial class ConfluentKafkaMessageBus : IMessageBus, IAsyncDisp
 		ArgumentNullException.ThrowIfNull(action);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.Kafka, _topic, context.MessageId);
+
 		var actionType = action.GetType();
 		LogPublishingMessage("Action", actionType.Name, _topic);
 
@@ -77,6 +82,9 @@ internal sealed partial class ConfluentKafkaMessageBus : IMessageBus, IAsyncDisp
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
 
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.Kafka, _topic, context.MessageId);
+
 		var eventType = evt.GetType();
 		LogPublishingMessage("Event", eventType.Name, _topic);
 
@@ -93,6 +101,9 @@ internal sealed partial class ConfluentKafkaMessageBus : IMessageBus, IAsyncDisp
 	{
 		ArgumentNullException.ThrowIfNull(doc);
 		ArgumentNullException.ThrowIfNull(context);
+
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.Kafka, _topic, context.MessageId);
 
 		var docType = doc.GetType();
 		LogPublishingMessage("Document", docType.Name, _topic);

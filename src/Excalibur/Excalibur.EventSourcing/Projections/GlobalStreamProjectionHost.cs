@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;
@@ -48,6 +49,8 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	private readonly ILogger<GlobalStreamProjectionHost<TState>> _logger;
 	private readonly ProjectionObservability? _observability;
 	private readonly ProjectionHealthState? _healthState;
+	private readonly IUpcastingPipeline? _upcastingPipeline;
+	private readonly bool _enableAutoUpcast;
 
 	private readonly Dictionary<string, long> _pendingCursorUpdates = new(StringComparer.Ordinal);
 	private GlobalStreamPosition _currentPosition = GlobalStreamPosition.Start;
@@ -97,6 +100,26 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 			as ProjectionObservability;
 		_healthState = serviceProvider.GetService(typeof(ProjectionHealthState))
 			as ProjectionHealthState;
+
+		// Apply the same upcasting the write side uses (EventSourcedRepository) so the read model does not
+		// diverge from the write model when an event schema evolves. Optional: resolved from DI, never fails.
+		_upcastingPipeline = serviceProvider.GetService(typeof(IUpcastingPipeline)) as IUpcastingPipeline;
+		_enableAutoUpcast = (serviceProvider.GetService(typeof(IOptions<UpcastingOptions>)) as IOptions<UpcastingOptions>)
+			?.Value.EnableAutoUpcastOnReplay ?? false;
+	}
+
+	/// <summary>
+	/// Upcasts a deserialized event to its latest registered version when auto-upcast-on-replay is enabled, so the
+	/// projection applies the same (current-schema) event the write-side aggregate would. Mirrors the repository.
+	/// </summary>
+	private IDomainEvent TryUpcastEvent(IDomainEvent domainEvent)
+	{
+		if (!_enableAutoUpcast || _upcastingPipeline is null || domainEvent is not IVersionedMessage)
+		{
+			return domainEvent;
+		}
+
+		return _upcastingPipeline.Upcast(domainEvent) as IDomainEvent ?? domainEvent;
 	}
 
 	/// <inheritdoc />
@@ -154,6 +177,8 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 						var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType)
 							?? throw new InvalidOperationException(
 								$"Event '{storedEvent.EventId}' (type '{storedEvent.EventType}') deserialized to null; refusing to skip it.");
+
+						domainEvent = TryUpcastEvent(domainEvent);
 
 						await _projection.ApplyAsync(domainEvent, state, stoppingToken)
 							.ConfigureAwait(false);

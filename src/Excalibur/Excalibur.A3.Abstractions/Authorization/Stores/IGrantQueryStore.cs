@@ -13,7 +13,7 @@ namespace Excalibur.A3.Authorization;
 /// an ISP sub-interface accessed via <see cref="IGrantStore.GetService(Type)"/>.
 /// </para>
 /// <para>
-/// Replaces <c>IGrantQueryProvider</c> from Sprint 551 ISP split.
+/// Replaces <c>IGrantQueryProvider</c> from ISP split.
 /// </para>
 /// </remarks>
 public interface IGrantQueryStore

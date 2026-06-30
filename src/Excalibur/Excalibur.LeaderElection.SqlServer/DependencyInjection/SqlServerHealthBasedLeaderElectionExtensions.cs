@@ -94,6 +94,9 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 			.Configure(configureHealth)
 			.ValidateOnStart();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerHealthBasedLeaderElectionOptions>, SqlServerHealthBasedLeaderElectionOptionsValidator>());
+
 		_ = services.Configure(configureElection);
 
 		services.TryAddSingleton(sp =>

@@ -3,6 +3,7 @@
 
 using Excalibur.Data.ElasticSearch;
 using Excalibur.Data.ElasticSearch.Resilience;
+using Excalibur.Dispatch.Resilience;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -39,7 +40,7 @@ public sealed class ElasticsearchCircuitBreakerShould : IDisposable
 	public void StartInClosedState()
 	{
 		// Assert
-		_sut.State.ShouldBe(CircuitBreakerState.Closed);
+		_sut.State.ShouldBe(CircuitState.Closed);
 		_sut.IsOpen.ShouldBeFalse();
 		_sut.IsHalfOpen.ShouldBeFalse();
 	}
@@ -93,7 +94,7 @@ public sealed class ElasticsearchCircuitBreakerShould : IDisposable
 		await _sut.RecordFailureAsync();
 
 		// Assert
-		_sut.State.ShouldBe(CircuitBreakerState.Open);
+		_sut.State.ShouldBe(CircuitState.Open);
 		_sut.IsOpen.ShouldBeTrue();
 	}
 
@@ -127,8 +128,8 @@ public sealed class ElasticsearchCircuitBreakerShould : IDisposable
 		await _sut.RecordFailureAsync();
 		_sut.IsOpen.ShouldBeTrue();
 
-		// Act & Assert
-		await Should.ThrowAsync<InvalidOperationException>(
+		// Act & Assert — bd-116roh: open CB throws CircuitBreakerOpenException (canonical)
+		await Should.ThrowAsync<CircuitBreakerOpenException>(
 			() => _sut.ExecuteAsync(() => Task.FromResult(42), CancellationToken.None));
 	}
 
@@ -189,7 +190,7 @@ public sealed class ElasticsearchCircuitBreakerShould : IDisposable
 		await sut.RecordFailureAsync();
 
 		// Assert — should remain at initial state since recording is disabled
-		sut.State.ShouldBe(CircuitBreakerState.Closed);
+		sut.State.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]
@@ -254,11 +255,11 @@ public sealed class ElasticsearchCircuitBreakerShould : IDisposable
 		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 
 		// Check that state transitioned to HalfOpen
-		sut.State.ShouldBe(CircuitBreakerState.HalfOpen);
+		sut.State.ShouldBe(CircuitState.HalfOpen);
 
 		// Record success to transition to Closed
 		await sut.RecordSuccessAsync();
-		sut.State.ShouldBe(CircuitBreakerState.Closed);
+		sut.State.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]

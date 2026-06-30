@@ -319,7 +319,7 @@ case PaymentFailed failed:
     // Compensate: release the inventory reservation
     if (State.ReservationId is not null)
     {
-        await Dispatcher.DispatchAsync(
+        await Dispatcher.DispatchChildAsync(
             new ReleaseInventoryCommand(State.OrderId, State.ReservationId),
             cancellationToken).ConfigureAwait(false);
     }

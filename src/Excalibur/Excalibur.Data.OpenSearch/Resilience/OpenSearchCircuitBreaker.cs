@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Resilience;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -18,7 +20,7 @@ internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 	private readonly Queue<DateTimeOffset> _recentRequests = new();
 	private readonly Queue<DateTimeOffset> _recentFailures = new();
 
-	private CircuitBreakerState _state = CircuitBreakerState.Closed;
+	private CircuitState _state = CircuitState.Closed;
 	private DateTimeOffset _stateChangedAt = DateTimeOffset.UtcNow;
 	private int _consecutiveFailures;
 	private volatile bool _disposed;
@@ -39,13 +41,13 @@ internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 	}
 
 	/// <inheritdoc />
-	public bool IsOpen => _state == CircuitBreakerState.Open;
+	public bool IsOpen => _state == CircuitState.Open;
 
 	/// <inheritdoc />
-	public bool IsHalfOpen => _state == CircuitBreakerState.HalfOpen;
+	public bool IsHalfOpen => _state == CircuitState.HalfOpen;
 
 	/// <inheritdoc />
-	public CircuitBreakerState State
+	public CircuitState State
 	{
 		get
 		{
@@ -99,9 +101,9 @@ internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 			CleanupOldRecords();
 
 			// Transition from half-open to closed on success
-			if (_state == CircuitBreakerState.HalfOpen)
+			if (_state == CircuitState.HalfOpen)
 			{
-				TransitionToState(CircuitBreakerState.Closed, "Success in half-open state");
+				TransitionToState(CircuitState.Closed, "Success in half-open state");
 			}
 		}
 
@@ -126,10 +128,10 @@ internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 			CleanupOldRecords();
 
 			// Check if we should open the circuit
-			if (_state is CircuitBreakerState.Closed or CircuitBreakerState.HalfOpen && ShouldOpenCircuit())
+			if (_state is CircuitState.Closed or CircuitState.HalfOpen && ShouldOpenCircuit())
 			{
 				TransitionToState(
-					CircuitBreakerState.Open,
+					CircuitState.Open,
 					$"Failure threshold exceeded: {_consecutiveFailures} consecutive failures, {FailureRate:P1} failure rate");
 			}
 		}
@@ -153,10 +155,16 @@ internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 		{
 			UpdateStateIfNeeded();
 
-			if (_state == CircuitBreakerState.Open)
+			if (_state == CircuitState.Open)
 			{
 				_logger.LogWarning("Circuit breaker is open, rejecting request");
-				throw new InvalidOperationException("Circuit breaker is open - operation blocked to prevent cascading failures");
+				var retryAfter = _settings.BreakDuration - (DateTimeOffset.UtcNow - _stateChangedAt);
+				if (retryAfter < TimeSpan.Zero)
+				{
+					retryAfter = TimeSpan.Zero;
+				}
+
+				throw new CircuitBreakerOpenException("OpenSearchCircuitBreaker", retryAfter);
 			}
 		}
 
@@ -166,8 +174,9 @@ internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 			await RecordSuccessAsync().ConfigureAwait(false);
 			return result;
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
+			// FR-116-2: cancellation is not a failure — non-tripping.
 			_logger.LogError(ex, "Operation failed");
 			await RecordFailureAsync().ConfigureAwait(false);
 			throw;
@@ -191,10 +200,10 @@ internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 		var now = DateTimeOffset.UtcNow;
 
 		// Transition from open to half-open after break duration
-		if (_state == CircuitBreakerState.Open &&
+		if (_state == CircuitState.Open &&
 			now - _stateChangedAt >= _settings.BreakDuration)
 		{
-			TransitionToState(CircuitBreakerState.HalfOpen, "Break duration elapsed");
+			TransitionToState(CircuitState.HalfOpen, "Break duration elapsed");
 		}
 	}
 
@@ -228,7 +237,7 @@ internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 	/// </summary>
 	/// <param name="newState"> The new state to transition to. </param>
 	/// <param name="reason"> The reason for the state change. </param>
-	private void TransitionToState(CircuitBreakerState newState, string reason)
+	private void TransitionToState(CircuitState newState, string reason)
 	{
 		var oldState = _state;
 		_state = newState;
@@ -239,7 +248,7 @@ internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 			oldState, newState, reason);
 
 		// Reset consecutive failures when closing the circuit
-		if (newState == CircuitBreakerState.Closed)
+		if (newState == CircuitState.Closed)
 		{
 			_consecutiveFailures = 0;
 		}

@@ -9,6 +9,7 @@ using Confluent.Kafka;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
@@ -166,6 +167,9 @@ internal sealed partial class KafkaMessageBus(
 		{
 			throw new InvalidOperationException("Kafka topic is not configured.");
 		}
+
+		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
+			TransportTelemetryConstants.MessagingConventions.Systems.Kafka, _topic, context.MessageId);
 
 		var traceParent = context.GetTraceParent();
 		var message = new Message<string, byte[]>

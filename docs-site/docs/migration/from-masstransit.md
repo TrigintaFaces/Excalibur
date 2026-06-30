@@ -16,6 +16,47 @@ A comprehensive guide for migrating from MassTransit to Excalibur.Dispatch, cove
 
 While MassTransit is a powerful distributed application framework, Excalibur offers a **simpler, more focused approach** for teams that need messaging, event sourcing, and DDD patterns without the complexity of full-featured service bus infrastructure.
 
+## Consumer compatibility shim
+
+For simple message consumers, the `Excalibur.Dispatch.Compat.MassTransit` package provides a
+source-compatible `IConsumer<TMessage>` shape so consumer classes compile after a namespace swap,
+then bridge onto Excalibur.Dispatch.
+
+:::info Migration path, not a transport port
+This shim covers the deterministic "consume the message" case only. Advanced
+`ConsumeContext<TMessage>` capabilities (`Respond` / `Publish` / `Send` / `Redeliver`) are **not**
+provided and require a manual migration step onto the canonical Dispatch/Outbox model.
+:::
+
+```bash
+dotnet add package Excalibur.Dispatch.Compat.MassTransit
+```
+
+```csharp
+using Excalibur.Dispatch.Compat.MassTransit;
+
+public class OrderCreatedConsumer : IConsumer<OrderCreated>
+{
+    public Task Consume(ConsumeContext<OrderCreated> context)
+    {
+        var message = context.Message;
+        // handle the message
+        return Task.CompletedTask;
+    }
+}
+```
+
+The consumed message type must be annotated with `IDispatchEvent` (the documented manual step) so it
+is routable through the dispatch pipeline. Register the migrated consumer with the reflection-free,
+AOT-safe entry point:
+
+```csharp
+builder.Services.AddMassTransitConsumer<OrderCreatedConsumer, OrderCreated>();
+```
+
+This registers the consumer (scoped) and bridges its `Consume(...)` onto an `IEventHandler<TMessage>`
+so dispatched/published events of that type reach it.
+
 ## When to Migrate
 
 Consider Excalibur if you:

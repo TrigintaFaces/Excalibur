@@ -154,6 +154,6 @@ rmq.HostName("localhost").Credentials("guest", "guest");
 ## Related Documentation
 
 - [Pre-Release Validation Spec](../../../management/specs/pre-release-validation-spec.md)
-- [ADR-177: Sprint 603 Foundation](../../../management/architecture/adr-177-sprint-603-pre-release-validation-foundation.md)
-- [ADR-178: Sprint 604 Smoke Tests + Pipeline](../../../management/architecture/adr-178-sprint-604-smoke-tests-ref-app-pipeline-serilog-fix.md)
-- [ADR-179: Sprint 605 Ref App Completion](../../../management/architecture/adr-179-sprint-605-ref-app-completion-ci-gate-validation-fix.md)
+- [: Foundation](../../../management/architecture/adr-177-sprint-603-pre-release-validation-foundation.md)
+- [: Smoke Tests + Pipeline](../../../management/architecture/adr-178-sprint-604-smoke-tests-ref-app-pipeline-serilog-fix.md)
+- [: Ref App Completion](../../../management/architecture/adr-179-sprint-605-ref-app-completion-ci-gate-validation-fix.md)

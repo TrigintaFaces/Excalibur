@@ -67,7 +67,7 @@ public static class MessageBusServiceCollectionExtensions
 	{
 		return services.Any(descriptor =>
 			descriptor.ServiceType == typeof(IMessageBusRegistration) &&
-			descriptor.ImplementationInstance is MessageBusRegistration registration &&
+			descriptor.GetImplementationInstance() is MessageBusRegistration registration &&
 			string.Equals(registration.Name, name, StringComparison.OrdinalIgnoreCase));
 	}
 }

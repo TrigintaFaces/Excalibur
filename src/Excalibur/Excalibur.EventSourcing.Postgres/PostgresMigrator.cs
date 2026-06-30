@@ -29,7 +29,7 @@ namespace Excalibur.EventSourcing.Postgres;
 /// to prevent concurrent migrations during multi-instance startup.
 /// </para>
 /// <para>
-/// Uses snake_case naming convention per ADR-109 for Postgres compatibility.
+/// Uses snake_case naming convention per for Postgres compatibility.
 /// </para>
 /// </remarks>
 public sealed partial class PostgresMigrator : IMigrator

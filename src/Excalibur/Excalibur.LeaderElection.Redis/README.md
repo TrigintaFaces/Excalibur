@@ -20,13 +20,13 @@ dotnet add package Excalibur.LeaderElection.Redis
 ## Usage
 
 ```csharp
-// Register Redis leader election
-services.AddRedisLeaderElection(options =>
-{
-    options.ConnectionString = "localhost:6379";
-    options.LockKey = "myapp:leader";
-    options.LockTimeout = TimeSpan.FromSeconds(30);
-});
+// Register Redis leader election via the Excalibur builder
+services.AddExcalibur(excalibur =>
+    excalibur.AddLeaderElection(le =>
+        le.UseRedis(redis => redis
+            .ConnectionString("localhost:6379")
+            .LockKey("myapp:leader")
+            .Database(0))));
 ```
 
 ## How It Works

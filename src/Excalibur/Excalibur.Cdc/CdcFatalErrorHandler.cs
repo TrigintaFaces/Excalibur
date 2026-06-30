@@ -18,7 +18,7 @@ namespace Excalibur.Cdc;
 /// <remarks>
 /// When no handler is configured (<see cref="CdcFatalErrorOptions{TEvent}.OnFatalError"/> is
 /// <see langword="null"/>), a fatal error is rethrown and processing stops — fail-loud, never a silent
-/// infinite retry (ADR-338).
+/// infinite retry.
 /// </remarks>
 public delegate Task CdcFatalErrorHandler<TEvent>(Exception exception, TEvent? failedEvent)
 	where TEvent : class;

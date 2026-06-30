@@ -18,7 +18,7 @@ public sealed class MigrationServiceCollectionExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
-		services.AddComplianceEncryption();
+		services.AddComplianceEncryption(_ => { });
 
 		// Act
 		services.AddEncryptionMigration();
@@ -35,7 +35,7 @@ public sealed class MigrationServiceCollectionExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
-		services.AddComplianceEncryption();
+		services.AddComplianceEncryption(_ => { });
 
 		// Act
 		services.AddEncryptionMigration(opts =>
@@ -62,7 +62,7 @@ public sealed class MigrationServiceCollectionExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
-		services.AddComplianceEncryption();
+		services.AddComplianceEncryption(_ => { });
 		services.AddComplianceMetrics();
 		services.AddEncryptionMigration();
 

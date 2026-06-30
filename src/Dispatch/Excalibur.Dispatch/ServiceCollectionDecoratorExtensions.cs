@@ -32,26 +32,28 @@ public static class ServiceCollectionDecoratorExtensions
 
 		_ = services.Remove(descriptor);
 
-		// Only handle ImplementationType for simplicity
-		if (descriptor.ImplementationType is not null)
+		// ybem93: read implementation members through the keyed-safe accessors (raw reads throw on
+		// keyed descriptors on .NET 8+). Only handle ImplementationType for simplicity.
+		var implementationType = descriptor.GetImplementationType();
+		if (implementationType is not null)
 		{
 			services.Add(new ServiceDescriptor(typeof(TService), sp =>
 			{
-				var original = (TService)ActivatorUtilities.CreateInstance(sp, descriptor.ImplementationType);
+				var original = (TService)ActivatorUtilities.CreateInstance(sp, implementationType);
 				return ActivatorUtilities.CreateInstance<TDecorator>(sp, original);
 			}, descriptor.Lifetime));
 		}
-		else if (descriptor.ImplementationFactory is not null)
+		else if (descriptor.GetImplementationFactory() is { } implementationFactory)
 		{
 			services.Add(new ServiceDescriptor(typeof(TService), sp =>
 			{
-				var original = (TService)descriptor.ImplementationFactory(sp);
+				var original = (TService)implementationFactory(sp);
 				return ActivatorUtilities.CreateInstance<TDecorator>(sp, original);
 			}, descriptor.Lifetime));
 		}
-		else if (descriptor.ImplementationInstance is not null)
+		else if (descriptor.GetImplementationInstance() is { } implementationInstance)
 		{
-			var originalInstance = (TService)descriptor.ImplementationInstance;
+			var originalInstance = (TService)implementationInstance;
 			services.Add(new ServiceDescriptor(typeof(TService), sp =>
 				ActivatorUtilities.CreateInstance<TDecorator>(sp, originalInstance), descriptor.Lifetime));
 		}

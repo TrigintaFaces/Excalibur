@@ -112,8 +112,12 @@ internal sealed partial class ServiceBusSessionReceiverSeam : IServiceBusReceive
 	public Task DeadLetterMessageAsync(
 		ServiceBusReceivedMessage message,
 		string? deadLetterReason,
+		string? deadLetterErrorDescription,
 		CancellationToken cancellationToken)
-		=> SettleAsync(message, (s, m, ct) => s.DeadLetterMessageAsync(m, deadLetterReason, cancellationToken: ct), cancellationToken);
+		=> SettleAsync(
+			message,
+			(s, m, ct) => s.DeadLetterMessageAsync(m, deadLetterReason, deadLetterErrorDescription, cancellationToken: ct),
+			cancellationToken);
 
 	/// <inheritdoc/>
 	public async ValueTask DisposeAsync()

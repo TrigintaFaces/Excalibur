@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Caching;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This follows the Explicit-Generic-DI Registry pattern established in Excalibur.Saga (Sprint 755).
+/// This follows the Explicit-Generic-DI Registry pattern established in Excalibur.Saga.
 /// During DI composition, each <c>AddCachePolicy&lt;TMessage, TPolicy&gt;()</c> call accumulates a
 /// typed registration action. On first <see cref="Microsoft.Extensions.Options.IOptions{TOptions}"/>
 /// resolution, the <see cref="CachePolicyRegistryPopulator"/> drains the accumulated actions and

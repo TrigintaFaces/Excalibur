@@ -350,7 +350,7 @@ When a database is restored from a backup (common in development/staging environ
 The CDC processor survives database unavailability without crashing:
 
 - All DB operations are wrapped in a resilience policy (retry with exponential backoff + circuit breaker) via `IDataAccessPolicyFactory`
-- Checkpoint updates and state store writes are guarded with try-catch — failures are logged but don't terminate the processing loop
+- The durable checkpoint advances **only after a change is successfully processed** — a fault never advances it past an unprocessed change (every processor routes its per-iteration decision through `CdcFatalGuard.Decide`). A **transient** fault (such as the database being temporarily unavailable) is logged and the loop reconnects and retries from the un-advanced checkpoint without terminating; a **fatal** (non-retryable) fault stops the loop loudly rather than silently swallowing the error. State-store save failures surface the original exception instead of masking it.
 - The circuit breaker opens after sustained failure, reducing load on the recovering database
 - The health check transitions through Degraded → Unhealthy as inactivity duration increases
 

@@ -191,7 +191,63 @@ public sealed class SqliteEventStore : IEventStore
 		}
 		catch (SqliteException ex) when (ex.SqliteErrorCode == 19) // SQLITE_CONSTRAINT
 		{
-			return AppendResult.CreateFailure($"Constraint violation: {ex.Message}");
+			// The only UNIQUE constraint on the events table is (AggregateId, AggregateType, Version), so a
+			// constraint violation here means a concurrent writer committed our target version first. This is a
+			// genuine optimistic-concurrency conflict, not a generic failure — classifying it as a conflict lets
+			// the repository's retry path (keyed on IsConcurrencyConflict) re-load and retry instead of failing hard.
+			// The fresh-connection re-read returns null only if it failed; fall back to a safe estimate then, so a
+			// concurrency conflict is never turned into an escaped exception (the exact version is not load-bearing —
+			// classification drives the repository retry).
+			var actualVersion = await ReadActualVersionOnFreshConnectionAsync(aggregateId, aggregateType, cancellationToken)
+				.ConfigureAwait(false) ?? (expectedVersion + eventList.Count);
+
+			return AppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion);
+		}
+	}
+
+	/// <summary>
+	/// Reads the actual committed <c>MAX(Version)</c> for an aggregate on a FRESH connection, used to populate the
+	/// concurrency-conflict result after a UNIQUE-constraint violation during append.
+	/// </summary>
+	/// <remarks>
+	/// A fresh connection is required — NOT the appending connection: that connection holds a pending, failed
+	/// transaction, so reusing it without that transaction throws <see cref="InvalidOperationException"/>
+	/// ("transaction required"), and reading WITH it would return this writer's own uncommitted state. A separate
+	/// connection reads the version the winning writer committed. Any non-cancellation re-read failure returns
+	/// <see langword="null"/> (the caller then supplies a fallback) so a concurrency conflict is never turned into an
+	/// escaped exception — the exact version is not load-bearing (classification drives the repository retry);
+	/// cancellation propagates.
+	/// Extracted as <see langword="internal"/> for direct, deterministic unit testing of the conflict re-read.
+	/// </remarks>
+	/// <param name="aggregateId">The aggregate identifier.</param>
+	/// <param name="aggregateType">The aggregate type name.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>
+	/// The committed <c>MAX(Version)</c> for the aggregate (<c>-1</c> when it has no events), or <see langword="null"/>
+	/// if the fresh-connection re-read itself failed (a non-cancellation error) — callers supply a fallback in that case.
+	/// </returns>
+	internal async ValueTask<long?> ReadActualVersionOnFreshConnectionAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			await using var conflictConnection = CreateConnection();
+			await conflictConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+			return await conflictConnection.ExecuteScalarAsync<long?>(
+				new CommandDefinition(
+					$"SELECT MAX(Version) FROM [{_table}] WHERE AggregateId = @AggregateId AND AggregateType = @AggregateType",
+					new { AggregateId = aggregateId, AggregateType = aggregateType },
+					cancellationToken: cancellationToken)).ConfigureAwait(false) ?? -1;
+		}
+		catch (Exception reReadEx) when (reReadEx is not OperationCanceledException)
+		{
+			_logger.LogDebug(reReadEx,
+				"Could not re-read current version after constraint violation for {AggregateType}/{AggregateId}",
+				aggregateType, aggregateId);
+			return null;
 		}
 	}
 

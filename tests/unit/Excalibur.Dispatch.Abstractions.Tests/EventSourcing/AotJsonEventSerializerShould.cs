@@ -111,7 +111,7 @@ public sealed partial class AotJsonEventSerializerShould
 		var sut = new AotJsonEventSerializer(_registry, _jsonContext);
 		var @event = new UnregisteredEvent();
 
-		var ex = Should.Throw<InvalidOperationException>(() => sut.SerializeEvent(@event));
+		var ex = Should.Throw<Excalibur.Dispatch.Serialization.SerializationException>(() => sut.SerializeEvent(@event));
 		ex.Message.ShouldContain("No JsonTypeInfo found");
 		ex.Message.ShouldContain("UnregisteredEvent");
 	}

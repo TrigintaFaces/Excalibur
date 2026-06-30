@@ -69,6 +69,7 @@ public sealed partial class PostgresOutboxStore(
 						message.MessageType,
 						message.MessageMetadata,
 						message.MessageBody,
+						message.TenantId,
 						_options.QualifiedOutboxTableName,
 						DbTimeouts.RegularTimeoutSeconds,
 						cancellationToken);
@@ -385,15 +386,9 @@ public sealed partial class PostgresOutboxStore(
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		// Convert OutboundMessage to IOutboxMessage for the existing Postgres implementation
-		var outboxMessage = new OutboxMessage(
-			message.Id,
-			message.MessageType,
-#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
-			System.Text.Json.JsonSerializer.Serialize(message.Headers ?? new Dictionary<string, object>(StringComparer.Ordinal)),
-#pragma warning restore IL2026, IL3050
-			System.Text.Encoding.UTF8.GetString(message.Payload),
-			DateTimeOffset.UtcNow);
+		// Canonical conversion (OutboxMessage.FromOutboundMessage) so no stage path can silently drop a persisted
+		// field — TenantId in particular, which the bare ctor omits (bd-cd8h8t).
+		var outboxMessage = OutboxMessage.FromOutboundMessage(message);
 
 		_ = await SaveMessagesAsync(new[] { outboxMessage }, cancellationToken).ConfigureAwait(false);
 	}
@@ -426,20 +421,15 @@ public sealed partial class PostgresOutboxStore(
 		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
-			var outboxMsg = new OutboxMessage(
-				message.Id,
-				message.MessageType,
-#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
-				System.Text.Json.JsonSerializer.Serialize(message.Headers ?? new Dictionary<string, object>(StringComparer.Ordinal)),
-#pragma warning restore IL2026, IL3050
-				System.Text.Encoding.UTF8.GetString(message.Payload),
-				DateTimeOffset.UtcNow);
+			// Same single conversion seam as the non-transactional path so TenantId can't be dropped here either.
+			var outboxMsg = OutboxMessage.FromOutboundMessage(message);
 
 			var req = new InsertOutboxMessage(
 				outboxMsg.MessageId,
 				outboxMsg.MessageType,
 				outboxMsg.MessageMetadata,
 				outboxMsg.MessageBody,
+				outboxMsg.TenantId,
 				_options.QualifiedOutboxTableName,
 				DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken);
@@ -503,12 +493,17 @@ public sealed partial class PostgresOutboxStore(
 			["Timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
 		};
 
-		var outboundMessage = new OutboundMessage(
+		// Uniform construction via the single context->message factory so TenantId/Correlation/Causation
+		// are never dropped on a convenience path (xl56kb). The propagated TenantId is persisted to the
+		// outbox table's tenant_id column on both the direct (InsertOutboxMessage) and scheduled
+		// (ScheduleOutboxMessage) paths and read back on reserve/get-scheduled (bd-cd8h8t).
+		var outboundMessage = OutboundMessage.FromContext(
 			message.GetType().Name,
 			serializedPayload,
 			"default", // Destination - could be enhanced to use context metadata
-			headers)
-		{ Id = context.MessageId ?? string.Empty };
+			context,
+			headers);
+		outboundMessage.Id = context.MessageId ?? string.Empty;
 
 		await StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 	}
@@ -551,7 +546,7 @@ public sealed partial class PostgresOutboxStore(
 					System.Text.Encoding.UTF8.GetBytes(msg.MessageBody),
 					"default", // Destination - would need to be stored in metadata
 					headers)
-				{ Id = msg.MessageId };
+				{ Id = msg.MessageId, TenantId = msg.TenantId };
 
 				outboundMessages.Add(outboundMessage);
 			}
@@ -799,6 +794,7 @@ public sealed partial class PostgresOutboxStore(
 				message.MessageType,
 				message.MessageMetadata,
 				message.MessageBody,
+				message.TenantId,
 				scheduledAt,
 				_options.QualifiedOutboxTableName,
 				DbTimeouts.RegularTimeoutSeconds,

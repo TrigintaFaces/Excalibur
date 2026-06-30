@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Excalibur.Dispatch.Serialization;
+
 namespace Excalibur.Dispatch;
 
 /// <summary>
@@ -47,14 +49,26 @@ internal sealed class AotJsonEventSerializer : IEventSerializer
 	{
 		ArgumentNullException.ThrowIfNull(domainEvent);
 
+		// ifgj5w: surface failures as SerializationException (canonical contract) so event-store
+		// read/write failures are uniformly catchable/poison-routable, like SpanEventSerializer.
 		var eventType = domainEvent.GetType();
-		var typeInfo = _jsonContext.GetTypeInfo(eventType)
-			?? throw new InvalidOperationException(
-				$"No JsonTypeInfo found for event type '{eventType.FullName}'. " +
-				"Ensure the type is registered in your JsonSerializerContext with [JsonSerializable(typeof(T))].");
+		try
+		{
+			var typeInfo = _jsonContext.GetTypeInfo(eventType)
+				?? throw new SerializationException(
+					$"No JsonTypeInfo found for event type '{eventType.FullName}'. " +
+					"Ensure the type is registered in your JsonSerializerContext with [JsonSerializable(typeof(T))].");
 
-		var json = JsonSerializer.Serialize(domainEvent, typeInfo);
-		return Encoding.UTF8.GetBytes(json);
+			return JsonSerializer.SerializeToUtf8Bytes(domainEvent, typeInfo);
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.WrapObject(eventType, "serialize", ex);
+		}
 	}
 
 	/// <inheritdoc />
@@ -63,16 +77,28 @@ internal sealed class AotJsonEventSerializer : IEventSerializer
 		ArgumentNullException.ThrowIfNull(data);
 		ArgumentNullException.ThrowIfNull(eventType);
 
-		var typeInfo = _jsonContext.GetTypeInfo(eventType)
-			?? throw new InvalidOperationException(
-				$"No JsonTypeInfo found for event type '{eventType.FullName}'. " +
-				"Ensure the type is registered in your JsonSerializerContext with [JsonSerializable(typeof(T))].");
+		// ifgj5w: surface failures as SerializationException (canonical contract) so event-store
+		// read failures are uniformly catchable/poison-routable, like SpanEventSerializer.
+		try
+		{
+			var typeInfo = _jsonContext.GetTypeInfo(eventType)
+				?? throw new SerializationException(
+					$"No JsonTypeInfo found for event type '{eventType.FullName}'. " +
+					"Ensure the type is registered in your JsonSerializerContext with [JsonSerializable(typeof(T))].");
 
-		var json = Encoding.UTF8.GetString(data);
-		var @event = JsonSerializer.Deserialize(json, typeInfo);
+			var @event = JsonSerializer.Deserialize(data.AsSpan(), typeInfo);
 
-		return @event as IDomainEvent ??
-			   throw new InvalidOperationException($"Deserialized object is not an IDomainEvent: {eventType}");
+			return @event as IDomainEvent ??
+				   throw new SerializationException($"Deserialized object is not an IDomainEvent: {eventType}");
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.WrapObject(eventType, "deserialize", ex);
+		}
 	}
 
 	/// <inheritdoc />

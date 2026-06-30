@@ -327,52 +327,31 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		IServiceProvider serviceProvider,
 		ServiceDescriptor descriptor)
 	{
-		if (descriptor.ServiceKey is not null)
-		{
-			if (descriptor.KeyedImplementationInstance is IMessageBus keyedInstance)
-			{
-				return keyedInstance;
-			}
-
-			if (descriptor.ImplementationInstance is IMessageBus implementationInstance)
-			{
-				return implementationInstance;
-			}
-
-			if (descriptor.KeyedImplementationFactory is not null)
-			{
-				return (IMessageBus)descriptor.KeyedImplementationFactory(
-					serviceProvider,
-					descriptor.ServiceKey);
-			}
-
-			if (descriptor.ImplementationFactory is not null)
-			{
-				return (IMessageBus)descriptor.ImplementationFactory(serviceProvider);
-			}
-
-			if (descriptor.KeyedImplementationType is not null)
-			{
-				return (IMessageBus)ActivatorUtilities.CreateInstance(
-					serviceProvider,
-					descriptor.KeyedImplementationType);
-			}
-		}
-		else if (descriptor.ImplementationFactory is not null)
-		{
-			return (IMessageBus)descriptor.ImplementationFactory(serviceProvider);
-		}
-
-		if (descriptor.ImplementationInstance is IMessageBus instance)
+		// ybem93: all implementation members are read through the keyed-safe ServiceDescriptorExtensions
+		// accessors. Each transparently returns the keyed member for a keyed descriptor and the non-keyed
+		// member otherwise, so the keyed/non-keyed distinction is resolved in one sanctioned place and a
+		// raw non-keyed read on a keyed descriptor (which throws on .NET 8+) cannot occur here.
+		if (descriptor.GetImplementationInstance() is IMessageBus instance)
 		{
 			return instance;
 		}
 
-		if (descriptor.ImplementationType is not null)
+		var implementationFactory = descriptor.GetImplementationFactory();
+		if (implementationFactory is not null)
 		{
-			return (IMessageBus)ActivatorUtilities.CreateInstance(
-				serviceProvider,
-				descriptor.ImplementationType);
+			return (IMessageBus)implementationFactory(serviceProvider);
+		}
+
+		var implementationType = descriptor.GetImplementationType();
+		if (implementationType is not null)
+		{
+			// IL2072: GetImplementationType() returns Type? without DynamicallyAccessedMembers annotations
+			// (limitation of Microsoft.Extensions.DependencyInjection.ServiceDescriptorExtensions).
+			// This code path is only reached for types explicitly registered via typeof() in DI, which
+			// guarantees their public constructors are preserved by the runtime.
+#pragma warning disable IL2072
+			return (IMessageBus)ActivatorUtilities.CreateInstance(serviceProvider, implementationType);
+#pragma warning restore IL2072
 		}
 
 		throw new InvalidOperationException(

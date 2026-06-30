@@ -17,10 +17,10 @@ namespace Excalibur.Data.CosmosDb;
 /// This is the default registration. It is NOT durable across process restarts — it preserves the
 /// pre-existing non-durable change-feed behavior so the durable-continuation feature is strictly
 /// opt-in: register a persistent <see cref="IChangeFeedCheckpointStore"/> (e.g. Cosmos-container-backed)
-/// to actually survive restarts (bd-egwtku). Safe for concurrent use.
+/// to actually survive restarts. Safe for concurrent use.
 /// <para>
 /// Because shipping a *silently* non-durable default would re-create the advertised-but-inert bug the
-/// durable feature fixes (bd-ydln24), this store emits a LOUD <see cref="LogLevel.Warning"/> once on
+/// durable feature fixes, this store emits a LOUD <see cref="LogLevel.Warning"/> once on
 /// construction naming the consequence and the remedy
 /// (<c>AddCosmosDbChangeFeedCheckpointStore</c>). When a durable store is registered it replaces this
 /// default, so this store is never constructed and the warning never fires.

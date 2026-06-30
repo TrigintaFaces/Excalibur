@@ -13,7 +13,7 @@ namespace Excalibur.Testing.Conformance.DependencyInjection;
 /// on any public <c>Add*</c> / <c>Use*</c> builder extension in a shipping Excalibur package.
 /// </summary>
 /// <typeparam name="TBuilderExtension">
-/// A marker type identifying the builder extension under test. Used by the S791
+/// A marker type identifying the builder extension under test. Used by the
 /// Roslyn source generator to emit one concrete <c>{Name}ConformanceTests</c> class
 /// per inventory row; when authored by hand (the first-wave regression pins) the
 /// marker serves only to scope xUnit class discovery.
@@ -62,7 +62,7 @@ public abstract class MinimalWiringConformanceTestKit<TBuilderExtension>
 	/// Gets the delegate that invokes the builder extension under test.
 	/// </summary>
 	/// <remarks>
-	/// Per spec §4.1 + COMPASS msg 1329, the inventory unit is a
+	/// Per spec §4.1 +, the inventory unit is a
 	/// <c>(name, Action&lt;IServiceCollection&gt; invoke)</c> pair — a realized terminal
 	/// chain rather than a single node. Consumers implement this by packaging the full
 	/// fluent-chain invocation into the delegate body.
@@ -332,7 +332,7 @@ public abstract class MinimalWiringConformanceTestKit<TBuilderExtension>
 			nonBenignCount++;
 			_ = drift.AppendLine(System.Globalization.CultureInfo.InvariantCulture,
 				$"  + {d.Lifetime} {d.ServiceType.FullName} -> " +
-				$"{d.ImplementationType?.FullName ?? (d.ImplementationInstance is { } inst ? "instance:" + inst.GetType().FullName : "<factory>")}");
+				$"{d.GetImplementationType()?.FullName ?? (d.GetImplementationInstance() is { } inst ? "instance:" + inst.GetType().FullName : "<factory>")}");
 		}
 
 		if (nonBenignCount > 0)

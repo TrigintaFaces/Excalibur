@@ -83,20 +83,31 @@ public sealed class ProtobufSerializer : ISerializer
 				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, typeof(T).Name));
 		}
 
-		if (_wireFormat == ProtobufWireFormat.Json)
+		try
 		{
-			var json = JsonFormatter.Default.Format(protoMessage);
-			var bytes = Encoding.UTF8.GetBytes(json);
-			var span = bufferWriter.GetSpan(bytes.Length);
-			bytes.CopyTo(span);
-			bufferWriter.Advance(bytes.Length);
+			if (_wireFormat == ProtobufWireFormat.Json)
+			{
+				var json = JsonFormatter.Default.Format(protoMessage);
+				var bytes = Encoding.UTF8.GetBytes(json);
+				var span = bufferWriter.GetSpan(bytes.Length);
+				bytes.CopyTo(span);
+				bufferWriter.Advance(bytes.Length);
+			}
+			else
+			{
+				var bytes = protoMessage.ToByteArray();
+				var span = bufferWriter.GetSpan(bytes.Length);
+				bytes.CopyTo(span);
+				bufferWriter.Advance(bytes.Length);
+			}
 		}
-		else
+		catch (SerializationException)
 		{
-			var bytes = protoMessage.ToByteArray();
-			var span = bufferWriter.GetSpan(bytes.Length);
-			bytes.CopyTo(span);
-			bufferWriter.Advance(bytes.Length);
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.Wrap<T>("serialize", ex);
 		}
 	}
 
@@ -140,13 +151,24 @@ public sealed class ProtobufSerializer : ISerializer
 				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, type.Name));
 		}
 
-		if (_wireFormat == ProtobufWireFormat.Json)
+		try
 		{
-			var json = JsonFormatter.Default.Format(protoMessage);
-			return Encoding.UTF8.GetBytes(json);
-		}
+			if (_wireFormat == ProtobufWireFormat.Json)
+			{
+				var json = JsonFormatter.Default.Format(protoMessage);
+				return Encoding.UTF8.GetBytes(json);
+			}
 
-		return protoMessage.ToByteArray();
+			return protoMessage.ToByteArray();
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.WrapObject(type, "serialize", ex);
+		}
 	}
 
 	/// <inheritdoc />

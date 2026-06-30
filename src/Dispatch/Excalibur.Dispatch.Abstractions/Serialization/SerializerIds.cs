@@ -39,7 +39,7 @@ public static class SerializerIds
 	/// </summary>
 	/// <remarks>
 	/// MemoryPack provides the fastest serialization for .NET-only environments.
-	/// Opt-in via provider package; JSON (System.Text.Json) is the default (ADR-295).
+	/// Opt-in via provider package; JSON (System.Text.Json) is the default.
 	/// </remarks>
 	public const byte MemoryPack = 1;
 

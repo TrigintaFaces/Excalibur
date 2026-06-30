@@ -35,7 +35,7 @@ public interface IErasureContributor
 	/// </summary>
 	/// <remarks>
 	/// The erasure coverage gate uses this to mark a discovered <see cref="DataLocation"/> as
-	/// <c>Covered</c> when its <see cref="DataLocation.StoreKind"/> is in this set (ADR-336 Amendment 1a).
+	/// <c>Covered</c> when its <see cref="DataLocation.StoreKind"/> is in this set.
 	/// Must never contain <see cref="DataStoreKind.Unknown"/> — the unclassified kind is never coverable.
 	/// </remarks>
 	/// <value>The store kinds covered by this contributor; never <see langword="null"/>.</value>

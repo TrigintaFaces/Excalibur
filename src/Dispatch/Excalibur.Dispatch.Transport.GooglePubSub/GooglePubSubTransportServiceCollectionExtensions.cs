@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;
 using Excalibur.Dispatch.Transport.Google;
 using Excalibur.Dispatch.Transport.GooglePubSub;
+using Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 
 using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
@@ -231,6 +232,28 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 					requireExactlyOnce,
 					sp.GetRequiredService<ILogger<PubSubSubscriptionConfigValidator>>()));
 			}
+
+			// z1p330: opt-in auto-apply of the configured dead letter policy. When enabled (and a dead
+			// letter topic is configured), attach the policy to the subscription at startup so it is
+			// actually honored rather than built but never applied. Default off — provisioning is normally
+			// an IaC concern (see PubSubSubscriptionConfigValidator's read-only default).
+			if (transportOptions.AutoApplyDeadLetterPolicy
+				&& transportOptions.EnableDeadLetterTopic
+				&& !string.IsNullOrWhiteSpace(transportOptions.DeadLetterTopicId)
+				&& !string.IsNullOrWhiteSpace(transportOptions.SubscriptionId))
+			{
+				var projectId = transportOptions.ProjectId ?? string.Empty;
+				var subscriptionId = transportOptions.SubscriptionId;
+				var deadLetterTopicId = transportOptions.DeadLetterTopicId;
+				var maxDeliveryAttempts = transportOptions.DeadLetterMaxDeliveryAttempts;
+
+				_ = services.AddSingleton<IHostedService>(sp => new PubSubDeadLetterPolicyApplier(
+					projectId,
+					subscriptionId,
+					deadLetterTopicId,
+					maxDeliveryAttempts,
+					sp.GetRequiredService<ILoggerFactory>()));
+			}
 		}
 
 		// Register GooglePubSubMessageBus
@@ -241,7 +264,8 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 			var options = sp.GetRequiredService<IOptions<GooglePubSubOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<GooglePubSubMessageBus>>();
 
-			return new GooglePubSubMessageBus(client, serializer, options, logger);
+			return new GooglePubSubMessageBus(
+				new TopicPublisherClientAdapter(client), serializer, options, logger);
 		});
 
 		// Register work distribution strategy (default: round-robin)
@@ -317,7 +341,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
 	/// implementations keyed by transport name so they are instantiated and reachable on the
-	/// <c>AddGooglePubSubTransport</c> path instead of orphaned (kek7vm). <c>TryAdd*</c> lets a
+	/// <c>AddGooglePubSubTransport</c> path instead of orphaned. <c>TryAdd*</c> lets a
 	/// consumer override the registration (Microsoft-first). The receiver is only registered when a
 	/// subscription is configured, mirroring the subscriber registration.
 	/// </summary>
@@ -602,6 +626,23 @@ public sealed class GooglePubSubTransportOptions
 	/// Gets or sets the dead letter topic ID.
 	/// </summary>
 	public string? DeadLetterTopicId { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the transport auto-applies the configured dead letter
+	/// policy to its subscription at startup. When <see langword="true"/> (and a dead letter topic is
+	/// configured via <see cref="DeadLetterTopicId"/>), the transport performs a
+	/// <c>GetSubscription</c> + <c>UpdateSubscription</c> at startup so the dead letter topic is actually
+	/// attached rather than configured but never honored. Default is <see langword="false"/>: subscription
+	/// provisioning is usually owned by infrastructure-as-code, so the policy is only auto-mutated when the
+	/// application opts in to owning it.
+	/// </summary>
+	public bool AutoApplyDeadLetterPolicy { get; set; }
+
+	/// <summary>
+	/// Gets or sets the maximum number of delivery attempts before a message is dead-lettered when
+	/// <see cref="AutoApplyDeadLetterPolicy"/> is enabled. Default is 5.
+	/// </summary>
+	public int DeadLetterMaxDeliveryAttempts { get; set; } = 5;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable OpenTelemetry integration. Default is true.

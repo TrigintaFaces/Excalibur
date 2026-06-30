@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Resilience;
+
 namespace Excalibur.Data.ElasticSearch.Resilience;
 
 /// <summary>
@@ -25,7 +27,7 @@ public interface IElasticsearchCircuitBreaker : IDisposable
 	/// Gets the current state of the circuit breaker.
 	/// </summary>
 	/// <value> The current circuit breaker state. </value>
-	CircuitBreakerState State { get; }
+	CircuitState State { get; }
 
 	/// <summary>
 	/// Gets the current failure rate as a percentage (0.0 to 1.0).
@@ -58,6 +60,6 @@ public interface IElasticsearchCircuitBreaker : IDisposable
 	/// <param name="operation"> The operation to execute. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> The result of the operation if the circuit allows execution. </returns>
-	/// <exception cref="InvalidOperationException"> Thrown when the circuit is open and the operation is blocked. </exception>
+	/// <exception cref="CircuitBreakerOpenException"> Thrown when the circuit is open and the operation is blocked. </exception>
 	Task<T> ExecuteAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken);
 }

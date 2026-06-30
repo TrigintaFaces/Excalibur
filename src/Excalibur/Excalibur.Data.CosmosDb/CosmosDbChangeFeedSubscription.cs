@@ -42,7 +42,7 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 	/// Optional durable checkpoint store. When supplied, the continuation token is loaded on start and
 	/// persisted after each batch so the subscription resumes across restarts instead of replaying from
 	/// the configured start position. When <see langword="null"/> (default), behavior is unchanged
-	/// (continuation is tracked in memory only). See bd-egwtku.
+	/// (continuation is tracked in memory only).
 	/// </param>
 	public CosmosDbChangeFeedSubscription(
 		Container container,

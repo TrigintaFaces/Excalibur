@@ -133,6 +133,71 @@ services.AddAwsSqsTransport("orders", sqs =>
 });
 ```
 
+### Queue Provisioning
+
+By default the transport assumes queues, dead-letter redrive policies, and SNS subscriptions are already provisioned (for example by infrastructure-as-code). You can opt in to having the transport apply the configured dead-letter redrive policy to the source queue and create the configured SNS-to-SQS subscriptions (with their filter policies) at startup:
+
+```csharp
+services.AddAwsSqsTransport("orders", sqs =>
+{
+    sqs.UseRegion("us-east-1")
+       .ConfigureProvisioning(provisioning =>
+       {
+           provisioning.Enabled = true;                       // opt in
+           provisioning.ApplyDeadLetterRedrivePolicy = true;  // set redrive policy on the source queue
+           provisioning.CreateSnsSubscriptions = true;        // create SNS->SQS subscriptions + filter policies
+           provisioning.FailOpen = true;                      // log and continue if provisioning fails
+       });
+});
+```
+
+Provisioning is **opt-in** because a messaging framework must not mutate cloud infrastructure unless the operator explicitly asks it to. When `FailOpen` is `true`, a missing IAM permission or transient error is logged and start-up continues rather than crashing the host.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Enabled` | `bool` | `false` | Applies redrive policies and creates SNS subscriptions at startup. |
+| `FailOpen` | `bool` | `true` | Logs and continues when provisioning fails (for example, missing IAM permissions) instead of surfacing the failure. |
+| `ApplyDeadLetterRedrivePolicy` | `bool` | `true` | Sets the dead-letter redrive policy on the source queue when a dead-letter queue is configured. |
+| `CreateSnsSubscriptions` | `bool` | `true` | Creates the configured SNS-to-SQS subscriptions and applies their filter policies. |
+
+### Visibility Heartbeat
+
+SQS makes a received message visible again (redelivered) once its visibility timeout elapses, even while the message is still being processed. A long-running handler can therefore be redelivered the same message before it finishes. When the visibility heartbeat is enabled, the subscriber periodically calls `ChangeMessageVisibility` for the in-flight message, extending its visibility window for as long as the handler runs (up to `MaxExtension`):
+
+```csharp
+services.AddAwsSqsTransport("orders", sqs =>
+{
+    sqs.UseRegion("us-east-1")
+       .ConfigureVisibilityHeartbeat(heartbeat =>
+       {
+           heartbeat.Enabled = true;
+           heartbeat.Interval = TimeSpan.FromSeconds(30);          // how often to extend
+           heartbeat.VisibilityTimeout = TimeSpan.FromSeconds(60); // window requested per extension
+           heartbeat.MaxExtension = TimeSpan.FromMinutes(10);      // safety bound per message
+       });
+});
+```
+
+The heartbeat is **opt-in** so the default consumer behaviour is unchanged. Choose an `Interval` shorter than `VisibilityTimeout` so the extension is applied before the current window expires. Once the `MaxExtension` budget is exhausted the subscriber stops extending visibility and the message is allowed to become visible again, providing a safety bound against a stuck handler. Handlers should still be idempotent because AWS delivery remains at-least-once.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Enabled` | `bool` | `false` | Extends the visibility timeout of in-flight messages for long-running handlers. |
+| `Interval` | `TimeSpan` | 30 seconds | Interval between visibility extensions. Keep shorter than `VisibilityTimeout`. |
+| `VisibilityTimeout` | `TimeSpan` | 60 seconds | Visibility window requested on each extension (SQS allows 0 seconds to 12 hours). |
+| `MaxExtension` | `TimeSpan` | 10 minutes | Maximum cumulative time the heartbeat keeps a single message in-flight. |
+
+### Client Retries and Request Timeout
+
+You can also tune the underlying SQS client:
+
+```csharp
+sqs.UseMaxRetryAttempts(5)                       // maps to AmazonSQSConfig.MaxErrorRetry (0 disables SDK retries)
+   .UseRequestTimeout(TimeSpan.FromSeconds(30)); // maps to AmazonSQSConfig.Timeout
+```
+
+When these are not set, the AWS SDK defaults apply.
+
 ## Queue Types
 
 ### Standard Queue

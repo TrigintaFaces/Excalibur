@@ -95,6 +95,42 @@ public sealed class FluentValidationServiceCollectionExtensionsShould
     }
 
     [Fact]
+    public void RegisterExactlyOneResolverWhenWithFluentValidationCalledTwice()
+    {
+        // Arrange — g51j5z: duplicate registration must not accumulate IValidatorResolver descriptors.
+        var services = new ServiceCollection();
+        var builder = A.Fake<IDispatchBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+
+        // Act
+        builder.WithFluentValidation();
+        builder.WithFluentValidation();
+
+        // Assert — RED on the pre-fix code (no RemoveAll → two descriptors).
+        var resolvers = services.Where(d => d.ServiceType == typeof(IValidatorResolver)).ToList();
+        resolvers.Count.ShouldBe(1);
+        resolvers[0].ImplementationType.ShouldBe(typeof(FluentValidatorResolver));
+    }
+
+    [Fact]
+    public void ReplacePriorResolverWhenSwitchingFromFluentToAotValidation()
+    {
+        // Arrange — g51j5z: an explicit later selection replaces the earlier one (single, unambiguous resolver).
+        var services = new ServiceCollection();
+        var builder = A.Fake<IDispatchBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+
+        // Act
+        builder.WithFluentValidation();
+        builder.WithAotFluentValidation();
+
+        // Assert — exactly one resolver, and it is the last-selected (AOT).
+        var resolvers = services.Where(d => d.ServiceType == typeof(IValidatorResolver)).ToList();
+        resolvers.Count.ShouldBe(1);
+        resolvers[0].ImplementationType.ShouldBe(typeof(AotFluentValidatorResolver));
+    }
+
+    [Fact]
     public void ResolveFluentValidatorResolverFromServiceProvider()
     {
         // Arrange
@@ -128,22 +164,5 @@ public sealed class FluentValidationServiceCollectionExtensionsShould
         // Assert
         resolver.ShouldNotBeNull();
         resolver.ShouldBeOfType<AotFluentValidatorResolver>();
-    }
-
-    [Fact]
-    public void AllowBothRegistrationsSequentially()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        var builder = A.Fake<IDispatchBuilder>();
-        A.CallTo(() => builder.Services).Returns(services);
-
-        // Act - register FluentValidation then AOT
-        builder.WithFluentValidation();
-        builder.WithAotFluentValidation();
-
-        // Assert - both are registered
-        var descriptors = services.Where(d => d.ServiceType == typeof(IValidatorResolver)).ToList();
-        descriptors.Count.ShouldBe(2);
     }
 }

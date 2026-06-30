@@ -11,7 +11,7 @@
     <!-- Samples intentionally demonstrate full feature integration, which requires coupling -->
     <NoWarn>$(NoWarn);CA1506</NoWarn>
   </PropertyGroup>
-  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+ <!-- Updated paths for reorganized sample structure -->
   <!-- Dispatch core (messaging) -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />

@@ -1,7 +1,7 @@
 // Multi-Provider Queue Processor Sample
 // Demonstrates consuming from transport providers with MSSQL event store and ElasticSearch projections
 //
-// All transport providers use ADR-098 single entry points:
+// All transport providers use single entry points:
 // - Azure Service Bus (AddAzureServiceBusTransport)
 // - Kafka (AddKafkaTransport)
 // - RabbitMQ (AddRabbitMQTransport)
@@ -67,7 +67,7 @@ builder.Services.AddDispatch(dispatch =>
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // =============================================================================
-// 3b. Configure Transport Providers (ADR-098 Single Entry Points)
+// 3b. Configure Transport Providers (Single Entry Points)
 // =============================================================================
 
 // Azure Service Bus
@@ -120,7 +120,7 @@ if (!string.IsNullOrEmpty(rabbitConnectionString))
 }
 
 // =============================================================================
-// 4. Additional Transports (ADR-098 Single Entry Points)
+// 4. Additional Transports (Single Entry Points)
 // =============================================================================
 
 // AWS SQS

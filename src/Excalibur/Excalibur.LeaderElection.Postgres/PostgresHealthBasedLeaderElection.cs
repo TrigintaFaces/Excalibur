@@ -53,7 +53,7 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="innerLogger">The logger for the inner leader election.</param>
 	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/> (y6tatp/ADR-339) forwarded to the inner
+	/// An optional <see cref="IFencingTokenProvider"/> forwarded to the inner
 	/// <see cref="PostgresLeaderElection"/> for fail-closed fencing-token issuance on acquisition. Defaults to
 	/// <see langword="null"/> (no fencing).
 	/// </param>

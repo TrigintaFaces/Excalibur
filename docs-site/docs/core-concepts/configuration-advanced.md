@@ -195,6 +195,16 @@ services.AddOptions<LeaderElectionOptions>()
     .ValidateOnStart();          // Runs validation at startup, not first use
 ```
 
+### Advertised capabilities are wired or fail loud
+
+Excalibur holds a structural invariant: any configuration option the API advertises is either backed by a live implementation, or it fails fast at startup with a clear `OptionsValidationException`. A configured strategy or capability never *silently* degrades to a no-op at runtime.
+
+In practice this means:
+
+- Selecting a strategy or provider that the active package cannot service is rejected during `IHost.StartAsync()`, not ignored on the hot path.
+- Provider registration paths fail fast on invalid options. For example, every serverless-hosting registration overload (`AddServerlessHosting(...)`) wires `ValidateOnStart()`, so misconfiguration surfaces at startup regardless of which overload you call.
+- A capability that a given store does not implement (for example, retry-backoff scheduling on a store that lacks it) falls back to the documented default behavior rather than throwing — fail-open for optional cross-cutting features, fail-loud for advertised configuration.
+
 ### Built-In Validators
 
 Excalibur provides `IValidateOptions<T>` validators for cross-property constraint checking. These go beyond `[DataAnnotations]` to validate relationships between properties.

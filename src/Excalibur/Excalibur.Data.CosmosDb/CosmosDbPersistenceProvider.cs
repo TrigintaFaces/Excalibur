@@ -67,7 +67,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	/// <see cref="IChangeFeedCheckpointStore"/> — the in-memory default, or the durable Cosmos store when
 	/// the consumer opts in via <c>AddCosmosDbChangeFeedCheckpointStore</c>); flowed into every change-feed
 	/// subscription so continuation survives restarts. <see langword="null"/> only for manual construction
-	/// without DI (in-memory-only continuation, prior behavior). See bd-egwtku / bd-ydln24.
+	/// without DI (in-memory-only continuation, prior behavior).
 	/// </param>
 	public CosmosDbPersistenceProvider(
 		IOptions<CosmosDbOptions> options,

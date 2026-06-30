@@ -39,8 +39,21 @@ public sealed class MemoryPackSerializer : ISerializer
 	/// <inheritdoc />
 	public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
 	{
+		ArgumentNullException.ThrowIfNull(value);
 		ArgumentNullException.ThrowIfNull(bufferWriter);
-		Mp.Serialize(bufferWriter, value);
+
+		try
+		{
+			Mp.Serialize(bufferWriter, value);
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.Wrap<T>("serialize", ex);
+		}
 	}
 
 #pragma warning disable IL2091 // MemoryPack uses source generators for AOT compatibility

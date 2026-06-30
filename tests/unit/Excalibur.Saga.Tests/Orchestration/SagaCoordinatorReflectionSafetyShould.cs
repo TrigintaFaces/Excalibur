@@ -33,7 +33,7 @@ public sealed class SagaCoordinatorReflectionSafetyShould : UnitTestBase
 		services.AddSingleton(typeof(ILogger<>), typeof(FakeLoggerForReflection<>));
 		var serviceProvider = services.BuildServiceProvider();
 
-		_sut = new SagaCoordinator(serviceProvider, sagaStore, logger);
+		_sut = new SagaCoordinator(serviceProvider, sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), logger);
 	}
 
 	#region Reflection Safety Checks (S541.9)

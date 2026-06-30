@@ -129,8 +129,16 @@ services.Configure<KafkaOptions>(options =>
     options.AutoOffsetReset = "latest";
 
     options.AdditionalConfig["client.rack"] = "us-east-1";
+
+    // Consumer tuning (batching, offset management, partition assignment)
+    options.Consumer.PartitionAssignmentStrategy =
+        Confluent.Kafka.PartitionAssignmentStrategy.CooperativeSticky;
 });
 ```
+
+#### Partition Assignment Strategy
+
+The consumer's partition assignment strategy is configurable via `options.Consumer.PartitionAssignmentStrategy` (type `Confluent.Kafka.PartitionAssignmentStrategy?`). It defaults to `CooperativeSticky`, which performs incremental rebalances so partitions that are not being reassigned keep consuming during a rebalance. The consumer commits offsets for partitions as they are revoked, so a cooperative rebalance does not lose committed progress. Set the value to `null` to defer to the broker/client default. This setting is ignored when the KIP-848 `consumer` group protocol is used, where assignment is performed server-side.
 
 ### CloudEvents Options
 Configure CloudEvents via `ConfigureCloudEvents()` on the transport builder for delivery guarantees, partitioning, and topic creation:

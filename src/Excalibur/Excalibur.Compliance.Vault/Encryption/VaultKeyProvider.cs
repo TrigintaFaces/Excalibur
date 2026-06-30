@@ -658,7 +658,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 	/// <summary>
 	/// Surfaces a durably-suspended key as <see cref="KeyStatus.Suspended"/> regardless of its
 	/// Transit-derived status, so the framework encryption provider (<c>AesGcmEncryptionProvider</c>) refuses
-	/// it for both encrypt and decrypt (bd-vihqw6). Applied AFTER (possibly cached) retrieval and gated on the separately-invalidated
+	/// it for both encrypt and decrypt. Applied AFTER (possibly cached) retrieval and gated on the separately-invalidated
 	/// suspension cache, so a stale metadata cache cannot resurrect a suspended key as usable.
 	/// </summary>
 	private async Task<KeyMetadata?> ApplySuspensionStatusAsync(

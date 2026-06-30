@@ -21,7 +21,7 @@ namespace Excalibur.AuditLogging.Elasticsearch;
 /// This is a lightweight, fire-and-forget audit event writer that indexes
 /// individual audit events using the Elasticsearch Bulk API. Elasticsearch
 /// serves as a search and analytics sink -- for compliance-grade tamper-evident
-/// audit storage, use a SQL-backed <c>IAuditStore</c> instead (see ADR-290).
+/// audit storage, use a SQL-backed <c>IAuditStore</c> instead.
 /// </para>
 /// </remarks>
 internal sealed partial class ElasticsearchAuditSink

@@ -8,7 +8,7 @@ namespace Excalibur.Data.ElasticSearch.IndexManagement;
 /// <see cref="IIndexTemplateManager.GetTemplatesAsync"/>. Mirrors the subset of
 /// data consumers actually need from the Elastic SDK
 /// <c>IndexTemplateItem</c> without leaking the SDK type across the framework
-/// public boundary (S802-B, COMPASS msg 1931).
+/// public boundary.
 /// </summary>
 /// <remarks>
 /// This descriptor intentionally does not expose the template's mappings or
@@ -58,7 +58,7 @@ public sealed record IndexTemplateDescriptor
 	/// values as <c>object?</c>. Consumers that need the raw JSON shape should
 	/// query the cluster directly via their own Elastic client. For typical
 	/// inspection scenarios (name, tags, labels) the string projection is
-	/// sufficient and keeps the framework's descriptor SDK-free (bd-cpsn3h, S811).
+	/// sufficient and keeps the framework's descriptor SDK-free.
 	/// </remarks>
 	public IReadOnlyDictionary<string, string>? Metadata { get; init; }
 }

@@ -9,7 +9,7 @@ using StackExchange.Redis;
 namespace Excalibur.LeaderElection.Redis;
 
 /// <summary>
-/// Redis-backed <see cref="IFencingTokenProvider"/> reference implementation (ADR-339).
+/// Redis-backed <see cref="IFencingTokenProvider"/> reference implementation.
 /// </summary>
 /// <remarks>
 /// <para>

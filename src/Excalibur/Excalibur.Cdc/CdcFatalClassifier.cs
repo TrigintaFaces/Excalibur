@@ -14,7 +14,7 @@ namespace Excalibur.Cdc;
 /// <para>
 /// When an <see cref="IMessageFailureClassifier"/> is available (the registered
 /// <c>DefaultMessageFailureClassifier</c> when Dispatch is wired) it is the single source of truth, so
-/// the CDC retry-vs-terminate decision stays consistent with the rest of the pipeline (ADR-338).
+/// the CDC retry-vs-terminate decision stays consistent with the rest of the pipeline.
 /// </para>
 /// <para>
 /// When no classifier is supplied, a conservative, fail-safe fallback is used: only a small set of

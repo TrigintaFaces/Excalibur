@@ -4,7 +4,7 @@
 using Excalibur.Dispatch.Transport.Google;
 
 using GoogleRetryStrategy = global::Excalibur.Dispatch.Transport.Google.RetryStrategy;
-using GoogleBackoffType = global::Excalibur.Dispatch.Transport.Google.BackoffType;
+using GoogleBackoffType = global::Excalibur.Dispatch.Resilience.BackoffStrategy;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 
@@ -22,7 +22,7 @@ public sealed class DeadLetterModelsShould
 		strategy.MaxRetryAttempts.ShouldBe(0);
 		strategy.InitialDelay.ShouldBe(TimeSpan.Zero);
 		strategy.MaxDelay.ShouldBe(TimeSpan.Zero);
-		strategy.BackoffType.ShouldBe(GoogleBackoffType.Constant);
+		strategy.BackoffType.ShouldBe(GoogleBackoffType.Fixed);
 		strategy.JitterEnabled.ShouldBeFalse();
 		strategy.CircuitBreakerEnabled.ShouldBeFalse();
 		strategy.CircuitBreakerThreshold.ShouldBe(0);

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.CloudNative;
+using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.Dispatch.Tests.Messaging.CloudNative;
 
@@ -45,7 +46,7 @@ public sealed class CircuitBreakerMetricsShould
 		var metrics = new CircuitBreakerMetrics();
 
 		// Assert
-		metrics.CurrentState.ShouldBe(default(ResilienceState));
+		metrics.CurrentState.ShouldBe(default(CircuitState));
 	}
 
 	[Fact]
@@ -189,10 +190,10 @@ public sealed class CircuitBreakerMetricsShould
 		var metrics = new CircuitBreakerMetrics();
 
 		// Act
-		metrics.CurrentState = ResilienceState.HalfOpen;
+		metrics.CurrentState = CircuitState.HalfOpen;
 
 		// Assert
-		metrics.CurrentState.ShouldBe(ResilienceState.HalfOpen);
+		metrics.CurrentState.ShouldBe(CircuitState.HalfOpen);
 	}
 
 	[Fact]
@@ -233,7 +234,7 @@ public sealed class CircuitBreakerMetricsShould
 			RejectedRequests = 50,
 			FallbackExecutions = 30,
 			AverageResponseTime = TimeSpan.FromMilliseconds(100),
-			CurrentState = ResilienceState.Closed,
+			CurrentState = CircuitState.Closed,
 			ConsecutiveFailures = 0,
 			ConsecutiveSuccesses = 15,
 		};
@@ -245,7 +246,7 @@ public sealed class CircuitBreakerMetricsShould
 		metrics.RejectedRequests.ShouldBe(50);
 		metrics.FallbackExecutions.ShouldBe(30);
 		metrics.AverageResponseTime.ShouldBe(TimeSpan.FromMilliseconds(100));
-		metrics.CurrentState.ShouldBe(ResilienceState.Closed);
+		metrics.CurrentState.ShouldBe(CircuitState.Closed);
 		metrics.ConsecutiveFailures.ShouldBe(0);
 		metrics.ConsecutiveSuccesses.ShouldBe(15);
 	}
@@ -267,10 +268,10 @@ public sealed class CircuitBreakerMetricsShould
 	}
 
 	[Theory]
-	[InlineData(ResilienceState.Closed)]
-	[InlineData(ResilienceState.Open)]
-	[InlineData(ResilienceState.HalfOpen)]
-	public void AcceptVariousResilienceStates(ResilienceState state)
+	[InlineData(CircuitState.Closed)]
+	[InlineData(CircuitState.Open)]
+	[InlineData(CircuitState.HalfOpen)]
+	public void AcceptVariousCircuitStates(CircuitState state)
 	{
 		// Arrange
 		var metrics = new CircuitBreakerMetrics();
@@ -293,7 +294,7 @@ public sealed class CircuitBreakerMetricsShould
 			FailedRequests = 80,
 			RejectedRequests = 20,
 			AverageResponseTime = TimeSpan.FromMilliseconds(50),
-			CurrentState = ResilienceState.Closed,
+			CurrentState = CircuitState.Closed,
 			ConsecutiveSuccesses = 10,
 		};
 

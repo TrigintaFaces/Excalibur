@@ -85,16 +85,17 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 	public async Task AppendAsync_Throw_WhenTransactionalBatchCannotAccessTable()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
+		// A TransactionCanceledException with NO ConditionalCheckFailed reason is a genuine transaction failure
+		// (e.g. table access), not a concurrency conflict — only a ConditionalCheckFailed cancellation maps to a
+		// conflict result; everything else propagates (it is not silently swallowed as a conflict).
 		_ = A.CallTo(() => client.TransactWriteItemsAsync(A<TransactWriteItemsRequest>._, A<CancellationToken>._))
-			.ThrowsAsync(new TransactionCanceledException("conflict"));
+			.ThrowsAsync(new TransactionCanceledException("transaction cancelled (no conditional-check failure)"));
 
 		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1"), new TestDomainEvent("evt-2") };
 
-		var result = await sut.AppendAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 0, CancellationToken.None);
-
-		result.Success.ShouldBeFalse();
-		result.IsConcurrencyConflict.ShouldBeTrue();
+		_ = await Should.ThrowAsync<TransactionCanceledException>(
+			async () => await sut.AppendAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 0, CancellationToken.None));
 	}
 
 	[Fact]

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Source generators MUST target netstandard2.0 only - override multi-targeting from Directory.Build.props -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks></TargetFrameworks>
+    <!-- CPM opt-out: pin Roslyn SDK to the minimum compiler version supported (must NOT float). -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <EnableDefaultAnalyzers>false</EnableDefaultAnalyzers>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- Packed as an analyzer asset INSIDE Excalibur.Dispatch.Compat.MediatR (ADR-341 §9, Option B2):
+         this project is not itself published; its DLL ships in the Compat.MediatR NuGet. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IsPackable>false</IsPackable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSymbols>false</IncludeSymbols>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <!-- AOT/Trim not applicable for source generators (netstandard2.0) -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <IsTrimmable>false</IsTrimmable>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+    <Description>Source generator for Excalibur.Dispatch.Compat.MediatR: emits AOT-safe canonical wrapper-actions + adapter-handlers + registration that bridge the MediatR-compatible surface onto Excalibur.Dispatch (ADR-341 §9). Shipped as an analyzer asset of the Compat.MediatR package.</Description>
+    <PackageTags>excalibur;dispatch;mediatr;migration;compat;source-generator;analyzer;aot</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Compat.MediatR.SourceGenerators.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Remove="Microsoft.SourceLink.GitHub" />
+    <PackageReference Remove="Microsoft.CodeAnalysis.Analyzers" />
+    <PackageReference Remove="Microsoft.CodeAnalysis.NetAnalyzers" />
+    <PackageReference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers" />
+    <PackageReference Remove="Microsoft.CodeAnalysis.BannedApiAnalyzers" />
+    <PackageReference Remove="StyleCop.Analyzers" />
+    <PackageReference Remove="Meziantou.Analyzer" />
+    <PackageReference Remove="Roslynator.Analyzers" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Roslyn 4.14.0 = VS 17.14 / .NET SDK 9.0.300+. Pinned to support this minimum (matches canonical generators). -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+    <PackageReference Include="System.Collections.Immutable" Version="9.0.9" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

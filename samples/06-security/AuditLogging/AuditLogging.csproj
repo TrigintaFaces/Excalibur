@@ -8,7 +8,7 @@
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
   </PropertyGroup>
-  <!-- Sprint 431 S431.4: Compliance audit logging sample -->
+ <!-- Compliance audit logging sample -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Security\Excalibur.Security.csproj" />

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Options.Delivery;
 /// the at-most-once concurrency guard and the stuck-processing timeout. A store that cannot persist that status
 /// would silently degrade those guarantees. This validator (registered with <c>ValidateOnStart()</c>) makes that
 /// degrade structurally inexpressible: a full inbox registered with a store lacking the capability fails fast at
-/// startup rather than running with a dead at-most-once guard (ADR-336 clause 2).
+/// startup rather than running with a dead at-most-once guard.
 /// </para>
 /// <para>
 /// All shipped Excalibur inbox stores implement <see cref="IProcessingTrackingInboxStore"/>, so this guard only
@@ -40,7 +40,15 @@ internal sealed class InboxProcessingCapabilityValidator : IValidateOptions<Inbo
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
-		if (_inboxStore is IProcessingTrackingInboxStore)
+		// Probe the EFFECTIVE capability so a decorator that statically declares IProcessingTrackingInboxStore
+		// but wraps a non-tracking inner is rejected at startup (it would otherwise pass the bare `is` check and
+		// throw NotSupportedException at first MarkProcessing). A decorator reports its forwarded capability via
+		// IInboxStoreCapabilities; plain stores fall back to the direct interface check.
+		var supportsProcessingTracking = _inboxStore is IInboxStoreCapabilities capabilities
+			? capabilities.SupportsProcessingTracking
+			: _inboxStore is IProcessingTrackingInboxStore;
+
+		if (supportsProcessingTracking)
 		{
 			return ValidateOptionsResult.Success;
 		}

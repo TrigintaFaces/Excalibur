@@ -1340,18 +1340,6 @@
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives."
     },
     {
-      "warningId": "IL2026",
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/Streams/RabbitMqStreamServiceCollectionExtensions.cs",
-      "line": 78,
-      "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives."
-    },
-    {
-      "warningId": "IL3050",
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/Streams/RabbitMqStreamServiceCollectionExtensions.cs",
-      "line": 80,
-      "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives."
-    },
-    {
       "warningId": "IL2060",
       "file": "src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/FluentValidatorResolver.cs",
       "line": 50,

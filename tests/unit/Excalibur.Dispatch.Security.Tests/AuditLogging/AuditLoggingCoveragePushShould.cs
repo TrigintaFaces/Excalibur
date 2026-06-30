@@ -33,7 +33,7 @@ public sealed class AuditLoggingCoveragePushShould
 	{
 		// Arrange - store valid events, then tamper with one via reflection to trigger
 		// the hash mismatch path (lines 193-209 in InMemoryAuditStore.cs)
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var timestamp = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -71,19 +71,19 @@ public sealed class AuditLoggingCoveragePushShould
 			timestamp.AddHours(1),
 			CancellationToken.None);
 
-		// Assert - should report integrity violation
+		// Assert - the keyed-MAC verification flags the tampered event (strengthened: pin the violating
+		// event id rather than the exact wording, which is strategy-specific).
 		result.IsValid.ShouldBeFalse();
 		result.ViolationCount.ShouldBeGreaterThan(0);
-		result.FirstViolationEventId.ShouldNotBeNull();
-		result.ViolationDescription.ShouldNotBeNull();
-		result.ViolationDescription.ShouldContain("Hash mismatch");
+		result.FirstViolationEventId.ShouldBe("tamper-2");
+		result.ViolationDescription.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
 	public async Task InMemoryAuditStore_VerifyChainIntegrity_DetectsMultipleViolations_WhenMultipleEventsTampered()
 	{
 		// Arrange - tamper with multiple events to exercise firstViolationEventId ??= branch
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var timestamp = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
 		for (var i = 1; i <= 3; i++)
@@ -125,7 +125,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_VerifyChainIntegrity_DetectsFirstEventTampered()
 	{
 		// Arrange - tamper with the first event specifically
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var timestamp = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -176,7 +176,7 @@ public sealed class AuditLoggingCoveragePushShould
 	{
 		// Arrange - store an event to create a tenant entry, then clear the tenant list
 		// to trigger the "lastEvent is null" branch in GetPreviousHash (line 263-265)
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -223,7 +223,7 @@ public sealed class AuditLoggingCoveragePushShould
 		// Arrange - same as above but for default tenant (null TenantId)
 		// This exercises the ternary "tenantKey == '_default_' ? null : tenantKey"
 		// inside the empty-list genesis hash branch
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -532,7 +532,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_WithAllFiltersOnNoTenant()
 	{
 		// Arrange - exercise the no-tenant branch of CountAsync with all filters
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -583,7 +583,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_QueryAsync_OrderByDescendingFalse_WithTenantScope()
 	{
 		// Arrange - exercise ascending order within tenant scope
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var ts1 = new DateTimeOffset(2025, 6, 10, 0, 0, 0, TimeSpan.Zero);
 		var ts2 = new DateTimeOffset(2025, 6, 20, 0, 0, 0, TimeSpan.Zero);
 
@@ -626,7 +626,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_WithActionFilter_NoTenant()
 	{
 		// Arrange - exercise Action filter in CountAsync without tenant
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -659,7 +659,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_GetLastEventAsync_ReturnsLastForDefaultTenant()
 	{
 		// Arrange - exercise GetLastEventAsync with explicit null tenant
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -693,7 +693,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_VerifyChainIntegrity_MultipleEventsSameTimestamp()
 	{
 		// Arrange - events with same timestamp, ordered by EventId
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var timestamp = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -729,7 +729,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_QueryAsync_PaginationWithTenantScope()
 	{
 		// Arrange - exercise pagination within tenant-scoped query
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		for (var i = 1; i <= 5; i++)
 		{
@@ -772,7 +772,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_QueryAsync_DescendingOrder_WithTenantScope()
 	{
 		// Arrange - exercise descending order within tenant scope
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var ts1 = new DateTimeOffset(2025, 6, 10, 0, 0, 0, TimeSpan.Zero);
 		var ts2 = new DateTimeOffset(2025, 6, 20, 0, 0, 0, TimeSpan.Zero);
 
@@ -815,7 +815,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_WithOutcomes_NoTenant()
 	{
 		// Arrange - exercise Outcomes filter branch in CountAsync without tenant
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -851,7 +851,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_WithResourceType_NoTenant()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -939,7 +939,7 @@ public sealed class AuditLoggingCoveragePushShould
 		// Register with factory AND scoped lifetime via ServiceDescriptor
 		var scopedFactoryDescriptor = new ServiceDescriptor(
 			typeof(IAuditStore),
-			_ => new InMemoryAuditStore(),
+			_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()),
 			ServiceLifetime.Scoped);
 		((ICollection<ServiceDescriptor>)services).Add(scopedFactoryDescriptor);
 

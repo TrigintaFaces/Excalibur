@@ -121,6 +121,79 @@ public sealed class DispatchConfigurationServiceCollectionExtensionsShould
 	}
 
 	[Fact]
+	public async Task AddUpcastingMessageBusDecoratorResolveKeyedRegistrationByImplementationType()
+	{
+		// AC-1 (bd-ib1kxp): a keyed IMessageBus registered by keyed implementation TYPE (no keyed instance)
+		// MUST resolve through KeyedImplementationType. Pre-fix, the keyed branch of CreateInnerMessageBus
+		// read the NON-keyed descriptor.ImplementationInstance getter on a keyed descriptor, which throws
+		// InvalidOperationException on .NET 8+ — so this resolution would fail before reaching the keyed type.
+		var services = new ServiceCollection();
+		services.AddKeyedSingleton<IMessageBus, RecordingMessageBus>("typed");
+		services.AddSingleton(A.Fake<IUpcastingPipeline>());
+
+		services.AddUpcastingMessageBusDecorator();
+		using var provider = services.BuildServiceProvider();
+
+		var decorated = provider.GetRequiredKeyedService<IMessageBus>("typed");
+		decorated.ShouldBeOfType<UpcastingMessageBusDecorator>();
+
+		// The decorated inner bus is activated from the keyed type; publishing must not throw.
+		await decorated.PublishAsync(new SampleAction(), DispatchContextInitializer.CreateDefaultContext(), CancellationToken.None)
+			.ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task AddUpcastingMessageBusDecoratorResolveKeyedRegistrationByImplementationFactory()
+	{
+		// AC-2 (bd-ib1kxp): a keyed IMessageBus registered by keyed FACTORY MUST resolve through the keyed
+		// factory without ever reading a non-keyed accessor (pre-fix the keyed branch threw before reaching it).
+		var services = new ServiceCollection();
+		var keyedBus = new RecordingMessageBus();
+		services.AddKeyedSingleton<IMessageBus>("factory", (_, _) => keyedBus);
+		services.AddSingleton(A.Fake<IUpcastingPipeline>());
+
+		services.AddUpcastingMessageBusDecorator();
+		using var provider = services.BuildServiceProvider();
+
+		var decorated = provider.GetRequiredKeyedService<IMessageBus>("factory");
+		decorated.ShouldBeOfType<UpcastingMessageBusDecorator>();
+
+		await decorated.PublishAsync(new SampleAction(), DispatchContextInitializer.CreateDefaultContext(), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// The keyed factory's instance is the one the decorator wraps.
+		keyedBus.ActionPublishes.ShouldBe(1);
+	}
+
+	[Fact]
+	public async Task AddUpcastingMessageBusDecoratorIgnoreUnrelatedKeyedDescriptors()
+	{
+		// AC-3 (bd-ib1kxp, edge): an unrelated keyed descriptor in the collection MUST NOT cause the
+		// decorator registration or the message-bus enumeration to throw — the enumeration sites guard on
+		// ServiceType == typeof(IMessageBus) first, short-circuiting before any keyed-accessor read.
+		var services = new ServiceCollection();
+		services.AddKeyedSingleton("unrelated", "a-plain-keyed-string");
+		var keyedBus = new RecordingMessageBus();
+		services.AddKeyedSingleton<IMessageBus>("primary", keyedBus);
+		services.AddSingleton(A.Fake<IUpcastingPipeline>());
+
+		// Decoration must succeed despite the unrelated keyed descriptor being present.
+		services.AddUpcastingMessageBusDecorator();
+		using var provider = services.BuildServiceProvider();
+
+		var decorated = provider.GetRequiredKeyedService<IMessageBus>("primary");
+		decorated.ShouldBeOfType<UpcastingMessageBusDecorator>();
+
+		await decorated.PublishAsync(new SampleAction(), DispatchContextInitializer.CreateDefaultContext(), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		keyedBus.ActionPublishes.ShouldBe(1);
+
+		// The unrelated keyed service is untouched and still resolvable.
+		provider.GetRequiredKeyedService<string>("unrelated").ShouldBe("a-plain-keyed-string");
+	}
+
+	[Fact]
 	public void AddDispatchCanConfigureExpectedLightModeOptions()
 	{
 		var services = new ServiceCollection();

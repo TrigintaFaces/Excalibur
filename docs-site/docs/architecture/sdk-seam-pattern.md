@@ -10,16 +10,16 @@ When a framework package calls into a third-party SDK (Azure, AWS, GCP, etc.) an
 
 This page is reference material for contributors extending the framework. Consumers of Excalibur do not see or use these seams.
 
-:::info Where this is specified
+:::info About this pattern
 
-The normative rule lives in [ADR-142 §D7](https://github.com/dean-excalibur/Excalibur.Dispatch/blob/main/management/architecture/adr-142-sprint-555-testing-infrastructure-consumer-dx.md). This page is an illustrated companion to that decision, not a substitute.
+This page documents the SDK seam pattern — the convention for isolating third-party SDK client types behind a framework-owned interface so test fakes and version bumps stay stable.
 :::
 
 ## Why
 
 Third-party SDK concrete clients (`SecretClient`, `ServiceBusClient`, `BlobClient`, etc.) expose non-virtual methods whose overload resolution can change silently across minor version bumps. FakeItEasy + Castle DynamicProxy bind to a specific signature at fake-creation time; when the SDK picks a different overload after a version bump, the fake is bypassed and the test either calls the real network or throws from an unconfigured invocation.
 
-The S797 `AzureKeyVaultCredentialStore` / `Azure.Security.KeyVault.Secrets 4.8 → 4.10` regression (`bd-wy56o5`) is the canonical case. Pinning the SDK back is a suppress, not a fix. The seam is the fix.
+The `AzureKeyVaultCredentialStore` / `Azure.Security.KeyVault.Secrets 4.8 → 4.10` regression is the canonical case. Pinning the SDK back is a suppress, not a fix. The seam is the fix.
 
 ## Shape
 
@@ -109,10 +109,10 @@ Without the `DynamicProxyGenAssembly2` line, `A.Fake<IInternalSeam>()` throws `F
 
 The canonical form is **`IXxx` + `XxxAdapter`** — interface is a contract, class adapts. The `I` prefix always disambiguates the seam from the bare-named SDK concrete at the CLR level; no carve-outs.
 
-**Two naming shapes are in use**, both ADR-142 §D7 conformant:
+**Two naming shapes are in use**, both conformant:
 
 1. **`IXxxClient` + `XxxClientAdapter`** — the default. Use when the seam sits directly in front of a single SDK client type and the framework's call sites read naturally as "client" operations.
-2. **`I{DomainRole}` + `{DomainRole}Adapter`** — use when the seam describes the consumer's domain role rather than mirroring an SDK topology. Valid suffixes include `Store`, `Operations`, `Repository`. Introduced in S799 per COMPASS msg 1799.
+2. **`I{DomainRole}` + `{DomainRole}Adapter`** — use when the seam describes the consumer's domain role rather than mirroring an SDK topology. Valid suffixes include `Store`, `Operations`, `Repository`.
 
 The **naming test** (load-bearing): a reviewer who has never seen the third-party SDK should understand the consumer's domain purpose from the seam name + method list without inferring SDK sub-client topology. `ISchemaEvolutionOperations { MigrateAsync, VerifyVersionAsync, RollbackAsync }` passes. `IElasticsearchIndicesClient { CreateIndex, DeleteIndex, … }` fails — it reads as an SDK mirror.
 
@@ -129,15 +129,15 @@ The **naming test** (load-bearing): a reviewer who has never seen the third-part
 | Elasticsearch projection event scan | `IProjectionEventScan` | `ProjectionEventScanAdapter` | Domain role (verb) |
 | Elasticsearch projection index provisioning | `IProjectionIndexProvisioning` | `ProjectionIndexProvisioningAdapter` | Domain role (gerund) |
 
-Do **not** name seams `IXxxAdapter`. The `Adapter` suffix is reserved for the concrete class. ADR-142 §D7 is a universal rule — if naming looks ambiguous in an editor, rely on the `I` prefix + namespace to disambiguate, not a naming carve-out. If the client shape reads as an SDK mirror, switch to the domain-role shape instead.
+Do **not** name seams `IXxxAdapter`. The `Adapter` suffix is reserved for the concrete class. This is a universal rule — if naming looks ambiguous in an editor, rely on the `I` prefix + namespace to disambiguate, not a naming carve-out. If the client shape reads as an SDK mirror, switch to the domain-role shape instead.
 
 ## Governance
 
-The `NoConcreteSdkFakesGovernanceShould` conformance test scans for banned fake patterns (direct fakes of SDK concrete client types, reflection-based private-field injection into SDK-backed fields) and fails the build when a new offender lands. The debt baseline tracks pre-existing sites being drained progressively (seeded at 13 in S798; drained to 11 in S799); the `Debt_Baseline_Count_Only_Shrinks` ratchet prevents regressions.
+The `NoConcreteSdkFakesGovernanceShould` conformance test scans for banned fake patterns (direct fakes of SDK concrete client types, reflection-based private-field injection into SDK-backed fields) and fails the build when a new offender lands. A debt baseline tracks pre-existing sites being drained progressively; the `Debt_Baseline_Count_Only_Shrinks` ratchet prevents regressions.
 
 ### Per-adapter conformance smoke
 
-Each seam should ship with a real-SDK passthrough smoke test — `{SeamName}AdapterConformanceShould.cs` under `tests/integration/Excalibur.Integration.Tests/DataElasticSearch/Conformance/` (or the transport-equivalent path). This is the canary that catches the SDK-minor-bump overload-resolution failure mode ADR-142 §D7 exists to prevent. Unit tests that fake the seam (`A.Fake<ISeam>()`) verify the consumer's logic; conformance smokes verify the adapter still forwards cleanly to the current SDK version. Shipping a seam without a conformance smoke is a pattern regression recorded as a non-blocking REVIEW_ARCH finding (S801 F1 `bd-dfrr2x` is the reference case).
+Each seam should ship with a real-SDK passthrough smoke test — `{SeamName}AdapterConformanceShould.cs` under `tests/integration/Excalibur.Integration.Tests/DataElasticSearch/Conformance/` (or the transport-equivalent path). This is the canary that catches the SDK-minor-bump overload-resolution failure mode this pattern exists to prevent. Unit tests that fake the seam (`A.Fake<ISeam>()`) verify the consumer's logic; conformance smokes verify the adapter still forwards cleanly to the current SDK version. Shipping a seam without a conformance smoke is a pattern regression recorded as a non-blocking review finding.
 
 New seams are added to the normal package; debt entries are retired individually as each seam lands.
 
@@ -149,9 +149,8 @@ The seam pattern applies to third-party SDKs the framework calls and tests. It i
 - **Consumer-pluggable abstractions** (`IEventStore`, `IOutboxPublisher`, etc.) — those are public contracts with deliberate DI stories. Seams are not.
 - **Handcrafted test doubles for framework interfaces** — prefer `NullLogger<T>.Instance` over `A.Fake<ILogger<T>>` where the log output is not under test.
 
-If a potential seam would expose more than five methods, re-scope it to the framework's actual call sites. Seams grow by one method per new call site only — never speculatively. **The ≤5 rule is a hard cap with no carve-outs** (reinforced S800 — an earlier domain-cluster exception was proposed in S799 for `IIndexTemplateStore` at 6 methods and was rejected in favour of splitting into `IIndexTemplateStore` (4) + `IComponentTemplateStore` (2)). If a seam cannot fit under the cap via an operation-axis, sub-client-axis, or domain-role split, the correct response is to pivot the workstream for that one seam (defer to a later sprint with a recorded reason) — not to exceed the cap.
+If a potential seam would expose more than five methods, re-scope it to the framework's actual call sites. Seams grow by one method per new call site only — never speculatively. **The ≤5 rule is a hard cap with no carve-outs** — for example, a seam at 6 methods is split into `IIndexTemplateStore` (4) + `IComponentTemplateStore` (2) rather than granted an exception. If a seam cannot fit under the cap via an operation-axis, sub-client-axis, or domain-role split, the correct response is to defer that one seam with a recorded reason — not to exceed the cap.
 
 ## Further reading
 
-- ADR-142 §D7 (repo path `management/architecture/adr-142-sprint-555-testing-infrastructure-consumer-dx.md`) — normative rule, rollout posture, anti-pattern list.
 - [Testing Handlers](../testing/testing-handlers.md) — when to fake framework interfaces vs. use real implementations.

@@ -6,6 +6,17 @@ sidebar_position: 1
 
 A comprehensive guide for migrating from MediatR to Excalibur.Dispatch, covering API differences, feature mapping, and migration strategies.
 
+:::caution Trademark and non-affiliation notice
+"MediatR" is a trademark of the MediatR project and its respective owner(s).
+Excalibur.Dispatch and the `Excalibur.Dispatch.Compat.MediatR` compatibility package are
+**independent** and are **not affiliated with, sponsored by, or endorsed by** the MediatR
+project or its owner(s). The compatibility surface exists solely to assist migration and
+interoperability; it is **not** a redistribution of MediatR's source code. Nothing here is
+legal advice — you remain solely responsible for your own license compliance regarding any
+third-party software you migrate from or to. See the full
+[Trademark and Non-Affiliation Notice](./compat-mediatr-disclaimer.md).
+:::
+
 ## Before You Start
 
 - **.NET 10.0**
@@ -15,6 +26,142 @@ A comprehensive guide for migrating from MediatR to Excalibur.Dispatch, covering
 ## Overview
 
 Excalibur is designed as a **production-ready alternative to MediatR** with enhanced features for event sourcing, domain-driven design, and reliable messaging. This guide helps you migrate smoothly while gaining new capabilities.
+
+## Two migration paths
+
+There are two supported ways to move off MediatR, and you can mix them per file:
+
+1. **Drop-in compatibility shim (fastest).** Reference the `Excalibur.Dispatch.Compat.MediatR`
+   package, swap `using MediatR;` → `using Excalibur.Dispatch.Compat.MediatR;`, and rename your
+   registration call. Your existing `IRequest`/`IRequestHandler`/`INotification`/`IPipelineBehavior`
+   code compiles unchanged against source-compatible shapes that forward to Excalibur.Dispatch. A
+   bundled Roslyn analyzer + code-fix performs the mechanical edits for you. **Start here** — it gets
+   you off the commercial MediatR package with the least churn.
+2. **Rewrite to the canonical API (idiomatic).** Replace MediatR shapes with the native
+   `IDispatchAction`/`IActionHandler`/`IDomainEvent`/`IDispatchMiddleware` types. This is more edits up
+   front but unlocks the full Excalibur programming model (richer `IMessageContext`, transport-aware
+   routing, event-sourcing integration). The [side-by-side comparison](#side-by-side-comparison) and
+   [step-by-step migration](#step-by-step-migration) below cover this path.
+
+A common strategy is to run the shim first to get compiling on Excalibur quickly, then rewrite
+high-value handlers to the canonical API over time.
+
+## Drop-in compatibility shim
+
+:::info Package
+The compatibility surface ships as a separate, isolated package — `Excalibur.Dispatch.Compat.MediatR`
+— that depends on `Excalibur.Dispatch`. The canonical packages never depend on it, so the compat
+surface stays opt-in and isolated from the core framework.
+:::
+
+### Step 1: Add the packages
+
+```bash
+dotnet add package Excalibur.Dispatch.Compat.MediatR
+```
+
+The bundled analyzer + code-fix packages (`Excalibur.Dispatch.Migration.Analyzers` and
+`Excalibur.Dispatch.Migration.CodeFixes`) are referenced as analyzers and surface the `EXMIG####`
+migration diagnostics in your IDE and build output.
+
+### Step 2: Swap the namespace
+
+The shim provides the same interface shapes MediatR-based code references, in a new namespace:
+
+```diff
+- using MediatR;
++ using Excalibur.Dispatch.Compat.MediatR;
+```
+
+Diagnostic **[EXMIG0003](../diagnostics/EXMIG0003.md)** flags every `using MediatR;` directive and its
+code-fix performs the swap idempotently.
+
+The shim provides source-compatible shapes for the published MediatR contract:
+
+| Compatibility type | Notes |
+|--------------------|-------|
+| `IRequest`, `IRequest<TResponse>` | Marker interfaces for requests. |
+| `IRequestHandler<TRequest, TResponse>`, `IRequestHandler<TRequest>` | Handler method is `Handle(...)` — MediatR's name is preserved. |
+| `INotification`, `INotificationHandler<TNotification>` | Many handlers per notification are supported. |
+| `IPipelineBehavior<TRequest, TResponse>`, `RequestHandlerDelegate<TResponse>` | Behaviors nest around the handler in registration order. |
+| `IStreamRequest<TResponse>`, `IStreamRequestHandler<TRequest, TResponse>` | Streaming requests via `IAsyncEnumerable<T>`. |
+| `IMediator`, `ISender`, `IPublisher` | Inject any of these; `Send`, `Publish`, and `CreateStream` keep MediatR's names. |
+| `Unit` | The MediatR void-result type, including `Unit.Value` and `Unit.Task`. |
+
+### Step 3: Rename the registration call
+
+**Before (MediatR):**
+```csharp
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
+```
+
+**After (compat):**
+```csharp
+builder.Services.AddMediatRCompat(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
+```
+
+Diagnostic **[EXMIG0001](../diagnostics/EXMIG0001.md)** flags `AddMediatR(...)` calls and its code-fix
+rewrites them to `AddMediatRCompat(...)`, preserving the assembly-scan arguments. `AddMediatRCompat`
+self-bootstraps the Dispatch core (it calls `AddDispatch()` internally, idempotently), validates its
+options at startup, and accepts the familiar configuration entry points:
+
+```csharp
+builder.Services.AddMediatRCompat(cfg =>
+{
+    // Assembly registration (any of these)
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+    cfg.RegisterServicesFromAssemblies(asmA, asmB);
+    cfg.RegisterServicesFromAssemblyContaining<SomeHandler>();
+
+    // Handler lifetime (default: Transient)
+    cfg.HandlerLifetime = ServiceLifetime.Scoped;
+
+    // Pipeline behaviors — run in registration order, nested around the handler
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+    cfg.AddBehavior<IPipelineBehavior<Ping, Pong>, PingPongBehavior>();
+});
+```
+
+:::note Compile-time handler discovery
+Handler registration is **source-generated** at compile time (no reflection scan on the consumer
+path), which keeps the shim AOT-safe. `RegisterServicesFrom*` selects which of your assemblies the
+generated registrations apply to.
+:::
+
+### Step 4: Resolve the remaining diagnostics
+
+The analyzer surfaces anything the swap cannot mechanically rewrite, so nothing is silently skipped:
+
+| Diagnostic | Meaning | Fix |
+|------------|---------|-----|
+| **[EXMIG0001](../diagnostics/EXMIG0001.md)** | `AddMediatR(...)` registration is portable. | Code-fix → `AddMediatRCompat(...)`. |
+| **[EXMIG0002](../diagnostics/EXMIG0002.md)** | A construct outside the compat contract (pre/post processors, exception handlers/actions, stream pipeline behaviors). | Manual migration step — see [unsupported constructs](#unsupported-mediatr-constructs). |
+| **[EXMIG0003](../diagnostics/EXMIG0003.md)** | A `using MediatR;` directive. | Code-fix → `using Excalibur.Dispatch.Compat.MediatR;`. |
+| **[EXMIG0004](../diagnostics/EXMIG0004.md)** | A handler method name differs from the compat shape's `Handle`. | Code-fix renames a deterministic delta (e.g. `HandleAsync` → `Handle`); other deltas are described for manual change. |
+
+### Runtime behavior
+
+- **Requests** resolve to exactly one handler within the registered assemblies. A second handler for
+  the same request type fails fast at registration with `DuplicateRequestHandlerException`.
+- A request with no registered handler throws `HandlerNotFoundException` when sent.
+- **Notifications** may have many handlers; `Publish` to a notification with no handlers is a no-op.
+- **Pipeline behaviors** execute in registration order, nested around the handler (A → B → handler →
+  B → A), matching MediatR's ordering semantics.
+
+### Unsupported MediatR constructs
+
+The shim covers the published MediatR contract that consumer code references. Constructs flagged by
+**EXMIG0002** are *not* part of the compat surface and have no automatic rewrite:
+
+- `IRequestPreProcessor<TRequest>` / `IRequestPostProcessor<TRequest, TResponse>`
+- `IRequestExceptionHandler<,,>` / `IRequestExceptionAction<,>`
+- `IStreamPipelineBehavior<TRequest, TResponse>`
+
+Re-express these using Excalibur.Dispatch middleware (`IDispatchMiddleware`) on the canonical path —
+pre/post processing and exception handling map naturally onto middleware stages. See
+[Pipeline Behaviors](#pipeline-behaviors) below.
 
 ## Key Differences
 
@@ -30,6 +177,10 @@ Excalibur is designed as a **production-ready alternative to MediatR** with enha
 | **Async Only** | Supports both sync/async | Async-only (modern best practice) |
 
 ## Side-by-Side Comparison
+
+The patterns below show the **canonical-API rewrite** path — replacing MediatR shapes with native
+Excalibur.Dispatch types. If you started with the [drop-in shim](#drop-in-compatibility-shim), adopt
+these idiomatic patterns incrementally, handler by handler.
 
 ### Request/Response Pattern
 
@@ -793,10 +944,10 @@ Latest benchmark sources (20260420 epoch):
 - `benchmarks/baselines/net10.0/dispatch-comparative-20260420/results/Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.md` (April 20, 2026)
 
 Latest comparative validation run:
-- Date: April 20, 2026 (Sprint 812)
+- Date: April 20, 2026
 - BenchmarkDotNet 0.15.8 on .NET 10.0.6 / SDK 10.0.202
 - Result: 16 reports captured (8 Comparative + 8 WarmPath), GREEN intra-report (Dispatch leads every competitor row), methodology divergence vs prior `20260302` baseline per BDN 0.15.4→0.15.8 shift
-- Summaries: `benchmarks/runs/S812/benchmark-matrix-summary-20260420.md` + `benchmark-warmpath-matrix-summary-20260420.md`
+- Summaries: benchmark matrix summary + warm-path matrix summary (April 20, 2026)
 
 | Scenario | MediatR | Excalibur | Relative Result |
 |----------|---------|-------------------|-----------------|
@@ -829,6 +980,16 @@ See [Ultra-Local Dispatch](../performance/ultra-local-dispatch.md) for eligibili
 **Conclusion:** MediatR remains faster for raw in-process mediator microbenchmarks. Dispatch adds transport-aware routing, richer middleware/context semantics, and event-sourcing/outbox integration in the same programming model.
 
 ## Migration Checklist
+
+**Fast path — drop-in shim:**
+
+- [ ] Add the `Excalibur.Dispatch.Compat.MediatR` package
+- [ ] Apply the **EXMIG0003** code-fix to swap `using MediatR;` → `using Excalibur.Dispatch.Compat.MediatR;`
+- [ ] Apply the **EXMIG0001** code-fix to rewrite `AddMediatR(...)` → `AddMediatRCompat(...)`
+- [ ] Resolve **EXMIG0002** (unsupported constructs) and **EXMIG0004** (handler signature) diagnostics
+- [ ] Remove the MediatR package reference; build and run the conformance/integration suite
+
+**Idiomatic path — canonical rewrite:**
 
 - [ ] Install Dispatch packages
 - [ ] Add Dispatch registration alongside MediatR

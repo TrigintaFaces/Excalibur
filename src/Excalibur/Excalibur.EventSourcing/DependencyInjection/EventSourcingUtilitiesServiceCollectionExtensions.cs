@@ -276,19 +276,22 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	private static TService ResolveOriginal<TService>(ServiceDescriptor descriptor, IServiceProvider sp)
 		where TService : class
 	{
-		if (descriptor.ImplementationInstance is TService instance)
+		// ybem93: read implementation members through the keyed-safe accessors (raw reads throw on
+		// keyed descriptors on .NET 8+).
+		if (descriptor.GetImplementationInstance() is TService instance)
 		{
 			return instance;
 		}
 
-		if (descriptor.ImplementationFactory is not null)
+		if (descriptor.GetImplementationFactory() is { } factory)
 		{
-			return (TService)descriptor.ImplementationFactory(sp);
+			return (TService)factory(sp);
 		}
 
-		if (descriptor.ImplementationType is not null)
+		var implementationType = descriptor.GetImplementationType();
+		if (implementationType is not null)
 		{
-			return (TService)ActivatorUtilities.CreateInstance(sp, descriptor.ImplementationType);
+			return (TService)ActivatorUtilities.CreateInstance(sp, implementationType);
 		}
 
 		throw new InvalidOperationException(

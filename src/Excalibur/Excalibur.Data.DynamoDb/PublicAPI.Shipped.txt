@@ -233,6 +233,7 @@ Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.Validate() -> voi
 Microsoft.Extensions.DependencyInjection.A3BuilderDynamoDbExtensions
 Microsoft.Extensions.DependencyInjection.DaxCacheServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions
+Microsoft.Extensions.DependencyInjection.DynamoDbHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.DynamoDbProjectionStoreExtensions
 Microsoft.Extensions.DependencyInjection.DynamoDbServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.DynamoDbSnapshotStoreExtensions
@@ -254,6 +255,7 @@ const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionLoaded 
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionNotFound = 103440 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionParseFailed = 103442 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionSaved = 103444 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPrefixConfirmFailedAfterHandlerError = 103428 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcProcessingError = 103426 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcProcessorStarting = 103420 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcProcessorStopping = 103421 -> int
@@ -339,6 +341,7 @@ static Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions.
 static Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions.AddDynamoDbAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions.AddDynamoDbAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! serviceUrl, string! grantsTableName = "authorization_grants", string! activityGroupsTableName = "authorization_activity_groups") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions.AddDynamoDbGrantStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbHealthChecksBuilderExtensions.AddDynamoDbHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "dynamodb", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.DynamoDbProjectionStoreExtensions.AddDynamoDbProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Projections.DynamoDbProjectionStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbServiceCollectionExtensions.AddExcaliburDynamoDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.IDynamoDBDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbSnapshotStoreExtensions.AddDynamoDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

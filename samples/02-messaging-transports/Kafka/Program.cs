@@ -72,7 +72,7 @@ builder.Services.Configure<RoutingOptions>(static opts =>
 	opts.DefaultRemoteBusName = "kafka");
 
 // ============================================================
-// Configure Kafka transport (ADR-098 Single Entry Point)
+// Configure Kafka transport (Single Entry Point)
 // ============================================================
 // Get bootstrap servers from configuration, with fallback for local Docker
 var bootstrapServers = builder.Configuration["Kafka:BootstrapServers"]

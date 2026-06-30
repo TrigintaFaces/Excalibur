@@ -1,9 +1,8 @@
 # GDPR Compliance Sample
 
-**Beads:** `bd-dlkgoc` (P2, S789 API reference) + `bd-2jst3j` (P1, S790 dispatch refactor)
 **Location:** `samples/06-security/GdprCompliance/`
 
-> **Canonical dispatch pipeline (Sprint 790):** The erasure endpoints now go
+> **Canonical dispatch pipeline :** The erasure endpoints now go
 > through the same L3 command → handler → event → projection pipeline used by
 > the other real-world samples:
 >

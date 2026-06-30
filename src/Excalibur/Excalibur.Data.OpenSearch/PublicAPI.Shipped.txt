@@ -26,6 +26,13 @@ Excalibur.Data.OpenSearch.DeadLetterDocument<T>.RetryCount.set -> void
 Excalibur.Data.OpenSearch.DeadLetterDocument<T>.Timestamp.get -> System.DateTimeOffset
 Excalibur.Data.OpenSearch.DeadLetterDocument<T>.Timestamp.set -> void
 Excalibur.Data.OpenSearch.HostExtensions
+Excalibur.Data.OpenSearch.IOpenSearchDataBuilder
+Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
+Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.Client(OpenSearch.Client.OpenSearchClient! client) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
+Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, OpenSearch.Client.OpenSearchClient!>! factory) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
+Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.IndexPrefix(string! prefix) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
+Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.NodeUri(System.Uri! uri) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
+Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.NodeUris(System.Collections.Generic.IEnumerable<System.Uri!>! uris) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.AliasDefinition() -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.AliasName.get -> string!
@@ -41,11 +48,11 @@ Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.IsWriteIndex.set -> vo
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.SearchRouting.get -> string?
 Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.SearchRouting.set -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation
-Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.ConfigurationJson.get -> System.Text.Json.JsonElement?
-Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.ConfigurationJson.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.AliasName.get -> string!
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.AliasName.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.AliasOperation() -> void
+Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.ConfigurationJson.get -> System.Text.Json.JsonElement?
+Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.ConfigurationJson.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.IndexName.get -> string!
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.IndexName.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.OperationType.get -> Excalibur.Data.OpenSearch.IndexManagement.AliasOperationType
@@ -346,6 +353,8 @@ Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptio
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.PositionsIndexName.set -> void
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.RefreshInterval.get -> string!
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.RefreshInterval.set -> void
+Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.RefreshPolicy.get -> string!
+Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.RefreshPolicy.set -> void
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.RequestTimeoutSeconds.get -> int
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.RequestTimeoutSeconds.set -> void
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.Validate() -> void
@@ -469,10 +478,6 @@ Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions.RefreshIn
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions.RequestTimeoutSeconds.get -> int
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions.RequestTimeoutSeconds.set -> void
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions.Validate() -> void
-Excalibur.Data.OpenSearch.Resilience.CircuitBreakerState
-Excalibur.Data.OpenSearch.Resilience.CircuitBreakerState.Closed = 0 -> Excalibur.Data.OpenSearch.Resilience.CircuitBreakerState
-Excalibur.Data.OpenSearch.Resilience.CircuitBreakerState.HalfOpen = 2 -> Excalibur.Data.OpenSearch.Resilience.CircuitBreakerState
-Excalibur.Data.OpenSearch.Resilience.CircuitBreakerState.Open = 1 -> Excalibur.Data.OpenSearch.Resilience.CircuitBreakerState
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.ConsecutiveFailures.get -> int
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
@@ -481,7 +486,7 @@ Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.IsHalfOpen.get ->
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.IsOpen.get -> bool
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.RecordFailureAsync() -> System.Threading.Tasks.Task!
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.RecordSuccessAsync() -> System.Threading.Tasks.Task!
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.State.get -> Excalibur.Data.OpenSearch.Resilience.CircuitBreakerState
+Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.State.get -> Excalibur.Dispatch.Resilience.CircuitState
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy.GetRetryDelay(int attemptNumber) -> System.TimeSpan
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy.MaxAttempts.get -> int
@@ -511,15 +516,8 @@ static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensi
 static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions!>! configureShared, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddExcaliburOpenSearch(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddOpenSearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, OpenSearch.Client.OpenSearchClient! client, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddOpenSearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Collections.Generic.IEnumerable<System.Uri!>! nodeUris, System.Action<OpenSearch.Client.ConnectionSettings!>? configureSettings = null, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddOpenSearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<OpenSearch.Client.ConnectionSettings!>? configureSettings = null, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchTenantShardingExtensions.UseOpenSearchTenantProjectionStore<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.Data.OpenSearch.IOpenSearchDataBuilder
-Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
-Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.Client(OpenSearch.Client.OpenSearchClient! client) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
-Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.ClientFactory(System.Func<System.IServiceProvider!, OpenSearch.Client.OpenSearchClient!>! factory) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
-Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.IndexPrefix(string! prefix) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
-Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.NodeUri(System.Uri! uri) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
-Excalibur.Data.OpenSearch.IOpenSearchDataBuilder.NodeUris(System.Collections.Generic.IEnumerable<System.Uri!>! uris) -> Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!
-static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddExcaliburOpenSearch(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.OpenSearch.IOpenSearchDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

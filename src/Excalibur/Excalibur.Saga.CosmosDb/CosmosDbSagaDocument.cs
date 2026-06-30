@@ -25,48 +25,56 @@ internal sealed class CosmosDbSagaDocument
 	/// Gets or sets the document ID (sagaId as string).
 	/// </summary>
 	[JsonPropertyName("id")]
+	[Newtonsoft.Json.JsonProperty("id")]
 	public string Id { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the saga identifier.
 	/// </summary>
 	[JsonPropertyName("sagaId")]
+	[Newtonsoft.Json.JsonProperty("sagaId")]
 	public Guid SagaId { get; set; }
 
 	/// <summary>
 	/// Gets or sets the saga type name (partition key).
 	/// </summary>
 	[JsonPropertyName("sagaType")]
+	[Newtonsoft.Json.JsonProperty("sagaType")]
 	public string SagaType { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the serialized saga state as JSON.
 	/// </summary>
 	[JsonPropertyName("stateJson")]
+	[Newtonsoft.Json.JsonProperty("stateJson")]
 	public string StateJson { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether the saga has completed.
 	/// </summary>
 	[JsonPropertyName("isCompleted")]
+	[Newtonsoft.Json.JsonProperty("isCompleted")]
 	public bool IsCompleted { get; set; }
 
 	/// <summary>
 	/// Gets or sets the optimistic-concurrency version of the persisted saga state.
 	/// </summary>
 	[JsonPropertyName("version")]
+	[Newtonsoft.Json.JsonProperty("version")]
 	public long Version { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the saga was created (UTC).
 	/// </summary>
 	[JsonPropertyName("createdUtc")]
+	[Newtonsoft.Json.JsonProperty("createdUtc")]
 	public DateTimeOffset CreatedUtc { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the saga was last updated (UTC).
 	/// </summary>
 	[JsonPropertyName("updatedUtc")]
+	[Newtonsoft.Json.JsonProperty("updatedUtc")]
 	public DateTimeOffset UpdatedUtc { get; set; }
 
 	/// <summary>

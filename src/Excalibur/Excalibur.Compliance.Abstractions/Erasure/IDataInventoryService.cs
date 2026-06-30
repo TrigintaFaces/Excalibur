@@ -161,7 +161,7 @@ public sealed record DataLocation
 	/// <remarks>
 	/// Defaults to <see cref="DataStoreKind.Unknown"/>. An unclassified location is never coverable by a
 	/// contributor or exemption — it can only be covered by crypto-shred (its <see cref="KeyId"/> being
-	/// deleted) and otherwise forces a non-<c>Completed</c> erasure (ADR-336 Amendment 1a).
+	/// deleted) and otherwise forces a non-<c>Completed</c> erasure.
 	/// </remarks>
 	public DataStoreKind StoreKind { get; init; }
 

@@ -37,6 +37,10 @@ public static class AuditLoggingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider (qa71t5).
+		// Every audit store depends on IAuditIntegrityStrategy to tag/verify records.
+		_ = services.AddAuditIntegrity();
+
 		// Register in-memory store as singleton (maintains state across requests)
 		services.TryAddSingleton<InMemoryAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<InMemoryAuditStore>());
@@ -184,27 +188,33 @@ public static class AuditLoggingServiceCollectionExtensions
 		// Remove the existing registration
 		_ = services.Remove(existingDescriptor);
 
+		// ybem93: read implementation members through the keyed-safe accessors once into locals
+		// (raw reads throw on keyed descriptors on .NET 8+; locals also preserve null-flow analysis).
+		var implementationType = existingDescriptor.GetImplementationType();
+		var implementationInstance = existingDescriptor.GetImplementationInstance();
+		var implementationFactory = existingDescriptor.GetImplementationFactory();
+
 		// Re-register the original store with a different key (for the decorator to use)
-		if (existingDescriptor.ImplementationType is not null)
+		if (implementationType is not null)
 		{
 			services.Add(new ServiceDescriptor(
-				existingDescriptor.ImplementationType,
-				existingDescriptor.ImplementationType,
+				implementationType,
+				implementationType,
 				existingDescriptor.Lifetime));
 		}
-		else if (existingDescriptor.ImplementationInstance is not null)
+		else if (implementationInstance is not null)
 		{
 			_ = services.AddSingleton(
-				existingDescriptor.ImplementationInstance.GetType(),
-				existingDescriptor.ImplementationInstance);
+				implementationInstance.GetType(),
+				implementationInstance);
 		}
-		else if (existingDescriptor.ImplementationFactory is not null)
+		else if (implementationFactory is not null)
 		{
 			// For factory registrations, we need to wrap the factory
 			services.Add(new ServiceDescriptor(
 				typeof(IAuditStore),
 				sp => new RbacAuditStore(
-					(IAuditStore)existingDescriptor.ImplementationFactory(sp),
+					(IAuditStore)implementationFactory(sp),
 					sp.GetRequiredService<IAuditRoleProvider>(),
 					sp.GetRequiredService<Logging.ILogger<RbacAuditStore>>(),
 					sp.GetService<IAuditActorProvider>(),
@@ -220,10 +230,10 @@ public static class AuditLoggingServiceCollectionExtensions
 			sp =>
 			{
 				// Try to resolve the original store type
-				var innerStore = existingDescriptor.ImplementationType is not null
-					? (IAuditStore)sp.GetRequiredService(existingDescriptor.ImplementationType)
-					: existingDescriptor.ImplementationInstance is not null
-						? (IAuditStore)sp.GetRequiredService(existingDescriptor.ImplementationInstance.GetType())
+				var innerStore = implementationType is not null
+					? (IAuditStore)sp.GetRequiredService(implementationType)
+					: implementationInstance is not null
+						? (IAuditStore)sp.GetRequiredService(implementationInstance.GetType())
 						: throw new InvalidOperationException(
 							Resources.AuditLoggingServiceCollectionExtensions_InnerAuditStoreResolutionFailed);
 
@@ -544,26 +554,28 @@ public static class AuditLoggingServiceCollectionExtensions
 
 		_ = services.Remove(existingDescriptor);
 
-		if (existingDescriptor.ImplementationType is not null)
+		// ybem93: keyed-safe accessor into a local (preserves null-flow for the type reads below).
+		var implementationType = existingDescriptor.GetImplementationType();
+		if (implementationType is not null)
 		{
 			services.Add(new ServiceDescriptor(
-				existingDescriptor.ImplementationType,
-				existingDescriptor.ImplementationType,
+				implementationType,
+				implementationType,
 				existingDescriptor.Lifetime));
 
 			services.Add(new ServiceDescriptor(
 				typeof(IAuditAnnotationStore),
 				sp => new RbacAuditAnnotationStore(
-					(IAuditAnnotationStore)sp.GetRequiredService(existingDescriptor.ImplementationType),
+					(IAuditAnnotationStore)sp.GetRequiredService(implementationType),
 					sp.GetRequiredService<IAuditRoleProvider>(),
 					sp.GetService<IAuditActorProvider>(),
 					sp.GetService<IAuditLogger>(),
 					sp.GetRequiredService<Logging.ILogger<RbacAuditAnnotationStore>>()),
 				existingDescriptor.Lifetime));
 		}
-		else if (existingDescriptor.ImplementationFactory is not null)
+		else if (existingDescriptor.GetImplementationFactory() is not null)
 		{
-			var factory = existingDescriptor.ImplementationFactory;
+			var factory = existingDescriptor.GetImplementationFactory();
 			services.Add(new ServiceDescriptor(
 				typeof(IAuditAnnotationStore),
 				sp => new RbacAuditAnnotationStore(
@@ -642,29 +654,32 @@ public static class AuditLoggingServiceCollectionExtensions
 
 		_ = services.Remove(existingDescriptor);
 
-		// Re-add the inner store under a keyed or typed registration
-		if (existingDescriptor.ImplementationType is not null)
+		// Re-add the inner store under a keyed or typed registration. ybem93: read implementation
+		// members through the keyed-safe accessors once into locals (preserves null-flow analysis).
+		var implementationType = existingDescriptor.GetImplementationType();
+		var implementationInstance = existingDescriptor.GetImplementationInstance();
+		if (implementationType is not null)
 		{
 			services.Add(new ServiceDescriptor(
-				existingDescriptor.ImplementationType,
-				existingDescriptor.ImplementationType,
+				implementationType,
+				implementationType,
 				existingDescriptor.Lifetime));
 
 			_ = services.AddSingleton<IAuditStore>(sp => new EncryptingAuditEventStore(
-				(IAuditStore)sp.GetRequiredService(existingDescriptor.ImplementationType),
+				(IAuditStore)sp.GetRequiredService(implementationType),
 				sp.GetRequiredService<IEncryptionProvider>(),
 				sp.GetRequiredService<IOptions<AuditEncryptionOptions>>()));
 		}
-		else if (existingDescriptor.ImplementationInstance is not null)
+		else if (implementationInstance is not null)
 		{
 			_ = services.AddSingleton<IAuditStore>(sp => new EncryptingAuditEventStore(
-				(IAuditStore)existingDescriptor.ImplementationInstance,
+				(IAuditStore)implementationInstance,
 				sp.GetRequiredService<IEncryptionProvider>(),
 				sp.GetRequiredService<IOptions<AuditEncryptionOptions>>()));
 		}
-		else if (existingDescriptor.ImplementationFactory is not null)
+		else if (existingDescriptor.GetImplementationFactory() is not null)
 		{
-			var factory = existingDescriptor.ImplementationFactory;
+			var factory = existingDescriptor.GetImplementationFactory();
 			_ = services.AddSingleton<IAuditStore>(sp => new EncryptingAuditEventStore(
 				(IAuditStore)factory(sp),
 				sp.GetRequiredService<IEncryptionProvider>(),

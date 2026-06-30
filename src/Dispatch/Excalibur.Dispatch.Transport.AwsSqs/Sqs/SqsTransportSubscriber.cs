@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text;
 
 using Amazon.SQS;
@@ -25,6 +26,13 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <item><see cref="MessageAction.Reject"/> deletes the message (SQS routes to DLQ after max receives via redrive policy).</item>
 /// <item><see cref="MessageAction.Requeue"/> changes visibility timeout to 0 for immediate redelivery.</item>
 /// </list>
+/// Settlement is applied per receive batch using <c>DeleteMessageBatch</c> and
+/// <c>ChangeMessageVisibilityBatch</c> so a full long-poll batch costs at most two settlement
+/// API calls instead of one call per message.
+/// </para>
+/// <para>
+/// When the visibility-timeout heartbeat is enabled, the subscriber extends the in-flight message's
+/// visibility while a long-running handler executes, preventing redelivery before the handler completes.
 /// </para>
 /// <para>
 /// Provider-specific data stored in <see cref="TransportReceivedMessage.ProviderData"/>:
@@ -33,12 +41,16 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// </remarks>
 internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 {
+	/// <summary>The largest visibility timeout AWS SQS accepts, in seconds (12 hours).</summary>
+	private const int MaxVisibilityTimeoutSeconds = 43200;
+
 	// CA2213: DI-injected service - lifetime managed by DI container.
 	[SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
 		Justification = "AWS SDK client is injected via DI and owned by the container.")]
 	private readonly IAmazonSQS _sqsClient;
 
 	private readonly string _queueUrl;
+	private readonly AwsSqsVisibilityHeartbeatOptions _heartbeat;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
@@ -48,16 +60,19 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 	/// <param name="sqsClient">The AWS SQS client.</param>
 	/// <param name="source">The logical source name for this subscriber.</param>
 	/// <param name="queueUrl">The SQS queue URL to consume from.</param>
+	/// <param name="heartbeatOptions">The in-flight visibility-timeout heartbeat options.</param>
 	/// <param name="logger">The logger instance.</param>
 	public SqsTransportSubscriber(
 		IAmazonSQS sqsClient,
 		string source,
 		string queueUrl,
+		AwsSqsVisibilityHeartbeatOptions heartbeatOptions,
 		ILogger<SqsTransportSubscriber> logger)
 	{
 		_sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_queueUrl = queueUrl ?? throw new ArgumentNullException(nameof(queueUrl));
+		_heartbeat = heartbeatOptions ?? throw new ArgumentNullException(nameof(heartbeatOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
@@ -94,50 +109,52 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 					continue;
 				}
 
-				foreach (var sqsMessage in response.Messages)
+				// Collect settlement actions for the whole receive batch, then apply them with at most
+				// one DeleteMessageBatch + one ChangeMessageVisibilityBatch call.
+				var deleteEntries = new List<DeleteMessageBatchRequestEntry>();
+				var requeueEntries = new List<ChangeMessageVisibilityBatchRequestEntry>();
+
+				for (var i = 0; i < response.Messages.Count; i++)
 				{
+					var sqsMessage = response.Messages[i];
 					var received = ConvertToReceivedMessage(sqsMessage);
 					LogMessageReceived(received.Id, Source);
 
+					var entryId = i.ToString(CultureInfo.InvariantCulture);
+
 					try
 					{
-						var action = await handler(received, cancellationToken).ConfigureAwait(false);
+						var action = await InvokeHandlerAsync(
+							handler, received, sqsMessage.ReceiptHandle, cancellationToken).ConfigureAwait(false);
 
 						switch (action)
 						{
 							case MessageAction.Acknowledge:
-								await _sqsClient.DeleteMessageAsync(
-									new DeleteMessageRequest
-									{
-										QueueUrl = _queueUrl,
-										ReceiptHandle = sqsMessage.ReceiptHandle,
-									},
-									cancellationToken).ConfigureAwait(false);
+								deleteEntries.Add(new DeleteMessageBatchRequestEntry
+								{
+									Id = entryId,
+									ReceiptHandle = sqsMessage.ReceiptHandle,
+								});
 								LogMessageAcknowledged(received.Id, Source);
 								break;
 
 							case MessageAction.Reject:
-								// Delete the message; DLQ routing is handled by the SQS redrive policy
-								await _sqsClient.DeleteMessageAsync(
-									new DeleteMessageRequest
-									{
-										QueueUrl = _queueUrl,
-										ReceiptHandle = sqsMessage.ReceiptHandle,
-									},
-									cancellationToken).ConfigureAwait(false);
+								// Delete the message; DLQ routing is handled by the SQS redrive policy.
+								deleteEntries.Add(new DeleteMessageBatchRequestEntry
+								{
+									Id = entryId,
+									ReceiptHandle = sqsMessage.ReceiptHandle,
+								});
 								LogMessageRejected(received.Id, Source);
 								break;
 
 							case MessageAction.Requeue:
-								// Change visibility timeout to 0 so message becomes visible again immediately
-								await _sqsClient.ChangeMessageVisibilityAsync(
-									new ChangeMessageVisibilityRequest
-									{
-										QueueUrl = _queueUrl,
-										ReceiptHandle = sqsMessage.ReceiptHandle,
-										VisibilityTimeout = 0,
-									},
-									cancellationToken).ConfigureAwait(false);
+								requeueEntries.Add(new ChangeMessageVisibilityBatchRequestEntry
+								{
+									Id = entryId,
+									ReceiptHandle = sqsMessage.ReceiptHandle,
+									VisibilityTimeout = 0,
+								});
 								LogMessageRequeued(received.Id, Source);
 								break;
 						}
@@ -149,24 +166,18 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 					catch (Exception ex)
 					{
 						LogError(received.Id, Source, ex);
-						// Change visibility to 0 for retry
-						try
+
+						// Make the message visible again immediately for retry.
+						requeueEntries.Add(new ChangeMessageVisibilityBatchRequestEntry
 						{
-							await _sqsClient.ChangeMessageVisibilityAsync(
-								new ChangeMessageVisibilityRequest
-								{
-									QueueUrl = _queueUrl,
-									ReceiptHandle = sqsMessage.ReceiptHandle,
-									VisibilityTimeout = 0,
-								},
-								cancellationToken).ConfigureAwait(false);
-						}
-						catch (Exception visEx)
-						{
-							LogError(received.Id, Source, visEx);
-						}
+							Id = entryId,
+							ReceiptHandle = sqsMessage.ReceiptHandle,
+							VisibilityTimeout = 0,
+						});
 					}
 				}
+
+				await SettleBatchAsync(deleteEntries, requeueEntries, cancellationToken).ConfigureAwait(false);
 			}
 		}
 		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
@@ -201,6 +212,142 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 		LogDisposed(Source);
 		GC.SuppressFinalize(this);
 		return ValueTask.CompletedTask;
+	}
+
+	/// <summary>
+	/// Invokes the handler, optionally running a visibility-timeout heartbeat alongside it so a
+	/// long-running handler does not have its message redelivered before it completes.
+	/// </summary>
+	private async Task<MessageAction> InvokeHandlerAsync(
+		Func<TransportReceivedMessage, CancellationToken, Task<MessageAction>> handler,
+		TransportReceivedMessage received,
+		string receiptHandle,
+		CancellationToken cancellationToken)
+	{
+		if (!_heartbeat.Enabled)
+		{
+			return await handler(received, cancellationToken).ConfigureAwait(false);
+		}
+
+		using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		var heartbeatTask = RunVisibilityHeartbeatAsync(received.Id, receiptHandle, heartbeatCts.Token);
+
+		try
+		{
+			return await handler(received, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			await heartbeatCts.CancelAsync().ConfigureAwait(false);
+			try
+			{
+				await heartbeatTask.ConfigureAwait(false);
+			}
+			catch (OperationCanceledException)
+			{
+				// Expected: the heartbeat loop is cancelled once the handler settles.
+			}
+		}
+	}
+
+	/// <summary>
+	/// Periodically extends the in-flight message's visibility timeout until the handler settles,
+	/// cancellation is requested, or the configured maximum extension budget is exhausted.
+	/// </summary>
+	private async Task RunVisibilityHeartbeatAsync(
+		string messageId,
+		string receiptHandle,
+		CancellationToken cancellationToken)
+	{
+		var visibilitySeconds = (int)Math.Clamp(
+			_heartbeat.VisibilityTimeout.TotalSeconds, 0, MaxVisibilityTimeoutSeconds);
+		var deadline = DateTimeOffset.UtcNow + _heartbeat.MaxExtension;
+
+		while (!cancellationToken.IsCancellationRequested && DateTimeOffset.UtcNow < deadline)
+		{
+			await Task.Delay(_heartbeat.Interval, cancellationToken).ConfigureAwait(false);
+
+			if (cancellationToken.IsCancellationRequested)
+			{
+				break;
+			}
+
+			try
+			{
+				await _sqsClient.ChangeMessageVisibilityAsync(
+					new ChangeMessageVisibilityRequest
+					{
+						QueueUrl = _queueUrl,
+						ReceiptHandle = receiptHandle,
+						VisibilityTimeout = visibilitySeconds,
+					},
+					cancellationToken).ConfigureAwait(false);
+				LogVisibilityExtended(messageId, Source, visibilitySeconds);
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+				break;
+			}
+			catch (Exception ex)
+			{
+				// A failed extension is not fatal; stop heartbeating and let normal redelivery apply.
+				LogVisibilityExtendFailed(messageId, Source, ex);
+				break;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Applies the collected settlement actions for a receive batch using batch SQS operations.
+	/// </summary>
+	private async Task SettleBatchAsync(
+		List<DeleteMessageBatchRequestEntry> deleteEntries,
+		List<ChangeMessageVisibilityBatchRequestEntry> requeueEntries,
+		CancellationToken cancellationToken)
+	{
+		if (deleteEntries.Count > 0)
+		{
+			try
+			{
+				var deleteResponse = await _sqsClient.DeleteMessageBatchAsync(
+					new DeleteMessageBatchRequest { QueueUrl = _queueUrl, Entries = deleteEntries },
+					cancellationToken).ConfigureAwait(false);
+
+				if (deleteResponse.Failed is { Count: > 0 })
+				{
+					foreach (var failure in deleteResponse.Failed)
+					{
+						LogBatchDeleteFailed(failure.Id, failure.Code, Source);
+					}
+				}
+			}
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+			{
+				throw;
+			}
+			catch (Exception ex)
+			{
+				LogBatchDeleteError(Source, ex);
+			}
+		}
+
+		if (requeueEntries.Count > 0)
+		{
+			try
+			{
+				_ = await _sqsClient.ChangeMessageVisibilityBatchAsync(
+					new ChangeMessageVisibilityBatchRequest { QueueUrl = _queueUrl, Entries = requeueEntries },
+					cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+			{
+				throw;
+			}
+			catch (Exception ex)
+			{
+				LogBatchVisibilityError(Source, ex);
+			}
+		}
 	}
 
 	private TransportReceivedMessage ConvertToReceivedMessage(Message sqsMessage)
@@ -287,6 +434,26 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 	[LoggerMessage(AwsSqsEventId.TransportSubscriberError, LogLevel.Error,
 		"SQS transport subscriber: error processing message {MessageId} from {Source}")]
 	private partial void LogError(string messageId, string source, Exception exception);
+
+	[LoggerMessage(AwsSqsEventId.TransportSubscriberBatchDeleteFailed, LogLevel.Warning,
+		"SQS transport subscriber: batch delete failed for entry {EntryId} ({Code}) from {Source}")]
+	private partial void LogBatchDeleteFailed(string entryId, string code, string source);
+
+	[LoggerMessage(AwsSqsEventId.TransportSubscriberBatchDeleteError, LogLevel.Error,
+		"SQS transport subscriber: batch delete error for {Source}")]
+	private partial void LogBatchDeleteError(string source, Exception exception);
+
+	[LoggerMessage(AwsSqsEventId.TransportSubscriberBatchVisibilityError, LogLevel.Error,
+		"SQS transport subscriber: batch visibility change error for {Source}")]
+	private partial void LogBatchVisibilityError(string source, Exception exception);
+
+	[LoggerMessage(AwsSqsEventId.TransportSubscriberVisibilityExtended, LogLevel.Debug,
+		"SQS transport subscriber: extended visibility of message {MessageId} from {Source} by {Seconds}s")]
+	private partial void LogVisibilityExtended(string messageId, string source, int seconds);
+
+	[LoggerMessage(AwsSqsEventId.TransportSubscriberVisibilityExtendFailed, LogLevel.Warning,
+		"SQS transport subscriber: failed to extend visibility of message {MessageId} from {Source}")]
+	private partial void LogVisibilityExtendFailed(string messageId, string source, Exception exception);
 
 	[LoggerMessage(AwsSqsEventId.TransportSubscriberStopped, LogLevel.Information,
 		"SQS transport subscriber: subscription stopped for {Source}")]

@@ -8,7 +8,7 @@ namespace Excalibur.Security.Vault;
 /// <see cref="HashiCorpVaultCredentialStore"/>. Exists so tests can substitute the
 /// transport without committing real credentials or standing up a live Vault: the
 /// <see cref="VaultSecretClientAdapter"/> is the only place that touches live HTTP
-/// call sites (mirrors the Azure <c>ISecretClient</c> seam, ADR-142). Not a
+/// call sites. Not a
 /// consumer-facing abstraction; do not make this public.
 /// </summary>
 internal interface IVaultSecretClient

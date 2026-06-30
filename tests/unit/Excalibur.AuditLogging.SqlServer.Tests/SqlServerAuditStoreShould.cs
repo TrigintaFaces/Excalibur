@@ -12,7 +12,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentNullException>(() =>
 			new SqlServerAuditStore(
 				null!,
-				EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Fact]
@@ -24,7 +24,7 @@ public sealed class SqlServerAuditStoreShould
 		});
 
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerAuditStore(options, null!));
+			new SqlServerAuditStore(options, AuditIntegrityTestStrategy.Create(), null!));
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new SqlServerAuditStore(
 				options,
-				EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Fact]
@@ -52,7 +52,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new SqlServerAuditStore(
 				options,
-				EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Theory]
@@ -72,7 +72,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new SqlServerAuditStore(
 				options,
-				EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Theory]
@@ -92,7 +92,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new SqlServerAuditStore(
 				options,
-				EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Theory]
@@ -111,7 +111,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			EnabledTestLogger.Create<SqlServerAuditStore>());
+			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		store.ShouldNotBeNull();
 		store.Dispose();
@@ -132,7 +132,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			EnabledTestLogger.Create<SqlServerAuditStore>());
+			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		store.ShouldNotBeNull();
 		store.Dispose();
@@ -148,7 +148,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			EnabledTestLogger.Create<SqlServerAuditStore>());
+			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		// Should not throw
 		store.Dispose();
@@ -164,7 +164,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			EnabledTestLogger.Create<SqlServerAuditStore>());
+			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		// Double dispose should not throw
 		store.Dispose();
@@ -181,7 +181,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			EnabledTestLogger.Create<SqlServerAuditStore>());
+			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		store.ShouldBeAssignableTo<Excalibur.Compliance.IAuditStore>();
 		store.Dispose();
@@ -197,7 +197,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			EnabledTestLogger.Create<SqlServerAuditStore>());
+			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		store.ShouldBeAssignableTo<IDisposable>();
 		store.Dispose();
@@ -313,19 +313,18 @@ public sealed class SqlServerAuditStoreShould
 	}
 
 	[Fact]
-	public void Compute_event_hash_is_deterministic()
+	public void Canonicalization_is_deterministic()
 	{
-		var method = typeof(SqlServerAuditStore).GetMethod(
-			"ComputeEventHash",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-
+		// qa71t5: the per-store ComputeEventHash was removed; integrity hashing moved to the shared keyed-MAC
+		// strategy over AuditEventCanonicalizer. Determinism now lives in the canonicalizer (the same event →
+		// byte-identical canonical content), which is what makes write-tag == verify-tag.
 		var evt = CreateAuditEvent("evt-hash");
 
-		var hash1 = (string)method.Invoke(null, [evt, "prev"])!;
-		var hash2 = (string)method.Invoke(null, [evt, "prev"])!;
+		var c1 = Excalibur.AuditLogging.AuditEventCanonicalizer.Canonicalize(evt);
+		var c2 = Excalibur.AuditLogging.AuditEventCanonicalizer.Canonicalize(evt);
 
-		hash1.ShouldBe(hash2);
-		hash1.ShouldNotBeNullOrWhiteSpace();
+		c1.Length.ShouldBeGreaterThan(0);
+		c1.ShouldBe(c2);
 	}
 
 	[Fact]
@@ -410,7 +409,7 @@ public sealed class SqlServerAuditStoreShould
 			CommandTimeoutSeconds = 1
 		});
 
-		return new SqlServerAuditStore(options, EnabledTestLogger.Create<SqlServerAuditStore>());
+		return new SqlServerAuditStore(options, AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
 	}
 
 	private static Excalibur.Compliance.AuditEvent CreateAuditEvent(string eventId) => new()

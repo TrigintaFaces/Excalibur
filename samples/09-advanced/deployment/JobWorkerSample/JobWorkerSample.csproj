@@ -19,7 +19,7 @@
     <PackageReference Include="AspNetCore.HealthChecks.UI" />
     <PackageReference Include="AspNetCore.HealthChecks.UI.InMemory.Storage" />
   </ItemGroup>
-  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+ <!-- Updated paths for reorganized sample structure -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs\Excalibur.Jobs.csproj" />

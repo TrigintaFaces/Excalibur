@@ -160,24 +160,29 @@ builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 var cdcPollingSection = builder.Configuration.GetSection("CdcPolling");
 var cdcPollingInterval = cdcPollingSection.GetValue<TimeSpan?>("PollingInterval") ?? TimeSpan.FromSeconds(5);
 var cdcBatchSize = cdcPollingSection.GetValue<int?>("BatchSize") ?? 100;
-var cdcCaptureInstances = cdcPollingSection.GetSection("CaptureInstances").Get<string[]>()
-							?? ["dbo_LegacyCustomers", "dbo_LegacyOrders", "dbo_LegacyOrderItems"];
 
 // Logger for CDC recovery callback (assigned after app.Build())
 ILogger? cdcRecoveryLogger = null;
 
-// Configure CDC with fluent builder - per ADR-098 P1 (Single Entry Point)
+// Configure CDC with fluent builder - per P1 (Single Entry Point)
 builder.Services.AddCdcProcessor(cdc =>
 {
 	cdc.UseSqlServer(sql =>
 		{
 			sql.ConnectionString(cdcSourceConnectionString)
 				.DatabaseName("LegacyDb")
-				.CaptureInstances(cdcCaptureInstances)
 				.StopOnMissingTableHandler(false)
 				.PollingInterval(cdcPollingInterval)
 				.BatchSize(cdcBatchSize);
 		})
+		// Map each LOGICAL table name (what change handlers match via changeEvent.TableName /
+		// their TableNames) to its SQL Server CDC capture instance. TrackTable registers the
+		// capture-instance->logical-name mapping so a handler with TableNames => ["LegacyCustomers"]
+		// actually fires; a bare CaptureInstances("dbo_LegacyCustomers") would surface the row as
+		// "dbo_LegacyCustomers" and the handler would silently never match.
+		.TrackTable("LegacyCustomers", t => t.CaptureInstance("dbo_LegacyCustomers"))
+		.TrackTable("LegacyOrders", t => t.CaptureInstance("dbo_LegacyOrders"))
+		.TrackTable("LegacyOrderItems", t => t.CaptureInstance("dbo_LegacyOrderItems"))
 		.WithRecovery(recovery =>
 		{
 			recovery.Strategy(Excalibur.Cdc.StalePositionRecoveryStrategy.FallbackToEarliest)
@@ -325,7 +330,7 @@ builder.Services.AddSingleton<ElasticsearchClient>(_ =>
 builder.Services.AddScoped<OrderFullTextSearchRepository>();
 
 // ============================================================================
-// Materialized Views (bd-treh2p)
+// Materialized Views
 // ============================================================================
 // In addition to the inline projection handlers below, we wire up an
 // IMaterializedViewBuilder<CustomerOrderCountView> to demonstrate the

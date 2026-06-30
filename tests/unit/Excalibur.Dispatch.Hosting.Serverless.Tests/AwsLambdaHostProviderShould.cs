@@ -128,8 +128,56 @@ public sealed class AwsLambdaHostProviderShould : UnitTestBase
 	[Fact]
 	public async Task ExecuteAsync_MapInternalCancellationToTimeoutException()
 	{
+		// Happy-path timeout: RemainingTime ABOVE the cleanup reserve so a positive execution budget is
+		// scheduled (RemainingTime - DefaultCleanupReserve = 100ms). The 2s handler exceeds it -> internal
+		// cancellation -> mapped to TimeoutException. Recalibrated from 150ms (bd-c6bjc3): the old value was
+		// below the reserve (raised 100ms->500ms by aiikde) and only passed under the old 100ms reserve.
+		// The <=-reserve fail-closed path is asserted SEPARATELY below (bd-jv2toc) so this test cannot mask it.
 		var context = A.Fake<IServerlessContext>();
-		A.CallTo(() => context.RemainingTime).Returns(TimeSpan.FromMilliseconds(150));
+		A.CallTo(() => context.RemainingTime).Returns(ServerlessHostOptions.DefaultCleanupReserve + TimeSpan.FromMilliseconds(100));
+
+		await Should.ThrowAsync<TimeoutException>(() => _sut.ExecuteAsync(
+			"ping",
+			context,
+			static async (_, _, token) =>
+			{
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(2), token);
+				return "unreachable";
+			},
+			CancellationToken.None));
+	}
+
+	// bd-jv2toc regression lock (independent of the Platform fix): when RemainingTime <= DefaultCleanupReserve
+	// there is NO execution budget, so the handler MUST be cancelled immediately and surface TimeoutException.
+	// The pre-fix impl computes executionTimeout <= 0 and the `if (executionTimeout > Zero) CancelAfter(...)`
+	// guard SKIPS scheduling -> handler runs unbounded -> NO TimeoutException (fail-open-to-infinite). These
+	// locks are RED on the current impl and GREEN once Platform clamps to Max(Zero, remaining-reserve) and
+	// ALWAYS calls CancelAfter. Non-vacuous by construction (the 2s handler would complete absent cancellation).
+
+	[Fact]
+	public async Task ExecuteAsync_WhenRemainingTimeBelowCleanupReserve_CancelsImmediatelyAndMapsToTimeout()
+	{
+		var context = A.Fake<IServerlessContext>();
+		// Strictly below the 500ms reserve -> negative execution budget -> must fail CLOSED (cancel now).
+		A.CallTo(() => context.RemainingTime).Returns(ServerlessHostOptions.DefaultCleanupReserve - TimeSpan.FromMilliseconds(200));
+
+		await Should.ThrowAsync<TimeoutException>(() => _sut.ExecuteAsync(
+			"ping",
+			context,
+			static async (_, _, token) =>
+			{
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(2), token);
+				return "unreachable";
+			},
+			CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task ExecuteAsync_WhenRemainingTimeEqualsCleanupReserve_CancelsImmediatelyAndMapsToTimeout()
+	{
+		var context = A.Fake<IServerlessContext>();
+		// Boundary: remaining == reserve -> zero execution budget -> still fail CLOSED (<=, not <).
+		A.CallTo(() => context.RemainingTime).Returns(ServerlessHostOptions.DefaultCleanupReserve);
 
 		await Should.ThrowAsync<TimeoutException>(() => _sut.ExecuteAsync(
 			"ping",

@@ -193,7 +193,7 @@ public static class SagaServiceCollectionExtensions
 		// AD-252-2: Check for IConfigureOptions registration (proper options pattern)
 		return services.Any(s =>
 			s.ServiceType == typeof(IConfigureOptions<SagaOptions>) ||
-			s.ImplementationType == typeof(DefaultSagaOptionsSetup));
+			s.GetImplementationType() == typeof(DefaultSagaOptionsSetup));
 	}
 
 	/// <summary>
@@ -284,7 +284,7 @@ public static class SagaServiceCollectionExtensions
 		var descriptor = services.First(
 			d => d.ServiceType == typeof(SagaPendingRegistrations));
 
-		return (SagaPendingRegistrations)descriptor.ImplementationInstance!;
+		return (SagaPendingRegistrations)descriptor.GetImplementationInstance()!;
 	}
 
 	/// <summary>

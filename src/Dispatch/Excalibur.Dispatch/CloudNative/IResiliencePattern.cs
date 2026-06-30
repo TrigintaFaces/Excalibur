@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Resilience;
+
 namespace Excalibur.Dispatch.CloudNative;
 
 /// <summary>
@@ -15,7 +17,7 @@ public interface IResiliencePattern : ICloudNativePattern
 	/// <value>
 	/// Current state of the resilience mechanism.
 	/// </value>
-	ResilienceState State { get; }
+	CircuitState State { get; }
 
 	/// <summary>
 	/// Execute an operation with resilience features.

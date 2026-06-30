@@ -71,6 +71,13 @@ builder.Services.AddAzureBlobClaimCheck(options =>
 });
 ```
 
+## Payload Serialization
+
+:::info camelCase by default
+
+When the built-in `JsonClaimCheckSerializer` is used without explicit `JsonSerializerOptions`, it serializes claim-check payloads with the **framework-wide JSON policy — camelCase property names, case-insensitive on read** — rather than falling through to System.Text.Json's PascalCase/case-sensitive defaults. This keeps stored payloads interoperable with every other `ISerializer` implementation in the framework. Supplying your own options overrides this default.
+:::
+
 ## IClaimCheckProvider Interface
 
 ```csharp

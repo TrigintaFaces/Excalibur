@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
 using Microsoft.Extensions.Caching.Distributed;
@@ -220,7 +221,8 @@ public sealed class DistributedCircuitBreakerFunctionalShould : IAsyncDisposable
 		(await sut.GetStateAsync(CancellationToken.None)).ShouldBe(CircuitState.Open);
 
 		// Act 1: poll a trial call until the break window elapses; the first admitted call runs in HalfOpen
-		// (success #1). While Open and not yet elapsed, ExecuteAsync throws BrokenCircuitException -> retry.
+		// (success #1). While Open and not yet elapsed, ExecuteAsync throws CircuitBreakerOpenException -> retry.
+		// FR-116-1: the canonical exception is CircuitBreakerOpenException, not Polly's BrokenCircuitException.
 		var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(30);
 		var admitted = false;
 		while (DateTimeOffset.UtcNow < deadline)
@@ -231,7 +233,7 @@ public sealed class DistributedCircuitBreakerFunctionalShould : IAsyncDisposable
 				admitted = true;
 				break;
 			}
-			catch (Exception ex) when (ex.GetType().Name == "BrokenCircuitException")
+			catch (CircuitBreakerOpenException)
 			{
 				await Task.Delay(20, CancellationToken.None); // brief poll interval, not a sync barrier
 			}

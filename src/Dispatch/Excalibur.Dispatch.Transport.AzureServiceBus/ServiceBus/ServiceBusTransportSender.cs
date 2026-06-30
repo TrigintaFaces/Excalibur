@@ -55,7 +55,7 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ServiceBusTransportSender"/>
 	/// class using a pre-built adapter. Used by tests to substitute the SDK via
-	/// the <see cref="IServiceBusSenderSeam"/> seam (ADR-142 §D7).
+	/// the <see cref="IServiceBusSenderSeam"/> seam.
 	/// </summary>
 	/// <param name="sender">The Service Bus sender adapter.</param>
 	/// <param name="destination">The destination queue or topic name.</param>

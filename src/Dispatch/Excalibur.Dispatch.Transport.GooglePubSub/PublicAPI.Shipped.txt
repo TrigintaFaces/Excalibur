@@ -41,11 +41,6 @@ Excalibur.Dispatch.Transport.Google.BackoffOptions.MaxDelay.get -> System.TimeSp
 Excalibur.Dispatch.Transport.Google.BackoffOptions.MaxDelay.set -> void
 Excalibur.Dispatch.Transport.Google.BackoffOptions.Multiplier.get -> double
 Excalibur.Dispatch.Transport.Google.BackoffOptions.Multiplier.set -> void
-Excalibur.Dispatch.Transport.Google.BackoffType
-Excalibur.Dispatch.Transport.Google.BackoffType.Constant = 0 -> Excalibur.Dispatch.Transport.Google.BackoffType
-Excalibur.Dispatch.Transport.Google.BackoffType.DecorrelatedJitter = 3 -> Excalibur.Dispatch.Transport.Google.BackoffType
-Excalibur.Dispatch.Transport.Google.BackoffType.Exponential = 2 -> Excalibur.Dispatch.Transport.Google.BackoffType
-Excalibur.Dispatch.Transport.Google.BackoffType.Linear = 1 -> Excalibur.Dispatch.Transport.Google.BackoffType
 Excalibur.Dispatch.Transport.Google.BatchAckStrategy
 Excalibur.Dispatch.Transport.Google.BatchAckStrategy.BatchComplete = 1 -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
 Excalibur.Dispatch.Transport.Google.BatchAckStrategy.Individual = 2 -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
@@ -1025,7 +1020,7 @@ Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.TotalAttempts.set -> v
 Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.TotalRetryAttempts.get -> long
 Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.TotalRetryAttempts.set -> void
 Excalibur.Dispatch.Transport.Google.RetryStrategy
-Excalibur.Dispatch.Transport.Google.RetryStrategy.BackoffType.get -> Excalibur.Dispatch.Transport.Google.BackoffType
+Excalibur.Dispatch.Transport.Google.RetryStrategy.BackoffType.get -> Excalibur.Dispatch.Resilience.BackoffStrategy
 Excalibur.Dispatch.Transport.Google.RetryStrategy.BackoffType.set -> void
 Excalibur.Dispatch.Transport.Google.RetryStrategy.CircuitBreakerDuration.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.Google.RetryStrategy.CircuitBreakerDuration.set -> void
@@ -1253,8 +1248,12 @@ Microsoft.Extensions.DependencyInjection.GoogleCloudEventsServiceCollectionExten
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.AckDeadlineSeconds.get -> int
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.AckDeadlineSeconds.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.AutoApplyDeadLetterPolicy.get -> bool
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.AutoApplyDeadLetterPolicy.set -> void
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.CloudEventOptions.get -> Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions?
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.CloudEventOptions.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.DeadLetterMaxDeliveryAttempts.get -> int
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.DeadLetterMaxDeliveryAttempts.set -> void
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.DeadLetterTopicId.get -> string?
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.DeadLetterTopicId.set -> void
 Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableAutoAckExtension.get -> bool
@@ -1347,6 +1346,8 @@ const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterMe
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterMessagesRetrieved = 23715 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterMetadataDeserializeFailed = 23718 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterParseFailed = 23714 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterPolicyAutoApplied = 23931 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterPolicyAutoApplyFailed = 23932 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterPolicyConfigured = 23710 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterProcessed = 23701 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterPublishError = 23115 -> int

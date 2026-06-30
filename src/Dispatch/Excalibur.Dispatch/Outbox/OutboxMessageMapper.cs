@@ -49,6 +49,7 @@ public sealed class OutboxMessageMapper : IOutboxMessageMapper
 		// Copy properties from outbound message
 		context.CorrelationId = message.CorrelationId;
 		context.CausationId = message.CausationId;
+		context.TenantId = message.TenantId; // tenancy isolation invariant — first-class, never header-only (bd-1vqmei)
 		context.TargetTransport = targetTransport;
 
 		// Set message type header
@@ -68,6 +69,13 @@ public sealed class OutboxMessageMapper : IOutboxMessageMapper
 			{
 				context.SetTransportProperty(header.Key, header.Value);
 			}
+		}
+
+		// Standardize the tenant on the canonical wire key so header-propagating transports carry it
+		// authoritatively from the first-class TenantId (overriding any stale header copy) (bd-1vqmei).
+		if (!string.IsNullOrEmpty(message.TenantId))
+		{
+			context.SetHeader(OutboxHeaderNames.TenantId, message.TenantId);
 		}
 
 		// Set destination as transport property

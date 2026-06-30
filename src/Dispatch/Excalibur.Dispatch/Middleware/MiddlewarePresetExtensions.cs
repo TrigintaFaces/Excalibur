@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Middleware.Logging;
 using Excalibur.Dispatch.Middleware.Resilience;
 using Excalibur.Dispatch.Middleware.Timeout;
 using Excalibur.Dispatch.Middleware.Validation;
+using Excalibur.Dispatch.Validation;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;

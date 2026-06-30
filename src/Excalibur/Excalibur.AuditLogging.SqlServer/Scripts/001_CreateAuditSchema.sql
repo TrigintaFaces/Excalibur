@@ -47,8 +47,8 @@ BEGIN
         [Metadata] NVARCHAR(MAX) NULL, -- JSON
 
         -- Hash chain integrity
-        [PreviousEventHash] NVARCHAR(64) NULL, -- SHA-256 hex
-        [EventHash] NVARCHAR(64) NOT NULL, -- SHA-256 hex
+        [PreviousEventHash] NVARCHAR(512) NULL, -- keyed integrity tag: v1:{keyId}:{base64-hmac}
+        [EventHash] NVARCHAR(512) NOT NULL, -- keyed integrity tag: v1:{keyId}:{base64-hmac}
 
         -- Constraints
         CONSTRAINT [PK_AuditEvents] PRIMARY KEY CLUSTERED ([SequenceNumber] ASC),

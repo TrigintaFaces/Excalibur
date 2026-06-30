@@ -72,7 +72,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
         var services = new ServiceCollection();
         services.AddLogging();
 
-        services.AddAuditLogging(_ => new InMemoryAuditStore());
+        services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
 
         services.ShouldContain(d =>
             d.ServiceType == typeof(IAuditStore) &&
@@ -118,7 +118,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
     {
         var services = new ServiceCollection();
 
-        var result = services.AddAuditLogging(_ => new InMemoryAuditStore());
+        var result = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
 
         result.ShouldBeSameAs(services);
     }
@@ -155,7 +155,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
     {
         IServiceCollection services = null!;
 
-        Should.Throw<ArgumentNullException>(() => services.AddAuditLogging(_ => new InMemoryAuditStore()));
+        Should.Throw<ArgumentNullException>(() => services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create())));
     }
 
     [Fact]

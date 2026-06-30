@@ -94,4 +94,4 @@ services.AddDispatch(dispatch =>
 
 ---
 
-*Category: Getting Started | Sprint 607*
+*Category: Getting Started*

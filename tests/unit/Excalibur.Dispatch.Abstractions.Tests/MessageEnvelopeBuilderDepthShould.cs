@@ -112,7 +112,6 @@ public sealed class MessageEnvelopeBuilderDepthShould
 		builder.WithContext(new MessageEnvelope()).ShouldBeSameAs(builder);
 		builder.WithMessageId("id").ShouldBeSameAs(builder);
 		builder.WithTimestamp(DateTimeOffset.UtcNow).ShouldBeSameAs(builder);
-		builder.WithRawBody(ReadOnlyMemory<byte>.Empty).ShouldBeSameAs(builder);
 	}
 
 	private sealed class TestMessage : IDispatchMessage;

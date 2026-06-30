@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Dispatch.Compat.MediatR.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Compat.MediatR.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compat.MediatR\Excalibur.Dispatch.Compat.MediatR.csproj" />
+    <!-- Compat source generator (ADR-341 §9): discovers this project's compat handlers and emits the
+         AOT-safe registration ModuleInitializer. Required for Send/Publish/stream routing to resolve. -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compat.MediatR.SourceGenerators\Excalibur.Dispatch.Compat.MediatR.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <!-- Isolated duplicate-handler fixtures for nvzo4h (registered ONLY by the dup lock; per-container scope). -->
+    <ProjectReference Include="..\Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures\Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures.csproj" />
+  </ItemGroup>
+</Project>

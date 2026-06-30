@@ -13,6 +13,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -79,6 +80,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	private readonly InboxOptions _options;
 	private readonly IInboxStore? _inboxStore;
 	private readonly IInMemoryDeduplicator? _deduplicator;
+	private readonly DispatchJsonSerializer _serializer;
 	private readonly ILogger<InboxMiddleware> _logger;
 
 	/// <summary>
@@ -88,19 +90,23 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	/// <param name="options"> Configuration options for inbox behavior. </param>
 	/// <param name="inboxStore"> Optional persistent inbox store for full inbox mode. </param>
 	/// <param name="deduplicator"> Optional in-memory deduplicator for light mode. </param>
+	/// <param name="serializer"> The configured serializer used to write payloads symmetrically with the read path. </param>
 	/// <param name="logger"> Logger for diagnostic information. </param>
 	public InboxMiddleware(
 		IOptions<InboxOptions> options,
 		IInboxStore? inboxStore,
 		IInMemoryDeduplicator? deduplicator,
+		DispatchJsonSerializer serializer,
 		ILogger<InboxMiddleware> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_options = options.Value;
 		_inboxStore = inboxStore;
 		_deduplicator = deduplicator;
+		_serializer = serializer;
 		_logger = logger;
 
 		// Validate configuration
@@ -598,7 +604,11 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	{
 		try
 		{
-			return JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
+			// Route the WRITE through the configured DispatchJsonSerializer so it shares the consumer's
+			// naming policy, string-enum representation, custom converters, and AOT TypeInfoResolver with the
+			// READ path (InboxProcessor) — symmetric wire contract, no custom-converter drop, no AOT hole (15sf7a).
+			using var result = _serializer.SerializeToPooledBuffer(message, message.GetType());
+			return result.WrittenSpan.ToArray();
 		}
 		catch (Exception ex)
 		{

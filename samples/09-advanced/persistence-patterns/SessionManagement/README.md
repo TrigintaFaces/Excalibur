@@ -140,4 +140,4 @@ SessionManagement/
 
 ---
 
-*Category: Advanced | Sprint 428*
+*Category: Advanced*

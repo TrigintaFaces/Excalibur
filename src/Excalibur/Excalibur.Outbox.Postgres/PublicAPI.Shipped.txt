@@ -33,7 +33,7 @@ Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.TableName(string! tableName) ->
 Excalibur.Outbox.Postgres.IncrementOutboxMessageAttempts
 Excalibur.Outbox.Postgres.IncrementOutboxMessageAttempts.IncrementOutboxMessageAttempts(string! messageId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.InsertOutboxMessage
-Excalibur.Outbox.Postgres.InsertOutboxMessage.InsertOutboxMessage(string! messageId, string! messageType, string! messageMetadata, string! messageBody, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Outbox.Postgres.InsertOutboxMessage.InsertOutboxMessage(string! messageId, string! messageType, string! messageMetadata, string! messageBody, string? tenantId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.MoveOutboxMessageToDeadLetter
 Excalibur.Outbox.Postgres.MoveOutboxMessageToDeadLetter.MoveOutboxMessageToDeadLetter(string! messageId, string! outboxTableName, string! deadLetterTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.OutboxBuilderPostgresExtensions

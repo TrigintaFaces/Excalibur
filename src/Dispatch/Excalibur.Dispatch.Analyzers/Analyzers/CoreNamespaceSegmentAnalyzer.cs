@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Analyzers;
 
 /// <summary>
 /// Analyzes namespace declarations and reports DISP104 when a namespace contains a
-/// <c>.Core.</c> segment, which violates ADR-075 naming conventions.
+/// <c>.Core.</c> segment, which violates naming conventions.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class CoreNamespaceSegmentAnalyzer : DiagnosticAnalyzer

@@ -17,4 +17,17 @@ public sealed class InvalidateCacheAttribute : Attribute
 	/// </summary>
 	/// <value>The cache tags to invalidate when this action is executed.</value>
 	public string[] Tags { get; init; } = [];
+
+	/// <summary>
+	/// Gets or initializes a value indicating whether invalidation runs even when the handler throws.
+	/// </summary>
+	/// <remarks>
+	/// By default (<see langword="false"/>), cache invalidation runs only after the handler returns successfully —
+	/// a handler that throws propagates its exception and leaves the cache untouched. When set to
+	/// <see langword="true"/>, invalidation also runs when the handler throws (for example, a command that committed
+	/// a partial write before failing), so stale entries are not served on the error path. An invalidation failure
+	/// never masks the handler's original exception.
+	/// </remarks>
+	/// <value><see langword="true"/> to invalidate on both success and failure; otherwise <see langword="false"/> (success only).</value>
+	public bool InvalidateOnFailure { get; init; }
 }

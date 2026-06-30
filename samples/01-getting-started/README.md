@@ -68,4 +68,4 @@ After completing these samples, explore:
 
 ---
 
-*Category: Getting Started | Sprint 607*
+*Category: Getting Started*

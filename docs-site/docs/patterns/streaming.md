@@ -313,6 +313,39 @@ public class EnrichedCsvHandler : IStreamingDocumentHandler<CsvDocument, Chunk<I
 }
 ```
 
+## Streaming and the middleware pipeline
+
+:::warning Streaming paths bypass the middleware pipeline
+Streaming, progress, and document-stream dispatch paths — `DispatchStreamingAsync`,
+`DispatchStreamAsync`, `DispatchTransformStreamAsync`, and `DispatchWithProgressAsync` — invoke their
+handler directly and **do not execute the dispatch middleware pipeline**. Cross-cutting middleware
+(validation, authorization, audit logging, metrics, circuit breaker, retry) registered with
+`AppliesTo(MessageKinds.All)` or `MessageKinds.Document` **does not run** for streamed messages.
+:::
+
+The pipeline is typed on `IDispatchMessage` / `IMessageResult`. Streamed documents (`IDispatchDocument`)
+and their pull-based `IAsyncEnumerable` results do not fit that request/response shape, so a
+streaming-aware pipeline is a larger redesign tracked separately.
+
+The framework never bypasses this surface silently. Per the "a seam either works or fails loud — never
+silently degrades" principle, when a streaming dispatch runs while All/Document-scoped middleware is
+registered, the framework emits a **one-time warning** naming exactly which middleware were skipped:
+
+```text
+warn: Excalibur.Dispatch.Delivery.Pipeline.StreamingPipeline
+      Streaming dispatch path 'DispatchStreamAsync' bypasses 3 registered pipeline middleware
+      (AuditLoggingMiddleware, MetricsLoggingMiddleware, CircuitBreakerMiddleware). Streaming/Progress/
+      document-stream paths do not execute the dispatch middleware pipeline, so these cross-cutting
+      behaviors are NOT applied to streamed messages.
+```
+
+**What to do when cross-cutting behavior must apply to streamed work:**
+
+- Use a non-streaming dispatch path (action/event) where the middleware must run, then stream the result
+  separately.
+- Apply the cross-cutting concern **inside** your streaming handler (for example, authorize the request
+  and emit audit/metrics events explicitly before yielding).
+
 ## Best Practices
 
 ### Memory Efficiency

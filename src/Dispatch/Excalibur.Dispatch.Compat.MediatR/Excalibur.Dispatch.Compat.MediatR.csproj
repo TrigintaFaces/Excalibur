@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Compat.MediatR</PackageId>
+    <Description>Migration compatibility surface for Excalibur.Dispatch. Provides source-compatible interfaces (IRequest/IRequestHandler/INotification/IPipelineBehavior/IStreamRequest/IMediator) so that code written against the MediatR API compiles on Excalibur.Dispatch after a namespace swap, forwarding to canonical Dispatch primitives. AOT-safe, source-gen registration; no reflection on the consumer path. Not affiliated with or endorsed by the owner of the MediatR trademark.</Description>
+    <PackageTags>dispatch;mediatr;compat;migration;mediator;cqrs;aot</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- One-way dependency: compat -> canonical Dispatch. Canonical NEVER references compat (ADR-341). -->
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <!-- ADR-341 §9 Option B2: ship the compat source generator as an analyzer asset of THIS package, so a
+       single Compat.MediatR reference gives a consumer the AOT-safe registration generator. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Compat.MediatR.SourceGenerators\Excalibur.Dispatch.Compat.MediatR.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Excalibur.Dispatch.Compat.MediatR.SourceGenerators\bin\$(Configuration)\netstandard2.0\Excalibur.Dispatch.Compat.MediatR.SourceGenerators.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Compat.MediatR.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+</Project>

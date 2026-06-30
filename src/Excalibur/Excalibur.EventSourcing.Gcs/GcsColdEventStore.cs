@@ -19,6 +19,8 @@ namespace Excalibur.EventSourcing.Gcs;
 /// </remarks>
 internal sealed class GcsColdEventStore : IColdEventStore
 {
+	private const int MaxConcurrencyRetries = 5;
+
 	private readonly StorageClient _storageClient;
 	private readonly string _bucketName;
 	private readonly string _objectPrefix;
@@ -58,27 +60,44 @@ internal sealed class GcsColdEventStore : IColdEventStore
 
 		var objectName = GetObjectName(aggregateId);
 
-		var existingEvents = new List<StoredEvent>();
-		if (await ObjectExistsAsync(objectName, cancellationToken).ConfigureAwait(false))
+		// Optimistic-concurrency read-modify-write: a concurrent archive must not silently overwrite (lost
+		// update). We capture the source object's generation on read and write conditionally
+		// (IfGenerationMatch=generation for an update, IfGenerationMatch=0 for a create); a precondition
+		// failure means another writer raced us, so we re-read and retry against the now-current object.
+		for (var attempt = 0; ; attempt++)
 		{
-			existingEvents.AddRange(await ReadEventsFromGcsAsync(objectName, cancellationToken).ConfigureAwait(false));
+			var (existingEvents, generation) = await TryDownloadForUpdateAsync(objectName, cancellationToken)
+				.ConfigureAwait(false);
+
+			var maxExistingVersion = existingEvents.Count > 0 ? existingEvents[^1].Version : -1;
+			var newEvents = events.Where(e => e.Version > maxExistingVersion).ToList();
+
+			if (newEvents.Count == 0)
+			{
+				_logger.LogDebug("No new events to archive for {AggregateId}; all versions already in cold storage", aggregateId);
+				return;
+			}
+
+			existingEvents.AddRange(newEvents);
+
+			try
+			{
+				await WriteEventsToGcsAsync(objectName, existingEvents, generation, cancellationToken).ConfigureAwait(false);
+
+				_logger.LogDebug(
+					"Archived {NewCount} events for {AggregateId} to GCS (total {TotalCount})",
+					newEvents.Count, aggregateId, existingEvents.Count);
+				return;
+			}
+			catch (Google.GoogleApiException ex) when (
+				ex.HttpStatusCode == System.Net.HttpStatusCode.PreconditionFailed && attempt < MaxConcurrencyRetries)
+			{
+				// Another writer committed between our read and write — re-read and retry.
+				_logger.LogDebug(
+					"Concurrent archive detected for {AggregateId} (status {Status}); retrying (attempt {Attempt})",
+					aggregateId, ex.HttpStatusCode, attempt + 1);
+			}
 		}
-
-		var maxExistingVersion = existingEvents.Count > 0 ? existingEvents[^1].Version : -1;
-		var newEvents = events.Where(e => e.Version > maxExistingVersion).ToList();
-
-		if (newEvents.Count == 0)
-		{
-			_logger.LogDebug("No new events to archive for {AggregateId}; all versions already in cold storage", aggregateId);
-			return;
-		}
-
-		existingEvents.AddRange(newEvents);
-		await WriteEventsToGcsAsync(objectName, existingEvents, cancellationToken).ConfigureAwait(false);
-
-		_logger.LogDebug(
-			"Archived {NewCount} events for {AggregateId} to GCS (total {TotalCount})",
-			newEvents.Count, aggregateId, existingEvents.Count);
 	}
 
 	/// <inheritdoc />
@@ -157,9 +176,40 @@ internal sealed class GcsColdEventStore : IColdEventStore
 		return events ?? [];
 	}
 
+	/// <summary>
+	/// Downloads the current archive object (if any) and its generation in a single request. Returns an
+	/// empty list and a <see langword="null"/> generation when the object does not yet exist (create path).
+	/// </summary>
+	private async Task<(List<StoredEvent> Events, long? Generation)> TryDownloadForUpdateAsync(
+		string objectName,
+		CancellationToken cancellationToken)
+	{
+		using var memoryStream = new MemoryStream();
+		try
+		{
+			var downloaded = await _storageClient.DownloadObjectAsync(
+				_bucketName, objectName, memoryStream, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			memoryStream.Position = 0;
+			await using var gzipStream = new GZipStream(memoryStream, CompressionMode.Decompress);
+
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
+			var events = await JsonSerializer.DeserializeAsync<List<StoredEvent>>(
+				gzipStream, _jsonOptions, cancellationToken).ConfigureAwait(false);
+#pragma warning restore IL2026, IL3050
+
+			return (events ?? [], downloaded.Generation);
+		}
+		catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+		{
+			return ([], null);
+		}
+	}
+
 	private async Task WriteEventsToGcsAsync(
 		string objectName,
 		List<StoredEvent> events,
+		long? generation,
 		CancellationToken cancellationToken)
 	{
 		using var memoryStream = new MemoryStream();
@@ -173,11 +223,17 @@ internal sealed class GcsColdEventStore : IColdEventStore
 
 		memoryStream.Position = 0;
 
+		// Conditional write: IfGenerationMatch=generation updates only if unchanged; IfGenerationMatch=0
+		// creates only if absent. Either way a concurrent writer's commit triggers a 412, never a silent
+		// overwrite.
+		var options = new UploadObjectOptions { IfGenerationMatch = generation ?? 0 };
+
 		await _storageClient.UploadObjectAsync(
 			_bucketName,
 			objectName,
 			"application/json",
 			memoryStream,
+			options,
 			cancellationToken: cancellationToken).ConfigureAwait(false);
 	}
 }

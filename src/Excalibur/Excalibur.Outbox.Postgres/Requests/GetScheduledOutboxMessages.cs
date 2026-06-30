@@ -31,7 +31,8 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 		CancellationToken cancellationToken)
 	{
 		var sql = $"""
-			SELECT message_id, message_type, message_metadata, message_body, occurred_on, scheduled_at
+			SELECT message_id AS MessageId, message_type AS MessageType, message_metadata AS MessageMetadata,
+			       message_body AS MessageBody, tenant_id AS TenantId, occurred_on AS OccurredOn, scheduled_at AS ScheduledAt
 			FROM {outboxTableName}
 			WHERE scheduled_at IS NOT NULL
 			  AND scheduled_at <= @Cutoff
@@ -55,6 +56,7 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 				Id = row.MessageId,
 				MessageType = row.MessageType,
 				Payload = System.Text.Encoding.UTF8.GetBytes(row.MessageBody ?? string.Empty),
+				TenantId = row.TenantId,
 				CreatedAt = row.OccurredOn,
 				ScheduledAt = row.ScheduledAt,
 				Status = OutboxStatus.Staged,
@@ -72,6 +74,7 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 		public string MessageType { get; set; } = string.Empty;
 		public string? MessageMetadata { get; set; }
 		public string? MessageBody { get; set; }
+		public string? TenantId { get; set; }
 		public DateTimeOffset OccurredOn { get; set; }
 		public DateTimeOffset? ScheduledAt { get; set; }
 		// ReSharper restore UnusedAutoPropertyAccessor.Local

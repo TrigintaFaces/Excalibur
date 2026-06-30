@@ -54,14 +54,13 @@ public sealed class MessagePackPluggableSerializerShould
 	}
 
 	[Fact]
-	public void Serialize_WithNull_ProducesValidOutput()
+	public void Serialize_WithNull_ThrowsArgumentNullException()
 	{
-		// Act — MessagePack serializes null as a nil byte
-		var result = ((ISerializer)_sut).SerializeToBytes<TestMessage>(null!);
-
-		// Assert
-		result.ShouldNotBeNull();
-		result.Length.ShouldBeGreaterThan(0);
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior.
+		_ = Should.Throw<ArgumentNullException>(() =>
+			((ISerializer)_sut).SerializeToBytes<TestMessage>(null!));
 	}
 
 	[Fact]

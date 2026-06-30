@@ -201,15 +201,35 @@ public sealed class ProductCacheKeyBuilder : ICacheKeyBuilder
         var tenant = context.GetTenantId() ?? "global";
         return $"{tenant}:product:{product.ProductId}";
     }
+
+    // Direct-invalidation overload: builds the stored key for a logical key under a
+    // tenant/user identity, without a live IMessageContext. Apply the SAME identity
+    // folding here as in CreateKey(action, context) so a direct invalidation removes
+    // the exact key a cacheable query stored. This overload performs no serialization
+    // and is AOT-/trimming-safe.
+    public string CreateKey(string logicalKey, string? tenantId, string? userId)
+    {
+        var tenant = tenantId ?? "global";
+        return $"{tenant}:{logicalKey}";
+    }
 }
 ```
 
-`CreateKey` returns `string?`:
+`ICacheKeyBuilder` has two members; a custom builder must implement both:
+
+| Member | Purpose |
+|--------|---------|
+| `string? CreateKey(IDispatchAction action, IMessageContext context)` | Derives the cache key for an in-flight request. Returns `null` to signal "do not cache". |
+| `string CreateKey(string logicalKey, string? tenantId, string? userId)` | Builds the stored key for a logical key under a tenant/user identity, **without** a live `IMessageContext`. Used for direct-key invalidation — turns a raw logical key into the exact stored key to remove. Performs no serialization (AOT-/trimming-safe). |
+
+The action/context overload returns `string?`:
 
 - A **non-null** key is used to look up and store the cached result.
 - A **`null`** result means **"do not cache"** — the pipeline bypasses the cache and invokes the handler.
 
-Implementations **must be infallible** for a "cannot derive a key" condition: return `null` instead of throwing, so a key-building failure degrades to a cache miss rather than failing the request.
+This overload **must be infallible** for a "cannot derive a key" condition: return `null` instead of throwing, so a key-building failure degrades to a cache miss rather than failing the request.
+
+> **Apply the same identity transform in both overloads.** A raw logical key can never equal the stored, identity-folded key, so the invalidation overload must fold tenant/user exactly as the request overload does — otherwise direct invalidation silently misses the entry it meant to remove.
 
 ## Attribute-Based Caching
 
@@ -307,7 +327,7 @@ dotnet add package Excalibur.Caching
 ```csharp
 // Register projection caching after dispatch caching.
 // AddProjectionCaching(...) is the canonical extension on IEventSourcingBuilder
-// per ADR-321/325 (the pre-unification AddExcaliburProjectionCaching aggregator
+// (the pre-unification AddExcaliburProjectionCaching aggregator
 // is internal to Excalibur.Caching).
 builder.Services.AddDispatch(dispatch =>
 {
@@ -363,6 +383,11 @@ The correct implementation is selected automatically based on `CacheMode` and wh
 | `DistributedCacheTagTracker` | Distributed or Hybrid mode with a real `IDistributedCache` (not `MemoryDistributedCache`) | Stores mappings in the distributed cache alongside cached data |
 
 You do not need to register `ICacheTagTracker` manually -- `AddDispatchCaching()` and `UseCaching()` handle it automatically.
+
+:::info Fail-open and atomicity
+
+Tag registration is a **cross-cutting** concern, so it **fails open**: if the tag-store backend throws while registering a key or removing a poison marker, the error is logged and skipped — it is **never** propagated to the dispatch result, so a tag-store outage cannot break core message handling (cancellation still propagates). `DistributedCacheTagTracker` registration is also **atomic** — a key→tag mapping is written without a non-atomic read-modify-write window.
+:::
 
 ### Capacity Limits
 

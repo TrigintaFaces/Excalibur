@@ -242,4 +242,4 @@ Consumer:
 
 ---
 
-*Category: Reliability | Sprint 432*
+*Category: Reliability*

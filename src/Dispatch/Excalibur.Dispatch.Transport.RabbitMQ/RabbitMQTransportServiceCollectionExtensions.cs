@@ -67,6 +67,13 @@ public static class RabbitMQTransportServiceCollectionExtensions
 	public const string DefaultTransportName = "rabbitmq";
 
 	/// <summary>
+	/// The default QoS prefetch count applied to a subscriber when no queue-specific value is
+	/// configured. Matches the documented default on <see cref="RabbitMQQueueOptions.PrefetchCount"/>
+	/// and <c>RabbitMqConsumptionOptions.PrefetchCount</c>.
+	/// </summary>
+	private const ushort DefaultPrefetchCount = 100;
+
+	/// <summary>
 	/// Adds a RabbitMQ transport with the specified name and configuration.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -236,8 +243,8 @@ public static class RabbitMQTransportServiceCollectionExtensions
 				}
 			}
 
-			factory.AutomaticRecoveryEnabled = true;
-			factory.NetworkRecoveryInterval = TimeSpan.FromSeconds(10);
+			factory.AutomaticRecoveryEnabled = connection.AutomaticRecoveryEnabled;
+			factory.NetworkRecoveryInterval = connection.NetworkRecoveryInterval;
 
 			if (connection.UseSsl)
 			{
@@ -395,10 +402,16 @@ public static class RabbitMQTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
 	/// implementations keyed by transport name so they are instantiated and reachable on the
-	/// <c>AddRabbitMQTransport</c> path instead of orphaned (kek7vm). <c>TryAdd*</c> lets a consumer
-	/// override the registration (Microsoft-first). Publisher-confirm behavior is layered by the
-	/// fjtok4 child on this wired seam.
+	/// <c>AddRabbitMQTransport</c> path instead of orphaned. <c>TryAdd*</c> lets a consumer
+	/// override the registration (Microsoft-first). Publisher-confirm behavior is layered on
+	/// this wired seam.
 	/// </summary>
+	/// <remarks>
+	/// Unconditional registration is intentional: capabilities are
+	/// lazy factory lambdas that construct no infrastructure at registration time, so the
+	/// registered-iff-configured guard is scoped to eager-construct transports (GooglePubSub) only.
+	/// See the authoritative contract on <c>AwsSqsTransportServiceCollectionExtensions.RegisterTransportSenderReceiver</c>.
+	/// </remarks>
 	private static void RegisterTransportSenderReceiver(
 		IServiceCollection services,
 		string name,
@@ -460,7 +473,9 @@ public static class RabbitMQTransportServiceCollectionExtensions
 				? transportOptions.Topology.Queues[0]
 				: null;
 			var queueName = queueOptions?.Name ?? name;
-			var prefetchCount = queueOptions?.PrefetchCount ?? 0;
+			// Honor the documented default prefetch (100) when no queue-specific value is configured,
+			// rather than falling back to 0 which disables QoS (unbounded prefetch).
+			var prefetchCount = queueOptions?.PrefetchCount ?? DefaultPrefetchCount;
 			var nativeSubscriber = new RabbitMqTransportSubscriber(
 				channel,
 				queueName,

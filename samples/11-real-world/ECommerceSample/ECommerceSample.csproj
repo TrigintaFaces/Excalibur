@@ -29,7 +29,7 @@
     <PackageReference Include="OpenTelemetry.Exporter.Console" />
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
-  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+ <!-- Updated paths for reorganized sample structure -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />

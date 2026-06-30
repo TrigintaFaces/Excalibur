@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.IO.Compression;
+using System.Net;
 using System.Text.Json;
 
 using Amazon.S3;
@@ -20,6 +21,8 @@ namespace Excalibur.EventSourcing.AwsS3;
 /// </remarks>
 internal sealed class AwsS3ColdEventStore : IColdEventStore
 {
+	private const int MaxConcurrencyRetries = 5;
+
 	private readonly IAmazonS3 _s3Client;
 	private readonly string _bucketName;
 	private readonly string _keyPrefix;
@@ -59,28 +62,45 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 
 		var key = GetObjectKey(aggregateId);
 
-		// Read existing events if object exists, then merge
-		var existingEvents = new List<StoredEvent>();
-		if (await ObjectExistsAsync(key, cancellationToken).ConfigureAwait(false))
+		// Optimistic-concurrency read-modify-write: a concurrent archive must not silently overwrite (lost
+		// update). We capture the source object's ETag on read and write conditionally (IfMatch for an
+		// update, IfNoneMatch=* for a create); a precondition failure means another writer raced us, so we
+		// re-read and retry against the now-current object.
+		for (var attempt = 0; ; attempt++)
 		{
-			existingEvents.AddRange(await ReadEventsFromS3Async(key, cancellationToken).ConfigureAwait(false));
+			var (existingEvents, etag) = await TryDownloadForUpdateAsync(key, cancellationToken)
+				.ConfigureAwait(false);
+
+			var maxExistingVersion = existingEvents.Count > 0 ? existingEvents[^1].Version : -1;
+			var newEvents = events.Where(e => e.Version > maxExistingVersion).ToList();
+
+			if (newEvents.Count == 0)
+			{
+				_logger.LogDebug("No new events to archive for {AggregateId}; all versions already in cold storage", aggregateId);
+				return;
+			}
+
+			existingEvents.AddRange(newEvents);
+
+			try
+			{
+				await WriteEventsToS3Async(key, existingEvents, etag, cancellationToken).ConfigureAwait(false);
+
+				_logger.LogDebug(
+					"Archived {NewCount} events for {AggregateId} to S3 (total {TotalCount})",
+					newEvents.Count, aggregateId, existingEvents.Count);
+				return;
+			}
+			catch (AmazonS3Exception ex) when (
+				(ex.StatusCode == HttpStatusCode.PreconditionFailed || ex.StatusCode == HttpStatusCode.Conflict)
+				&& attempt < MaxConcurrencyRetries)
+			{
+				// Another writer committed between our read and write — re-read and retry.
+				_logger.LogDebug(
+					"Concurrent archive detected for {AggregateId} (status {Status}); retrying (attempt {Attempt})",
+					aggregateId, ex.StatusCode, attempt + 1);
+			}
 		}
-
-		var maxExistingVersion = existingEvents.Count > 0 ? existingEvents[^1].Version : -1;
-		var newEvents = events.Where(e => e.Version > maxExistingVersion).ToList();
-
-		if (newEvents.Count == 0)
-		{
-			_logger.LogDebug("No new events to archive for {AggregateId}; all versions already in cold storage", aggregateId);
-			return;
-		}
-
-		existingEvents.AddRange(newEvents);
-		await WriteEventsToS3Async(key, existingEvents, cancellationToken).ConfigureAwait(false);
-
-		_logger.LogDebug(
-			"Archived {NewCount} events for {AggregateId} to S3 (total {TotalCount})",
-			newEvents.Count, aggregateId, existingEvents.Count);
 	}
 
 	/// <inheritdoc />
@@ -154,9 +174,38 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 		return events ?? [];
 	}
 
+	/// <summary>
+	/// Downloads the current archive object (if any) and its ETag in a single request. Returns an empty
+	/// list and a <see langword="null"/> ETag when the object does not yet exist (create path).
+	/// </summary>
+	private async Task<(List<StoredEvent> Events, string? ETag)> TryDownloadForUpdateAsync(
+		string key,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			var response = await _s3Client.GetObjectAsync(_bucketName, key, cancellationToken).ConfigureAwait(false);
+
+			await using var responseStream = response.ResponseStream;
+			await using var gzipStream = new GZipStream(responseStream, CompressionMode.Decompress);
+
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
+			var events = await JsonSerializer.DeserializeAsync<List<StoredEvent>>(
+				gzipStream, _jsonOptions, cancellationToken).ConfigureAwait(false);
+#pragma warning restore IL2026, IL3050
+
+			return (events ?? [], response.ETag);
+		}
+		catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+		{
+			return ([], null);
+		}
+	}
+
 	private async Task WriteEventsToS3Async(
 		string key,
 		List<StoredEvent> events,
+		string? etag,
 		CancellationToken cancellationToken)
 	{
 		using var memoryStream = new MemoryStream();
@@ -178,6 +227,17 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 			ContentType = "application/json",
 		};
 		request.Headers.ContentEncoding = "gzip";
+
+		// Conditional write: IfMatch=etag updates only if unchanged; IfNoneMatch=* creates only if absent.
+		// Either way a concurrent writer's commit triggers a precondition failure, never a silent overwrite.
+		if (etag is { } e)
+		{
+			request.IfMatch = e;
+		}
+		else
+		{
+			request.IfNoneMatch = "*";
+		}
 
 		await _s3Client.PutObjectAsync(request, cancellationToken).ConfigureAwait(false);
 	}

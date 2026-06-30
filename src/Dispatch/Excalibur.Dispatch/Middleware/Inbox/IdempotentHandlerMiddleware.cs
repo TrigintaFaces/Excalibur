@@ -39,6 +39,22 @@ namespace Excalibur.Dispatch.Middleware.Inbox;
 /// </item>
 /// </list>
 /// </para>
+/// <para>
+/// <b>Delivery guarantee (honest contract — j8xcrn).</b> The claim is taken atomically <em>before</em> the
+/// handler runs and the message is marked processed <em>after</em> the handler succeeds — two separate steps,
+/// not a single transaction. Therefore the guarantee is:
+/// <list type="bullet">
+/// <item><description><b>Exactly-once for concurrent redelivery</b>: the atomic claim
+/// (<see cref="Excalibur.Dispatch.IClaimableInboxStore"/> / <see cref="IClaimableDeduplicator"/>) blocks the
+/// second of N simultaneous duplicates, so only one handler invocation runs concurrently.</description></item>
+/// <item><description><b>At-least-once across a process crash</b>: if the process dies after the claim but
+/// before mark-processed, the claim is reclaimed after its timeout and the handler runs again. <b>Handlers
+/// must therefore be idempotent.</b></description></item>
+/// </list>
+/// True exactly-once across a crash would require a single handler+mark transaction per provider (tracked
+/// separately); this middleware does not promise it. A store that lacks the atomic-claim capability fails
+/// fast at startup (see the idempotency claim-capability validator) rather than silently degrading.
+/// </para>
 /// </remarks>
 [AppliesTo(MessageKinds.All)]
 public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
@@ -139,24 +155,47 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 		// Resolve the atomic-claim capability for the active storage path.
 		IClaimableInboxStore? inboxClaim = null;
 		IClaimableDeduplicator? dedupClaim = null;
+		bool usingInMemoryDedup;
 
 		if (settings.UseInMemory)
 		{
+			usingInMemoryDedup = true;
 			dedupClaim = _inMemoryDeduplicator as IClaimableDeduplicator;
 		}
 		else if (_inboxStore is not null)
 		{
+			usingInMemoryDedup = false;
 			inboxClaim = _inboxStore as IClaimableInboxStore;
 		}
 		else
 		{
 			WarnInMemoryFallback();
+			usingInMemoryDedup = true;
 			dedupClaim = _inMemoryDeduplicator as IClaimableDeduplicator;
 		}
 
-		// Legacy fallback for a custom store/deduplicator that does not implement the atomic-claim
-		// capability. Registered persistent stores are guarded at startup (fail-fast), so this preserves
-		// prior check-then-act behavior only for non-conforming custom implementations.
+		// Fail LOUD (never a silent non-atomic fallback) when the in-memory idempotency path is selected but the
+		// registered deduplicator cannot claim atomically. Falling through to the check-then-act legacy path here
+		// would silently degrade idempotency — under concurrent duplicate delivery two callers could both observe
+		// "not duplicate" and both execute the handler. Making that configuration inexpressible at the point of use
+		// (ADR-336 clause 2; mirrors the inbox-store startup guard and the pfb7s4 wired-or-fail-loud precedent)
+		// covers BOTH idempotency-config sources — ConfigureInbox and the [Idempotent] attribute — because it acts
+		// on the already-resolved settings, with no startup enumeration. The inbox-store path keeps its existing
+		// legacy fallback (guarded separately at startup by IdempotencyClaimCapabilityValidator).
+		if (usingInMemoryDedup && dedupClaim is null)
+		{
+			throw new InvalidOperationException(
+				$"Handler '{handlerType.FullName}' is configured for in-memory idempotency (UseInMemory) but the " +
+				$"registered IInMemoryDeduplicator ('{_inMemoryDeduplicator.GetType().FullName}') does not implement " +
+				"IClaimableDeduplicator. Without atomic claiming it would fall back to a non-atomic check-then-act " +
+				"under which concurrent duplicates can both execute the handler. Register a claim-capable deduplicator " +
+				"(the default InMemoryDeduplicator supports atomic claiming).");
+		}
+
+		// Legacy fallback for a custom INBOX store that does not implement the atomic-claim capability. The
+		// in-memory dedup path is now fail-loud above, so only the inbox-store path reaches here; registered
+		// persistent stores are guarded at startup (fail-fast), so this preserves prior check-then-act behavior
+		// only for non-conforming custom inbox stores.
 		if (inboxClaim is null && dedupClaim is null)
 		{
 			return await InvokeLegacyAsync(

@@ -106,9 +106,10 @@ Excalibur.Saga.Orchestration.SagaBase<TSagaState>.State.get -> TSagaState!
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.TimeoutStore.get -> Excalibur.Saga.Abstractions.ISagaTimeoutStore?
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.TimeoutStore.set -> void
 Excalibur.Saga.Orchestration.SagaCoordinator
+Excalibur.Saga.Orchestration.SagaCoordinator.Dispose() -> void
 Excalibur.Saga.Orchestration.SagaCoordinator.HandleEventInternalAsync<TSaga, TSagaState>(Excalibur.Dispatch.IMessageContext! messageContext, Excalibur.Dispatch.ISagaEvent! evt, Excalibur.Dispatch.Messaging.SagaInfo! sagaInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Saga.Orchestration.SagaCoordinator.ProcessEventAsync(Excalibur.Dispatch.IMessageContext! messageContext, Excalibur.Dispatch.ISagaEvent! evt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Orchestration.SagaCoordinator.SagaCoordinator(System.IServiceProvider! serviceProvider, Excalibur.Dispatch.Messaging.ISagaStore! sagaStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaCoordinator!>! logger) -> void
+Excalibur.Saga.Orchestration.SagaCoordinator.SagaCoordinator(System.IServiceProvider! serviceProvider, Excalibur.Dispatch.Messaging.ISagaStore! sagaStore, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.SagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaCoordinator!>! logger) -> void
 Excalibur.Saga.Orchestration.SagaHandlingMiddleware
 Excalibur.Saga.Orchestration.SagaHandlingMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Saga.Orchestration.SagaHandlingMiddleware.SagaHandlingMiddleware(Excalibur.Dispatch.Messaging.ISagaCoordinator! coordinator, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaHandlingMiddleware!>! logger) -> void
@@ -136,8 +137,6 @@ Excalibur.Saga.SagaOptions.DefaultTimeout.get -> System.TimeSpan
 Excalibur.Saga.SagaOptions.DefaultTimeout.set -> void
 Excalibur.Saga.SagaOptions.EnableAutomaticCleanup.get -> bool
 Excalibur.Saga.SagaOptions.EnableAutomaticCleanup.set -> void
-Excalibur.Saga.SagaOptions.EnableOptimisticConcurrency.get -> bool
-Excalibur.Saga.SagaOptions.EnableOptimisticConcurrency.set -> void
 Excalibur.Saga.SagaOptions.MaxConcurrency.get -> int
 Excalibur.Saga.SagaOptions.MaxConcurrency.set -> void
 Excalibur.Saga.SagaOptions.MaxRetryAttempts.get -> int

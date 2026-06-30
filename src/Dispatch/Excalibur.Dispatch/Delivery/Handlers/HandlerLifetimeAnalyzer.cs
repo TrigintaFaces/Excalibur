@@ -58,10 +58,8 @@ internal static class HandlerLifetimeAnalyzer
 				continue;
 			}
 
-			// Reading ImplementationType on a keyed descriptor throws; use the keyed accessor (wl9s4v).
-			var implType = descriptor.IsKeyedService
-				? descriptor.KeyedImplementationType
-				: descriptor.ImplementationType;
+			// ybem93: keyed-safe accessor handles the keyed/non-keyed distinction (wl9s4v).
+			var implType = descriptor.GetImplementationType();
 			if (implType is null || implType.IsAbstract || implType.IsInterface)
 			{
 				continue;
@@ -86,10 +84,8 @@ internal static class HandlerLifetimeAnalyzer
 					continue;
 				}
 
-				// Reading ImplementationType on a keyed descriptor throws; read keyed-safe (wl9s4v).
-				var candidateImplType = candidate.IsKeyedService
-					? candidate.KeyedImplementationType
-					: candidate.ImplementationType;
+				// ybem93: keyed-safe accessor handles the keyed/non-keyed distinction (wl9s4v).
+				var candidateImplType = candidate.GetImplementationType();
 				if (candidate.ServiceType == implType && candidateImplType == implType)
 				{
 					services[j] = candidate.IsKeyedService

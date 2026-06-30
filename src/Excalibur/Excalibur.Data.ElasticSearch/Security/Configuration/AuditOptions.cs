@@ -59,20 +59,17 @@ public sealed class AuditOptions
 	public int MaxQueryResultSize { get; init; } = 10_000;
 
 	/// <summary>
-	/// Gets the secret key used by the default <see cref="IAuditSigningKeyProvider"/> to compute and
-	/// verify the keyed-MAC (HMAC-SHA256) integrity tag on audit records.
+	/// Gets a value indicating whether personally identifiable information (PII) on recorded security-audit
+	/// events is masked before the event is enqueued for indexing.
 	/// </summary>
-	/// <value>
-	/// The signing key bytes, sourced from a secret manager / KMS. <see langword="null"/> by default;
-	/// when <see cref="EnsureLogIntegrity"/> is enabled and no key is configured (and no custom
-	/// <see cref="IAuditSigningKeyProvider"/> is registered), integrity computation fails closed.
-	/// </value>
-	public byte[]? IntegritySigningKey { get; init; }
-
-	/// <summary>
-	/// Gets the identifier of the current audit signing key, embedded in each record's integrity tag so
-	/// keys can be rotated while older records remain verifiable.
-	/// </summary>
-	/// <value> The key identifier (must be colon-free). Defaults to "default". </value>
-	public string IntegrityKeyId { get; init; } = "default";
+	/// <remarks>
+	/// When enabled (the default), sensitive fields — source IP address, user agent, authentication failure
+	/// reasons, and free-form context/details — are routed through the framework's
+	/// <see cref="Excalibur.Dispatch.Telemetry.ITelemetrySanitizer"/> before enqueue, so raw PII and
+	/// secret-shaped values never reach the long-retention searchable index or archive. Set to
+	/// <see langword="false"/> only as an explicit opt-out when the audit store is itself a trusted,
+	/// access-controlled PII sink.
+	/// </remarks>
+	/// <value> <see langword="true"/> to mask PII before enqueue (default); <see langword="false"/> to persist raw fields. </value>
+	public bool MaskPiiInAuditEvents { get; init; } = true;
 }

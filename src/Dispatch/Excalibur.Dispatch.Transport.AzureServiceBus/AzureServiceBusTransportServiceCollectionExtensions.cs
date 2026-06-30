@@ -278,9 +278,15 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers the rich <see cref="ITransportSender"/> and <see cref="ITransportReceiver"/>
 	/// implementations keyed by transport name so they are instantiated and reachable on the
-	/// <c>AddAzureServiceBusTransport</c> path instead of orphaned (kek7vm). <c>TryAdd*</c> lets a
+	/// <c>AddAzureServiceBusTransport</c> path instead of orphaned. <c>TryAdd*</c> lets a
 	/// consumer override the registration (Microsoft-first).
 	/// </summary>
+	/// <remarks>
+	/// Unconditional registration is intentional: capabilities are
+	/// lazy factory lambdas that construct no infrastructure at registration time, so the
+	/// registered-iff-configured guard is scoped to eager-construct transports (GooglePubSub) only.
+	/// See the authoritative contract on <c>AwsSqsTransportServiceCollectionExtensions.RegisterTransportSenderReceiver</c>.
+	/// </remarks>
 	private static void RegisterTransportSenderReceiver(
 		IServiceCollection services,
 		string name,
@@ -335,7 +341,7 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		{
 			var client = sp.GetRequiredService<ServiceBusClient>();
 			var entityName = transportOptions.Sender.DefaultEntityName ?? name;
-			var processor = client.CreateProcessor(entityName);
+			var processor = client.CreateProcessor(entityName, BuildProcessorOptions(transportOptions.Processor));
 			var logger = sp.GetRequiredService<ILogger<ServiceBusTransportSubscriber>>();
 			var nativeSubscriber = new ServiceBusTransportSubscriber(processor, entityName, logger);
 
@@ -347,5 +353,33 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 				.UseTelemetry(name, meter, activitySource)
 				.Build();
 		});
+	}
+
+	/// <summary>
+	/// Projects the collected <see cref="AzureServiceBusProcessorOptions"/> onto the SDK
+	/// <see cref="ServiceBusProcessorOptions"/> so the configured prefetch, concurrency, lock-renewal,
+	/// receive mode, and auto-complete behavior are actually applied to the processor. Without this
+	/// projection the processor is created with SDK defaults and every collected option is inert.
+	/// </summary>
+	/// <param name="processorOptions">The collected processor configuration.</param>
+	/// <returns>A populated SDK <see cref="ServiceBusProcessorOptions"/>.</returns>
+	internal static ServiceBusProcessorOptions BuildProcessorOptions(AzureServiceBusProcessorOptions processorOptions)
+	{
+		var options = new ServiceBusProcessorOptions
+		{
+			PrefetchCount = processorOptions.PrefetchCount,
+			MaxConcurrentCalls = processorOptions.MaxConcurrentCalls,
+			AutoCompleteMessages = processorOptions.AutoCompleteMessages,
+			ReceiveMode = processorOptions.ReceiveMode,
+		};
+
+		// MaxAutoLockRenewalDuration is non-nullable on the SDK type (defaults to 5 minutes); only
+		// override it when the consumer has supplied an explicit value, otherwise keep the SDK default.
+		if (processorOptions.MaxAutoLockRenewalDuration is { } renewal)
+		{
+			options.MaxAutoLockRenewalDuration = renewal;
+		}
+
+		return options;
 	}
 }

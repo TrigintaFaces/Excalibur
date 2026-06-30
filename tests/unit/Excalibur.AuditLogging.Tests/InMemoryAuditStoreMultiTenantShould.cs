@@ -8,9 +8,10 @@ using Excalibur.AuditLogging;namespace Excalibur.AuditLogging.Tests;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
-public sealed class InMemoryAuditStoreMultiTenantShould
+public sealed class InMemoryAuditStoreMultiTenantShould : IDisposable
 {
-    private readonly InMemoryAuditStore _sut = new();
+    private readonly InMemoryAuditStore _sut = new(AuditIntegrityTestStrategy.Create());
+    public void Dispose() => _sut.Dispose();
 
     private static AuditEvent CreateEvent(string eventId, string? tenantId = null) =>
         new()
@@ -82,9 +83,10 @@ public sealed class InMemoryAuditStoreMultiTenantShould
         // Tenant 1's second event should chain to tenant 1's first event
         t1Evt2!.PreviousEventHash.ShouldBe(t1Evt1!.EventHash);
 
-        // Tenant 2's event should have a genesis-based previous hash (not tenant 1's hash)
-        t2Evt1!.PreviousEventHash.ShouldNotBeNull();
-        t2Evt1.PreviousEventHash.ShouldNotBe(t1Evt1.EventHash);
+        // Tenant 2's first event is the genesis of its OWN chain → null prior tag (qa71t5: keyed-MAC
+        // chains start at a null prior; the tenant is bound inside the canonical content + MAC, so tenant-2
+        // never chains onto tenant-1's events).
+        t2Evt1!.PreviousEventHash.ShouldBeNull();
     }
 
     [Fact]

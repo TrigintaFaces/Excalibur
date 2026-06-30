@@ -523,4 +523,10 @@ public static class GooglePubSubEventId
 
 	/// <summary>Subscription delivery-guarantee configuration validated at startup (abyfxr).</summary>
 	public const int SubscriptionConfigValidated = 23930;
+
+	/// <summary>Dead letter policy auto-applied to a subscription at startup.</summary>
+	public const int DeadLetterPolicyAutoApplied = 23931;
+
+	/// <summary>Dead letter policy auto-apply failed at startup.</summary>
+	public const int DeadLetterPolicyAutoApplyFailed = 23932;
 }

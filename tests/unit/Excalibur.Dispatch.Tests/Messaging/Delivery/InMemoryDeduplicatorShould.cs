@@ -244,64 +244,91 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	// Validates that the deduplicator caps at 10,000 entries.
 	// =====================================================================
 
-	[Fact]
-	public async Task SkipsDeduplication_WhenAtCapacity()
+	// =====================================================================
+	// bd-t33cz2 (S859) — fail-closed capacity contract. The prior Sprint-686 hardcoded 10k silent-skip
+	// cap was replaced by a configurable MaxEntries (default 100k) + FAIL-CLOSED semantics: record-producing
+	// ops throw a transient DeduplicationCapacityExceededException (never silently drop a message), and the
+	// claim path denies. These tests assert the new contract against an explicit small bound.
+	// =====================================================================
+
+	private const int BoundedCapacity = 3;
+
+	private static InMemoryDeduplicator CreateBounded(int maxEntries) =>
+		new(
+			Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+			{
+				EnableAutomaticCleanup = false,
+				CleanupInterval = TimeSpan.FromHours(1),
+				MaxEntries = maxEntries,
+			}),
+			NullLogger<InMemoryDeduplicator>.Instance);
+
+	private static async Task FillToCapacityAsync(InMemoryDeduplicator dedup, int count, TimeSpan expiry)
 	{
-		// Arrange -- fill to capacity (10,000 entries)
-		var expiry = TimeSpan.FromHours(1);
-		for (var i = 0; i < 10_000; i++)
+		for (var i = 0; i < count; i++)
 		{
-			await _deduplicator.MarkProcessedAsync($"fill-{i}", expiry, CancellationToken.None)
-				.ConfigureAwait(false);
+			await dedup.MarkProcessedAsync($"fill-{i}", expiry, CancellationToken.None).ConfigureAwait(false);
 		}
-
-		var stats = _deduplicator.GetStatistics();
-		stats.TrackedMessageCount.ShouldBe(10_000);
-
-		// Act -- try to mark one more
-		await _deduplicator.MarkProcessedAsync("overflow-msg", expiry, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert -- count should not exceed capacity
-		stats = _deduplicator.GetStatistics();
-		stats.TrackedMessageCount.ShouldBe(10_000);
 	}
 
 	[Fact]
-	public async Task IsDuplicate_ReturnsFalse_WhenAtCapacity_ForNewMessage()
+	public async Task FailClosed_OnMarkProcessed_WhenAtCapacity()
 	{
-		// Arrange -- fill to capacity
+		// Arrange -- filled exactly to the configured bound.
+		using var dedup = CreateBounded(BoundedCapacity);
 		var expiry = TimeSpan.FromHours(1);
-		for (var i = 0; i < 10_000; i++)
-		{
-			await _deduplicator.MarkProcessedAsync($"fill-{i}", expiry, CancellationToken.None)
-				.ConfigureAwait(false);
-		}
+		await FillToCapacityAsync(dedup, BoundedCapacity, expiry).ConfigureAwait(false);
+		dedup.GetStatistics().TrackedMessageCount.ShouldBe(BoundedCapacity);
 
-		// Act -- check a new message when at capacity
-		var result = await _deduplicator.IsDuplicateAsync(
-			"new-unchecked-msg", expiry, CancellationToken.None).ConfigureAwait(false);
+		// Act / Assert -- at capacity a record-producing op fails CLOSED (transient throw), never a silent
+		// skip that would drop the message; the tracked count must not grow past the bound.
+		_ = await Should.ThrowAsync<DeduplicationCapacityExceededException>(async () =>
+			await dedup.MarkProcessedAsync("overflow-msg", expiry, CancellationToken.None).ConfigureAwait(false));
+		dedup.GetStatistics().TrackedMessageCount.ShouldBe(BoundedCapacity);
+	}
 
-		// Assert -- should return false (not duplicate) since dedup is disabled at capacity
-		result.ShouldBeFalse();
+	[Fact]
+	public async Task FailClosed_OnIsDuplicate_ForNewMessage_WhenAtCapacity()
+	{
+		// Arrange
+		using var dedup = CreateBounded(BoundedCapacity);
+		var expiry = TimeSpan.FromHours(1);
+		await FillToCapacityAsync(dedup, BoundedCapacity, expiry).ConfigureAwait(false);
+
+		// Act / Assert -- checking an UNTRACKED id at capacity cannot prove non-duplicate without admitting
+		// it, so it fails closed (throws) rather than returning false and silently dropping a real message.
+		_ = await Should.ThrowAsync<DeduplicationCapacityExceededException>(async () =>
+			await dedup.IsDuplicateAsync("new-unchecked-msg", expiry, CancellationToken.None).ConfigureAwait(false));
+	}
+
+	[Fact]
+	public async Task TryClaim_FailsClosed_WhenAtCapacity()
+	{
+		// Arrange
+		using var dedup = CreateBounded(BoundedCapacity);
+		var expiry = TimeSpan.FromHours(1);
+		await FillToCapacityAsync(dedup, BoundedCapacity, expiry).ConfigureAwait(false);
+
+		// Act -- the claim path denies (fails closed) at capacity rather than admitting an untracked claim.
+		var claimed = await dedup.TryClaimAsync("claim-overflow", expiry, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert
+		claimed.ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task IsDuplicate_StillDetectsDuplicates_ForExistingEntries_AtCapacity()
 	{
-		// Arrange -- fill to capacity with known messages
+		// Arrange -- filled exactly to capacity with known ids.
+		using var dedup = CreateBounded(BoundedCapacity);
 		var expiry = TimeSpan.FromHours(1);
-		for (var i = 0; i < 10_000; i++)
-		{
-			await _deduplicator.MarkProcessedAsync($"fill-{i}", expiry, CancellationToken.None)
-				.ConfigureAwait(false);
-		}
+		await FillToCapacityAsync(dedup, BoundedCapacity, expiry).ConfigureAwait(false);
 
-		// Act -- check a message that was already tracked
-		var result = await _deduplicator.IsDuplicateAsync(
-			"fill-500", expiry, CancellationToken.None).ConfigureAwait(false);
+		// Act -- an ALREADY-TRACKED id is matched before the capacity guard, so it returns true (no throw):
+		// fail-closed must not break dedup of entries that ARE tracked.
+		var result = await dedup.IsDuplicateAsync("fill-1", expiry, CancellationToken.None).ConfigureAwait(false);
 
-		// Assert -- existing entries should still be found as duplicates
+		// Assert
 		result.ShouldBeTrue();
 	}
 

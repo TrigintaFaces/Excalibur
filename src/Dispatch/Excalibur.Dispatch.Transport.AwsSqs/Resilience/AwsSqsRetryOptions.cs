@@ -3,6 +3,8 @@
 
 using System.ComponentModel.DataAnnotations;
 
+using Excalibur.Dispatch.Resilience;
+
 namespace Excalibur.Dispatch.Transport.AwsSqs;
 
 /// <summary>
@@ -65,4 +67,56 @@ public sealed class AwsSqsRetryOptions
 	/// </summary>
 	/// <value>The retry strategy. Default is <see cref="SqsRetryStrategy.Exponential"/>.</value>
 	public SqsRetryStrategy RetryStrategy { get; set; } = SqsRetryStrategy.Exponential;
+
+	/// <summary>
+	/// Computes the delay to wait before the given retry attempt according to the configured
+	/// <see cref="RetryStrategy"/>.
+	/// </summary>
+	/// <param name="attempt">The 1-based retry attempt number. Values below <c>1</c> are treated as <c>1</c>.</param>
+	/// <returns>
+	/// The delay before the attempt, capped at <see cref="MaxDelay"/> and never negative.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// This makes the documented backoff behavior of <see cref="SqsRetryStrategy"/> concrete:
+	/// </para>
+	/// <list type="bullet">
+	/// <item><see cref="SqsRetryStrategy.Exponential"/> uses <see cref="ExponentialBackoff"/>
+	/// (<c>BaseDelay * 2^(attempt-1)</c>) with symmetric jitter to avoid thundering herd.</item>
+	/// <item><see cref="SqsRetryStrategy.Linear"/> increases linearly (<c>BaseDelay * attempt</c>).</item>
+	/// <item><see cref="SqsRetryStrategy.Fixed"/> waits a constant <see cref="BaseDelay"/>.</item>
+	/// </list>
+	/// <para>
+	/// The exponential strategy uses sensible fixed defaults not exposed as options: a multiplier of
+	/// <c>2.0</c> and a jitter factor of <c>0.2</c> (matching the AWS-recommended <c>2^attempt</c> with jitter).
+	/// </para>
+	/// </remarks>
+	public TimeSpan GetRetryDelay(int attempt)
+	{
+		if (attempt < 1)
+		{
+			attempt = 1;
+		}
+
+		switch (RetryStrategy)
+		{
+			case SqsRetryStrategy.Fixed:
+				return BaseDelay;
+
+			case SqsRetryStrategy.Linear:
+				var linearMs = Math.Min(BaseDelay.TotalMilliseconds * attempt, MaxDelay.TotalMilliseconds);
+				return TimeSpan.FromMilliseconds(Math.Max(0, linearMs));
+
+			case SqsRetryStrategy.Exponential:
+			default:
+				return ExponentialBackoff.Calculate(attempt, new BackoffParameters
+				{
+					BaseDelay = BaseDelay,
+					MaxDelay = MaxDelay,
+					Multiplier = 2.0,
+					UseJitter = true,
+					JitterFactor = 0.2,
+				});
+		}
+	}
 }

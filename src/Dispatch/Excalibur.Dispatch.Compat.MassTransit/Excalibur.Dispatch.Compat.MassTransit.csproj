@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Compat.MassTransit</PackageId>
+    <Description>Migration compatibility surface for Excalibur.Dispatch. Provides a source-compatible IConsumer&lt;T&gt;/ConsumeContext&lt;T&gt; shape and a deterministic consumer-to-handler adapter so that simple message-consumer code written against the MassTransit API can be migrated onto Excalibur.Dispatch. A migration path (guide + feasible shims), not a transport/broker port. Not affiliated with or endorsed by the owner of the MassTransit trademark.</Description>
+    <PackageTags>dispatch;masstransit;compat;migration;consumer;messaging;aot</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- One-way dependency: compat -> canonical Dispatch. Canonical NEVER references compat (ADR-341 §8). -->
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Compat.MassTransit.Tests" />
+  </ItemGroup>
+</Project>

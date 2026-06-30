@@ -80,8 +80,12 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		_client = client;
 		_options = options.Value;
 		_logger = logger;
-		_initialized = true;
 		_ownsClient = false;
+
+		// Do NOT mark initialized here: a consumer-supplied client still needs InitializeAsync to run
+		// EnsureTableExistsAsync when CreateTableIfNotExists is set. Marking initialized would bypass
+		// table creation and surface as ResourceNotFoundException on first access. InitializeAsync
+		// preserves this injected client (it only creates one when none was supplied).
 	}
 
 	/// <summary>
@@ -103,7 +107,8 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				return;
 			}
 
-			_client = CreateClient();
+			// Preserve a consumer-supplied client (injected via the client ctor); only create one when absent.
+			_client ??= CreateClient();
 
 			if (_options.CreateTableIfNotExists)
 			{

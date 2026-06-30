@@ -6,6 +6,7 @@ using Excalibur.Data.OpenSearch.IndexManagement;
 using Excalibur.Data.OpenSearch.Persistence;
 using Excalibur.Data.OpenSearch.Projections;
 using Excalibur.Data.OpenSearch.Resilience;
+using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.EventSourcing.Tests.OpenSearch;
 
@@ -118,11 +119,12 @@ public sealed class OpenSearchOptionsShould
 	}
 
 	[Fact]
-	public void CircuitBreakerStateHasThreeStates()
+	public void CircuitStateHasThreeStates()
 	{
-		Enum.GetValues<CircuitBreakerState>().Length.ShouldBe(3);
-		CircuitBreakerState.Closed.ShouldNotBe(CircuitBreakerState.Open);
-		CircuitBreakerState.HalfOpen.ShouldNotBe(CircuitBreakerState.Closed);
+		// bd-116roh: per-package CircuitBreakerState removed; canonical CircuitState replaces it
+		Enum.GetValues<CircuitState>().Length.ShouldBe(3);
+		CircuitState.Closed.ShouldNotBe(CircuitState.Open);
+		CircuitState.HalfOpen.ShouldNotBe(CircuitState.Closed);
 	}
 
 	// --- Lifecycle Models ---

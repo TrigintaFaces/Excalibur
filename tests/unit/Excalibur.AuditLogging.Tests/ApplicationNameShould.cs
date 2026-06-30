@@ -17,7 +17,7 @@ public sealed class ApplicationNameShould
 	[Fact]
 	public async Task BeStoredAndRetrievedFromInMemoryStore()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var auditEvent = CreateEvent("app-1");
 
 		await store.StoreAsync(auditEvent, CancellationToken.None);
@@ -30,7 +30,7 @@ public sealed class ApplicationNameShould
 	[Fact]
 	public async Task FilterByApplicationNameInQuery()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		await store.StoreAsync(CreateEvent("app-a"), CancellationToken.None);
 		await store.StoreAsync(CreateEvent("app-b"), CancellationToken.None);
 		await store.StoreAsync(CreateEvent("app-a"), CancellationToken.None);
@@ -45,7 +45,7 @@ public sealed class ApplicationNameShould
 	[Fact]
 	public async Task ReturnAllWhenApplicationNameFilterIsNull()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		await store.StoreAsync(CreateEvent("app-x"), CancellationToken.None);
 		await store.StoreAsync(CreateEvent("app-y"), CancellationToken.None);
 
@@ -62,8 +62,8 @@ public sealed class ApplicationNameShould
 		var event2 = CreateEvent("app-2");
 
 		// Different application names should produce different hashes
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
+		var hash1 = AuditEventCanonicalizer.Canonicalize(event1);
+		var hash2 = AuditEventCanonicalizer.Canonicalize(event2);
 
 		hash1.ShouldNotBe(hash2);
 	}
@@ -84,8 +84,8 @@ public sealed class ApplicationNameShould
 			ApplicationName = "same-app"
 		};
 
-		var hash1 = AuditHasher.ComputeHash(event1, null);
-		var hash2 = AuditHasher.ComputeHash(event2, null);
+		var hash1 = AuditEventCanonicalizer.Canonicalize(event1);
+		var hash2 = AuditEventCanonicalizer.Canonicalize(event2);
 
 		hash1.ShouldBe(hash2);
 	}
@@ -107,14 +107,14 @@ public sealed class ApplicationNameShould
 		evt.ApplicationName.ShouldBeNull();
 
 		// Should not throw when hashing with null ApplicationName
-		var hash = AuditHasher.ComputeHash(evt, null);
-		hash.ShouldNotBeNullOrEmpty();
+		var hash = AuditEventCanonicalizer.Canonicalize(evt);
+		hash.Length.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]
 	public async Task SupportEmptyStringApplicationName()
 	{
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var evt = CreateEvent("");
 
 		await store.StoreAsync(evt, CancellationToken.None);

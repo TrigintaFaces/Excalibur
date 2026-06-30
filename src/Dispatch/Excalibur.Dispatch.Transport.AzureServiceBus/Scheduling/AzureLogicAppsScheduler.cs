@@ -11,6 +11,8 @@ using System.Text.Json;
 using Azure.Core;
 using Azure.Identity;
 
+using Excalibur.Dispatch.Resilience;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -411,7 +413,18 @@ internal sealed class AzureLogicAppsScheduler(
 		CancellationToken cancellationToken)
 	{
 		var attempt = 0;
-		var delay = TimeSpan.FromSeconds(_options.RetryDelaySeconds);
+
+		// AzureLogicAppsSchedulerOptions exposes only a flat RetryDelaySeconds (base) and MaxRetryAttempts;
+		// it has no multiplier/max-delay/jitter fields, so sensible defaults are used here: Multiplier 2.0,
+		// MaxDelay capped at 10 minutes, jitter enabled at 0.2 to avoid synchronized retries.
+		var backoffParameters = new BackoffParameters
+		{
+			BaseDelay = TimeSpan.FromSeconds(_options.RetryDelaySeconds),
+			MaxDelay = TimeSpan.FromMinutes(10),
+			Multiplier = 2.0,
+			UseJitter = true,
+			JitterFactor = 0.2,
+		};
 
 		while (true)
 		{
@@ -427,6 +440,8 @@ internal sealed class AzureLogicAppsScheduler(
 			}
 
 			response.Dispose();
+
+			var delay = ExponentialBackoff.Calculate(attempt, backoffParameters);
 			if (delay > TimeSpan.Zero)
 			{
 				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);

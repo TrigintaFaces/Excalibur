@@ -433,9 +433,13 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		long currentVersion,
 		CancellationToken cancellationToken)
 	{
-		long firstPosition = 0;
 		var version = currentVersion;
 
+		// Build all event rows up front (assigning sequential versions), then insert them with one
+		// multi-row INSERT ... OUTPUT per chunk inside the caller's transaction — replacing the former
+		// per-event round-trip loop. The whole append remains atomic (single transaction), now with far
+		// fewer round-trips.
+		var rows = new List<EventInsertRow>(eventList.Count);
 		foreach (var @event in eventList)
 		{
 			version++;
@@ -445,25 +449,37 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 #pragma warning restore IL2026, IL3050
 			var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
 
-			var position = await connection.ResolveAsync(
-					new InsertEventRequest(
-						@event.EventId,
-						aggregateId,
-						aggregateType,
-						eventTypeName,
-						eventData,
-						metadata,
-						version,
-						@event.OccurredAt,
-						transaction,
-						cancellationToken,
-						_schema,
-						_table))
+			rows.Add(new EventInsertRow(
+				@event.EventId,
+				aggregateId,
+				aggregateType,
+				eventTypeName,
+				eventData,
+				metadata,
+				version,
+				@event.OccurredAt));
+		}
+
+		// The position of the lowest-version event in this append is the append's first position. OUTPUT
+		// row order is not guaranteed, so positions are matched to events by version, not by row index.
+		var firstVersion = currentVersion + 1;
+		long firstPosition = 0;
+
+		for (var offset = 0; offset < rows.Count; offset += InsertEventsBatchRequest.MaxEventsPerStatement)
+		{
+			var count = Math.Min(InsertEventsBatchRequest.MaxEventsPerStatement, rows.Count - offset);
+			var chunk = rows.GetRange(offset, count);
+
+			var inserted = await connection.ResolveAsync(
+					new InsertEventsBatchRequest(chunk, transaction, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
-			if (firstPosition == 0)
+			foreach (var row in inserted)
 			{
-				firstPosition = position;
+				if (row.Version == firstVersion)
+				{
+					firstPosition = row.Position;
+				}
 			}
 		}
 

@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Encryption.Decorators;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore
+internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore, IInboxStoreCapabilities
 {
 	private readonly IInboxStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
@@ -48,6 +48,25 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 			RequireFipsCompliance = options.Value.RequireFipsCompliance
 		};
 	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Reports the EFFECTIVE atomic-claim capability and composes through chains: the decorator can forward a
+	/// claim only when its inner store is itself claim-capable (directly via <see cref="IClaimableInboxStore"/>
+	/// or transitively via a nested <see cref="IInboxStoreCapabilities"/>). This is what lets the startup
+	/// presence-guard reject a decorator-over-non-claimable-inner instead of passing on the statically-declared
+	/// <see cref="IClaimableInboxStore"/> and throwing at first claim.
+	/// </remarks>
+	public bool SupportsClaim =>
+		_inner is IClaimableInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsClaim);
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Reports the EFFECTIVE durable Processing-tracking capability and composes through chains (see
+	/// <see cref="SupportsClaim"/>).
+	/// </remarks>
+	public bool SupportsProcessingTracking =>
+		_inner is IProcessingTrackingInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsProcessingTracking);
 
 	/// <inheritdoc />
 	public async ValueTask<InboxEntry> CreateEntryAsync(

@@ -1,9 +1,8 @@
 # Full-Stack AddExcalibur Composition Sample
 
-**Beads:** `bd-15cu8x` (P1, S789 composition) + `bd-hctd97` (P1, S790 operational flow)
 **Location:** `samples/11-real-world/FullStackAddExcalibur/`
 
-> **Canonical L3 template (Sprint 790):** This sample is the reference wiring
+> **Canonical L3 template :** This sample is the reference wiring
 > for composing every major Excalibur subsystem through a single `AddExcalibur()`
 > builder chain **and** for the canonical operational pipeline used across the
 > L3 real-world samples:

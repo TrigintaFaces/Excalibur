@@ -28,8 +28,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <para>
 /// These replace the <c>tenantId</c> / <c>useLocalClientAddress</c> / <c>assemblies</c>
 /// parameters on <c>AddExcaliburBaseServices</c> / <c>AddExcaliburApplicationServices</c>
-/// so consumers stay inside the single <see cref="IExcaliburBuilder"/> composition root
-/// (ADR-321).
+/// so consumers stay inside the single <see cref="IExcaliburBuilder"/> composition root.
 /// </para>
 /// </remarks>
 public static class ExcaliburBuilderContextExtensions

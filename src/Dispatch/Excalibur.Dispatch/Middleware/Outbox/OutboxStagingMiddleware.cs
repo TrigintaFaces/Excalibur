@@ -10,6 +10,7 @@ using System.Text.Json;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Options.Middleware;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -50,6 +51,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 
 	private readonly OutboxStagingOptions _options;
 	private readonly IOutboxStore? _outboxStore;
+	private readonly DispatchJsonSerializer _serializer;
 
 	private readonly ILogger<OutboxStagingMiddleware> _logger;
 
@@ -58,17 +60,21 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 	/// </summary>
 	/// <param name="options"> Configuration options for outbox staging. </param>
 	/// <param name="outboxStore"> Store for managing outbox operations. </param>
+	/// <param name="serializer"> The configured serializer used to write payloads symmetrically with the read path. </param>
 	/// <param name="logger"> Logger for diagnostic information. </param>
 	public OutboxStagingMiddleware(
 		IOptions<OutboxStagingOptions> options,
 		IOutboxStore? outboxStore,
+		DispatchJsonSerializer serializer,
 		ILogger<OutboxStagingMiddleware> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_options = options.Value;
 		_outboxStore = outboxStore;
+		_serializer = serializer;
 		_logger = logger;
 
 		// Validate that outbox store is available when enabled
@@ -333,7 +339,11 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 	{
 		try
 		{
-			return JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
+			// Route the WRITE through the configured DispatchJsonSerializer so it shares the consumer's
+			// naming policy, string-enum representation, custom converters, and AOT TypeInfoResolver with the
+			// READ path (OutboxProcessor) — symmetric wire contract, no custom-converter drop, no AOT hole (15sf7a).
+			using var result = _serializer.SerializeToPooledBuffer(message, message.GetType());
+			return result.WrittenSpan.ToArray();
 		}
 		catch (Exception ex)
 		{

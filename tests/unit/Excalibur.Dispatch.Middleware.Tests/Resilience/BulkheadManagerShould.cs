@@ -320,4 +320,51 @@ public sealed class BulkheadManagerShould : UnitTestBase
 	}
 
 	#endregion
+
+	#region DisposeAsync Tests
+
+	[Fact]
+	public async Task DisposeAsync_ReleasesCreatedBulkheads()
+	{
+		// Arrange
+		var logger = A.Fake<ILogger<BulkheadManager>>();
+		var manager = new BulkheadManager(logger);
+		var bulkhead = manager.GetOrCreateBulkhead("resource-1");
+
+		// Act
+		await manager.DisposeAsync();
+
+		// Assert - the bulkhead's underlying SemaphoreSlim was disposed, so executing through it faults.
+		_ = await Should.ThrowAsync<ObjectDisposedException>(
+			() => bulkhead.ExecuteAsync(() => Task.FromResult(0), CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task GetOrCreateBulkhead_AfterDispose_ThrowsObjectDisposedException()
+	{
+		// Arrange
+		var logger = A.Fake<ILogger<BulkheadManager>>();
+		var manager = new BulkheadManager(logger);
+		await manager.DisposeAsync();
+
+		// Act & Assert
+		_ = Should.Throw<ObjectDisposedException>(() => manager.GetOrCreateBulkhead("resource-1"));
+	}
+
+	[Fact]
+	public async Task DisposeAsync_CalledTwice_DoesNotThrow()
+	{
+		// Arrange
+		var logger = A.Fake<ILogger<BulkheadManager>>();
+		var manager = new BulkheadManager(logger);
+		_ = manager.GetOrCreateBulkhead("resource-1");
+
+		// Act
+		await manager.DisposeAsync();
+
+		// Assert - second disposal is a no-op.
+		await Should.NotThrowAsync(async () => await manager.DisposeAsync());
+	}
+
+	#endregion
 }

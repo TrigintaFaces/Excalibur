@@ -290,6 +290,11 @@ cosmos.BindConfiguration("EventSourcing:CosmosDb");
 `CosmosClient` is registered as a singleton — it's thread-safe and expensive to create.
 :::
 
+:::info Serializer-agnostic persisted documents
+
+If you supply your own `CosmosClient` (via `Client(...)` or `ClientFactory(...)`), be aware that the Cosmos SDK v3 **default serializer is Newtonsoft.Json**, not System.Text.Json. The framework's persisted Cosmos documents are **dual-annotated** — `[JsonPropertyName]` (System.Text.Json) **and** `[JsonProperty]` (Newtonsoft) on every persisted property — so the correct lowercase wire keys are emitted regardless of which serializer your injected client uses. You do not need to configure the client's serializer for framework documents to round-trip correctly.
+:::
+
 ### Partition Strategy
 
 Cosmos DB event stores partition by aggregate ID. Each aggregate's events are stored in a single logical partition for transactional consistency.

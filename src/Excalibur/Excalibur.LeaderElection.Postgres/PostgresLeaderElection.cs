@@ -73,7 +73,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	/// <param name="electionOptions">The leader election options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/> (y6tatp/ADR-339). When supplied, a monotonic fencing
+	/// An optional <see cref="IFencingTokenProvider"/>. When supplied, a monotonic fencing
 	/// token is minted at each leadership acquisition (BEFORE leadership is declared); if the mint cannot be
 	/// advanced after bounded retries the candidate relinquishes rather than leading with a stale fence.
 	/// Defaults to <see langword="null"/> (no token issued; opt-in, backward compatible).
@@ -453,7 +453,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	/// returns <see langword="false"/> and leadership is relinquished.
 	/// </para>
 	/// <para>
-	/// <b>Structural guarantee (bd-zg4zga, Npgsql):</b> unlike <c>Microsoft.Data.SqlClient</c>, Npgsql has no
+	/// <b>Structural guarantee:</b> unlike <c>Microsoft.Data.SqlClient</c>, Npgsql has no
 	/// transparent connection-resiliency, and this lock connection disables pooling
 	/// (<see cref="BuildLockConnectionString"/>). Consequently a lost backend session cannot resurface as a
 	/// <em>live-but-not-owning</em> connection — it can only surface as a broken connection, caught by the
@@ -497,7 +497,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	/// Mints a monotonic fencing token for the protected resource, retrying a bounded number of times
 	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (y6tatp, fail-CLOSED). The caller mints
 	/// BEFORE declaring leadership and relinquishes if this throws, so the fence is always advanced before
-	/// fenced leadership is granted (ADR-339). Mirrors the Redis reference.
+	/// fenced leadership is granted. Mirrors the Redis reference.
 	/// </summary>
 	/// <param name="cancellationToken">A token to observe while minting.</param>
 	/// <returns>The newly minted, strictly-monotonic fencing token.</returns>

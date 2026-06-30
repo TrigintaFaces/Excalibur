@@ -126,17 +126,14 @@ public sealed class MessagePackSerializerInterfaceConformanceShould : UnitTestBa
 	#region Null Handling Contract
 
 	[Fact]
-	public void ISerializer_Serialize_HandlesNull()
+	public void ISerializer_Serialize_RejectsNull()
 	{
-		// Arrange — MessagePack serializes null as nil (valid behavior)
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior (symmetry with SerializeObject).
 		ISerializer serializer = new MpkSerializer();
 
-		// Act
-		var result = serializer.SerializeToBytes<TestPluggableMessage>(null!);
-
-		// Assert — should produce valid MessagePack nil
-		result.ShouldNotBeNull();
-		result.Length.ShouldBeGreaterThan(0);
+		_ = Should.Throw<ArgumentNullException>(() => serializer.SerializeToBytes<TestPluggableMessage>(null!));
 	}
 
 	[Fact]

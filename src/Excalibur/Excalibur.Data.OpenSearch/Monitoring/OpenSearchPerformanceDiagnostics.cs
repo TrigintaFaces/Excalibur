@@ -3,6 +3,7 @@
 
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -69,6 +70,8 @@ internal sealed class OpenSearchPerformanceDiagnostics(
 	/// <summary>
 	/// Analyzes the performance of a completed operation.
 	/// </summary>
+	[RequiresUnreferencedCode("Reads server-side OpenSearch response metrics via reflection; the property types must be preserved under trimming.")]
+	[RequiresDynamicCode("Uses reflection to read OpenSearch.Client response metrics that may require dynamic code.")]
 	internal void AnalyzePerformance(
 		string operationType,
 		TimeSpan duration,
@@ -166,6 +169,8 @@ internal sealed class OpenSearchPerformanceDiagnostics(
 	/// <summary>
 	/// Analyzes query performance based on the response statistics.
 	/// </summary>
+	[RequiresUnreferencedCode("Reads server-side OpenSearch response metrics (took/hits/shards) via reflection; the property types must be preserved under trimming.")]
+	[RequiresDynamicCode("Uses reflection to read OpenSearch.Client response metrics that may require dynamic code.")]
 	private void AnalyzeQueryPerformance(
 		string operationType,
 		object response,
@@ -174,9 +179,6 @@ internal sealed class OpenSearchPerformanceDiagnostics(
 	{
 		try
 		{
-			// TODO: OpenSearch API adaptation needed - OpenSearch.Client uses NEST-style
-			// ISearchResponse<T> with different property access patterns than Elastic 8.x.
-			// Adapt once concrete search response types are available in the consuming code.
 			if (response is not IResponse osResponse || !osResponse.IsValid)
 			{
 				return;
@@ -193,6 +195,27 @@ internal sealed class OpenSearchPerformanceDiagnostics(
 			if (!string.IsNullOrWhiteSpace(indexName))
 			{
 				analysis["IndexName"] = indexName;
+			}
+
+			// Server-side response metrics live on the invariant ISearchResponse<T>; read them via the
+			// cached reflection path (T is unknown at this seam). Best-effort — absent on non-search
+			// responses or under version drift.
+			if (OpenSearchResponseMetricsReflector.TryGetMetrics(response, out var tookMs, out var totalHits, out var shardFailures))
+			{
+				if (tookMs is { } took)
+				{
+					analysis["OpenSearchTookMs"] = took;
+				}
+
+				if (totalHits is { } hits)
+				{
+					analysis["HitsTotal"] = hits;
+				}
+
+				if (shardFailures is { } failed)
+				{
+					analysis["ShardFailures"] = failed;
+				}
 			}
 
 			_logger.LogDebug(
@@ -428,7 +451,12 @@ internal sealed class OpenSearchPerformanceDiagnostics(
 					};
 				}
 
+				// Opt-in diagnostics path: AnalyzePerformance reads OpenSearch response metrics via guarded,
+				// fail-open reflection (see its [RequiresUnreferencedCode]/[RequiresDynamicCode] contract).
+				// Suppressed here so the public tracker API does not propagate the dynamic-code contract.
+#pragma warning disable IL2026, IL3050
 				_diagnostics.AnalyzePerformance(_operationType, duration, response, _indexName, memoryUsage);
+#pragma warning restore IL2026, IL3050
 			}
 			catch (Exception ex)
 			{

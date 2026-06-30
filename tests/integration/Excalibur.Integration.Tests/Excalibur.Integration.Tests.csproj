@@ -110,6 +110,24 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
     <!-- bd-834a9c: real-Redis concurrent-create guard regression lock (RedisEventStoreConcurrentCreateGuardShould) -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Redis\Excalibur.EventSourcing.Redis.csproj" />
+    <!-- S860 fc1c8a conformance fan-out: Sqlite snapshot + DynamoDb event-store derivers -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Sqlite\Excalibur.EventSourcing.Sqlite.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.DynamoDb\Excalibur.EventSourcing.DynamoDb.csproj" />
+    <!-- S860 fc1c8a conformance fan-out: Cosmos/Firestore/Mongo event-store derivers -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.CosmosDb\Excalibur.EventSourcing.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Firestore\Excalibur.EventSourcing.Firestore.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.MongoDB\Excalibur.EventSourcing.MongoDB.csproj" />
+    <!-- S860 fc1c8a conformance fan-out: Outbox derivers (Postgres/Mongo; SqlServer/ElasticSearch already referenced) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Excalibur.Outbox.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.MongoDB\Excalibur.Outbox.MongoDB.csproj" />
+    <!-- S860 fc1c8a conformance fan-out: Inbox derivers (SqlServer/Mongo/Cosmos/Dynamo/Firestore; Postgres/ElasticSearch already referenced) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.SqlServer\Excalibur.Inbox.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.MongoDB\Excalibur.Inbox.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.CosmosDb\Excalibur.Inbox.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.DynamoDb\Excalibur.Inbox.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Firestore\Excalibur.Inbox.Firestore.csproj" />
+    <!-- S860 fc1c8a conformance fan-out: SqlServer saga deriver -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Caching\Excalibur.Caching.csproj" />
     <!-- Cold store providers for tiered storage integration tests -->

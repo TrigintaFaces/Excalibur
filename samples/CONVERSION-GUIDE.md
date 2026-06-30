@@ -336,5 +336,5 @@ dotnet build
 
 ---
 
-*Updated: Sprint 427*
+*Updated: *
 

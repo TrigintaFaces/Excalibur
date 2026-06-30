@@ -211,4 +211,4 @@ public async IAsyncEnumerable<T> HandleAsync(
 
 ---
 
-*Category: Advanced | Sprint 436 - Streaming Document Handler Epic*
+*Category: Advanced | Streaming Document Handler Epic*

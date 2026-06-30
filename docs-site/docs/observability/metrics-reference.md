@@ -312,7 +312,7 @@ PostgreSQL specific persistence metrics.
 
 ### Excalibur.Data.Postgres.Outbox
 
-> **Package:** `Excalibur.Outbox.Postgres` (extracted from `Excalibur.Data.Postgres` in Sprint 632)
+> **Package:** `Excalibur.Outbox.Postgres` (extracted from `Excalibur.Data.Postgres`)
 
 PostgreSQL outbox store metrics.
 

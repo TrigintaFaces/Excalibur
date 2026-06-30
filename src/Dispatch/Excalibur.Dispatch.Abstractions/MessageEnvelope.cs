@@ -512,14 +512,21 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	/// <summary>
 	/// Gets or sets an optional acknowledgment callback for channel-based processing.
 	/// </summary>
+	/// <remarks>
+	/// Acknowledgment is transport I/O (e.g. SQS <c>DeleteMessage</c>, RabbitMQ <c>BasicAck</c>) and therefore
+	/// honors cancellation via the supplied <see cref="CancellationToken"/>.
+	/// </remarks>
 	[JsonIgnore]
-	public Func<Task>? AcknowledgeAsync { get; set; }
+	public Func<CancellationToken, Task>? AcknowledgeAsync { get; set; }
 
 	/// <summary>
 	/// Gets or sets an optional rejection callback for channel-based processing.
 	/// </summary>
+	/// <remarks>
+	/// Rejection is transport I/O and therefore honors cancellation via the supplied <see cref="CancellationToken"/>.
+	/// </remarks>
 	[JsonIgnore]
-	public Func<string?, Task>? RejectAsync { get; set; }
+	public Func<string?, CancellationToken, Task>? RejectAsync { get; set; }
 
 	#endregion Channel Support
 

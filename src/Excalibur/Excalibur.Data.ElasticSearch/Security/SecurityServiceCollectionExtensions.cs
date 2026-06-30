@@ -3,7 +3,9 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.AuditLogging;
 using Excalibur.Data.ElasticSearch.Security;
+using Excalibur.Dispatch.Telemetry;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -236,9 +238,17 @@ public static class SecurityServiceCollectionExtensions
 		// Configure audit settings Audit settings have default values already configured in the class definition Remove Configure call
 		// since init-only properties cannot be set this way
 
-		// Default audit signing-key provider (options-backed, fail-closed). Consumers can override with a
-		// KMS / secret-manager-backed IAuditSigningKeyProvider via their own TryAddSingleton before this.
-		services.TryAddSingleton<IAuditSigningKeyProvider, OptionsAuditSigningKeyProvider>();
+		// Shared audit-integrity strategy (keyed-MAC) + default options-backed signing-key provider, keyed
+		// from AuditIntegrityOptions — one key-config story across every audit sink. Both register via
+		// TryAddSingleton, so a consumer can override either (e.g. a KMS-backed IAuditSigningKeyProvider)
+		// by registering it first. With no key configured the default fails closed (never an unprotected tag).
+		_ = services.AddAuditIntegrity();
+
+		// Default ES-local PII sanitizer for audit events (secure-by-default, bd-pbnn9g): masking works
+		// zero-config without pulling core Excalibur.Dispatch/Compliance in. Consumers can override with a
+		// richer ITelemetrySanitizer (e.g. AddDispatchObservability's HashingTelemetrySanitizer) via a
+		// non-Try registration before this call.
+		services.TryAddSingleton<ITelemetrySanitizer, DefaultAuditTelemetrySanitizer>();
 
 		// Register auditing service (core + parent + sub-interfaces forwarded to the same singleton)
 		services.TryAddSingleton<SecurityAuditor>();

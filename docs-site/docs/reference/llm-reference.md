@@ -168,7 +168,7 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddSaga(saga =>
 
 ### Excalibur Data Services
 
-Data-access primitives (`IDataRequest`, `IDb`) are registered as part of the unified builder. Use `services.AddExcalibur(...)` with the relevant persistence providers (e.g. SQL Server via `UseSqlServer(...)` on the event sourcing builder) — the pre-unification `AddExcaliburDataServices(...)` / `AddExcaliburDataServicesWithPersistence(...)` aggregators were deleted in Sprint 804 per ADR-321/325.
+Data-access primitives (`IDataRequest`, `IDb`) are registered as part of the unified builder. Use `services.AddExcalibur(...)` with the relevant persistence providers (e.g. SQL Server via `UseSqlServer(...)` on the event sourcing builder) — the pre-unification `AddExcaliburDataServices(...)` / `AddExcaliburDataServicesWithPersistence(...)` aggregators have been removed.
 
 ## Handler Patterns
 
@@ -361,7 +361,7 @@ Key points:
 4. **Confusing Action vs Event**: `IDispatchAction` routes to exactly 1 handler. `IDispatchEvent` supports multiple handlers (pub/sub).
 5. **Explicit context creation**: Most code should use the 2-parameter `DispatchAsync(message, ct)` extensions. Only create `IMessageContext` explicitly when you need to set correlation IDs or tenant context.
 6. **DomainEvent is parameterless**: `DomainEvent` uses `virtual init` properties with sensible defaults. Override `AggregateId` in derived records. Put event data in your record's own properties.
-7. **Only ONE DomainEvent base**: `DomainEvent` in `Excalibur.Dispatch`. The old `DomainEventBase` from `Excalibur.Domain.Model` was removed (ADR-201).
+7. **Only ONE DomainEvent base**: `DomainEvent` in `Excalibur.Dispatch`. The old `DomainEventBase` from `Excalibur.Domain.Model` was removed.
 8. **No EntityFramework**: This framework uses **Dapper** for SQL, not EF Core. Never suggest EF migrations or DbContext.
 9. **Blocking async in Dispose**: Use `IAsyncDisposable` with `DisposeAsync()`, never `task.GetAwaiter().GetResult()`.
 10. **Missing aggregate factory**: `AddRepository` requires a factory function: `es.AddRepository<MyAggregate>(key => new MyAggregate(key))`.

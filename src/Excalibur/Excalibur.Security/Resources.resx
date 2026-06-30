@@ -121,6 +121,9 @@
   <data name="HashiCorpVaultCredentialStore_VaultUrlRequired" xml:space="preserve">
     <value>Vault URL is required</value>
   </data>
+  <data name="HashiCorpVaultCredentialStore_VaultUrlMustBeHttps" xml:space="preserve">
+    <value>Vault URL must use https; the scheme '{0}' would transmit the token and secrets in plaintext. Configure an https:// Vault:Url.</value>
+  </data>
   <data name="HmacMessageSigningService_MessageSigningFailed" xml:space="preserve">
     <value>Message signing failed</value>
   </data>

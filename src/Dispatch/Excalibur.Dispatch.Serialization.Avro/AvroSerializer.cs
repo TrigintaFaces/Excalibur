@@ -150,7 +150,7 @@ public sealed class AvroSerializer : ISerializer
 			bytes.CopyTo(span[HeaderLength..]);
 			bufferWriter.Advance(HeaderLength + bytes.Length);
 		}
-		catch (AvroException ex)
+		catch (Exception ex) when (ex is not SerializationException)
 		{
 			throw SerializationException.Wrap<T>("serialize", ex);
 		}
@@ -219,7 +219,7 @@ public sealed class AvroSerializer : ISerializer
 			payload.CopyTo(result, HeaderLength);
 			return result;
 		}
-		catch (AvroException ex)
+		catch (Exception ex) when (ex is not SerializationException)
 		{
 			throw SerializationException.WrapObject(type, "serialize", ex);
 		}

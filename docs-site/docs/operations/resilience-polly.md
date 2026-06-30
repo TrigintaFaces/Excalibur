@@ -229,6 +229,9 @@ public interface IDistributedCircuitBreaker
     "DistributedCircuitBreaker": {
       "Enabled": true,
       "SyncInterval": "00:00:05",
+      "FailureRatio": 0.5,
+      "MinimumThroughput": 10,
+      "SamplingDuration": "00:00:30",
       "BreakDuration": "00:00:30",
       "ConsecutiveFailureThreshold": 5,
       "SuccessThresholdToClose": 3
@@ -239,9 +242,20 @@ public interface IDistributedCircuitBreaker
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
+| `FailureRatio` | `double` | `0.5` | Failure ratio (0.0–1.0) within the rolling `SamplingDuration` window that trips the circuit to **Open** |
+| `MinimumThroughput` | `int` | `10` | Minimum number of attempts that must accrue **within the `SamplingDuration` window** before the failure ratio is evaluated. Below this throughput the circuit never opens on ratio (avoids tripping on a handful of early failures) |
+| `SamplingDuration` | `TimeSpan` | 30s | Rolling window over which the failure ratio is measured |
 | `BreakDuration` | `TimeSpan` | 30s | How long the circuit stays **Open** before the next call is allowed through as a probe (transition to **Half-Open**) |
-| `ConsecutiveFailureThreshold` | `int` | `5` | Consecutive failures that trip the circuit to **Open** |
+| `ConsecutiveFailureThreshold` | `int` | `5` | Consecutive failures that trip the circuit to **Open**, independent of the windowed ratio |
 | `SuccessThresholdToClose` | `int` | `3` | Consecutive successes required while **Half-Open** to recover to **Closed** |
+
+:::info Failure ratio is windowed, not lifetime-cumulative
+The circuit opens when, **within the rolling `SamplingDuration` window**, at least `MinimumThroughput`
+attempts have accumulated **and** the failure ratio meets or exceeds `FailureRatio` (mirroring Polly v8's
+`CircuitBreakerStrategyOptions`). Lifetime-cumulative counts do not trip the ratio path — only attempts
+inside the current window count. The `ConsecutiveFailureThreshold` path is independent and trips on a run
+of consecutive failures regardless of throughput.
+:::
 
 :::info Half-Open → Closed recovery
 After `BreakDuration` elapses the breaker admits a probe call (**Half-Open**). Each
@@ -503,6 +517,9 @@ an `IValidateOptions<GracefulDegradationOptions>` runs at host startup and fails
     "DistributedCircuitBreaker": {
       "Enabled": false,
       "SyncInterval": "00:00:05",
+      "FailureRatio": 0.5,
+      "MinimumThroughput": 10,
+      "SamplingDuration": "00:00:30",
       "BreakDuration": "00:00:30",
       "ConsecutiveFailureThreshold": 5,
       "SuccessThresholdToClose": 3

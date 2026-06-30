@@ -9,6 +9,10 @@ namespace Excalibur.Saga;
 /// <summary>
 /// Configuration options for the saga pattern.
 /// </summary>
+/// <remarks>
+/// Optimistic concurrency is always enforced: every saga store performs a version-gated write and throws
+/// <see cref="Excalibur.Data.ConcurrencyException"/> on a stale-version save. It is not configurable.
+/// </remarks>
 public sealed class SagaOptions
 {
 	/// <summary>
@@ -33,8 +37,13 @@ public sealed class SagaOptions
 	/// <summary>
 	/// Gets or sets whether to enable automatic cleanup of completed sagas.
 	/// </summary>
-	/// <value>True to enable automatic cleanup, default is true.</value>
-	public bool EnableAutomaticCleanup { get; set; } = true;
+	/// <remarks>
+	/// Defaults to <see langword="false"/>: automatic-cleanup enforcement (a cross-provider saga-store
+	/// purge-by-age + <c>SagaState.CompletedAt</c>) is not yet wired. Setting this <see langword="true"/>
+	/// fails loud at startup rather than silently doing nothing — the option is never advertised-but-inert.
+	/// </remarks>
+	/// <value><see langword="true"/> to enable automatic cleanup; default <see langword="false"/> (not yet enforced).</value>
+	public bool EnableAutomaticCleanup { get; set; }
 
 	/// <summary>
 	/// Gets or sets the interval between cleanup cycles.
@@ -54,10 +63,4 @@ public sealed class SagaOptions
 	/// </summary>
 	/// <value>The retry delay, default is 1 minute.</value>
 	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromMinutes(1);
-
-	/// <summary>
-	/// Gets or sets whether to enable optimistic concurrency control.
-	/// </summary>
-	/// <value>True to enable optimistic concurrency, default is true.</value>
-	public bool EnableOptimisticConcurrency { get; set; } = true;
 }

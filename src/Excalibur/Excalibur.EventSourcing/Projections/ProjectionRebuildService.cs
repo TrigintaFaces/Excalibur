@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,8 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 	private readonly IEventSerializer _eventSerializer;
 	private readonly IOptions<ProjectionRebuildOptions> _options;
 	private readonly ILogger<ProjectionRebuildService> _logger;
+	private readonly IUpcastingPipeline? _upcastingPipeline;
+	private readonly bool _enableAutoUpcast;
 	private readonly ConcurrentDictionary<string, ProjectionRebuildStatus> _statuses = new();
 
 	/// <summary>
@@ -49,6 +52,26 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+		// Apply the same upcasting the write side uses so a rebuilt read model does not diverge from the write
+		// model on an evolved event schema. Optional: resolved from DI, never fails.
+		_upcastingPipeline = serviceProvider.GetService(typeof(IUpcastingPipeline)) as IUpcastingPipeline;
+		_enableAutoUpcast = (serviceProvider.GetService(typeof(IOptions<UpcastingOptions>)) as IOptions<UpcastingOptions>)
+			?.Value.EnableAutoUpcastOnReplay ?? false;
+	}
+
+	/// <summary>
+	/// Upcasts a deserialized event to its latest registered version when auto-upcast-on-replay is enabled, so a
+	/// rebuild applies the same (current-schema) event the write-side aggregate would. Mirrors the repository.
+	/// </summary>
+	private IDomainEvent TryUpcastEvent(IDomainEvent domainEvent)
+	{
+		if (!_enableAutoUpcast || _upcastingPipeline is null || domainEvent is not IVersionedMessage)
+		{
+			return domainEvent;
+		}
+
+		return _upcastingPipeline.Upcast(domainEvent) as IDomainEvent ?? domainEvent;
 	}
 
 	/// <inheritdoc />
@@ -136,6 +159,8 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 							?? throw new InvalidOperationException(
 								$"Event '{storedEvent.EventId}' (type '{storedEvent.EventType}') deserialized to null " +
 								$"during rebuild of '{projectionName}'; refusing to skip it.");
+
+						domainEvent = TryUpcastEvent(domainEvent);
 
 						projection.Apply(state, domainEvent);
 					}

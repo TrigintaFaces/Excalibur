@@ -44,6 +44,13 @@ public sealed class PostgresContainerFixture : ContainerFixtureBase, IDatabaseCo
 			.WithDatabase("testdb")
 			.WithUsername("postgres")
 			.WithPassword("postgres_password")
+			// Enable logical decoding so CDC tests can create logical replication slots (e9u90j).
+			// Leading "-c" args are forwarded to the postgres server by the image entrypoint. This is
+			// additive — it does not affect non-CDC consumers of this shared fixture.
+			.WithCommand(
+				"-c", "wal_level=logical",
+				"-c", "max_replication_slots=4",
+				"-c", "max_wal_senders=4")
 			.WithCleanUp(true)
 			.Build();
 

@@ -163,4 +163,17 @@ public sealed class KafkaConsumerTuningOptions
 	/// </value>
 	[Range(1, 100)]
 	public int MaxConcurrentCommits { get; set; } = 10;
+
+	/// <summary>
+	/// Gets or sets the partition assignment strategy for the consumer group. Default is
+	/// <see cref="Confluent.Kafka.PartitionAssignmentStrategy.CooperativeSticky"/>, which performs
+	/// incremental rebalances so partitions not being reassigned keep consuming during a rebalance.
+	/// </summary>
+	/// <value>
+	/// The partition assignment strategy, or <see langword="null"/> to defer to the broker/client
+	/// default. Ignored when <see cref="KafkaOptions.GroupProtocol"/> is the KIP-848
+	/// <c>consumer</c> protocol, where assignment is performed server-side.
+	/// </value>
+	public PartitionAssignmentStrategy? PartitionAssignmentStrategy { get; set; } =
+		Confluent.Kafka.PartitionAssignmentStrategy.CooperativeSticky;
 }

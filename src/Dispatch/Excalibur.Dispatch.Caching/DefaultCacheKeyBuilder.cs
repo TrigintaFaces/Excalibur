@@ -46,11 +46,28 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 			return null;
 		}
 
-		var tenant = context.GetTenantId() ?? "global";
-		var user = context.GetUserId() ?? "anonymous";
+		return Hash(BuildIdentityKey(baseKey, context.GetTenantId(), context.GetUserId()));
+	}
 
-		var fullKey = $"{tenant}:{user}:{baseKey}";
-		return Hash(fullKey);
+	/// <inheritdoc />
+	public string CreateKey(string logicalKey, string? tenantId, string? userId)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(logicalKey);
+
+		// Apply the SAME identity-folding + hashing transform as the store path so a direct-key invalidation
+		// targets the exact stored key. A raw logical key can never equal the stored SHA256(tenant:user:key).
+		return Hash(BuildIdentityKey(logicalKey, tenantId, userId));
+	}
+
+	/// <summary>
+	/// Folds a base key with the tenant/user identity into the canonical pre-hash key form
+	/// (<c>{tenant}:{user}:{baseKey}</c>), applying the same defaults as the store path.
+	/// </summary>
+	private static string BuildIdentityKey(string baseKey, string? tenantId, string? userId)
+	{
+		var tenant = tenantId ?? "global";
+		var user = userId ?? "anonymous";
+		return $"{tenant}:{user}:{baseKey}";
 	}
 
 	/// <summary>

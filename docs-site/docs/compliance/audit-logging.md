@@ -45,7 +45,7 @@ Each audit event includes a hash of the previous event, creating an immutable ch
 ### Configuration
 
 ```csharp
-// One-call minimal wiring (Sprint 790 `bd-20ft0e` FIX 5)
+// One-call minimal wiring
 // Registers audit store + annotation store + audit context + AuditMiddleware
 // with the default in-memory providers in a single call. Override any piece
 // by registering the concrete service before or after the call — standard
@@ -601,7 +601,7 @@ public async Task Should_Detect_Tampering()
 
 ## Provider Compliance Boundary
 
-:::warning ADR-290: Not All Backends Are Compliance-Grade
+:::warning Not All Backends Are Compliance-Grade
 
 Elasticsearch and OpenSearch are **audit sinks** -- write-only, search-optimized projections. They do **not** implement `IAuditStore` and cannot provide tamper-evident hash chain verification.
 :::
@@ -636,8 +636,6 @@ flowchart LR
 ```
 
 Consumers who need both compliance **and** search should register SQL as their `IAuditStore` and ES/OS as an audit sink. The sink receives copies for fast full-text search, dashboards, and alerting. SQL is the source of truth for chain verification and regulatory compliance.
-
-For full details, see ADR-290 in `management/architecture/adr-290-elasticsearch-audit-sink-not-store.md`.
 
 ## Audit Event Annotations
 

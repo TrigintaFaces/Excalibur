@@ -126,20 +126,23 @@ public static class RoleServiceCollectionExtensions
 		IServiceProvider sp,
 		ServiceDescriptor descriptor)
 	{
-		if (descriptor.ImplementationInstance is IAuthorizationEvaluator instance)
+		// ybem93: read implementation members through the keyed-safe accessors (raw reads throw on
+		// keyed descriptors on .NET 8+).
+		if (descriptor.GetImplementationInstance() is IAuthorizationEvaluator instance)
 		{
 			return instance;
 		}
 
-		if (descriptor.ImplementationFactory is not null)
+		if (descriptor.GetImplementationFactory() is { } factory)
 		{
-			return (IAuthorizationEvaluator)descriptor.ImplementationFactory(sp);
+			return (IAuthorizationEvaluator)factory(sp);
 		}
 
-		if (descriptor.ImplementationType is not null)
+		var implementationType = descriptor.GetImplementationType();
+		if (implementationType is not null)
 		{
 			return (IAuthorizationEvaluator)ActivatorUtilities.CreateInstance(
-				sp, descriptor.ImplementationType);
+				sp, implementationType);
 		}
 
 		throw new InvalidOperationException(

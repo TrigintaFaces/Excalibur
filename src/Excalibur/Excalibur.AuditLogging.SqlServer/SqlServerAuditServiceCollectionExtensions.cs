@@ -170,6 +170,10 @@ public static class SqlServerAuditServiceCollectionExtensions
 
 	private static void RegisterSqlServerAuditStoreCore(IServiceCollection services)
 	{
+		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider (qa71t5) —
+		// SqlServerAuditStore depends on IAuditIntegrityStrategy to tag/verify records.
+		_ = services.AddAuditIntegrity();
+
 		services.TryAddSingleton<SqlServerAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<SqlServerAuditStore>());
 	}

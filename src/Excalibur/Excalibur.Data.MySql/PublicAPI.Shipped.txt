@@ -68,6 +68,7 @@ Excalibur.Data.MySql.MySqlTransactionScope.Status.get -> Excalibur.Data.Persiste
 Excalibur.Data.MySql.MySqlTransactionScope.Timeout.get -> System.TimeSpan
 Excalibur.Data.MySql.MySqlTransactionScope.Timeout.set -> void
 Excalibur.Data.MySql.MySqlTransactionScope.TransactionId.get -> string!
+Microsoft.Extensions.DependencyInjection.MySqlHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions
 const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ClearedConnectionPools = 103409 -> int
 const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionClosed = 103001 -> int
@@ -95,6 +96,7 @@ const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.RetryAttempt = 103300 ->
 const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionCommitted = 103201 -> int
 const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionRolledBack = 103202 -> int
 const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionStarted = 103200 -> int
+static Microsoft.Extensions.DependencyInjection.MySqlHealthChecksBuilderExtensions.AddMySqlHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "mysql", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MySql.MySqlProviderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

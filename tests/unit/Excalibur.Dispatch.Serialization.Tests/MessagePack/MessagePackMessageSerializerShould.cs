@@ -71,13 +71,12 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Serialize_WithNullMessage_ProducesValidOutput()
+	public void Serialize_WithNullMessage_ThrowsArgumentNullException()
 	{
-		// Act - New consolidated serializer follows STJ pattern: null is serializable
-		var result = _sut.SerializeToBytes<TestMessage>(null!);
-
-		// Assert - MessagePack serializes null as nil (0xC0)
-		_ = result.ShouldNotBeNull();
+		// Canonical ISerializer null contract (bd-hxoyaq): Serialize<T> rejects a null value with
+		// ArgumentNullException across every implementation, so a configured-serializer swap does not
+		// change observable null-handling behavior.
+		_ = Should.Throw<ArgumentNullException>(() => _sut.SerializeToBytes<TestMessage>(null!));
 	}
 
 	[Fact]

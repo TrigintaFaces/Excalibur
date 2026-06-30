@@ -26,7 +26,8 @@ public static class LeaderElectionHealthChecksBuilderExtensions
 	/// <remarks>
 	/// <para>
 	/// This health check requires an <see cref="ILeaderElection"/> to be registered in DI.
-	/// Use <c>AddSqlServerLeaderElection</c>, <c>AddRedisLeaderElection</c>, or register a custom implementation.
+	/// Register one via the builder — <c>AddExcalibur(x =&gt; x.AddLeaderElection(le =&gt; le.UseSqlServer(...)))</c>
+	/// or <c>le.UseRedis(...)</c> — or register a custom implementation.
 	/// </para>
 	/// <para>
 	/// The health check is provider-agnostic — it works with any <see cref="ILeaderElection"/> implementation.

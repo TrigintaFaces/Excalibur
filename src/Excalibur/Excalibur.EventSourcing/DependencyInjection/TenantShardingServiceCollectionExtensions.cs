@@ -91,7 +91,7 @@ public static class TenantShardingServiceCollectionExtensions
 	/// <para>
 	/// Calling this method is the opt-in: sharding is always enabled when the
 	/// extension is invoked. To avoid registering the tenant-routing decorator,
-	/// do not call this method. [bd-51k0mc]
+	/// do not call this method.
 	/// </para>
 	/// <para>
 	/// <b>Registration semantics:</b> calling this method <b>replaces any previously
@@ -153,7 +153,7 @@ public static class TenantShardingServiceCollectionExtensions
 		{
 			var descriptor = services[i];
 			if (descriptor.ServiceType == typeof(IEventStore)
-				&& descriptor.ImplementationType == typeof(TenantRoutingEventStore))
+				&& descriptor.GetImplementationType() == typeof(TenantRoutingEventStore))
 			{
 				return;
 			}

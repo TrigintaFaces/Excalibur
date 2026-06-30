@@ -52,6 +52,12 @@ public static class EventSourcingServiceCollectionExtensions
 		// store), instead of silently degrading to non-atomic eventually-consistent staging.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<EventSourcedRepositoryOptions>, TransactionalStagingCapabilityValidator>());
+
+		// ADR-336 clause 2: fail fast at startup when OutboxStagingStrategy.EventuallyConsistent is explicitly
+		// selected without a registered IOutboxStore, instead of silently skipping outbox staging (integration
+		// events would be lost with no diagnostic).
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<EventSourcedRepositoryOptions>, EventSourcedRepositoryStagingCapabilityValidator>());
 		_ = services.AddOptions<EventSourcedRepositoryOptions>().ValidateOnStart();
 
 		// Non-keyed convenience aliases: forward to keyed "default" so consumers

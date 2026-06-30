@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Saga.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -19,10 +20,9 @@ namespace Excalibur.Saga.Orchestration;
 /// <param name="sagaStore"> Persistent store for saga state management and retrieval operations. </param>
 /// <param name="serviceProvider"> Service provider for DI-aware saga instantiation via ActivatorUtilities. </param>
 /// <param name="loggerFactory"> Factory for creating saga-specific loggers for business logic tracing. Reserved for future use. </param>
-internal sealed class SagaManager(ISagaStore sagaStore, IServiceProvider serviceProvider, ILoggerFactory loggerFactory)
+internal sealed partial class SagaManager(ISagaStore sagaStore, IServiceProvider serviceProvider, ILoggerFactory loggerFactory)
 {
-	// Reserved for future use: saga-specific loggers for business logic tracing
-	private readonly ILoggerFactory _loggerFactory = loggerFactory;
+	private readonly ILogger<SagaManager> _logger = loggerFactory.CreateLogger<SagaManager>();
 
 	/// <summary>
 	/// Handles an event for a specific saga instance by loading state, processing the event, and persisting changes. This method manages
@@ -56,6 +56,17 @@ internal sealed class SagaManager(ISagaStore sagaStore, IServiceProvider service
 		var sagaState = await sagaStore.LoadAsync<TSagaState>(sagaId, cancellationToken).ConfigureAwait(false) ??
 						new TSagaState { SagaId = sagaId };
 
+		// A saga that was ALREADY completed before this event does not process further events
+		// (SagaState.Completed contract, bd-uv640i). Skip at load time without re-persisting -> no
+		// HandleAsync, no SaveAsync, no spurious version bump/overwrite on a finished workflow. The event
+		// that itself completes the saga still proceeds and persists its completion below. Parity with
+		// SagaCoordinator (SagaCoordinator.cs:198).
+		if (sagaState.Completed)
+		{
+			LogSagaAlreadyCompleted(sagaId, @event.GetType().Name);
+			return;
+		}
+
 		var saga = ActivatorUtilities.CreateInstance<TSaga>(serviceProvider, sagaState);
 
 		await saga.HandleAsync(@event, cancellationToken).ConfigureAwait(false);
@@ -67,4 +78,8 @@ internal sealed class SagaManager(ISagaStore sagaStore, IServiceProvider service
 	}
 
 #pragma warning restore MA0038
+
+	[LoggerMessage(SagaEventId.SagaAlreadyCompletedEventSkipped, LogLevel.Information,
+		"Saga {SagaId} already completed; skipping event {EventType}.")]
+	private partial void LogSagaAlreadyCompleted(Guid sagaId, string eventType);
 }

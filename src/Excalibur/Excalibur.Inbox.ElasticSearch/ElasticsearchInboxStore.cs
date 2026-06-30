@@ -22,8 +22,19 @@ namespace Excalibur.Inbox.ElasticSearch;
 /// Payloads are stored as Base64-encoded strings.
 /// </para>
 /// </remarks>
-public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin
+public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin
 {
+	/// <summary>Bounded retries for the optimistic-concurrency conditional delete in <see cref="ReleaseAsync"/>.</summary>
+	private const int ReleaseMaxRetries = 5;
+
+	/// <summary>
+	/// Test-only seam: when non-null, invoked once inside <see cref="ReleaseAsync"/> in the window between
+	/// the status read and the conditional delete, so a test can deterministically interleave a concurrent
+	/// finalize and exercise the conditional-delete guard. Always <see langword="null"/> in production
+	/// (single null-check ⇒ zero overhead).
+	/// </summary>
+	internal Func<CancellationToken, Task>? ReleaseRaceHookForTests { get; set; }
+
 	private readonly ElasticsearchClient _client;
 	private readonly ElasticsearchInboxOptions _options;
 	private readonly ILogger<ElasticsearchInboxStore> _logger;
@@ -184,6 +195,106 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	}
 
 	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		// Atomic first-writer-wins claim into the NON-TERMINAL Processing state via OpType.Create: the create
+		// fails with a 409 conflict on an existing doc (already claimed/processed) => not claimed. Finalized via
+		// MarkProcessedAsync, removed via ReleaseAsync.
+		var doc = new ElasticsearchInboxDocument
+		{
+			MessageId = messageId,
+			HandlerType = handlerType,
+			MessageType = "Unknown",
+			Status = (int)InboxStatus.Processing,
+			ReceivedAt = DateTimeOffset.UtcNow,
+		};
+
+		var docId = GetDocumentId(messageId, handlerType);
+
+		var response = await _client.IndexAsync(
+			doc,
+			idx => idx
+				.Index(_options.IndexName)
+				.Id(docId)
+				.OpType(OpType.Create)
+				.Refresh(GetRefresh()),
+			cancellationToken).ConfigureAwait(false);
+
+		if (response.IsValidResponse)
+		{
+			LogTryMarkProcessedSuccess(messageId, handlerType);
+			return true;
+		}
+
+		// 409 = already exists = already claimed/processed = duplicate.
+		if (response.ElasticsearchServerError?.Status == 409)
+		{
+			LogTryMarkProcessedDuplicate(messageId, handlerType);
+			return false;
+		}
+
+		throw new InvalidOperationException(
+			$"Failed to claim inbox entry: {response.ElasticsearchServerError?.Error?.Reason ?? "Unknown error"}");
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		var docId = GetDocumentId(messageId, handlerType);
+
+		// Atomic delete-unless-Processed. Capture the document's optimistic-concurrency tokens
+		// (_seq_no/_primary_term) on read and issue a CONDITIONAL delete (IfSeqNo/IfPrimaryTerm). A
+		// concurrent MarkProcessed bumps the version, so our delete fails with a version conflict instead of
+		// removing a now-finalized entry — we then re-read and no-op if it has become Processed. This closes
+		// the read-then-delete race the plain delete left open.
+		for (var attempt = 0; attempt < ReleaseMaxRetries; attempt++)
+		{
+			var get = await _client.GetAsync<ElasticsearchInboxDocument>(
+				_options.IndexName, docId, cancellationToken).ConfigureAwait(false);
+
+			if (!get.IsValidResponse || !get.Found || get.Source is null
+				|| get.Source.Status == (int)InboxStatus.Processed)
+			{
+				// Absent or finalized — never delete.
+				return;
+			}
+
+			// Test-only seam (null in production): lets a test interleave a concurrent finalize in the
+			// read-then-delete window so the conditional-delete guard can be exercised deterministically.
+			if (ReleaseRaceHookForTests is { } raceHook)
+			{
+				await raceHook(cancellationToken).ConfigureAwait(false);
+			}
+
+			var deleteResponse = await _client.DeleteAsync(
+				new DeleteRequest(_options.IndexName, docId)
+				{
+					IfSeqNo = get.SeqNo,
+					IfPrimaryTerm = get.PrimaryTerm,
+				},
+				cancellationToken).ConfigureAwait(false);
+
+			if (deleteResponse.IsValidResponse)
+			{
+				return;
+			}
+
+			// A 409 means another writer changed the doc between our read and conditional delete — re-read
+			// and re-evaluate (it may now be Processed → no-op). Any other failure is not retriable here.
+			if (deleteResponse.ElasticsearchServerError?.Status != 409)
+			{
+				return;
+			}
+		}
+	}
+
+	/// <inheritdoc/>
 	public async ValueTask<bool> IsProcessedAsync(string messageId, string handlerType, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -311,25 +422,35 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	/// <inheritdoc/>
 	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
 	{
-		var response = await _client.SearchAsync<ElasticsearchInboxDocument>(s => s
-			.Index(_options.IndexName)
-			.Size(10000)
-			.Query(q => q.MatchAll(new MatchAllQuery())),
-			cancellationToken).ConfigureAwait(false);
+		// Compute statistics with server-side counts rather than materializing up to 10k documents
+		// into memory and aggregating client-side.
+		var total = await CountAsync(new MatchAllQuery(), cancellationToken).ConfigureAwait(false);
+		var processed = await CountAsync(
+			new TermQuery { Field = "status", Value = (int)InboxStatus.Processed }, cancellationToken).ConfigureAwait(false);
+		var failed = await CountAsync(
+			new TermQuery { Field = "status", Value = (int)InboxStatus.Failed }, cancellationToken).ConfigureAwait(false);
+		var received = await CountAsync(
+			new TermQuery { Field = "status", Value = (int)InboxStatus.Received }, cancellationToken).ConfigureAwait(false);
+		var processing = await CountAsync(
+			new TermQuery { Field = "status", Value = (int)InboxStatus.Processing }, cancellationToken).ConfigureAwait(false);
 
-		if (!response.IsValidResponse)
-		{
-			return new InboxStatistics();
-		}
-
-		var docs = response.Documents;
 		return new InboxStatistics
 		{
-			TotalEntries = docs.Count,
-			ProcessedEntries = docs.Count(d => d.Status == (int)InboxStatus.Processed),
-			FailedEntries = docs.Count(d => d.Status == (int)InboxStatus.Failed),
-			PendingEntries = docs.Count(d => d.Status is (int)InboxStatus.Received or (int)InboxStatus.Processing),
+			TotalEntries = total,
+			ProcessedEntries = processed,
+			FailedEntries = failed,
+			PendingEntries = received + processing,
 		};
+	}
+
+	/// <summary>
+	/// Returns the server-side document count matching <paramref name="query"/> without materializing documents.
+	/// </summary>
+	private async ValueTask<int> CountAsync(Query query, CancellationToken cancellationToken)
+	{
+		var request = new CountRequest(_options.IndexName) { Query = query };
+		var response = await _client.CountAsync(request, cancellationToken).ConfigureAwait(false);
+		return response.IsValidResponse ? (int)response.Count : 0;
 	}
 
 	/// <inheritdoc/>

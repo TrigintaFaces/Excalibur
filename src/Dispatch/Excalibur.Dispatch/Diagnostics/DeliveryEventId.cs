@@ -125,6 +125,12 @@ public static class DeliveryEventId
 	/// <summary>No handlers registered for event type.</summary>
 	public const int NoHandlersForEvent = 40207;
 
+	/// <summary>Streaming/Progress dispatch path bypasses registered pipeline middleware (ec132p).</summary>
+	public const int StreamingPipelineMiddlewareBypassed = 40208;
+
+	/// <summary>Error detecting streaming pipeline middleware bypass (ec132p).</summary>
+	public const int StreamingPipelineBypassDetectionError = 40209;
+
 	// ========================================
 	// 40300-40399: EventStore Dispatch
 	// ========================================

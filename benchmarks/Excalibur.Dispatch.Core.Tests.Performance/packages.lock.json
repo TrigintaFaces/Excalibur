@@ -845,6 +845,7 @@
       "excalibur.auditlogging": {
         "type": "Project",
         "dependencies": {
+          "Excalibur.AuditLogging.Abstractions": "[1.0.0, )",
           "Excalibur.Compliance.Abstractions": "[1.0.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.7, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
@@ -854,6 +855,13 @@
           "Microsoft.Extensions.Options": "[10.0.7, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.7, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.7, )"
+        }
+      },
+      "excalibur.auditlogging.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.7, )",
+          "Microsoft.Extensions.Options": "[10.0.7, )"
         }
       },
       "excalibur.auditlogging.sqlserver": {

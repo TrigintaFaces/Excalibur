@@ -230,7 +230,7 @@ public static class CdcServiceCollectionExtensions
 
 		return services.Any(s =>
 			s.ServiceType == typeof(IConfigureOptions<CdcOptions>) ||
-			s.ImplementationType == typeof(DefaultCdcOptionsSetup));
+			s.GetImplementationType() == typeof(DefaultCdcOptionsSetup));
 	}
 
 	/// <summary>

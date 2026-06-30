@@ -35,6 +35,9 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		WriteIndented = false
 	};
 
+	/// <summary>The maximum number of items DynamoDB allows in a single <c>TransactWriteItems</c> call.</summary>
+	private const int DynamoTransactItemLimit = 100;
+
 	private readonly DynamoDbOutboxOptions _options;
 	private readonly ILogger<DynamoDbOutboxStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -378,15 +381,61 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 		try
 		{
-			var operationResults = new List<CloudOperationResult>();
+			var messageIdList = messageIds as IReadOnlyList<string> ?? messageIds.ToList();
+			var operationResults = new List<CloudOperationResult>(messageIdList.Count);
 			double totalCapacity = 0;
 
-			foreach (var messageId in messageIds)
+			var publishedAt = DateTimeOffset.UtcNow;
+			var ttl = _options.DefaultTimeToLiveSeconds > 0
+				? publishedAt.AddSeconds(_options.DefaultTimeToLiveSeconds).ToUnixTimeSeconds()
+				: 0;
+
+			// DynamoDB caps a TransactWriteItems at 100 items, so mark-published is applied as a sequence of
+			// ≤100-item atomic transactions rather than a per-message UpdateItem loop. Each chunk is all-or-
+			// nothing, so a mid-batch failure can no longer leave a partially-marked batch within a chunk.
+			for (var offset = 0; offset < messageIdList.Count; offset += DynamoTransactItemLimit)
 			{
-				var operationResult = await MarkAsPublishedAsync(messageId, partitionKey, cancellationToken)
-					.ConfigureAwait(false);
-				operationResults.Add(operationResult);
-				totalCapacity += operationResult.RequestCharge;
+				var count = Math.Min(DynamoTransactItemLimit, messageIdList.Count - offset);
+				var transactItems = new List<TransactWriteItem>(count);
+				for (var i = 0; i < count; i++)
+				{
+					transactItems.Add(BuildMarkPublishedTransactItem(messageIdList[offset + i], partitionKey, publishedAt, ttl));
+				}
+
+				try
+				{
+					var request = new TransactWriteItemsRequest
+					{
+						TransactItems = transactItems,
+						ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
+					};
+
+					var response = await _client!.TransactWriteItemsAsync(request, cancellationToken).ConfigureAwait(false);
+					var chunkCapacity = response.ConsumedCapacity?.Sum(c => c.CapacityUnits) ?? 0;
+					totalCapacity += chunkCapacity;
+
+					var perItemCharge = count > 0 ? chunkCapacity / count : 0;
+					for (var i = 0; i < count; i++)
+					{
+						operationResults.Add(new CloudOperationResult(
+							success: true,
+							statusCode: (int)response.HttpStatusCode,
+							requestCharge: perItemCharge));
+					}
+				}
+				catch (AmazonDynamoDBException ex)
+				{
+					// The whole chunk was rejected atomically (e.g. TransactionCanceledException) — record
+					// every message in it as not-published so the caller sees the failure.
+					for (var i = 0; i < count; i++)
+					{
+						operationResults.Add(new CloudOperationResult(
+							success: false,
+							statusCode: (int)ex.StatusCode,
+							requestCharge: 0,
+							errorMessage: ex.Message));
+					}
+				}
 			}
 
 			if (operationResults.Any(r => !r.Success))
@@ -413,6 +462,44 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				result,
 				stopwatch.Elapsed);
 		}
+	}
+
+	/// <summary>
+	/// Builds the <c>Update</c> transact item that marks a single outbox message published, mirroring the
+	/// single-item <see cref="MarkAsPublishedAsync"/> update so the batch path is behaviorally identical.
+	/// </summary>
+	private TransactWriteItem BuildMarkPublishedTransactItem(
+		string messageId,
+		IPartitionKey partitionKey,
+		DateTimeOffset publishedAt,
+		long ttl)
+	{
+		var values = new Dictionary<string, AttributeValue>
+		{
+			[":true"] = new() { BOOL = true },
+			[":publishedAt"] = new() { S = publishedAt.ToString("o") }
+		};
+
+		if (ttl > 0)
+		{
+			values[":ttl"] = new() { N = ttl.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+		}
+
+		return new TransactWriteItem
+		{
+			Update = new Update
+			{
+				TableName = _options.TableName,
+				Key = new Dictionary<string, AttributeValue>
+				{
+					[_options.PartitionKeyAttribute] = new() { S = partitionKey.Value },
+					[_options.SortKeyAttribute] = new() { S = messageId }
+				},
+				UpdateExpression = "SET isPublished = :true, publishedAt = :publishedAt" +
+								   (ttl > 0 ? $", {_options.TtlAttribute} = :ttl" : ""),
+				ExpressionAttributeValues = values
+			}
+		};
 	}
 
 	/// <inheritdoc/>
@@ -788,6 +875,11 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			item["causationId"] = new() { S = message.CausationId };
 		}
 
+		if (!string.IsNullOrEmpty(message.TenantId))
+		{
+			item["tenantId"] = new() { S = message.TenantId };
+		}
+
 		if (message.PublishedAt.HasValue)
 		{
 			item["publishedAt"] = new() { S = message.PublishedAt.Value.ToString("o") };
@@ -817,6 +909,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			AggregateType = item.TryGetValue("aggregateType", out var aggType) ? aggType.S : null,
 			CorrelationId = item.TryGetValue("correlationId", out var corrId) ? corrId.S : null,
 			CausationId = item.TryGetValue("causationId", out var causId) ? causId.S : null,
+			TenantId = item.TryGetValue("tenantId", out var tenId) ? tenId.S : null,
 			CreatedAt = DateTimeOffset.Parse(item["createdAt"].S, CultureInfo.InvariantCulture),
 			PublishedAt = item.TryGetValue("publishedAt", out var pubAt) && !string.IsNullOrEmpty(pubAt.S)
 				? DateTimeOffset.Parse(pubAt.S, CultureInfo.InvariantCulture)

@@ -3,6 +3,7 @@
 
 
 using System.Net;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 
 using Excalibur.Cdc.Diagnostics;
@@ -107,13 +108,11 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 			}
 			catch (Exception ex)
 			{
-				// pxhqri: delegate the fatal-vs-transient decision to the single shared guard
+				// pxhqri/q3w5cv: delegate the fatal-vs-transient decision to the single shared guard
 				// (CdcFatalGuard.Decide) — the same unit the regression lock binds — instead of an inline
-				// `catch when IsFatal` filter. The durable checkpoint advance (ConfirmPositionAsync) happens
-				// ONLY on the success path of ProcessBatchInternalAsync, AFTER every event in the batch was
-				// handed off; this catch never advances, and a fault unwinds before that ConfirmPositionAsync,
-				// so a fault (fatal or transient) never advances the checkpoint past the failing change
-				// (decision.AdvanceCheckpoint is false on every fault). 14z4ao behavior is byte-preserved.
+				// `catch when IsFatal` filter. The durable checkpoint advance inside ProcessBatchInternalAsync
+				// is now LITERALLY gated on decision.AdvanceCheckpoint (false on every fault), so a fault never
+				// advances the checkpoint past the failing change. 14z4ao behavior is preserved.
 				var decision = CdcFatalGuard.Decide(ex, _failureClassifier);
 
 				if (decision.Stop)
@@ -131,7 +130,7 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 					throw; // default: fail-loud — propagate and stop.
 				}
 
-				// Transient (decision.Reconnect) — reconnect and retry from the un-advanced checkpoint.
+				// Transient (non-fatal: decision.Stop == false) — reconnect and retry from the un-advanced checkpoint.
 				LogProcessingError(_options.ProcessorName, ex);
 				_inFlightEvent = null;
 
@@ -241,6 +240,7 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		var iterator = CreateChangeFeedIterator();
 		var processedCount = 0;
 		CosmosDbCdcPosition? lastPosition = null;
+		Exception? batchFailure = null;
 
 		try
 		{
@@ -282,21 +282,34 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 				}
 			}
 
-			// Confirm position after successful batch processing
-			if (lastPosition is not null)
-			{
-				await ConfirmPositionAsync(lastPosition, cancellationToken).ConfigureAwait(false);
-			}
-
-			if (processedCount > 0)
-			{
-				LogBatchProcessed(_options.ProcessorName, processedCount, _eventCount);
-			}
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
-			LogBatchError(_options.ProcessorName, processedCount, ex);
-			throw;
+			// Capture, do not advance here. The structural durability gate below sees
+			// AdvanceCheckpoint=false for any fault and skips ConfirmPositionAsync.
+			batchFailure = ex;
+		}
+
+		// STRUCTURAL durability gate (q3w5cv / FR-B2 / ADR-338): advance the durable checkpoint ONLY when
+		// the single shared guard permits it. CdcFatalGuard.Decide(null) => AdvanceCheckpoint=true on clean
+		// success; Decide(fault) => AdvanceCheckpoint=false on ANY fault. Mutating this gate to `if (true)`
+		// would advance past an unprocessed change and turns AC-N3.1 RED — the violation is inexpressible
+		// without editing this one literal gate.
+		var decision = CdcFatalGuard.Decide(batchFailure, _failureClassifier);
+		if (decision.AdvanceCheckpoint && lastPosition is not null)
+		{
+			await ConfirmPositionAsync(lastPosition, cancellationToken).ConfigureAwait(false);
+		}
+
+		if (batchFailure is not null)
+		{
+			LogBatchError(_options.ProcessorName, processedCount, batchFailure);
+			ExceptionDispatchInfo.Capture(batchFailure).Throw();
+		}
+
+		if (processedCount > 0)
+		{
+			LogBatchProcessed(_options.ProcessorName, processedCount, _eventCount);
 		}
 
 		return processedCount;

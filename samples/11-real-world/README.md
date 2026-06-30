@@ -9,8 +9,8 @@ End-to-end samples that compose multiple Dispatch and Excalibur patterns into re
 | [OrderProcessing](OrderProcessing/) | Complete order workflow | Event Sourcing, CQRS, Saga, Retry, Compensation |
 | [EnterpriseOrderProcessing](EnterpriseOrderProcessing/) | Enterprise stack (22+ packages) | CDC, Outbox, RabbitMQ, OpenTelemetry, Security, Resilience |
 | [ECommerceSample](ECommerceSample/) | ECommerce In-Memory Stores | In-memory `IInboxStore`/`IOutboxStore`/`IScheduleStore`, order processing, OTel tracing |
-| [FullStackAddExcalibur](FullStackAddExcalibur/) 🧩 *infra-gated flow* | Single-builder composition — OrderManagement domain | ES + CDC + projections + ElasticSearch + IdentityMap + DataProcessing, all composed through `AddExcalibur`. Sprint 790 added the operational `POST /orders` command → handler → outbox → projection → `GET /orders/{id}` flow (`bd-hctd97`); the full E2E path requires SQL Server + ElasticSearch. Host boot + `GET /health` work without external infra. |
-| [MultiTenantEventSourcing](MultiTenantEventSourcing/) 🧩 *infra-gated flow* | Multi-tenant SaaS composition | Tenant context resolution, API routing, per-tenant projections, query scoping, sharding. Sprint 790 added the operational `POST /orders` command with `ITenantId` resolution that exercises the `TenantRoutingEventStore` decorator (`bd-vpna3f`); full decorator path requires SQL Server per shard. `GET /shards` + `ValidateOnStart` work without external infra. |
+| [FullStackAddExcalibur](FullStackAddExcalibur/) 🧩 *infra-gated flow* | Single-builder composition — OrderManagement domain | ES + CDC + projections + ElasticSearch + IdentityMap + DataProcessing, all composed through `AddExcalibur`. added the operational `POST /orders` command → handler → outbox → projection → `GET /orders/{id}` flow ; the full E2E path requires SQL Server + ElasticSearch. Host boot + `GET /health` work without external infra.
+| [MultiTenantEventSourcing](MultiTenantEventSourcing/) 🧩 *infra-gated flow* | Multi-tenant SaaS composition | Tenant context resolution, API routing, per-tenant projections, query scoping, sharding. added the operational `POST /orders` command with `ITenantId` resolution that exercises the `TenantRoutingEventStore` decorator ; full decorator path requires SQL Server per shard. `GET /shards` + `ValidateOnStart` work without external infra.
 | [HealthcareApi](HealthcareApi/) | Vertical-slice architecture | Per-feature slicing, healthcare domain |
 | [IdentityMapSample](IdentityMapSample/) | Identity map pattern documentation | See README for usage (no runnable project) |
 
@@ -66,7 +66,7 @@ dotnet run
 
 ## FullStackAddExcalibur — Canonical Composition
 
-[FullStackAddExcalibur](FullStackAddExcalibur/) is the newest showcase (Sprint 789): it demonstrates how a realistic enterprise application is composed through a single `AddExcalibur` builder. Domain: OrderManagement. Every canonical pattern plugs in at its expected position:
+[FullStackAddExcalibur](FullStackAddExcalibur/) is the newest showcase : it demonstrates how a realistic enterprise application is composed through a single `AddExcalibur` builder. Domain: OrderManagement. Every canonical pattern plugs in at its expected position:
 
 - **Event Sourcing** (write side)
 - **CDC** (change feed out of the event store)
@@ -145,4 +145,4 @@ services.AddExcalibur(excalibur =>
 
 ---
 
-*Category: Real-World | Sprint 789 reorg*
+*Category: Real-World | reorg*

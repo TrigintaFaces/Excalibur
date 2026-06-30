@@ -4,6 +4,7 @@
 using Confluent.Kafka;
 
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -31,6 +32,7 @@ internal sealed partial class KafkaDeadLetterQueueManager : IDeadLetterQueueMana
 	private readonly KafkaDeadLetterConsumer _consumer;
 	private readonly KafkaDeadLetterOptions _options;
 	private readonly KafkaOptions _kafkaOptions;
+	private readonly KafkaRetryOptions _retryOptions;
 	private readonly ILogger<KafkaDeadLetterQueueManager> _logger;
 	private readonly string _defaultSourceTopic;
 
@@ -41,18 +43,21 @@ internal sealed partial class KafkaDeadLetterQueueManager : IDeadLetterQueueMana
 	/// <param name="consumer"> The DLQ consumer for reading dead letter messages. </param>
 	/// <param name="dlqOptions"> The dead letter queue configuration options. </param>
 	/// <param name="kafkaOptions"> The Kafka connection options. </param>
+	/// <param name="retryOptions"> The Kafka retry/backoff options used to pace reprocessing. </param>
 	/// <param name="logger"> The logger instance. </param>
 	public KafkaDeadLetterQueueManager(
 		KafkaDeadLetterProducer producer,
 		KafkaDeadLetterConsumer consumer,
 		IOptions<KafkaDeadLetterOptions> dlqOptions,
 		IOptions<KafkaOptions> kafkaOptions,
+		IOptions<KafkaRetryOptions> retryOptions,
 		ILogger<KafkaDeadLetterQueueManager> logger)
 	{
 		_producer = producer ?? throw new ArgumentNullException(nameof(producer));
 		_consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
 		_options = dlqOptions?.Value ?? throw new ArgumentNullException(nameof(dlqOptions));
 		_kafkaOptions = kafkaOptions?.Value ?? throw new ArgumentNullException(nameof(kafkaOptions));
+		_retryOptions = retryOptions?.Value ?? throw new ArgumentNullException(nameof(retryOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_defaultSourceTopic = !string.IsNullOrWhiteSpace(_kafkaOptions.Topic)
 			? _kafkaOptions.Topic
@@ -163,9 +168,29 @@ internal sealed partial class KafkaDeadLetterQueueManager : IDeadLetterQueueMana
 				result.SuccessCount++;
 				LogMessageReprocessed(_logger, dlqMessage.OriginalMessage.Id, targetTopic);
 
-				if (options.RetryDelay > TimeSpan.Zero)
+				// Pace reprocessing. When the caller opts into a delay (ReprocessOptions.RetryDelay > 0)
+				// and exponential backoff is enabled, escalate the delay using the message's recorded
+				// delivery-attempt count so a struggling downstream is not overwhelmed. Otherwise fall
+				// back to the flat caller-supplied delay (preserves prior behavior).
+				var reprocessDelay = options.RetryDelay;
+				if (reprocessDelay > TimeSpan.Zero && _retryOptions.UseExponentialBackoff)
 				{
-					await Task.Delay(options.RetryDelay, cancellationToken).ConfigureAwait(false);
+					var backoffAttempt = Math.Max(1, dlqMessage.DeliveryAttempts);
+					reprocessDelay = ExponentialBackoff.Calculate(backoffAttempt, new BackoffParameters
+					{
+						BaseDelay = _retryOptions.RetryDelay,
+						MaxDelay = _retryOptions.MaxRetryDelay,
+						Multiplier = _retryOptions.BackoffMultiplier,
+						UseJitter = _retryOptions.UseJitter,
+
+						// KafkaRetryOptions exposes no jitter-factor field; use a sensible default.
+						JitterFactor = 0.2,
+					});
+				}
+
+				if (reprocessDelay > TimeSpan.Zero)
+				{
+					await Task.Delay(reprocessDelay, cancellationToken).ConfigureAwait(false);
 				}
 			}
 			catch (Exception ex) when (ex is not OperationCanceledException)

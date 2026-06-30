@@ -51,7 +51,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 	/// Optional durable change-feed checkpoint store (DI-supplied; the registered
 	/// <see cref="IChangeFeedCheckpointStore"/> — in-memory default or the durable Cosmos store when the
 	/// consumer opts in). Flowed into the outbox change-feed subscription so continuation survives restarts.
-	/// <see langword="null"/> only for manual construction without DI (in-memory-only). See bd-egwtku / bd-ydln24.
+	/// <see langword="null"/> only for manual construction without DI (in-memory-only).
 	/// </param>
 	public CosmosDbOutboxStore(
 		IOptions<CosmosDbOutboxOptions> options,
@@ -717,6 +717,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			AggregateType = message.AggregateType,
 			CorrelationId = message.CorrelationId,
 			CausationId = message.CausationId,
+			TenantId = message.TenantId,
 			CreatedAt = message.CreatedAt.ToString("o"),
 			PublishedAt = message.PublishedAt?.ToString("o"),
 			IsPublished = message.IsPublished,
@@ -739,6 +740,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			AggregateType = doc.AggregateType,
 			CorrelationId = doc.CorrelationId,
 			CausationId = doc.CausationId,
+			TenantId = doc.TenantId,
 			CreatedAt = DateTimeOffset.Parse(doc.CreatedAt, CultureInfo.InvariantCulture),
 			PublishedAt = !string.IsNullOrEmpty(doc.PublishedAt) ? DateTimeOffset.Parse(doc.PublishedAt, CultureInfo.InvariantCulture) : null,
 			RetryCount = doc.RetryCount,
@@ -753,7 +755,14 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			ApplicationName = "Excalibur.Outbox.CosmosDb",
 			MaxRetryAttemptsOnRateLimitedRequests = _options.MaxRetryAttempts,
 			MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_options.MaxRetryWaitTimeInSeconds),
-			ConnectionMode = _options.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway
+			ConnectionMode = _options.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway,
+
+			// fmjwqy (SA HYBRID): framework-built client uses STJ so persisted documents'
+			// [JsonPropertyName] attributes are honored (SDK v3 default Newtonsoft ignores them).
+			UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions
+			{
+				PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+			},
 		};
 
 	private CosmosClient CreateClient(CosmosClientOptions options)
@@ -792,6 +801,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		public string? AggregateType { get; set; }
 		public string? CorrelationId { get; set; }
 		public string? CausationId { get; set; }
+		public string? TenantId { get; set; }
 		public required string CreatedAt { get; set; }
 		public string? PublishedAt { get; set; }
 		public bool IsPublished { get; set; }

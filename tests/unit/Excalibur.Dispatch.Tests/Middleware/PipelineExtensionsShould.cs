@@ -70,7 +70,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).UseValidation());
+			((IDispatchBuilder)null!).UseValidationMiddleware());
 	}
 
 	[Fact]
@@ -80,7 +80,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 		var builder = CreateBuilder();
 
 		// Act
-		var result = builder.UseValidation();
+		var result = builder.UseValidationMiddleware();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -93,7 +93,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 		var builder = CreateBuilder();
 
 		// Act
-		builder.UseValidation();
+		builder.UseValidationMiddleware();
 
 		// Assert
 		_services.ShouldContain(sd => sd.ServiceType == typeof(ValidationMiddleware));
@@ -936,7 +936,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 			.UseTenantIdentity()
 			.UseAuthorization()
 			.UseInputSanitization()
-			.UseValidation()
+			.UseValidationMiddleware()
 			.UseContractVersioning()
 			.UseThrottling()
 			.UseInbox()
@@ -969,7 +969,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 			.UseTenantIdentity()
 			.UseAuthorization()
 			.UseInputSanitization()
-			.UseValidation()
+			.UseValidationMiddleware()
 			.UseContractVersioning()
 			.UseThrottling()
 			.UseInbox()

@@ -71,9 +71,9 @@ public static class ServiceCollectionTransportExtensions
 	{
 		// Check if already registered
 		var existingDescriptor =
-			services.FirstOrDefault(d => d.ServiceType == typeof(ITransportRegistry) && d.ImplementationInstance is not null);
+			services.FirstOrDefault(d => d.ServiceType == typeof(ITransportRegistry) && d.GetImplementationInstance() is not null);
 
-		if (existingDescriptor?.ImplementationInstance is TransportRegistry existing)
+		if (existingDescriptor?.GetImplementationInstance() is TransportRegistry existing)
 		{
 			return existing;
 		}
@@ -232,9 +232,9 @@ public static class ServiceCollectionTransportExtensions
 	{
 		// Check if already registered
 		var existingDescriptor =
-			services.FirstOrDefault(d => d.ServiceType == typeof(TransportBindingRegistry) && d.ImplementationInstance is not null);
+			services.FirstOrDefault(d => d.ServiceType == typeof(TransportBindingRegistry) && d.GetImplementationInstance() is not null);
 
-		if (existingDescriptor?.ImplementationInstance is TransportBindingRegistry existing)
+		if (existingDescriptor?.GetImplementationInstance() is TransportBindingRegistry existing)
 		{
 			return existing;
 		}

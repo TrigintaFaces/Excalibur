@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Resilience;
+
 namespace Excalibur.Dispatch.Transport.Google;
 
 /// <summary>
@@ -39,7 +41,7 @@ public sealed class RetryStrategy
 	/// <value>
 	/// The backoff type.
 	/// </value>
-	public BackoffType BackoffType { get; set; }
+	public BackoffStrategy BackoffType { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to add jitter to delays.

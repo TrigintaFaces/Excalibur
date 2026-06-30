@@ -139,7 +139,7 @@ builder.Services.AddSingleton<LegacyCustomerAdapter>();
 builder.Services.AddSingleton<ICustomerLookupService, InMemoryCustomerLookupService>();
 
 // Register Elasticsearch projection stores using per-projection named options.
-// Each projection type gets its own isolated options (Sprint 658 fix).
+// Each projection type gets its own isolated options (fix).
 builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 {
 	projections.Add<CustomerSearchProjection>(options =>
@@ -168,7 +168,7 @@ builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 // - Dispatch messaging (handler discovery via ScanAssemblies)
 // - Quartz.NET job scheduling (CdcJob)
 // - Event sourcing (SQL Server + inline projections)
-// Canonical composition path per ADR-321 / ADR-325 (S804 bd-sdhocq A13).
+// Canonical composition path per / (A13).
 
 builder.Services.AddSingleton<IEventSerializer, JsonEventSerializer>();
 

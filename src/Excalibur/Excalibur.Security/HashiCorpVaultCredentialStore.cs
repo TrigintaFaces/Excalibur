@@ -4,11 +4,11 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
 
 using Excalibur.Security.Diagnostics;
+using Excalibur.Security.Internal;
 using Excalibur.Security.Vault;
 
 using Microsoft.Extensions.Configuration;
@@ -150,21 +150,28 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 
 		LogStoringCredential(key);
 
-		// Convert SecureString to string for the Vault API
-		var credentialValue = SecureStringToString(credential);
-
 		try
 		{
-			if (credentialValue.Length < 1)
-			{
-				throw new ArgumentException(
-						Resources.HashiCorpVaultCredentialStore_CredentialCannotBeEmpty,
-						nameof(credential));
-			}
+			// Expose the plaintext only inside a pinned, zero-on-exit buffer (never a long-lived
+			// unzeroable managed string). Vault's KV v2 HTTP API is string-based, so a transient
+			// string is constructed at the call boundary; that copy is the SDK's surface.
+			await SecurePlaintextScope.UseAsync(
+				credential,
+				async (buffer, ct) =>
+				{
+					if (buffer.Length < 1)
+					{
+						throw new ArgumentException(
+								Resources.HashiCorpVaultCredentialStore_CredentialCannotBeEmpty,
+								nameof(credential));
+					}
 
-			// Persist to Vault. A backend failure throws here, so success is only logged
-			// once the write is durably accepted (never logged-as-success on failure).
-			await _client.SetSecretAsync(key, credentialValue, cancellationToken).ConfigureAwait(false);
+					// Persist to Vault. A backend failure throws here, so success is only logged
+					// once the write is durably accepted (never logged-as-success on failure).
+					await _client.SetSecretAsync(key, new string(buffer), ct).ConfigureAwait(false);
+					return true;
+				},
+				cancellationToken).ConfigureAwait(false);
 
 			LogCredentialStored(key);
 		}
@@ -182,11 +189,6 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 							key),
 					ex);
 		}
-		finally
-		{
-			// Clear the transient plaintext copy from memory.
-			Array.Fill(credentialValue.ToCharArray(), '\0');
-		}
 	}
 
 	/// <inheritdoc/>
@@ -196,6 +198,9 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 	/// Builds the real KV&#160;v2 HTTP adapter from configuration, configuring the supplied
 	/// <see cref="HttpClient"/> with the Vault base address and authentication token.
 	/// </summary>
+	private static readonly CompositeFormat VaultUrlMustBeHttpsFormat =
+		CompositeFormat.Parse(Resources.HashiCorpVaultCredentialStore_VaultUrlMustBeHttps);
+
 	private static VaultSecretClientAdapter BuildAdapter(IConfiguration configuration, HttpClient httpClient)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -207,7 +212,19 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 				Resources.HashiCorpVaultCredentialStore_VaultTokenRequired);
 		var mountPath = configuration["Vault:MountPath"] ?? "secret";
 
-		httpClient.BaseAddress = new Uri(vaultUrl.TrimEnd('/'));
+		// Reject a non-https Vault endpoint: an http:// URL transmits the Vault token and every secret in
+		// plaintext over the wire. Fail fast at construction rather than silently leaking credentials.
+		var vaultUri = new Uri(vaultUrl.TrimEnd('/'));
+		if (!vaultUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+		{
+			throw new InvalidOperationException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					VaultUrlMustBeHttpsFormat,
+					vaultUri.Scheme));
+		}
+
+		httpClient.BaseAddress = vaultUri;
 		if (!httpClient.DefaultRequestHeaders.Contains("X-Vault-Token"))
 		{
 			httpClient.DefaultRequestHeaders.Add("X-Vault-Token", token);
@@ -216,23 +233,6 @@ internal sealed partial class HashiCorpVaultCredentialStore : IWritableCredentia
 		httpClient.Timeout = TimeSpan.FromSeconds(30);
 
 		return new VaultSecretClientAdapter(httpClient, mountPath);
-	}
-
-	private static string SecureStringToString(SecureString secureString)
-	{
-		var ptr = IntPtr.Zero;
-		try
-		{
-			ptr = Marshal.SecureStringToGlobalAllocUnicode(secureString);
-			return Marshal.PtrToStringUni(ptr) ?? string.Empty;
-		}
-		finally
-		{
-			if (ptr != IntPtr.Zero)
-			{
-				Marshal.ZeroFreeGlobalAllocUnicode(ptr);
-			}
-		}
 	}
 
 	// Source-generated logging methods

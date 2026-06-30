@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.ElasticSearch.Resilience;
+using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Resilience;
 
@@ -45,7 +46,7 @@ public sealed class IElasticsearchCircuitBreakerShould
 		// Assert
 		var property = typeof(IElasticsearchCircuitBreaker).GetProperty("State");
 		property.ShouldNotBeNull();
-		property.PropertyType.ShouldBe(typeof(CircuitBreakerState));
+		property.PropertyType.ShouldBe(typeof(CircuitState));
 		property.CanRead.ShouldBeTrue();
 	}
 

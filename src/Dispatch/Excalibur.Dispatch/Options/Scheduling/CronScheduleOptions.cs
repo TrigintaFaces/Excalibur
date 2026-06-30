@@ -54,7 +54,7 @@ public sealed class CronScheduleOptions
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable extended cron syntax features. This includes special characters like L (last), W
-	/// (weekday), # (nth occurrence).
+	/// (weekday), # (nth occurrence). When <see langword="false"/>, expressions using these operators are rejected at parse time.
 	/// </summary>
 	/// <value>The current <see cref="EnableExtendedSyntax"/> value.</value>
 	public bool EnableExtendedSyntax { get; set; } = true;

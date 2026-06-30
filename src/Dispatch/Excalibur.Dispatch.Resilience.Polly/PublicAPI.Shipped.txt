@@ -224,7 +224,7 @@ Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Name.get -> strin
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.PollyCircuitBreakerAdapter(string! name, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions! options, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Reset() -> void
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.State.get -> Excalibur.Dispatch.CloudNative.ResilienceState
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.State.get -> Excalibur.Dispatch.Resilience.CircuitState
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Subscribe(Excalibur.Dispatch.CloudNative.IPatternObserver! observer) -> void
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Unsubscribe(Excalibur.Dispatch.CloudNative.IPatternObserver! observer) -> void

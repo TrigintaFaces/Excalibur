@@ -1,14 +1,14 @@
 ---
 sidebar_position: 99
-title: Migrating to .NET 10 (Sprint 797)
-description: Sprint 797 collapsed Excalibur.Dispatch to .NET 10.0 exclusively. This guide explains what changed, why, and how to update consumer projects.
+title: Migrating to .NET 10
+description: Excalibur.Dispatch targets .NET 10.0 exclusively. This guide explains what changed, why, and how to update consumer projects.
 ---
 
 # Migrating to .NET 10 Only
 
-As of Sprint 797 (April 2026), Excalibur.Dispatch targets **.NET 10.0 exclusively**. Every shipping NuGet package (Dispatch core, Excalibur domain/event-sourcing, transports, hosting providers, compliance, samples, and templates) dropped `net8.0` and `net9.0` from `<TargetFrameworks>` in a single sprint.
+As of the .NET 10 release (April 2026), Excalibur.Dispatch targets **.NET 10.0 exclusively**. Every shipping NuGet package (Dispatch core, Excalibur domain/event-sourcing, transports, hosting providers, compliance, samples, and templates) dropped `net8.0` and `net9.0` from `<TargetFrameworks>`.
 
-This page is forward-looking guidance for consumers. For the sprint's architectural rationale see [ADR-108 (.NET 10 multi-targeting)](https://github.com/thomaswdean/Excalibur.Dispatch/blob/main/management/architecture/adr-108-net10-multi-targeting.md) and the [Sprint 797 review](https://github.com/thomaswdean/Excalibur.Dispatch/blob/main/management/sprints/sprint-797-review.md).
+This page is forward-looking guidance for consumers.
 
 ## What changed
 
@@ -96,11 +96,11 @@ No public Excalibur.Dispatch API signatures changed as part of the dep refresh.
 
 ## No code changes required
 
-Sprint 797 was a targeting-and-dependency sprint, not a behavior sprint. No public API was added, removed, renamed, or resignatured. The [Sprint 797 architect review](https://github.com/thomaswdean/Excalibur.Dispatch/blob/main/management/sprints/sprint-797-review.md) verifies `PublicAPI.Unshipped.txt` is empty on every shipping project; no new public symbols were introduced by the AOT audit or the `ISecretClient` seam (the seam is internal).
+This was a targeting-and-dependency change, not a behavior change. No public API was added, removed, renamed, or resignatured. `PublicAPI.Unshipped.txt` is empty on every shipping project; no new public symbols were introduced by the AOT audit or the `ISecretClient` seam (the seam is internal).
 
 ## Rollback
 
-There is no rollback path within the 10.x release line. Consumers who cannot move to .NET 10 should pin to the last pre-S797 release and stay there. Because Sprint 797 lands before the framework's first stable release, no downstream consumers are pinned today.
+There is no rollback path within the 10.x release line. Consumers who cannot move to .NET 10 should pin to the last pre-.NET-10 release and stay there. Because this change lands before the framework's first stable release, no downstream consumers are pinned today.
 
 ## Related
 

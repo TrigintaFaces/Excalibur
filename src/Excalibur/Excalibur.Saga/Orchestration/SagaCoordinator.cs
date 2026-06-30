@@ -16,6 +16,7 @@ using Excalibur.Saga.Handlers;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Saga.Orchestration;
 
@@ -25,13 +26,19 @@ namespace Excalibur.Saga.Orchestration;
 /// </summary>
 /// <param name="serviceProvider"> Service provider for dependency injection and saga instantiation. </param>
 /// <param name="sagaStore"> Persistent store for saga state management and retrieval. </param>
+/// <param name="options"> Saga runtime options (concurrency, timeout, and retry policy) applied to event processing. </param>
 /// <param name="logger"> Logger for saga coordination activities, errors, and performance metrics. </param>
 [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break when trimming",
 	Justification = "HandleEventInternalAsync is preserved via DI registration and reflection is only used in JIT mode")]
-public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, ISagaStore sagaStore, ILogger<SagaCoordinator> logger)
-	: ISagaCoordinator
+public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, ISagaStore sagaStore, IOptions<SagaOptions> options, ILogger<SagaCoordinator> logger)
+	: ISagaCoordinator, IDisposable
 {
 	private const int MaxCacheEntries = 1024;
+
+	// Runtime policy from SagaOptions (8wq7pa): concurrency gate + per-event timeout + bounded retry,
+	// applied uniformly in ProcessEventAsync. Singleton coordinator → the semaphore is a process-wide gate.
+	private readonly SagaOptions _options = options.Value;
+	private readonly SemaphoreSlim _concurrencyGate = new(options.Value.MaxConcurrency, options.Value.MaxConcurrency);
 
 	private static readonly MethodInfo HandleEventInternalMethodInfo =
 		typeof(SagaCoordinator).GetMethod(
@@ -86,47 +93,115 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 
 		var sagaStateType = sagaInfo.StateType;
 
-		// AOT path: use pre-registered typed dispatch delegate
-		if (!RuntimeFeature.IsDynamicCodeSupported)
+		// Apply the SagaOptions runtime policy (8wq7pa): bound global concurrency, a per-event timeout,
+		// and bounded retry around the actual saga dispatch. Resolution above (registry lookups) is not
+		// gated/retried — only the handler execution is.
+		await _concurrencyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
 		{
-			var registry = serviceProvider.GetService<ISagaDispatchRegistry>();
-			var dispatcher = registry?.GetDispatcher(sagaType, sagaStateType)
-				?? throw new PlatformNotSupportedException(
-					$"Saga dispatch for {sagaType.Name}/{sagaStateType.Name} requires a typed dispatch registration " +
-					"in AOT mode. Register via ISagaDispatchRegistry at DI time or use the SagaRegistrationGenerator source generator.");
-
-			await dispatcher(this, messageContext, evt, sagaInfo, cancellationToken).ConfigureAwait(false);
-			return;
+			await RunWithTimeoutAndRetryAsync(DispatchCoreAsync, evt.GetType().Name, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			_ = _concurrencyGate.Release();
 		}
 
-		// JIT path: use cached MakeGenericMethod
-		var cacheKey = (sagaType, sagaStateType);
+		return;
 
-		MethodInfo method;
-		if (GenericMethodCache.TryGetValue(cacheKey, out var cached))
+		async Task DispatchCoreAsync(CancellationToken ct)
 		{
-			method = cached;
-		}
-		else
-		{
-			method = HandleEventInternalMethodInfo.MakeGenericMethod(sagaType, sagaStateType);
-
-			// Cache the method if under the limit; TryAdd is a no-op if another thread added it first
-			if (GenericMethodCache.Count < MaxCacheEntries)
+			// AOT path: use pre-registered typed dispatch delegate
+			if (!RuntimeFeature.IsDynamicCodeSupported)
 			{
-				GenericMethodCache.TryAdd(cacheKey, method);
+				var registry = serviceProvider.GetService<ISagaDispatchRegistry>();
+				var dispatcher = registry?.GetDispatcher(sagaType, sagaStateType)
+					?? throw new PlatformNotSupportedException(
+						$"Saga dispatch for {sagaType.Name}/{sagaStateType.Name} requires a typed dispatch registration " +
+						"in AOT mode. Register via ISagaDispatchRegistry at DI time or use the SagaRegistrationGenerator source generator.");
+
+				await dispatcher(this, messageContext, evt, sagaInfo, ct).ConfigureAwait(false);
+				return;
+			}
+
+			// JIT path: use cached MakeGenericMethod
+			var cacheKey = (sagaType, sagaStateType);
+
+			MethodInfo method;
+			if (GenericMethodCache.TryGetValue(cacheKey, out var cached))
+			{
+				method = cached;
+			}
+			else
+			{
+				method = HandleEventInternalMethodInfo.MakeGenericMethod(sagaType, sagaStateType);
+
+				// Cache the method if under the limit; TryAdd is a no-op if another thread added it first
+				if (GenericMethodCache.Count < MaxCacheEntries)
+				{
+					GenericMethodCache.TryAdd(cacheKey, method);
+				}
+			}
+
+			var result = method.Invoke(this, [messageContext, evt, sagaInfo, ct]);
+			if (result is not Task task)
+			{
+				throw new InvalidOperationException(
+					$"Expected Task from {method.DeclaringType?.Name}.{method.Name} but got {result?.GetType().Name ?? "null"}");
+			}
+
+			await task.ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// Executes the saga dispatch under the configured <see cref="SagaOptions.DefaultTimeout"/> and bounded
+	/// retry (<see cref="SagaOptions.MaxRetryAttempts"/> / <see cref="SagaOptions.RetryDelay"/>). A per-attempt
+	/// timeout cancels a hung handler; caller-driven cancellation is never retried.
+	/// </summary>
+	private async Task RunWithTimeoutAndRetryAsync(
+		Func<CancellationToken, Task> action,
+		string eventType,
+		CancellationToken cancellationToken)
+	{
+		var maxAttempts = Math.Max(1, _options.MaxRetryAttempts);
+		for (var attempt = 1; ; attempt++)
+		{
+			using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			if (_options.DefaultTimeout > TimeSpan.Zero)
+			{
+				timeoutCts.CancelAfter(_options.DefaultTimeout);
+			}
+
+			try
+			{
+				await action(timeoutCts.Token).ConfigureAwait(false);
+				return;
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+				// Caller-driven cancellation (shutdown) — not a retryable saga failure.
+				throw;
+			}
+			catch (Exception ex) when (attempt < maxAttempts)
+			{
+				logger.LogWarning(
+					ex,
+					"Saga event {EventType} processing attempt {Attempt}/{MaxAttempts} failed; retrying after {RetryDelay}.",
+					eventType,
+					attempt,
+					maxAttempts,
+					_options.RetryDelay);
+
+				if (_options.RetryDelay > TimeSpan.Zero)
+				{
+					await Task.Delay(_options.RetryDelay, cancellationToken).ConfigureAwait(false);
+				}
 			}
 		}
-
-		var result = method.Invoke(this, [messageContext, evt, sagaInfo, cancellationToken]);
-		if (result is not Task task)
-		{
-			throw new InvalidOperationException(
-				$"Expected Task from {method.DeclaringType?.Name}.{method.Name} but got {result?.GetType().Name ?? "null"}");
-		}
-
-		await task.ConfigureAwait(false);
 	}
+
+	/// <inheritdoc />
+	public void Dispose() => _concurrencyGate.Dispose();
 
 	/// <summary>
 	/// Internal generic method that handles saga event processing with strongly-typed saga and state types. This method manages the

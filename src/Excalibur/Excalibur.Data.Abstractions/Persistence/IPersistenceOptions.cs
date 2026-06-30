@@ -11,7 +11,7 @@ namespace Excalibur.Data.Persistence;
 /// <remarks>
 /// <para>
 /// Follows the ISP (Interface Segregation Principle) pattern established in
-/// Sprint 553 (<c>IPersistenceProvider</c> / <c>IPersistenceProviderHealth</c> /
+/// (<c>IPersistenceProvider</c> / <c>IPersistenceProviderHealth</c> /
 /// <c>IPersistenceProviderTransaction</c>). Optional capabilities are in
 /// focused sub-interfaces:
 /// </para>

@@ -18,8 +18,7 @@ namespace Excalibur.Dispatch.Options.Delivery;
 /// atomically would force the middleware back onto a non-atomic check-then-act, under which two concurrent duplicates
 /// can both observe "not processed" and both execute the handler. This validator (registered with
 /// <c>ValidateOnStart()</c>) makes that silent race structurally inexpressible: a persistent inbox registered with a
-/// store lacking the capability fails fast at startup rather than running with a non-atomic idempotency guard
-/// (ADR-336 clause 2).
+/// store lacking the capability fails fast at startup rather than running with a non-atomic idempotency guard.
 /// </para>
 /// <para>
 /// The in-memory and SQL Server / PostgreSQL inbox stores implement <see cref="IClaimableInboxStore"/>. Other
@@ -43,7 +42,15 @@ internal sealed class IdempotencyClaimCapabilityValidator : IValidateOptions<Inb
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
-		if (_inboxStore is IClaimableInboxStore)
+		// Probe the EFFECTIVE capability so a decorator that statically declares IClaimableInboxStore but wraps
+		// a non-claimable inner is rejected at startup (it would otherwise pass the bare `is` check and throw
+		// NotSupportedException at first claim). A decorator reports its forwarded capability via
+		// IInboxStoreCapabilities; plain stores fall back to the direct interface check.
+		var supportsClaim = _inboxStore is IInboxStoreCapabilities capabilities
+			? capabilities.SupportsClaim
+			: _inboxStore is IClaimableInboxStore;
+
+		if (supportsClaim)
 		{
 			return ValidateOptionsResult.Success;
 		}

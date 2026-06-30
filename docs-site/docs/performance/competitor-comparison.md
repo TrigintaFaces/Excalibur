@@ -139,7 +139,7 @@ Excalibur.Dispatch offers multiple dispatch paths with different allocation char
 
 :::note
 
-Routing-first numbers below are from the 20260420 baseline (`RoutingFirstParityBenchmarks-report-github.md`). These paths were not affected by the S810 dep bumps or S811 Uuid7 v3 port since routing occurs before the dispatch fast path.
+Routing-first numbers below are from the April 20, 2026 baseline (`RoutingFirstParityBenchmarks-report-github.md`). These paths were not affected by recent dependency bumps since routing occurs before the dispatch fast path.
 :::
 
 | Scenario | Mean | Allocated | Relative to local command |

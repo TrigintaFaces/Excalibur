@@ -1,6 +1,5 @@
 # BindConfiguration Patterns
 
-**Beads:** `bd-1r741x` (P2)
 **Location:** `samples/01-getting-started/BindConfigurationPatterns/`
 
 This sample demonstrates the four patterns for driving Excalibur subsystem

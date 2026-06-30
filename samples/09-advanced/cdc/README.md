@@ -18,7 +18,7 @@ Change Data Capture patterns: reading database change streams, adapting legacy s
 
 ## Materialized Views
 
-The **CdcEventStoreElasticsearch** sample includes `IMaterializedViewBuilder<T>` patterns (added in Sprint 789). This is the recommended way to build CDC-driven read models — the builder tracks view position and event-stream checkpoints so rebuilds are resumable and idempotent.
+The **CdcEventStoreElasticsearch** sample includes `IMaterializedViewBuilder<T>` patterns (added). This is the recommended way to build CDC-driven read models — the builder tracks view position and event-stream checkpoints so rebuilds are resumable and idempotent.
 
 ## Related
 

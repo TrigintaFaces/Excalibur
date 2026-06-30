@@ -12,8 +12,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <para>
 /// Projection caching is a sub-concern of event sourcing: it enables CQRS projection
 /// handlers to invalidate cached query results when the event stream advances. It therefore
-/// attaches at the event-sourcing domain boundary rather than the root Excalibur builder
-/// (ADR-321 canonical-path policy).
+/// attaches at the event-sourcing domain boundary rather than the root Excalibur builder.
 /// </para>
 /// <para>
 /// <strong>Prerequisites:</strong> <c>AddDispatchCaching()</c> must be configured first because

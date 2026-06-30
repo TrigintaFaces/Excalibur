@@ -12,7 +12,7 @@ This example explains the performance trade-offs between the three delivery guar
 
 ## Benchmark Results
 
-From Sprint 222 benchmark suite (`DeliveryGuaranteeBenchmarks.cs`):
+From benchmark suite (`DeliveryGuaranteeBenchmarks.cs`):
 
 | Scenario | AtLeastOnce | MinimizedWindow | Transactional |
 |----------|-------------|-----------------|---------------|

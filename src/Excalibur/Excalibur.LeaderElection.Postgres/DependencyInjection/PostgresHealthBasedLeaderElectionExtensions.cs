@@ -74,6 +74,9 @@ public static class PostgresHealthBasedLeaderElectionExtensions
 			.Configure(configureHealth)
 			.ValidateOnStart();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresHealthBasedLeaderElectionOptions>, PostgresHealthBasedLeaderElectionOptionsValidator>());
+
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.Configure(configureElection)
 			.ValidateOnStart();

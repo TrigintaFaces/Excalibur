@@ -10,7 +10,7 @@
     <!-- Suppress warnings irrelevant for sample code -->
     <NoWarn>$(NoWarn);CA5394</NoWarn>
   </PropertyGroup>
-  <!-- Sprint 432 S432.5: Retry and Circuit Breaker sample -->
+ <!-- Retry and Circuit Breaker sample -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Resilience.Polly\Excalibur.Dispatch.Resilience.Polly.csproj" />

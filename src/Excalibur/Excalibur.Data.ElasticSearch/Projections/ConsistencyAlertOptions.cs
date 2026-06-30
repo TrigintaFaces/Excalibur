@@ -8,7 +8,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// Configuration options for consistency monitoring alerts.
 /// </summary>
 /// <remarks>
-/// Renamed from <c>ConsistencyAlertConfiguration</c> to follow the Options naming convention (Sprint 743).
+/// Renamed from <c>ConsistencyAlertConfiguration</c> to follow the Options naming convention.
 /// </remarks>
 public sealed class ConsistencyAlertOptions
 {

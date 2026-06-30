@@ -83,7 +83,7 @@ internal static class AnalyzerDiagnosticDescriptors
 	/// </summary>
 	/// <remarks>
 	/// Warning when a namespace contains a '.Core.' segment, which violates
-	/// the framework's namespace convention (ADR-075).
+	/// the framework's namespace convention.
 	/// </remarks>
 	public static readonly DiagnosticDescriptor NamespaceContainsCoreSegment = new(
 		id: "DISP104",

@@ -1,6 +1,5 @@
 # TransportBindings
 
-**Beads:** `bd-xk0s07` (S790 redesign per COMPASS msg 1187)
 **Location:** `samples/02-messaging-transports/TransportBindings/`
 
 Canonical end-to-end demonstration of the Excalibur event-ingress pipeline:
@@ -8,7 +7,7 @@ named message transports (broker queues) and **typed cron timers**, composed
 into the dispatcher through a single declarative `AddEventBindings(...)`
 lambda, with handlers resolved by `AddDispatch(assembly)`.
 
-> **Sprint 790 redesign:** Earlier revisions of this sample used a fabricated
+> **redesign:** Earlier revisions of this sample used a fabricated
 > "bucket" stand-in and had the `AddEventBindings` lambda commented out as a
 > TODO. The sample now exercises the real framework primitives published in
 > `Excalibur.Dispatch` — no fabrication, no stand-ins.

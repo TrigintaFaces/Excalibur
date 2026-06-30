@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // ============================================================================
-// Multi-Tenant Event Sourcing Sample  (bd-d24o9j)
+// Multi-Tenant Event Sourcing Sample
 // ============================================================================
 //
 // This sample shows how to run Excalibur event sourcing in a multi-tenant

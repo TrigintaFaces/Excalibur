@@ -7,8 +7,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>DispatchMinimal</RootNamespace>
   </PropertyGroup>
-  <!-- Sprint 322 T4.2: Pure Dispatch sample - NO Excalibur packages (AD-322-2) -->
-  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+ <!-- Pure Dispatch sample - NO Excalibur packages -->
+ <!-- Updated paths for reorganized sample structure -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />

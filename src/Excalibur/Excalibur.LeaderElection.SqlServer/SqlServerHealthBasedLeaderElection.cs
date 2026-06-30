@@ -59,7 +59,7 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	/// renewal faults. Defaults to <see langword="null"/> (grace-only behavior).
 	/// </param>
 	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/> (nxmjpm/ADR-339) forwarded to the inner
+	/// An optional <see cref="IFencingTokenProvider"/> forwarded to the inner
 	/// <see cref="SqlServerLeaderElection"/> for fail-closed fencing-token issuance on acquisition. Defaults to
 	/// <see langword="null"/> (no fencing).
 	/// </param>

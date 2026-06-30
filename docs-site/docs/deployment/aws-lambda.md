@@ -865,6 +865,16 @@ aws lambda update-function-configuration \
   --timeout 60  # seconds (max 900)
 ```
 
+:::info Fail-closed timeout boundary
+The serverless host derives the per-invocation handler timeout from the remaining Lambda execution
+time **minus a small cleanup reserve** (so logging, flushing, and disposal can complete before the
+hard Lambda kill). When the remaining time is **at or below** that reserve, the host **cancels the
+handler immediately** rather than running it unbounded — the timeout is *fail-closed*. This same
+guarantee applies uniformly across the AWS Lambda, Azure Functions, and Google Cloud Functions hosts.
+If you see handlers cancelled near the end of a near-exhausted invocation, increase the function
+timeout above so each invocation has adequate headroom.
+:::
+
 ### Memory Issues
 
 ```bash

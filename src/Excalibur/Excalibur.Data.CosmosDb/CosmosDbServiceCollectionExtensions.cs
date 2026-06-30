@@ -100,7 +100,7 @@ public static class CosmosDbServiceCollectionExtensions
 		{
 			var endpoint = cosmosBuilder.EndpointValue;
 			var authKey = cosmosBuilder.AuthKeyValue!;
-			services.TryAddSingleton(_ => new CosmosClient(endpoint, authKey));
+			services.TryAddSingleton(_ => new CosmosClient(endpoint, authKey, CreateStjClientOptions()));
 
 			// Map to options so downstream code can read connection info
 			_ = services.Configure<CosmosDbOptions>(opt =>
@@ -112,7 +112,7 @@ public static class CosmosDbServiceCollectionExtensions
 		else if (cosmosBuilder.ConnectionStringValue is not null)
 		{
 			var connStr = cosmosBuilder.ConnectionStringValue;
-			services.TryAddSingleton(_ => new CosmosClient(connStr));
+			services.TryAddSingleton(_ => new CosmosClient(connStr, CreateStjClientOptions()));
 
 			// Map to options so downstream code can read connection info
 			_ = services.Configure<CosmosDbOptions>(opt =>
@@ -153,9 +153,23 @@ public static class CosmosDbServiceCollectionExtensions
 		}
 	}
 
+	// fmjwqy (SA HYBRID ruling): every framework-BUILT Cosmos client must use the System.Text.Json
+	// serializer. Cosmos SDK v3's default serializer is Newtonsoft, which ignores the persisted
+	// documents' [JsonPropertyName] attributes and emits PascalCase — bricking lowercase point-reads
+	// and partition-key paths. Configuring STJ here makes every STJ-only document correct by
+	// construction on the framework-built path (consumer-supplied clients are defended via dual-mapping).
+	private static CosmosClientOptions CreateStjClientOptions() =>
+		new()
+		{
+			UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions
+			{
+				PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+			},
+		};
+
 	/// <summary>
 	/// Registers the durable Cosmos DB-backed <see cref="IChangeFeedCheckpointStore"/>, replacing the
-	/// default in-memory store so change-feed continuation survives process restarts (bd-egwtku).
+	/// default in-memory store so change-feed continuation survives process restarts.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="containerFactory">
@@ -185,7 +199,7 @@ public static class CosmosDbServiceCollectionExtensions
 	/// <see cref="IChangeFeedCheckpointStore"/>. Idempotent — safe to call from every Cosmos entry point
 	/// (data provider, event store, outbox) so an ES-only or Outbox-only consumer always resolves a
 	/// checkpoint store rather than silently flowing <see langword="null"/> into its change-feed
-	/// subscriptions (bd-egwtku / bd-ydln24).
+	/// subscriptions.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
@@ -195,7 +209,7 @@ public static class CosmosDbServiceCollectionExtensions
 	/// Registering a durable store via <see cref="AddCosmosDbChangeFeedCheckpointStore"/> replaces this
 	/// default (so the in-memory store is never constructed and the warning never fires).
 	/// </remarks>
-	internal static IServiceCollection AddCosmosDbChangeFeedDurabilityDefaults(this IServiceCollection services)
+	public static IServiceCollection AddCosmosDbChangeFeedDurabilityDefaults(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

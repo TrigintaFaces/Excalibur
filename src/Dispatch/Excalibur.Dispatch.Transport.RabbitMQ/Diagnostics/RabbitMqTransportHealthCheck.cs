@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ.Diagnostics;
 /// <remarks>
 /// Reports <see cref="HealthStatus.Healthy"/> when the AMQP connection is open,
 /// <see cref="HealthStatus.Unhealthy"/> when disconnected or unavailable.
-/// Register via <c>AddHealthChecks().AddCheck&lt;RabbitMqTransportHealthCheck&gt;("rabbitmq-transport")</c>.
+/// Register via <c>AddHealthChecks().AddRabbitMqTransportHealthCheck()</c>.
 /// </remarks>
 internal sealed class RabbitMqTransportHealthCheck : IHealthCheck
 {

@@ -4,7 +4,11 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.Security.Aws</RootNamespace>
     <AssemblyName>Excalibur.Security.Aws</AssemblyName>
-    <IsAotCompatible>true</IsAotCompatible>
+    <!-- bd-dg10il: Honestly NOT AOT-compatible. AWSSDK.Core/AWSSDK.SecretsManager (v3) are reflection-based
+         and declare no AOT/trim props; native AOT is unsupported until AWS ships AOT support. The previous
+         IsAotCompatible=true was claimed-but-false: the trim/AOT analyzer is blind to the unannotated SDK
+         reflection, so it emitted zero IL warnings while a native publish would fail at link time. -->
+    <IsAotCompatible>false</IsAotCompatible>
     <!-- NuGet Package Metadata -->
     <PackageId>Excalibur.Security.Aws</PackageId>
     <Description>AWS security integrations for Excalibur messaging, including AWS Secrets Manager credential management.</Description>

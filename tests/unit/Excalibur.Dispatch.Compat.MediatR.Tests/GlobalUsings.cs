@@ -1,0 +1,14 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+
+global using FakeItEasy;
+
+global using Shouldly;
+
+global using Xunit;
+
+global using Excalibur.Dispatch.Compat.MediatR;
+
+global using Microsoft.Extensions.DependencyInjection;
+
+global using Microsoft.Extensions.Logging;

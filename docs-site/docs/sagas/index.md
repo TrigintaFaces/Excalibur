@@ -256,14 +256,19 @@ catch (ConcurrencyException)
 }
 ```
 
-:::info Changed in Sprint 840 (bd-eszc06)
+:::info Behavior change
 
 The SQL saga store previously issued an unconditional last-writer-wins `UPDATE` that ignored `Version`, so concurrent saves for one saga could lose updates. The save path now always enforces the version check; there is no save path that ignores `Version`.
 :::
 
-:::info Changed in Sprint 853 (bd-e1tsq2, bd-skl8r7)
+:::info Behavior change
 
 Optimistic concurrency **and** the no-resurrect guard now hold **uniformly across every saga store provider** — In-Memory, PostgreSQL, MongoDB, Cosmos DB, DynamoDB, and Firestore — not just the SQL stores. Each provider performs the version-gated compare-and-set with its native mechanism (Postgres `WHERE version = @ExpectedVersion`, Cosmos `If-Match` ETag, DynamoDB conditional write, Mongo filtered update, Firestore transaction), and the store owns the version increment.
+:::
+
+:::info Behavior change
+
+When an event arrives for a saga that is **already completed** (`SagaState.Completed`), `SagaManager` now short-circuits at load time — it skips **both** the handler invocation and the save — instead of re-running the handler against a finished workflow and re-persisting it (which would spuriously bump the version). The event that *itself* completes the saga still proceeds and persists its completion. This matches the existing `SagaCoordinator` behavior, so the already-completed no-resurrect guarantee is now identical across both drivers.
 :::
 
 ## Save-Then-Dispatch Ordering
@@ -280,7 +285,7 @@ HandleAsync(event)
 
 This guarantees that a `SaveAsync` failure dispatches **nothing**: the event is re-delivered later and the saga re-buffers its emissions without double-dispatching, so a persistence failure can never leave the saga state behind already-sent side effects. Dispatch is driven by the coordinator after the save, so a saga subclass cannot trigger an early "dispatch-before-save" — the ordering is structural.
 
-:::info Changed in Sprint 850 (bd-lc178k)
+:::info Behavior change
 Previously emitted commands were dispatched immediately and `SaveAsync` ran afterward, so a persistence failure followed by replay re-dispatched the command (duplicate side effects). `SendCommandAsync` / `PublishEventAsync` remain the same `protected` helpers; they now return after buffering (no dispatch result) because the actual dispatch happens after the save.
 :::
 
@@ -309,7 +314,7 @@ services.AddExcalibur(x => x.AddSagas(saga =>
 
 `WithNotFoundHandler<TSaga>()` (no handler type) registers the default logging handler explicitly. Registration uses `TryAdd` semantics, so your custom handler replaces the default only when registered first. If no handler is resolvable, the coordinator falls back to a warning log (fail-open).
 
-:::info Changed in Sprint 850 (bd-ckavfs)
+:::info Behavior change
 `ISagaNotFoundHandler<TSaga>` existed but was never invoked — the saga-not-found branch only logged and returned. It is now resolved and called.
 :::
 

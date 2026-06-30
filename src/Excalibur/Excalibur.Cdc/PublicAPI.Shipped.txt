@@ -27,9 +27,7 @@ Excalibur.Cdc.CdcFatalDecision
 Excalibur.Cdc.CdcFatalDecision.AdvanceCheckpoint.get -> bool
 Excalibur.Cdc.CdcFatalDecision.AdvanceCheckpoint.init -> void
 Excalibur.Cdc.CdcFatalDecision.CdcFatalDecision() -> void
-Excalibur.Cdc.CdcFatalDecision.CdcFatalDecision(bool AdvanceCheckpoint, bool Stop, bool Reconnect) -> void
-Excalibur.Cdc.CdcFatalDecision.Reconnect.get -> bool
-Excalibur.Cdc.CdcFatalDecision.Reconnect.init -> void
+Excalibur.Cdc.CdcFatalDecision.CdcFatalDecision(bool AdvanceCheckpoint, bool Stop) -> void
 Excalibur.Cdc.CdcFatalDecision.Stop.get -> bool
 Excalibur.Cdc.CdcFatalDecision.Stop.init -> void
 Excalibur.Cdc.CdcFatalErrorHandler<TEvent>

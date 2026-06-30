@@ -1,5 +1,11 @@
 #nullable enable
 Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId
+Excalibur.Data.InMemory.IInMemoryDataBuilder
+Excalibur.Data.InMemory.IInMemoryDataBuilder.EnableDetailedLogging(bool enable = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
+Excalibur.Data.InMemory.IInMemoryDataBuilder.EnableMetrics(bool enable = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
+Excalibur.Data.InMemory.IInMemoryDataBuilder.MaxItemsPerCollection(int count) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
+Excalibur.Data.InMemory.IInMemoryDataBuilder.PersistToDisk(string! filePath) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
+Excalibur.Data.InMemory.IInMemoryDataBuilder.ReadOnly(bool readOnly = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.BeginTransaction(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted) -> System.Data.IDbTransaction!
 Excalibur.Data.InMemory.InMemoryPersistenceProvider.BeginTransactionAsync(System.Data.IsolationLevel isolationLevel, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Data.IDbTransaction!>
@@ -106,6 +112,7 @@ Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.DisposeAsync() -> System
 Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.InMemorySnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore!>! logger) -> void
 Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Microsoft.Extensions.DependencyInjection.InMemoryHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions
 const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.AccessDeniedReadingPersistenceFile = 105307 -> int
@@ -155,14 +162,9 @@ const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.TransactionDispose
 const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.TransactionRolledBack = 105501 -> int
 const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.UnexpectedErrorLoadingData = 105309 -> int
 const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.UnexpectedErrorPersistingData = 105407 -> int
+static Microsoft.Extensions.DependencyInjection.InMemoryHealthChecksBuilderExtensions.AddInMemoryHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "inmemory", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions.AddExcaliburInMemory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions.AddExcaliburInMemory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.IInMemoryDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions.AddExcaliburInMemory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.InMemoryProviderOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.AddInMemorySnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.UseInMemorySnapshotStore(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-Excalibur.Data.InMemory.IInMemoryDataBuilder
-Excalibur.Data.InMemory.IInMemoryDataBuilder.EnableDetailedLogging(bool enable = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
-Excalibur.Data.InMemory.IInMemoryDataBuilder.EnableMetrics(bool enable = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
-Excalibur.Data.InMemory.IInMemoryDataBuilder.MaxItemsPerCollection(int count) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
-Excalibur.Data.InMemory.IInMemoryDataBuilder.PersistToDisk(string! filePath) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
-Excalibur.Data.InMemory.IInMemoryDataBuilder.ReadOnly(bool readOnly = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
-static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions.AddExcaliburInMemory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.IInMemoryDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -130,7 +130,7 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 					throw; // default: fail-loud — propagate and stop.
 				}
 
-				// Transient (decision.Reconnect) — reconnect and retry from the un-advanced checkpoint.
+				// Transient (non-fatal: decision.Stop == false) — reconnect and retry from the un-advanced checkpoint.
 				LogError(ex);
 				_inFlightEvent = null;
 
@@ -437,7 +437,7 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 			.ConfigureAwait(false);
 	}
 
-	private PipelineDefinition<ChangeStreamDocument<BsonDocument>, ChangeStreamDocument<BsonDocument>>? BuildPipeline()
+	private PipelineDefinition<ChangeStreamDocument<BsonDocument>, ChangeStreamDocument<BsonDocument>> BuildPipeline()
 	{
 		var stages = new List<IPipelineStageDefinition>();
 
@@ -462,7 +462,11 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 
 		if (stages.Count == 0)
 		{
-			return null;
+			// Return an EMPTY (non-null) pipeline so the driver's WatchAsync(pipeline, options, ct) never
+			// receives null. A null pipeline throws ArgumentNullException on EVERY real change stream with
+			// the default config (no operation-type filter, single/zero collection) — the mock-hidden bug
+			// 6idsbx. An empty pipeline watches all change events unfiltered, which is the intended default.
+			return new EmptyPipelineDefinition<ChangeStreamDocument<BsonDocument>>();
 		}
 
 		return PipelineDefinition<ChangeStreamDocument<BsonDocument>, ChangeStreamDocument<BsonDocument>>

@@ -264,6 +264,7 @@
 		<PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.5.0" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.XUnit" Version="1.1.2" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" Version="1.1.2" />
 		<PackageVersion Include="Azure.ResourceManager" Version="1.14.0" />
 		<PackageVersion Include="Azure.ResourceManager.ServiceBus" Version="1.1.0" />
 		<PackageVersion Include="Azure.ResourceManager.Logic" Version="1.2.0-beta.1" />

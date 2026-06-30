@@ -207,32 +207,6 @@ Excalibur.EventSourcing.Observability.EventSourcingMeters
 Excalibur.EventSourcing.Observability.EventSourcingMetricNames
 Excalibur.EventSourcing.Observability.EventSourcingTagValues
 Excalibur.EventSourcing.Observability.EventSourcingTags
-Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy.PerShard = 2 -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy.RangePartitioned = 1 -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy.Sequential = 0 -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.IGlobalStreamPartitioner
-Excalibur.EventSourcing.ParallelCatchUp.IGlobalStreamPartitioner.Partition(long fromPosition, long toPosition, int workerCount) -> System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.ParallelCatchUp.StreamRange!>!
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.BatchSize.get -> int
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.BatchSize.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.CheckpointInterval.get -> int
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.CheckpointInterval.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.MaxRetries.get -> int
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.MaxRetries.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.ParallelCatchUpOptions() -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.Strategy.get -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.Strategy.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerCount.get -> int
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerCount.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerHeartbeatTimeout.get -> System.TimeSpan
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerHeartbeatTimeout.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.EndPosition.get -> long
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.EndPosition.init -> void
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StartPosition.get -> long
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StartPosition.init -> void
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StreamRange(long StartPosition, long EndPosition) -> void
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionHost<TState>
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionHost<TState>.GlobalStreamProjectionHost(Excalibur.EventSourcing.Queries.IGlobalStreamQuery! globalStreamQuery, Excalibur.EventSourcing.Projections.IGlobalStreamProjection<TState!>! projection, Excalibur.Dispatch.IEventSerializer! eventSerializer, Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore! checkpointStore, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Projections.GlobalStreamProjectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Projections.GlobalStreamProjectionHost<TState!>!>! logger, System.IServiceProvider! serviceProvider, Excalibur.EventSourcing.ICursorMapStore? cursorMapStore = null) -> void
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionOptions
@@ -526,6 +500,7 @@ Excalibur.EventSourcing.Views.MaterializedViewOptionsValidator.Validate(string? 
 Microsoft.Extensions.DependencyInjection.AutoSnapshotServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingExcaliburBuilderExtensions
+Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions
@@ -533,7 +508,6 @@ Microsoft.Extensions.DependencyInjection.EventTypeRegistryServiceCollectionExten
 Microsoft.Extensions.DependencyInjection.ImmutableProjectionServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions
-Microsoft.Extensions.DependencyInjection.ParallelCatchUpServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions
 abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.AggregateType.get -> string!
@@ -756,6 +730,11 @@ static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollecti
 static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.WithProjectionHealthChecks(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingExcaliburBuilderExtensions.AddEventSourcing(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingExcaliburBuilderExtensions.AddEventSourcing(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!>! configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
+static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddEventSourcingHealthChecks(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddEventStoreHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "event-store", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddProjectionsHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "projections", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddSnapshotStoreHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "snapshot-store", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddTenantShardHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "tenant-shard", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions.AddEventSourcingInstrumentation(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions.AddEventSourcingInstrumentation(this OpenTelemetry.Trace.TracerProviderBuilder! builder) -> OpenTelemetry.Trace.TracerProviderBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingServiceCollectionExtensions.HasExcaliburEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
@@ -775,8 +754,6 @@ static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollecti
 static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions.HasMaterializedViews(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
 static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Migration.MigrationRunnerOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ParallelCatchUpServiceCollectionExtensions.UseParallelCatchUp(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.ParallelCatchUpServiceCollectionExtensions.UseParallelCatchUp(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.Data.Sharding.ShardMapOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions.UseTieredStorage(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

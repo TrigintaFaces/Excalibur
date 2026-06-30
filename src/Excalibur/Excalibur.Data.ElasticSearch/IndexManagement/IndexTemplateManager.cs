@@ -34,7 +34,7 @@ public sealed class IndexTemplateManager : IIndexTemplateManager
 	/// Initializes a new instance of the <see cref="IndexTemplateManager"/>
 	/// class using pre-built store adapters. Used by tests to substitute
 	/// the SDK via the <see cref="IIndexTemplateStore"/> +
-	/// <see cref="IComponentTemplateStore"/> seams (ADR-142 §D7 S799 F1 split).
+	/// <see cref="IComponentTemplateStore"/> seams.
 	/// </summary>
 	/// <param name="indexStore"> The index-template store seam adapter. </param>
 	/// <param name="componentStore"> The component-template store seam adapter. </param>

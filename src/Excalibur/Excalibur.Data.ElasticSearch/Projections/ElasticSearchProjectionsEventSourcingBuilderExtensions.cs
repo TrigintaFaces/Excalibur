@@ -12,7 +12,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Extension methods bridging ElasticSearch projection registration onto
 /// <see cref="IEventSourcingBuilder"/> so consumers can configure projection
 /// stores inside a single <c>AddExcalibur(excalibur =&gt; excalibur.AddEventSourcing(es =&gt; ...))</c>
-/// composition root (ADR-321).
+/// composition root.
 /// </summary>
 public static class ElasticSearchProjectionsEventSourcingBuilderExtensions
 {

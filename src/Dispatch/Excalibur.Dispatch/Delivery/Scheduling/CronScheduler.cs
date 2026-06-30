@@ -42,6 +42,17 @@ public sealed partial class CronScheduler(IOptions<CronScheduleOptions> options,
 				nameof(timeZone));
 		}
 
+		// Honor EnableExtendedSyntax: Cronos parses L/W/# regardless, so the toggle must be enforced here.
+		if (!_options.EnableExtendedSyntax && UsesExtendedSyntax(expression))
+		{
+			throw new ArgumentException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					Resources.CronScheduler_ExtendedSyntaxDisabled,
+					expression),
+				nameof(expression));
+		}
+
 		try
 		{
 			var cronExpression = new TimeZoneAwareCronExpression(expression, tz, _options.IncludeSeconds);
@@ -63,6 +74,30 @@ public sealed partial class CronScheduler(IOptions<CronScheduleOptions> options,
 				nameof(expression),
 				ex);
 		}
+	}
+
+	// Extended cron operators only appear in the day-of-month field (L, W) and the day-of-week field
+	// (L, #). Checking those two fields specifically avoids false positives on month/day NAMES that
+	// contain the same letters (e.g. 'JUL' in the month field, 'WED' in the day-of-week field).
+	private static bool UsesExtendedSyntax(string expression)
+	{
+		var fields = expression.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+		// Standard = 5 fields (min hour dom month dow); seconds-aware = 6 (sec min hour dom month dow).
+		// Extended operators live in day-of-month (index ^3) and day-of-week (index ^1). For any other
+		// field count, defer to Cronos to accept or reject the expression.
+		if (fields.Length is not (5 or 6))
+		{
+			return false;
+		}
+
+		var dayOfMonth = fields[^3].ToUpperInvariant();
+		var dayOfWeek = fields[^1].ToUpperInvariant();
+
+		return dayOfMonth.Contains('L', StringComparison.Ordinal)
+			|| dayOfMonth.Contains('W', StringComparison.Ordinal)
+			|| dayOfWeek.Contains('L', StringComparison.Ordinal)
+			|| dayOfWeek.Contains('#', StringComparison.Ordinal);
 	}
 
 	/// <inheritdoc />

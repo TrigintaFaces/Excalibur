@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Transport.Google;
 
-using GoogleBackoffType = global::Excalibur.Dispatch.Transport.Google.BackoffType;
+using GoogleBackoffType = global::Excalibur.Dispatch.Resilience.BackoffStrategy;
 using GoogleRetryStrategy = global::Excalibur.Dispatch.Transport.Google.RetryStrategy;
 using PubSubRetryPolicyOptions = global::Excalibur.Dispatch.Transport.Google.PubSubRetryPolicyOptions;
 
@@ -58,7 +58,7 @@ public sealed class RetryPolicyOptionsShould
 		options.TransientErrorStrategy.MaxRetryAttempts.ShouldBe(6);
 		options.TransientErrorStrategy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(2));
 		options.TransientErrorStrategy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
-		options.TransientErrorStrategy.BackoffType.ShouldBe(GoogleBackoffType.DecorrelatedJitter);
+		options.TransientErrorStrategy.BackoffType.ShouldBe(GoogleBackoffType.ExponentialWithJitter);
 		options.TransientErrorStrategy.JitterEnabled.ShouldBeFalse();
 		options.TransientErrorStrategy.CircuitBreakerEnabled.ShouldBeFalse();
 	}
@@ -102,13 +102,13 @@ public sealed class RetryPolicyOptionsShould
 		options.CustomStrategies["custom-type"] = new GoogleRetryStrategy
 		{
 			MaxRetryAttempts = 10,
-			BackoffType = GoogleBackoffType.Constant,
+			BackoffType = GoogleBackoffType.Fixed,
 			InitialDelay = TimeSpan.FromSeconds(1),
 		};
 
 		// Assert
 		options.CustomStrategies.Count.ShouldBe(1);
 		options.CustomStrategies["custom-type"].MaxRetryAttempts.ShouldBe(10);
-		options.CustomStrategies["custom-type"].BackoffType.ShouldBe(GoogleBackoffType.Constant);
+		options.CustomStrategies["custom-type"].BackoffType.ShouldBe(GoogleBackoffType.Fixed);
 	}
 }

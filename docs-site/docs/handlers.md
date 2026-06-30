@@ -206,9 +206,12 @@ public class OrderService
     {
         // ... order completion logic ...
 
-        // Dispatch event to all handlers (context managed automatically)
+        // Publish the follow-on event. When this runs inside a dispatch
+        // (e.g. invoked from a handler), DispatchChildAsync propagates
+        // correlation/tenant and sets CausationId to the parent message,
+        // preserving the causal chain. Handlers must remain idempotent.
         var @event = new OrderCompletedEvent(orderId, DateTime.UtcNow);
-        await _dispatcher.DispatchAsync(@event, ct);
+        await _dispatcher.DispatchChildAsync(@event, ct);
     }
 }
 ```

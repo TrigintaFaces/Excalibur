@@ -7,14 +7,14 @@ using System.Runtime.CompilerServices;
 namespace Excalibur.Dispatch.Caching;
 
 /// <summary>
-/// Extension methods for bounded ConcurrentDictionary access. Implements the established S543 pattern:
+/// Extension methods for bounded ConcurrentDictionary access. Implements the established pattern:
 /// cap + skip-when-full to prevent unbounded memory growth from type-keyed caches.
 /// </summary>
 internal static class BoundedConcurrentDictionary
 {
 	/// <summary>
 	/// Maximum number of entries for type-keyed caches. Matches the established convention
-	/// from Sprint 543: 1,024 for type-keyed caches.
+	/// of 1,024 entries for type-keyed caches.
 	/// </summary>
 	internal const int MaxTypeCacheEntries = 1024;
 

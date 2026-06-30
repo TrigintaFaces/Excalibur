@@ -64,7 +64,7 @@ public class GreetHandler(IDispatcher dispatcher) : IActionHandler<GreetAction>
     public async Task HandleAsync(GreetAction action, CancellationToken ct)
     {
         Console.WriteLine($"Hello, {action.Name}!");
-        await dispatcher.DispatchAsync(new GreetedEvent(action.Name), ct);
+        await dispatcher.DispatchChildAsync(new GreetedEvent(action.Name), ct);
     }
 }
 
@@ -260,7 +260,7 @@ public class ProcessDataHandler(IDispatcher dispatcher) : IActionHandler<Process
     {
         // Your business logic -- retries and circuit breaking handled by middleware
         Console.WriteLine($"Processing: {action.Data}");
-        await dispatcher.DispatchAsync(new DataProcessedEvent(action.Data), ct);
+        await dispatcher.DispatchChildAsync(new DataProcessedEvent(action.Data), ct);
     }
 }
 

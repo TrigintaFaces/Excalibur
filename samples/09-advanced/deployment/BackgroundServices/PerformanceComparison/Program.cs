@@ -17,7 +17,7 @@ Console.WriteLine("| AtLeastOnce                 | 1 per batch    | Highest    |
 Console.WriteLine("| MinimizedWindow             | N per batch    | ~50% lower | Single message |");
 Console.WriteLine("| TransactionalWhenApplicable | 1 per message  | Variable   | Zero (atomic)  |");
 Console.WriteLine();
-Console.WriteLine("Benchmark Results (from Sprint 222):");
+Console.WriteLine("Benchmark Results:");
 Console.WriteLine("-------------------------------------");
 Console.WriteLine();
 Console.WriteLine("| Scenario      | AtLeastOnce | MinimizedWindow | Transactional |");

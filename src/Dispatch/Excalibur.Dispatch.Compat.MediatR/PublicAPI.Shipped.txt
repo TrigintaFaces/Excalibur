@@ -1,0 +1,68 @@
+#nullable enable
+Excalibur.Dispatch.Compat.MediatR.DuplicateRequestHandlerException
+Excalibur.Dispatch.Compat.MediatR.DuplicateRequestHandlerException.DuplicateRequestHandlerException() -> void
+Excalibur.Dispatch.Compat.MediatR.DuplicateRequestHandlerException.DuplicateRequestHandlerException(string! message) -> void
+Excalibur.Dispatch.Compat.MediatR.DuplicateRequestHandlerException.DuplicateRequestHandlerException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.Compat.MediatR.HandlerNotFoundException
+Excalibur.Dispatch.Compat.MediatR.HandlerNotFoundException.HandlerNotFoundException() -> void
+Excalibur.Dispatch.Compat.MediatR.HandlerNotFoundException.HandlerNotFoundException(string! message) -> void
+Excalibur.Dispatch.Compat.MediatR.HandlerNotFoundException.HandlerNotFoundException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.Compat.MediatR.IMediator
+Excalibur.Dispatch.Compat.MediatR.INotification
+Excalibur.Dispatch.Compat.MediatR.INotificationHandler<TNotification>
+Excalibur.Dispatch.Compat.MediatR.INotificationHandler<TNotification>.Handle(TNotification notification, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Compat.MediatR.IPipelineBehavior<TRequest, TResponse>
+Excalibur.Dispatch.Compat.MediatR.IPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Excalibur.Dispatch.Compat.MediatR.RequestHandlerDelegate<TResponse>! next, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResponse>!
+Excalibur.Dispatch.Compat.MediatR.IPublisher
+Excalibur.Dispatch.Compat.MediatR.IPublisher.Publish(object! notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Compat.MediatR.IPublisher.Publish<TNotification>(TNotification notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Compat.MediatR.IRequest
+Excalibur.Dispatch.Compat.MediatR.IRequest<TResponse>
+Excalibur.Dispatch.Compat.MediatR.IRequestHandler<TRequest, TResponse>
+Excalibur.Dispatch.Compat.MediatR.IRequestHandler<TRequest, TResponse>.Handle(TRequest request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResponse>!
+Excalibur.Dispatch.Compat.MediatR.IRequestHandler<TRequest>
+Excalibur.Dispatch.Compat.MediatR.ISender
+Excalibur.Dispatch.Compat.MediatR.ISender.CreateStream(object! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<object?>!
+Excalibur.Dispatch.Compat.MediatR.ISender.CreateStream<TResponse>(Excalibur.Dispatch.Compat.MediatR.IStreamRequest<TResponse>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<TResponse>!
+Excalibur.Dispatch.Compat.MediatR.ISender.Send(object! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<object?>!
+Excalibur.Dispatch.Compat.MediatR.ISender.Send<TResponse>(Excalibur.Dispatch.Compat.MediatR.IRequest<TResponse>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<TResponse>!
+Excalibur.Dispatch.Compat.MediatR.IStreamRequest<TResponse>
+Excalibur.Dispatch.Compat.MediatR.IStreamRequestHandler<TRequest, TResponse>
+Excalibur.Dispatch.Compat.MediatR.IStreamRequestHandler<TRequest, TResponse>.Handle(TRequest request, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<TResponse>!
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.AddBehavior(System.Type! serviceType, System.Type! implementationType, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient) -> Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions!
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.AddBehavior<TImplementationType>(Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient) -> Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions!
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.AddBehavior<TServiceType, TImplementationType>(Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient) -> Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions!
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.AddOpenBehavior(System.Type! openBehaviorType, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient) -> Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions!
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.HandlerLifetime.get -> Microsoft.Extensions.DependencyInjection.ServiceLifetime
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.HandlerLifetime.set -> void
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.MediatRCompatOptions() -> void
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.RegisterServicesFromAssemblies(params System.Reflection.Assembly![]! assemblies) -> Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions!
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.RegisterServicesFromAssembly(System.Reflection.Assembly! assembly) -> Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions!
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.RegisterServicesFromAssemblyContaining(System.Type! type) -> Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions!
+Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions.RegisterServicesFromAssemblyContaining<T>() -> Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions!
+Excalibur.Dispatch.Compat.MediatR.RequestHandlerDelegate<TResponse>
+Excalibur.Dispatch.Compat.MediatR.Routing.CompatRegistration
+Excalibur.Dispatch.Compat.MediatR.Unit
+Excalibur.Dispatch.Compat.MediatR.Unit.CompareTo(Excalibur.Dispatch.Compat.MediatR.Unit other) -> int
+Excalibur.Dispatch.Compat.MediatR.Unit.CompareTo(object? obj) -> int
+Excalibur.Dispatch.Compat.MediatR.Unit.Equals(Excalibur.Dispatch.Compat.MediatR.Unit other) -> bool
+Excalibur.Dispatch.Compat.MediatR.Unit.Unit() -> void
+Microsoft.Extensions.DependencyInjection.MediatRCompatServiceCollectionExtensions
+override Excalibur.Dispatch.Compat.MediatR.Unit.Equals(object? obj) -> bool
+override Excalibur.Dispatch.Compat.MediatR.Unit.GetHashCode() -> int
+override Excalibur.Dispatch.Compat.MediatR.Unit.ToString() -> string!
+static Excalibur.Dispatch.Compat.MediatR.DuplicateRequestHandlerException.ForRequest(System.Type! requestType) -> Excalibur.Dispatch.Compat.MediatR.DuplicateRequestHandlerException!
+static Excalibur.Dispatch.Compat.MediatR.HandlerNotFoundException.ForRequest(System.Type! requestType) -> Excalibur.Dispatch.Compat.MediatR.HandlerNotFoundException!
+static Excalibur.Dispatch.Compat.MediatR.Routing.CompatRegistration.RegisterNotification<TNotification>(System.Type! handlerImplementationType) -> void
+static Excalibur.Dispatch.Compat.MediatR.Routing.CompatRegistration.RegisterRequest<TRequest, TResponse>(System.Type! handlerImplementationType) -> void
+static Excalibur.Dispatch.Compat.MediatR.Routing.CompatRegistration.RegisterStream<TRequest, TResponse>(System.Type! handlerImplementationType) -> void
+static Excalibur.Dispatch.Compat.MediatR.Unit.Task.get -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compat.MediatR.Unit>!
+static Excalibur.Dispatch.Compat.MediatR.Unit.operator !=(Excalibur.Dispatch.Compat.MediatR.Unit left, Excalibur.Dispatch.Compat.MediatR.Unit right) -> bool
+static Excalibur.Dispatch.Compat.MediatR.Unit.operator <(Excalibur.Dispatch.Compat.MediatR.Unit left, Excalibur.Dispatch.Compat.MediatR.Unit right) -> bool
+static Excalibur.Dispatch.Compat.MediatR.Unit.operator <=(Excalibur.Dispatch.Compat.MediatR.Unit left, Excalibur.Dispatch.Compat.MediatR.Unit right) -> bool
+static Excalibur.Dispatch.Compat.MediatR.Unit.operator ==(Excalibur.Dispatch.Compat.MediatR.Unit left, Excalibur.Dispatch.Compat.MediatR.Unit right) -> bool
+static Excalibur.Dispatch.Compat.MediatR.Unit.operator >(Excalibur.Dispatch.Compat.MediatR.Unit left, Excalibur.Dispatch.Compat.MediatR.Unit right) -> bool
+static Excalibur.Dispatch.Compat.MediatR.Unit.operator >=(Excalibur.Dispatch.Compat.MediatR.Unit left, Excalibur.Dispatch.Compat.MediatR.Unit right) -> bool
+static Microsoft.Extensions.DependencyInjection.MediatRCompatServiceCollectionExtensions.AddMediatRCompat(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compat.MediatR.MediatRCompatOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static readonly Excalibur.Dispatch.Compat.MediatR.Unit.Value -> Excalibur.Dispatch.Compat.MediatR.Unit

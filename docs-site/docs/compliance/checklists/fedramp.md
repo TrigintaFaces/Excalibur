@@ -2,7 +2,7 @@
 
 **Framework:** Excalibur.Dispatch
 **Standard:** NIST 800-53 Rev 5 (FedRAMP Moderate Baseline)
-**Epic:** i43v - FedRAMP Government Compliance
+**Epic:** FedRAMP Government Compliance
 **Status:** 14/14 controls SATISFIED (100% complete)
 **Last Updated:** 2026-01-01
 
@@ -37,7 +37,7 @@ This checklist provides a step-by-step guide for FedRAMP certification preparati
 | **SA-15** | Development Process | ✅ SATISFIED | Reference CI/CD | `.github/workflows/ci.yml` |
 | **CM-8** | Component Inventory | ✅ SATISFIED | Reference SBOM | `docs/compliance/fedramp/CM-8-SBOM.md` |
 
-**Epic i43v Status:** 14/14 controls (100% complete) - **READY FOR CLOSURE**
+**Status:** 14/14 controls (100% complete)
 
 ---
 

@@ -7,22 +7,22 @@ using Excalibur.Testing.Conformance.DependencyInjection;
 namespace Excalibur.Tests.MinimalWiring;
 
 /// <summary>
-/// Marker for S792 Workstream A1 — <c>IExcaliburBuilder.AddDispatch(...)</c> forwarding alias
-/// to <c>UseDispatch</c>. See <c>ExcaliburBuilderDispatchExtensions</c>.
+/// Marker for the <c>IExcaliburBuilder.AddDispatch(...)</c> composition bridge.
+/// See <c>ExcaliburBuilderDispatchExtensions</c>.
 /// </summary>
 public sealed class AddDispatchBridgeMarker { }
 
 /// <summary>
-/// Contract pin for Sprint 792 Workstream A1 (<c>bd-t63bns</c>, commit <c>e7b191058</c>):
-/// the <c>IExcaliburBuilder.AddDispatch</c> bridge forwards to <c>UseDispatch</c> and
-/// produces the same service-graph state as a direct <c>AddDispatch</c> call, leaving
-/// <see cref="IDispatcher"/> resolvable from the composition root.
+/// Contract pin for the <c>IExcaliburBuilder.AddDispatch</c> bridge: it composes the Dispatch
+/// pipeline within the Excalibur builder and produces the same service-graph state as a direct
+/// <c>services.AddDispatch()</c> call, leaving <see cref="IDispatcher"/> resolvable from the
+/// composition root.
 /// </summary>
 /// <remarks>
-/// Bucket A. Filed as <c>bd-elyhe9</c> S793 follow-up (Workstream D3) after the S792
-/// FORGE pre-PR checklist miss on COMPASS msg 1423 §10.4. Bridge is a pure forwarding
-/// alias; this pin contract-pins the public API so a future refactor that accidentally
-/// breaks the forwarding is caught at test time.
+/// Bucket A. Per ADR-342 (registration verb standard), <c>AddDispatch</c> is the single canonical
+/// registration verb on <c>IExcaliburBuilder</c>; the former <c>UseDispatch</c> dual-alias was
+/// removed (greenfield, no compat shim). This pin contract-pins the public API so a future refactor
+/// that accidentally breaks the bridge is caught at test time.
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]

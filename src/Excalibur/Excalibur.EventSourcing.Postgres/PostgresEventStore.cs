@@ -232,6 +232,34 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 
 			return appendResult;
 		}
+		catch (PostgresException pgEx) when (pgEx.SqlState == PostgresErrorCodes.UniqueViolation)
+		{
+			// A concurrent writer committed the same (aggregate_id, aggregate_type, version) tuple between our
+			// pre-check and INSERT; the UNIQUE constraint rejected our write. This is a genuine optimistic-
+			// concurrency conflict, not a generic failure — surfacing it as a conflict lets the repository's
+			// retry path (keyed on IsConcurrencyConflict) re-load and retry instead of failing hard.
+			result = WriteStoreTelemetry.Results.Conflict;
+			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+
+			long actualVersion;
+			try
+			{
+				await using var conflictConnection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+				actualVersion = await conflictConnection.ResolveAsync(
+						new GetCurrentVersionRequest(aggregateId, aggregateType, transaction: null, cancellationToken, _schema, _table))
+					.ConfigureAwait(false);
+			}
+			catch (NpgsqlException reReadEx)
+			{
+				// Best-effort re-read; the conflict classification (not the exact version) is what drives retry.
+				actualVersion = expectedVersion + eventList.Count;
+				_logger.LogDebug(reReadEx,
+					"Could not re-read current version after unique violation for {AggregateType}/{AggregateId}",
+					aggregateType, aggregateId);
+			}
+
+			return AppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion);
+		}
 		catch (Exception ex)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
@@ -297,9 +325,13 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		long currentVersion,
 		CancellationToken cancellationToken)
 	{
-		long firstPosition = 0;
 		var version = currentVersion;
 
+		// Build all event rows up front (assigning sequential versions), then insert them with one
+		// multi-row INSERT ... RETURNING per chunk inside the caller's transaction — replacing the former
+		// per-event round-trip loop. The whole append remains atomic (single transaction), now with far
+		// fewer round-trips.
+		var rows = new List<EventInsertRow>(eventList.Count);
 		foreach (var @event in eventList)
 		{
 			version++;
@@ -309,25 +341,37 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 #pragma warning restore IL2026, IL3050
 			var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
 
-			var position = await connection.ResolveAsync(
-					new InsertEventRequest(
-						@event.EventId,
-						aggregateId,
-						aggregateType,
-						eventTypeName,
-						eventData,
-						metadata,
-						version,
-						@event.OccurredAt,
-						transaction,
-						cancellationToken,
-						_schema,
-						_table))
+			rows.Add(new EventInsertRow(
+				@event.EventId,
+				aggregateId,
+				aggregateType,
+				eventTypeName,
+				eventData,
+				metadata,
+				version,
+				@event.OccurredAt));
+		}
+
+		// The position of the lowest-version event in this append is the append's first position.
+		// RETURNING row order is not guaranteed, so positions are matched to events by version.
+		var firstVersion = currentVersion + 1;
+		long firstPosition = 0;
+
+		for (var offset = 0; offset < rows.Count; offset += InsertEventsBatchRequest.MaxEventsPerStatement)
+		{
+			var count = Math.Min(InsertEventsBatchRequest.MaxEventsPerStatement, rows.Count - offset);
+			var chunk = rows.GetRange(offset, count);
+
+			var inserted = await connection.ResolveAsync(
+					new InsertEventsBatchRequest(chunk, transaction, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
-			if (firstPosition == 0)
+			foreach (var row in inserted)
 			{
-				firstPosition = position;
+				if (row.Version == firstVersion)
+				{
+					firstPosition = row.Position;
+				}
 			}
 		}
 

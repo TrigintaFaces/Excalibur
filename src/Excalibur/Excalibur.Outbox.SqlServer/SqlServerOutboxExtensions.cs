@@ -49,6 +49,7 @@ public static class SqlServerOutboxExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
+		BridgeProcessorIdFromOutboxBuilder(services);
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerOutboxOptions>, SqlServerOutboxOptionsValidator>());
 		services.TryAddSingleton<SqlServerOutboxStore>();
 		services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerOutboxStore>());
@@ -91,6 +92,7 @@ public static class SqlServerOutboxExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
+		BridgeProcessorIdFromOutboxBuilder(services);
 		services.TryAddSingleton(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
@@ -108,6 +110,28 @@ public static class SqlServerOutboxExtensions
 
 		return services;
 	}
+
+	/// <summary>
+	/// vdcxk4: honors the outbox builder's <c>WithProcessorId(x)</c> as the SQL lease owner. The
+	/// <c>Excalibur.Outbox</c> builder sets <c>OutboxOptions.ProcessorId</c>; this flows it to
+	/// <see cref="SqlServerOutboxOptions.ProcessorId"/> (and thus the persisted <c>LeasedBy</c>).
+	/// </summary>
+	/// <remarks>
+	/// Optional + non-destructive: a no-op when the outbox builder isn't used (no <c>OutboxOptions</c> in DI)
+	/// or <c>WithProcessorId</c> was not set, so the auto-unique <c>{MachineName}:{ProcessId}</c> default
+	/// stands. Stale-lease reclamation is age-based (<c>LeasedAt &lt; timeout</c>) and concurrency safety is
+	/// <c>SKIP LOCKED</c> row-claiming, so a shared <c>LeasedBy</c> is row-safe; cross-host uniqueness, if the
+	/// operator sets an explicit id, is their responsibility (same as the default they replaced).
+	/// </remarks>
+	private static void BridgeProcessorIdFromOutboxBuilder(IServiceCollection services) =>
+		_ = services.AddOptions<SqlServerOutboxOptions>().PostConfigure<IServiceProvider>((options, serviceProvider) =>
+		{
+			var builderProcessorId = serviceProvider.GetService<Excalibur.Outbox.OutboxOptions>()?.ProcessorId;
+			if (!string.IsNullOrWhiteSpace(builderProcessorId))
+			{
+				options.ProcessorId = builderProcessorId;
+			}
+		});
 
 	/// <summary>
 	/// Adds SQL Server outbox store using a typed <see cref="Excalibur.Data.IDb"/> marker for connection resolution.

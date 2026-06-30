@@ -26,8 +26,20 @@ namespace Excalibur.Inbox.Redis;
 /// Keys are formatted as: {KeyPrefix}:{messageId}:{handlerType}
 /// Uses Redis TTL for automatic cleanup of processed entries.
 /// </remarks>
-public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable
+public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
+	// Atomic conditional delete: remove the claim only if it exists and is NOT terminal (Processed), so a
+	// concurrently-finalized entry is never deleted. Mirrors the Postgres "DELETE ... WHERE status <> Processed"
+	// guarantee in a single round-trip (GET-then-DEL is not atomic on its own).
+	private const string ReleaseClaimScript =
+		"""
+		local v = redis.call('GET', KEYS[1])
+		if not v then return 0 end
+		local ok, doc = pcall(cjson.decode, v)
+		if ok and doc and tonumber(doc.Status) == tonumber(ARGV[1]) then return 0 end
+		return redis.call('DEL', KEYS[1])
+		""";
+
 	private static readonly CompositeFormat EntryAlreadyExistsFormat =
 		CompositeFormat.Parse("Inbox entry already exists for message '{0}' and handler '{1}'.");
 
@@ -121,11 +133,10 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 					handlerType));
 		}
 
-		// Set TTL if configured
-		if (_options.DefaultTtlSeconds > 0)
-		{
-			_ = await db.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.DefaultTtlSeconds)).ConfigureAwait(false);
-		}
+		// NO TTL on a freshly-created (non-terminal, Received) entry — same reasoning as TryClaimAsync: a
+		// retention TTL on an in-flight entry could expire before the handler finishes and finalizes it,
+		// re-admitting the message → double-processing. The retention TTL is applied only on the terminal
+		// Processed transition. Aligns with the other inbox providers.
 
 		LogCreatedEntry(_logger, messageId, handlerType, null);
 		return entry;
@@ -250,6 +261,64 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 
 		LogTryMarkProcessedDuplicate(_logger, messageId, handlerType, null);
 		return false;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
+		var key = GetKey(messageId, handlerType);
+
+		// Atomic first-writer-wins claim into the NON-TERMINAL Processing state via SET NX. true => claim
+		// acquired; false => an entry already exists (already claimed/processed) => duplicate. The claim is a
+		// placeholder finalized via MarkProcessedAsync (Processing -> Processed) and removed via ReleaseAsync.
+		var entry = new InboxEntry
+		{
+			MessageId = messageId,
+			HandlerType = handlerType,
+			MessageType = "Unknown",
+			Status = InboxStatus.Processing,
+			ReceivedAt = DateTimeOffset.UtcNow,
+		};
+
+		var claimed = await db.StringSetAsync(key, SerializeEntry(entry), when: When.NotExists).ConfigureAwait(false);
+
+		// NO TTL on a non-terminal (Processing) claim: the retention TTL is only applied once the entry
+		// reaches the terminal Processed state (MarkProcessedAsync / TryMarkAsProcessedAsync). A TTL on the
+		// transient claim would let the dedup key expire while the handler is still running (handler
+		// runtime > TTL), re-admitting the message → double-processing. On handler failure the claim is
+		// removed via ReleaseAsync. Aligns with the other inbox providers.
+
+		if (claimed)
+		{
+			_logger.LogDebug("Claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+		else
+		{
+			_logger.LogDebug("Claim denied (already claimed/processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+
+		return claimed;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
+		var key = GetKey(messageId, handlerType);
+
+		// Atomically remove the non-terminal claim so a redelivery can re-admit; the Lua guard never deletes a
+		// finalized (Processed) entry. No-op if already removed or never claimed.
+		_ = await db.ScriptEvaluateAsync(
+			ReleaseClaimScript,
+			[key],
+			[(int)InboxStatus.Processed]).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

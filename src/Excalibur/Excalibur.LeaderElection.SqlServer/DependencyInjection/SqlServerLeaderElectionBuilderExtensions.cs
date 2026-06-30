@@ -273,9 +273,10 @@ public static class SqlServerLeaderElectionBuilderExtensions
 			var connStr = connection.ConnectionString;
 
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
 			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
-				var inner = new SqlServerLeaderElectionFactory(connStr, loggerFactory, failureClassifier, fencingTokenProvider);
+				var inner = new SqlServerLeaderElectionFactory(connStr, loggerFactory, electionOptions, failureClassifier, fencingTokenProvider);
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);

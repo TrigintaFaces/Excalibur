@@ -47,5 +47,6 @@ internal interface IServiceBusReceiverSeam : IAsyncDisposable
 	Task DeadLetterMessageAsync(
 		ServiceBusReceivedMessage message,
 		string? deadLetterReason,
+		string? deadLetterErrorDescription,
 		CancellationToken cancellationToken);
 }

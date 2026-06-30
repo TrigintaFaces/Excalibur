@@ -188,8 +188,10 @@ public partial class EventVersionManager
 				return currentPath;
 			}
 
-			// Find all possible next steps
-			foreach (var upgrader in upgraders.Where(u => u.FromVersion == currentVersion))
+			// Find all possible next steps. Order candidates by ToVersion for a canonical, registration-order-
+			// independent tie-break: when two equal-length upgrade paths exist, the chosen chain must not depend
+			// on DI registration order.
+			foreach (var upgrader in upgraders.Where(u => u.FromVersion == currentVersion).OrderBy(u => u.ToVersion))
 			{
 				if (!visited.Contains(upgrader.ToVersion))
 				{

@@ -117,6 +117,19 @@ internal sealed class RabbitMQTransportBuilder : IRabbitMQTransportBuilder
 	}
 
 	/// <inheritdoc/>
+	public IRabbitMQTransportBuilder AutomaticRecovery(bool enabled, TimeSpan? networkRecoveryInterval = null)
+	{
+		_options.Connection.AutomaticRecoveryEnabled = enabled;
+		if (networkRecoveryInterval is { } interval)
+		{
+			ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
+			_options.Connection.NetworkRecoveryInterval = interval;
+		}
+
+		return this;
+	}
+
+	/// <inheritdoc/>
 	public IRabbitMQTransportBuilder UseSsl(Action<RabbitMQSslOptions>? configure = null)
 	{
 		_options.Connection.UseSsl = true;

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // ============================================================================
-// BindConfiguration Patterns Sample  (bd-1r741x)
+// BindConfiguration Patterns Sample
 // ============================================================================
 //
 // This sample demonstrates the four supported patterns for driving Excalibur
@@ -101,7 +101,7 @@ static string PreviewConnectionString(string cs) =>
 
 // Compile-time source-generated regex. Pattern checked at compile time; no
 // reflection at startup. Follows the framework pattern from
-// AzureKeyVaultCredentialStore / AuditLoggingMiddleware. [bd-ue1x90]
+// AzureKeyVaultCredentialStore / AuditLoggingMiddleware.
 internal static partial class PasswordRedactor
 {
 	[GeneratedRegex(

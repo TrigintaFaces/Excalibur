@@ -30,6 +30,7 @@ namespace Excalibur.AuditLogging.Postgres;
 public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 {
 	private readonly PostgresAuditOptions _options;
+	private readonly IAuditIntegrityStrategy _integrity;
 	private readonly ILogger<PostgresAuditStore> _logger;
 	private readonly SemaphoreSlim _hashChainLock = new(1, 1);
 	private volatile bool _disposed;
@@ -39,9 +40,11 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 	/// </summary>
 	public PostgresAuditStore(
 		IOptions<PostgresAuditOptions> options,
+		IAuditIntegrityStrategy integrity,
 		ILogger<PostgresAuditStore> logger)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_integrity = integrity ?? throw new ArgumentNullException(nameof(integrity));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		if (string.IsNullOrEmpty(_options.ConnectionString))
@@ -75,7 +78,8 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 			{
 				var lastEvent = await GetLastEventInternalAsync(auditEvent.TenantId, auditEvent.ApplicationName, cancellationToken).ConfigureAwait(false);
 				previousHash = lastEvent?.EventHash;
-				eventHash = AuditHasher.ComputeHash(auditEvent, previousHash);
+				eventHash = await _integrity.ComputeTagAsync(
+					AuditEventCanonicalizer.Canonicalize(auditEvent), previousHash, cancellationToken).ConfigureAwait(false);
 			}
 			finally
 			{
@@ -84,7 +88,8 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 		}
 		else
 		{
-			eventHash = AuditHasher.ComputeHash(auditEvent, null);
+			eventHash = await _integrity.ComputeTagAsync(
+				AuditEventCanonicalizer.Canonicalize(auditEvent), null, cancellationToken).ConfigureAwait(false);
 		}
 
 		var parameters = new DynamicParameters();
@@ -273,13 +278,19 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 
 			var row = events[i];
 			var auditEvent = MapToAuditEvent(row);
-			var expectedHash = AuditHasher.ComputeHash(auditEvent, row.PreviousEventHash);
 
-			if (row.EventHash != expectedHash)
+			// Re-canonicalize the live reloaded fields and verify the keyed tag (Option ii). A missing tag
+			// is itself a violation.
+			var verified = row.EventHash is not null
+				&& await _integrity.VerifyAsync(
+					AuditEventCanonicalizer.Canonicalize(auditEvent), row.PreviousEventHash, row.EventHash, cancellationToken)
+					.ConfigureAwait(false);
+
+			if (!verified)
 			{
 				violationCount++;
 				firstViolationEventId ??= row.EventId;
-				violationDescription ??= $"Hash mismatch for event {row.EventId}: expected {expectedHash}, found {row.EventHash}";
+				violationDescription ??= $"Integrity tag mismatch for event {row.EventId}";
 
 				LogIntegrityHashMismatch(row.EventId);
 			}

@@ -7,7 +7,6 @@ using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Observability.Context;
 using Excalibur.Dispatch.Observability.Http;
 using Excalibur.Dispatch.Observability.Metrics;
-using Excalibur.Dispatch.Observability.Propagation;
 using Excalibur.Dispatch.Observability.Sampling;
 
 using Microsoft.Extensions.Configuration;
@@ -232,31 +231,5 @@ public static class DispatchBuilderObservabilityExtensions
 		builder.Services.TryAddSingleton<ITraceSampler, TraceSampler>();
 		builder.Services.TryAddSingleton<TraceSamplerMiddleware>();
 		return builder.UseMiddleware<TraceSamplerMiddleware>();
-	}
-
-	/// <summary>
-	/// Adds W3C trace context propagation to the service collection.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddW3CTracingPropagator(this IServiceCollection services)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		services.TryAddSingleton<ITracingContextPropagator, W3CTracingContextPropagator>();
-		return services;
-	}
-
-	/// <summary>
-	/// Adds B3 trace context propagation to the service collection.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddB3TracingPropagator(this IServiceCollection services)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		services.TryAddSingleton<ITracingContextPropagator, B3TracingContextPropagator>();
-		return services;
 	}
 }

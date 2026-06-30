@@ -43,7 +43,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	/// <see cref="IChangeFeedCheckpointStore"/> — in-memory default or the durable Cosmos store when the
 	/// consumer opts in). Flowed into the event-store change-feed subscription so continuation survives
 	/// restarts. <see langword="null"/> only for manual construction without DI (in-memory-only).
-	/// See bd-egwtku / bd-ydln24.
+	///
 	/// </param>
 	public CosmosDbEventStore(
 		CosmosClient cosmosClient,
@@ -615,65 +615,76 @@ internal sealed class EventDocument
 	/// Gets or sets the document ID.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("id")]
+	[Newtonsoft.Json.JsonProperty("id")]
 	public string Id { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the stream ID (partition key).
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("streamId")]
+	[Newtonsoft.Json.JsonProperty("streamId")]
 	public string StreamId { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the unique event ID.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("eventId")]
+	[Newtonsoft.Json.JsonProperty("eventId")]
 	public string EventId { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the aggregate ID.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("aggregateId")]
+	[Newtonsoft.Json.JsonProperty("aggregateId")]
 	public string AggregateId { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the aggregate type.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("aggregateType")]
+	[Newtonsoft.Json.JsonProperty("aggregateType")]
 	public string AggregateType { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the event type.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("eventType")]
+	[Newtonsoft.Json.JsonProperty("eventType")]
 	public string EventType { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the event version.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("version")]
+	[Newtonsoft.Json.JsonProperty("version")]
 	public long Version { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the event occurred.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("timestamp")]
+	[Newtonsoft.Json.JsonProperty("timestamp")]
 	public DateTimeOffset Timestamp { get; set; }
 
 	/// <summary>
 	/// Gets or sets the serialized event data.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("eventData")]
+	[Newtonsoft.Json.JsonProperty("eventData")]
 	public byte[] EventData { get; set; } = [];
 
 	/// <summary>
 	/// Gets or sets the serialized metadata.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("metadata")]
+	[Newtonsoft.Json.JsonProperty("metadata")]
 	public byte[]? Metadata { get; set; }
 
 	/// <summary>
 	/// Gets or sets the ETag for concurrency control.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("_etag")]
+	[Newtonsoft.Json.JsonProperty("_etag")]
 	public string? ETag { get; set; }
 }

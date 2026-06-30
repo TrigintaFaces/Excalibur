@@ -392,20 +392,6 @@ Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ServiceName.set ->
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ServiceVersion.get -> string!
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ServiceVersion.set -> void
 Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions
-Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator
-Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator.B3TracingContextPropagator() -> void
-Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator.ExtractAsync(System.Collections.Generic.IDictionary<string!, string!>! carrier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Diagnostics.ActivityContext>!
-Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator.FormatName.get -> string!
-Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator.InjectAsync(System.Diagnostics.ActivityContext context, System.Collections.Generic.IDictionary<string!, string!>! carrier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Observability.Propagation.ITracingContextPropagator
-Excalibur.Dispatch.Observability.Propagation.ITracingContextPropagator.ExtractAsync(System.Collections.Generic.IDictionary<string!, string!>! carrier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Diagnostics.ActivityContext>!
-Excalibur.Dispatch.Observability.Propagation.ITracingContextPropagator.FormatName.get -> string!
-Excalibur.Dispatch.Observability.Propagation.ITracingContextPropagator.InjectAsync(System.Diagnostics.ActivityContext context, System.Collections.Generic.IDictionary<string!, string!>! carrier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Observability.Propagation.W3CTracingContextPropagator
-Excalibur.Dispatch.Observability.Propagation.W3CTracingContextPropagator.ExtractAsync(System.Collections.Generic.IDictionary<string!, string!>! carrier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Diagnostics.ActivityContext>!
-Excalibur.Dispatch.Observability.Propagation.W3CTracingContextPropagator.FormatName.get -> string!
-Excalibur.Dispatch.Observability.Propagation.W3CTracingContextPropagator.InjectAsync(System.Diagnostics.ActivityContext context, System.Collections.Generic.IDictionary<string!, string!>! carrier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Observability.Propagation.W3CTracingContextPropagator.W3CTracingContextPropagator() -> void
 Excalibur.Dispatch.Observability.Sampling.ITraceSampler
 Excalibur.Dispatch.Observability.Sampling.ITraceSampler.ShouldSample(System.Diagnostics.ActivityContext context, string! name) -> bool
 Excalibur.Dispatch.Observability.Sampling.SamplingStrategy
@@ -582,8 +568,6 @@ static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddDispa
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddDispatchMetrics(this OpenTelemetry.Metrics.MeterProviderBuilder! builder) -> OpenTelemetry.Metrics.MeterProviderBuilder!
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddTransportMetrics(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddTransportMetrics(this OpenTelemetry.Metrics.MeterProviderBuilder! builder) -> OpenTelemetry.Metrics.MeterProviderBuilder!
-static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.AddB3TracingPropagator(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.AddW3CTracingPropagator(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseMetrics(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseObservability(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseObservability(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Observability.Context.ContextObservabilityOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!

@@ -85,6 +85,15 @@ internal sealed class CosmosDbInboxDocument
 	public string? LastError { get; set; }
 
 	/// <summary>
+	/// Gets or sets the per-item time-to-live, in seconds, applied once the entry reaches a terminal
+	/// (processed) state so completed dedup records are reaped automatically. <see langword="null"/>
+	/// (the default) leaves the entry non-expiring — Cosmos only honors this when the container has its
+	/// TTL subsystem enabled.
+	/// </summary>
+	[JsonPropertyName("ttl")]
+	public int? Ttl { get; set; }
+
+	/// <summary>
 	/// Creates a composite document ID from message ID and handler type.
 	/// </summary>
 	/// <param name="messageId">The message ID.</param>

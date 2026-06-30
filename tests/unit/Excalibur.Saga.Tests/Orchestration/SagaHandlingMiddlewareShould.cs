@@ -28,7 +28,7 @@ public sealed class SagaHandlingMiddlewareShould
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var sagaStore = A.Fake<ISagaStore>();
 		var coordinatorLogger = NullLogger<SagaCoordinator>.Instance;
-		_coordinator = new SagaCoordinator(serviceProvider, sagaStore, coordinatorLogger);
+		_coordinator = new SagaCoordinator(serviceProvider, sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), coordinatorLogger);
 
 		var logger = NullLogger<SagaHandlingMiddleware>.Instance;
 		_sut = new SagaHandlingMiddleware(_coordinator, logger);

@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
@@ -146,7 +147,7 @@ public sealed class PollyCircuitBreakerAdapterShould : UnitTestBase, IAsyncDispo
 		_adapter = new PollyCircuitBreakerAdapter("test-breaker", options);
 
 		// Act & Assert
-		_adapter.State.ShouldBe(ResilienceState.Closed);
+		_adapter.State.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]
@@ -169,12 +170,12 @@ public sealed class PollyCircuitBreakerAdapterShould : UnitTestBase, IAsyncDispo
 		_adapter = new PollyCircuitBreakerAdapter("test-breaker", options);
 
 		// Initial state is Closed - verify mapping
-		_adapter.State.ShouldBe(ResilienceState.Closed);
+		_adapter.State.ShouldBe(CircuitState.Closed);
 		_adapter.HealthStatus.ShouldBe(PatternHealthStatus.Healthy);
 
 		// After Reset, still Closed
 		_adapter.Reset();
-		_adapter.State.ShouldBe(ResilienceState.Closed);
+		_adapter.State.ShouldBe(CircuitState.Closed);
 		_adapter.HealthStatus.ShouldBe(PatternHealthStatus.Healthy);
 	}
 
@@ -306,7 +307,7 @@ public sealed class PollyCircuitBreakerAdapterShould : UnitTestBase, IAsyncDispo
 		_adapter.Reset();
 
 		// Assert
-		_adapter.State.ShouldBe(ResilienceState.Closed);
+		_adapter.State.ShouldBe(CircuitState.Closed);
 	}
 
 	#endregion
@@ -366,7 +367,7 @@ public sealed class PollyCircuitBreakerAdapterShould : UnitTestBase, IAsyncDispo
 		metrics.FailedRequests.ShouldBe(0);
 		metrics.RejectedRequests.ShouldBe(0);
 		metrics.FallbackExecutions.ShouldBe(0);
-		metrics.CurrentState.ShouldBe(ResilienceState.Closed);
+		metrics.CurrentState.ShouldBe(CircuitState.Closed);
 	}
 
 	#endregion
@@ -614,7 +615,7 @@ public sealed class PollyCircuitBreakerAdapterShould : UnitTestBase, IAsyncDispo
 		await _adapter.DisposeAsync();
 
 		// Assert - state should be reset
-		_adapter.State.ShouldBe(ResilienceState.Closed);
+		_adapter.State.ShouldBe(CircuitState.Closed);
 
 		_adapter = null; // Prevent double dispose in test cleanup
 	}

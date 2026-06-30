@@ -232,6 +232,16 @@ Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.QueueUrl.get -> System.Uri?
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.QueueUrl.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.UseFifoQueue.get -> bool
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.UseFifoQueue.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions.ApplyDeadLetterRedrivePolicy.get -> bool
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions.ApplyDeadLetterRedrivePolicy.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions.AwsSqsProvisioningOptions() -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions.CreateSnsSubscriptions.get -> bool
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions.CreateSnsSubscriptions.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions.Enabled.get -> bool
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions.Enabled.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions.FailOpen.get -> bool
+Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions.FailOpen.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions
 Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.AwsSqsQueueOptions() -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.DeadLetterQueue.get -> Excalibur.Dispatch.Transport.Aws.AwsSqsDeadLetterOptions?
@@ -280,6 +290,16 @@ Excalibur.Dispatch.Transport.Aws.AwsSqsSubscriptionOptions.RawMessageDelivery.ge
 Excalibur.Dispatch.Transport.Aws.AwsSqsSubscriptionOptions.RawMessageDelivery.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsSubscriptionOptions.TopicArn.get -> string!
 Excalibur.Dispatch.Transport.Aws.AwsSqsSubscriptionOptions.TopicArn.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions.AwsSqsVisibilityHeartbeatOptions() -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions.Enabled.get -> bool
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions.Enabled.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions.Interval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions.Interval.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions.MaxExtension.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions.MaxExtension.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions.VisibilityTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions.VisibilityTimeout.set -> void
 Excalibur.Dispatch.Transport.Aws.BatchOptions
 Excalibur.Dispatch.Transport.Aws.BatchOptions.BatchOptions() -> void
 Excalibur.Dispatch.Transport.Aws.BatchOptions.BatchTimeout.get -> System.TimeSpan
@@ -581,10 +601,14 @@ Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder
 Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.ConfigureBatch(System.Action<Excalibur.Dispatch.Transport.Aws.IAwsSqsBatchBuilder!>! configure) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.ConfigureCloudEvents(System.Action<Excalibur.Dispatch.Transport.Aws.AwsSqsCloudEventOptions!>! configure) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.ConfigureFifo(System.Action<Excalibur.Dispatch.Transport.Aws.IAwsSqsFifoBuilder!>! configure) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
+Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.ConfigureProvisioning(System.Action<Excalibur.Dispatch.Transport.Aws.AwsSqsProvisioningOptions!>! configure) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.ConfigureQueue(System.Action<Excalibur.Dispatch.Transport.Aws.IAwsSqsQueueBuilder!>! configure) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.ConfigureSns(System.Action<Excalibur.Dispatch.Transport.Aws.IAwsSqsSnsBuilder!>! configure) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
+Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.ConfigureVisibilityHeartbeat(System.Action<Excalibur.Dispatch.Transport.Aws.AwsSqsVisibilityHeartbeatOptions!>! configure) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.MapQueue<TMessage>(string! queueUrl) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
+Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.UseMaxRetryAttempts(int maxRetryAttempts) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.UseRegion(string! region) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
+Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.UseRequestTimeout(System.TimeSpan timeout) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder.WithQueuePrefix(string! prefix) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!
 Excalibur.Dispatch.Transport.Aws.IDlqManager
 Excalibur.Dispatch.Transport.Aws.IDlqManager.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Aws.DlqStatistics!>!
@@ -1061,6 +1085,7 @@ Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.AwsSqsRetryOptions() -> void
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.BaseDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.BaseDelay.set -> void
+Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.GetRetryDelay(int attempt) -> System.TimeSpan
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.MaxDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.MaxDelay.set -> void
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.MaxRetryAttempts.get -> int
@@ -1115,6 +1140,7 @@ Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportOptions.Name.set
 Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportOptions.Region.get -> string?
 Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportOptions.Region.set -> void
 Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.AwsHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.AwsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.AwsSnsTransportOptions
 Microsoft.Extensions.DependencyInjection.AwsSnsTransportOptions.AwsSnsTransportOptions() -> void
@@ -1307,6 +1333,15 @@ const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.LongPollingVisibilityTim
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.MetricRecorded = 25042 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.MetricsBatchPublished = 25043 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.OrphanedBatchSendError = 26128 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ProvisioningCompleted = 26146 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ProvisioningFailed = 26147 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ProvisioningRedrivePolicyApplied = 26141 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ProvisioningRedrivePolicyApplying = 26140 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ProvisioningRedrivePolicyFailed = 26142 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ProvisioningSkipped = 26148 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ProvisioningSubscriptionCreated = 26144 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ProvisioningSubscriptionCreating = 26143 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ProvisioningSubscriptionFailed = 26145 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.PublisherCreated = 25011 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.RegionConfigured = 25005 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.RetryAttempt = 25033 -> int
@@ -1392,6 +1427,9 @@ const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSenderBatchSent
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSenderDisposed = 26104 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSenderMessageSent = 26100 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSenderSendFailed = 26101 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberBatchDeleteError = 26130 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberBatchDeleteFailed = 26129 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberBatchVisibilityError = 26131 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberDisposed = 26127 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberError = 26125 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberMessageAcknowledged = 26122 -> int
@@ -1400,6 +1438,8 @@ const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberMessa
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberMessageRequeued = 26124 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberStarted = 26120 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberStopped = 26126 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberVisibilityExtendFailed = 26133 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportSubscriberVisibilityExtended = 26132 -> int
 const Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportServiceCollectionExtensions.DefaultTransportName = "aws-eventbridge" -> string!
 const Microsoft.Extensions.DependencyInjection.AwsSnsTransportServiceCollectionExtensions.DefaultTransportName = "aws-sns" -> string!
 const Microsoft.Extensions.DependencyInjection.AwsSqsTransportServiceCollectionExtensions.DefaultTransportName = "aws-sqs" -> string!
@@ -1415,6 +1455,8 @@ static Microsoft.Extensions.DependencyInjection.AwsCloudEventsServiceCollectionE
 static Microsoft.Extensions.DependencyInjection.AwsCoreServiceCollectionExtensions.AddAwsMessageBus(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.AwsMessageBusOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportServiceCollectionExtensions.AddAwsEventBridgeTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.DependencyInjection.IAwsEventBridgeTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportServiceCollectionExtensions.AddAwsEventBridgeTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IAwsEventBridgeTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AwsHealthChecksBuilderExtensions.AddAwsSnsHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "aws-sns", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.AwsHealthChecksBuilderExtensions.AddAwsSqsHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "aws-sqs", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.AwsServiceCollectionExtensions.AddAwsEventBridgeScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsServiceCollectionExtensions.AddAwsEventBridgeScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.AwsEventBridgeSchedulerOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsSnsTransportServiceCollectionExtensions.AddAwsSnsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.DependencyInjection.IAwsSnsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

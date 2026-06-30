@@ -40,10 +40,23 @@ public sealed class MessagePackSerializer : ISerializer
 	/// <summary>
 	/// Initializes a new instance with custom MessagePack options.
 	/// </summary>
-	/// <param name="options">Custom MessagePack serializer options. If null, uses Standard.</param>
+	/// <param name="options">
+	/// Custom MessagePack serializer options. If <see langword="null"/>, defaults to
+	/// <see cref="MpOptions.Standard"/> hardened with
+	/// <see cref="global::MessagePack.MessagePackSecurity.UntrustedData"/> (see remarks on the
+	/// trust boundary). A caller that supplies explicit options owns its own security profile.
+	/// </param>
+	/// <remarks>
+	/// <b>Trust boundary:</b> transport/inbox payloads routinely originate off-process, so the
+	/// no-options default applies <c>MessagePackSecurity.UntrustedData</c> — MessagePack-CSharp's
+	/// guidance for untrusted input. Without it, <see cref="MpOptions.Standard"/> leaves the
+	/// deserializer open to hash-collision attacks on dictionary/extension types and unbounded
+	/// recursion/allocation (stack overflow / OOM) from a hostile payload. Callers that supply their
+	/// own <paramref name="options"/> are responsible for selecting an appropriate security profile.
+	/// </remarks>
 	public MessagePackSerializer(MpOptions? options)
 	{
-		_options = options ?? MpOptions.Standard;
+		_options = options ?? MpOptions.Standard.WithSecurity(global::MessagePack.MessagePackSecurity.UntrustedData);
 	}
 
 	/// <inheritdoc />
@@ -59,8 +72,21 @@ public sealed class MessagePackSerializer : ISerializer
 	/// <inheritdoc />
 	public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
 	{
+		ArgumentNullException.ThrowIfNull(value);
 		ArgumentNullException.ThrowIfNull(bufferWriter);
-		Mp.Serialize(bufferWriter, value, _options);
+
+		try
+		{
+			Mp.Serialize(bufferWriter, value, _options);
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.Wrap<T>("serialize", ex);
+		}
 	}
 
 	/// <inheritdoc cref="ISerializer.Deserialize{T}"/>

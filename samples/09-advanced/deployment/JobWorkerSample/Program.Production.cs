@@ -21,7 +21,7 @@ builder.Services.AddSerilog();
 // Add Excalibur Job Host with the unified API.
 // This sample uses Quartz's in-memory job store; swap in an ADO
 // provider (SQL Server, Postgres, etc.) by adding the matching
-// Quartz package and configuring it in place of UseInMemoryStore(). [bd-7rqllt]
+// Quartz package and configuring it in place of UseInMemoryStore.
 builder.Services.AddExcalibur(excalibur => excalibur.AddJobs(
 	configureQuartz: q =>
 	{

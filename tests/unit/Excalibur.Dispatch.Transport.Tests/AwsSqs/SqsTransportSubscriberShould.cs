@@ -32,6 +32,7 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 			_fakeSqsClient,
 			TestSource,
 			TestQueueUrl,
+			new AwsSqsVisibilityHeartbeatOptions(),
 			NullLogger<SqsTransportSubscriber>.Instance);
 	}
 
@@ -45,28 +46,28 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 	public void Throw_when_sqsClient_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqsTransportSubscriber(null!, TestSource, TestQueueUrl, NullLogger<SqsTransportSubscriber>.Instance));
+			new SqsTransportSubscriber(null!, TestSource, TestQueueUrl, new AwsSqsVisibilityHeartbeatOptions(), NullLogger<SqsTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void Throw_when_source_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqsTransportSubscriber(A.Fake<IAmazonSQS>(), null!, TestQueueUrl, NullLogger<SqsTransportSubscriber>.Instance));
+			new SqsTransportSubscriber(A.Fake<IAmazonSQS>(), null!, TestQueueUrl, new AwsSqsVisibilityHeartbeatOptions(), NullLogger<SqsTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void Throw_when_queueUrl_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqsTransportSubscriber(A.Fake<IAmazonSQS>(), TestSource, null!, NullLogger<SqsTransportSubscriber>.Instance));
+			new SqsTransportSubscriber(A.Fake<IAmazonSQS>(), TestSource, null!, new AwsSqsVisibilityHeartbeatOptions(), NullLogger<SqsTransportSubscriber>.Instance));
 	}
 
 	[Fact]
 	public void Throw_when_logger_is_null()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqsTransportSubscriber(A.Fake<IAmazonSQS>(), TestSource, TestQueueUrl, null!));
+			new SqsTransportSubscriber(A.Fake<IAmazonSQS>(), TestSource, TestQueueUrl, new AwsSqsVisibilityHeartbeatOptions(), null!));
 	}
 
 	[Fact]

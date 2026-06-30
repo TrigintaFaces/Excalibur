@@ -208,7 +208,7 @@ docker-compose --profile visualization up -d
 | `IMaterializedViewBuilder<T>` | `Excalibur.EventSourcing.Abstractions` | View contract (ViewName + GetViewId + Apply) |
 | `UseElasticSearch(...)` | `Excalibur.Data.ElasticSearch` | ES-backed materialized view store |
 
-## Materialized Views vs Inline Projections (bd-treh2p)
+## Materialized Views vs Inline Projections
 
 The sample wires both patterns side-by-side so you can compare:
 

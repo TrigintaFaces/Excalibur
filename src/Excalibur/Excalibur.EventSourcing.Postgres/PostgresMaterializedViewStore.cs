@@ -20,7 +20,7 @@ namespace Excalibur.EventSourcing.Postgres;
 /// <para>
 /// Stores materialized views as JSONB documents in Postgres with the following schema:
 /// <list type="bullet">
-/// <item><c>materialized_views</c> table for view data (snake_case per ADR-109)</item>
+/// <item><c>materialized_views</c> table for view data</item>
 /// <item><c>materialized_view_positions</c> table for position tracking</item>
 /// </list>
 /// </para>

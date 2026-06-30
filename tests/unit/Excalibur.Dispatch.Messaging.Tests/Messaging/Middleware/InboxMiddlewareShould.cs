@@ -5,6 +5,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Inbox;
+using Excalibur.Dispatch.Serialization;
 using Tests.Shared.TestFakes;
 
 using FakeMessageResult = Tests.Shared.TestFakes.MessageResult;
@@ -47,6 +48,7 @@ public sealed class InboxMiddlewareShould
 			MsOptions.Create(opts),
 			omitInboxStore ? null : (inboxStore ?? _inboxStore),
 			omitDeduplicator ? null : (deduplicator ?? _deduplicator),
+			new DispatchJsonSerializer(),
 			_logger);
 	}
 
@@ -78,7 +80,7 @@ public sealed class InboxMiddlewareShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new InboxMiddleware(null!, _inboxStore, _deduplicator, _logger));
+			new InboxMiddleware(null!, _inboxStore, _deduplicator, new DispatchJsonSerializer(), _logger));
 	}
 
 	[Fact]
@@ -89,7 +91,7 @@ public sealed class InboxMiddlewareShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new InboxMiddleware(options, _inboxStore, _deduplicator, null!));
+			new InboxMiddleware(options, _inboxStore, _deduplicator, new DispatchJsonSerializer(), null!));
 	}
 
 	[Fact]
@@ -100,7 +102,7 @@ public sealed class InboxMiddlewareShould
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new InboxMiddleware(options, inboxStore: null, deduplicator: null, _logger));
+			new InboxMiddleware(options, inboxStore: null, deduplicator: null, new DispatchJsonSerializer(), _logger));
 	}
 
 	[Fact]
@@ -110,7 +112,7 @@ public sealed class InboxMiddlewareShould
 		var options = MsOptions.Create(new InboxOptions { Enabled = false });
 
 		// Act
-		var middleware = new InboxMiddleware(options, inboxStore: null, deduplicator: null, _logger);
+		var middleware = new InboxMiddleware(options, inboxStore: null, deduplicator: null, new DispatchJsonSerializer(), _logger);
 
 		// Assert
 		_ = middleware.ShouldNotBeNull();
@@ -123,7 +125,7 @@ public sealed class InboxMiddlewareShould
 		var options = MsOptions.Create(new InboxOptions { Enabled = true });
 
 		// Act
-		var middleware = new InboxMiddleware(options, _inboxStore, deduplicator: null, _logger);
+		var middleware = new InboxMiddleware(options, _inboxStore, deduplicator: null, new DispatchJsonSerializer(), _logger);
 
 		// Assert
 		_ = middleware.ShouldNotBeNull();
@@ -136,7 +138,7 @@ public sealed class InboxMiddlewareShould
 		var options = MsOptions.Create(new InboxOptions { Enabled = true });
 
 		// Act
-		var middleware = new InboxMiddleware(options, inboxStore: null, _deduplicator, _logger);
+		var middleware = new InboxMiddleware(options, inboxStore: null, _deduplicator, new DispatchJsonSerializer(), _logger);
 
 		// Assert
 		_ = middleware.ShouldNotBeNull();

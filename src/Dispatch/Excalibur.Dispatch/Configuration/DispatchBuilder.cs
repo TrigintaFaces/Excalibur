@@ -90,9 +90,12 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		// perf path. [S849 txmwh9]
 		var existing = Services.FirstOrDefault(
 			static d => d.ServiceType == typeof(IPipelineProfileRegistry));
+		// ybem93: keyed-safe accessors (raw reads — including property patterns — throw on keyed descriptors).
 		var isFrameworkDefault =
-			existing is { ImplementationInstance: null, ImplementationFactory: null }
-			&& existing.ImplementationType == typeof(PipelineProfileRegistry);
+			existing is not null
+			&& existing.GetImplementationInstance() is null
+			&& existing.GetImplementationFactory() is null
+			&& existing.GetImplementationType() == typeof(PipelineProfileRegistry);
 		if (existing is null || isFrameworkDefault)
 		{
 			_ = Services.Replace(
@@ -207,7 +210,7 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		{
 			return new DeferredDispatcher(Services
 				.First(static d => d.ServiceType == typeof(DispatcherHolder))
-				.ImplementationInstance is DispatcherHolder holder
+				.GetImplementationInstance() is DispatcherHolder holder
 					? holder
 					: new DispatcherHolder());
 		}

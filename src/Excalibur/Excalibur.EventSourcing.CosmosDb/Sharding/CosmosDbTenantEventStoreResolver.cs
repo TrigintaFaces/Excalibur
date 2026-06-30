@@ -48,7 +48,7 @@ internal sealed class CosmosDbTenantEventStoreResolver : ITenantStoreResolver<IE
 
 	private IEventStore CreateStore(ShardInfo shardInfo)
 	{
-		var cosmosClient = new CosmosClient(shardInfo.ConnectionString);
+		var cosmosClient = new CosmosClient(shardInfo.ConnectionString, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } });
 		var options = Options.Create(new CosmosDbEventStoreOptions
 		{
 			EventsContainerName = shardInfo.IndexPrefix ?? _defaultOptions.EventsContainerName,

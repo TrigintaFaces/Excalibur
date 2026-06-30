@@ -319,7 +319,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	public async Task InMemoryAuditStore_QueryAsync_WithDescendingOrder_NoTenant_ReturnsCorrectOrder()
 	{
 		// Arrange - test descending order without tenant filter (uses _eventsById.Values path)
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var ts1 = new DateTimeOffset(2025, 6, 10, 0, 0, 0, TimeSpan.Zero);
 		var ts2 = new DateTimeOffset(2025, 6, 20, 0, 0, 0, TimeSpan.Zero);
 
@@ -359,7 +359,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	public async Task InMemoryAuditStore_QueryAsync_WithAscendingOrder_NoTenant_ReturnsCorrectOrder()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 		var ts1 = new DateTimeOffset(2025, 6, 10, 0, 0, 0, TimeSpan.Zero);
 		var ts2 = new DateTimeOffset(2025, 6, 20, 0, 0, 0, TimeSpan.Zero);
 
@@ -399,7 +399,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	public async Task InMemoryAuditStore_CountAsync_NoTenantFilter_CountsAllEvents()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore();
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -443,66 +443,6 @@ public sealed class AuditLoggingAdditionalCoverageShould
 
 	#endregion
 
-	#region AuditHasher - Edge Cases
-
-	[Fact]
-	public void AuditHasher_ComputeHash_WithAllNullOptionalFields_ProducesValidHash()
-	{
-		// Arrange - minimal event with all optional fields null
-		var auditEvent = new AuditEvent
-		{
-			EventId = "minimal-evt",
-			EventType = AuditEventType.DataAccess,
-			Action = "Read",
-			Outcome = AuditOutcome.Success,
-			Timestamp = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero),
-			ActorId = "user-1"
-			// All optional fields null: ActorType, ResourceId, ResourceType, etc.
-		};
-
-		// Act
-		var hash = AuditHasher.ComputeHash(auditEvent, null);
-
-		// Assert
-		hash.ShouldNotBeNullOrEmpty();
-	}
-
-	[Fact]
-	public void AuditHasher_VerifyHash_ReturnsFalse_WhenHashMismatch()
-	{
-		// Arrange
-		var auditEvent = new AuditEvent
-		{
-			EventId = "mismatch-evt",
-			EventType = AuditEventType.DataAccess,
-			Action = "Read",
-			Outcome = AuditOutcome.Success,
-			Timestamp = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero),
-			ActorId = "user-1",
-			EventHash = "WRONG_HASH_VALUE"
-		};
-
-		// Act
-		var isValid = AuditHasher.VerifyHash(auditEvent, null);
-
-		// Assert
-		isValid.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AuditHasher_ComputeGenesisHash_WithNullTenant_UsesDefault()
-	{
-		// Arrange
-		var initTime = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-		// Act
-		var hash = AuditHasher.ComputeGenesisHash(null, initTime);
-
-		// Assert
-		hash.ShouldNotBeNullOrEmpty();
-	}
-
-	#endregion
 
 	#region DefaultAuditLogger - Edge Cases
 
@@ -547,7 +487,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 		// Use a custom scoped factory registration
 		var scopedDescriptor = new ServiceDescriptor(
 			typeof(IAuditStore),
-			_ => new InMemoryAuditStore(),
+			_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()),
 			ServiceLifetime.Scoped);
 		((ICollection<ServiceDescriptor>)services).Add(scopedDescriptor);
 

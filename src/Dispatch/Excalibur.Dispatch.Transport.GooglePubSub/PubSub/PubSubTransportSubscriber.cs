@@ -57,7 +57,7 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PubSubTransportSubscriber"/>
 	/// class using a pre-built adapter. Used by tests to substitute the SDK via
-	/// the <see cref="ISubscriberClientSeam"/> seam (ADR-142 §D7).
+	/// the <see cref="ISubscriberClientSeam"/> seam.
 	/// </summary>
 	internal PubSubTransportSubscriber(
 		ISubscriberClientSeam subscriber,

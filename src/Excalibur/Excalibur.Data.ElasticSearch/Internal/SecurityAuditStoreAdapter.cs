@@ -108,7 +108,11 @@ internal sealed class SecurityAuditStoreAdapter : ISecurityAuditStore
 						["severity"] = new KeywordProperty(),
 						["source"] = new KeywordProperty(),
 						["userId"] = new KeywordProperty(),
-						["sourceIpAddress"] = new IpProperty(),
+						// keyword, NOT ip: with PII masking on (default, pbnn9g) sourceIpAddress holds a
+						// non-IP fingerprint (e.g. "sha256:…"); an ip-typed field would 400-reject it and the
+						// whole audit doc would be silently dropped on bulk-index. keyword stores both a masked
+						// fingerprint and a raw IP (opt-out) — and CIDR-range queries are meaningless on a hash.
+						["sourceIpAddress"] = new KeywordProperty(),
 						["userAgent"] = new TextProperty(),
 						["details"] = new ObjectProperty(),
 						["integrityHash"] = new KeywordProperty(),

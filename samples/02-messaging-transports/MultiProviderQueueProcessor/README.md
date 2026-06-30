@@ -12,7 +12,7 @@ This sample shows a production-style setup combining:
 
 ## What This Sample Demonstrates
 
-- **Multi-Provider Transport** - Consuming from multiple cloud message brokers via ADR-098 single entry points
+- **Multi-Provider Transport** Consuming from multiple cloud message brokers via single entry points
 - **Event Sourcing** - Using SQL Server as the event store
 - **Projections** - Updating Elasticsearch read models
 - **Handler Discovery** - Automatic handler registration via assembly scanning
@@ -146,7 +146,7 @@ builder.Services.AddDispatch(dispatch =>
 });
 ```
 
-### Transport Setup (ADR-098 Single Entry Points)
+### Transport Setup (Single Entry Points)
 
 Each transport is registered directly on `IServiceCollection` using its dedicated `AddXxxTransport()` extension method with a fluent builder API:
 
@@ -240,4 +240,4 @@ builder.Services.AddExcalibur(excalibur => excalibur
 
 ---
 
-*Category: Messaging Transports | Sprint 428*
+*Category: Messaging Transports*

@@ -44,7 +44,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 |---------|-----------|-------|
 | `Excalibur.Dispatch.Caching` | AOT-safe | `CachingMiddleware` uses `RuntimeFeature.IsDynamicCodeSupported` branching |
 | `Excalibur.Dispatch.Resilience.Polly` | AOT-safe | Polly v8 is AOT-compatible |
-| `Excalibur.Dispatch.Validation.FluentValidation` | AOT-safe | Dual-path: `AotFluentValidatorResolver` + source-gen `IAotValidationDispatcher` (Sprint 758) |
+| `Excalibur.Dispatch.Validation.FluentValidation` | AOT-safe | Dual-path: `AotFluentValidatorResolver` + source-gen `IAotValidationDispatcher` |
 
 ### Serialization
 
@@ -53,7 +53,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.Dispatch.Serialization.MemoryPack` | AOT-safe | MemoryPack uses source generation |
 | `Excalibur.Dispatch.Serialization.Avro` | **Not compatible** | Apache.Avro uses runtime code generation |
 | `Excalibur.Dispatch.Serialization.MessagePack` | **Not compatible** | MessagePack reflection-based resolvers |
-| `Excalibur.Dispatch.Serialization.Protobuf` | AOT-safe | Uses Google.Protobuf (v3.32.1+), which is AOT-compatible (Sprint 757) |
+| `Excalibur.Dispatch.Serialization.Protobuf` | AOT-safe | Uses Google.Protobuf (v3.32.1+), which is AOT-compatible |
 
 ### Transport
 
@@ -62,10 +62,10 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.Dispatch.Transport.Abstractions` | AOT-safe | |
 | `Excalibur.Dispatch.Transport.RabbitMQ` | AOT-safe | Builder pattern, no reflection |
 | `Excalibur.Dispatch.Transport.AwsSqs` | AOT-safe | Builder pattern, no reflection |
-| `Excalibur.Dispatch.Transport.AzureServiceBus` | AOT-safe | `MessageDeserializerRegistry` typed pattern; `AzureLogicAppsScheduler`/`EventGridTransportSender` annotated (Sprint 759) |
+| `Excalibur.Dispatch.Transport.AzureServiceBus` | AOT-safe | `MessageDeserializerRegistry` typed pattern; `AzureLogicAppsScheduler`/`EventGridTransportSender` annotated |
 | `Excalibur.Dispatch.Transport.GooglePubSub` | **Not compatible** | Google Cloud SDK dependency uses reflection |
 | `Excalibur.Dispatch.Transport.Kafka` | **Not compatible** | Confluent.Kafka SchemaRegistry uses `Activator.CreateInstance` |
-| `Excalibur.Dispatch.Transport.Grpc` | AOT-safe | `GrpcJsonSerializerContext` source-gen JSON for all 10 transport types (Sprint 757) |
+| `Excalibur.Dispatch.Transport.Grpc` | AOT-safe | `GrpcJsonSerializerContext` source-gen JSON for all 10 transport types |
 
 ### Hosting
 
@@ -97,7 +97,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
 | `Excalibur.Compliance.Abstractions` | AOT-safe | |
-| `Excalibur.Compliance` | AOT-safe | Reflection paths annotated with `[DynamicallyAccessedMembers]` (Sprint 757) |
+| `Excalibur.Compliance` | AOT-safe | Reflection paths annotated with `[DynamicallyAccessedMembers]` |
 | `Excalibur.Compliance.Aws` | **Not compatible** | AWS KMS SDK dependency |
 | `Excalibur.Compliance.Azure` | AOT-safe | |
 | `Excalibur.Compliance.Vault` | AOT-safe | |
@@ -223,7 +223,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Saga` | AOT-safe | Source-gen registry population via `IPostConfigureOptions` pattern (Sprint 755) |
+| `Excalibur.Saga` | AOT-safe | Source-gen registry population via `IPostConfigureOptions` pattern |
 | `Excalibur.Saga.SqlServer` | AOT-safe | |
 | `Excalibur.Saga.Postgres` | AOT-safe | |
 | `Excalibur.Saga.MongoDB` | AOT-safe | |
@@ -289,7 +289,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
 | `Excalibur.Security.Abstractions` | AOT-safe | |
-| `Excalibur.Security` | AOT-safe | `[DynamicallyAccessedMembers]` annotations for property-level encryption (Sprint 756) |
+| `Excalibur.Security` | AOT-safe | `[DynamicallyAccessedMembers]` annotations for property-level encryption |
 | `Excalibur.Compliance.SqlServer` | AOT-safe | |
 | `Excalibur.Compliance.Postgres` | AOT-safe | |
 | `Excalibur.Caching` | **Not compatible** | HybridCache uses reflection |

@@ -317,5 +317,22 @@ public abstract class SerializerConformanceTestsBase
 			serializer.Serialize(obj, null!));
 	}
 
+	[Fact]
+	public void Serialize_NullValue_GenericApi_ShouldThrowArgumentNullException()
+	{
+		// Arrange
+		// bd-hxoyaq: the canonical null-argument contract for Serialize<T> (ISerializer.Serialize<T> XML doc
+		// formal guarantee). Pre-fix impls serialized null as format-nil instead of throwing — tests RED on
+		// HEAD (null produces bytes, not ArgumentNullException). Post-fix: ArgumentNullException.ThrowIfNull(value)
+		// fires before any serialization → test GREEN. Non-vacuous across all 4 conformance-suite impls.
+		var serializer = CreateSerializer();
+		var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+
+		// Act & Assert — use string as an unambiguously-reference-type T so the null guard fires before
+		// any format-specific type check. ThrowIfNull fires for any null reference regardless of T.
+		Should.Throw<ArgumentNullException>(() =>
+			serializer.Serialize<string>(null!, buffer));
+	}
+
 	#endregion
 }

@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<!-- Sprint 430 S430.1: Azure Functions Serverless Sample -->
+<!-- Azure Functions Serverless Sample -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- S797-A2: Targets net10.0 in line with the rest of the framework.
+ <!-- -A2: Targets net10.0 in line with the rest of the framework.
          Microsoft.Azure.Functions.Worker.Sdk 1.17.4 flags this combo at restore (v4 Functions host
-         validation table). SDK 2.x adds net10.0 support; upgrade tracked by S797 Workstream B.
+ validation table). SDK 2.x adds net10.0 support; upgrade tracked by Workstream B.
          Sample is excluded from eng/ci/shards/SamplesOnly.slnf until the SDK bump lands. -->
     <TargetFramework>net10.0</TargetFramework>
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>

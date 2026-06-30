@@ -291,6 +291,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					Attempts = outboundMessage.RetryCount,
 					DispatcherId = null,
 					DispatcherTimeout = null,
+					TenantId = outboundMessage.TenantId,
 				};
 			}
 		}
@@ -316,6 +317,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			Attempts = outboundMessage.RetryCount,
 			DispatcherId = null, // OutboundMessage doesn't have this property
 			DispatcherTimeout = null, // OutboundMessage doesn't have this property
+			TenantId = outboundMessage.TenantId,
 		};
 
 	/// <summary>

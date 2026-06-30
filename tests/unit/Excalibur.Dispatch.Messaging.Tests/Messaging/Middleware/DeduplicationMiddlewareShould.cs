@@ -24,6 +24,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 public sealed class DeduplicationMiddlewareShould
 {
 	private readonly IInMemoryDeduplicator _inMemoryDeduplicator;
+	private readonly IClaimableDeduplicator _claimableDedup;
 	private readonly IInboxStore _inboxStore;
 	private readonly IMessageIdProvider _messageIdProvider;
 	private readonly IInboxConfigurationProvider _configurationProvider;
@@ -31,7 +32,11 @@ public sealed class DeduplicationMiddlewareShould
 
 	public DeduplicationMiddlewareShould()
 	{
-		_inMemoryDeduplicator = A.Fake<IInMemoryDeduplicator>();
+		// bd-53hho5: the in-memory idempotency path now uses atomic claim-before-execute (TryClaimAsync,
+		// a successful claim IS the dedup marker; ReleaseAsync on failure). The deduplicator is claim-capable
+		// (as the default InMemoryDeduplicator is); the dedup-path tests assert the claim contract.
+		_inMemoryDeduplicator = A.Fake<IInMemoryDeduplicator>(o => o.Implements<IClaimableDeduplicator>());
+		_claimableDedup = (IClaimableDeduplicator)_inMemoryDeduplicator;
 		_inboxStore = A.Fake<IInboxStore>();
 		_messageIdProvider = A.Fake<IMessageIdProvider>();
 		_configurationProvider = A.Fake<IInboxConfigurationProvider>();
@@ -66,8 +71,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(DefaultStrategyHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("key-from-message-id", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("key-from-message-id", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> new(MessageResult.Success());
@@ -76,7 +81,7 @@ public sealed class DeduplicationMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - should use MessageId as the deduplication key
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("key-from-message-id", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("key-from-message-id", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -93,8 +98,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(CustomHeaderHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("custom-key-abc", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("custom-key-abc", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> new(MessageResult.Success());
@@ -103,7 +108,7 @@ public sealed class DeduplicationMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("custom-key-abc", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("custom-key-abc", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -119,8 +124,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(CorrelationIdHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("corr-id-xyz", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("corr-id-xyz", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> new(MessageResult.Success());
@@ -129,7 +134,7 @@ public sealed class DeduplicationMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("corr-id-xyz", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("corr-id-xyz", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -146,8 +151,8 @@ public sealed class DeduplicationMiddlewareShould
 			.Returns(null);
 
 		var expectedKey = $"{nameof(CompositeKeyHandler)}:corr-composite";
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync(expectedKey, A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync(expectedKey, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> new(MessageResult.Success());
@@ -156,7 +161,7 @@ public sealed class DeduplicationMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync(expectedKey, A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync(expectedKey, A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -175,8 +180,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _messageIdProvider.GetMessageId(message, context))
 			.Returns("custom-provider-key");
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("custom-provider-key", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("custom-provider-key", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> new(MessageResult.Success());
@@ -206,8 +211,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(DefaultStrategyHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("dup-msg-1", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("dup-msg-1", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(false));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -266,8 +271,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(DefaultStrategyHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("new-msg-1", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("new-msg-1", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -299,8 +304,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(DefaultStrategyHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("cache-msg-1", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("cache-msg-1", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> new(MessageResult.Success());
@@ -309,8 +314,11 @@ public sealed class DeduplicationMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _inMemoryDeduplicator.MarkProcessedAsync("cache-msg-1", A<TimeSpan>._, A<CancellationToken>._))
+		// New contract: the successful claim IS the dedup marker (no separate finalize) and is NOT released on success.
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("cache-msg-1", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => _claimableDedup.ReleaseAsync(A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -325,8 +333,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(DefaultStrategyHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("fail-msg-1", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("fail-msg-1", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		var failedResult = MessageResult.Failed(new MessageProblemDetails
 		{
@@ -343,9 +351,10 @@ public sealed class DeduplicationMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
+		// New contract: on handler failure the claim is RELEASED so a redelivery re-admits the message.
 		result.IsSuccess.ShouldBeFalse();
-		A.CallTo(() => _inMemoryDeduplicator.MarkProcessedAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
+		_ = A.CallTo(() => _claimableDedup.ReleaseAsync("fail-msg-1", A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -386,8 +395,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(PersistentIdempotentHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("fallback-msg-1", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("fallback-msg-1", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> new(MessageResult.Success());
@@ -396,10 +405,11 @@ public sealed class DeduplicationMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - should fall back to in-memory deduplicator
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("fallback-msg-1", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("fallback-msg-1", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		_ = A.CallTo(() => _inMemoryDeduplicator.MarkProcessedAsync("fallback-msg-1", A<TimeSpan>._, A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
+		// Claim is the marker on success; not released.
+		A.CallTo(() => _claimableDedup.ReleaseAsync(A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -414,8 +424,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(ShortRetentionHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> new(MessageResult.Success());
@@ -424,7 +434,7 @@ public sealed class DeduplicationMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - ShortRetentionHandler specifies 15 minutes retention
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync(
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync(
 			"retention-msg",
 			TimeSpan.FromMinutes(15),
 			A<CancellationToken>._))
@@ -450,8 +460,8 @@ public sealed class DeduplicationMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(PersistentIdempotentHandler)))
 			.Returns(providerSettings);
 
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("provider-msg", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("provider-msg", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> new(MessageResult.Success());
@@ -460,7 +470,7 @@ public sealed class DeduplicationMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - provider forced in-memory, so persistent store should NOT be called
-		_ = A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync("provider-msg", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("provider-msg", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _inboxStore.IsProcessedAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -490,7 +500,7 @@ public sealed class DeduplicationMiddlewareShould
 
 		// Assert
 		handlerInvoked.ShouldBeTrue("Should pass through when no handler type is set");
-		A.CallTo(() => _inMemoryDeduplicator.IsDuplicateAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
+		A.CallTo(() => _claimableDedup.TryClaimAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 

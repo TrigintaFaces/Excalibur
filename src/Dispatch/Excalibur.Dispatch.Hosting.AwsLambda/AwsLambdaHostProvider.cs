@@ -49,17 +49,20 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 			_ = services.AddSingleton<IColdStartOptimizer, AwsLambdaColdStartOptimizer>();
 		}
 
-		// Log warnings when consumers enable telemetry options that require
-		// platform SDK integration not yet wired up. This prevents silent no-ops
-		// where consumers think EnableDistributedTracing=true does something.
+		// Distributed tracing and metrics on Lambda are platform-provisioned (X-Ray active
+		// tracing + CloudWatch), enabled by the operator at the function/platform level — the
+		// provider does not wire in-process exporters for these flags. Warn honestly that the
+		// in-process exporter toggle is a no-op on this host (not a misleading "not implemented"
+		// message, and not a silent no-op); deps-bearing in-process exporters are tracked in
+		// bd-wh492p.
 		if (options.Telemetry.EnableDistributedTracing)
 		{
-			LogConfiguringAwsXRayTracingForLambda();
+			LogAwsXRayTracingPlatformProvisioned();
 		}
 
 		if (options.Telemetry.EnableMetrics)
 		{
-			LogConfiguringAwsLambdaMetrics();
+			LogAwsLambdaMetricsPlatformProvisioned();
 		}
 
 		LogAwsLambdaServicesConfiguredSuccessfully();
@@ -126,17 +129,12 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 		{
 			// Create a timeout cancellation token based on remaining execution time
 			using var timeoutCts = new CancellationTokenSource();
-			var remainingTime = context.RemainingTime;
 
-			if (remainingTime > TimeSpan.Zero)
-			{
-				// Reserve some time for cleanup
-				var executionTimeout = remainingTime - TimeSpan.FromMilliseconds(100);
-				if (executionTimeout > TimeSpan.Zero)
-				{
-					timeoutCts.CancelAfter(executionTimeout);
-				}
-			}
+			// Reserve cleanup headroom and fail closed: ComputeExecutionTimeout floors the budget at
+			// Zero, so an invocation already within (or past) the cleanup reserve cancels immediately
+			// instead of running unbounded. Cancellation is ALWAYS scheduled — the fail-open skip is
+			// structurally inexpressible.
+			timeoutCts.CancelAfter(ServerlessHostOptions.ComputeExecutionTimeout(context.RemainingTime));
 
 			using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
 				cancellationToken, timeoutCts.Token);
@@ -208,12 +206,15 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 	private partial void LogAwsLambdaHandlerExecutionFailed(Exception ex);
 
 	[LoggerMessage(AwsLambdaEventId.ConfiguringXRayTracing, Microsoft.Extensions.Logging.LogLevel.Warning,
-		"AWS X-Ray tracing integration is not yet implemented. Distributed tracing will not be active.")]
-	private partial void LogConfiguringAwsXRayTracingForLambda();
+		"Distributed tracing on AWS Lambda is platform-provisioned via X-Ray active tracing (configured in the " +
+		"Lambda function's tracing config); the EnableDistributedTracing toggle does not wire an in-process " +
+		"exporter on this host and is a no-op here.")]
+	private partial void LogAwsXRayTracingPlatformProvisioned();
 
 	[LoggerMessage(AwsLambdaEventId.ConfiguringMetrics, Microsoft.Extensions.Logging.LogLevel.Warning,
-		"AWS CloudWatch metrics integration is not yet implemented. Metrics will not be collected.")]
-	private partial void LogConfiguringAwsLambdaMetrics();
+		"Metrics on AWS Lambda are platform-provisioned via CloudWatch (configured at the function/platform level); " +
+		"the EnableMetrics toggle does not wire an in-process exporter on this host and is a no-op here.")]
+	private partial void LogAwsLambdaMetricsPlatformProvisioned();
 
 	/// <summary>
 	/// Creates a default serverless context for AWS Lambda.

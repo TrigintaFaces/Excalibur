@@ -124,6 +124,19 @@ public sealed class RabbitMQConnectionOptions
 	/// </summary>
 	/// <value>The SSL options.</value>
 	public RabbitMQSslOptions Ssl { get; } = new();
+
+	/// <summary>
+	/// Gets or sets a value indicating whether automatic connection recovery is enabled.
+	/// </summary>
+	/// <value><see langword="true"/> to recover the connection automatically after a network
+	/// failure; otherwise, <see langword="false"/>. Default is <see langword="true"/>.</value>
+	public bool AutomaticRecoveryEnabled { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the interval between network recovery attempts.
+	/// </summary>
+	/// <value>The recovery interval. Default is 10 seconds.</value>
+	public TimeSpan NetworkRecoveryInterval { get; set; } = TimeSpan.FromSeconds(10);
 }
 
 /// <summary>

@@ -12,6 +12,7 @@ using System.Text.Json;
 
 using Excalibur.Dispatch.Caching.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Validation;
 
 using Microsoft.Extensions.Caching.Hybrid;
@@ -32,6 +33,12 @@ namespace Excalibur.Dispatch.Caching;
 /// <param name="logger">Logger for startup warnings and diagnostics.</param>
 /// <param name="globalPolicy">Optional global cache policy.</param>
 /// <param name="tagTracker">Optional tag tracker for registering cache key-to-tag mappings on cache miss.</param>
+/// <param name="cacheCircuitBreaker">
+/// Optional circuit breaker guarding cache-backend operations. When supplied and
+/// <see cref="CacheCircuitBreakerOptions.Enabled"/> is <see langword="true"/>, repeated cache failures trip the
+/// breaker and, while open, the middleware skips the cache and executes the handler directly (fail-open).
+/// When <see langword="null"/>, no breaker gating is applied (fail-open via <see cref="CacheResilienceOptions.EnableFallback"/> still applies).
+/// </param>
 /// <remarks>
 /// <para>
 /// <b>AOT Compatibility:</b> This middleware supports dual-path execution for Native AOT:
@@ -57,7 +64,8 @@ internal sealed class CachingMiddleware(
 	IOptions<CacheOptions> options,
 	ILogger<CachingMiddleware> logger,
 	IResultCachePolicy? globalPolicy = null,
-	ICacheTagTracker? tagTracker = null) : IDispatchMiddleware
+	ICacheTagTracker? tagTracker = null,
+	ICircuitBreakerPolicy? cacheCircuitBreaker = null) : IDispatchMiddleware
 {
 	/// <summary>
 	/// Maximum number of entries allowed in each interface resolution cache.
@@ -407,46 +415,15 @@ internal sealed class CachingMiddleware(
 		var expiration = GetExpiration(cacheableInfo, message);
 		var tags = GetCacheTags(cacheableInfo, message);
 
-		// Use cache with timeout
-		using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		cts.CancelAfter(options.Value.Behavior.CacheTimeout);
-
-		var sw = ValueStopwatch.StartNew();
-		try
-		{
-			var cachedResult = await cache.GetOrCreateAsync(
-				key,
-				async ct => await CreateCacheValueAsync(message, context, nextDelegate, ct).ConfigureAwait(false),
-				new HybridCacheEntryOptions
-				{
-					Expiration = expiration,
-					Flags = _options.CacheMode == CacheMode.Distributed
-						? HybridCacheEntryFlags.DisableLocalCache
-						: HybridCacheEntryFlags.None,
-				},
-				tags,
-				cts.Token).ConfigureAwait(false);
-
-			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
-			RecordHitOrMiss(cachedResult, context);
-
-			// Register key-to-tag mapping on cache miss for tag-based invalidation
-			if (tagTracker is not null
-				&& tags is { Length: > 0 }
-				&& context.Items.ContainsKey("Dispatch:OriginalResult"))
-			{
-				await tagTracker.RegisterKeyAsync(key, tags, cancellationToken).ConfigureAwait(false);
-			}
-
-			return await HandleCachedResultAsync(cachedResult, message, context, nextDelegate, cancellationToken).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-		{
-			// Cache timeout - execute without caching. Real caller cancellation propagates.
-			_cacheTimeoutCounter.Add(1);
-			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
-			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
-		}
+		return await ExecuteWithCacheAsync(
+			key,
+			async ct => await CreateCacheValueAsync(message, context, nextDelegate, ct).ConfigureAwait(false),
+			expiration,
+			tags,
+			message,
+			context,
+			nextDelegate,
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -637,15 +614,61 @@ internal sealed class CachingMiddleware(
 
 		var (expiration, tags) = GetAttributeCacheConfiguration(attr);
 
+		return await ExecuteWithCacheAsync(
+			key,
+			async ct => await CreateAttributeCacheValueAsync(message, context, nextDelegate, attr, ct).ConfigureAwait(false),
+			expiration,
+			tags,
+			message,
+			context,
+			nextDelegate,
+			cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Executes the cache lookup-or-create for a key with resilience: honors the cache circuit breaker
+	/// (skip-when-open), the per-operation timeout, and <see cref="CacheResilienceOptions.EnableFallback"/>
+	/// fail-open on a non-cancellation cache-backend error.
+	/// </summary>
+	/// <param name="key">The cache key.</param>
+	/// <param name="valueFactory">Factory that executes the handler and produces the value to cache.</param>
+	/// <param name="expiration">The cache entry expiration.</param>
+	/// <param name="tags">The cache tags for the entry.</param>
+	/// <param name="message">The message being processed.</param>
+	/// <param name="context">The message context.</param>
+	/// <param name="nextDelegate">The next middleware delegate.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>The resolved message result.</returns>
+	[RequiresDynamicCode("Calls CompleteCacheOperationAsync which uses dynamic code for deserialization")]
+	private async Task<IMessageResult> ExecuteWithCacheAsync(
+		string key,
+		Func<CancellationToken, ValueTask<CachedValue>> valueFactory,
+		TimeSpan expiration,
+		string[] tags,
+		IDispatchMessage message,
+		IMessageContext context,
+		DispatchRequestDelegate nextDelegate,
+		CancellationToken cancellationToken)
+	{
+		// yi59t5: when the cache circuit breaker is open, skip the cache entirely and execute the handler
+		// directly (fail-open). This avoids paying the per-request CacheTimeout while the backend is
+		// known-unhealthy and gives it the configured OpenDuration to recover.
+		if (IsCacheBreakerOpen())
+		{
+			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+
+		// Use cache with timeout
 		using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		cts.CancelAfter(options.Value.Behavior.CacheTimeout);
+		cts.CancelAfter(_options.Behavior.CacheTimeout);
 
 		var sw = ValueStopwatch.StartNew();
+		CachedValue? cachedResult;
 		try
 		{
-			var cachedResult = await cache.GetOrCreateAsync(
+			cachedResult = await cache.GetOrCreateAsync(
 				key,
-				async ct => await CreateAttributeCacheValueAsync(message, context, nextDelegate, attr, ct).ConfigureAwait(false),
+				valueFactory,
 				new HybridCacheEntryOptions
 				{
 					Expiration = expiration,
@@ -657,24 +680,68 @@ internal sealed class CachingMiddleware(
 				cts.Token).ConfigureAwait(false);
 
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
-			RecordHitOrMiss(cachedResult, context);
-
-			// Register key-to-tag mapping on cache miss for tag-based invalidation
-			if (tagTracker is not null
-				&& tags is { Length: > 0 }
-				&& context.Items.ContainsKey("Dispatch:OriginalResult"))
-			{
-				await tagTracker.RegisterKeyAsync(key, tags, cancellationToken).ConfigureAwait(false);
-			}
-
-			return await HandleCachedResultAsync(cachedResult, message, context, nextDelegate, cancellationToken).ConfigureAwait(false);
+			RecordCacheSuccess();
 		}
 		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
 		{
 			// Cache timeout - execute without caching. Real caller cancellation propagates.
+			// A timeout is a cache-backend health signal, so it counts toward the breaker.
 			_cacheTimeoutCounter.Add(1);
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
+			RecordCacheFailure(exception: null);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException && _options.Resilience.EnableFallback)
+		{
+			// yi59t5: a non-cancellation cache-backend error (e.g. a RedisConnectionException that errors
+			// FAST rather than slow) must NOT, under default options, become an application-level failure.
+			// Fall back to executing the handler directly (fail-open, like IDistributedCache/HybridCache
+			// skip-on-failure). When EnableFallback is false the error propagates (explicit fail-closed).
+			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
+			RecordCacheFailure(ex);
+			logger.LogWarning(
+				ex,
+				"Cache operation failed for key {CacheKey}; falling back to direct handler execution (EnableFallback=true).",
+				key);
+			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+
+		// Result handling (deserialization, poison-marker eviction, tag registration) runs OUTSIDE the
+		// fail-open scope: ONLY a cache-BACKEND failure fails open. A result-handling fault — e.g. a corrupt
+		// cached payload that fails to deserialize — is a data/logic error that MUST propagate, not be
+		// silently swallowed as a cache miss (which would mask data corruption).
+		return await CompleteCacheOperationAsync(key, cachedResult, tags, message, context, nextDelegate, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the cache circuit breaker is currently open (cache should be skipped).
+	/// </summary>
+	/// <returns><see langword="true"/> if a breaker is configured, enabled, and open; otherwise <see langword="false"/>.</returns>
+	private bool IsCacheBreakerOpen()
+		=> cacheCircuitBreaker is not null
+			&& _options.Resilience.CircuitBreaker.Enabled
+			&& cacheCircuitBreaker.State == CircuitState.Open;
+
+	/// <summary>
+	/// Records a successful cache operation against the circuit breaker, if one is configured and enabled.
+	/// </summary>
+	private void RecordCacheSuccess()
+	{
+		if (cacheCircuitBreaker is not null && _options.Resilience.CircuitBreaker.Enabled)
+		{
+			cacheCircuitBreaker.RecordSuccess();
+		}
+	}
+
+	/// <summary>
+	/// Records a failed cache operation against the circuit breaker, if one is configured and enabled.
+	/// </summary>
+	/// <param name="exception">The exception that caused the failure, if any.</param>
+	private void RecordCacheFailure(Exception? exception)
+	{
+		if (cacheCircuitBreaker is not null && _options.Resilience.CircuitBreaker.Enabled)
+		{
+			cacheCircuitBreaker.RecordFailure(exception);
 		}
 	}
 
@@ -871,14 +938,110 @@ internal sealed class CachingMiddleware(
 	}
 
 	/// <summary>
+	/// Completes a cache operation after <c>GetOrCreateAsync</c> returns: evicts non-cacheable markers,
+	/// records hit/miss telemetry, registers tag→key mappings for cacheable entries, and resolves the result.
+	/// </summary>
+	/// <param name="key">The cache key.</param>
+	/// <param name="cachedResult">The value returned from HybridCache (fresh or served).</param>
+	/// <param name="tags">The cache tags for the entry.</param>
+	/// <param name="message">The message being processed.</param>
+	/// <param name="context">The message context.</param>
+	/// <param name="nextDelegate">The next middleware delegate.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>The resolved message result.</returns>
+	[RequiresDynamicCode("Calls HandleCachedResultAsync which uses dynamic code for deserialization")]
+	private async Task<IMessageResult> CompleteCacheOperationAsync(
+		string key,
+		CachedValue? cachedResult,
+		string[] tags,
+		IDispatchMessage message,
+		IMessageContext context,
+		DispatchRequestDelegate nextDelegate,
+		CancellationToken cancellationToken)
+	{
+		// Dispatch:OriginalResult is set ONLY inside the factory on real execution, so its presence is the
+		// authoritative "this request executed the handler" signal. Capture it before HandleCachedResultAsync
+		// removes it.
+		var freshlyExecuted = context.Items.ContainsKey("Dispatch:OriginalResult");
+
+		// 5hucve: HybridCache stores whatever the factory returns — including non-cacheable
+		// (ShouldCache=false) markers, because HybridCacheEntryFlags are per-call and cannot be set from
+		// inside the factory. When the handler just executed and produced a non-cacheable result, evict the
+		// stored marker so a subsequent identical request re-evaluates the handler instead of getting a
+		// cache hit that still re-executes for the full TTL.
+		if (freshlyExecuted && cachedResult is { ShouldCache: false })
+		{
+			await RemovePoisonMarkerAsync(key, cancellationToken).ConfigureAwait(false);
+		}
+
+		RecordHitOrMiss(cachedResult, context);
+
+		// td9o0t: register a tag→key mapping exactly when a cacheable tagged entry is persisted — gate on the
+		// cache OUTCOME (ShouldCache:true, Value:not null), not on "did the local factory run". This both
+		// stops registering tags for non-cacheable markers AND registers the key when an entry was resolved
+		// from shared L2 without the local factory running (cross-instance tag invalidation).
+		if (tagTracker is not null
+			&& tags is { Length: > 0 }
+			&& cachedResult is { ShouldCache: true, Value: not null })
+		{
+			await RegisterTagKeysAsync(tagTracker, key, tags, cancellationToken).ConfigureAwait(false);
+		}
+
+		return await HandleCachedResultAsync(cachedResult, message, context, nextDelegate, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Evicts a non-cacheable marker entry, failing open so a removal error never surfaces to the caller.
+	/// </summary>
+	/// <param name="key">The cache key to remove.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	private async Task RemovePoisonMarkerAsync(string key, CancellationToken cancellationToken)
+	{
+		try
+		{
+			await cache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			// Fail-open: a cross-cutting cache must never break the core operation. Failing to evict the
+			// non-cacheable marker only means a future request may see a stale marker — log, do not throw.
+			logger.LogWarning(ex, "Failed to evict non-cacheable cache marker for key {CacheKey}", key);
+		}
+	}
+
+	/// <summary>
+	/// Registers a tag→key mapping for a cacheable tagged entry, failing open so a tag-store backend error
+	/// (e.g. the tag store is down) never surfaces to the caller.
+	/// </summary>
+	/// <param name="tracker">The tag tracker (already confirmed non-null at the call site).</param>
+	/// <param name="key">The cache key to register.</param>
+	/// <param name="tags">The cache tags to associate with the key.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	private async Task RegisterTagKeysAsync(ICacheTagTracker tracker, string key, string[] tags, CancellationToken cancellationToken)
+	{
+		try
+		{
+			await tracker.RegisterKeyAsync(key, tags, cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			// Fail-open: a cross-cutting cache must never break the core operation. Failing to register the
+			// tag→key mapping only means a later tag-based invalidation may miss this key — log, do not throw.
+			logger.LogWarning(ex, "Failed to register tag-to-key mapping for cache key {CacheKey}", key);
+		}
+	}
+
+	/// <summary>
 	/// Records a cache hit or miss metric based on whether the result was served from cache.
 	/// </summary>
 	/// <param name="cachedResult">The cached value returned from HybridCache.</param>
 	/// <param name="context">The message context (used to detect fresh execution via OriginalResult key).</param>
 	private void RecordHitOrMiss(CachedValue? cachedResult, IMessageContext context)
 	{
+		// ixaf7i: a result served from cache (handler NOT executed this request) is a hit regardless of the
+		// cached value being null or its stored policy flag; a fresh handler execution is a miss. Distinguish
+		// purely by the authoritative fresh-execution signal (Dispatch:OriginalResult), set only in the factory.
 		if (cachedResult?.HasExecuted == true
-			&& cachedResult is { ShouldCache: true, Value: not null }
 			&& !context.Items.ContainsKey("Dispatch:OriginalResult"))
 		{
 			_cacheHitCounter.Add(1);

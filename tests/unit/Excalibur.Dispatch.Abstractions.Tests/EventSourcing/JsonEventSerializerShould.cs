@@ -101,6 +101,35 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 	[Fact]
 	[RequiresDynamicCode("Test requires dynamic code")]
 	[RequiresUnreferencedCode("Test requires unreferenced code")]
+	public void SerializeEvent_EmitsBomLessUtf8Json()
+	{
+		// hv9vhm: serialization switched to JsonSerializer.SerializeToUtf8Bytes (drops the intermediate
+		// string alloc). This guards the one behavioral risk of that switch — the output must remain
+		// BOM-less UTF-8 JSON byte-for-byte compatible with the prior Encoding.UTF8.GetBytes(Serialize(...))
+		// path, so stores that persisted the old bytes still read back.
+		// Arrange
+		var serializer = CreateSerializer();
+		var domainEvent = new TestDomainEvent { Name = "utf8-shape" };
+
+		// Act
+		var bytes = serializer.SerializeEvent(domainEvent);
+
+		// Assert — no UTF-8 BOM (EF BB BF) and starts with the JSON object marker '{' (0x7B).
+		bytes.Length.ShouldBeGreaterThan(0);
+		var hasBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+		hasBom.ShouldBeFalse();
+		bytes[0].ShouldBe((byte)'{');
+
+		// And the bytes decode to valid JSON that round-trips back to the same event.
+		var decoded = Encoding.UTF8.GetString(bytes);
+		decoded.ShouldContain("\"utf8-shape\"");
+		var roundTripped = (TestDomainEvent)serializer.DeserializeEvent(bytes, typeof(TestDomainEvent));
+		roundTripped.Name.ShouldBe("utf8-shape");
+	}
+
+	[Fact]
+	[RequiresDynamicCode("Test requires dynamic code")]
+	[RequiresUnreferencedCode("Test requires unreferenced code")]
 	public void DeserializeEvent_WithNullData_ThrowsArgumentNullException()
 	{
 		// Arrange
@@ -126,14 +155,14 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 	[Fact]
 	[RequiresDynamicCode("Test requires dynamic code")]
 	[RequiresUnreferencedCode("Test requires unreferenced code")]
-	public void DeserializeEvent_WithWrongType_ThrowsInvalidOperationException()
+	public void DeserializeEvent_WithWrongType_ThrowsSerializationException()
 	{
 		// Arrange
 		var serializer = CreateSerializer();
 		var data = Encoding.UTF8.GetBytes("{\"value\": 42}");
 
-		// Act & Assert - NonEventClass is not an IDomainEvent
-		Should.Throw<InvalidOperationException>(() => serializer.DeserializeEvent(data, typeof(NonEventClass)));
+		// Act & Assert - NonEventClass is not an IDomainEvent; failures surface as SerializationException (ifgj5w).
+		Should.Throw<Excalibur.Dispatch.Serialization.SerializationException>(() => serializer.DeserializeEvent(data, typeof(NonEventClass)));
 	}
 
 	[Fact]

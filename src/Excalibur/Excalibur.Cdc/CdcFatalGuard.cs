@@ -6,21 +6,25 @@ using Excalibur.Dispatch;
 namespace Excalibur.Cdc;
 
 /// <summary>
-/// The single, shared, pure decision point for a CDC consume loop's checkpoint-advance / stop /
-/// reconnect behavior on every iteration. Every provider's <c>StartAsync</c> loop routes through
-/// <see cref="Decide"/> and gates ALL checkpoint-advance on the returned
-/// <see cref="CdcFatalDecision.AdvanceCheckpoint"/>.
+/// The single, shared, pure decision point for a CDC consume loop's checkpoint-advance / stop
+/// behavior on every iteration. Every provider's <c>StartAsync</c> loop routes its fatal-vs-transient
+/// decision through <see cref="Decide"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This makes the FR-B2 / ADR-338 safety invariant — <em>a fatal (or transient) fault never advances
-/// the durable checkpoint past the unprocessed change</em> — <strong>structurally inexpressible</strong>
-/// to violate: the loop has no un-gated advance, and a fault never returns
-/// <see cref="CdcFatalDecision.AdvanceCheckpoint"/> = <see langword="true"/> (bd-pxhqri, SA ruling 17124).
+/// The FR-B2 / safety invariant — <em>a fatal (or transient) fault never advances the durable
+/// checkpoint past the unprocessed change</em> — is enforced by the idiom native
+/// to each provider class (see <see cref="CdcFatalDecision"/>): <b>poll-batch</b> providers (Cosmos,
+/// DynamoDb) gate the durable advance literally on <see cref="CdcFatalDecision.AdvanceCheckpoint"/> at a
+/// site reached on both the success and the captured-fault path; <b>streaming</b> providers (Postgres,
+/// Mongo) enforce it by confirm-site placement (the fault unwinds before the commit/invalidation confirm
+/// is reachable). A field-gate on a streaming confirm site would be vacuous, so it is not used there.
 /// </para>
 /// <para>
-/// Pure and deterministic (no I/O, no real infrastructure), so the invariant is directly and
-/// non-vacuously unit-testable: mutating any decision arm flips a bound assertion to RED.
+/// <see cref="Decide"/> itself is pure and deterministic (no I/O), so the decision arms are directly and
+/// non-vacuously unit-testable. The end-to-end durability invariant is regression-locked by the
+/// poll-batch field-gate mutant test (Cosmos/DynamoDb) and the non-skipped real-infra restart-redelivery
+/// test (Postgres/Mongo).
 /// </para>
 /// </remarks>
 public static class CdcFatalGuard
@@ -43,16 +47,16 @@ public static class CdcFatalGuard
     public static CdcFatalDecision Decide(Exception? exception, IMessageFailureClassifier? classifier)
     {
         // Clean success — the only path that may advance the durable checkpoint.
-        // (advanceCheckpoint: true, stop: false, reconnect: false)
+        // (advanceCheckpoint: true, stop: false)
         if (exception is null)
         {
-            return new CdcFatalDecision(true, false, false);
+            return new CdcFatalDecision(true, false);
         }
 
-        // A fault occurred: NEVER advance past it. Fatal → stop loudly (false, true, false);
-        // transient → reconnect and retry from the un-advanced checkpoint (false, false, true).
+        // A fault occurred: NEVER advance past it. Fatal → stop loudly (false, true);
+        // transient → do not stop, the loop reconnects and retries from the un-advanced checkpoint (false, false).
         return CdcFatalClassifier.IsFatal(exception, classifier)
-            ? new CdcFatalDecision(false, true, false)
-            : new CdcFatalDecision(false, false, true);
+            ? new CdcFatalDecision(false, true)
+            : new CdcFatalDecision(false, false);
     }
 }

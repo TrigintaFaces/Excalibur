@@ -8,6 +8,8 @@ using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Validation;
 using Excalibur.Dispatch.Validation.FluentValidation;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -31,6 +33,9 @@ public static class FluentValidationServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
+		// Only one IValidatorResolver may be active. Replace any prior registration (e.g. a second
+		// WithFluentValidation()/WithAotFluentValidation() call) so resolution is unambiguous.
+		builder.Services.RemoveAll<IValidatorResolver>();
 		_ = builder.Services.AddSingleton<IValidatorResolver, FluentValidatorResolver>();
 		return builder;
 	}
@@ -48,6 +53,9 @@ public static class FluentValidationServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
+		// Only one IValidatorResolver may be active. Replace any prior registration (e.g. a preceding
+		// WithFluentValidation() call) so the AOT resolver is the single, unambiguous implementation.
+		builder.Services.RemoveAll<IValidatorResolver>();
 		_ = builder.Services.AddSingleton<IValidatorResolver, AotFluentValidatorResolver>();
 		return builder;
 	}

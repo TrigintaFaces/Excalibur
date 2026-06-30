@@ -3,7 +3,6 @@
 
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Observability.Metrics;
-using Excalibur.Dispatch.Observability.Propagation;
 using Excalibur.Dispatch.Observability.Sampling;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -120,50 +119,6 @@ public sealed class DispatchBuilderObservabilityExtensionsShould
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(ITraceSampler));
-	}
-
-	[Fact]
-	public void AddW3CTracingPropagator_ThrowOnNullServices()
-	{
-		IServiceCollection services = null!;
-		Should.Throw<ArgumentNullException>(() => services.AddW3CTracingPropagator());
-	}
-
-	[Fact]
-	public void AddW3CTracingPropagator_RegistersW3CPropagator()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddW3CTracingPropagator();
-
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ITracingContextPropagator) &&
-			sd.ImplementationType == typeof(W3CTracingContextPropagator));
-	}
-
-	[Fact]
-	public void AddB3TracingPropagator_ThrowOnNullServices()
-	{
-		IServiceCollection services = null!;
-		Should.Throw<ArgumentNullException>(() => services.AddB3TracingPropagator());
-	}
-
-	[Fact]
-	public void AddB3TracingPropagator_RegistersB3Propagator()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddB3TracingPropagator();
-
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ITracingContextPropagator) &&
-			sd.ImplementationType == typeof(B3TracingContextPropagator));
 	}
 
 	private static IDispatchBuilder CreateFakeBuilder(IServiceCollection services)

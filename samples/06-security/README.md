@@ -184,4 +184,4 @@ var event = new CustomerCreatedEvent(
 
 ---
 
-*Category: Security | Sprint 431*
+*Category: Security*

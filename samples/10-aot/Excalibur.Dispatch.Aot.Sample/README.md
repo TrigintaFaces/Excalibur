@@ -214,7 +214,7 @@ After `dotnet publish -c Release`, verify:
 
 ### About AOT Warnings
 
-You will see IL2xxx (trim) and IL3xxx (AOT) warnings during publish. As of Sprint 736, the baseline is **~126 warnings** from the Dispatch framework itself. These originate from:
+You will see IL2xxx (trim) and IL3xxx (AOT) warnings during publish. As of , the baseline is **~126 warnings** from the Dispatch framework itself. These originate from:
 
 - Reflection-based fallback paths in the core dispatcher (used only when source generators aren't available)
 - `Type.GetType()` calls in event serialization (being addressed in Wave 3)
@@ -297,8 +297,8 @@ pwsh eng/ci/Invoke-AotBuildAnalysis.ps1
 
 ## Related Documentation
 
-- [ADR-292: AOT Wave 0-1 Decisions](../../../management/architecture/adr-292-aot-wave-0-1-decisions.md)
-- [ADR-293: AOT Wave 2-3 Decisions](../../../management/architecture/adr-293-aot-wave-2-3-decisions.md)
+- [: AOT Wave 0-1 Decisions](../../../management/architecture/adr-292-aot-wave-0-1-decisions.md)
+- [: AOT Wave 2-3 Decisions](../../../management/architecture/adr-293-aot-wave-2-3-decisions.md)
 - [Source Generators Guide](../../../docs-site/docs/source-generators/index.md)
 - [Viewing Generated Code](../../../docs-site/docs/advanced/viewing-generated-code.md)
 - [Microsoft AOT Documentation](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/)

@@ -4,7 +4,7 @@
 namespace Excalibur.Compliance.Erasure;
 
 /// <summary>
-/// Partitions discovered personal-data locations by GDPR erasure coverage (ADR-336 Amendment 1/1a,
+/// Partitions discovered personal-data locations by GDPR erasure coverage (Amendment 1/1a,
 /// key-aware 3-state model). Extracted from <see cref="ErasureService"/> so the coverage gate is a single,
 /// named, testable unit and the orchestration method stays within its class-coupling budget.
 /// </summary>

@@ -382,6 +382,103 @@ builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy());
 ```
 
+## First-Party Per-Module Health Checks
+
+Each Dispatch and Excalibur module ships its own `IHealthChecksBuilder` extension so you can register
+exactly the checks your application needs. Every method lives in the
+`Microsoft.Extensions.DependencyInjection` namespace, returns `IHealthChecksBuilder` for chaining, and
+accepts the same optional arguments:
+
+```csharp
+AddXHealthCheck(
+    string name = "<default>",                       // health check name
+    HealthStatus? failureStatus = null,              // status reported on failure (default: Unhealthy)
+    IEnumerable<string>? tags = null)                // tags for endpoint filtering
+```
+
+### Dispatch Core (`Excalibur.Dispatch`)
+
+```csharp
+builder.Services.AddHealthChecks()
+    .AddDispatchCoreHealthChecks();          // registers all three core checks below
+```
+
+| Method | Default name | Monitors |
+|--------|--------------|----------|
+| `AddDispatchCoreHealthChecks()` | — | Aggregate: registers the three checks below |
+| `AddPipelineIntegrityHealthCheck()` | `pipeline-integrity` | Middleware pipeline wiring integrity |
+| `AddSerializationHealthCheck()` | `serialization` | Message serializer availability |
+| `AddStreamingHandlerHealthCheck()` | `streaming-handler` | Streaming handler registration |
+
+### Caching & Patterns
+
+| Method | Package | Default name |
+|--------|---------|--------------|
+| `AddCacheHealthCheck()` | `Excalibur.Dispatch.Caching` | `cache` |
+| `AddClaimCheckHealthCheck()` | `Excalibur.Dispatch.Patterns` | `claim-check` |
+
+### Data Providers
+
+```csharp
+builder.Services.AddHealthChecks()
+    .AddMongoDbHealthCheck()
+    .AddRedisHealthCheck();
+```
+
+| Method | Package | Default name |
+|--------|---------|--------------|
+| `AddDynamoDbHealthCheck()` | `Excalibur.Data.DynamoDb` | `dynamodb` |
+| `AddFirestoreHealthCheck()` | `Excalibur.Data.Firestore` | `firestore` |
+| `AddInMemoryHealthCheck()` | `Excalibur.Data.InMemory` | `inmemory` |
+| `AddMongoDbHealthCheck()` | `Excalibur.Data.MongoDB` | `mongodb` |
+| `AddMySqlHealthCheck()` | `Excalibur.Data.MySql` | `mysql` |
+| `AddRedisHealthCheck()` | `Excalibur.Data.Redis` | `redis` |
+
+:::note First-party vs. third-party Redis check
+`AddRedisHealthCheck()` is the **first-party** check that validates the Dispatch-configured Redis
+connection. It is distinct from the third-party `AddRedis(...)` extension shown earlier (from
+`AspNetCore.HealthChecks.Redis`), which takes a raw connection string. Use whichever fits your wiring.
+:::
+
+### Event Sourcing (`Excalibur.EventSourcing`)
+
+```csharp
+builder.Services.AddHealthChecks()
+    .AddEventSourcingHealthChecks();         // registers all four checks below
+```
+
+| Method | Default name | Monitors |
+|--------|--------------|----------|
+| `AddEventSourcingHealthChecks()` | — | Aggregate: registers the four checks below |
+| `AddEventStoreHealthCheck()` | `event-store` | Event store connectivity |
+| `AddSnapshotStoreHealthCheck()` | `snapshot-store` | Snapshot store connectivity |
+| `AddTenantShardHealthCheck()` | `tenant-shard` | Tenant shard routing health |
+| `AddProjectionsHealthCheck()` | `projections` | Projection processing health |
+
+### Compliance, Audit & Security
+
+```csharp
+builder.Services.AddHealthChecks()
+    .AddComplianceHealthChecks()             // registers encryption + erasure checks
+    .AddAuditStoreHealthCheck()
+    .AddSecurityHealthCheck();
+```
+
+| Method | Package | Default name |
+|--------|---------|--------------|
+| `AddComplianceHealthChecks()` | `Excalibur.Compliance` | aggregate (encryption + erasure) |
+| `AddEncryptionHealthCheck()` | `Excalibur.Compliance` | `encryption` |
+| `AddErasureHealthCheck()` | `Excalibur.Compliance` | `erasure` |
+| `AddAuditStoreHealthCheck()` | `Excalibur.AuditLogging` | `audit-store` |
+| `AddSecurityHealthCheck()` | `Excalibur.Security` | `security` |
+
+:::tip Choosing between per-module and aggregated registration
+Use `AddExcaliburHealthChecks()` (above) for one-line, convention-based registration that adapts to the
+services already in your container. Use the per-module `AddXHealthCheck()` methods when you want explicit
+control over which checks run, their names, failure status, or tags (for example, to tag only a subset as
+`ready` for a readiness probe).
+:::
+
 ## Kubernetes Integration
 
 ### Liveness Probe

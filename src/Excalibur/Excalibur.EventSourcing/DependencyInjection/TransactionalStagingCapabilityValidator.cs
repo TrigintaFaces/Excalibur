@@ -25,7 +25,7 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// <para>
 /// This validator (registered with <c>ValidateOnStart()</c>) makes that silent downgrade inexpressible: an
 /// explicit <see cref="OutboxStagingStrategy.Transactional"/> without the required infrastructure fails fast at
-/// startup, naming exactly what is missing (ADR-336 clause 2). Only the <em>explicit</em>
+/// startup, naming exactly what is missing. Only the <em>explicit</em>
 /// <see cref="OutboxStagingStrategy.Transactional"/> value trips the guard;
 /// <see cref="OutboxStagingStrategy.Auto"/> (which documents its own graceful fallback),
 /// <see cref="OutboxStagingStrategy.EventuallyConsistent"/>, and <see cref="OutboxStagingStrategy.Deferred"/>

@@ -12,4 +12,5 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 [JsonSourceGenerationOptions(WriteIndented = false)]
 [JsonSerializable(typeof(DistributedCircuitState))]
 [JsonSerializable(typeof(DistributedCircuitMetrics))]
+[JsonSerializable(typeof(CircuitWindowBucket))]
 internal sealed partial class DistributedCircuitJsonContext : JsonSerializerContext;

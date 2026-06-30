@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // ============================================================================
-// Full-Stack AddExcalibur Composition Sample  (bd-15cu8x)
+// Full-Stack AddExcalibur Composition Sample
 // ============================================================================
 //
 // This sample is the canonical reference for wiring Excalibur end-to-end via
@@ -224,7 +224,7 @@ builder.Services.AddSingleton<IOrderProjectionStore, InMemoryOrderProjectionStor
 // record through IAuditMessagePublisher.
 //
 // excalibur.AddAudit() (on IExcaliburBuilder, the canonical public path per
-// ADR-321/325) wires the full audit stack in one call:
+//) wires the full audit stack in one call:
 //   TryAddTenantId         - scoped ITenantId (defaults to "Default"; multi-
 //                            tenant hosts override via their own resolver,
 //                            see the MultiTenantEventSourcing sample)

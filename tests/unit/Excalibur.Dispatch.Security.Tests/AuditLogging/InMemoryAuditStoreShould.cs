@@ -14,7 +14,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 
 	public InMemoryAuditStoreShould()
 	{
-		_store = new InMemoryAuditStore();
+		_store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 	}
 
 	public void Dispose() => _store.Clear();
@@ -168,9 +168,12 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		// Act
 		_ = await _store.StoreAsync(auditEvent, CancellationToken.None);
 
-		// Assert - first event should have a previous hash (genesis hash)
+		// Assert - genesis event: null prior tag (keyed-MAC chain genesis), with a keyed EventHash (v1:{keyId}:{mac}).
 		var stored = await _store.GetByIdAsync("first-event", CancellationToken.None);
-		stored.PreviousEventHash.ShouldNotBeNullOrWhiteSpace();
+		_ = stored.ShouldNotBeNull();
+		stored.PreviousEventHash.ShouldBeNull();
+		stored.EventHash.ShouldNotBeNullOrWhiteSpace();
+		stored.EventHash!.ShouldStartWith("v1:");
 	}
 
 	[Fact]
@@ -182,9 +185,12 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		// Act
 		_ = await _store.StoreAsync(auditEvent, CancellationToken.None);
 
-		// Assert - first event in tenant chain should have a genesis hash
+		// Assert - tenant's genesis event: null prior tag, with a keyed EventHash (v1:{keyId}:{mac}).
 		var stored = await _store.GetByIdAsync("tenant-first", CancellationToken.None);
-		stored.PreviousEventHash.ShouldNotBeNullOrWhiteSpace();
+		_ = stored.ShouldNotBeNull();
+		stored.PreviousEventHash.ShouldBeNull();
+		stored.EventHash.ShouldNotBeNullOrWhiteSpace();
+		stored.EventHash!.ShouldStartWith("v1:");
 	}
 
 	[Fact]
@@ -284,16 +290,18 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 	[Fact]
 	public async Task GetByIdAsync_ReturnsEventWithHashAndChainInfo()
 	{
-		// Arrange
+		// Arrange - a prior (genesis) event so the target is a non-genesis link with a real prior tag.
+		_ = await _store.StoreAsync(CreateTestAuditEvent("event-genesis"), CancellationToken.None);
 		var auditEvent = CreateTestAuditEvent("event-with-hash");
 		_ = await _store.StoreAsync(auditEvent, CancellationToken.None);
 
 		// Act
 		var retrieved = await _store.GetByIdAsync("event-with-hash", CancellationToken.None);
 
-		// Assert
+		// Assert - keyed-MAC tag (v1:{keyId}:{mac}) + chain link to the prior event's tag.
 		_ = retrieved.ShouldNotBeNull();
 		retrieved.EventHash.ShouldNotBeNullOrWhiteSpace();
+		retrieved.EventHash!.ShouldStartWith("v1:");
 		retrieved.PreviousEventHash.ShouldNotBeNullOrWhiteSpace();
 	}
 

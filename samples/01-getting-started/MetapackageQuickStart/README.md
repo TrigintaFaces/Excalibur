@@ -1,6 +1,5 @@
 # Metapackage vs Granular Composition
 
-**Beads:** `bd-b0h6x9` (P2)
 **Location:** `samples/01-getting-started/MetapackageQuickStart/`
 
 Side-by-side reference showing two equivalent ways to wire the Excalibur

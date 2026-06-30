@@ -35,6 +35,15 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 	private readonly IMemoryCache _fakeMemoryCache = A.Fake<IMemoryCache>();
 	private readonly HybridCache _fakeHybridCache = A.Fake<HybridCache>();
 	private readonly ICacheTagTracker _fakeTagTracker = A.Fake<ICacheTagTracker>();
+	private readonly ICacheKeyBuilder _keyBuilder = A.Fake<ICacheKeyBuilder>();
+
+	public CacheInvalidationMiddlewareShould()
+	{
+		// f8pdos: direct invalidation keys are folded through the key builder before removal. Use a real,
+		// deterministic transform (NOT a no-op) so tests assert the BUILT storage key is what gets removed.
+		A.CallTo(() => _keyBuilder.CreateKey(A<string>._, A<string?>._, A<string?>._))
+			.ReturnsLazily((string logicalKey, string? tenantId, string? userId) => $"sk:{logicalKey}");
+	}
 
 	public void Dispose()
 	{
@@ -131,7 +140,7 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 		// Assert
 		result.ShouldBe(expectedResult);
 		A.CallTo(() => _fakeHybridCache.RemoveAsync(
-			A<IEnumerable<string>>.That.Contains("key1"),
+			A<IEnumerable<string>>.That.Contains("sk:key1"),
 			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
@@ -204,7 +213,7 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 			A<IEnumerable<string>>.That.Contains("mem-tag"),
 			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 		A.CallTo(() => _fakeHybridCache.RemoveAsync(
-			A<IEnumerable<string>>.That.Contains("mem-key"),
+			A<IEnumerable<string>>.That.Contains("sk:mem-key"),
 			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
@@ -233,7 +242,7 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 		A.CallTo(() => _fakeTagTracker.GetKeysByTagsAsync(A<string[]>._, A<CancellationToken>._)).MustHaveHappened();
 		A.CallTo(() => _fakeMemoryCache.Remove("cached-key-1")).MustHaveHappened();
 		A.CallTo(() => _fakeMemoryCache.Remove("cached-key-2")).MustHaveHappened();
-		A.CallTo(() => _fakeMemoryCache.Remove("direct-key")).MustHaveHappened();
+		A.CallTo(() => _fakeMemoryCache.Remove("sk:direct-key")).MustHaveHappened();
 	}
 
 	[Fact]
@@ -411,6 +420,7 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 		return new CacheInvalidationMiddleware(
 			_meterFactory,
 			MsOptions.Create(options ?? new CacheOptions { Enabled = true }),
+			_keyBuilder,
 			tagTracker,
 			memoryCache,
 			hybridCache);

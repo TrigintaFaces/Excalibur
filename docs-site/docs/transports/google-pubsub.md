@@ -180,6 +180,32 @@ services.AddGooglePubSubTransport("events", pubsub =>
 });
 ```
 
+### Auto-Apply Dead Letter Policy
+
+By default the transport only references the dead letter topic; attaching the dead letter policy to the subscription is normally an infrastructure-as-code concern. You can opt in to having the transport automatically apply the policy to the subscription at startup (a `GetSubscription` + `UpdateSubscription`) so it is actually honored rather than configured but never attached:
+
+```csharp
+services.AddGooglePubSubTransport("events", pubsub =>
+{
+    pubsub.ProjectId("my-gcp-project")
+          .TopicId("dispatch-events")
+          .SubscriptionId("dispatch-events-sub")
+          .EnableDeadLetter("dispatch-events-dlq")
+          .ConfigureOptions(options =>
+          {
+              options.AutoApplyDeadLetterPolicy = true;   // attach the policy at startup
+              options.DeadLetterMaxDeliveryAttempts = 5;  // attempts before dead-lettering
+          });
+});
+```
+
+The policy is applied only when `AutoApplyDeadLetterPolicy` is enabled, a dead letter topic is configured, and a subscription id is set. `DeadLetterMaxDeliveryAttempts` controls how many delivery attempts occur before a message is dead-lettered.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `AutoApplyDeadLetterPolicy` | `bool` | `false` | Attaches the configured dead letter policy to the subscription at startup. |
+| `DeadLetterMaxDeliveryAttempts` | `int` | `5` | Delivery attempts before a message is dead-lettered (applies when auto-apply is enabled). |
+
 ## Health Checks
 When using transport adapters, register aggregate health checks:
 

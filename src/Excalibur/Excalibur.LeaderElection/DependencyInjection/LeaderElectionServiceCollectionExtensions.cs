@@ -118,7 +118,29 @@ internal static class LeaderElectionServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(options);
 
-		services.TryAddSingleton(Microsoft.Extensions.Options.Options.Create(options));
+		// Route the pre-built instance through the options pipeline so it fails fast at startup like the
+		// Action<>/IConfiguration overloads (892ine: this overload previously skipped ValidateOnStart). The
+		// cross-property timing rule (Renew+Grace+skew < Lease) is enforced by LeaderElectionOptionsValidator.
+		_ = services.AddOptions<LeaderElectionOptions>()
+			.Configure(o =>
+			{
+				o.InstanceId = options.InstanceId;
+				o.LeaseDuration = options.LeaseDuration;
+				o.RenewInterval = options.RenewInterval;
+				o.RetryInterval = options.RetryInterval;
+				o.GracePeriod = options.GracePeriod;
+				o.EnableHealthChecks = options.EnableHealthChecks;
+				o.MinimumHealthScore = options.MinimumHealthScore;
+				o.StepDownWhenUnhealthy = options.StepDownWhenUnhealthy;
+				foreach (var kvp in options.CandidateMetadata)
+				{
+					o.CandidateMetadata[kvp.Key] = kvp.Value;
+				}
+			})
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
 
 		return services;
 	}

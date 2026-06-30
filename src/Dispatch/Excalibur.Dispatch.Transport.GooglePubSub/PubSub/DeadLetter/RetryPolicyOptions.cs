@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Resilience;
+
 namespace Excalibur.Dispatch.Transport.Google;
 
 /// <summary>
@@ -20,7 +22,7 @@ public sealed class PubSubRetryPolicyOptions
 		MaxRetryAttempts = 5,
 		InitialDelay = TimeSpan.FromSeconds(5),
 		MaxDelay = TimeSpan.FromMinutes(5),
-		BackoffType = BackoffType.Exponential,
+		BackoffType = BackoffStrategy.Exponential,
 		JitterEnabled = true,
 		CircuitBreakerEnabled = false,
 	};
@@ -36,7 +38,7 @@ public sealed class PubSubRetryPolicyOptions
 		MaxRetryAttempts = 3,
 		InitialDelay = TimeSpan.FromSeconds(10),
 		MaxDelay = TimeSpan.FromMinutes(2),
-		BackoffType = BackoffType.Linear,
+		BackoffType = BackoffStrategy.Linear,
 		JitterEnabled = true,
 		CircuitBreakerEnabled = true,
 		CircuitBreakerThreshold = 3,
@@ -54,7 +56,7 @@ public sealed class PubSubRetryPolicyOptions
 		MaxRetryAttempts = 6,
 		InitialDelay = TimeSpan.FromSeconds(2),
 		MaxDelay = TimeSpan.FromMinutes(1),
-		BackoffType = BackoffType.DecorrelatedJitter,
+		BackoffType = BackoffStrategy.ExponentialWithJitter,
 		JitterEnabled = false, // Already included in decorrelated jitter
 		CircuitBreakerEnabled = false,
 	};
@@ -70,7 +72,7 @@ public sealed class PubSubRetryPolicyOptions
 		MaxRetryAttempts = 3,
 		InitialDelay = TimeSpan.FromMinutes(1),
 		MaxDelay = TimeSpan.FromMinutes(10),
-		BackoffType = BackoffType.Exponential,
+		BackoffType = BackoffStrategy.Exponential,
 		JitterEnabled = true,
 		CircuitBreakerEnabled = true,
 		CircuitBreakerThreshold = 2,

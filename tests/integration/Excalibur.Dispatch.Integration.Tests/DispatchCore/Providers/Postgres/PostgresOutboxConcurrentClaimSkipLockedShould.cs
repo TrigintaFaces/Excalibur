@@ -128,6 +128,7 @@ public sealed class PostgresOutboxConcurrentClaimSkipLockedShould : IntegrationT
 			    message_type VARCHAR(500) NOT NULL,
 			    message_metadata TEXT,
 			    message_body TEXT NOT NULL,
+			    tenant_id VARCHAR(255),
 			    occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			    attempts INT NOT NULL DEFAULT 0,
 			    dispatcher_id VARCHAR(100),

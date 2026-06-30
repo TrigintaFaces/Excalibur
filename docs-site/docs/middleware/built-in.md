@@ -457,7 +457,7 @@ The retry middleware distinguishes **transient** from **permanent** failures, ma
 | Successful `IMessageResult` | **No** |
 | **Thrown exception** | Governed separately by `RetryableExceptions` / `NonRetryableExceptions` (above) — unchanged |
 
-:::note Behavior change (Sprint 850)
+:::note Behavior change
 Earlier versions retried *every* non-success result. If you previously relied on a non-transient result being retried, return a transient status (408/429/5xx) or throw a retryable exception instead. Genuine transient faults typically surface as exceptions and are handled by the exception path. See [What's New](../whats-new.md).
 :::
 
@@ -595,6 +595,10 @@ services.AddDispatch(dispatch =>
 ```
 
 Both `UseInbox()` and `UseIdempotency()` register the same `InboxMiddleware`. Use whichever name best communicates your intent.
+
+:::warning Delivery guarantee
+The inbox/idempotency middleware uses an atomic claim-before-execute protocol. Its guarantee is **exactly-once for *concurrent* redelivery** (the atomic claim blocks the second caller) but **at-least-once across a *process crash*** — the claim and the post-handler mark are two steps, not one transaction, so a crash mid-handler leads to a reclaim-and-retry. **Handlers must be idempotent** to be safe across the crash boundary. See the [Idempotent Consumer Guide](../patterns/idempotent-consumer.md).
+:::
 
 :::tip Pipeline Order
 

@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 title: Idempotent Consumer Guide
-description: Understanding and implementing reliable exactly-once message processing in distributed systems
+description: Understanding and implementing effective exactly-once message processing (atomic dedup for concurrent redelivery, at-least-once + idempotent handlers across a crash) in distributed systems
 ---
 
 # Idempotent Consumer Guide
@@ -222,7 +222,7 @@ All implementations use atomic "first writer wins" semantics for the claim-befor
 The claim protocol is correct under concurrent duplicate delivery, but two operational caveats are worth knowing for high-throughput deployments:
 
 :::note In-memory deduplication has a capacity ceiling
-`[Idempotent(UseInMemory = true)]` uses a bounded in-process store (10,000 tracked entries) so it cannot grow unboundedly. When the cap is reached, new messages are **admitted without deduplication** (correctness over OOM) until the periodic cleanup reclaims space as entries expire. Under sustained pressure above the cap, concurrent duplicates could both be admitted. For workloads where duplicate suppression must hold under load, use a **persistent `IInboxStore`** rather than in-memory mode — the database enforces the claim with no in-process capacity ceiling.
+`[Idempotent(UseInMemory = true)]` uses a bounded in-process store (`InMemoryDeduplicatorOptions.MaxEntries`, default 100,000 tracked entries; set `0` for unbounded) so it cannot grow unboundedly. Because deduplication is a correctness guarantee, the store **fails closed** at capacity rather than admitting un-trackable messages: a claim that cannot be tracked is denied, and the record-producing operations throw a transient `DeduplicationCapacityExceededException` so the message is **not acknowledged and is redelivered** (never silently admitted without deduplication) until periodic cleanup reclaims space as entries expire. For workloads where duplicate suppression must hold under sustained load, raise `MaxEntries` or use a **persistent `IInboxStore`** rather than in-memory mode — the database enforces the claim with no in-process capacity ceiling.
 :::
 
 :::note Handler failure releases the claim

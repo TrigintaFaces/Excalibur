@@ -141,7 +141,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 					throw; // default: fail-loud — propagate and stop.
 				}
 
-				// Transient (decision.Reconnect) — reconnect and retry from the un-advanced checkpoint.
+				// Transient (non-fatal: decision.Stop == false) — reconnect and retry from the un-advanced checkpoint.
 				LogError(ex);
 				_inFlightEvent = null;
 

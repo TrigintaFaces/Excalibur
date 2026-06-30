@@ -57,7 +57,7 @@ internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscrib
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ServiceBusTransportSubscriber"/>
 	/// class using a pre-built adapter. Used by tests to substitute the SDK via
-	/// the <see cref="IServiceBusProcessorSeam"/> seam (ADR-142 §D7).
+	/// the <see cref="IServiceBusProcessorSeam"/> seam.
 	/// </summary>
 	/// <param name="processor">The Service Bus processor adapter.</param>
 	/// <param name="source">The source queue or subscription name.</param>

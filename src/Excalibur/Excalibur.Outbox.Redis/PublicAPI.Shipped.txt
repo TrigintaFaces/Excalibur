@@ -17,8 +17,12 @@ Excalibur.Outbox.Redis.RedisOutboxOptions.DatabaseId.get -> int
 Excalibur.Outbox.Redis.RedisOutboxOptions.DatabaseId.set -> void
 Excalibur.Outbox.Redis.RedisOutboxOptions.KeyPrefix.get -> string!
 Excalibur.Outbox.Redis.RedisOutboxOptions.KeyPrefix.set -> void
+Excalibur.Outbox.Redis.RedisOutboxOptions.LeaseTimeoutSeconds.get -> int
+Excalibur.Outbox.Redis.RedisOutboxOptions.LeaseTimeoutSeconds.set -> void
 Excalibur.Outbox.Redis.RedisOutboxOptions.Password.get -> string?
 Excalibur.Outbox.Redis.RedisOutboxOptions.Password.set -> void
+Excalibur.Outbox.Redis.RedisOutboxOptions.ProcessorId.get -> string?
+Excalibur.Outbox.Redis.RedisOutboxOptions.ProcessorId.set -> void
 Excalibur.Outbox.Redis.RedisOutboxOptions.RedisOutboxOptions() -> void
 Excalibur.Outbox.Redis.RedisOutboxOptions.SentMessageTtlSeconds.get -> int
 Excalibur.Outbox.Redis.RedisOutboxOptions.SentMessageTtlSeconds.set -> void

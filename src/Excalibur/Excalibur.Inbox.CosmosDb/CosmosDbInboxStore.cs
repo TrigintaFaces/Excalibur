@@ -26,7 +26,7 @@ namespace Excalibur.Inbox.CosmosDb;
 /// are typically queried by handler type.
 /// </para>
 /// </remarks>
-public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
+public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly CosmosDbInboxOptions _options;
 	private readonly ILogger<CosmosDbInboxStore> _logger;
@@ -78,8 +78,18 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			var database = _client!.GetDatabase(_options.DatabaseName);
 			_container = database.GetContainer(_options.ContainerName);
 
-			// Verify connectivity
-			_ = await _container!.ReadContainerAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+			// Verify connectivity and ensure the container's TTL subsystem is enabled. Cosmos ignores a
+			// per-item `ttl` unless the container has TTL turned on; we enable it with -1 (no blanket
+			// default) so ONLY terminal entries carrying a per-item ttl are reaped — unprocessed dedup
+			// records never expire out from under an in-flight handler.
+			var containerResponse = await _container!.ReadContainerAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+			if (_options.DefaultTimeToLiveSeconds > 0 && containerResponse.Resource.DefaultTimeToLive is null)
+			{
+				containerResponse.Resource.DefaultTimeToLive = -1;
+				_ = await _container!.ReplaceContainerAsync(
+					containerResponse.Resource,
+					cancellationToken: cancellationToken).ConfigureAwait(false);
+			}
 
 			_initialized = true;
 		}
@@ -159,6 +169,12 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			document.Status = (int)InboxStatus.Processed;
 			document.ProcessedAt = DateTimeOffset.UtcNow;
 
+			// Stamp the retention TTL now that the entry is terminal so the dedup record is reaped.
+			if (_options.DefaultTimeToLiveSeconds > 0)
+			{
+				document.Ttl = _options.DefaultTimeToLiveSeconds;
+			}
+
 			_ = await _container!.ReplaceItemAsync(
 				document,
 				documentId,
@@ -231,7 +247,9 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			Payload = string.Empty,
 			Status = (int)InboxStatus.Processed,
 			ReceivedAt = now,
-			ProcessedAt = now
+			ProcessedAt = now,
+			// Terminal on creation (first-writer-wins) → stamp retention TTL so the dedup record is reaped.
+			Ttl = _options.DefaultTimeToLiveSeconds > 0 ? _options.DefaultTimeToLiveSeconds : null
 		};
 
 		try
@@ -250,6 +268,86 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			// Document already exists - another processor got there first
 			LogDuplicateDetected(messageId, handlerType);
 			return false;
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Atomic first-writer-wins claim into the NON-TERMINAL Processing state via CreateItemAsync, which fails
+		// with a 409 Conflict on an existing item (already claimed/processed) => not claimed. Finalized via
+		// MarkProcessedAsync, removed via ReleaseAsync. No TTL on the non-terminal claim (a transient claim must
+		// not auto-reap; only the terminal record carries the retention TTL).
+		var now = DateTimeOffset.UtcNow;
+		var document = new CosmosDbInboxDocument
+		{
+			Id = CosmosDbInboxDocument.CreateId(messageId, handlerType),
+			MessageId = messageId,
+			HandlerType = handlerType,
+			MessageType = string.Empty,
+			Payload = string.Empty,
+			Status = (int)InboxStatus.Processing,
+			ReceivedAt = now
+		};
+
+		try
+		{
+			_ = await _container!.CreateItemAsync(
+				document,
+				new PartitionKey(handlerType),
+				new ItemRequestOptions { EnableContentResponseOnWrite = false },
+				cancellationToken).ConfigureAwait(false);
+
+			LogFirstProcessor(messageId, handlerType);
+			return true;
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+		{
+			LogDuplicateDetected(messageId, handlerType);
+			return false;
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+
+		try
+		{
+			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
+				documentId,
+				new PartitionKey(handlerType),
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			// Never delete a finalized (Processed) entry.
+			if (response.Resource.Status == (int)InboxStatus.Processed)
+			{
+				return;
+			}
+
+			// Optimistic-concurrency delete: the IfMatchEtag guard fails (PreconditionFailed) if the item changed
+			// since the read (e.g. was finalized), so a finalized claim is never deleted even under a race.
+			_ = await _container!.DeleteItemAsync<CosmosDbInboxDocument>(
+				documentId,
+				new PartitionKey(handlerType),
+				new ItemRequestOptions { IfMatchEtag = response.ETag },
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (CosmosException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.PreconditionFailed)
+		{
+			// NotFound => already removed or never claimed; PreconditionFailed => changed since read (e.g.
+			// finalized). Both are no-ops: never delete a finalized claim, and a missing entry needs no release.
 		}
 	}
 
@@ -586,7 +684,14 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_options.Client.Resilience.MaxRetryWaitTimeInSeconds),
 			EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite,
 			RequestTimeout = TimeSpan.FromSeconds(_options.Client.Resilience.RequestTimeoutInSeconds),
-			ConnectionMode = _options.Client.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway
+			ConnectionMode = _options.Client.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway,
+
+			// fmjwqy (SA HYBRID): framework-built client uses STJ so persisted documents'
+			// [JsonPropertyName] attributes are honored (SDK v3 default Newtonsoft ignores them).
+			UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions
+			{
+				PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+			},
 		};
 
 		if (_options.Client.ConsistencyLevel.HasValue)

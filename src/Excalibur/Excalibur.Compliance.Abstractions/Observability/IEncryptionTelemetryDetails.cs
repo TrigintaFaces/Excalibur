@@ -14,7 +14,7 @@ namespace Excalibur.Compliance;
 /// with <c>typeof(IEncryptionTelemetryDetails)</c>.
 /// </para>
 /// <para>
-/// <strong>ISP Split (Sprint 551):</strong> Extracted from <see cref="IEncryptionTelemetry"/>
+/// <strong>ISP Split:</strong> Extracted from <see cref="IEncryptionTelemetry"/>
 /// to keep the core interface at or below 5 methods per the Microsoft-First Design Standard.
 /// </para>
 /// </remarks>

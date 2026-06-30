@@ -118,7 +118,7 @@ Quartz ADO provider package (e.g. `Quartz.Extensions.DependencyInjection`
 database driver) and replace `q.UseInMemoryStore()` with the matching
 `q.UsePersistentStore(...)` configuration. The Excalibur Job Host does
 not prescribe which Quartz provider to use — pick the one that matches
-your deployment target. [bd-7rqllt]
+your deployment target.
 
 ### With Distributed Coordination
 1. Start a Redis server on `localhost:6379`

@@ -96,7 +96,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				snapshotManager: sp.GetService<ISnapshotManager>(),
 				snapshotStrategy: sp.GetService<ISnapshotStrategy>(),
 				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
-				outboxStore: sp.GetService<IOutboxStore>(),
+				outboxStore: sp.GetKeyedService<IOutboxStore>("default"),
 				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
 				eventNotificationBroker: sp.GetService<IEventNotificationBroker>(),
 				outboxStagingStrategy: opts.Value.OutboxStagingStrategy);
@@ -139,7 +139,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				snapshotManager: sp.GetService<ISnapshotManager>(),
 				snapshotStrategy: sp.GetService<ISnapshotStrategy>(),
 				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
-				outboxStore: sp.GetService<IOutboxStore>(),
+				outboxStore: sp.GetKeyedService<IOutboxStore>("default"),
 				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
 				eventNotificationBroker: sp.GetService<IEventNotificationBroker>(),
 				outboxStagingStrategy: opts.Value.OutboxStagingStrategy);

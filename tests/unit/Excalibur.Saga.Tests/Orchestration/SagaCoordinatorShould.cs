@@ -36,7 +36,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
 		_serviceProvider = services.BuildServiceProvider();
 
-		_sut = new SagaCoordinator(_serviceProvider, _sagaStore, _logger);
+		_sut = new SagaCoordinator(_serviceProvider, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), _logger);
 	}
 
 	#region ProcessEventAsync Argument Validation Tests
@@ -249,7 +249,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		services.AddSingleton(A.Fake<IDispatcher>());
 		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
 		var sp = services.BuildServiceProvider();
-		var coordinator = new SagaCoordinator(sp, _sagaStore, _logger);
+		var coordinator = new SagaCoordinator(sp, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), _logger);
 
 		// Act
 		await coordinator.HandleEventInternalAsync<TimeoutAwareSaga, TimeoutSagaState>(
@@ -294,7 +294,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		services.AddSingleton(A.Fake<IDispatcher>());
 		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
 		var sp = services.BuildServiceProvider();
-		var coordinator = new SagaCoordinator(sp, _sagaStore, _logger);
+		var coordinator = new SagaCoordinator(sp, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), _logger);
 
 		// Act — send payment timeout as start event
 		var paymentEvt = new PaymentTimeoutEvent { SagaId = sagaId.ToString(), StepId = null };
@@ -407,7 +407,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
 		services.AddSingleton<ISagaNotFoundHandler<TestSaga>>(notFoundHandler);
 		var serviceProvider = services.BuildServiceProvider();
-		var coordinator = new SagaCoordinator(serviceProvider, sagaStore, _logger);
+		var coordinator = new SagaCoordinator(serviceProvider, sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), _logger);
 
 		// Act
 		await coordinator.HandleEventInternalAsync<TestSaga, TestSagaState>(
@@ -451,7 +451,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		services.AddSingleton(dispatcher); // the saga (via ActivatorUtilities) emits onto THIS dispatcher
 		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
 		var serviceProvider = services.BuildServiceProvider();
-		var coordinator = new SagaCoordinator(serviceProvider, sagaStore, _logger);
+		var coordinator = new SagaCoordinator(serviceProvider, sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), _logger);
 
 		// Act — SaveAsync throws; the coordinator surfaces it and must dispatch NOTHING.
 		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -497,7 +497,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		services.AddSingleton(dispatcher); // the saga (via ActivatorUtilities) emits onto THIS dispatcher
 		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
 		var serviceProvider = services.BuildServiceProvider();
-		var coordinator = new SagaCoordinator(serviceProvider, sagaStore, _logger);
+		var coordinator = new SagaCoordinator(serviceProvider, sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), _logger);
 
 		// Act — save succeeds, so the coordinator flushes the buffer post-save.
 		await coordinator.HandleEventInternalAsync<EmittingSaga, EmittingSagaState>(

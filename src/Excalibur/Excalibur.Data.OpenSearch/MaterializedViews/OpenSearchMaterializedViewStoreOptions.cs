@@ -68,6 +68,19 @@ public sealed class OpenSearchMaterializedViewStoreOptions
 	public string RefreshInterval { get; set; } = "1s";
 
 	/// <summary>
+	/// Gets or sets the refresh policy applied to per-document write operations
+	/// (view and position saves).
+	/// </summary>
+	/// <value>
+	/// One of <c>"wait_for"</c>, <c>"true"</c>, or <c>"false"</c>. Defaults to
+	/// <c>"wait_for"</c>, which blocks the write until the affected shards have refreshed
+	/// without forcing an immediate segment flush. Use <c>"false"</c> for the highest
+	/// throughput during projection rebuilds, or <c>"true"</c> only when an immediate,
+	/// per-write refresh is genuinely required (this is a throughput killer at volume).
+	/// </value>
+	public string RefreshPolicy { get; set; } = "wait_for";
+
+	/// <summary>
 	/// Gets or sets the authentication options.
 	/// </summary>
 	/// <value>The authentication options for basic auth or API key auth.</value>

@@ -155,6 +155,57 @@ public sealed class SagaManagerShould
 			await _sut.HandleEventAsync<TestSaga, TestSagaState>(sagaId, testEvent, cts.Token));
 	}
 
+	// bd-uv640i: completed-event-skip regression lock (author≠impl, S856).
+	// Pre-fix HEAD: no Completed guard → HandleAsync + SaveAsync are called on completed sagas → both tests RED.
+	// Post-fix: if (sagaState.Completed) return; → neither HandleAsync nor SaveAsync is called → GREEN.
+
+	[Fact]
+	[RequiresUnreferencedCode("Test uses reflection-based saga instantiation")]
+	[RequiresDynamicCode("Test uses dynamic saga instantiation")]
+	public async Task SkipHandlerAndSave_WhenLoadedSagaStateIsAlreadyCompleted()
+	{
+		// Arrange — a saga that was completed in a prior event cycle (Completed=true persisted in the store).
+		var sagaId = Guid.NewGuid();
+		var completedState = new TestSagaState { SagaId = sagaId, Completed = true };
+		var testEvent = new TestEvent("LateArrival");
+
+		A.CallTo(() => _sagaStore.LoadAsync<TestSagaState>(sagaId, A<CancellationToken>._))
+			.Returns(completedState);
+
+		// Act
+		await _sut.HandleEventAsync<TestSaga, TestSagaState>(sagaId, testEvent, CancellationToken.None);
+
+		// Assert — bd-uv640i: a saga whose loaded state is Completed must not re-process events
+		// (no spurious version bump / silent overwrite of the finished workflow state).
+		// Non-vacuous: on HEAD (no guard) SaveAsync IS called → assertion fails → RED.
+		A.CallTo(() => _sagaStore.SaveAsync(A<TestSagaState>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	[RequiresUnreferencedCode("Test uses reflection-based saga instantiation")]
+	[RequiresDynamicCode("Test uses dynamic saga instantiation")]
+	public async Task ProcessEventNormally_WhenLoadedSagaStateIsNotCompleted()
+	{
+		// Arrange — control case: Completed=false → normal processing path still runs.
+		var sagaId = Guid.NewGuid();
+		var activeState = new TestSagaState { SagaId = sagaId, Completed = false };
+		var testEvent = new TestEvent("ActiveEvent");
+
+		A.CallTo(() => _sagaStore.LoadAsync<TestSagaState>(sagaId, A<CancellationToken>._))
+			.Returns(activeState);
+
+		// Act
+		await _sut.HandleEventAsync<TestSaga, TestSagaState>(sagaId, testEvent, CancellationToken.None);
+
+		// Assert — the guard must fire ONLY for Completed=true; normal events still reach SaveAsync.
+		// Non-vacuous: if the guard is accidentally inverted (always skip), this test fails → RED.
+		A.CallTo(() => _sagaStore.SaveAsync(
+			A<TestSagaState>.That.Matches(s => s.SagaId == sagaId),
+			A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
 	#endregion
 
 	#region Test Doubles

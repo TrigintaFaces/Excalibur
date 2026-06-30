@@ -109,5 +109,14 @@ public static class AwsLambdaEventId
 
 	/// <summary>JIT compilation warmup failed.</summary>
 	public const int JitWarmupFailed = 50167;
+
+	/// <summary>AWS Lambda SnapStart before-snapshot warmup hook registered.</summary>
+	public const int SnapStartHookRegistered = 50168;
+
+	/// <summary>Running cold-start warmup before an AWS Lambda SnapStart snapshot.</summary>
+	public const int SnapStartWarmupRunning = 50169;
+
+	/// <summary>AWS Lambda SnapStart before-snapshot hook registration was skipped.</summary>
+	public const int SnapStartHookRegistrationFailed = 50170;
 }
 

@@ -40,7 +40,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 	/// <param name="checkpointStore">
 	/// Optional durable checkpoint store. When supplied, the continuation token is loaded on start and
 	/// persisted after each batch so the subscription resumes across restarts instead of replaying the
-	/// whole feed from the beginning. When <see langword="null"/> (default), behavior is unchanged. See bd-egwtku.
+	/// whole feed from the beginning. When <see langword="null"/> (default), behavior is unchanged.
 	/// </param>
 	public CosmosDbEventStoreChangeFeedSubscription(
 		Container container,

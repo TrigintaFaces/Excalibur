@@ -1,6 +1,5 @@
 # ECommerce In-Memory Stores Sample
 
-**Beads:** `bd-w8clun` (S790 rename-and-trim)
 **Location:** `samples/11-real-world/EnhancedStores/ECommerceSample/`
 
 A realistic order-processing scenario that exercises the framework's stock
@@ -9,7 +8,7 @@ A realistic order-processing scenario that exercises the framework's stock
 email notifications, scheduled inventory checks) with OpenTelemetry tracing
 and health checks.
 
-> **Sprint 790 scope correction:** Earlier revisions of this README advertised
+> **scope correction:** Earlier revisions of this README advertised
 > "Enhanced" inbox/outbox/schedule stores (`AddEnhancedInboxStore`,
 > `AddEnhancedOutboxStore`, `AddEnhancedScheduleStore`). Those extension
 > methods were never shipped, so the wording and the aspirational `/* ... */`
@@ -18,7 +17,7 @@ and health checks.
 > consumer scenario surfaces a concrete need for a hardened implementation
 > (e.g. content-based dedup at scale, persistent batch staging, time-indexed
 > schedules), that will be scoped as a new package and its own sample; see
-> `bd-w8clun`.
+> .
 
 ## What the sample demonstrates
 

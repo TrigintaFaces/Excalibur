@@ -4,6 +4,7 @@
 
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.Dispatch.Resilience.Polly;
 
@@ -19,7 +20,7 @@ internal sealed class PollyCircuitBreakerWrapper(PollyCircuitBreakerAdapter adap
 	/// Gets the current resilience state of the circuit breaker.
 	/// </summary>
 	/// <value> The resilience state reported by the wrapped adapter. </value>
-	public new ResilienceState State => adapter.State;
+	public new CircuitState State => adapter.State;
 
 	/// <summary>
 	/// Gets the health status of the circuit breaker pattern.

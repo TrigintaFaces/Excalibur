@@ -803,6 +803,30 @@ public sealed class AzureKeyVaultProviderShould
 		return AsyncPageable<KeyProperties>.FromPages([page]);
 	}
 
+	[Fact]
+	public void ExtractVersionNumber_IsDeterministicAndProcessStable_NotRandomizedLikeStringGetHashCode()
+	{
+		// 4bve3g: the Key Vault version -> integer mapping MUST be stable across processes. String.GetHashCode is
+		// randomized per process (since .NET Core), so the prior implementation mapped the same version to
+		// different integers across processes and GetKeyVersionAsync could miss a version another process
+		// returned. Pin the exact FNV-1a-derived value so a revert to GetHashCode (or algorithm drift) fails here.
+		var props = KeyModelFactory.KeyProperties(
+			id: new Uri("https://unit-tests.vault.azure.net/keys/dispatch-orders/a1b2c3d4e5f6"),
+			vaultUri: new Uri("https://unit-tests.vault.azure.net/"),
+			name: "dispatch-orders",
+			version: "a1b2c3d4e5f6",
+			managed: false,
+			createdOn: DateTimeOffset.UtcNow.AddDays(-2),
+			updatedOn: DateTimeOffset.UtcNow.AddDays(-1),
+			recoveryLevel: "Recoverable");
+
+		var first = InvokeExtractVersionNumber(props);
+		var second = InvokeExtractVersionNumber(props);
+
+		first.ShouldBe(second);
+		first.ShouldBe(53534);
+	}
+
 	private static int InvokeExtractVersionNumber(KeyProperties properties)
 	{
 		var method = typeof(AzureKeyVaultProvider).GetMethod(

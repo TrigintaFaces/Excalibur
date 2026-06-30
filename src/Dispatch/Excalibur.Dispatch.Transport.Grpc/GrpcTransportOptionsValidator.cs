@@ -42,6 +42,31 @@ internal sealed class GrpcTransportOptionsValidator : IValidateOptions<GrpcTrans
 			return ValidateOptionsResult.Fail("MaxReceiveMessageSize must be at least 1 byte when specified.");
 		}
 
+		if (options.KeepAlivePingTimeoutSeconds >= options.KeepAlivePingDelaySeconds)
+		{
+			return ValidateOptionsResult.Fail("KeepAlivePingTimeoutSeconds must be less than KeepAlivePingDelaySeconds.");
+		}
+
+		if (options.RetryInitialBackoffSeconds <= 0)
+		{
+			return ValidateOptionsResult.Fail("RetryInitialBackoffSeconds must be greater than zero.");
+		}
+
+		if (options.RetryMaxBackoffSeconds < options.RetryInitialBackoffSeconds)
+		{
+			return ValidateOptionsResult.Fail("RetryMaxBackoffSeconds must be greater than or equal to RetryInitialBackoffSeconds.");
+		}
+
+		if (options.RetryBackoffMultiplier < 1)
+		{
+			return ValidateOptionsResult.Fail("RetryBackoffMultiplier must be greater than or equal to 1.");
+		}
+
+		if ((options.EnableRetries || options.EnableHedging) && options.RetryableStatusCodes.Count == 0)
+		{
+			return ValidateOptionsResult.Fail("RetryableStatusCodes must contain at least one status code when retries or hedging are enabled.");
+		}
+
 		return ValidateOptionsResult.Success;
 	}
 }

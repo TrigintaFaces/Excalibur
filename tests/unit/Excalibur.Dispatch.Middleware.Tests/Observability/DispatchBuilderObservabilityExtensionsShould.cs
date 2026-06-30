@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Observability.Propagation;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -104,62 +103,6 @@ public sealed class DispatchBuilderObservabilityExtensionsShould : UnitTestBase
 		IDispatchBuilder builder = null!;
 
 		Should.Throw<ArgumentNullException>(() => builder.UseTraceSampling());
-	}
-
-	#endregion
-
-	#region AddW3CTracingPropagator Tests
-
-	[Fact]
-	public void AddW3CTracingPropagator_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		IServiceCollection services = null!;
-
-		Should.Throw<ArgumentNullException>(() => services.AddW3CTracingPropagator());
-	}
-
-	[Fact]
-	public async Task AddW3CTracingPropagator_RegistersPropagator()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddW3CTracingPropagator();
-
-		// Assert
-		await using var provider = services.BuildServiceProvider();
-		var propagator = provider.GetService<ITracingContextPropagator>();
-		propagator.ShouldNotBeNull();
-		propagator.ShouldBeOfType<W3CTracingContextPropagator>();
-	}
-
-	#endregion
-
-	#region AddB3TracingPropagator Tests
-
-	[Fact]
-	public void AddB3TracingPropagator_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		IServiceCollection services = null!;
-
-		Should.Throw<ArgumentNullException>(() => services.AddB3TracingPropagator());
-	}
-
-	[Fact]
-	public async Task AddB3TracingPropagator_RegistersPropagator()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddB3TracingPropagator();
-
-		// Assert
-		await using var provider = services.BuildServiceProvider();
-		var propagator = provider.GetService<ITracingContextPropagator>();
-		propagator.ShouldNotBeNull();
-		propagator.ShouldBeOfType<B3TracingContextPropagator>();
 	}
 
 	#endregion

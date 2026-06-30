@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // ============================================================================
-// GDPR Compliance Sample  (bd-dlkgoc)
+// GDPR Compliance Sample
 // ============================================================================
 //
 // This sample demonstrates Excalibur's GDPR compliance primitives end-to-end:

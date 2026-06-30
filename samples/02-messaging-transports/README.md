@@ -171,4 +171,4 @@ builder.Services.AddDispatch(dispatch =>
 
 ---
 
-*Category: Messaging Transports | Sprint 429*
+*Category: Messaging Transports*

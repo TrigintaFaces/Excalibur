@@ -99,7 +99,7 @@ CREATE TABLE [dbo].[EventStoreSnapshots] (
 
 ### Outbox Table
 
-The unified outbox table (`dbo.OutboxMessages`) is managed by `Excalibur.Outbox.SqlServer` and registered separately via `services.AddExcalibur(x => x.AddOutbox(...))` (the canonical builder path per ADR-321/325). It is not part of the event store schema.
+The unified outbox table (`dbo.OutboxMessages`) is managed by `Excalibur.Outbox.SqlServer` and registered separately via `services.AddExcalibur(x => x.AddOutbox(...))` (the canonical builder path). It is not part of the event store schema.
 
 ## Configuration
 

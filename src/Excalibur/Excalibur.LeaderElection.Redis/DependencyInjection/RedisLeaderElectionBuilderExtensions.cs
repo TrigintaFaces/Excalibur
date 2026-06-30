@@ -134,9 +134,10 @@ public static class RedisLeaderElectionBuilderExtensions
 		{
 			var redis = sp.GetRequiredService<IConnectionMultiplexer>();
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
 			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
-			var inner = new RedisLeaderElectionFactory(redis, loggerFactory, failureClassifier, fencingTokenProvider);
+			var inner = new RedisLeaderElectionFactory(redis, loggerFactory, electionOptions, failureClassifier, fencingTokenProvider);
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName)
 				?? new Meter(LeaderElectionTelemetryConstants.MeterName);

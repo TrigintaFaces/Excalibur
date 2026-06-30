@@ -91,11 +91,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
 
-		var outbound = new OutboundMessage(messageType, payload, messageType)
-		{
-			CorrelationId = context.CorrelationId,
-			CausationId = context.CausationId,
-		};
+		var outbound = OutboundMessage.FromContext(messageType, payload, messageType, context);
 
 		await StageMessageAsync(outbound, cancellationToken).ConfigureAwait(false);
 		LogMessageEnqueued(outbound.Id, messageType);
@@ -121,7 +117,13 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			{
 				Should =
 				[
-					new TermQuery { Field = "status", Value = (int)OutboxStatus.Staged },
+					// Immediate (unscheduled) staged messages: status == Staged AND no scheduledAt.
+					new BoolQuery
+					{
+						Must = [new TermQuery { Field = "status", Value = (int)OutboxStatus.Staged }],
+						MustNot = [new ExistsQuery { Field = new Field("scheduledAt") }],
+					},
+					// Scheduled staged messages that are now due: status == Staged AND scheduledAt <= now.
 					new BoolQuery
 					{
 						Must =
@@ -307,33 +309,72 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	{
 		var now = DateTimeOffset.UtcNow;
 
-		var response = await _client.SearchAsync<ElasticsearchOutboxDocument>(s => s
-			.Index(_options.IndexName)
-			.Size(10000)
-			.Query(q => q.MatchAll(new MatchAllQuery())),
+		// Compute statistics with server-side counts and a single oldest-document lookup per status,
+		// rather than materializing up to 10k documents into memory and aggregating client-side.
+		var staged = await CountAsync(
+			new TermQuery { Field = "status", Value = (int)OutboxStatus.Staged }, cancellationToken).ConfigureAwait(false);
+		var sent = await CountAsync(
+			new TermQuery { Field = "status", Value = (int)OutboxStatus.Sent }, cancellationToken).ConfigureAwait(false);
+		var failed = await CountAsync(
+			new TermQuery { Field = "status", Value = (int)OutboxStatus.Failed }, cancellationToken).ConfigureAwait(false);
+		var scheduled = await CountAsync(
+			new BoolQuery
+			{
+				Must =
+				[
+					new TermQuery { Field = "status", Value = (int)OutboxStatus.Staged },
+					new ExistsQuery { Field = new Field("scheduledAt") },
+				],
+			},
 			cancellationToken).ConfigureAwait(false);
 
-		if (!response.IsValidResponse)
-		{
-			return new OutboxStatistics { CapturedAt = now };
-		}
-
-		var docs = response.Documents;
-
-		var staged = docs.Where(d => d.Status == (int)OutboxStatus.Staged).ToList();
-		var failed = docs.Where(d => d.Status == (int)OutboxStatus.Failed).ToList();
+		var oldestStaged = await GetOldestCreatedAtAsync(OutboxStatus.Staged, cancellationToken).ConfigureAwait(false);
+		var oldestFailed = await GetOldestCreatedAtAsync(OutboxStatus.Failed, cancellationToken).ConfigureAwait(false);
 
 		return new OutboxStatistics
 		{
-			StagedMessageCount = staged.Count,
+			StagedMessageCount = staged,
 			SendingMessageCount = 0,
-			SentMessageCount = docs.Count(d => d.Status == (int)OutboxStatus.Sent),
-			FailedMessageCount = failed.Count,
-			ScheduledMessageCount = docs.Count(d => d.ScheduledAt.HasValue && d.Status == (int)OutboxStatus.Staged),
-			OldestUnsentMessageAge = staged.Count > 0 ? now - staged.Min(d => d.CreatedAt) : null,
-			OldestFailedMessageAge = failed.Count > 0 ? now - failed.Min(d => d.CreatedAt) : null,
+			SentMessageCount = sent,
+			FailedMessageCount = failed,
+			ScheduledMessageCount = scheduled,
+			OldestUnsentMessageAge = oldestStaged.HasValue ? now - oldestStaged.Value : null,
+			OldestFailedMessageAge = oldestFailed.HasValue ? now - oldestFailed.Value : null,
 			CapturedAt = now,
 		};
+	}
+
+	/// <summary>
+	/// Returns the server-side document count matching <paramref name="query"/> without materializing documents.
+	/// </summary>
+	private async ValueTask<int> CountAsync(Query query, CancellationToken cancellationToken)
+	{
+		var request = new CountRequest(_options.IndexName) { Query = query };
+		var response = await _client.CountAsync(request, cancellationToken).ConfigureAwait(false);
+		return response.IsValidResponse ? (int)response.Count : 0;
+	}
+
+	/// <summary>
+	/// Returns the creation timestamp of the oldest document in the given status, fetching only that
+	/// single document (size 1, sorted ascending) instead of paging the whole status partition.
+	/// </summary>
+	private async ValueTask<DateTimeOffset?> GetOldestCreatedAtAsync(OutboxStatus status, CancellationToken cancellationToken)
+	{
+		var request = new SearchRequest<ElasticsearchOutboxDocument>(_options.IndexName)
+		{
+			Size = 1,
+			Query = new TermQuery { Field = "status", Value = (int)status },
+			Sort = [new SortOptions { Field = new FieldSort("createdAt") { Order = SortOrder.Asc } }],
+		};
+
+		var response = await _client.SearchAsync<ElasticsearchOutboxDocument>(request, cancellationToken).ConfigureAwait(false);
+		if (!response.IsValidResponse)
+		{
+			return null;
+		}
+
+		var oldest = response.Documents.FirstOrDefault();
+		return oldest is null ? null : oldest.CreatedAt;
 	}
 
 	private Refresh GetRefresh() =>
@@ -359,6 +400,9 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			ScheduledAt = message.ScheduledAt,
 			SentAt = message.SentAt,
 			LastAttemptAt = message.LastAttemptAt,
+			Headers = message.Headers.Count > 0
+				? new Dictionary<string, object>(message.Headers, StringComparer.Ordinal)
+				: null,
 		};
 
 	private static OutboundMessage FromDocument(ElasticsearchOutboxDocument doc) =>
@@ -379,6 +423,9 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			ScheduledAt = doc.ScheduledAt,
 			SentAt = doc.SentAt,
 			LastAttemptAt = doc.LastAttemptAt,
+			Headers = doc.Headers is { Count: > 0 }
+				? new Dictionary<string, object>(doc.Headers, StringComparer.Ordinal)
+				: new Dictionary<string, object>(StringComparer.Ordinal),
 		};
 
 	private async Task<ElasticsearchOutboxDocument?> GetOutboxDocumentAsync(string messageId, CancellationToken cancellationToken)

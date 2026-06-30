@@ -450,6 +450,106 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	}
 
 	[Fact]
+	public async Task DispatchPendingMessagesAsync_RoutesToDeadLetterQueue_PreservesTenantId_LegacyPath()
+	{
+		// Independent regression lock (author != fixer) for the OutboxProcessor cross-provider TenantId
+		// drop: the LEGACY conversion path (no envelope deserializer, JSON payload) must carry the
+		// staged tenant onto the IOutboxMessage handed to the DLQ. NON-VACUOUS: RED on pre-fix
+		// OutboxProcessor.cs (ConvertToOutboxMessageLegacy initializer omitted TenantId -> null), GREEN after.
+		// Arrange — a multi-tenant outbound message whose dispatch fails terminally (maxAttempts == 1).
+		const string tenantId = "tenant-legacy-7f3a";
+		var messageType = typeof(TestOutboxIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestOutboxIntegrationEvent>();
+
+		var outboundMessage = CreateOutboundMessageWithEnvelope(
+			"message-dlq-tenant-legacy", messageType, new TestOutboxIntegrationEvent("legacy"));
+		outboundMessage.TenantId = tenantId;
+
+		var outboxStore = CreateSingleMessageOutboxStore(outboundMessage);
+		var serializer = new DispatchJsonSerializer();
+
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("terminal failure")));
+
+		var deadLetterQueue = CreateDeadLetterQueue();
+		var serviceProvider = CreateServiceProvider(dispatcher);
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 1),
+			outboxStore: outboxStore,
+			serializer: serializer,
+			serviceProvider: serviceProvider,
+			deadLetterQueue: deadLetterQueue);
+		processor.Init("dispatcher-tenant-legacy");
+		await using var scenario = new DispatchScenario(processor, outboxStore, deadLetterQueue, serviceProvider, dispatcher);
+
+		// Act
+		_ = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert — the DLQ-enqueued message preserves the tenant scope (RED pre-fix: TenantId was null).
+		A.CallTo(() => scenario.DeadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>.That.Matches(m => m.MessageId == "message-dlq-tenant-legacy" && m.TenantId == tenantId),
+				DeadLetterReason.MaxRetriesExceeded,
+				A<CancellationToken>._,
+				A<Exception?>._,
+				A<IDictionary<string, string>?>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_RoutesToDeadLetterQueue_PreservesTenantId_EnvelopePath()
+	{
+		// Independent regression lock (author != fixer) for the OutboxProcessor TenantId drop: the
+		// ENVELOPE conversion path (binary-marker payload + envelope deserializer) must carry the staged
+		// tenant onto the IOutboxMessage handed to the DLQ. NON-VACUOUS: RED on pre-fix OutboxProcessor.cs
+		// (envelope-conversion initializer omitted TenantId -> null), GREEN after. The envelope path keys
+		// the converted MessageId off envelope.MessageId, so the assertion matches that id.
+		// Arrange — a multi-tenant binary-envelope outbound message whose dispatch fails terminally.
+		const string tenantId = "tenant-envelope-9c21";
+		const string envelopeMessageId = "11111111-1111-1111-1111-111111111111";
+		var messageType = typeof(TestOutboxIntegrationEvent).Name;
+		MessageTypeRegistry.RegisterType<TestOutboxIntegrationEvent>();
+
+		var outboundMessage = CreateBinaryEnvelopeOutboundMessage("message-dlq-tenant-envelope", messageType);
+		outboundMessage.TenantId = tenantId;
+
+		var outboxStore = CreateSingleMessageOutboxStore(outboundMessage);
+		var envelopePayload = CreateNestedOutboxMessagePayload(
+			envelopeMessageId, messageType, new TestOutboxIntegrationEvent("envelope"));
+		var envelopeDeserializer = CreateEnvelopeDeserializer(
+			Guid.Parse(envelopeMessageId), messageType, envelopePayload);
+		var serializer = new DispatchJsonSerializer();
+
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("terminal failure")));
+
+		var deadLetterQueue = CreateDeadLetterQueue();
+		var serviceProvider = CreateServiceProvider(dispatcher);
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 1),
+			outboxStore: outboxStore,
+			serializer: serializer,
+			serviceProvider: serviceProvider,
+			deadLetterQueue: deadLetterQueue,
+			envelopeDeserializer: envelopeDeserializer);
+		processor.Init("dispatcher-tenant-envelope");
+		await using var scenario = new DispatchScenario(processor, outboxStore, deadLetterQueue, serviceProvider, dispatcher);
+
+		// Act
+		_ = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert — the DLQ-enqueued message preserves the tenant scope (RED pre-fix: TenantId was null).
+		A.CallTo(() => scenario.DeadLetterQueue.EnqueueAsync(
+				A<IOutboxMessage>.That.Matches(m => m.MessageId == envelopeMessageId && m.TenantId == tenantId),
+				DeadLetterReason.MaxRetriesExceeded,
+				A<CancellationToken>._,
+				A<Exception?>._,
+				A<IDictionary<string, string>?>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
 	public async Task DispatchPendingMessagesAsync_ParallelProcessing_HandlesMixedSuccessAndTerminalFailure()
 	{
 		// Arrange

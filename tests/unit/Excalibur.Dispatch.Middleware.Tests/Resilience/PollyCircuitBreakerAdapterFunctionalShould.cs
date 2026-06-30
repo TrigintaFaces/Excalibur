@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
@@ -46,7 +47,7 @@ public sealed class PollyCircuitBreakerAdapterFunctionalShould : IAsyncDisposabl
 	{
 		var adapter = CreateAdapter();
 
-		adapter.State.ShouldBe(ResilienceState.Closed);
+		adapter.State.ShouldBe(CircuitState.Closed);
 		adapter.HealthStatus.ShouldBe(PatternHealthStatus.Healthy);
 	}
 
@@ -80,7 +81,7 @@ public sealed class PollyCircuitBreakerAdapterFunctionalShould : IAsyncDisposabl
 			CancellationToken.None);
 
 		result.ShouldBe(42);
-		adapter.State.ShouldBe(ResilienceState.Closed);
+		adapter.State.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]
@@ -145,7 +146,7 @@ public sealed class PollyCircuitBreakerAdapterFunctionalShould : IAsyncDisposabl
 		}
 
 		// If circuit is open, the fallback overload should execute the fallback
-		if (adapter.State == ResilienceState.Open)
+		if (adapter.State == CircuitState.Open)
 		{
 			var result = await adapter.ExecuteAsync(
 				() => Task.FromResult(-1),
@@ -163,7 +164,7 @@ public sealed class PollyCircuitBreakerAdapterFunctionalShould : IAsyncDisposabl
 
 		adapter.Reset();
 
-		adapter.State.ShouldBe(ResilienceState.Closed);
+		adapter.State.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]
@@ -238,7 +239,7 @@ public sealed class PollyCircuitBreakerAdapterFunctionalShould : IAsyncDisposabl
 		var cbMetrics = adapter.GetCircuitBreakerMetrics();
 		cbMetrics.TotalRequests.ShouldBe(1);
 		cbMetrics.SuccessfulRequests.ShouldBe(1);
-		cbMetrics.CurrentState.ShouldBe(ResilienceState.Closed);
+		cbMetrics.CurrentState.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]
@@ -292,7 +293,7 @@ public sealed class PollyCircuitBreakerAdapterFunctionalShould : IAsyncDisposabl
 		await adapter.DisposeAsync();
 		_sut = null;
 
-		adapter.State.ShouldBe(ResilienceState.Closed);
+		adapter.State.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]

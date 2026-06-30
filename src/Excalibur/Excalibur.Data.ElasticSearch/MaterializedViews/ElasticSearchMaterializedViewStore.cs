@@ -164,7 +164,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 			idx => idx
 				.Index(_options.ViewsIndexName)
 				.Id(documentId)
-				.Refresh(Refresh.True),
+				.Refresh(GetRefresh()),
 			cancellationToken).ConfigureAwait(false);
 
 		if (!response.IsValidResponse)
@@ -245,7 +245,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 			idx => idx
 				.Index(_options.PositionsIndexName)
 				.Id(viewName)
-				.Refresh(Refresh.True),
+				.Refresh(GetRefresh()),
 			cancellationToken).ConfigureAwait(false);
 
 		if (!response.IsValidResponse)
@@ -271,6 +271,11 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 	}
 
 	private static string CreateDocumentId(string viewName, string viewId) => $"{viewName}:{viewId}";
+
+	private Refresh GetRefresh() =>
+		_options.RefreshPolicy == "true" ? Refresh.True
+		: _options.RefreshPolicy == "false" ? Refresh.False
+		: Refresh.WaitFor;
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
 	{

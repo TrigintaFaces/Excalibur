@@ -11,7 +11,7 @@ using Excalibur.EventSourcing;
 namespace CdcEventStoreElasticsearch.Projections;
 
 // ============================================================================
-// bd-treh2p: IMaterializedViewBuilder<T> example
+// IMaterializedViewBuilder<T> example
 // ============================================================================
 //
 // This file demonstrates the materialized-view pattern introduced for CDC

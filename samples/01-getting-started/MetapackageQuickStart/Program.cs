@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // ============================================================================
-// Metapackage Usage Sample  (bd-b0h6x9)
+// Metapackage Usage Sample
 // ============================================================================
 //
 // Two ways to wire Excalibur for SQL Server:

@@ -26,6 +26,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	private readonly IMessageContext _context;
 	private readonly CancellationToken _ct = CancellationToken.None;
 	private readonly IMessageResult _successResult;
+	private readonly ICacheKeyBuilder _keyBuilder;
 
 	public CacheInvalidationMiddlewareShould()
 	{
@@ -34,6 +35,12 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		_context = A.Fake<IMessageContext>();
 		_successResult = A.Fake<IMessageResult>();
 		A.CallTo(() => _successResult.Succeeded).Returns(true);
+
+		// f8pdos: direct invalidation keys are folded through the key builder before removal. Use a real,
+		// deterministic transform (NOT a no-op) so tests assert the BUILT storage key is what gets removed.
+		_keyBuilder = A.Fake<ICacheKeyBuilder>();
+		A.CallTo(() => _keyBuilder.CreateKey(A<string>._, A<string?>._, A<string?>._))
+			.ReturnsLazily((string logicalKey, string? tenantId, string? userId) => $"sk:{logicalKey}");
 	}
 
 	[Fact]
@@ -41,7 +48,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	{
 		// Arrange
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions { Enabled = false });
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder);
 		var message = A.Fake<IDispatchMessage>();
 		var called = false;
 
@@ -64,7 +71,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	{
 		// Arrange
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions { Enabled = true, CacheMode = CacheMode.Hybrid });
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -83,7 +90,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		// Arrange
 		var hybridCache = A.Fake<HybridCache>();
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions { Enabled = true, CacheMode = CacheMode.Hybrid });
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns(["tag1", "tag2"]);
@@ -107,7 +114,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		// Arrange
 		var hybridCache = A.Fake<HybridCache>();
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions { Enabled = true, CacheMode = CacheMode.Hybrid });
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns([]);
@@ -121,7 +128,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 
 		// Assert
 		A.CallTo(() => hybridCache.RemoveAsync(
-			A<IEnumerable<string>>.That.Contains("key1"),
+			A<IEnumerable<string>>.That.Contains("sk:key1"),
 			_ct)).MustHaveHappenedOnceExactly();
 	}
 
@@ -136,7 +143,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Hybrid,
 			DefaultTags = ["default-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -162,7 +169,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Memory,
 			DefaultTags = ["mem-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -188,7 +195,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Distributed,
 			DefaultTags = ["dist-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -218,7 +225,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Memory,
 			DefaultTags = ["fallback-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, tagTracker: tagTracker, memoryCache: memoryCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, tagTracker: tagTracker, memoryCache: memoryCache);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -246,7 +253,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Distributed,
 			DefaultTags = ["fallback-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, tagTracker: tagTracker, memoryCache: memoryCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, tagTracker: tagTracker, memoryCache: memoryCache);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -270,7 +277,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Memory,
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, memoryCache: memoryCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, memoryCache: memoryCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns([]);
@@ -283,7 +290,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		await middleware.InvokeAsync(message, _context, Next, _ct);
 
 		// Assert
-		A.CallTo(() => memoryCache.Remove("key1")).MustHaveHappenedOnceExactly();
+		A.CallTo(() => memoryCache.Remove("sk:key1")).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -296,7 +303,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Distributed,
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, memoryCache: memoryCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, memoryCache: memoryCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns([]);
@@ -309,14 +316,14 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		await middleware.InvokeAsync(message, _context, Next, _ct);
 
 		// Assert
-		A.CallTo(() => memoryCache.Remove("key1")).MustHaveHappenedOnceExactly();
+		A.CallTo(() => memoryCache.Remove("sk:key1")).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
 	public void Stage_ReturnsCache()
 	{
 		// Arrange
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, _options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, _options, _keyBuilder);
 
 		// Assert
 		middleware.Stage.ShouldBe(DispatchMiddlewareStage.Cache);
@@ -326,7 +333,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	public async Task InvokeAsync_ThrowsOnNullMessage()
 	{
 		// Arrange
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, _options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, _options, _keyBuilder);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -337,7 +344,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	public async Task InvokeAsync_ThrowsOnNullContext()
 	{
 		// Arrange
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, _options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, _options, _keyBuilder);
 		var message = A.Fake<IDispatchMessage>();
 
 		// Act & Assert
@@ -349,7 +356,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	public async Task InvokeAsync_ThrowsOnNullDelegate()
 	{
 		// Arrange
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, _options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, _options, _keyBuilder);
 		var message = A.Fake<IDispatchMessage>();
 
 		// Act & Assert
@@ -367,7 +374,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = (CacheMode)99, // Unknown mode
 			DefaultTags = ["tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -390,7 +397,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Hybrid
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 		var message = new TestInvalidateCacheMessage();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -415,7 +422,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Memory,
 			DefaultTags = ["tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -438,7 +445,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Distributed,
 			DefaultTags = ["tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -461,7 +468,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Hybrid,
 			DefaultTags = ["tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -485,7 +492,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Memory,
 			DefaultTags = ["some-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, memoryCache: memoryCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, memoryCache: memoryCache);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -509,7 +516,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Distributed,
 			DefaultTags = ["some-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -533,7 +540,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Hybrid,
 			DefaultTags = ["default-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 
 		var message = A.Fake<TestCacheInvalidatorWithAttributeMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns(["invalidator-tag"]);
@@ -564,7 +571,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Memory
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, hybridCache: hybridCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, _keyBuilder, hybridCache: hybridCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns([]);
@@ -578,7 +585,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 
 		// Assert — keys should be invalidated via HybridCache.RemoveAsync
 		A.CallTo(() => hybridCache.RemoveAsync(
-			A<IEnumerable<string>>.That.Contains("key-a"),
+			A<IEnumerable<string>>.That.Contains("sk:key-a"),
 			_ct)).MustHaveHappenedOnceExactly();
 	}
 

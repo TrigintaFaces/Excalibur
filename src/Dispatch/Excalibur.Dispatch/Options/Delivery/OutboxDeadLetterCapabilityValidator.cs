@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Options.Delivery;
 /// transition the message stays <see cref="OutboxStatus.Failed"/>, is re-claimed after its lease expires, and is
 /// re-delivered and re-dead-lettered forever (duplicate delivery + unbounded dead-letter-queue growth). This
 /// validator (registered with <c>ValidateOnStart()</c>) makes that degrade structurally inexpressible: a polling
-/// outbox registered with a store that cannot terminalize fails fast at startup (ADR-336 clause 2).
+/// outbox registered with a store that cannot terminalize fails fast at startup.
 /// </para>
 /// <para>
 /// All shipped Excalibur outbox stores implement <see cref="IDeadLetterableOutboxStore"/>, so this guard only

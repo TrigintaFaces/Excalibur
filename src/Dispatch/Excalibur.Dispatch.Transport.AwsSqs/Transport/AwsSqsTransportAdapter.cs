@@ -509,6 +509,30 @@ internal sealed class AwsSqsTransportAdapterOptions
 	/// </summary>
 	/// <value><see langword="true"/> if CloudEvents options are configured; otherwise, <see langword="false"/>.</value>
 	public bool HasCloudEventOptions => CloudEventOptions is not null;
+
+	/// <summary>
+	/// Gets or sets the maximum number of SDK-level retries the SQS client performs per request.
+	/// </summary>
+	/// <value>The maximum retry count. Default is 3.</value>
+	public int MaxRetryAttempts { get; set; } = 3;
+
+	/// <summary>
+	/// Gets or sets the per-request timeout applied to the SQS client.
+	/// </summary>
+	/// <value>The request timeout, or <see langword="null"/> to use the AWS SDK default.</value>
+	public TimeSpan? RequestTimeout { get; set; }
+
+	/// <summary>
+	/// Gets or sets the in-flight visibility-timeout heartbeat options for the wired subscriber.
+	/// </summary>
+	/// <value>The heartbeat options. Heartbeat is disabled by default.</value>
+	public AwsSqsVisibilityHeartbeatOptions VisibilityHeartbeat { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the optional startup-provisioning options.
+	/// </summary>
+	/// <value>The provisioning options. Provisioning is disabled by default.</value>
+	public AwsSqsProvisioningOptions Provisioning { get; set; } = new();
 }
 
 /// <summary>

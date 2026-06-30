@@ -16,7 +16,7 @@ services.AddDispatch(dispatch =>
 });
 ```
 
-## Middleware Stacks (Sprint 656, ADR-220)
+## Middleware Stacks (,)
 
 | Stack | Middleware |
 |-------|-----------|

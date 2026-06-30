@@ -45,8 +45,8 @@ Excalibur solves this with marker interfaces that extend `IDb`. Each interface i
 | `ISagaDb` | `Excalibur.Data` | Saga state persistence | `SqlServerSagaStore`, `PostgresSagaStore` |
 | `IOutboxDb` | `Excalibur.Data` | Transactional outbox | `SqlServerOutboxStore` |
 | `IProjectionDb` | `Excalibur.Data` | SQL read-side projections | `SqlServerProjectionStore`, `PostgresProjectionStore` |
-| ~~`IDataProcessorDb`~~ | ~~`Excalibur.Data.DataProcessing`~~ | **Removed in Sprint 657** -- use `Func<IDbConnection>` factory instead |
-| ~~`IDataToProcessDb`~~ | ~~`Excalibur.Data.DataProcessing`~~ | **Removed in Sprint 657** -- use `Func<IDbConnection>` factory instead |
+| ~~`IDataProcessorDb`~~ | ~~`Excalibur.Data.DataProcessing`~~ | **Removed** -- use `Func<IDbConnection>` factory instead |
+| ~~`IDataToProcessDb`~~ | ~~`Excalibur.Data.DataProcessing`~~ | **Removed** -- use `Func<IDbConnection>` factory instead |
 | `IDocumentDb` | `Excalibur.Data.Abstractions` | Cloud-native document databases | CosmosDB, DynamoDB, MongoDB, Firestore |
 
 All SQL-based interfaces inherit from `IDb`:
@@ -470,7 +470,7 @@ public class CustomerMigrationProcessor : DataProcessor<CustomerRecord>
 
 ## Data Processing Databases
 
-:::caution Removed in Sprint 657
+:::caution Removed
 
 `IDataProcessorDb`, `IDataToProcessDb`, `DataProcessorDb`, and `DataToProcessDb` have been removed. Data processing now uses `Func<IDbConnection>` connection factories directly. See [Data Processing Multi-Database](#data-processing-multi-database) above for the replacement pattern.
 :::

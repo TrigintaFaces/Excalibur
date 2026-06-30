@@ -81,9 +81,9 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 	/// <value>The current <see cref="HealthStatus"/> value.</value>
 	public PatternHealthStatus HealthStatus => State switch
 	{
-		ResilienceState.Closed => PatternHealthStatus.Healthy,
-		ResilienceState.HalfOpen => PatternHealthStatus.Degraded,
-		ResilienceState.Open => PatternHealthStatus.Unhealthy,
+		CircuitState.Closed => PatternHealthStatus.Healthy,
+		CircuitState.HalfOpen => PatternHealthStatus.Degraded,
+		CircuitState.Open => PatternHealthStatus.Unhealthy,
 		_ => PatternHealthStatus.Unknown,
 	};
 
@@ -150,7 +150,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 	/// Gets the current resilience state of the circuit breaker (Closed, Open, HalfOpen).
 	/// </summary>
 	/// <value>The current <see cref="State"/> value.</value>
-	public ResilienceState State { get; private set; } = ResilienceState.Closed;
+	public CircuitState State { get; private set; } = CircuitState.Closed;
 
 	/// <summary>
 	/// Executes an operation through the circuit breaker, throwing an exception if the circuit is open.
@@ -204,8 +204,9 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 
 			return result;
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
+			// FR-116-2: cancellation (caller or linked timeout CTS) is not a failure — non-tripping.
 			LogOperationFailed(ex, Name);
 
 			// Record failure
@@ -233,7 +234,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 		lock (_stateLock)
 		{
 			var previousState = State;
-			State = ResilienceState.Closed;
+			State = CircuitState.Closed;
 			_consecutiveFailures = 0;
 			_consecutiveSuccesses = 0;
 			_openedAt = DateTimeOffset.MinValue;
@@ -254,10 +255,10 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 		{
 			switch (State)
 			{
-				case ResilienceState.Closed:
+				case CircuitState.Closed:
 					return true;
 
-				case ResilienceState.Open:
+				case CircuitState.Open:
 					if (DateTimeOffset.UtcNow - _openedAt >= _options.OpenDuration)
 					{
 						TransitionToHalfOpen();
@@ -266,7 +267,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 
 					return false;
 
-				case ResilienceState.HalfOpen:
+				case CircuitState.HalfOpen:
 					return _halfOpenSemaphore.Wait(0);
 
 				default:
@@ -282,7 +283,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 			_consecutiveFailures = 0;
 			_consecutiveSuccesses++;
 
-			if (State == ResilienceState.HalfOpen && _consecutiveSuccesses >= _options.SuccessThreshold)
+			if (State == CircuitState.HalfOpen && _consecutiveSuccesses >= _options.SuccessThreshold)
 			{
 				TransitionToClosed();
 			}
@@ -301,16 +302,16 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 
 			switch (State)
 			{
-				case ResilienceState.Closed when _consecutiveFailures >= _options.FailureThreshold:
-				case ResilienceState.HalfOpen:
+				case CircuitState.Closed when _consecutiveFailures >= _options.FailureThreshold:
+				case CircuitState.HalfOpen:
 					TransitionToOpen();
 					break;
 
-				case ResilienceState.Closed:
+				case CircuitState.Closed:
 					// Stay closed, continue monitoring failures
 					break;
 
-				case ResilienceState.Open:
+				case CircuitState.Open:
 					// Already open, no action needed
 					break;
 
@@ -326,7 +327,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 	private void TransitionToOpen()
 	{
 		var previousState = State;
-		State = ResilienceState.Open;
+		State = CircuitState.Open;
 		_openedAt = DateTimeOffset.UtcNow;
 		_metrics.CurrentState = State;
 
@@ -339,7 +340,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 	private void TransitionToHalfOpen()
 	{
 		var previousState = State;
-		State = ResilienceState.HalfOpen;
+		State = CircuitState.HalfOpen;
 		_consecutiveSuccesses = 0;
 		_consecutiveFailures = 0;
 		_metrics.CurrentState = State;
@@ -357,7 +358,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 	private void TransitionToClosed()
 	{
 		var previousState = State;
-		State = ResilienceState.Closed;
+		State = CircuitState.Closed;
 		_consecutiveFailures = 0;
 		_metrics.CurrentState = State;
 
@@ -411,7 +412,7 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 			ConsecutiveSuccesses = _metrics.ConsecutiveSuccesses,
 		};
 
-	private void NotifyStateChange(ResilienceState previousState, ResilienceState newState, string reason)
+	private void NotifyStateChange(CircuitState previousState, CircuitState newState, string reason)
 	{
 		var stateChange = new PatternStateChange
 		{

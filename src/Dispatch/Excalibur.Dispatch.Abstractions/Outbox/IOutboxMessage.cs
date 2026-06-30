@@ -85,4 +85,14 @@ public interface IOutboxMessage
 	/// message can be reassigned to another dispatcher.
 	/// </value>
 	DateTimeOffset? DispatcherTimeout { get; set; }
+
+	/// <summary>
+	/// Gets the tenant identifier this message was produced under, for multi-tenant scope on the persisted
+	/// outbox row. Defaults to <see langword="null"/> so existing providers that do not yet persist tenant
+	/// scope inherit the default unchanged; a provider with a tenant column overrides this to surface the
+	/// stored value (e.g. the Postgres outbox store). Making tenant expressible on the row contract keeps a
+	/// provider from silently re-dropping it.
+	/// </summary>
+	/// <value>The tenant identifier, or <see langword="null"/> when the store does not carry tenant scope.</value>
+	string? TenantId => null;
 }

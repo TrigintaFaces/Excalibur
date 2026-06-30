@@ -39,6 +39,7 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Caching.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Middleware.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 </Project>

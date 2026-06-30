@@ -30,6 +30,9 @@ namespace Excalibur.EventSourcing.DynamoDb;
 public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudNativeProviderInfo,
 	ICloudNativeEventStoreChangeFeed, ICloudNativeEventStoreInfo, IEventStore, IAsyncDisposable
 {
+	/// <summary>The maximum number of items DynamoDB allows in a single <c>TransactWriteItems</c> call.</summary>
+	private const int DynamoTransactItemLimit = 100;
+
 	private readonly IAmazonDynamoDB _client;
 	private readonly IAmazonDynamoDBStreams _streamsClient;
 	private readonly DynamoDbEventStoreOptions _options;
@@ -250,6 +253,21 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			return CloudAppendResult.CreateSuccess(expectedVersion, 0);
 		}
 
+		// On the ATOMIC (transactional) path, DynamoDB's TransactWriteItems hard-caps at 100 items and offers
+		// no >100 atomic primitive, so an all-or-nothing append (the IEventStore.AppendAsync contract) is
+		// impossible beyond 100 events. Reject at the boundary BEFORE any write rather than risk a torn
+		// event-stream prefix — callers split into ≤100-event appends. (A torn append is event-stream
+		// corruption, which event sourcing must never produce.) The non-transactional opt-out path
+		// (UseTransactionalWrite=false) is NOT rejected: the consumer explicitly traded away atomicity for
+		// the per-item PutItem path, so >100 is its accepted (documented non-atomic) behavior.
+		if (_options.UseTransactionalWrite && eventsList.Count > DynamoTransactItemLimit)
+		{
+			throw new ArgumentOutOfRangeException(
+				nameof(events),
+				eventsList.Count,
+				$"DynamoDB atomic append is limited to {DynamoTransactItemLimit} events per call; split the batch into appends of at most {DynamoTransactItemLimit} events, or set UseTransactionalWrite=false to opt into the non-atomic per-item path.");
+		}
+
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
 			aggregateId, aggregateType, eventsList.Count, expectedVersion);
 
@@ -259,8 +277,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 		try
 		{
+			// Transactional path is guaranteed ≤100 by the guard above, so a single atomic TransactWriteItems
+			// covers it. The opt-out path handles any count via the per-item PutItem loop (non-atomic).
 			CloudAppendResult appendResult;
-			if (_options.UseTransactionalWrite && eventsList.Count <= 100)
+			if (_options.UseTransactionalWrite)
 			{
 				appendResult = await AppendWithTransactionAsync(
 						streamId, aggregateId, aggregateType, eventsList, expectedVersion, cancellationToken)
@@ -268,6 +288,9 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			}
 			else
 			{
+				// Transactional writes opted OUT (UseTransactionalWrite=false): honor the choice with the
+				// per-item conditional PutItem path (no TransactWriteItems — avoids the 2× WCU and the extra
+				// IAM permission a transaction requires).
 				appendResult = await AppendSequentiallyAsync(
 						streamId, aggregateId, aggregateType, eventsList, expectedVersion, cancellationToken)
 					.ConfigureAwait(false);
@@ -531,8 +554,13 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			LogEventsAppended(streamId, events.Count, totalCapacity);
 			return CloudAppendResult.CreateSuccess(version, totalCapacity);
 		}
-		catch (TransactionCanceledException)
+		catch (TransactionCanceledException ex) when (
+			ex.CancellationReasons?.Any(static r => r.Code == "ConditionalCheckFailed") == true)
 		{
+			// Map to a concurrency conflict ONLY when the transaction was cancelled by the version
+			// condition (attribute_not_exists(#pk) violated). Other cancellation reasons — throttling,
+			// capacity, item-size, TransactionConflict — are NOT version conflicts; let them propagate so a
+			// transient/operational failure is not silently misreported as a concurrency conflict.
 			LogConcurrencyConflict(streamId, expectedVersion);
 			return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, version, 0);
 		}
@@ -546,6 +574,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		// Non-transactional opt-out path (UseTransactionalWrite=false): a per-item conditional PutItem loop.
+		// Each PutItem uses attribute_not_exists(#pk) so a version collision raises ConditionalCheckFailed,
+		// mapped to a concurrency conflict. Not atomic across events by design — the caller opted out of
+		// transactions; for atomic multi-event appends leave UseTransactionalWrite enabled (the default).
 		var version = expectedVersion;
 		double totalCapacity = 0;
 
@@ -565,8 +597,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 			try
 			{
-				var response = await _client.PutItemAsync(request, cancellationToken)
-					.ConfigureAwait(false);
+				var response = await _client.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 				totalCapacity += response.ConsumedCapacity?.CapacityUnits ?? 0;
 			}
 			catch (ConditionalCheckFailedException)

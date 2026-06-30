@@ -10,7 +10,7 @@ namespace Excalibur.Saga.Postgres;
 /// Validates that a qualified table name matches the expected <c>"schema"."table"</c> format.
 /// </summary>
 /// <remarks>
-/// The Postgres analogue of <c>Excalibur.Saga.SqlServer.SagaSqlValidator</c> (bd-r5r7fe parity). The
+/// The Postgres analogue of <c>Excalibur.Saga.SqlServer.SagaSqlValidator</c>. The
 /// qualified name is composed from config-sourced <c>Schema</c>/<c>TableName</c>
 /// (<see cref="PostgresSagaOptions.QualifiedTableName"/>) and interpolated into request SQL, so this guard
 /// is a defense-in-depth backstop ensuring those identifiers are well-formed word characters only.

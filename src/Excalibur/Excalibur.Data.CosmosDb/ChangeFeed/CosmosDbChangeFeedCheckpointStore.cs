@@ -16,7 +16,7 @@ namespace Excalibur.Data.CosmosDb;
 /// <para>
 /// One document per subscription (id = subscription id, partition key path <c>/subscriptionId</c>),
 /// upserted after each processed batch and read on start. Mirrors the persistence pattern of
-/// <c>CosmosDbCdcStateStore</c> (bd-egwtku). Register this in place of the default
+/// <c>CosmosDbCdcStateStore</c>. Register this in place of the default
 /// <see cref="InMemoryChangeFeedCheckpointStore"/> to get durable continuation.
 /// </para>
 /// <para>
@@ -90,7 +90,7 @@ internal sealed class CosmosDbChangeFeedCheckpointStore : IChangeFeedCheckpointS
     /// <c>"Id"</c>/<c>"SubscriptionId"</c>, leaving the Cosmos-required system key <c>id</c> absent and the
     /// document's partition-key field mismatched against the <c>/subscriptionId</c> path. The result is a
     /// point-read that never finds the checkpoint, so continuation silently resumes from the beginning every
-    /// restart (durable continuation inert). bd-ydln24 / bd-i2eabb.
+ /// restart (durable continuation inert). /.
     /// </summary>
     private sealed class CheckpointDocument
     {

@@ -152,6 +152,9 @@ public static class DataDynamoDbEventId
 	/// <summary>CDC fatal (non-retryable) error — processor stops instead of reconnecting.</summary>
 	public const int CdcFatalError = 103427;
 
+	/// <summary>In-catch durable prefix-confirm failed after a handler error; logged, original handler exception preserved.</summary>
+	public const int CdcPrefixConfirmFailedAfterHandlerError = 103428;
+
 	// ========================================
 	// 103440-103459: CDC State Store
 	// ========================================

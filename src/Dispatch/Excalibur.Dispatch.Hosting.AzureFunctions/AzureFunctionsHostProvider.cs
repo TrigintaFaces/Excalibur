@@ -56,10 +56,11 @@ internal partial class AzureFunctionsHostProvider(ILogger<AzureFunctionsHostProv
 			services.TryAddSingleton<IColdStartOptimizer, AzureFunctionsColdStartOptimizer>();
 		}
 
-		// Log warnings when consumers enable telemetry options that require
-		// platform SDK integration not yet wired up. This prevents silent no-ops
-		// where consumers think EnableDistributedTracing=true does something.
-		// Application Insights should be configured via AddExcaliburObservability() instead.
+		// Distributed tracing and metrics on Azure Functions are provisioned via the platform
+		// (Application Insights) or AddExcaliburObservability() — the provider does not wire
+		// in-process exporters gated by these flags. Log this honestly at Information (not a
+		// misleading "not implemented" warning, and not a silent no-op); deps-bearing in-process
+		// exporters gated by the shared telemetry flags are tracked in bd-wh492p.
 		if (options.Telemetry.EnableDistributedTracing)
 		{
 			LogConfiguringAppInsights();
@@ -138,17 +139,12 @@ internal partial class AzureFunctionsHostProvider(ILogger<AzureFunctionsHostProv
 		{
 			// Create a timeout cancellation token based on remaining execution time
 			using var timeoutCts = new CancellationTokenSource();
-			var remainingTime = context.RemainingTime;
 
-			if (remainingTime > TimeSpan.Zero)
-			{
-				// Reserve some time for cleanup
-				var executionTimeout = remainingTime - TimeSpan.FromMilliseconds(500);
-				if (executionTimeout > TimeSpan.Zero)
-				{
-					timeoutCts.CancelAfter(executionTimeout);
-				}
-			}
+			// Reserve cleanup headroom and fail closed: ComputeExecutionTimeout floors the budget at
+			// Zero, so an invocation already within (or past) the cleanup reserve cancels immediately
+			// instead of running unbounded. Cancellation is ALWAYS scheduled — the fail-open skip is
+			// structurally inexpressible.
+			timeoutCts.CancelAfter(ServerlessHostOptions.ComputeExecutionTimeout(context.RemainingTime));
 
 			using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
 				cancellationToken, timeoutCts.Token);
@@ -212,11 +208,13 @@ internal partial class AzureFunctionsHostProvider(ILogger<AzureFunctionsHostProv
 		"Azure Functions handler execution failed")]
 	private partial void LogHandlerFailed(Exception ex);
 
-	[LoggerMessage(AzureFunctionsEventId.ConfiguringAppInsights, LogLevel.Warning,
-		"Application Insights tracing via ServerlessHostOptions is not yet implemented. Configure tracing via AddExcaliburObservability() instead.")]
+	[LoggerMessage(AzureFunctionsEventId.ConfiguringAppInsights, LogLevel.Information,
+		"Distributed tracing on Azure Functions is provisioned via the platform (Application Insights) or " +
+		"AddExcaliburObservability(); the provider does not register in-process exporters for this option.")]
 	private partial void LogConfiguringAppInsights();
 
-	[LoggerMessage(AzureFunctionsEventId.ConfiguringMetrics, LogLevel.Warning,
-		"Azure Functions metrics via ServerlessHostOptions is not yet implemented. Configure metrics via AddExcaliburObservability() instead.")]
+	[LoggerMessage(AzureFunctionsEventId.ConfiguringMetrics, LogLevel.Information,
+		"Metrics on Azure Functions are provisioned via the platform (Application Insights) or " +
+		"AddExcaliburObservability(); the provider does not register in-process exporters for this option.")]
 	private partial void LogConfiguringMetrics();
 }

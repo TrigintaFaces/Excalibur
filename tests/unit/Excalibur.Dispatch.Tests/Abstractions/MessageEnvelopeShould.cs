@@ -1118,14 +1118,14 @@ public sealed class MessageEnvelopeShould : IDisposable
 		// Arrange
 		var acknowledged = false;
 		var envelope = CreateEnvelope();
-		envelope.AcknowledgeAsync = () =>
+		envelope.AcknowledgeAsync = _ =>
 		{
 			acknowledged = true;
 			return Task.CompletedTask;
 		};
 
 		// Act
-		await envelope.AcknowledgeAsync();
+		await envelope.AcknowledgeAsync(CancellationToken.None);
 
 		// Assert
 		acknowledged.ShouldBeTrue();
@@ -1137,14 +1137,14 @@ public sealed class MessageEnvelopeShould : IDisposable
 		// Arrange
 		string? rejectedReason = null;
 		var envelope = CreateEnvelope();
-		envelope.RejectAsync = reason =>
+		envelope.RejectAsync = (reason, _) =>
 		{
 			rejectedReason = reason;
 			return Task.CompletedTask;
 		};
 
 		// Act
-		await envelope.RejectAsync("Test rejection");
+		await envelope.RejectAsync("Test rejection", CancellationToken.None);
 
 		// Assert
 		rejectedReason.ShouldBe("Test rejection");

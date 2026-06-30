@@ -116,6 +116,14 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 			delayMs = ApplyJitter(delayMs);
 		}
 
+		// Guard NaN before the cap so the never-throws contract holds: a zero base delay times an overflowed
+		// exponential factor is 0 * Infinity = NaN, which would propagate through Min/Max and make
+		// TimeSpan.FromMilliseconds throw. NaN -> 0; a +Infinity from a positive base is capped by Min below.
+		if (double.IsNaN(delayMs))
+		{
+			delayMs = 0;
+		}
+
 		// Clamp to max delay
 		delayMs = Math.Min(delayMs, _maxDelay.TotalMilliseconds);
 

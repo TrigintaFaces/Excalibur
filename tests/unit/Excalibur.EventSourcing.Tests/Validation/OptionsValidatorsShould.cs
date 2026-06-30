@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.EventSourcing;
-using Excalibur.EventSourcing.ParallelCatchUp;
 using Excalibur.EventSourcing.Snapshots;
 using Excalibur.EventSourcing.Sharding;
 using Excalibur.EventSourcing.TieredStorage;
@@ -60,54 +59,6 @@ public sealed class OptionsValidatorsShould
 	{
 		var result = new AutoSnapshotOptionsValidator().Validate(null,
 			new AutoSnapshotOptions { VersionThreshold = -5 });
-		result.Failed.ShouldBeTrue();
-	}
-
-	// --- ParallelCatchUpOptionsValidator ---
-
-	[Fact]
-	public void PassCatchUpWithValidOptions()
-	{
-		var result = new ParallelCatchUpOptionsValidator().Validate(null,
-			new ParallelCatchUpOptions
-			{
-				Strategy = CatchUpStrategy.RangePartitioned,
-				WorkerCount = 4,
-				BatchSize = 1000,
-				CheckpointInterval = 5000
-			});
-		result.Succeeded.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void PassCatchUpWithSequentialStrategy()
-	{
-		var result = new ParallelCatchUpOptionsValidator().Validate(null,
-			new ParallelCatchUpOptions { Strategy = CatchUpStrategy.Sequential });
-		result.Succeeded.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void FailCatchUpWithZeroWorkers()
-	{
-		var result = new ParallelCatchUpOptionsValidator().Validate(null,
-			new ParallelCatchUpOptions
-			{
-				Strategy = CatchUpStrategy.RangePartitioned,
-				WorkerCount = 0
-			});
-		result.Failed.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void FailCatchUpWithZeroBatchSize()
-	{
-		var result = new ParallelCatchUpOptionsValidator().Validate(null,
-			new ParallelCatchUpOptions
-			{
-				Strategy = CatchUpStrategy.RangePartitioned,
-				BatchSize = 0
-			});
 		result.Failed.ShouldBeTrue();
 	}
 

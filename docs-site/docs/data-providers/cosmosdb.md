@@ -196,7 +196,7 @@ public interface IChangeFeedCheckpointStore
 :::note Scope
 Durable continuation covers the **pull-model** change-feed subscriptions (the data provider, outbox,
 and event-store subscriptions). The push-model `AllVersionsAndDeletes` processor path is not yet
-covered — it is gated on the Cosmos SDK `ChangeFeedItem<T>` API reaching GA (tracked in `bd-ajt1iy`).
+covered — it is gated on the Cosmos SDK `ChangeFeedItem<T>` API reaching GA.
 :::
 
 ## Batch Operations

@@ -74,7 +74,7 @@ builder.Services.Configure<RoutingOptions>(static opts =>
 	opts.DefaultRemoteBusName = "rabbitmq");
 
 // ============================================================
-// Configure RabbitMQ transport (ADR-098 Single Entry Point)
+// Configure RabbitMQ transport (Single Entry Point)
 // ============================================================
 var rabbitConnectionString = builder.Configuration["RabbitMq:ConnectionString"]
 							?? "amqp://guest:guest@localhost:5672/";
@@ -95,7 +95,7 @@ builder.Services.AddRabbitMQTransport("rabbitmq", rmq =>
 });
 
 // ============================================================
-// Configure Kafka transport (ADR-098 Single Entry Point)
+// Configure Kafka transport (Single Entry Point)
 // ============================================================
 var kafkaBootstrapServers = builder.Configuration["Kafka:BootstrapServers"]
 							?? "localhost:9092";

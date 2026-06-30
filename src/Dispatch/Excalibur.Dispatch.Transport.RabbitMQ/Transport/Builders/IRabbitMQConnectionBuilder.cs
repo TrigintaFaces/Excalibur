@@ -56,4 +56,18 @@ public interface IRabbitMQConnectionBuilder
 	/// <see cref="HostName"/>, <see cref="Port"/>, <see cref="VirtualHost"/>, and <see cref="Credentials"/> settings.
 	/// </remarks>
 	IRabbitMQTransportBuilder ConnectionString(string connectionString);
+
+	/// <summary>
+	/// Configures automatic connection recovery behavior.
+	/// </summary>
+	/// <param name="enabled">Whether automatic connection recovery is enabled.</param>
+	/// <param name="networkRecoveryInterval">
+	/// The interval between network recovery attempts. When <see langword="null"/>, the existing
+	/// configured value is retained (default 10 seconds).
+	/// </param>
+	/// <returns>The builder for chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown when <paramref name="networkRecoveryInterval"/> is negative or zero.
+	/// </exception>
+	IRabbitMQTransportBuilder AutomaticRecovery(bool enabled, TimeSpan? networkRecoveryInterval = null);
 }

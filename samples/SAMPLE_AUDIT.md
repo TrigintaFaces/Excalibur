@@ -7,7 +7,7 @@ This document records the current sample quality baseline and compositional-qual
 - `samples/**/*.csproj` build audit
 - Orphan sample detection (`.cs` files without an associated `.csproj`)
 - Sample documentation link consistency checks
-- **Compositional-quality audit** (bd-dmsi02): Do samples demonstrate framework *composition* (IDispatcher/handlers/pipeline) rather than features in isolation?
+- **Compositional-quality audit** Do samples demonstrate framework *composition* (IDispatcher/handlers/pipeline) rather than features in isolation?
 
 ## Results
 
@@ -18,9 +18,9 @@ This document records the current sample quality baseline and compositional-qual
 - Samples using IDispatcher/handler composition: **81/93** (87%)
 - Samples with aspirational TODOs: **1** (`TransportBindings/README.md`)
 
-## Compositional Quality Audit (Sprint 829)
+## Compositional Quality Audit
 
-Audit date: 2026-05-26. Rubric: bd-dmsi02 epic acceptance criteria.
+Audit date: 2026-05-26. Rubric: epic acceptance criteria.
 
 ### Level Classification
 
@@ -81,7 +81,7 @@ Audit date: 2026-05-26. Rubric: bd-dmsi02 epic acceptance criteria.
 2. Updated sample documentation paths to the categorized folder layout (`samples/01-getting-started/...` etc.).
 3. Removed links to non-existent/deprecated sample folders.
 4. Added a `DataProcessing`-based CDC history replay path to `09-advanced/CdcAntiCorruption`.
-5. **(Sprint 829)** Compositional-quality audit completed — 6 gaps tracked, 1 critical (ECommerceSample).
+5. **** Compositional-quality audit completed — 6 gaps tracked, 1 critical (ECommerceSample).
 
 ## Quality Standard Going Forward
 

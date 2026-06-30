@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Resilience;
+
 namespace Excalibur.Dispatch.CloudNative;
 
 /// <summary>
@@ -81,7 +83,7 @@ public sealed class CircuitBreakerMetrics
 	/// Gets or sets the current state of the circuit breaker (Open, Closed, HalfOpen).
 	/// </summary>
 	/// <value> The current state of the breaker. </value>
-	public ResilienceState CurrentState { get; set; }
+	public CircuitState CurrentState { get; set; }
 
 	/// <summary>
 	/// Gets or sets the number of consecutive failures recorded by the circuit breaker.

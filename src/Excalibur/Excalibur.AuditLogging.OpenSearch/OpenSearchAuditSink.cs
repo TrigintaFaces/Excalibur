@@ -21,7 +21,7 @@ namespace Excalibur.AuditLogging.OpenSearch;
 /// This is a lightweight, fire-and-forget audit event writer that indexes
 /// individual audit events using the OpenSearch Bulk API. OpenSearch serves
 /// as a search/analytics sink, not a compliance-grade audit store.
-/// See ADR-290 for rationale.
+/// See for rationale.
 /// </para>
 /// </remarks>
 internal sealed partial class OpenSearchAuditSink

@@ -457,14 +457,36 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IKey
 
 	private static int ExtractVersionNumber(KeyProperties properties)
 	{
-		// Azure Key Vault versions are hex strings representing creation time We use a hash to create a stable integer version number
+		// Azure Key Vault versions are opaque strings; we map each to a pseudo-version integer.
 		if (string.IsNullOrEmpty(properties.Version))
 		{
 			return 1;
 		}
 
-		// Use the version string hash as a pseudo-version number In production, you might want to maintain a mapping
-		return (Math.Abs(properties.Version.GetHashCode(StringComparison.Ordinal)) % 100000) + 1;
+		// Use a DETERMINISTIC hash (FNV-1a), not String.GetHashCode: since .NET Core, String.GetHashCode is
+		// randomized per process, so the same Key Vault version mapped to different integers across processes —
+		// GetKeyVersionAsync(keyId, version) could then fail to find a version another process returned.
+		return (int)((StableHash(properties.Version) % 100000) + 1);
+	}
+
+	/// <summary>
+	/// Computes a deterministic, process-stable 32-bit FNV-1a hash of a string (ordinal). Unlike
+	/// <see cref="string.GetHashCode()"/>, the result is identical across runtimes and processes, so it is
+	/// safe to use as a stable version key.
+	/// </summary>
+	private static uint StableHash(string value)
+	{
+		const uint OffsetBasis = 2166136261;
+		const uint Prime = 16777619;
+
+		var hash = OffsetBasis;
+		foreach (var c in value)
+		{
+			hash = (hash ^ (byte)(c & 0xFF)) * Prime;
+			hash = (hash ^ (byte)(c >> 8)) * Prime;
+		}
+
+		return hash;
 	}
 
 	private static KeyStatus DetermineKeyStatus(KeyProperties properties)

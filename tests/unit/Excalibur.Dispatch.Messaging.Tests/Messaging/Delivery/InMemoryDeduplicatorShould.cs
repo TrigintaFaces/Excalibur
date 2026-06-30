@@ -174,5 +174,62 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		stats.TrackedMessageCount.ShouldBe(100);
 	}
 
+	// ========================================
+	// bd-t33cz2 (ADR-336): capacity guard fails CLOSED — never silently admits-without-dedup.
+	// Independent engage-test (author!=impl, TestsDeveloper, clause-4 carried). RED on the pre-fix impl
+	// that admitted untrackable messages at capacity; GREEN on the fail-closed committed impl.
+	// ========================================
+
+	private static InMemoryDeduplicator CreateCappedDeduplicator(int maxEntries) =>
+		new(
+			Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+			{
+				EnableAutomaticCleanup = false,
+				CleanupInterval = TimeSpan.FromHours(1),
+				MaxEntries = maxEntries,
+			}),
+			NullLogger<InMemoryDeduplicator>.Instance);
+
+	[Fact]
+	public async Task FailClosedOnMarkProcessedWhenAtCapacity()
+	{
+		using var sut = CreateCappedDeduplicator(maxEntries: 1);
+		await sut.MarkProcessedAsync("msg-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
+
+		await Should.ThrowAsync<DeduplicationCapacityExceededException>(() =>
+			sut.MarkProcessedAsync("msg-2", TimeSpan.FromMinutes(5), CancellationToken.None)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task FailClosedOnIsDuplicateForUntrackedMessageWhenAtCapacity()
+	{
+		using var sut = CreateCappedDeduplicator(maxEntries: 1);
+		await sut.MarkProcessedAsync("msg-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
+
+		await Should.ThrowAsync<DeduplicationCapacityExceededException>(() =>
+			sut.IsDuplicateAsync("msg-2", TimeSpan.FromMinutes(5), CancellationToken.None)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task DenyClaimWhenAtCapacityRatherThanGrantUntracked()
+	{
+		using var sut = CreateCappedDeduplicator(maxEntries: 1);
+		(await sut.TryClaimAsync("claim-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false))
+			.ShouldBeTrue();
+
+		(await sut.TryClaimAsync("claim-2", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false))
+			.ShouldBeFalse();
+	}
+
+	[Fact]
+	public async Task StillDetectAnAlreadyTrackedDuplicateAtCapacity()
+	{
+		using var sut = CreateCappedDeduplicator(maxEntries: 1);
+		await sut.MarkProcessedAsync("msg-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
+
+		(await sut.IsDuplicateAsync("msg-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false))
+			.ShouldBeTrue();
+	}
+
 	public void Dispose() => _sut.Dispose();
 }

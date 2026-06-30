@@ -46,6 +46,15 @@ internal static class KafkaConsumerConfigBuilder
 			config.GroupProtocol = groupProtocol;
 		}
 
+		// partition.assignment.strategy only applies to the classic rebalance protocol. Under the
+		// KIP-848 "consumer" group protocol the assignment is server-side and librdkafka rejects the
+		// property, so only set it when the classic protocol is in effect.
+		if (tuning.PartitionAssignmentStrategy is { } assignmentStrategy
+			&& options.GroupProtocol is null or GroupProtocol.Classic)
+		{
+			config.PartitionAssignmentStrategy = assignmentStrategy;
+		}
+
 		foreach (var kvp in options.AdditionalConfig)
 		{
 			config.Set(kvp.Key, kvp.Value);

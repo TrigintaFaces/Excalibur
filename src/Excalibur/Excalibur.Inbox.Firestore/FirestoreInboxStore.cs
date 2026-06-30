@@ -23,8 +23,19 @@ namespace Excalibur.Inbox.Firestore;
 /// Document path: {CollectionName}/{messageId}_{handlerType}
 /// Catches RpcException with StatusCode.AlreadyExists for conflict detection.
 /// </remarks>
-public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTrackingInboxStore, IInboxStoreAdmin, IAsyncDisposable
+public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
+	/// <summary>Bounded retries for the precondition-guarded conditional delete in <see cref="ReleaseAsync"/>.</summary>
+	private const int ReleaseMaxRetries = 5;
+
+	/// <summary>
+	/// Test-only seam: when non-null, invoked once inside <see cref="ReleaseAsync"/> in the window between
+	/// the status read and the conditional delete, so a test can deterministically interleave a concurrent
+	/// finalize and exercise the conditional-delete guard. Always <see langword="null"/> in production
+	/// (single null-check ⇒ zero overhead).
+	/// </summary>
+	internal Func<CancellationToken, Task>? ReleaseRaceHookForTests { get; set; }
+
 	private readonly FirestoreInboxOptions _options;
 	private readonly ILogger<FirestoreInboxStore> _logger;
 	private FirestoreDb? _db;
@@ -213,6 +224,92 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		{
 			LogTryMarkProcessedDuplicate(_logger, messageId, handlerType, null);
 			return false;
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync().ConfigureAwait(false);
+
+		var docId = GetDocumentId(messageId, handlerType);
+		var docRef = _collection!.Document(docId);
+
+		// Atomic first-writer-wins claim into the NON-TERMINAL Processing state. CreateAsync fails with
+		// AlreadyExists on conflict (already claimed/processed) => not claimed. Finalized via MarkProcessedAsync,
+		// removed via ReleaseAsync.
+		var now = DateTimeOffset.UtcNow;
+		var data = new Dictionary<string, object>
+		{
+			["messageId"] = messageId,
+			["handlerType"] = handlerType,
+			["messageType"] = "Unknown",
+			["status"] = (int)InboxStatus.Processing,
+			["receivedAt"] = Timestamp.FromDateTimeOffset(now)
+		};
+
+		try
+		{
+			_ = await docRef.CreateAsync(data, cancellationToken).ConfigureAwait(false);
+			LogTryMarkProcessedSuccess(_logger, messageId, handlerType, null);
+			return true;
+		}
+		catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+		{
+			LogTryMarkProcessedDuplicate(_logger, messageId, handlerType, null);
+			return false;
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		await EnsureInitializedAsync().ConfigureAwait(false);
+
+		var docId = GetDocumentId(messageId, handlerType);
+		var docRef = _collection!.Document(docId);
+
+		// Atomic delete-unless-Processed. Capture the snapshot's update time on read and issue a CONDITIONAL
+		// delete (Precondition.LastUpdated). A concurrent MarkProcessed updates the document, so our delete
+		// fails with FailedPrecondition instead of removing a now-finalized entry — we then re-read and no-op
+		// if it has become Processed. This closes the read-then-delete race the plain delete left open.
+		for (var attempt = 0; attempt < ReleaseMaxRetries; attempt++)
+		{
+			var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+			// Never delete a finalized (Processed) entry; no-op if absent or already finalized.
+			if (!snapshot.Exists || snapshot.GetValue<int>("status") == (int)InboxStatus.Processed)
+			{
+				return;
+			}
+
+			// Test-only seam (null in production): lets a test interleave a concurrent finalize in the
+			// read-then-delete window so the conditional-delete guard can be exercised deterministically.
+			if (ReleaseRaceHookForTests is { } raceHook)
+			{
+				await raceHook(cancellationToken).ConfigureAwait(false);
+			}
+
+			var precondition = snapshot.UpdateTime is { } updatedAt
+				? Precondition.LastUpdated(updatedAt)
+				: Precondition.MustExist;
+
+			try
+			{
+				_ = await docRef.DeleteAsync(precondition, cancellationToken).ConfigureAwait(false);
+				return;
+			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.FailedPrecondition)
+			{
+				// Another writer changed the document between our read and conditional delete — re-read and
+				// re-evaluate (it may now be Processed → no-op).
+			}
 		}
 	}
 

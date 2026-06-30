@@ -46,8 +46,9 @@ public sealed class SagaOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new SagaOptions();
 
-		// Assert
-		options.EnableAutomaticCleanup.ShouldBeTrue();
+		// Assert — defaults false: automatic-cleanup enforcement is carved (bd-5wbdns) and not yet wired,
+		// so the toggle is honestly off by default (8wq7pa); explicit true fails loud at startup.
+		options.EnableAutomaticCleanup.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -78,16 +79,6 @@ public sealed class SagaOptionsShould : UnitTestBase
 
 		// Assert
 		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
-	}
-
-	[Fact]
-	public void HaveCorrectDefaultEnableOptimisticConcurrency()
-	{
-		// Arrange & Act
-		var options = new SagaOptions();
-
-		// Assert
-		options.EnableOptimisticConcurrency.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -181,16 +172,4 @@ public sealed class SagaOptionsShould : UnitTestBase
 		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
-	[Fact]
-	public void AllowDisablingOptimisticConcurrency()
-	{
-		// Arrange
-		var options = new SagaOptions();
-
-		// Act
-		options.EnableOptimisticConcurrency = false;
-
-		// Assert
-		options.EnableOptimisticConcurrency.ShouldBeFalse();
-	}
 }

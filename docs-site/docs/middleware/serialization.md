@@ -347,7 +347,7 @@ The built-in `SpanEventSerializer` implements `IEventSerializer` and wraps the p
 
 ```csharp
 // SpanEventSerializer delegates to the configured ISerializer
-// Prefers the current/default serializer (JSON-first per ADR-295),
+// Prefers the current/default serializer (JSON-first),
 // falls back to MemoryPack only if no current serializer is configured
 public SpanEventSerializer(ISerializerRegistry registry)
 {

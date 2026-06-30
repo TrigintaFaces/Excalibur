@@ -6,6 +6,7 @@ using System.Reflection;
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 
+using Excalibur.AuditLogging;
 using Excalibur.Data.ElasticSearch.Security;
 
 using Microsoft.Extensions.Logging.Abstractions;

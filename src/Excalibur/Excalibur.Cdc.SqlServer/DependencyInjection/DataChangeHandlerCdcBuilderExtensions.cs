@@ -11,7 +11,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods bridging data-change-handler assembly scanning onto
 /// <see cref="ICdcBuilder"/> so consumers configure CDC handlers inside a
-/// single <c>AddCdcProcessor(cdc =&gt; ...)</c> composition root (ADR-321).
+/// single <c>AddCdcProcessor(cdc =&gt;...)</c> composition root.
 /// </summary>
 public static class DataChangeHandlerCdcBuilderExtensions
 {

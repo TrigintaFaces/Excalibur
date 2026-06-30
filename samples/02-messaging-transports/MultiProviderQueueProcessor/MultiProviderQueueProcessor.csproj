@@ -8,7 +8,7 @@
     <!-- Suppress warnings irrelevant for sample code -->
     <NoWarn>$(NoWarn);CS8603;CA1724</NoWarn>
   </PropertyGroup>
-  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+ <!-- Updated paths for reorganized sample structure -->
   <!-- Dispatch Core -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />

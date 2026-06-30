@@ -35,7 +35,7 @@ public static class MessagePackSerializationExtensions
 	/// services.AddMessagePackSerializer();
 	/// </code>
 	/// <para>
-	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer (ADR-295).
+	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer.
 	/// Call this method to opt into MessagePack for high-performance binary serialization.
 	/// </para>
 	/// </remarks>
@@ -49,7 +49,12 @@ public static class MessagePackSerializationExtensions
 
 		var serializer = new MessagePackSerializer();
 
-		services.TryAddSingleton<ISerializer>(serializer);
+		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
+		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
+		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
+		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
+		services.RemoveAll<ISerializer>();
+		services.AddSingleton<ISerializer>(serializer);
 
 		services.PostConfigure<PluggableSerializationOptions>(options =>
 		{
@@ -79,7 +84,12 @@ public static class MessagePackSerializationExtensions
 
 		var serializer = new MessagePackSerializer(options);
 
-		services.TryAddSingleton<ISerializer>(serializer);
+		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
+		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
+		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
+		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
+		services.RemoveAll<ISerializer>();
+		services.AddSingleton<ISerializer>(serializer);
 
 		services.PostConfigure<PluggableSerializationOptions>(opts =>
 		{

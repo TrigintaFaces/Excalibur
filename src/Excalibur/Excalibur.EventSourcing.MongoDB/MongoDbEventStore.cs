@@ -245,21 +245,20 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
-			// Build documents with sequential versions
-			var documents = new List<MongoDbEventDocument>();
-			long firstPosition = 0;
+			// Reserve a contiguous block of global-sequence numbers with a SINGLE atomic Inc, rather than
+			// one FindOneAndUpdate round-trip per event. The block is [firstGlobalSequence ..
+			// firstGlobalSequence + count - 1], assigned to events in order.
+			var documents = new List<MongoDbEventDocument>(eventList.Count);
 			var version = currentVersion;
+			var firstGlobalSequence = await ReserveGlobalSequenceBlockAsync(eventList.Count, cancellationToken)
+				.ConfigureAwait(false);
+			var firstPosition = firstGlobalSequence;
+			var globalSequence = firstGlobalSequence;
 
 			foreach (var @event in eventList)
 			{
 				version++;
-				var globalSequence = await GetNextGlobalSequenceAsync(cancellationToken).ConfigureAwait(false);
 				var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
-
-				if (firstPosition == 0)
-				{
-					firstPosition = globalSequence;
-				}
 
 				var eventData = SerializeEventWithEnvelopeSupport(@event, aggregateId, aggregateType, version);
 				var metadata = @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null;
@@ -276,6 +275,8 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 					OccurredAt = @event.OccurredAt,
 					GlobalSequence = globalSequence
 				});
+
+				globalSequence++;
 			}
 
 			// Use ordered insert - stops at first failure
@@ -423,10 +424,15 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		return latestEvent?.Version ?? -1;
 	}
 
-	private async Task<long> GetNextGlobalSequenceAsync(CancellationToken cancellationToken)
+	/// <summary>
+	/// Atomically reserves a contiguous block of <paramref name="count"/> global-sequence numbers with a
+	/// single <c>Inc</c>, returning the first number in the reserved block. Replaces per-event counter
+	/// round-trips: one append reserves its whole range in one operation.
+	/// </summary>
+	private async Task<long> ReserveGlobalSequenceBlockAsync(int count, CancellationToken cancellationToken)
 	{
 		var filter = Builders<MongoDbCounterDocument>.Filter.Eq(d => d.Id, GlobalSequenceCounterId);
-		var update = Builders<MongoDbCounterDocument>.Update.Inc(d => d.Sequence, 1);
+		var update = Builders<MongoDbCounterDocument>.Update.Inc(d => d.Sequence, count);
 		var options = new FindOneAndUpdateOptions<MongoDbCounterDocument> { ReturnDocument = ReturnDocument.After, IsUpsert = true };
 
 		var result = await _countersCollection!.FindOneAndUpdateAsync(
@@ -435,7 +441,9 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			options,
 			cancellationToken).ConfigureAwait(false);
 
-		return result.Sequence;
+		// ReturnDocument.After yields the post-increment value = the LAST number in the reserved block;
+		// the first is (last - count + 1).
+		return result.Sequence - count + 1;
 	}
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)

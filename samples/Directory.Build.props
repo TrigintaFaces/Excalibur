@@ -1,6 +1,6 @@
 <Project>
   <!-- ============================================================================================
-       Sprint 325 T0.2: Project Classification Metadata (AD-325-2)
+ Project Classification Metadata
        ============================================================================================
        All projects under samples/ are classified as "Sample" by default.
        - IsSampleProject=true (custom marker for CI validation)
@@ -18,13 +18,13 @@
     <!-- CA1852: Type can be sealed (sample helper types) -->
     <!-- CA1859: Change return type for performance (sample fixtures) -->
     <!-- IL2026: RequiresUnreferencedCode (AOT not required for samples) -->
-    <!-- NU1510: net10 SDK package-pruning hint (informational; per-package cleanup tracked by S797 Workstream B) -->
+ <!-- NU1510: net10 SDK package-pruning hint (informational; per-package cleanup tracked by Workstream B) -->
     <!-- CA1873: Avoid expensive log arguments (sample demo code; consistent with src NoWarn) -->
     <NoWarn>$(NoWarn);CS1591;CS8604;CS8625;CA1812;CA1852;CA1859;IL2026;NU1510;CA1873;CA1308;CA2000;CA1724;CA1861</NoWarn>
   </PropertyGroup>
 
   <!-- ============================================================================================
-       Sprint 428 S428.6: Path Configuration for Reorganized Sample Structure
+ Path Configuration for Reorganized Sample Structure
        ============================================================================================
        Samples are now organized in numbered categories (01-getting-started, 02-messaging-transports, etc.)
        These paths allow samples to reference main source projects regardless of nesting depth.

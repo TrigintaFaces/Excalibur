@@ -15,7 +15,7 @@ namespace Excalibur.EventSourcing.Sharding;
 /// validator via DI when tenant sharding is enabled and the consumer registers
 /// only the ShardMapOptions (no <see cref="ITenantShardMap"/>). The optional
 /// <see cref="ITenantShardMap"/> dependency keeps the validator usable in
-/// single-tenant or deferred-registration scenarios. [bd-20ft0e]
+/// single-tenant or deferred-registration scenarios.
 /// </remarks>
 public sealed class ShardMapOptionsValidator : IValidateOptions<ShardMapOptions>
 {

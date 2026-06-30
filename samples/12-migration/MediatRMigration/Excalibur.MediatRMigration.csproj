@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    EPIC w2zq7d / FR-18 / AC-13 — Ported MediatR sample (WS1 proof).
+
+    This is an ordinary incumbent-MediatR-style application. The ONLY changes required to migrate it
+    onto Excalibur.Dispatch were the mechanical ones the WS2 analyzer code-fixes perform:
+      1. `using MediatR;`            -> `using Excalibur.Dispatch.Compat.MediatR;`
+      2. `services.AddMediatR(...)`  -> `services.AddMediatRCompat(...)`
+    No handler/request/notification/behavior source changed (swap-only source compatibility).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>MediatRMigration</RootNamespace>
+
+    <!--
+ AOT validation gate (/ NFR-1 / AC-4). PublishAot is set HERE (per-project), never via a
+      global `-p:PublishAot=true` CLI flag — that cascades to the netstandard2.0 source-generator
+      projects and fails with NETSDK1207 (see eng/ci/Invoke-AotPublishValidation.ps1). The compat
+      dispatch path is reflection-free (source-gen registration + closed bridges), so the ported sample
+      must publish AOT with zero IL trim/AOT warnings — no JSON-reflection escape hatch.
+    -->
+    <PublishAot>true</PublishAot>
+    <TrimMode>full</TrimMode>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+  </PropertyGroup>
+
+  <!--
+    A consumer migrating off MediatR adds a single package reference:
+    Excalibur.Dispatch.Compat.MediatR. It transitively brings canonical Excalibur.Dispatch and the
+ AOT-safe source generator (packed as an analyzer asset, §9 Option B2).
+  -->
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Compat.MediatR\Excalibur.Dispatch.Compat.MediatR.csproj" />
+    <!--
+ The AOT-safe compat source generator (§9 Option B2) is packed as an analyzer asset
+      inside the Compat.MediatR NuGet, but for a PROJECT reference it must be referenced explicitly as
+      an analyzer so it runs for this consumer (emits the handler registrations the dispatch path uses
+      — no runtime reflection). A NuGet consumer gets this transitively from the Compat.MediatR package.
+    -->
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Compat.MediatR.SourceGenerators\Excalibur.Dispatch.Compat.MediatR.SourceGenerators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+  </ItemGroup>
+
+</Project>

@@ -622,6 +622,11 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 			doc["causationId"] = message.CausationId;
 		}
 
+		if (!string.IsNullOrEmpty(message.TenantId))
+		{
+			doc["tenantId"] = message.TenantId;
+		}
+
 		if (message.PublishedAt.HasValue)
 		{
 			doc["publishedAt"] = message.PublishedAt.Value.ToString("o");
@@ -651,6 +656,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 			AggregateType = doc.ContainsField("aggregateType") ? doc.GetValue<string?>("aggregateType") : null,
 			CorrelationId = doc.ContainsField("correlationId") ? doc.GetValue<string?>("correlationId") : null,
 			CausationId = doc.ContainsField("causationId") ? doc.GetValue<string?>("causationId") : null,
+			TenantId = doc.ContainsField("tenantId") ? doc.GetValue<string?>("tenantId") : null,
 			CreatedAt = DateTimeOffset.Parse(doc.GetValue<string>("createdAt"), CultureInfo.InvariantCulture),
 			PublishedAt = doc.ContainsField("publishedAt") && doc.GetValue<string?>("publishedAt") != null
 				? DateTimeOffset.Parse(doc.GetValue<string>("publishedAt"), CultureInfo.InvariantCulture)

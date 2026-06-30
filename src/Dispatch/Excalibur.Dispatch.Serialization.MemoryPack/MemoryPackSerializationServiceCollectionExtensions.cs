@@ -37,7 +37,7 @@ public static class MemoryPackSerializationServiceCollectionExtensions
 	/// services.AddMemoryPackSerializer();
 	/// </code>
 	/// <para>
-	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer (ADR-295).
+	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer.
 	/// Call this method to opt into MemoryPack for high-performance binary serialization
 	/// in .NET-only environments. Consumer event types do not need <c>[MemoryPackable]</c> —
 	/// only the internal envelope wrapper uses MemoryPack attributes.
@@ -54,7 +54,12 @@ public static class MemoryPackSerializationServiceCollectionExtensions
 		var serializer = new MemoryPackSerializer();
 
 		// DI registrations
-		services.TryAddSingleton<ISerializer>(serializer);
+		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
+		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
+		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
+		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
+		services.RemoveAll<ISerializer>();
+		services.AddSingleton<ISerializer>(serializer);
 		services.TryAddSingleton<IBinaryEnvelopeDeserializer, MemoryPackEnvelopeDeserializer>();
 
 		// Serializer registry: register MemoryPack and set as current
