@@ -50,7 +50,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
       - name: Download unit coverage artifacts
@@ -108,7 +108,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout base branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.pr-base-sha }}
           path: base
@@ -367,7 +367,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
 
@@ -456,7 +456,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
       - name: Create coverage baseline markdown
