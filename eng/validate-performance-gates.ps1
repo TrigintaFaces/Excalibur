@@ -76,7 +76,12 @@ param(
     [int]$PersistenceBackgroundCdcMinimumRows = 3,
 
     [Parameter(Mandatory = $false)]
-    [int]$PersistenceBackgroundDeliveryMinimumRows = 18,
+    # 12 = 3 benchmark methods x 2 batch sizes x 2 delivery guarantees, the current shape of
+    # DeliveryGuaranteeBenchmarks. This was 18 (x3 guarantees) until TransactionalWhenApplicable was
+    # cut as dead; the benchmark's [Params] dropped to AtLeastOnce and MinimizedWindow but this floor
+    # was not updated with it, so the gate demanded rows the benchmark can no longer emit. Keep this
+    # equal to methods x batch sizes x [Params] guarantees whenever any of the three changes.
+    [int]$PersistenceBackgroundDeliveryMinimumRows = 12,
 
     [Parameter(Mandatory = $false)]
     [bool]$RequireBenchmarkSummaryMetadata = $true,

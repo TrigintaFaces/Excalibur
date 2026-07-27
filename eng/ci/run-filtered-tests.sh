@@ -39,6 +39,7 @@ set -uo pipefail
 
 readonly E_OK=0
 readonly E_ENV=2
+readonly E_ZERO_EXECUTED=3
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -97,9 +98,21 @@ if [ "$TEST_EXIT" -ne 0 ]; then
     exit "$TEST_EXIT"
 fi
 
-if [ "$ASSERT_EXIT" -ne 0 ]; then
+# The assertion has exactly one finding it is entitled to report: E_ZERO_EXECUTED. Any OTHER non-zero
+# means the assertion did not run or malfunctioned -- 126 (found, not executable), 127 (not found), a
+# crash. Those are REFUSALS, and reporting them as "executed NOTHING" states a finding that was never
+# made: the run above may have executed and passed hundreds of tests. A gate that cannot run must say
+# so, never invent a specific result. Both still fail closed; only the diagnosis differs.
+if [ "$ASSERT_EXIT" -eq "$E_ZERO_EXECUTED" ]; then
     echo "[run-filtered-tests] the run reported success having executed NOTHING — treating as a failure, not a pass." >&2
-    exit "$ASSERT_EXIT"
+    exit "$E_ZERO_EXECUTED"
+fi
+
+if [ "$ASSERT_EXIT" -ne 0 ]; then
+    echo "[run-filtered-tests] REFUSE: could not evaluate whether tests executed —" \
+         "'$SELF_DIR/assert-tests-executed.sh' exited $ASSERT_EXIT (126=not executable, 127=not found)." \
+         "This is NOT a finding about the test run, which reported exit $TEST_EXIT." >&2
+    exit "$E_ENV"
 fi
 
 exit "$E_OK"

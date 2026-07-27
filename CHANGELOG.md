@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The workflow code-fix package now builds.** `Excalibur.Workflows.CodeFixes` pinned Roslyn 4.14.0
+  while the analyzer package it depends on resolved 5.3.0, so it linked an assembly built against a
+  version it did not load and the build failed on an unresolvable assembly conflict. Both now compile
+  against Roslyn 5.3.0, with `System.Collections.Immutable` unified alongside it. A code-fix provider
+  and the analyzer whose diagnostics it fixes have to agree on one Roslyn version; they now do.
+  If you consume the workflow analyzers, they require a toolchain new enough for Roslyn 5.3.
+
 ### Removed
 
 - **The outbox cleanup builder and its retention settings.** No store read the values. A validator

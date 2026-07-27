@@ -113,9 +113,20 @@ _list_cs() {
 # for every fragment that is never placed into SQL. One awk process per file, no per-name greps.
 _scan() {
     awk '
-        function classify(buf) {
+        function classify(buf,   prefix) {
             if (buf ~ /\$"/) return 0                                             # assembled command, not a fragment
             if (buf !~ /"/)  return 0
+            # A fragment is a literal AWAITING placement. If the literal sits inside a method call --
+            # `var rows = await conn.QueryAsync<T>("SELECT ... WHERE tenant_id = @TenantId", ...)` --
+            # then the SQL is being CONSUMED here, not stored for later interpolation, and the variable
+            # holds the RESULT (rows), not a clause. Such a variable can never be "interpolated into
+            # SQL", so classifying it as a fragment yields a finding no code change can clear except
+            # renaming the variable. Discriminate on whether an INVOCATION precedes the literal:
+            #   fragment  `= scope.IsScoped ? " AND X = :T" : string.Empty`   no call before the quote
+            #   fragment  `= (cond) ? " AND X = :T" : ""`                     bare paren is not a call
+            #   consumed  `= await c.QueryAsync<T>("... WHERE X = @T", ...)`  identifier+( before quote
+            prefix = substr(buf, 1, index(buf, "\"") - 1)
+            if (prefix ~ /[A-Za-z_][A-Za-z0-9_]*[ \t]*(<[^>]*>[ \t]*)?\(/) return 0
             if (buf ~ /"[ \t]*(AND|OR|WHERE)[ \t]+[A-Za-z_][A-Za-z0-9_.]*[ \t]*=[ \t]*[@:]/) return 1  # bound predicate
             if (buf ~ /"[ \t]*,[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*"/) return 1                            # column injection
             return 0

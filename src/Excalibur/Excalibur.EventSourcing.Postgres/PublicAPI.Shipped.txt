@@ -55,7 +55,9 @@ Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.SnapshotStoreTabl
 Excalibur.EventSourcing.Postgres.PostgresCursorMapStore
 Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.GetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, long>!>!
 Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.PostgresCursorMapStore(Npgsql.NpgsqlDataSource! dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresCursorMapStore!>! logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.PostgresCursorMapStore(Npgsql.NpgsqlDataSource! dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresCursorMapStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext) -> void
 Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.PostgresCursorMapStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresCursorMapStore!>! logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.PostgresCursorMapStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresCursorMapStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext) -> void
 Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.ResetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.SaveCursorMapAsync(string! projectionName, System.Collections.Generic.IReadOnlyDictionary<string!, long>! cursorMap, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Postgres.PostgresEventStore

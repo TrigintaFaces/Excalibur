@@ -54,15 +54,24 @@ fi
 # Each runs only when its own subject is staged. A lock that fires on every commit is a lock that
 # gets bypassed; one that fires when you change the thing it guards is a lock that gets read.
 staged_paths="$(git diff --cached --name-only --diff-filter=ACM)"
-for guard in single-filing-path duplicate-xml-doc-tags decomposition-coverage-gate; do
+# "<dir>:<guard>" — the guards do NOT all live in one directory. single-filing-path and
+# decomposition-coverage-gate enforce AGENT-PROCESS policy (which command files an issue; whether a
+# sprint decomposition still covers its spec), they are invoked only by this hook, and eng/** is
+# mirrored to a public repository — so they live in .claude/harness/ with the other bd/agent guards.
+# duplicate-xml-doc-tags is a product gate wired into CI and stays in eng/ci/.
+for entry in ".claude/harness:single-filing-path" \
+             "eng/ci:duplicate-xml-doc-tags" \
+             ".claude/harness:decomposition-coverage-gate"; do
+    guard_dir="${entry%%:*}"
+    guard="${entry##*:}"
     case "$staged_paths" in
-        *"eng/ci/$guard.sh"*|*"eng/ci/$guard.test.sh"*)
+        *"$guard_dir/$guard.sh"*|*"$guard_dir/$guard.test.sh"*)
             echo -e "${CYAN}Staged $guard — proving its lock is non-vacuous...${NC}"
             # Three-state, matching the discipline this file already documents for the bd guards
             # below: a lock that FAILED TO RUN has not told us the lock is broken. Reporting
             # "its own lock no longer holds" on a timeout or a parse error is a FALSE ACCUSATION
             # against the committer, and it sends them hunting a defect that is not there.
-            bash "$REPO_ROOT/eng/ci/$guard.test.sh" && lock_rc=0 || lock_rc=$?
+            bash "$REPO_ROOT/$guard_dir/$guard.test.sh" && lock_rc=0 || lock_rc=$?
             case "$lock_rc" in
                 0)
                     echo -e "${GREEN}✓ $guard.test.sh GREEN${NC}"
@@ -80,7 +89,7 @@ for guard in single-filing-path duplicate-xml-doc-tags decomposition-coverage-ga
                     echo -e "${RED}✗ COMMIT REFUSED: $guard.test.sh could not be evaluated (exit ${lock_rc}).${NC}" >&2
                     echo -e "${RED}  This is NOT 'your lock is broken' — the lock never ran, so nothing${NC}" >&2
                     echo -e "${RED}  was proven either way. Run it directly to see why:${NC}" >&2
-                    echo -e "${CYAN}    bash eng/ci/$guard.test.sh${NC}" >&2
+                    echo -e "${CYAN}    bash $guard_dir/$guard.test.sh${NC}" >&2
                     exit 1
                     ;;
             esac
@@ -324,7 +333,7 @@ esac
 # commit staging the spec is exactly the moment to re-derive.
 case "$staged_paths" in
     *"management/specs/sprint-"*)
-        DECOMP_GATE="$REPO_ROOT/eng/ci/decomposition-coverage-gate.sh"
+        DECOMP_GATE="$REPO_ROOT/.claude/harness/decomposition-coverage-gate.sh"
         if [ -f "$DECOMP_GATE" ]; then
             echo -e "${CYAN}Staged a sprint spec/decomposition — checking coverage...${NC}"
             bash "$DECOMP_GATE" && dcrc=0 || dcrc=$?

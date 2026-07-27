@@ -40,9 +40,30 @@
     <PackageReference Remove="Roslynator.Analyzers" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" PrivateAssets="all" />
+    <!--
+      This project sets ManagePackageVersionsCentrally=false (above), so these versions MUST be
+      pinned here and MUST be kept equal to the Roslyn version the sibling Analyzers project
+      resolves from central package management (Directory.Packages.props). They were 4.14.0 while
+      Analyzers was on 5.3.0, so this project loaded Microsoft.CodeAnalysis 4.14.0 while linking the
+      Analyzers assembly built against 5.3.0 (project-referenced below for the shared EXWF diagnostic
+      id constants). MSB3277 reports that as an unresolvable conflict and the build fails.
+
+      A code-fix provider and the analyzer whose diagnostics it fixes must compile against ONE Roslyn
+      version. Because this side is pinned and the other is central, they do not move together: when
+      Directory.Packages.props changes Microsoft.CodeAnalysis, change these three to match.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.3.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" PrivateAssets="all" />
+    <!--
+      Unifies System.Collections.Immutable. Microsoft.CodeAnalysis.Common 5.3.0 brings 9.0.0
+      transitively, while the project-referenced Analyzers assembly is built against 10.0.0 from
+      central package management. That is a second MSB3277 conflict, distinct from the Roslyn one
+      above: locally it is only a warning, but CI escalates warnings to errors, so it fails there and
+      not here. Keep this equal to the System.Collections.Immutable version in
+      Directory.Packages.props.
+    -->
+    <PackageReference Include="System.Collections.Immutable" Version="10.0.7" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
     <!-- Shares the EXWF diagnostic ID constants (FixableDiagnosticIds); compile-time only, not packed. -->
